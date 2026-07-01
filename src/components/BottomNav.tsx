@@ -42,7 +42,13 @@ export default function BottomNav() {
   const items = isLoggedIn ? navItems : publicNavItems;
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-white/[0.08] bg-[#07070F]/90 backdrop-blur-2xl pb-[env(safe-area-inset-bottom)]">
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-2xl pb-[env(safe-area-inset-bottom)]"
+      style={{
+        background: 'rgba(10, 5, 8, 0.85)',
+        borderTop: '1px solid rgba(201, 166, 107, 0.25)',
+      }}
+    >
       <div className="mx-auto flex max-w-lg items-center justify-center gap-1 px-2 py-1.5">
         {items.map((item) => {
           const active = pathname === item.href || pathname?.startsWith(item.href + '/');
@@ -53,11 +59,14 @@ export default function BottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-4 py-1.5 text-xs transition-all duration-200 rounded-lg min-w-[60px]',
+                'flex flex-col items-center gap-0.5 px-4 py-1.5 text-xs transition-all duration-200 min-w-[60px] relative',
                 active
-                  ? 'text-[#FF2D78]'
-                  : 'text-[#8B8BA3] hover:text-[#FF6BA6]',
+                  ? 'text-[#C9A66B]'
+                  : 'text-[#8B6F4D] hover:text-[#C9A66B]',
               )}
+              style={active ? {
+                textShadow: '0 0 12px rgba(201, 166, 107, 0.4)',
+              } : {}}
             >
               <Icon className={cn('h-5 w-5', active && 'fill-[#FF2D78]/20')} />
               <span className="text-[10px] leading-tight font-medium">
