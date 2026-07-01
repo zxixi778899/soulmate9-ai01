@@ -8,6 +8,10 @@ import { Toaster } from '@/components/ui/sonner';
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from '@/lib/constants';
 import './globals.css';
 
+// Force all routes dynamic at build time — prevents prerender from triggering Supabase client init
+// (build env doesn't have env vars, runtime does)
+export const dynamic = 'force-dynamic';
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
