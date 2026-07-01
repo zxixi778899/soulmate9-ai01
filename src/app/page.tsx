@@ -70,29 +70,6 @@ export default function PublicLandingPage() {
   const [countdown, setCountdown] = useState(179);
   const [heroIdx, setHeroIdx] = useState(0);
 
-  // IntersectionObserver for vn-fade-in elements
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('vn-in');
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.1, rootMargin: '0px 0px -10% 0px' }
-    );
-    // observe all .vn-fade-in after mount
-    const timer = setTimeout(() => {
-      document.querySelectorAll('.vn-fade-in').forEach((el) => observer.observe(el));
-    }, 100);
-    return () => {
-      observer.disconnect();
-      clearTimeout(timer);
-    };
-  }, []);
-
   useEffect(() => {
     const fetchGirlfriends = async () => {
       try {
@@ -170,65 +147,27 @@ export default function PublicLandingPage() {
   return (
     <>
       <AgeVerification />
-      <div className="vn-holo-bg min-h-screen text-[#F5E8D3] pb-20 md:pb-0 relative">
-      {/* Vignette overlay — covers full page for noir atmosphere */}
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute inset-0 vn-vignette" />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(ellipse 80% 50% at center 20%, rgba(201, 166, 107, 0.05) 0%, transparent 60%)',
-          }}
-        />
-      </div>
-      <div className="relative z-10">
+      <div className="min-h-screen text-[#F0F0F5] pb-20 md:pb-0">
         {/* Navbar — glass bar */}
-        <header
-          className="fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl"
-          style={{
-            background: 'linear-gradient(180deg, rgba(10, 5, 8, 0.75) 0%, rgba(10, 5, 8, 0.4) 100%)',
-            borderBottom: '1px solid rgba(201, 166, 107, 0.2)',
-          }}
-        >
+        <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.06] bg-[#07070F]/70 backdrop-blur-2xl">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-9 h-9 rounded-md flex items-center justify-center relative"
-                style={{
-                  background: 'linear-gradient(135deg, #C9A66B 0%, #8B6F4D 100%)',
-                  boxShadow: '0 0 20px rgba(201, 166, 107, 0.25)',
-                }}
-              >
-                <Heart className="w-4 h-4 text-[#0A0508] fill-[#0A0508]" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FF2D78] to-[#d946ef] flex items-center justify-center shadow-[0_0_15px_rgba(255,45,120,0.3)]">
+                <Heart className="w-4 h-4 text-white fill-white" />
               </div>
-              <div className="flex flex-col leading-none">
-                <span
-                  className="text-lg tracking-[0.2em] uppercase"
-                  style={{
-                    fontFamily: 'Playfair Display, serif',
-                    fontWeight: 700,
-                    color: '#C9A66B',
-                  }}
-                >
-                  SoulMate
-                </span>
-                <span className="text-[9px] tracking-[0.3em] uppercase text-[#8B6F4D] mt-0.5">
-                  Velvet Noir
-                </span>
-              </div>
+              <span className="font-semibold text-lg tracking-tight">{APP_NAME}</span>
             </div>
             <div className="hidden md:flex items-center gap-1 mx-auto">
               <DynamicNav />
               {!user && (
                 <>
-                  <Link href="/" className="px-3 py-2 text-sm transition-colors" style={{ color: '#C9A66B', borderBottom: '1px solid #C9A66B' }}>
+                  <Link href="/" className="px-3 py-2 text-sm rounded-lg transition-colors text-[#FF2D78] bg-[#FF2D78]/10">
                     Home
                   </Link>
-                  <Link href="/login" className="px-3 py-2 text-sm transition-colors text-[#8B6F4D] hover:text-[#F5E8D3]">
+                  <Link href="/login" className="px-3 py-2 text-sm rounded-lg transition-colors text-[#8B8BA3] hover:text-[#F0F0F5] hover:bg-white/[0.06]">
                     Explore
                   </Link>
-                  <Link href="/pricing" className="px-3 py-2 text-sm transition-colors text-[#8B6F4D] hover:text-[#F5E8D3]">
+                  <Link href="/pricing" className="px-3 py-2 text-sm rounded-lg transition-colors text-[#8B8BA3] hover:text-[#F0F0F5] hover:bg-white/[0.06]">
                     Pricing
                   </Link>
                 </>
@@ -317,21 +256,15 @@ export default function PublicLandingPage() {
               <LanguageSwitcher variant="compact" />
               <Button
                 variant="ghost"
-                className="text-sm text-[#8B6F4D] hover:text-[#C9A66B] transition-colors"
+                className="text-sm text-[#8B8BA3] hover:text-[#FF6BA6]"
                 onClick={() => router.push('/login')}
               >
                 {t('hero.signIn')}
               </Button>
               <Button
                 onClick={handleGetStarted}
-                className="text-sm font-medium h-9 px-5 rounded-md tracking-wider uppercase transition-all duration-300"
-                style={{
-                  background: 'linear-gradient(135deg, #C9A66B 0%, #8B6F4D 100%)',
-                  color: '#0A0508',
-                  boxShadow: '0 4px 20px rgba(201, 166, 107, 0.25)',
-                  fontFamily: 'Playfair Display, serif',
-                  fontWeight: 700,
-                }}
+                variant="glow"
+                className="text-sm font-medium h-9 px-5 rounded-lg"
               >
                 {t('hero.getStarted')}
               </Button>
@@ -339,202 +272,64 @@ export default function PublicLandingPage() {
           </div>
         </header>
 
-        {/* Hero Section — Velvet Noir + Holographic */}
-        <section className="relative pt-32 pb-24 px-6 overflow-hidden min-h-[88vh] flex items-center">
-          {/* Vignette spotlight — directional, off-center */}
-          <div className="pointer-events-none absolute inset-0">
-            <div
-              className="absolute"
-              style={{
-                top: '15%',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: '900px',
-                height: '900px',
-                background: 'radial-gradient(circle, rgba(201, 166, 107, 0.08) 0%, rgba(61, 14, 26, 0.3) 30%, transparent 60%)',
-                filter: 'blur(40px)',
-              }}
-            />
-          </div>
-
-          <div className="max-w-5xl mx-auto text-center relative z-10 w-full">
-            {/* Eyebrow — letter-spaced label */}
-            <div
-              className="vn-fade-in inline-flex items-center gap-3 px-5 py-2"
-              style={{
-                border: '1px solid rgba(201, 166, 107, 0.35)',
-                background: 'rgba(10, 5, 8, 0.4)',
-                backdropFilter: 'blur(20px)',
-              }}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full bg-[#C9A66B]"
-                style={{ boxShadow: '0 0 12px #C9A66B', animation: 'vn-breathe 2s ease-in-out infinite' }}
-              />
-              <span
-                className="text-[10px] tracking-[0.4em] uppercase"
-                style={{ color: '#C9A66B', fontFamily: 'Space Grotesk, sans-serif', fontWeight: 500 }}
-              >
-                Velvet Noir · Live · 18+
-              </span>
+        {/* Hero Section — dark starry + pink glow + H5 dynamic entry */}
+        <section className="pt-32 pb-20 px-6 relative overflow-hidden">
+          <div className="absolute -top-40 -right-40 w-96 h-96 bg-[#FF2D78]/8 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#8b5cf6]/6 rounded-full blur-3xl pointer-events-none" />
+          <div className="max-w-4xl mx-auto text-center relative z-10">
+            <div className="h5-enter h5-enter-1 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.05] border border-white/[0.10] backdrop-blur-sm text-xs font-mono-pretty tracking-wider text-[#FF6BA6] uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF2D78] h5-halo" /> Live · 18+ Only
             </div>
-
-            {/* Hero title — Playfair with RGB split */}
-            <h1
-              className="vn-fade-in mt-10 leading-[0.95]"
-              style={{
-                fontFamily: 'Playfair Display, serif',
-                fontWeight: 700,
-                fontSize: 'clamp(3.5rem, 9vw, 7.5rem)',
-                letterSpacing: '-0.02em',
-                animationDelay: '0.15s',
-              }}
-            >
-              <span className="block vn-rgb-text">
-                {t('landing.heroSection').split(' ').slice(0, -2).join(' ')}
-              </span>
-              <span
-                className="block italic mt-2"
-                style={{
-                  fontFamily: 'Playfair Display, serif',
-                  fontStyle: 'italic',
-                  fontWeight: 600,
-                  background: 'linear-gradient(135deg, #C9A66B 0%, #F5E8D3 50%, #C9A66B 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  fontSize: '0.7em',
-                }}
-              >
-                {t('landing.heroSection').split(' ').slice(-2).join(' ')}
-              </span>
+            <h1 className="h5-enter h5-enter-2 font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[1.02] mt-6">
+              <span className="block text-white/95">{t('landing.heroSection').split(' ').slice(0, -2).join(' ')}</span>
+              <span className="block gradient-text italic">{t('landing.heroSection').split(' ').slice(-2).join(' ')}</span>
             </h1>
-
-            {/* Dynamic tagline — Sora italic, slow color shift */}
-            <div
-              className="vn-fade-in mt-10 h-10 relative flex items-center justify-center"
-              style={{ animationDelay: '0.3s' }}
-            >
+            {/* Dynamic tagline carousel — 暧昧诱惑心智句 */}
+            <div className="h5-enter h5-enter-3 mt-8 h-10 relative flex items-center justify-center gap-2 text-xl md:text-2xl">
               {HERO_TAGLINES.map((line, i) => (
                 <span
                   key={line}
-                  className="absolute inset-0 flex items-center justify-center transition-all duration-700"
-                  style={{
-                    fontFamily: 'Sora, sans-serif',
-                    fontWeight: 300,
-                    fontStyle: 'italic',
-                    fontSize: 'clamp(1rem, 2vw, 1.5rem)',
-                    letterSpacing: '0.05em',
-                    color: i === heroIdx ? '#F5E8D3' : 'transparent',
-                    opacity: i === heroIdx ? 1 : 0,
-                    transform: i === heroIdx ? 'translateY(0)' : 'translateY(8px)',
-                  }}
+                  className={`absolute inset-0 flex items-center justify-center transition-all duration-700 font-heading ${
+                    i === heroIdx
+                      ? 'opacity-100 translate-y-0 bg-gradient-to-r from-[#FF2D78] via-[#d946ef] to-[#8b5cf6] bg-clip-text text-transparent font-semibold'
+                      : 'opacity-0 translate-y-3 pointer-events-none'
+                  }`}
                 >
-                  <span className="vn-bubble">「 {line} 」</span>
+                  {line}
                 </span>
               ))}
             </div>
-
-            <p
-              className="vn-fade-in mt-8 max-w-xl mx-auto leading-relaxed"
-              style={{
-                color: '#8B6F4D',
-                fontFamily: 'Sora, sans-serif',
-                fontWeight: 300,
-                fontSize: 'clamp(0.9rem, 1.2vw, 1rem)',
-                letterSpacing: '0.02em',
-                animationDelay: '0.45s',
-              }}
-            >
+            <p className="h5-enter h5-enter-4 mt-6 text-base md:text-lg text-[#8B8BA3] max-w-2xl mx-auto leading-relaxed font-sans">
               {t('landing.heroDesc')}
             </p>
-
-            {/* CTAs — gold primary + hairline secondary */}
-            <div
-              className="vn-fade-in mt-12 flex flex-col sm:flex-row items-center justify-center gap-4"
-              style={{ animationDelay: '0.6s' }}
-            >
-              <button
+            <div className="h5-enter h5-enter-5 mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+              <Button
                 onClick={() => document.getElementById('girl-grid')?.scrollIntoView({ behavior: 'smooth' })}
-                className="vn-shimmer relative h-14 px-10 tracking-[0.25em] uppercase transition-all duration-500"
-                style={{
-                  background: 'linear-gradient(135deg, #C9A66B 0%, #8B6F4D 100%)',
-                  color: '#0A0508',
-                  fontFamily: 'Playfair Display, serif',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  boxShadow: '0 8px 30px rgba(201, 166, 107, 0.3)',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
+                variant="glow"
+                size="xl"
+                className="h5-shine h5-halo font-heading uppercase tracking-wider"
               >
                 {t('hero.cta')}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => document.getElementById('girl-grid')?.scrollIntoView({ behavior: 'smooth' })}
-                className="h-14 px-10 tracking-[0.25em] uppercase transition-all duration-500"
-                style={{
-                  background: 'transparent',
-                  color: '#C9A66B',
-                  fontFamily: 'Sora, sans-serif',
-                  fontWeight: 400,
-                  fontSize: '0.85rem',
-                  border: '1px solid #C9A66B',
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(201, 166, 107, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
+                variant="outline"
+                size="xl"
+                className="font-heading uppercase tracking-wider"
               >
                 {t('landing.browseGirls')}
-              </button>
+              </Button>
             </div>
-
-            {/* Stats — bronze labels with gold numbers */}
-            <div
-              className="vn-fade-in mt-16 flex items-center justify-center gap-10 md:gap-16"
-              style={{ animationDelay: '0.75s' }}
-            >
-              {[
-                { value: '20M+', label: 'Messages' },
-                { value: '350+', label: 'AI Souls' },
-                { value: '99.9%', label: 'Always On' },
-              ].map((stat) => (
-                <div key={stat.label} className="flex flex-col items-center">
-                  <span
-                    style={{
-                      fontFamily: 'Playfair Display, serif',
-                      fontWeight: 700,
-                      fontSize: '1.75rem',
-                      color: '#C9A66B',
-                    }}
-                  >
-                    {stat.value}
-                  </span>
-                  <span
-                    className="mt-1 text-[10px] tracking-[0.3em] uppercase"
-                    style={{ color: '#8B6F4D', fontFamily: 'Space Grotesk, sans-serif' }}
-                  >
-                    {stat.label}
-                  </span>
-                </div>
-              ))}
+            <div className="h5-enter h5-enter-6 mt-8 flex items-center justify-center gap-6 text-xs text-[#8B8BA3]/70 font-mono-pretty tracking-wide">
+              <span className="flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> 20M+ Messages</span>
+              <span className="flex items-center gap-1.5"><Users className="w-3 h-3" /> 350+ Models</span>
+              <span className="flex items-center gap-1.5"><Activity className="w-3 h-3" /> 99.9% Uptime</span>
             </div>
           </div>
         </section>
 
         {/* Filter Bar — glass */}
-        <div
-          className="sticky top-16 z-40 backdrop-blur-2xl"
-          style={{
-            background: 'rgba(10, 5, 8, 0.6)',
-            borderTop: '1px solid rgba(201, 166, 107, 0.15)',
-            borderBottom: '1px solid rgba(201, 166, 107, 0.15)',
-          }}
-        >
+        <div className="sticky top-16 z-40 border-y border-white/[0.06] bg-[#07070F]/70 backdrop-blur-2xl">
           <div className="max-w-7xl mx-auto px-6 py-3 space-y-2">
             {/* Sort Tabs — glass buttons + pink highlight */}
             <div className="flex gap-2 overflow-x-auto scrollbar-none">
@@ -576,35 +371,8 @@ export default function PublicLandingPage() {
           </div>
         </div>
 
-        {/* The Collection */}
-        <section id="girl-grid" className="max-w-7xl mx-auto px-6 py-20 relative">
-          {/* Section header */}
-          <div className="text-center mb-16 vn-fade-in">
-            <div
-              className="inline-block text-[10px] tracking-[0.4em] uppercase mb-4"
-              style={{ color: '#C9A66B', fontFamily: 'Space Grotesk, sans-serif', fontWeight: 500 }}
-            >
-              — The Collection —
-            </div>
-            <h2
-              style={{
-                fontFamily: 'Playfair Display, serif',
-                fontWeight: 700,
-                fontSize: 'clamp(2rem, 4vw, 3.5rem)',
-                color: '#F5E8D3',
-                letterSpacing: '-0.01em',
-              }}
-            >
-              Meet Your <span style={{ fontStyle: 'italic', color: '#C9A66B' }}>Companions</span>
-            </h2>
-            <p
-              className="mt-4 max-w-md mx-auto"
-              style={{ color: '#8B6F4D', fontFamily: 'Sora, sans-serif', fontWeight: 300, fontSize: '0.95rem' }}
-            >
-              {filtered.length} {filtered.length === 1 ? 'soul awaits' : 'souls await'}
-            </p>
-          </div>
-
+        {/* Girlfriend Grid */}
+        <section id="girl-grid" className="max-w-7xl mx-auto px-6 py-10">
           {loading ? (
             <div className="flex items-center justify-center py-32">
               <Loader2 className="w-8 h-8 text-[#FF2D78] animate-spin" />
@@ -622,24 +390,17 @@ export default function PublicLandingPage() {
                     onMouseEnter={() => setHoveredCard(gf.id)}
                     onMouseLeave={() => setHoveredCard(null)}
                     onClick={() => setSelectedCard(selectedCard === gf.id ? null : gf.id)}
-                    className={`vn-hairline group relative overflow-hidden cursor-pointer ${
+                    style={{ animationDelay: `${(idx % 8) * 0.06}s` }}
+                    className={`h5-rise h5-card-lift group bg-white/[0.03] backdrop-blur-xl border rounded-xl overflow-hidden cursor-pointer ${
                       selectedCard === gf.id
-                        ? 'shadow-[0_0_30px_rgba(201,166,107,0.2)]'
-                        : ''
+                        ? 'border-[#FF2D78]/50 shadow-[0_0_25px_rgba(255,45,120,0.15)] ring-1 ring-[#FF2D78]/30'
+                        : 'border-white/[0.06]'
                     }`}
-                    style={{
-                      animationDelay: `${(idx % 8) * 0.06}s`,
-                      background: 'rgba(10, 5, 8, 0.4)',
-                      backdropFilter: 'blur(20px)',
-                    }}
                   >
                     {/* Portrait area — 3:4 aspect */}
                     <div
                       onClick={() => handleCardClick(gf.slug)}
-                      className="relative aspect-[3/4] overflow-hidden"
-                      style={{
-                        background: 'linear-gradient(180deg, rgba(61, 14, 26, 0.2) 0%, rgba(10, 5, 8, 0.6) 100%)',
-                      }}
+                      className="relative aspect-[3/4] bg-gradient-to-b from-white/[0.05] to-[#FF2D78]/5 overflow-hidden"
                     >
                       {(() => {
                         const imgUrl = gf.image_url || gf.portrait_url || gf.avatar_url;
@@ -654,27 +415,15 @@ export default function PublicLandingPage() {
                           />
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <div
-                              className="w-20 h-20 rounded-full flex items-center justify-center"
-                              style={{
-                                background: 'radial-gradient(circle, rgba(201, 166, 107, 0.15) 0%, transparent 70%)',
-                                border: '1px solid rgba(201, 166, 107, 0.3)',
-                              }}
-                            >
-                              <Heart className="w-8 h-8" style={{ color: 'rgba(201, 166, 107, 0.4)' }} />
+                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#FF2D78]/20 to-[#d946ef]/20 flex items-center justify-center">
+                              <Heart className="w-8 h-8 text-[#FF2D78]/40" />
                             </div>
                           </div>
                         );
                       })()}
 
                       {/* Frosted glass bottom panel */}
-                      <div
-                        className="absolute inset-x-0 bottom-0 backdrop-blur-xl"
-                        style={{
-                          background: 'linear-gradient(180deg, rgba(10, 5, 8, 0.6) 0%, rgba(10, 5, 8, 0.95) 100%)',
-                          borderTop: '1px solid rgba(201, 166, 107, 0.25)',
-                        }}
-                      >
+                      <div className="absolute inset-x-0 bottom-0 backdrop-blur-xl bg-black/30 border-t border-white/[0.10]">
                         {/* Name & tags row */}
                         <div className="px-3 pt-2.5 pb-1.5">
                           <div className="flex items-center justify-between">
@@ -718,19 +467,8 @@ export default function PublicLandingPage() {
 
                       {/* Live indicator */}
                       {isGirlLive(gf.id) && (
-                        <span
-                          className="absolute top-3 right-3 flex items-center gap-1 text-[9px] px-2.5 py-1 rounded-full font-bold backdrop-blur-sm tracking-[0.2em]"
-                          style={{
-                            background: 'rgba(201, 166, 107, 0.15)',
-                            color: '#C9A66B',
-                            border: '1px solid rgba(201, 166, 107, 0.4)',
-                            fontFamily: 'Space Grotesk, sans-serif',
-                          }}
-                        >
-                          <span
-                            className="w-1 h-1 rounded-full bg-[#C9A66B]"
-                            style={{ boxShadow: '0 0 8px #C9A66B' }}
-                          />
+                        <span className="absolute top-3 right-3 flex items-center gap-1 bg-[#FF2D78]/20 text-[#FF2D78] text-[10px] px-2 py-0.5 rounded-full font-bold backdrop-blur-sm ring-1 ring-[#FF2D78]/40">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#FF2D78] animate-pulse" />
                           LIVE
                         </span>
                       )}
@@ -748,136 +486,59 @@ export default function PublicLandingPage() {
           )}
         </section>
 
-        {/* Stats — editorial display */}
-        <section
-          className="h5-reveal py-20 my-12 relative"
-          style={{
-            borderTop: '1px solid rgba(201, 166, 107, 0.2)',
-            borderBottom: '1px solid rgba(201, 166, 107, 0.2)',
-          }}
-        >
-          <div className="max-w-5xl mx-auto px-6 grid grid-cols-3 gap-8 md:gap-12 text-center">
-            {[
-              { value: '20M+', label: 'Monthly Messages' },
-              { value: '350+', label: 'AI Souls' },
-              { value: '3M+', label: 'Monthly Visits' },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <div
-                  style={{
-                    fontFamily: 'Playfair Display, serif',
-                    fontWeight: 700,
-                    fontSize: 'clamp(2.5rem, 5vw, 4rem)',
-                    background: 'linear-gradient(135deg, #C9A66B 0%, #F5E8D3 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
-                  {stat.value}
-                </div>
-                <div
-                  className="mt-3 text-[10px] tracking-[0.3em] uppercase"
-                  style={{ color: '#8B6F4D', fontFamily: 'Space Grotesk, sans-serif' }}
-                >
-                  {stat.label}
-                </div>
-              </div>
-            ))}
+        {/* Stats Section — glass card */}
+        <section className="h5-reveal border-y border-white/[0.06] bg-white/[0.02] backdrop-blur-xl py-16 my-8">
+          <div className="max-w-4xl mx-auto px-6 grid grid-cols-3 gap-8 text-center">
+            <div>
+              <div className="font-mono-pretty text-3xl md:text-4xl font-bold bg-gradient-to-r from-[#FF2D78] to-[#d946ef] bg-clip-text text-transparent">20M+</div>
+              <div className="text-xs text-[#8B8BA3] mt-2 font-heading tracking-wider uppercase">Monthly Messages</div>
+            </div>
+            <div>
+              <div className="font-mono-pretty text-3xl md:text-4xl font-bold bg-gradient-to-r from-[#FF2D78] to-[#d946ef] bg-clip-text text-transparent">350+</div>
+              <div className="text-xs text-[#8B8BA3] mt-2 font-heading tracking-wider uppercase">AI Models</div>
+            </div>
+            <div>
+              <div className="font-mono-pretty text-3xl md:text-4xl font-bold bg-gradient-to-r from-[#FF2D78] to-[#d946ef] bg-clip-text text-transparent">3M+</div>
+              <div className="text-xs text-[#8B8BA3] mt-2 font-heading tracking-wider uppercase">Monthly Visits</div>
+            </div>
           </div>
         </section>
 
         {/* SEO + trust + process blocks */}
         <LandingSections />
 
-        {/* CTA — finale */}
-        <section className="h5-reveal py-32 px-6 text-center relative">
-          <div className="max-w-2xl mx-auto relative z-10">
-            <div
-              className="inline-block text-[10px] tracking-[0.4em] uppercase mb-6"
-              style={{ color: '#C9A66B', fontFamily: 'Space Grotesk, sans-serif', fontWeight: 500 }}
-            >
-              — Finale —
-            </div>
-            <h2
-              className="leading-[1.05]"
-              style={{
-                fontFamily: 'Playfair Display, serif',
-                fontWeight: 700,
-                fontSize: 'clamp(2.5rem, 6vw, 5rem)',
-                color: '#F5E8D3',
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Start Your{' '}
-              <span
-                style={{
-                  fontStyle: 'italic',
-                  background: 'linear-gradient(135deg, #C9A66B 0%, #F5E8D3 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                Story
-              </span>
-            </h2>
-            <p
-              className="mt-6"
-              style={{ color: '#8B6F4D', fontFamily: 'Sora, sans-serif', fontWeight: 300, fontSize: '1rem' }}
-            >
+        {/* CTA Section — pink glow + countdown */}
+        <section className="h5-reveal py-24 px-6 text-center">
+          <div className="max-w-2xl mx-auto">
+            <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tight gradient-text italic">Start Your Story</h2>
+            <p className="mt-6 text-[#8B8BA3] text-base md:text-lg">
               Meet your perfect AI companion today. No credit card required.
             </p>
-            <div
-              className="mt-8 inline-flex items-center gap-3 px-5 py-2"
-              style={{
-                border: '1px solid rgba(201, 166, 107, 0.3)',
-                background: 'rgba(10, 5, 8, 0.5)',
-                backdropFilter: 'blur(20px)',
-              }}
-            >
-              <Sparkles className="w-3.5 h-3.5" style={{ color: '#C9A66B' }} />
-              <span
-                className="font-medium tracking-wider"
-                style={{ color: '#C9A66B', fontFamily: 'Playfair Display, serif', fontStyle: 'italic' }}
-              >
-                70% Off
-              </span>
-              <span style={{ color: '#8B6F4D' }}>·</span>
-              <span style={{ color: '#F5E8D3', fontFamily: 'Sora, sans-serif' }} className="font-mono">
-                {formatCountdown(countdown)}
-              </span>
+            {/* Countdown badge — glass + amber */}
+            <div className="mt-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-full px-4 py-1.5 text-sm backdrop-blur-xl">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-amber-400 font-medium">70% Off</span>
+              <span className="text-[#8B8BA3]">•</span>
+              <span className="text-[#F0F0F5] font-mono">{formatCountdown(countdown)}</span>
             </div>
-            <button
+            <Button
               onClick={handleGetStarted}
-              className="vn-shimmer mt-10 h-14 px-12 tracking-[0.25em] uppercase transition-all duration-500"
-              style={{
-                background: 'linear-gradient(135deg, #C9A66B 0%, #8B6F4D 100%)',
-                color: '#0A0508',
-                fontFamily: 'Playfair Display, serif',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                boxShadow: '0 8px 30px rgba(201, 166, 107, 0.3)',
-                border: 'none',
-                cursor: 'pointer',
-              }}
+              variant="glow"
+              size="xl"
+              className="mt-8 pulse-glow"
             >
-              <Sparkles className="w-4 h-4 inline mr-2" />
+              <Sparkles className="w-4 h-4 mr-2" />
               Claim 70% Off
-            </button>
-            <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4 text-left">
+            </Button>
+            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 text-left">
               {[
-                { icon: MessageCircle, label: 'Unlimited Chat' },
+                { icon: MessageCircle, label: 'Unlimited Chatting' },
                 { icon: Heart, label: 'NSFW Mode' },
                 { icon: MessageSquare, label: 'Voice & Video' },
-                { icon: Users, label: '350+ Souls' },
+                { icon: Users, label: '350+ Models' },
               ].map((item) => (
-                <div
-                  key={item.label}
-                  className="flex items-center gap-2 text-sm"
-                  style={{ color: '#8B6F4D', fontFamily: 'Sora, sans-serif' }}
-                >
-                  <item.icon className="w-4 h-4" style={{ color: '#C9A66B' }} />
+                <div key={item.label} className="flex items-center gap-2 text-sm text-[#8B8BA3]">
+                  <item.icon className="w-4 h-4 text-[#FF2D78]" />
                   {item.label}
                 </div>
               ))}
@@ -886,13 +547,7 @@ export default function PublicLandingPage() {
         </section>
 
         {/* Footer */}
-        <footer
-          className="py-10 text-center text-xs"
-          style={{
-            borderTop: '1px solid rgba(201, 166, 107, 0.15)',
-            color: '#8B6F4D',
-          }}
-        >
+        <footer className="border-t border-white/[0.06] py-8 text-center text-xs text-[#8B8BA3]/60">
           <div className="max-w-4xl mx-auto px-6">
             <p>© 2026 {APP_NAME}. All rights reserved.</p>
             <div className="flex items-center justify-center gap-4 mt-3">
@@ -902,7 +557,6 @@ export default function PublicLandingPage() {
             </div>
           </div>
         </footer>
-      </div>
       </div>
     </>
   );
