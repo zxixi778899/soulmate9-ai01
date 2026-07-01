@@ -1,0 +1,33 @@
+{
+  "es": {
+    "gallery.chat": "Chatear",
+    "pricing.pro": "Pro"
+  },
+  "fr": {
+    "create.genre": "Genre",
+    "create.style": "Style",
+    "create.tags": "Étiquettes",
+    "girlfriend.genre": "Genre",
+    "girlfriend.tags": "Étiquettes",
+    "messages.title": "Messages",
+    "nav.admin": "Administration",
+    "nav.messages": "Messages",
+    "pricing.pro": "Pro",
+    "profile.notifications": "Notifications"
+  },
+  "de": {
+    "create.genre": "Genre",
+    "create.name": "Name",
+    "create.nameLabel": "Name",
+    "create.outfit": "Outfit",
+    "create.tags": "Schlagwörter",
+    "gallery.chat": "Chatten",
+    "girlfriend.genre": "Genre",
+    "girlfriend.tags": "Schlagwörter",
+    "nav.admin": "Verwaltung",
+    "nav.shop": "Shop",
+    "pricing.pro": "Pro",
+    "profile.dashboard": "Übersicht",
+    "shop.title": "Shop"
+  }
+}
