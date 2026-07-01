@@ -1,9 +1,12 @@
 /**
  * 虚拟商城 v2 — 积分流水 + 余额
  * GET /api/shop/v2/credits
+ *
+ * 改用 pg 库直连。
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { queryPgOne, queryPgMany } from '@/storage/database/supabase-client';
 
 export async function GET(req: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(req);
@@ -11,28 +14,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 1) 当前余额
-  const { data: profile, error: profErr } = await client
-    .from('profiles')
-    .select('credits_remaining')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const profile = await queryPgOne<{ credits_remaining: number }>(
+    'SELECT credits_remaining FROM profiles WHERE user_id = $1',
+    [user.id]
+  );
 
-  if (profErr) {
-    return NextResponse.json({ error: profErr.message }, { status: 500 });
-  }
-
-  // 2) 最近流水
-  const { data: ledger, error: ledErr } = await client
-    .from('user_credits_ledger')
-    .select('id, delta, reason, ref_id, balance_after, created_at, metadata')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(30);
-
-  if (ledErr) {
-    return NextResponse.json({ error: ledErr.message }, { status: 500 });
-  }
+  const ledger = await queryPgMany(
+    `SELECT id, delta, reason, ref_id, balance_after, created_at, metadata
+     FROM user_credits_ledger
+     WHERE user_id = $1
+     ORDER BY created_at DESC
+     LIMIT 30`,
+    [user.id]
+  );
 
   return NextResponse.json({
     balance: profile?.credits_remaining ?? 0,

@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { execSync } from 'child_process';
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 let envLoaded = false;
 
@@ -115,6 +116,78 @@ function getSupabaseClient(token?: string): SupabaseClient {
       persistSession: false,
     },
   });
+}
+
+// =============================================================================
+// Direct Postgres (pg) connection — bypasses PostgREST schema cache
+// =============================================================================
+// Use when Supabase PostgREST cache is stale and you need raw SQL access.
+// Requires COZE_SUPABASE_DB_URL env var (Transaction pooler URL).
+// =============================================================================
+
+let pgPool: Pool | null = null;
+let pgPoolInitTried = false;
+
+export function getPostgresPool(): Pool {
+  if (pgPool) return pgPool;
+  if (pgPoolInitTried) {
+    throw new Error('Postgres pool init failed previously. Check COZE_SUPABASE_DB_URL.');
+  }
+  pgPoolInitTried = true;
+
+  loadEnv();
+  const url = process.env.COZE_SUPABASE_DB_URL;
+  if (!url) {
+    throw new Error('COZE_SUPABASE_DB_URL is not set. Add the Supabase Transaction pooler URL to Vercel env.');
+  }
+
+  pgPool = new Pool({
+    connectionString: url,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    ssl: url.includes('localhost') ? false : { rejectUnauthorized: false },
+  });
+
+  pgPool.on('error', (err) => {
+    console.error('Unexpected error on idle Postgres client', err);
+  });
+
+  return pgPool;
+}
+
+export async function queryPg<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[]
+): Promise<QueryResult<T>> {
+  const pool = getPostgresPool();
+  return pool.query<T>(text, params as never[]);
+}
+
+export async function queryPgOne<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[]
+): Promise<T | null> {
+  const res = await queryPg<T>(text, params);
+  return res.rows[0] ?? null;
+}
+
+export async function queryPgMany<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[]
+): Promise<T[]> {
+  const res = await queryPg<T>(text, params);
+  return res.rows;
+}
+
+export async function withPgClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    return await fn(client);
+  } finally {
+    client.release();
+  }
 }
 
 export { loadEnv, getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };

@@ -2,12 +2,11 @@
  * 虚拟商城 v2 — 用户资产清单
  * GET /api/shop/v2/inventory
  *
- * 查询参数：
- * - asset_type: 'outfit' | 'voice' | 'effect' | 'background' | 'action' | 'consumable'
- * - girlfriend_id: 筛选某角色可用资产
+ * 改用 pg 库直连。
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { queryPgMany } from '@/storage/database/supabase-client';
 import { resolveImageUrl } from '@/lib/storage';
 
 export async function GET(req: NextRequest) {
@@ -19,42 +18,55 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const assetType = searchParams.get('asset_type');
 
-  let query = client
-    .from('user_inventory')
-    .select(
-      'id, product_id, asset_type, asset_id, asset_payload, quantity, acquired_at, source, metadata, products(id, name, description, category, subcategory, images, rarity, price_credits, virtual_meta)'
-    )
-    .eq('user_id', user.id)
-    .order('acquired_at', { ascending: false });
+  const conditions: string[] = ['i.user_id = $1'];
+  const params: unknown[] = [user.id];
 
-  if (assetType) query = query.eq('asset_type', assetType);
-
-  const { data, error } = await query;
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (assetType) {
+    params.push(assetType);
+    conditions.push(`i.asset_type = $${params.length}`);
   }
+  const where = 'WHERE ' + conditions.join(' AND ');
 
-  // 解析产品图
+  const sql = `
+    SELECT
+      i.id, i.product_id, i.asset_type, i.asset_id, i.asset_payload,
+      i.quantity, i.acquired_at, i.source, i.metadata,
+      jsonb_build_object(
+        'id', p.id,
+        'name', p.name,
+        'description', p.description,
+        'category', p.category,
+        'subcategory', p.subcategory,
+        'images', p.images,
+        'rarity', p.rarity,
+        'price_credits', p.price_credits,
+        'virtual_meta', p.virtual_meta
+      ) AS products
+    FROM user_inventory i
+    LEFT JOIN products p ON p.id = i.product_id
+    ${where}
+    ORDER BY i.acquired_at DESC
+    LIMIT 200
+  `;
+  const rows = await queryPgMany(sql, params);
+
   const items = await Promise.all(
-    (data || []).map(async (item) => {
-      const product = (item as any).products;
+    rows.map(async (item: any) => {
+      const product = item.products;
       let preview_url = '';
-      if (product?.images && Array.isArray(product.images) && product.images.length > 0) {
-        preview_url = await resolveImageUrl(product.images[0]?.key);
+      if (product?.images) {
+        const images = typeof product.images === 'string' ? JSON.parse(product.images) : product.images;
+        if (Array.isArray(images) && images.length > 0) {
+          preview_url = await resolveImageUrl(images[0]?.key);
+        }
       }
       return {
         ...item,
-        product: product
-          ? {
-              ...product,
-              preview_url,
-            }
-          : null,
+        product: product ? { ...product, preview_url } : null,
       };
     })
   );
 
-  // 按资产类型分组
   const grouped: Record<string, typeof items> = {};
   for (const item of items) {
     const t = (item as any).asset_type as string;
@@ -62,9 +74,5 @@ export async function GET(req: NextRequest) {
     grouped[t].push(item);
   }
 
-  return NextResponse.json({
-    items,
-    grouped,
-    total: items.length,
-  });
+  return NextResponse.json({ items, grouped, total: items.length });
 }

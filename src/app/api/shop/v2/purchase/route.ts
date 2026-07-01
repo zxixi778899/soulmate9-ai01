@@ -2,13 +2,13 @@
  * 虚拟商城 v2 — 购买商品
  * POST /api/shop/v2/purchase
  *
- * 简化 MVP：仅支持 credits 余额支付（Stripe 后续接入）
- * 流程：原子扣 credits → 写入 user_inventory → 创建 shop_orders 记录
+ * 改用 pg 库直连 + 事务（绕开 PostgREST cache + 不用 RPC）。
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { checkRateLimitAsync, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { withPgClient, queryPgOne } from '@/storage/database/supabase-client';
 
 interface PurchaseBody {
   product_id: string;
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 限流：10 次/分钟（防刷单）
+  // 限流
   const rl = await checkRateLimitAsync(`shop-purchase:${user.id}`, {
     maxRequests: 10,
     windowMs: 60 * 1000,
@@ -35,7 +35,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Body 校验
   let body: PurchaseBody;
   try {
     body = (await request.json()) as PurchaseBody;
@@ -47,161 +46,163 @@ export async function POST(request: NextRequest) {
   }
   const quantity = Math.max(1, Math.min(MAX_QUANTITY, body.quantity ?? 1));
 
-  // 1) 查询商品
-  const { data: product, error: prodErr } = await client
-    .from('products')
-    .select('id, type, status, name, sku, category, price_credits, price_cents, stock_type, stock_remaining, virtual_meta, rarity')
-    .eq('id', body.product_id)
-    .maybeSingle();
-
-  if (prodErr || !product) {
-    return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-  }
-  if (product.type !== 'virtual') {
-    return NextResponse.json({ error: 'Only virtual products can be purchased via this endpoint' }, { status: 400 });
-  }
-  if (product.status !== 'active') {
-    return NextResponse.json({ error: 'Product is not available for purchase' }, { status: 410 });
-  }
-  if (product.stock_type === 'inventory' && product.stock_remaining !== null && product.stock_remaining < quantity) {
-    return NextResponse.json(
-      { error: `Insufficient stock. Only ${product.stock_remaining} available.` },
-      { status: 409 }
+  try {
+    // 1) 查询商品
+    const product = await queryPgOne<{
+      id: string;
+      type: string;
+      status: string;
+      name: string;
+      sku: string;
+      price_credits: number;
+      price_cents: number;
+      stock_type: string;
+      stock_remaining: number | null;
+      virtual_meta: Record<string, unknown>;
+      rarity: string;
+    }>(
+      `SELECT id, type, status, name, sku, price_credits, price_cents,
+              stock_type, stock_remaining, virtual_meta, rarity
+       FROM products WHERE id = $1`,
+      [body.product_id]
     );
-  }
 
-  // 计算总价
-  const totalCredits = product.price_credits * quantity;
-  if (totalCredits <= 0) {
-    return NextResponse.json({ error: 'Product has no price' }, { status: 400 });
-  }
+    if (!product) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+    if (product.type !== 'virtual') {
+      return NextResponse.json({ error: 'Only virtual products can be purchased via this endpoint' }, { status: 400 });
+    }
+    if (product.status !== 'active') {
+      return NextResponse.json({ error: 'Product is not available for purchase' }, { status: 410 });
+    }
+    if (product.stock_type === 'inventory' && product.stock_remaining !== null && product.stock_remaining < quantity) {
+      return NextResponse.json(
+        { error: `Insufficient stock. Only ${product.stock_remaining} available.` },
+        { status: 409 }
+      );
+    }
 
-  // 2) 原子扣积分（使用 RPC，FOR UPDATE 防并发）
-  const { data: deductResult, error: rpcErr } = await client.rpc('deduct_credits', {
-    uid: user.id,
-    amount: totalCredits,
-    reason: 'purchase',
-    ref_id: body.product_id,
-  });
+    const totalCredits = product.price_credits * quantity;
+    if (totalCredits <= 0) {
+      return NextResponse.json({ error: 'Product has no price' }, { status: 400 });
+    }
 
-  if (rpcErr) {
-    logger.error('deduct_credits rpc failed', { userId: user.id, err: rpcErr.message });
-    return NextResponse.json({ error: 'Payment failed' }, { status: 500 });
-  }
-  const result = (deductResult as Array<{ success: boolean; new_balance: number; error_msg: string | null }> | null)?.[0];
-  if (!result?.success) {
-    return NextResponse.json(
-      { error: result?.error_msg || 'Insufficient credits' },
-      { status: 402 }
-    );
-  }
+    // 2) 事务：扣积分 + 创建订单 + 写 inventory + 销量 +1
+    const orderNumber = `SM-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const isConsumable = (product.virtual_meta as any)?.kind === 'consumable';
+    const assetType = (product.virtual_meta as any)?.kind || product.sku;
+    const assetId = (product.virtual_meta as any)?.asset_id || product.sku;
+    const assetPayload = product.virtual_meta || {};
 
-  // 3) 创建订单
-  const orderNumber = `SM-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-  const { data: order, error: orderErr } = await client
-    .from('shop_orders')
-    .insert({
-      order_number: orderNumber,
-      user_id: user.id,
-      product_id: product.id,
-      quantity,
-      price_credits: totalCredits,
-      price_cents: product.price_cents * quantity,
-      status: 'paid',
-      payment_method: 'credits',
-      paid_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
+    const result = await withPgClient(async (db) => {
+      await db.query('BEGIN');
+      try {
+        // 2.1 锁定 profile 并扣分
+        const profileRes = await db.query<{ credits_remaining: number }>(
+          'SELECT credits_remaining FROM profiles WHERE user_id = $1 FOR UPDATE',
+          [user.id]
+        );
+        if (profileRes.rows.length === 0) {
+          throw new Error('PROFILE_NOT_FOUND');
+        }
+        const current = profileRes.rows[0].credits_remaining ?? 0;
+        if (current < totalCredits) {
+          throw new Error('INSUFFICIENT_CREDITS');
+        }
+        const newBalance = current - totalCredits;
+        await db.query(
+          'UPDATE profiles SET credits_remaining = $1 WHERE user_id = $2',
+          [newBalance, user.id]
+        );
+        // 写 ledger
+        await db.query(
+          `INSERT INTO user_credits_ledger (user_id, delta, balance_after, reason, ref_id)
+           VALUES ($1, $2, $3, 'purchase', $4)`,
+          [user.id, -totalCredits, newBalance, body.product_id]
+        );
 
-  if (orderErr) {
-    // 极端情况：扣了钱但订单创建失败 → 需要 refund
-    logger.error('order create failed after deduct, attempting refund', { userId: user.id, err: orderErr.message });
-    await client.rpc('grant_credits', { uid: user.id, amount: totalCredits });
-    return NextResponse.json({ error: 'Order creation failed. Credits refunded.' }, { status: 500 });
-  }
+        // 2.2 创建订单
+        const orderRes = await db.query<{ id: string }>(
+          `INSERT INTO shop_orders
+            (order_number, user_id, product_id, quantity, price_credits, price_cents,
+             status, payment_method, paid_at)
+           VALUES ($1, $2, $3, $4, $5, $6, 'paid', 'credits', NOW())
+           RETURNING id`,
+          [orderNumber, user.id, product.id, quantity, totalCredits, product.price_cents * quantity]
+        );
+        const orderId = orderRes.rows[0].id;
 
-  // 4) 履约：写入 user_inventory
-  // 消耗品 (consumable) 允许持有多个，非消耗品用 unique 约束防重
-  const isConsumable = product.virtual_meta?.kind === 'consumable';
-  const assetType = product.virtual_meta?.kind || product.category;
-  const assetId = product.virtual_meta?.asset_id || product.sku;
+        // 2.3 履约：写入 user_inventory
+        let inventoryId: string | null = null;
+        if (isConsumable) {
+          // 消耗品：累加
+          const invRes = await db.query<{ id: string }>(
+            `INSERT INTO user_inventory
+              (user_id, product_id, asset_type, asset_id, asset_payload, quantity, source, source_ref, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, 'purchase', $7, $8)
+             ON CONFLICT (user_id, asset_type, asset_id)
+             DO UPDATE SET quantity = user_inventory.quantity + EXCLUDED.quantity,
+                           acquired_at = NOW()
+             RETURNING id`,
+            [user.id, product.id, assetType, assetId, assetPayload, quantity, orderId, { rarity: product.rarity }]
+          );
+          inventoryId = invRes.rows[0].id;
+        } else {
+          const invRes = await db.query<{ id: string }>(
+            `INSERT INTO user_inventory
+              (user_id, product_id, asset_type, asset_id, asset_payload, quantity, source, source_ref, metadata)
+             VALUES ($1, $2, $3, $4, $5, 1, 'purchase', $6, $7)
+             ON CONFLICT (user_id, asset_type, asset_id) DO NOTHING
+             RETURNING id`,
+            [user.id, product.id, assetType, assetId, assetPayload, orderId, { rarity: product.rarity, name: product.name }]
+          );
+          inventoryId = invRes.rows[0]?.id ?? null;
+        }
 
-  let inventoryItem = null;
-  let inventoryErr = null;
+        // 2.4 销量 +1
+        await db.query(
+          'UPDATE products SET sales_count = sales_count + $1 WHERE id = $2',
+          [quantity, product.id]
+        );
 
-  if (isConsumable) {
-    // 消耗品：upsert（累加 quantity）
-    const { data, error } = await client.rpc('merge_inventory', {
-      p_user_id: user.id,
-      p_product_id: product.id,
-      p_asset_type: assetType,
-      p_asset_id: assetId,
-      p_quantity: quantity,
-      p_source: 'purchase',
-      p_source_ref: order.id,
-      p_metadata: { rarity: product.rarity },
+        // 2.5 标记订单完成
+        if (inventoryId) {
+          await db.query(
+            `UPDATE shop_orders SET status = 'completed', fulfilled_at = NOW(), inventory_item_id = $1 WHERE id = $2`,
+            [inventoryId, orderId]
+          );
+        }
+
+        await db.query('COMMIT');
+        return { orderId, newBalance, inventoryId };
+      } catch (err) {
+        await db.query('ROLLBACK');
+        throw err;
+      }
     });
-    inventoryItem = data;
-    inventoryErr = error;
-  } else {
-    // 永久道具：unique (user_id, asset_type, asset_id)，已持有则跳过
-    const { data, error } = await client
-      .from('user_inventory')
-      .upsert(
-        {
-          user_id: user.id,
-          product_id: product.id,
-          asset_type: assetType,
-          asset_id: assetId,
-          asset_payload: product.virtual_meta || {},
-          quantity: 1,
-          source: 'purchase',
-          source_ref: order.id,
-          metadata: { rarity: product.rarity, name: product.name },
-        },
-        { onConflict: 'user_id,asset_type,asset_id', ignoreDuplicates: true }
-      )
-      .select()
-      .maybeSingle();
-    inventoryItem = data;
-    inventoryErr = error;
-  }
 
-  if (inventoryErr) {
-    logger.error('inventory fulfillment failed', { userId: user.id, err: inventoryErr.message });
-    // 不回滚 credits，记录错误让 ops 手动处理
-  }
-
-  // 5) 销量 +1
-  await client
-    .from('products')
-    .update({ sales_count: (product as any).sales_count + quantity })
-    .eq('id', product.id);
-
-  // 6) 标记订单完成
-  if (inventoryItem && (inventoryItem as any).id) {
-    await client
-      .from('shop_orders')
-      .update({
+    return NextResponse.json({
+      success: true,
+      order: {
+        order_number: orderNumber,
+        product_id: product.id,
+        product_name: product.name,
+        quantity,
+        total_credits: totalCredits,
+        new_balance: result.newBalance,
         status: 'completed',
-        fulfilled_at: new Date().toISOString(),
-        inventory_item_id: (inventoryItem as any).id,
-      })
-      .eq('id', order.id);
+      },
+    });
+  } catch (err: any) {
+    const msg = err?.message || 'Purchase failed';
+    if (msg === 'INSUFFICIENT_CREDITS') {
+      return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 });
+    }
+    if (msg === 'PROFILE_NOT_FOUND') {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+    logger.error('purchase failed', { userId: user.id, err: msg });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  return NextResponse.json({
-    success: true,
-    order: {
-      order_number: orderNumber,
-      product_id: product.id,
-      product_name: product.name,
-      quantity,
-      total_credits: totalCredits,
-      new_balance: result.new_balance,
-    },
-    inventory_item: inventoryItem,
-    new_credits_balance: result.new_balance,
-  });
 }
