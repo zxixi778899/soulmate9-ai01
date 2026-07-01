@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   // 1) 查询商品
   const { data: product, error: prodErr } = await client
     .from('products')
-    .select('id, type, status, name, sku, price_credits, price_cents, stock_type, stock_remaining, virtual_meta, rarity')
+    .select('id, type, status, name, sku, category, price_credits, price_cents, stock_type, stock_remaining, virtual_meta, rarity')
     .eq('id', body.product_id)
     .maybeSingle();
 
