@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { ensureImageKey, resolveImageUrl } from '@/lib/storage';
-import { checkRateLimitAsync, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limit';
-import { logger } from '@/lib/logger';
 
 export async function GET(req: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(req);
@@ -52,50 +50,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 限流：30 次/小时（防 RunPod 烧钱 + 防 base64 攻击）
-  const rl = await checkRateLimitAsync(`create-girlfriend:${user.id}`, {
-    maxRequests: 30,
-    windowMs: 60 * 60 * 1000,
-  });
-  if (!rl.allowed) {
-    return NextResponse.json(
-      { error: 'Too many creation attempts. Please slow down.' },
-      { status: 429, headers: rateLimitHeaders(rl, RATE_LIMITS.api) }
-    );
-  }
-
-  // 会员档位 → 最大女友数（与 lib/constants.ts MEMBERSHIP_TIERS 对齐）
-  const { data: profile } = await client
-    .from('profiles')
-    .select('membership_tier')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  const tier = (profile?.membership_tier as string) || 'free';
-  const maxGirlfriends: Record<string, number> = {
-    free: 2,
-    pro: 10,
-    premium: -1, // unlimited
-    unlimited: -1,
-  };
-  const maxAllowed = maxGirlfriends[tier] ?? 2;
-
-  if (maxAllowed !== -1) {
-    const { count } = await client
-      .from('girlfriends')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id);
-    if ((count ?? 0) >= maxAllowed) {
-      return NextResponse.json(
-        {
-          error: `You have reached the maximum number of companions (${maxAllowed}) for the ${tier} plan. Upgrade to Pro for more.`,
-          code: 'GIRLFRIEND_LIMIT_REACHED',
-        },
-        { status: 403 }
-      );
-    }
-  }
-
   const body = await request.json();
   const {
     name, age, personality, backstory, avatar_url, voice_id,
@@ -105,29 +59,8 @@ export async function POST(request: NextRequest) {
     outfit_id, portrait_url
   } = body;
 
-  if (!name || typeof name !== 'string' || name.length > 64) {
-    return NextResponse.json({ error: 'Name is required (max 64 chars)' }, { status: 400 });
-  }
-
-  // base64 大小限制（防 Vercel 4.5MB 函数体限制）
-  const MAX_B64_SIZE = 3 * 1024 * 1024; // 3MB 解码后 ≈ 4MB base64
-  const checkImageSize = (val: unknown, field: string): number => {
-    if (typeof val !== 'string' || !val.startsWith('data:')) return 0;
-    const payload = val.split(',')[1] || '';
-    const size = Math.floor((payload.length * 3) / 4);
-    if (size > MAX_B64_SIZE) {
-      throw new Error(`${field} too large (max ${MAX_B64_SIZE / 1024 / 1024}MB)`);
-    }
-    return size;
-  };
-  try {
-    checkImageSize(avatar_url, 'avatar');
-    checkImageSize(portrait_url, 'portrait');
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Image too large' },
-      { status: 413 }
-    );
+  if (!name) {
+    return NextResponse.json({ error: 'Name is required' }, { status: 400 });
   }
 
   // 写入侧：base64 data URL 上传到 OSS，存 key
@@ -210,4 +143,76 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const { user, client, error: authError } = await g
+  const { user, client, error: authError } = await getAuthUser(request);
+  if (!user || !client) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { id, review_status, name: reqName, avatar_url: pAvatar, portrait_url: pPortrait, ...rest } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  }
+
+  // 写入侧：base64 data URL 上传到 OSS，存 key
+  const updates: Record<string, unknown> = { ...rest };
+  if (pAvatar !== undefined) updates.avatar_url = await ensureImageKey(pAvatar, 'girlfriends');
+  if (pPortrait !== undefined) updates.portrait_url = await ensureImageKey(pPortrait, 'girlfriends');
+
+  // If toggling to public (pending review)
+  const patchData: Record<string, unknown> = { ...updates };
+  if (review_status === 'pending') {
+    patchData.review_status = 'pending';
+    patchData.submitted_at = new Date().toISOString();
+    patchData.is_public = false; // will become public after approval
+  } else if (review_status) {
+    patchData.review_status = review_status;
+    if (review_status === 'approved') {
+      patchData.is_public = true;
+      if (!updates.slug) {
+        patchData.slug = reqName?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || (updates.slug || `gf-${Date.now()}`);
+      }
+    }
+  }
+
+  const { data: girlfriend, error } = await client
+    .from('girlfriends')
+    .update(patchData)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ girlfriend });
+}
+
+export async function DELETE(request: NextRequest) {
+  const { user, client, error: authError } = await getAuthUser(request);
+  if (!user || !client) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+
+  if (!id) {
+    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  }
+
+  const { error } = await client
+    .from('girlfriends')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
