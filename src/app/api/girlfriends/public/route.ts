@@ -1,19 +1,6 @@
-/**
- * 公开女友列表（landing page / 商城）
- *
- * 隐私策略（v2 修复 P0-1）：
- * - personality / character_card / backstory 等用户私有输入不返回
- * - only 公开可见字段 + image_url（OSS 签名）
- * - 分页使用 parsePagination 工具，强制 limit 上限
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { resolveImageUrl } from '@/lib/storage';
-import { parsePagination } from '@/lib/pagination';
-
-// 公开列表允许返回的字段白名单（防止 schema 变更时意外泄露）
-const PUBLIC_FIELDS =
-  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, is_public, review_status, created_at';
 
 interface GirlfriendRow {
   id: string;
@@ -24,22 +11,44 @@ interface GirlfriendRow {
   short_description: string | null;
   portrait_url: string | null;
   avatar_url: string | null;
-  is_public: boolean | null;
-  review_status: string | null;
-  created_at: string | null;
+  personality: string | null;
+  character_card: unknown;
 }
-
-export const revalidate = 300; // ISR 5 分钟
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const tag = searchParams.get('tag');
-  const { page, limit, from, to } = parsePagination(req, { maxLimit: 100, defaultLimit: 24 });
+  const limit = Math.min(Number(searchParams.get('limit')) || 50, 100);
 
   let query = getSupabaseClient()
     .from('girlfriends')
-    .select(PUBLIC_FIELDS, { count: 'exact' })
+    .select(
+      'id, name, age, slug, tags, short_description, portrait_url, avatar_url, personality, character_card',
+    )
     .eq('is_public', true)
     .eq('review_status', 'approved')
     .order('created_at', { ascending: false })
-    .range(from, to)
+    .limit(limit);
+
+  if (tag) {
+    query = query.contains('tags', [tag]);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // 读取侧：将 OSS key 解析为签名 URL，data:url/外链原样返回
+  const rows = (data || []) as GirlfriendRow[];
+  const girlfriends = await Promise.all(
+    rows.map(async (g) => {
+      const raw = g.portrait_url || g.avatar_url || null;
+      const image_url = await resolveImageUrl(raw);
+      return { ...g, image_url };
+    }),
+  );
+
+  return NextResponse.json({ girlfriends });
+}
