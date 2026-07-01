@@ -903,6 +903,7 @@ export default function PublicLandingPage() {
           </div>
         </footer>
       </div>
+      </div>
     </>
   );
 }
