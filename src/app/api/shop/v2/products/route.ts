@@ -87,9 +87,9 @@ export async function GET(req: NextRequest) {
   // 解析图片为签名 URL
   const products = await Promise.all(
     rows.map(async (p) => {
-      const rawImages = typeof p.images === 'string' ? JSON.parse(p.images) : p.images || [];
+      const rawImages = (typeof p.images === 'string' ? JSON.parse(p.images) : p.images || []) as Array<{ key: string; alt?: string }>;
       const image_urls = await Promise.all(
-        rawImages.map(async (img) => ({
+        rawImages.map(async (img: { key: string; alt?: string }) => ({
           ...img,
           url: await resolveImageUrl(img.key),
         }))
