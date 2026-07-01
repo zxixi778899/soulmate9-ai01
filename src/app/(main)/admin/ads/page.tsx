@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
