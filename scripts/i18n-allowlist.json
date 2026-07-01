@@ -1,0 +1,21 @@
+{
+  "description": "i18n 借词白名单 — 这些 key 的值与 en 相同是因为该语言直接使用英文词（借词），不算缺译",
+  "entries": [
+    "es:pricing.pro",
+    "fr:create.genre",
+    "fr:create.style",
+    "fr:girlfriend.genre",
+    "fr:messages.title",
+    "fr:nav.messages",
+    "fr:pricing.pro",
+    "fr:profile.notifications",
+    "de:create.genre",
+    "de:create.name",
+    "de:create.nameLabel",
+    "de:create.outfit",
+    "de:girlfriend.genre",
+    "de:nav.shop",
+    "de:pricing.pro",
+    "de:shop.title"
+  ]
+}
