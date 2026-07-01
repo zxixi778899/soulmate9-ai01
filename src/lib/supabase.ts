@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const publicAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Client-side needs NEXT_PUBLIC_ prefix to be exposed to browser
+const publicUrl = process.env.NEXT_PUBLIC_COZE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const publicAnonKey = process.env.NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 /**
  * Browser-side Supabase client (uses anon key, respects RLS)
