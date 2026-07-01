@@ -622,13 +622,13 @@ export default function PublicLandingPage() {
                     onMouseEnter={() => setHoveredCard(gf.id)}
                     onMouseLeave={() => setHoveredCard(null)}
                     onClick={() => setSelectedCard(selectedCard === gf.id ? null : gf.id)}
-                    style={{ animationDelay: `${(idx % 8) * 0.06}s` }}
                     className={`vn-hairline group relative overflow-hidden cursor-pointer ${
                       selectedCard === gf.id
                         ? 'shadow-[0_0_30px_rgba(201,166,107,0.2)]'
                         : ''
                     }`}
                     style={{
+                      animationDelay: `${(idx % 8) * 0.06}s`,
                       background: 'rgba(10, 5, 8, 0.4)',
                       backdropFilter: 'blur(20px)',
                     }}
@@ -637,9 +637,9 @@ export default function PublicLandingPage() {
                     <div
                       onClick={() => handleCardClick(gf.slug)}
                       className="relative aspect-[3/4] overflow-hidden"
-                    style={{
-                      background: 'linear-gradient(180deg, rgba(61, 14, 26, 0.2) 0%, rgba(10, 5, 8, 0.6) 100%)',
-                    }}
+                      style={{
+                        background: 'linear-gradient(180deg, rgba(61, 14, 26, 0.2) 0%, rgba(10, 5, 8, 0.6) 100%)',
+                      }}
                     >
                       {(() => {
                         const imgUrl = gf.image_url || gf.portrait_url || gf.avatar_url;
