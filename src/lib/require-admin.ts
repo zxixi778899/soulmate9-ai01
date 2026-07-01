@@ -24,23 +24,11 @@ function meetsRole(role: string | null | undefined, min: AdminRole): boolean {
 }
 
 /**
- * 判断当前是否生产环境
- * 修复（v2）：同时检查 VERCEL_ENV 和 NODE_ENV，
- * 避免 Vercel Preview 部署时（VERCEL_ENV=preview, NODE_ENV=production）误启白名单绕过。
- */
-function isProductionEnv(): boolean {
-  if (process.env.VERCEL_ENV === 'production') return true;
-  if (process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development') return false;
-  // 非 Vercel 部署（如自托管）走 NODE_ENV 兼容
-  return process.env.NODE_ENV === 'production';
-}
-
-/**
  * 开发环境 admin 邮箱白名单兜底（生产环境**忽略**此白名单，仅信 DB role）
  * 通过 ALLOWED_ADMIN_EMAILS=foo@x.com,bar@x.com 配置
  */
 function devEmailWhitelist(): string[] {
-  if (isProductionEnv()) return [];
+  if (process.env.NODE_ENV === 'production') return [];
   const raw = process.env.ALLOWED_ADMIN_EMAILS || '';
   return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 }
@@ -68,7 +56,7 @@ export async function requireAdmin(request: Request, minRole: AdminRole = 'admin
   let isAdmin = meetsRole(profile?.role as string | undefined, minRole);
 
   // 开发环境兜底：邮箱白名单（生产环境忽略，避免白名单泄露导致越权）
-  if (!isAdmin && !isProductionEnv()) {
+  if (!isAdmin && process.env.NODE_ENV !== 'production') {
     const email = (user.email || profile?.email || '').toLowerCase();
     if (email && devEmailWhitelist().includes(email)) {
       isAdmin = true;
@@ -76,4 +64,19 @@ export async function requireAdmin(request: Request, minRole: AdminRole = 'admin
   }
 
   if (!isAdmin) {
-    return { error: NextResponse.json({ e
+    return { error: NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 }) };
+  }
+
+  return { user, profile, supabase };
+}
+
+/**
+ * 调试页 / 开发页守卫
+ * 在生产环境返回 404，避免暴露 LLM 调试 / prompts 调试等内部工具
+ */
+export function denyInProduction(): NextResponse | null {
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEBUG_ROUTES !== 'true') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  return null;
+}
