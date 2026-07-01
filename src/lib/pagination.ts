@@ -1,0 +1,49 @@
+/**
+ * 统一分页参数解析 — 强制上限，防止恶意 limit=100000 拖死 DB
+ */
+import { NextRequest } from 'next/server';
+
+export interface PaginationOptions {
+  /** limit 上限，默认 100 */
+  maxLimit?: number;
+  /** limit 默认值，默认 20 */
+  defaultLimit?: number;
+}
+
+export interface PaginationResult {
+  page: number;
+  limit: number;
+  /** Supabase `.range(from, to)` 的 from */
+  from: number;
+  /** Supabase `.range(from, to)` 的 to（含） */
+  to: number;
+  /** offset 形式，等价于 from */
+  offset: number;
+}
+
+/**
+ * 解析 page/limit query 参数，并强制上限与正整数。
+ * 任意非法值都会被规范化到安全范围内（不抛错）。
+ */
+export function parsePagination(
+  req: NextRequest | URL,
+  opts: PaginationOptions = {},
+): PaginationResult {
+  const maxLimit = Math.max(1, opts.maxLimit ?? 100);
+  const defaultLimit = Math.max(1, Math.min(opts.defaultLimit ?? 20, maxLimit));
+
+  const url = req instanceof URL ? req : new URL(req.url);
+  const sp = url.searchParams;
+
+  const rawPage = Number.parseInt(sp.get('page') || '1', 10);
+  const rawLimit = Number.parseInt(sp.get('limit') || String(defaultLimit), 10);
+
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+  const safeLimit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : defaultLimit;
+  const limit = Math.min(safeLimit, maxLimit);
+
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  return { page, limit, from, to, offset: from };
+}
