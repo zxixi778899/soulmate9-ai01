@@ -213,9 +213,9 @@ export default function GalleryPage() {
                         className="relative flex h-20 w-20 items-center justify-center rounded-full text-3xl font-bold shadow-[0_0_20px_rgba(255,45,120,0.2)] ring-2 ring-[#FF2D78]/20 overflow-hidden group/avatar"
                         style={{
                           background: `linear-gradient(135deg, ${
-                            (gf as any).appearance_hair_color || '#d4a574'
-                          }88, ${(gf as any).appearance_hair_color || '#d4a574'}44)`,
-                          color: (gf as any).appearance_hair_color || '#d4a574',
+                            (gf as any).apperance_hair_color || '#d4a574'
+                          }88, ${(gf as any).apperance_hair_color || '#d4a574'}44)`,
+                          color: (gf as any).apperance_hair_color || '#d4a574',
                         }}
                       >
                         {(() => {
@@ -374,4 +374,5 @@ export default function GalleryPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
+}
