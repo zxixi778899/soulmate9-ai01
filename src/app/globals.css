@@ -621,3 +621,218 @@ html {
     transition: none;
   }
 }
+
+/* ===== Velvet Noir + Holographic — Direction B + C ===== */
+
+/* Theme tokens */
+:root {
+  --vn-black: #0A0508;
+  --vn-bordeaux: #3D0E1A;
+  --vn-gold: #C9A66B;
+  --vn-gold-soft: rgba(201, 166, 107, 0.4);
+  --vn-cream: #F5E8D3;
+  --vn-bronze: #8B6F4D;
+  --vn-hologram-pink: #FF2D78;
+  --vn-hologram-cyan: #00E5FF;
+}
+
+/* Vignette spotlight — radial gradient breathing */
+@keyframes vn-vignette-breath {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+.vn-vignette {
+  background: radial-gradient(
+    ellipse 70% 60% at center 35%,
+    rgba(61, 14, 26, 0.55) 0%,
+    rgba(61, 14, 26, 0.25) 35%,
+    transparent 70%
+  );
+  animation: vn-vignette-breath 8s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+/* RGB chromatic aberration on text */
+@keyframes vn-rgb-shift {
+  0%, 100% {
+    text-shadow:
+      -1.5px 0 var(--vn-hologram-pink),
+      1.5px 0 var(--vn-hologram-cyan);
+  }
+  25% {
+    text-shadow:
+      -2px 0 var(--vn-hologram-pink),
+      2px 0 var(--vn-hologram-cyan);
+  }
+  50% {
+    text-shadow:
+      -1px 0 var(--vn-hologram-pink),
+      1px 0 var(--vn-hologram-cyan);
+  }
+  75% {
+    text-shadow:
+      -2.5px 0 var(--vn-hologram-pink),
+      2.5px 0 var(--vn-hologram-cyan);
+  }
+}
+.vn-rgb-text {
+  color: var(--vn-cream);
+  animation: vn-rgb-shift 4s ease-in-out infinite;
+}
+.vn-rgb-text-strong:hover {
+  animation-duration: 1.5s;
+}
+
+/* Gold hairline — 1px border, animates to 2px on hover */
+.vn-hairline {
+  position: relative;
+  border: 1px solid var(--vn-gold-soft);
+  transition: border-color 0.5s ease, box-shadow 0.5s ease, transform 0.5s ease;
+}
+.vn-hairline:hover {
+  border-color: var(--vn-gold);
+  box-shadow:
+    0 0 30px rgba(201, 166, 107, 0.12),
+    inset 0 0 30px rgba(201, 166, 107, 0.05);
+  transform: translateY(-4px);
+}
+.vn-hairline::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid transparent;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    var(--vn-gold) 50%,
+    transparent 100%
+  ) border-box;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+.vn-hairline:hover::before {
+  opacity: 1;
+}
+
+/* Gold shimmer sweep across cards */
+@keyframes vn-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.vn-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.vn-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(201, 166, 107, 0.12) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: vn-shimmer 6s ease-in-out infinite;
+  animation-delay: 2s;
+  pointer-events: none;
+}
+
+/* Holographic gradient background (slow pan) */
+@keyframes vn-holo-pan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.vn-holo-bg {
+  background: linear-gradient(
+    135deg,
+    var(--vn-black) 0%,
+    var(--vn-bordeaux) 25%,
+    #1a0a1a 50%,
+    var(--vn-bordeaux) 75%,
+    var(--vn-black) 100%
+  );
+  background-size: 200% 200%;
+  animation: vn-holo-pan 16s ease-in-out infinite;
+}
+
+/* Portrait breathing — used on hero portrait */
+@keyframes vn-breathe {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.025); filter: brightness(1.08); }
+}
+.vn-breathe {
+  animation: vn-breathe 5s ease-in-out infinite;
+}
+
+/* Slow drift on hero text */
+@keyframes vn-drift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.vn-drift {
+  animation: vn-drift 6s ease-in-out infinite;
+}
+
+/* Hologram flicker on portrait (subtle) */
+@keyframes vn-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.85; }
+  94% { opacity: 1; }
+  96% { opacity: 0.9; }
+  97% { opacity: 1; }
+}
+.vn-flicker {
+  animation: vn-flicker 7s ease-in-out infinite;
+}
+
+/* Fade-in stagger utility */
+.vn-fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.9s cubic-bezier(0.22, 0.61, 0.36, 1),
+              transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.vn-fade-in.vn-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Talk bubble animation — appears every 6-8s */
+@keyframes vn-bubble-in {
+  0% { opacity: 0; transform: translateY(8px) scale(0.96); }
+  10%, 90% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+.vn-bubble {
+  display: inline-block;
+  animation: vn-bubble-in 7s ease-in-out infinite;
+  animation-delay: 1.5s;
+}
+
+/* Reduced motion — kill all VN animations */
+@media (prefers-reduced-motion: reduce) {
+  .vn-vignette,
+  .vn-rgb-text,
+  .vn-hairline::before,
+  .vn-shimmer::after,
+  .vn-holo-bg,
+  .vn-breathe,
+  .vn-drift,
+  .vn-flicker,
+  .vn-fade-in,
+  .vn-bubble {
+    animation: none !important;
+    transition: none !important;
+  }
+  .vn-fade-in { opacity: 1; transform: none; }
+}
