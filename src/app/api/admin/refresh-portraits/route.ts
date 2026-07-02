@@ -15,8 +15,15 @@ const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || '';
 const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID || '';
 const RUNPOD_BASE_URL = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}`;
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '';
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.COZE_SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_COZE_SUPABASE_URL ||
+  '';
+const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.COZE_SUPABASE_SERVICE_ROLE_KEY ||
+  '';
 
 interface CharacterConfig {
   slug: string;
@@ -165,11 +172,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const debugEnv = {
+      has_SUPABASE_URL: !!SUPABASE_URL,
+      has_SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      has_COZE_SUPABASE_SERVICE_ROLE_KEY: !!process.env.COZE_SUPABASE_SERVICE_ROLE_KEY,
+      has_COZE_SUPABASE_URL: !!process.env.COZE_SUPABASE_URL,
+      has_NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      has_RUNPOD_API_KEY: !!RUNPOD_API_KEY,
+      has_RUNPOD_ENDPOINT_ID: !!RUNPOD_ENDPOINT_ID,
+    };
     if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-      return NextResponse.json({ error: 'Supabase env not configured' }, { status: 500 });
+      return NextResponse.json({ error: 'Supabase env not configured', debug: debugEnv }, { status: 500 });
     }
     if (!RUNPOD_API_KEY || !RUNPOD_ENDPOINT_ID) {
-      return NextResponse.json({ error: 'RunPod env not configured' }, { status: 500 });
+      return NextResponse.json({ error: 'RunPod env not configured', debug: debugEnv }, { status: 500 });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
