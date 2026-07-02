@@ -15,12 +15,15 @@ const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || '';
 const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID || '';
 const RUNPOD_BASE_URL = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}`;
 
+// 优先用专用 env vars（绕开 Coze Supabase proxy 的 schema cache 问题）
 const SUPABASE_URL =
+  process.env.SUPABASE_URL_FOR_REFRESH ||
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
   process.env.COZE_SUPABASE_URL ||
   process.env.NEXT_PUBLIC_COZE_SUPABASE_URL ||
   '';
 const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_KEY_FOR_REFRESH ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.COZE_SUPABASE_SERVICE_ROLE_KEY ||
   '';
@@ -146,21 +149,56 @@ async function generateImage(prompt: string, seed: number): Promise<string> {
 async function refreshOne(supabase: any, char: CharacterConfig) {
   console.log(`[${char.slug}] generating portrait seed=${char.seed}...`);
   const base64 = await generateImage(char.prompt, char.seed);
-  console.log(`[${char.slug}] generated, uploading to OSS...`);
+  console.log(`[${char.slug}] generated (${(base64.length * 3 / 4 / 1024).toFixed(0)} KB), uploading...`);
 
-  const dataUrl = `data:image/png;base64,${base64}`;
-  const key = await uploadDataUrl(dataUrl, `portraits/${char.slug}`);
-  console.log(`[${char.slug}] OSS key=${key}`);
+  // 优先 Supabase Storage（service_role 直接有权限）
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
+  const filePath = `portraits/${char.slug}_${Date.now()}.png`;
+  let publicUrl = '';
+
+  try {
+    const buffer = Buffer.from(base64, 'base64');
+    const uploadRes = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/${bucket}/${filePath}`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Content-Type': 'image/png',
+          'x-upsert': 'true',
+        },
+        body: buffer,
+      }
+    );
+    if (uploadRes.ok) {
+      publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${filePath}`;
+      console.log(`[${char.slug}] Supabase Storage OK: ${publicUrl}`);
+    } else {
+      const errText = await uploadRes.text();
+      console.warn(`[${char.slug}] Supabase Storage ${uploadRes.status}: ${errText.slice(0, 200)}`);
+    }
+  } catch (e: any) {
+    console.warn(`[${char.slug}] Supabase Storage failed:`, e?.message);
+  }
+
+  if (!publicUrl) {
+    // fallback Coze OSS
+    const dataUrl = `data:image/png;base64,${base64}`;
+    const key = await uploadDataUrl(dataUrl, `portraits/${char.slug}`);
+    publicUrl = key;
+    console.log(`[${char.slug}] Coze OSS fallback key=${key}`);
+  }
 
   const { data, error } = await supabase
     .from('girlfriends')
-    .update({ portrait_url: key, updated_at: new Date().toISOString() })
+    .update({ portrait_url: publicUrl, updated_at: new Date().toISOString() })
     .eq('slug', char.slug)
     .select('id,name,slug,portrait_url');
 
   if (error) throw new Error(`DB update failed: ${error.message}`);
   console.log(`[${char.slug}] DB updated:`, JSON.stringify(data));
-  return { slug: char.slug, key, row: data?.[0] };
+  return { slug: char.slug, url: publicUrl, row: data?.[0] };
 }
 
 export async function POST(request: NextRequest) {
