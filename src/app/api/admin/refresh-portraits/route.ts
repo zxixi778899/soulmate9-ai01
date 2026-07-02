@@ -215,7 +215,7 @@ async function refreshOne(char: CharacterConfig) {
     throw new Error(lastError || 'No upload succeeded');
   }
 
-  const { data: cols } = await queryPg<{ id: string; name: string }>(
+  const { rows: cols } = await queryPg<{ id: string; name: string }>(
     `UPDATE girlfriends
         SET portrait_url = $1, updated_at = NOW()
       WHERE slug = $2
