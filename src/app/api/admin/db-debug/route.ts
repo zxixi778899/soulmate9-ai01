@@ -33,6 +33,12 @@ export async function GET(_req: NextRequest) {
     const r4 = await queryPg<{ count: string }>(`SELECT COUNT(*) FROM public.girlfriends`);
     out.public_girlfriends_count = r4.rows?.[0]?.count;
 
+    // search anything resembling girlfriend/character/ai_companion
+    const r5 = await queryPg<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND (table_name ILIKE '%girl%' OR table_name ILIKE '%companion%' OR table_name ILIKE '%character%' OR table_name ILIKE '%ai_%') ORDER BY table_name`,
+    );
+    out.girlfriend_like_tables = r5.rows?.map((x) => x.table_name);
+
     return NextResponse.json(out);
   } catch (e: any) {
     out.error = e?.message;
