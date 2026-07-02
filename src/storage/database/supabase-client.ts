@@ -147,7 +147,14 @@ export function getPostgresPool(): Pool {
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
     ssl: url.includes('localhost') ? false : { rejectUnauthorized: false },
-    options: '-c search_path=public',
+    application_name: 'soulmate-vercel',
+  });
+
+  // 每个新连接执行 SET search_path（pg.Pool options 不可靠）
+  pgPool.on('connect', (client) => {
+    client.query('SET search_path TO public').catch((e) => {
+      console.error('[pg] SET search_path failed:', e?.message);
+    });
   });
 
   pgPool.on('error', (err) => {
