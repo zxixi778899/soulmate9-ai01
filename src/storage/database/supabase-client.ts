@@ -147,6 +147,7 @@ export function getPostgresPool(): Pool {
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
     ssl: url.includes('localhost') ? false : { rejectUnauthorized: false },
+    options: '-c search_path=public',
   });
 
   pgPool.on('error', (err) => {
