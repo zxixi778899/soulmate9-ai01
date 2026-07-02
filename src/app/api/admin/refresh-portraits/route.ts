@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadDataUrl } from '@/lib/storage';
-import { createClient } from '@supabase/supabase-js';
+import { queryPg } from '@/storage/database/supabase-client';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -146,18 +146,31 @@ async function generateImage(prompt: string, seed: number): Promise<string> {
   return images[0].data || images[0];
 }
 
-async function refreshOne(supabase: any, char: CharacterConfig) {
+async function refreshOne(char: CharacterConfig) {
   console.log(`[${char.slug}] generating portrait seed=${char.seed}...`);
   const base64 = await generateImage(char.prompt, char.seed);
   console.log(`[${char.slug}] generated (${(base64.length * 3 / 4 / 1024).toFixed(0)} KB), uploading...`);
 
   // 优先 Supabase Storage（service_role 直接有权限）
-  const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'portraits';
   const filePath = `portraits/${char.slug}_${Date.now()}.png`;
   let publicUrl = '';
   let lastError = '';
 
-  // 先试 Supabase Storage
+  // 自动确保 bucket 存在（首次调用时建）
+  try {
+    await fetch(`${SUPABASE_URL}/storage/v1/bucket/${bucket}`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: bucket, public: true, file_size_limit: 5242880 }),
+    });
+  } catch {}
+
+  // 上传到 Supabase Storage
   try {
     const buffer = Buffer.from(base64, 'base64');
     const uploadRes = await fetch(
@@ -178,7 +191,7 @@ async function refreshOne(supabase: any, char: CharacterConfig) {
       console.log(`[${char.slug}] Supabase Storage OK: ${publicUrl}`);
     } else {
       const errText = await uploadRes.text();
-      lastError = `Supabase Storage ${uploadRes.status}: ${errText.slice(0, 200)}`;
+      lastError = `Supabase Storage ${uploadRes.status}: ${errText.slice(0, 300)}`;
       console.warn(`[${char.slug}] ${lastError}`);
     }
   } catch (e: any) {
@@ -202,15 +215,17 @@ async function refreshOne(supabase: any, char: CharacterConfig) {
     throw new Error(lastError || 'No upload succeeded');
   }
 
-  const { data, error } = await supabase
-    .from('girlfriends')
-    .update({ portrait_url: publicUrl, updated_at: new Date().toISOString() })
-    .eq('slug', char.slug)
-    .select('id,name,slug,portrait_url');
-
-  if (error) throw new Error(`DB update failed: ${error.message}`);
-  console.log(`[${char.slug}] DB updated:`, JSON.stringify(data));
-  return { slug: char.slug, url: publicUrl, row: data?.[0] };
+  const { data: cols } = await queryPg<{ id: string; name: string }>(
+    `UPDATE girlfriends
+        SET portrait_url = $1, updated_at = NOW()
+      WHERE slug = $2
+      RETURNING id, name`,
+    [publicUrl, char.slug],
+  );
+  const row = cols?.[0] || null;
+  if (!row) throw new Error(`DB update failed: no girlfriend with slug=${char.slug}`);
+  console.log(`[${char.slug}] DB updated:`, JSON.stringify(row));
+  return { slug: char.slug, url: publicUrl, row };
 }
 
 export async function POST(request: NextRequest) {
@@ -223,24 +238,18 @@ export async function POST(request: NextRequest) {
     }
 
     const debugEnv = {
-      has_SUPABASE_URL: !!SUPABASE_URL,
-      has_SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-      has_COZE_SUPABASE_SERVICE_ROLE_KEY: !!process.env.COZE_SUPABASE_SERVICE_ROLE_KEY,
-      has_COZE_SUPABASE_URL: !!process.env.COZE_SUPABASE_URL,
-      has_NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
       has_RUNPOD_API_KEY: !!RUNPOD_API_KEY,
       has_RUNPOD_ENDPOINT_ID: !!RUNPOD_ENDPOINT_ID,
+      has_COZE_SUPABASE_DB_URL: !!process.env.COZE_SUPABASE_DB_URL,
+      has_COZE_SUPABASE_URL: !!process.env.COZE_SUPABASE_URL,
+      bucket: process.env.SUPABASE_STORAGE_BUCKET || 'public',
     };
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-      return NextResponse.json({ error: 'Supabase env not configured', debug: debugEnv }, { status: 500 });
-    }
     if (!RUNPOD_API_KEY || !RUNPOD_ENDPOINT_ID) {
       return NextResponse.json({ error: 'RunPod env not configured', debug: debugEnv }, { status: 500 });
     }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    if (!process.env.COZE_SUPABASE_DB_URL) {
+      return NextResponse.json({ error: 'COZE_SUPABASE_DB_URL not configured', debug: debugEnv }, { status: 500 });
+    }
 
     const characters: CharacterConfig[] = Array.isArray(body.characters) && body.characters.length
       ? body.characters
@@ -249,7 +258,7 @@ export async function POST(request: NextRequest) {
     const results = [];
     for (const char of characters) {
       try {
-        const r = await refreshOne(supabase, char);
+        const r = await refreshOne(char);
         results.push({ ok: true, ...r });
       } catch (e: any) {
         console.error(`[${char.slug}] FAILED:`, e?.message);
@@ -257,7 +266,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, results });
+    return NextResponse.json({ ok: true, results, debug: debugEnv });
   } catch (e: any) {
     console.error('refresh-portraits error:', e);
     return NextResponse.json({ error: e?.message || 'Unknown error' }, { status: 500 });
