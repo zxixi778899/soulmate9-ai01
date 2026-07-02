@@ -155,7 +155,9 @@ async function refreshOne(supabase: any, char: CharacterConfig) {
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
   const filePath = `portraits/${char.slug}_${Date.now()}.png`;
   let publicUrl = '';
+  let lastError = '';
 
+  // 先试 Supabase Storage
   try {
     const buffer = Buffer.from(base64, 'base64');
     const uploadRes = await fetch(
@@ -176,18 +178,28 @@ async function refreshOne(supabase: any, char: CharacterConfig) {
       console.log(`[${char.slug}] Supabase Storage OK: ${publicUrl}`);
     } else {
       const errText = await uploadRes.text();
-      console.warn(`[${char.slug}] Supabase Storage ${uploadRes.status}: ${errText.slice(0, 200)}`);
+      lastError = `Supabase Storage ${uploadRes.status}: ${errText.slice(0, 200)}`;
+      console.warn(`[${char.slug}] ${lastError}`);
     }
   } catch (e: any) {
-    console.warn(`[${char.slug}] Supabase Storage failed:`, e?.message);
+    lastError = `Supabase Storage exception: ${e?.message}`;
+    console.warn(`[${char.slug}] ${lastError}`);
+  }
+
+  // fallback Coze OSS（如果 Supabase 失败）
+  if (!publicUrl) {
+    try {
+      const dataUrl = `data:image/png;base64,${base64}`;
+      const key = await uploadDataUrl(dataUrl, `portraits/${char.slug}`);
+      publicUrl = key;
+      console.log(`[${char.slug}] Coze OSS fallback key=${key}`);
+    } catch (e: any) {
+      lastError += ` | Coze OSS: ${e?.message}`;
+    }
   }
 
   if (!publicUrl) {
-    // fallback Coze OSS
-    const dataUrl = `data:image/png;base64,${base64}`;
-    const key = await uploadDataUrl(dataUrl, `portraits/${char.slug}`);
-    publicUrl = key;
-    console.log(`[${char.slug}] Coze OSS fallback key=${key}`);
+    throw new Error(lastError || 'No upload succeeded');
   }
 
   const { data, error } = await supabase
