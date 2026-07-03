@@ -12,14 +12,43 @@
  *   可选：SENTRY_TRACES_SAMPLE_RATE=0.1
  */
 
-let sentryModule: typeof import('@sentry/nextjs') | null = null;
+// 用最小 interface 而不是 typeof import('@sentry/nextjs')，避免 tsc 在包未装时
+// 解析模块失败（纯类型表达式也会触发 module resolution）。
+interface SentryLike {
+  init(options: {
+    dsn?: string;
+    tracesSampleRate?: number;
+    sendDefaultPii?: boolean;
+    environment?: string;
+  }): void;
+  captureException(
+    err: unknown,
+    ctx?: {
+      tags?: Record<string, string>;
+      extra?: Record<string, unknown>;
+      user?: { id?: string; email?: string };
+      level?: 'fatal' | 'error' | 'warning' | 'info' | 'debug';
+    },
+  ): void;
+  captureMessage(
+    msg: string,
+    ctx?: {
+      tags?: Record<string, string>;
+      extra?: Record<string, unknown>;
+      user?: { id?: string; email?: string };
+      level?: 'fatal' | 'error' | 'warning' | 'info' | 'debug';
+    },
+  ): void;
+}
+
+let sentryModule: SentryLike | null = null;
 let initialized = false;
 
-function loadSentry(): typeof import('@sentry/nextjs') | null {
+function loadSentry(): SentryLike | null {
   if (sentryModule !== null) return sentryModule;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    sentryModule = require('@sentry/nextjs');
+    sentryModule = require('@sentry/nextjs') as SentryLike;
   } catch {
     // 包未安装：降级为 no-op
     sentryModule = null;
@@ -27,7 +56,7 @@ function loadSentry(): typeof import('@sentry/nextjs') | null {
   return sentryModule;
 }
 
-function ensureInitialized(): typeof import('@sentry/nextjs') | null {
+function ensureInitialized(): SentryLike | null {
   if (initialized) return loadSentry();
   const S = loadSentry();
   if (!S) return null;
