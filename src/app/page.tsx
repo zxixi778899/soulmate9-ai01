@@ -108,7 +108,7 @@ export default function SingleViewportHero() {
 
   // 鼠标位置（用于全局视差 + 光斑）
   const [mouse, setMouse] = useState({ x: 0.5, y: 0.5 });
-  const heroRef = useRef<HTMLElement>(null);
+  const heroRef = useRef<HTMLElement | null>(null);
   const cursorTrailRef = useRef<HTMLDivElement>(null);
 
   // 视差更新（节流到 rAF）
@@ -579,7 +579,7 @@ function CursorTrail({
   targetRef,
   accent,
 }: {
-  targetRef: React.RefObject<HTMLElement>;
+  targetRef: React.RefObject<HTMLElement | null>;
   accent: string;
 }) {
   const [particles, setParticles] = useState<{ id: number; x: number; y: number; t: number; c: string }[]>([]);
