@@ -1,73 +1,63 @@
 /**
- * Admin: 批量生成女友卡图（RunPod + 上传到 cards/{slug}.png）
+ * Admin: 单张生成女友卡图（Vercel compatible）
  *
- * 用法（需要 superadmin 权限）：
+ * 用法：
  *   POST /api/admin/generate-cards
- *   Body: { slugs?: string[] }  // 不传则用全部 CHARACTERS
+ *   Body: { slug: string }  // 单张角色 slug
  *
  * 行为：
- *   - 每个角色 prompt 由 CHARACTERS traits + sceneSlug 推导
- *   - 同步调用 runpodClient.generateAndUpload（每张 ~30s+）
- *   - 返回每张卡图的 public URL
- *
- * 注意：
- *   - Vercel Hobby timeout = 10s；Pro = 60s — 14 张会超时
- *   - 建议：用 Vercel cron（Pro）或本地 Node 脚本调用
- *   - 失败时返回 partial 数组，已成功的会保留在 storage
+ *   - 单张调用 RunPod + 上传，约 30-60s
+ *   - Vercel Pro 60s timeout 够单张；Hobby 30s 接近边缘
+ *   - 重复 POST 同一 slug 会覆盖 storage cards/{slug}.png
+ *   - 配合前端 admin 页面循环调用 14 次
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { runpodClient } from '@/lib/runpod';
 
-// CHARACTERS 数据复制（与 page.tsx 同步）
-// 修改 page.tsx CHARACTERS 时必须同步这里
-const CHARACTERS = [
-  { slug: 'luna', name: 'Luna', age: 24, sceneSlug: 'moonlit-bedroom',
-    traits: 'Poetic, Tender, Soft-spoken' },
-  { slug: 'ruby', name: 'Ruby', age: 22, sceneSlug: 'infinity-pool-night',
-    traits: 'Playful, Spicy, Polyglot' },
-  { slug: 'summer', name: 'Summer', age: 25, sceneSlug: 'boutique-gym',
-    traits: 'Sunny, Athletic, Adventurous' },
-  { slug: 'scarlet', name: 'Scarlet', age: 23, sceneSlug: 'onsen-spa',
-    traits: 'Elegant, Mysterious, Cultured' },
-  { slug: 'mira', name: 'Mira', age: 23, sceneSlug: 'infinity-pool-night',
-    traits: 'Creative, Curious, Dramatic' },
-  { slug: 'aria', name: 'Aria', age: 25, sceneSlug: 'rooftop-lounge',
-    traits: 'Melodic, Romantic, Charming' },
-  { slug: 'nova', name: 'Nova', age: 22, sceneSlug: 'moonlit-bedroom',
-    traits: 'Mysterious, Dreamy, Sweet' },
-  { slug: 'kira', name: 'Kira', age: 26, sceneSlug: 'onsen-spa',
-    traits: 'Strong, Loyal, Disciplined' },
-  { slug: 'lyra', name: 'Lyra', age: 24, sceneSlug: 'penthouse-window',
-    traits: 'Elegant, Sensitive, Artistic' },
-  { slug: 'sage', name: 'Sage', age: 27, sceneSlug: 'boutique-gym',
-    traits: 'Calm, Wise, Grounded' },
-  { slug: 'ember', name: 'Ember', age: 23, sceneSlug: 'rooftop-lounge',
-    traits: 'Bold, Adventurous, Passionate' },
-  { slug: 'jasmine', name: 'Jasmine', age: 22, sceneSlug: 'moonlit-bedroom',
-    traits: 'Sweet, Clumsy, Warm' },
-  { slug: 'morgana', name: 'Morgana', age: 28, sceneSlug: 'infinity-pool-night',
-    traits: 'Clever, Mysterious, Confident' },
-  { slug: 'wren', name: 'Wren', age: 21, sceneSlug: 'penthouse-window',
-    traits: 'Creative, Free, Vulnerable' },
-];
+export const runtime = 'nodejs';
+export const maxDuration = 60; // Vercel Pro 上限
 
-const SCENES = {
-  'moonlit-bedroom': 'cozy bedroom at night, moonlight streaming through curtains, soft purple lighting, dreamy atmosphere',
-  'infinity-pool-night': 'luxury rooftop pool at night, neon city skyline reflection, cinematic Tokyo night vibe',
-  'boutique-gym': 'modern minimalist gym, warm natural light through big windows, fitness studio aesthetic',
-  'rooftop-lounge': 'rooftop lounge at sunset, golden hour, city skyline background, luxurious outdoor furniture',
-  'onsen-spa': 'traditional Japanese onsen, red lanterns, wooden architecture, peaceful steam atmosphere',
-  'penthouse-window': 'penthouse floor-to-ceiling window, city night lights, luxurious modern interior',
+// 与 page.tsx CHARACTERS 同步
+const CHARACTERS: Record<string, { name: string; age: number; traits: string; sceneSlug: string }> = {
+  luna: { name: 'Luna', age: 24, traits: 'Poetic, Tender, Soft-spoken', sceneSlug: 'moonlit-bedroom' },
+  ruby: { name: 'Ruby', age: 22, traits: 'Playful, Spicy, Polyglot', sceneSlug: 'infinity-pool-night' },
+  summer: { name: 'Summer', age: 25, traits: 'Sunny, Athletic, Adventurous', sceneSlug: 'boutique-gym' },
+  scarlet: { name: 'Scarlet', age: 23, traits: 'Elegant, Mysterious, Cultured', sceneSlug: 'onsen-spa' },
+  mira: { name: 'Mira', age: 23, traits: 'Creative, Curious, Dramatic', sceneSlug: 'infinity-pool-night' },
+  aria: { name: 'Aria', age: 25, traits: 'Melodic, Romantic, Charming', sceneSlug: 'rooftop-lounge' },
+  nova: { name: 'Nova', age: 22, traits: 'Mysterious, Dreamy, Sweet', sceneSlug: 'moonlit-bedroom' },
+  kira: { name: 'Kira', age: 26, traits: 'Strong, Loyal, Disciplined', sceneSlug: 'onsen-spa' },
+  lyra: { name: 'Lyra', age: 24, traits: 'Elegant, Sensitive, Artistic', sceneSlug: 'penthouse-window' },
+  sage: { name: 'Sage', age: 27, traits: 'Calm, Wise, Grounded', sceneSlug: 'boutique-gym' },
+  ember: { name: 'Ember', age: 23, traits: 'Bold, Adventurous, Passionate', sceneSlug: 'rooftop-lounge' },
+  jasmine: { name: 'Jasmine', age: 22, traits: 'Sweet, Clumsy, Warm', sceneSlug: 'moonlit-bedroom' },
+  morgana: { name: 'Morgana', age: 28, traits: 'Clever, Mysterious, Confident', sceneSlug: 'infinity-pool-night' },
+  wren: { name: 'Wren', age: 21, traits: 'Creative, Free, Vulnerable', sceneSlug: 'penthouse-window' },
+};
+
+const SCENES: Record<string, string> = {
+  'moonlit-bedroom': 'cozy bedroom at night, moonlight through curtains, soft purple lighting',
+  'infinity-pool-night': 'luxury rooftop pool at night, neon city skyline, Tokyo night vibe',
+  'boutique-gym': 'modern minimalist gym, warm natural light, fitness studio aesthetic',
+  'rooftop-lounge': 'rooftop lounge at sunset, golden hour, city skyline',
+  'onsen-spa': 'traditional Japanese onsen, red lanterns, wooden architecture, peaceful steam',
+  'penthouse-window': 'penthouse floor-to-ceiling window, city night lights, modern interior',
 };
 
 function buildPrompt(c: { name: string; age: number; traits: string; sceneSlug: string }): string {
-  const scene = SCENES[c.sceneSlug as keyof typeof SCENES] || SCENES['moonlit-bedroom'];
-  return `Stunningly beautiful gorgeous young woman named ${c.name}, age ${c.age}, ${c.traits}, wearing elegant outfit that flatters her figure, pose: standing naturally looking at viewer with warm smile, environment: ${scene}, full body shot from head to toe, upper body composition, expression: confident and approachable, photorealistic, shot on Sony A7IV 85mm f/1.4, soft cinematic lighting, hyperrealistic, 8k uhd, magazine cover quality`;
+  const scene = SCENES[c.sceneSlug] ?? SCENES['moonlit-bedroom'];
+  return `Stunningly beautiful gorgeous young woman named ${c.name}, age ${c.age}, ${c.traits}, wearing elegant outfit that flatters her figure, pose: standing naturally looking at viewer with warm smile, environment: ${scene}, full body shot, upper body composition, expression: confident and approachable, photorealistic, shot on Sony A7IV 85mm f/1.4, soft cinematic lighting, hyperrealistic, 8k uhd, magazine cover quality`;
 }
 
-export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 分钟（Vercel Pro 上限）
+const SUPABASE_URL =
+  process.env.COZE_SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  '';
+const SUPABASE_KEY =
+  process.env.COZE_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  '';
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin(req, 'superadmin');
@@ -75,54 +65,112 @@ export async function POST(req: NextRequest) {
 
   if (!runpodClient.isConfigured) {
     return NextResponse.json(
-      { error: 'RunPod not configured. Set RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID.' },
+      { error: 'RunPod not configured. Set RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID on Vercel.' },
       { status: 500 },
     );
   }
 
   const body = await req.json().catch(() => ({}));
-  const targetSlugs: string[] = Array.isArray(body.slugs) && body.slugs.length > 0
-    ? body.slugs
-    : CHARACTERS.map((c) => c.slug);
+  const slug = typeof body.slug === 'string' ? body.slug : '';
+  const character = CHARACTERS[slug];
 
-  const targets = CHARACTERS.filter((c) => targetSlugs.includes(c.slug));
-  if (targets.length === 0) {
-    return NextResponse.json({ error: 'No matching slugs' }, { status: 400 });
+  if (!character) {
+    return NextResponse.json(
+      { error: `Unknown slug: ${slug}. Valid: ${Object.keys(CHARACTERS).join(', ')}` },
+      { status: 400 },
+    );
   }
 
-  const results: Array<{ slug: string; status: 'ok' | 'failed'; url?: string; error?: string }> = [];
+  try {
+    // 1) RunPod 生成
+    const prompt = buildPrompt(character);
+    const result = await runpodClient.generateAndUpload(
+      { prompt, width: 768, height: 1024, num_inference_steps: 28, guidance_scale: 3.5 },
+      `cards/${slug}`,
+    );
+    const generatedUrl = result[0];
 
-  for (const c of targets) {
-    try {
-      const prompt = buildPrompt(c);
-      // 768x1024 竖图（适合卡 3:4 比例）
-      const result = await runpodClient.generateAndUpload(
-        { prompt, width: 768, height: 1024, num_inference_steps: 28, guidance_scale: 3.5 },
-        `cards/${c.slug}`,
-      );
-      // uploadFile 返回的 url 是带 ts_rand_ 前缀的，这里取第一张
-      // 上传后 storage key 是 cards/{ts}_{rand}_runpod_{i}.png
-      // 注意：runpodClient.generateAndUpload 会自动加 ts_rand_ 前缀，
-      // 真实路径是 cards/{ts}_{rand}_runpod_0.png，不是 cards/{slug}.png
-      results.push({
-        slug: c.slug,
-        status: 'ok',
-        url: result[0],
-      });
-    } catch (e: any) {
-      results.push({
-        slug: c.slug,
-        status: 'failed',
-        error: e?.message ?? 'Unknown error',
+    // 2) 移动到固定路径 cards/{slug}.png（用 service_role 重命名）
+    // result[0] 是带签名 URL，提取 key
+    const urlObj = new URL(generatedUrl);
+    const pathParts = urlObj.pathname.split('/storage/v1/object/sign/');
+    if (pathParts.length < 2 || !SUPABASE_URL || !SUPABASE_KEY) {
+      return NextResponse.json({
+        status: 'partial',
+        slug,
+        url: generatedUrl,
+        note: '生成成功但无法自动重命名 — 请到 Supabase Storage 手动把 cards/{ts}_*_runpod_0.png 重命名为 cards/{slug}.png',
       });
     }
-  }
 
+    // 提取源 key（去掉签名参数）
+    const sourceSignedKey = pathParts[1].split('?')[0];
+    // 解码（如果 URL encoded）
+    const sourceKey = decodeURIComponent(sourceSignedKey);
+    const targetKey = `cards/${slug}.png`;
+
+    // 3) 复制到目标 key
+    const copyRes = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/copy`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bucketId: 'portraits',
+          sourceKey,
+          destinationKey: targetKey,
+        }),
+      },
+    );
+
+    if (!copyRes.ok) {
+      return NextResponse.json({
+        status: 'partial',
+        slug,
+        generatedKey: sourceKey,
+        generatedUrl,
+        note: '生成成功但复制到 cards/{slug}.png 失败 — 请到 Supabase Storage 手动重命名',
+      });
+    }
+
+    // 4) 删除原 generated key
+    await fetch(
+      `${SUPABASE_URL}/storage/v1/object/portraits/${sourceKey}`,
+      {
+        method: 'DELETE',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+        },
+      },
+    );
+
+    return NextResponse.json({
+      status: 'ok',
+      slug,
+      key: targetKey,
+      url: `${SUPABASE_URL}/storage/v1/object/public/portraits/${targetKey}`,
+    });
+  } catch (e: any) {
+    return NextResponse.json(
+      { status: 'failed', slug, error: e?.message ?? 'Unknown error' },
+      { status: 500 },
+    );
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const guard = await requireAdmin(req, 'superadmin');
+  if (guard.error) return guard.error;
+
+  // 返回所有 slugs 列表（前端 admin 页面循环调用时知道顺序）
   return NextResponse.json({
-    total: targets.length,
-    succeeded: results.filter((r) => r.status === 'ok').length,
-    failed: results.filter((r) => r.status === 'failed').length,
-    results,
-    note: '生成完成后需要手动将上传的图移动到固定路径 cards/{slug}.png（当前 storage 加了 ts_rand_ 前缀）',
+    slugs: Object.keys(CHARACTERS),
+    total: Object.keys(CHARACTERS).length,
+    endpoint: 'POST /api/admin/generate-cards with body { slug: string }',
   });
 }
