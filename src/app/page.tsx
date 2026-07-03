@@ -84,6 +84,118 @@ const CHARACTERS: Character[] = [
     bgAccent: 'rgba(239,68,68,0.55)',
     sceneSlug: 'onsen-spa',
   },
+  // 随机新角色（测试走马灯 14 张卡的整体效果）
+  // 全部使用现有 6 个 scene 之一作卡图
+  {
+    slug: 'mira',
+    name: 'Mira',
+    age: 23,
+    tagline: 'Lost in Tokyo neon, found in your voice.',
+    shortDescription: 'A street photographer chasing midnight glow. Soft heart, sharp lens.',
+    traits: ['Creative', 'Curious', 'Dramatic'],
+    accent: '#EC4899',
+    bgAccent: 'rgba(236,72,153,0.55)',
+    sceneSlug: 'infinity-pool-night',
+  },
+  {
+    slug: 'aria',
+    name: 'Aria',
+    age: 25,
+    tagline: 'Music is the language of the soul.',
+    shortDescription: 'A jazz pianist who plays until sunrise. Romance in every chord.',
+    traits: ['Melodic', 'Romantic', 'Charming'],
+    accent: '#8B5CF6',
+    bgAccent: 'rgba(139,92,246,0.55)',
+    sceneSlug: 'rooftop-lounge',
+  },
+  {
+    slug: 'nova',
+    name: 'Nova',
+    age: 22,
+    tagline: 'Dreams written in starlight.',
+    shortDescription: 'An astronomy student by day, dreamer by night. Eyes full of galaxies.',
+    traits: ['Mysterious', 'Dreamy', 'Sweet'],
+    accent: '#3B82F6',
+    bgAccent: 'rgba(59,130,246,0.55)',
+    sceneSlug: 'moonlit-bedroom',
+  },
+  {
+    slug: 'kira',
+    name: 'Kira',
+    age: 26,
+    tagline: 'Sword and silk, fire and grace.',
+    shortDescription: 'A modern kendo champion. Fierce focus, gentle heart underneath.',
+    traits: ['Strong', 'Loyal', 'Disciplined'],
+    accent: '#DC2626',
+    bgAccent: 'rgba(220,38,38,0.55)',
+    sceneSlug: 'onsen-spa',
+  },
+  {
+    slug: 'lyra',
+    name: 'Lyra',
+    age: 24,
+    tagline: 'Strings of fate, woven with melody.',
+    shortDescription: 'A concert violinist. Her bow dances on moonlit stages.',
+    traits: ['Elegant', 'Sensitive', 'Artistic'],
+    accent: '#A855F7',
+    bgAccent: 'rgba(168,85,247,0.55)',
+    sceneSlug: 'penthouse-window',
+  },
+  {
+    slug: 'sage',
+    name: 'Sage',
+    age: 27,
+    tagline: 'Whisper, and the forest listens.',
+    shortDescription: 'A herbalist who talks to plants. Calm, observant, quietly fierce.',
+    traits: ['Calm', 'Wise', 'Grounded'],
+    accent: '#10B981',
+    bgAccent: 'rgba(16,185,129,0.55)',
+    sceneSlug: 'boutique-gym',
+  },
+  {
+    slug: 'ember',
+    name: 'Ember',
+    age: 23,
+    tagline: 'Burning bright, loving fierce.',
+    shortDescription: 'A stunt double with a heart of gold. Dares everything, fears nothing.',
+    traits: ['Bold', 'Adventurous', 'Passionate'],
+    accent: '#F97316',
+    bgAccent: 'rgba(249,115,22,0.55)',
+    sceneSlug: 'rooftop-lounge',
+  },
+  {
+    slug: 'jasmine',
+    name: 'Jasmine',
+    age: 22,
+    tagline: 'Sweet as sugar, sharp as spice.',
+    shortDescription: 'A pastry chef who burns everything but croissants. Sweet and clumsy.',
+    traits: ['Sweet', 'Clumsy', 'Warm'],
+    accent: '#FB7185',
+    bgAccent: 'rgba(251,113,133,0.55)',
+    sceneSlug: 'moonlit-bedroom',
+  },
+  {
+    slug: 'morgana',
+    name: 'Morgana',
+    age: 28,
+    tagline: 'Mistress of mystery, queen of cards.',
+    shortDescription: 'A professional poker player. Reads everyone, reveals nothing.',
+    traits: ['Clever', 'Mysterious', 'Confident'],
+    accent: '#6366F1',
+    bgAccent: 'rgba(99,102,241,0.55)',
+    sceneSlug: 'infinity-pool-night',
+  },
+  {
+    slug: 'aria-w',
+    name: 'Wren',
+    age: 21,
+    tagline: 'Tiny bird, mighty song.',
+    shortDescription: 'A indie singer-songwriter. Plucks guitar, writes poetry, steals hearts.',
+    traits: ['Creative', 'Free', 'Vulnerable'],
+    accent: '#F59E0B',
+    bgAccent: 'rgba(245,158,11,0.55)',
+    sceneSlug: 'penthouse-window',
+  },
 ];
 
 const SCENES = [
@@ -246,9 +358,13 @@ export default function SingleViewportHero() {
                     opacity: i === activeIdx ? 1 : 0,
                     top: '50%',
                     left: '60%',
+                    // 避免 `calc(... + 0px)` 这种 CSS spec 不接受的表达式
+                    // px===0 时直接用 -50%
                     transform: i === activeIdx
-                      ? `translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`
-                      : `translate(-50%, calc(-50% + 40px)) scale(0.94)`,
+                      ? (px === 0 && py === 0
+                        ? 'translate(-50%, -50%)'
+                        : `translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`)
+                      : 'translate(-50%, calc(-50% + 40px)) scale(0.94)',
                     filter: i === activeIdx ? 'drop-shadow(0 35px 70px rgba(0,0,0,0.55))' : 'none',
                     transformOrigin: 'center bottom',
                   }}
@@ -456,11 +572,13 @@ function MarqueeRow({
   const totalOriginal = characters.length;
   const totalDoubled = totalOriginal * 2;
   // 5 张等比铺满 nav pill 宽（x=80, right=1360, 总宽 1280）
-  // 卡宽 = (1280 - 4*8) / 5 = 247.2
+  // 卡宽 = (1280 - 4*8) / 5 = 247.2（无论总角色数，可见 5 张铺满 nav pill 宽）
+  // 14 张角色只有 5 张可见 + 9 张在 marquee 滚动中
   const navPadLeft = 80;
   const navWidth = 1280;
+  const VISIBLE_CARDS = 5;
   const cardGap = 8;
-  const cardWidth = (navWidth - (totalOriginal - 1) * cardGap) / totalOriginal;
+  const cardWidth = (navWidth - (VISIBLE_CARDS - 1) * cardGap) / VISIBLE_CARDS;
   const cardHeight = 300; // 固定 300px（用户指定）
   // 走马灯位移状态（hover 时暂停）
   const [scrollX, setScrollX] = useState(0);
@@ -506,7 +624,7 @@ function MarqueeRow({
       style={{ height: cardHeight + 24 }}
     >
       <div
-        className="pointer-events-auto relative w-full overflow-hidden select-none"
+        className="pointer-events-auto relative w-full overflow-visible select-none"
         style={{ height: cardHeight + 24, cursor: isDragging.current ? 'grabbing' : 'grab' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -584,15 +702,23 @@ function CharacterCard({
           : '0 6px 18px rgba(0,0,0,0.4)',
       } as React.CSSProperties}
     >
-      {/* 卡图：characters/{slug}.png（透明立绘 PNG，object-contain 显示人物） */}
+      {/* 卡图：cards/{slug}.png（RunPod 生成的有背景实景图，与背景 scenes 图分开） */}
       <div className="absolute inset-0">
         <Image
-          src={`${SUPABASE_BASE}/characters/${c.slug}.png`}
+          src={`${SUPABASE_BASE}/cards/${c.slug}.png`}
           alt={c.name}
           fill
-          className="object-contain object-bottom"
+          className="object-cover"
           sizes="248px"
           unoptimized
+          onError={(e) => {
+            // 卡图未生成时回退到 scenes 图
+            const target = e.target as HTMLImageElement;
+            if (!target.dataset.fallback) {
+              target.dataset.fallback = '1';
+              target.src = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''}/storage/v1/object/public/portraits/scenes/${c.sceneSlug}.png`;
+            }
+          }}
         />
       </div>
 
