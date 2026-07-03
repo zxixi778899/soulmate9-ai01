@@ -866,6 +866,51 @@ html {
   animation: portraitBreathe 5s ease-in-out infinite;
 }
 
+/* 名字落下 + 错位弹跳入场 */
+@keyframes nameStomp {
+  0% { opacity: 0; transform: translateY(-50px) scale(0.85) skewX(-8deg); filter: blur(12px); }
+  60% { opacity: 1; transform: translateY(8px) scale(1.05) skewX(2deg); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1) skewX(0); }
+}
+
+/* 单字符弹跳入场 */
+@keyframes charBounce {
+  0% { opacity: 0; transform: translateY(-40px) scale(1.4) rotate(-12deg); }
+  70% { opacity: 1; transform: translateY(6px) scale(0.92) rotate(2deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+
+/* 文字打字机 */
+@keyframes typeIn {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+/* Chip 弹跳 */
+@keyframes chipPop {
+  0% { opacity: 0; transform: scale(0.6) translateY(10px); }
+  70% { opacity: 1; transform: scale(1.1) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 鼠标粒子 fade */
+@keyframes particleFade {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+}
+
+/* 心跳 */
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 18px rgba(255,45,120,0.45); }
+  20% { transform: scale(1.15); box-shadow: 0 0 28px rgba(255,45,120,0.7); }
+  40% { transform: scale(1); box-shadow: 0 0 18px rgba(255,45,120,0.45); }
+}
+
+/* ping 雷达波 */
+@keyframes ping {
+  75%, 100% { transform: scale(2.5); opacity: 0; }
+}
+
 /* 头发飘动（轻微 skew + translate） */
 @keyframes hairFlow {
   0%, 100% { transform: translateX(0) rotate(0deg); }
