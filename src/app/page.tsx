@@ -6,72 +6,157 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { APP_NAME } from '@/lib/constants';
 import Link from 'next/link';
-import { Heart, Sparkles, MessageCircle, Loader2, AlertCircle, Menu, Star, TrendingUp, Flame, ChevronRight, Plus } from 'lucide-react';
+import {
+  Heart,
+  Sparkles,
+  MessageCircle,
+  Menu,
+  Globe,
+  X,
+  ChevronRight,
+  Volume2,
+} from 'lucide-react';
 import { AgeVerification } from '@/components/AgeVerification';
 import { useAuth } from '@/components/AuthProvider';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import DynamicNav from '@/components/page-builder/DynamicNav';
 import { useTranslation } from '@/lib/i18n/context';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
-// 4 个角色 — 与 Supabase Storage portraits/characters/ 下保持一致
-const CHARACTERS = [
-  { slug: 'luna', name: 'Luna', age: 24, tagline: 'Moonlit conversations, soft as silk.', accent: '#A78BFA', chipColor: 'rgba(167,139,250,0.85)' },
-  { slug: 'ruby', name: 'Ruby', age: 22, tagline: 'Tokyo neon never sleeps. Neither do I.', accent: '#FF2D78', chipColor: 'rgba(255,45,120,0.85)' },
-  { slug: 'summer', name: 'Summer', age: 25, tagline: 'Golden hour, all day, every day.', accent: '#F59E0B', chipColor: 'rgba(245,158,11,0.85)' },
-  { slug: 'scarlet', name: 'Scarlet', age: 23, tagline: 'Tradition wears a crimson dress.', accent: '#EF4444', chipColor: 'rgba(239,68,68,0.85)' },
-];
-
-const SUPABASE_BASE = 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits';
-
-interface PublicGirlfriend {
-  id: string;
+// ============ 角色定义 ============
+type Character = {
+  slug: string;
   name: string;
   age: number;
-  slug: string;
-  tags: string[];
-  short_description: string;
-  portrait_url: string | null;
-  avatar_url?: string | null;
-  image_url?: string | null;
-}
+  tagline: string;
+  shortDescription: string;
+  traits: string[];
+  accent: string;          // 主色（霓虹）
+  bgAccent: string;        // 背景氛围色（更柔）
+  sceneSlug: string;       // 背景图 slug
+};
 
-export default function HeroLandingPage() {
+const CHARACTERS: Character[] = [
+  {
+    slug: 'luna',
+    name: 'Luna',
+    age: 24,
+    tagline: 'Moonlit conversations, soft as silk.',
+    shortDescription:
+      'A bookish romantic who reads your soul between the lines. Wakes at midnight; thinks in poetry.',
+    traits: ['Poetic', 'Tender', 'Soft-spoken'],
+    accent: '#A78BFA',
+    bgAccent: 'rgba(167,139,250,0.55)',
+    sceneSlug: 'moonlit-bedroom',
+  },
+  {
+    slug: 'ruby',
+    name: 'Ruby',
+    age: 22,
+    tagline: 'Tokyo neon never sleeps. Neither do I.',
+    shortDescription:
+      'A city-rave DJ with violet eyes and a sharp tongue. Flirts in three languages, lives in two time zones.',
+    traits: ['Playful', 'Spicy', 'Polyglot'],
+    accent: '#FF2D78',
+    bgAccent: 'rgba(255,45,120,0.55)',
+    sceneSlug: 'infinity-pool-night',
+  },
+  {
+    slug: 'summer',
+    name: 'Summer',
+    age: 25,
+    tagline: 'Golden hour, all day, every day.',
+    shortDescription:
+      'A surf-instructor turned photographer. Sun on her shoulders, salt in her laugh.',
+    traits: ['Sunny', 'Athletic', 'Adventurous'],
+    accent: '#F59E0B',
+    bgAccent: 'rgba(245,158,11,0.55)',
+    sceneSlug: 'boutique-gym',
+  },
+  {
+    slug: 'scarlet',
+    name: 'Scarlet',
+    age: 23,
+    tagline: 'Tradition wears a crimson dress.',
+    shortDescription:
+      'A calligrapher from Suzhou. Tea ceremony master, classical guzheng player, speaks softly and means deeply.',
+    traits: ['Elegant', 'Mysterious', 'Cultured'],
+    accent: '#EF4444',
+    bgAccent: 'rgba(239,68,68,0.55)',
+    sceneSlug: 'onsen-spa',
+  },
+];
+
+// 6 个暧昧场景 — 旋转底图
+const SCENES = [
+  { slug: 'moonlit-bedroom',  pos: '50% 50%' },
+  { slug: 'infinity-pool-night', pos: '50% 50%' },
+  { slug: 'boutique-gym',    pos: '50% 50%' },
+  { slug: 'rooftop-lounge',   pos: '50% 50%' },
+  { slug: 'onsen-spa',        pos: '50% 50%' },
+  { slug: 'penthouse-window', pos: '50% 50%' },
+];
+
+const SUPABASE_BASE =
+  'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits';
+
+// ============ 多语言问好（每个角色 5 种语言轮播） ============
+const GREETINGS: Record<string, string[]> = {
+  luna: [
+    'Hi there... 🌙',
+    'Bonsoir... 🌙',
+    'こんにちは 🌙',
+    '안녕하세요 🌙',
+    '你好呀 🌙',
+  ],
+  ruby: [
+    "Hey babe, what's up? 💋",
+    'こんにちは、東京から 💋',
+    'Salut, ça va? 💋',
+    'Hola guapo 💋',
+    '嘿，今天想我了吗？💋',
+  ],
+  summer: [
+    'Hey sunshine ☀️',
+    'Hola, ¿qué tal? ☀️',
+    'やあ、元気？☀️',
+    '안녕 ☀️',
+    '嗨，今天过得怎么样？☀️',
+  ],
+  scarlet: [
+    'Welcome... 🍵',
+    'いらっしゃいませ 🍵',
+    'Bienvenue 🍵',
+    'Bienvenido 🍵',
+    '欢迎 🍵',
+  ],
+};
+
+export default function SingleViewportHero() {
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useTranslation();
 
-  const [girlfriends, setGirlfriends] = useState<PublicGirlfriend[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  // hero 当前选中角色
   const [activeIdx, setActiveIdx] = useState(0);
+  const [sceneIdx, setSceneIdx] = useState(0);
+  const [greetIdx, setGreetIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+
   const active = CHARACTERS[activeIdx];
 
-  // 加载女友列表
-  useEffect(() => {
-    const fetchGirlfriends = async () => {
-      try {
-        const res = await fetch('/api/girlfriends/public');
-        const data = await res.json();
-        if (data.girlfriends) setGirlfriends(data.girlfriends);
-      } catch {
-        setError(t('common.error'));
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchGirlfriends();
-  }, []);
-
-  // 自动轮转（6 秒一档；hover/click 卡片会重置）
-  const [paused, setPaused] = useState(false);
+  // 自动轮转场景底图（8s）
   useEffect(() => {
     if (paused) return;
-    const id = setInterval(() => setActiveIdx((i) => (i + 1) % CHARACTERS.length), 6000);
+    const id = setInterval(() => setSceneIdx((i) => (i + 1) % SCENES.length), 8000);
     return () => clearInterval(id);
   }, [paused]);
+
+  // 多语言气泡切换（每 9s 切下一个）
+  useEffect(() => {
+    setGreetIdx(0);
+    const id = setInterval(() => {
+      setGreetIdx((i) => (i + 1) % GREETINGS[active.slug].length);
+    }, 9000);
+    return () => clearInterval(id);
+  }, [active.slug]);
 
   const handleGetStarted = () => (user ? router.push('/gallery') : router.push('/register'));
   const handleCardClick = (slug: string) => router.push(`/girlfriend/${slug}`);
@@ -80,114 +165,79 @@ export default function HeroLandingPage() {
     <>
       <AgeVerification />
       <div className="min-h-screen text-[#F0F0F5] bg-[#07070F] overflow-x-hidden">
-        {/* ===== NAV ===== */}
-        <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.06] bg-[#07070F]/70 backdrop-blur-2xl">
-          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FF2D78] to-[#d946ef] flex items-center justify-center shadow-[0_0_15px_rgba(255,45,120,0.3)]">
-                <Heart className="w-4 h-4 text-white fill-white" />
-              </div>
-              <span className="font-semibold text-lg tracking-tight">{APP_NAME}</span>
-            </Link>
-            <div className="hidden md:flex items-center gap-1">
-              <Link href="/" className="px-3 py-2 text-sm rounded-lg text-[#FF2D78] bg-[#FF2D78]/10">Home</Link>
-              <Link href="/pricing" className="px-3 py-2 text-sm rounded-lg text-[#8B8BA3] hover:text-[#F0F0F5] hover:bg-white/[0.06]">Pricing</Link>
-              <Link href="/explore" className="px-3 py-2 text-sm rounded-lg text-[#8B8BA3] hover:text-[#F0F0F5] hover:bg-white/[0.06]">Explore</Link>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="md:hidden">
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-[#8B8BA3]"><Menu className="w-5 h-5" /></Button>
-                  </SheetTrigger>
-                  <SheetContent side="right" className="w-[280px]">
-                    <div className="flex flex-col gap-2 mt-8">
-                      <Link href="/" className="px-4 py-3 text-sm rounded-lg text-[#FF2D78] bg-[#FF2D78]/10">Home</Link>
-                      <Link href="/pricing" className="px-4 py-3 text-sm rounded-lg text-[#8B8BA3]">Pricing</Link>
-                      <Link href="/explore" className="px-4 py-3 text-sm rounded-lg text-[#8B8BA3]">Explore</Link>
-                    </div>
-                  </SheetContent>
-                </Sheet>
-              </div>
-              <LanguageSwitcher variant="compact" />
-              {!user && (
-                <Button variant="ghost" className="text-sm text-[#8B8BA3] hover:text-[#FF6BA6]" onClick={() => router.push('/login')}>
-                  {t('hero.signIn')}
-                </Button>
-              )}
-              <Button onClick={handleGetStarted} variant="glow" className="text-sm font-medium h-9 px-5 rounded-lg">
-                {t('hero.getStarted')}
-              </Button>
-            </div>
-          </div>
-        </header>
+        {/* ===================== 全新导航 ===================== */}
+        <NewTopNav user={user} onGetStarted={handleGetStarted} t={t} />
 
-        {/* ===== HERO — 分层 ===== */}
+        {/* ===================== 单屏 Hero（100vh）===================== */}
         <section
-          className="relative w-full h-[100vh] min-h-[720px] overflow-hidden"
+          className="relative w-full h-screen min-h-[640px] overflow-hidden"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
-          {/* 背景层 — 4 张图交叉淡入淡出 */}
-          {CHARACTERS.map((c, i) => (
+          {/* ── Layer 1: 全屏场景底图（轮转 6 张） ── */}
+          {SCENES.map((s, i) => (
             <div
-              key={c.slug}
-              className="absolute inset-0 transition-opacity duration-[1800ms] ease-in-out"
-              style={{
-                opacity: i === activeIdx ? 1 : 0,
-                zIndex: 1,
-              }}
+              key={s.slug}
+              className="absolute inset-0 transition-opacity duration-[2000ms] ease-in-out"
+              style={{ opacity: i === sceneIdx ? 1 : 0, zIndex: 1 }}
             >
               <Image
-                src={`${SUPABASE_BASE}/portraits/${c.slug}_1783036793301.png`}
-                alt={c.name}
+                src={`${SUPABASE_BASE}/scenes/${s.slug}.png`}
+                alt={s.slug}
                 fill
                 priority={i === 0}
-                className="object-cover scale-110 animate-[heroZoom_18s_ease-in-out_infinite_alternate]"
+                className="object-cover scale-110 animate-[heroZoom_22s_ease-in-out_infinite_alternate]"
+                style={{ objectPosition: s.pos }}
                 sizes="100vw"
                 unoptimized
               />
             </div>
           ))}
 
-          {/* 背景渐变遮罩 — 让前景更突出、文字更清晰 */}
+          {/* 整体氛围遮罩：左深右浅（让左侧文字更清晰，右侧人物更突出） */}
           <div
             className="absolute inset-0 z-[2]"
             style={{
               background:
-                'linear-gradient(180deg, rgba(7,7,15,0.30) 0%, rgba(7,7,15,0.10) 30%, rgba(7,7,15,0.55) 70%, rgba(7,7,15,0.95) 100%), radial-gradient(circle at 30% 50%, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0.55) 70%)',
+                'linear-gradient(90deg, rgba(7,7,15,0.78) 0%, rgba(7,7,15,0.45) 45%, rgba(7,7,15,0.15) 75%, rgba(7,7,15,0.40) 100%), linear-gradient(180deg, rgba(7,7,15,0.30) 0%, rgba(7,7,15,0.10) 30%, rgba(7,7,15,0.65) 85%, rgba(7,7,15,0.95) 100%)',
             }}
           />
 
-          {/* 背景氛围 — 主角色 accent */}
+          {/* 角色 accent 氛围光（呼吸） */}
           <div
             key={`glow-${active.slug}`}
             className="absolute inset-0 z-[3] animate-[ambientShift_1800ms_ease-out] pointer-events-none"
             style={{
-              background: `radial-gradient(ellipse 80% 60% at 50% 40%, ${active.accent}33 0%, transparent 60%)`,
+              background: `radial-gradient(ellipse 70% 50% at 65% 55%, ${active.bgAccent} 0%, transparent 60%)`,
             }}
           />
 
-          {/* ===== 顶部状态条 ===== */}
+          {/* 顶部状态条 */}
           <div className="absolute top-24 left-0 right-0 z-10 flex justify-center pointer-events-none">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/30 border border-white/[0.12] backdrop-blur-md text-xs font-mono-pretty tracking-wider text-[#FF6BA6] uppercase">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#FF2D78] animate-pulse" /> Live · 18+ Only
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/40 border border-white/[0.14] backdrop-blur-md text-[11px] font-mono-pretty tracking-[0.2em] text-[#FF6BA6] uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF2D78] animate-pulse" />
+              Live · 18+ Only
             </div>
           </div>
 
-          {/* ===== 中部人物立绘（透明 PNG）====== */}
-          <div className="absolute inset-0 z-[4] flex items-end justify-center pointer-events-none">
+          {/* ── Layer 3: 人物立绘（透明 PNG，固定居中偏右） ── */}
+          <div className="absolute inset-0 z-[4] pointer-events-none">
             {CHARACTERS.map((c, i) => (
               <div
                 key={c.slug}
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 transition-all duration-[1200ms] ease-out"
+                className="absolute portrait-breathe transition-all duration-[1400ms] ease-out"
                 style={{
                   opacity: i === activeIdx ? 1 : 0,
-                  transform: `translate(-50%, ${i === activeIdx ? '0' : '40px'}) scale(${i === activeIdx ? 1 : 0.96})`,
-                  pointerEvents: i === activeIdx ? 'auto' : 'none',
-                  width: 'min(640px, 60vw)',
-                  height: 'min(820px, 78vh)',
-                  filter: i === activeIdx ? 'drop-shadow(0 30px 60px rgba(0,0,0,0.5))' : 'none',
+                  right: '8%',
+                  bottom: '0',
+                  transform: i === activeIdx
+                    ? 'translateY(0) scale(1)'
+                    : 'translateY(40px) scale(0.94)',
+                  width: 'min(560px, 42vw)',
+                  height: 'min(780px, 82vh)',
+                  filter: i === activeIdx
+                    ? 'drop-shadow(0 35px 70px rgba(0,0,0,0.55))'
+                    : 'none',
                 }}
               >
                 <Image
@@ -195,54 +245,113 @@ export default function HeroLandingPage() {
                   alt={c.name}
                   fill
                   priority={i === 0}
-                  className="object-contain object-bottom animate-[heroFloat_8s_ease-in-out_infinite_alternate]"
-                  sizes="60vw"
+                  className="object-contain object-bottom"
+                  sizes="42vw"
                   unoptimized
+                />
+                {/* 立绘底部 accent 投影 — 让角色从背景里"立"起来 */}
+                <div
+                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3/4 h-10 blur-3xl rounded-full pointer-events-none"
+                  style={{ background: active.accent, opacity: 0.45 }}
                 />
               </div>
             ))}
           </div>
 
-          {/* ===== 左侧：动态字体 ===== */}
-          <div className="absolute top-[24%] left-[6%] md:left-[10%] z-[5] max-w-[480px] pointer-events-none">
-            <div
-              key={`name-${active.slug}`}
-              className="font-display text-6xl md:text-7xl lg:text-8xl font-bold italic tracking-tight animate-[textRise_1000ms_ease-out]"
-              style={{
-                background: `linear-gradient(180deg, #fff 0%, ${active.accent} 100%)`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                lineHeight: 0.95,
-              }}
-            >
-              {active.name}
-            </div>
-            <div className="mt-4 h-[2px] w-32 bg-gradient-to-r from-transparent via-[#FF2D78] to-transparent animate-[lineExpand_1000ms_ease-out]" />
-            <div
-              key={`tagline-${active.slug}`}
-              className="mt-6 font-heading text-base md:text-lg text-white/80 italic tracking-wide animate-[textFade_1000ms_ease-out_400ms_both]"
-            >
-              "{active.tagline}"
+          {/* ── Layer 2: 文字中景（居中偏左/居中） ── */}
+          <div className="absolute inset-0 z-[5] flex items-center pointer-events-none">
+            <div className="w-full max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              {/* 左侧 7 列 — 文字 */}
+              <div className="md:col-span-7 lg:col-span-6 pointer-events-auto">
+                <div className="max-w-[560px]">
+                  {/* 角色名 + tagline */}
+                  <div key={`name-${active.slug}`} className="animate-[textRise_1100ms_ease-out]">
+                    <div className="flex items-baseline gap-3">
+                      <h1
+                        className="font-display text-6xl md:text-7xl lg:text-[110px] font-bold italic leading-[0.9] tracking-tight"
+                        style={{
+                          background: `linear-gradient(180deg, #fff 0%, ${active.accent} 100%)`,
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          backgroundClip: 'text',
+                        }}
+                      >
+                        {active.name}
+                      </h1>
+                      <span className="font-mono-pretty text-xs text-white/40 uppercase tracking-[0.25em]">
+                        · {active.age}
+                      </span>
+                    </div>
+                    <div className="mt-4 h-[2px] w-32 bg-gradient-to-r from-transparent via-[#FF2D78] to-transparent animate-[lineExpand_1100ms_ease-out]" />
+                  </div>
+
+                  <p
+                    key={`tag-${active.slug}`}
+                    className="mt-5 font-heading text-lg md:text-xl text-white/85 italic tracking-wide animate-[textFade_1100ms_ease-out_400ms_both]"
+                  >
+                    "{active.tagline}"
+                  </p>
+
+                  <p
+                    key={`desc-${active.slug}`}
+                    className="mt-4 font-sans text-sm md:text-[15px] text-white/65 leading-relaxed max-w-[480px] animate-[textFade_1100ms_ease-out_600ms_both]"
+                  >
+                    {active.shortDescription}
+                  </p>
+
+                  {/* 特质 chip */}
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {active.traits.map((t) => (
+                      <span
+                        key={t}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.06] border border-white/[0.10] backdrop-blur-md text-[11px] font-heading tracking-wider text-white/80 uppercase"
+                      >
+                        <Sparkles className="w-3 h-3" style={{ color: active.accent }} />
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* 多语言气泡 */}
+                  <div
+                    key={`greet-${active.slug}-${greetIdx}`}
+                    className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-black/45 border border-white/[0.14] backdrop-blur-lg bubble-rise"
+                  >
+                    <Globe className="w-3.5 h-3.5" style={{ color: active.accent }} />
+                    <span className="text-sm font-heading text-white/90">
+                      {GREETINGS[active.slug][greetIdx]}
+                    </span>
+                    <Volume2 className="w-3 h-3 text-white/30 ml-1" />
+                  </div>
+
+                  {/* CTA */}
+                  <div className="mt-7 flex items-center gap-3 pointer-events-auto">
+                    <Button
+                      onClick={() => handleCardClick(active.slug)}
+                      size="xl"
+                      className="font-heading uppercase tracking-wider shadow-[0_0_30px_rgba(255,45,120,0.4)]"
+                      style={{ background: `linear-gradient(135deg, ${active.accent} 0%, #d946ef 100%)` }}
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Chat with {active.name}
+                    </Button>
+                    <Button
+                      onClick={() => router.push('/pricing')}
+                      variant="ghost"
+                      className="font-heading uppercase tracking-wider text-white/70 hover:text-white"
+                    >
+                      See Pricing
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 右侧 5 列 — 留给人物立绘（空） */}
+              <div className="hidden md:block md:col-span-5 lg:col-span-6" />
             </div>
           </div>
 
-          {/* ===== 右下：CTA ===== */}
-          <div className="absolute bottom-10 right-6 md:right-12 z-[6] flex flex-col items-end gap-3">
-            <Button
-              onClick={() => handleCardClick(active.slug)}
-              variant="glow"
-              size="xl"
-              className="font-heading uppercase tracking-wider shadow-[0_0_30px_rgba(255,45,120,0.4)]"
-            >
-              <MessageCircle className="w-4 h-4 mr-2" /> Chat with {active.name}
-            </Button>
-            <div className="text-xs text-white/50 font-mono-pretty tracking-wider">
-              {active.name}, {active.age}
-            </div>
-          </div>
-
-          {/* ===== 轮转指示器（左侧竖直） ===== */}
+          {/* 左侧轮转指示器 */}
           <div className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 z-[6] flex flex-col gap-3">
             {CHARACTERS.map((c, i) => (
               <button
@@ -252,16 +361,16 @@ export default function HeroLandingPage() {
                 aria-label={c.name}
               >
                 <span
-                  className="block transition-all duration-300 rounded-full"
+                  className="block transition-all duration-500 rounded-full"
                   style={{
-                    width: i === activeIdx ? 28 : 14,
+                    width: i === activeIdx ? 32 : 14,
                     height: 2,
                     background: i === activeIdx ? c.accent : 'rgba(255,255,255,0.25)',
-                    boxShadow: i === activeIdx ? `0 0 12px ${c.accent}` : 'none',
+                    boxShadow: i === activeIdx ? `0 0 14px ${c.accent}` : 'none',
                   }}
                 />
                 <span
-                  className="text-xs font-heading tracking-wider transition-all duration-300"
+                  className="text-[10px] font-heading tracking-[0.2em] transition-all duration-500"
                   style={{
                     color: i === activeIdx ? '#fff' : 'rgba(255,255,255,0.35)',
                     opacity: i === activeIdx ? 1 : 0,
@@ -273,136 +382,193 @@ export default function HeroLandingPage() {
               </button>
             ))}
           </div>
-        </section>
 
-        {/* ===== 女友卡 — 彩色 mood 色块 ===== */}
-        <section className="relative bg-[#07070F] py-16">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="flex items-end justify-between mb-8">
-              <div>
-                <div className="text-xs font-mono-pretty tracking-[0.2em] text-[#FF6BA6] uppercase">Meet Your Match</div>
-                <h2 className="font-display text-4xl md:text-5xl font-bold mt-2 tracking-tight">
-                  Choose Your <span className="italic bg-gradient-to-r from-[#FF2D78] to-[#d946ef] bg-clip-text text-transparent">Companion</span>
-                </h2>
-              </div>
-              <div className="hidden md:flex items-center gap-2 text-xs text-white/40 font-mono-pretty">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#FF2D78] animate-pulse" />
-                {CHARACTERS.length} active models
-              </div>
-            </div>
-
-            {/* 4 张彩色 mood 色块卡 */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          {/* ── Layer 4: 底部轮转女友卡（hover scale 1.5） ── */}
+          <div className="absolute bottom-6 md:bottom-8 left-0 right-0 z-[7] flex justify-center pointer-events-none">
+            <div className="pointer-events-auto flex items-end gap-3 md:gap-5 px-6 max-w-[100vw] overflow-x-auto scrollbar-none pb-2">
               {CHARACTERS.map((c, i) => (
                 <button
                   key={c.slug}
-                  onClick={() => {
-                    setActiveIdx(i);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="group relative aspect-[3/4] rounded-2xl overflow-hidden border border-white/[0.08] hover:border-white/[0.20] transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+                  onClick={() => setActiveIdx(i)}
+                  className="card-zoom group relative origin-bottom"
                   style={{
-                    background: `linear-gradient(160deg, ${c.accent} 0%, ${c.accent}88 40%, #1a1a2e 100%)`,
-                  }}
+                    width: 'min(140px, 22vw)',
+                    aspectRatio: '3 / 4',
+                    '--card-accent': c.accent,
+                    '--card-glow': `${c.accent}66`,
+                  } as React.CSSProperties}
                 >
-                  {/* 透明人物立绘 */}
-                  <div className="absolute inset-0 transition-transform duration-700 group-hover:scale-110">
+                  <div
+                    className={`relative w-full h-full rounded-2xl overflow-hidden border ${
+                      i === activeIdx ? 'card-glow-active border-white/40' : 'border-white/[0.10]'
+                    }`}
+                    style={{
+                      background: `linear-gradient(160deg, ${c.accent} 0%, ${c.accent}88 50%, #1a1a2e 100%)`,
+                    }}
+                  >
+                    {/* 透明人物立绘 */}
                     <Image
                       src={`${SUPABASE_BASE}/characters/${c.slug}.png`}
                       alt={c.name}
                       fill
                       className="object-contain object-bottom"
-                      sizes="(max-width: 1024px) 50vw, 25vw"
+                      sizes="140px"
                       unoptimized
                     />
-                  </div>
 
-                  {/* 顶部 Live dot */}
-                  <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 bg-black/40 backdrop-blur-md border border-white/20 rounded-full px-2 py-0.5 text-[10px] font-mono-pretty text-white tracking-wider uppercase">
-                    <span className="w-1 h-1 rounded-full bg-[#FF2D78] animate-pulse" />
-                    Live
-                  </div>
-
-                  {/* 顶部右侧 accent */}
-                  <div className="absolute top-3 right-3 opacity-50 group-hover:opacity-100 transition-opacity">
-                    <Sparkles className="w-3.5 h-3.5 text-white" />
-                  </div>
-
-                  {/* 底部信息区 */}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-12 pb-3 px-3">
-                    <div className="font-display text-2xl font-bold italic text-white tracking-tight leading-none">
-                      {c.name}
+                    {/* 顶部 Live 标 */}
+                    <div className="absolute top-2 left-2 inline-flex items-center gap-1 bg-black/50 backdrop-blur-md border border-white/20 rounded-full px-1.5 py-0.5 text-[8px] font-mono-pretty text-white tracking-wider uppercase">
+                      <span
+                        className="w-1 h-1 rounded-full animate-pulse"
+                        style={{ background: c.accent }}
+                      />
+                      Live
                     </div>
-                    <div className="text-[10px] text-white/60 font-mono-pretty mt-1 tracking-wider">
-                      {c.age} · {c.tagline.split(',')[0]}
+
+                    {/* 顶部右侧 chevron */}
+                    <div
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5 text-white" />
                     </div>
-                    <div className="mt-2 inline-flex items-center gap-1 text-[10px] font-heading uppercase tracking-wider text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      Chat <ChevronRight className="w-3 h-3" />
+
+                    {/* 底部信息 */}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent pt-10 pb-2 px-2">
+                      <div className="font-display text-base font-bold italic text-white tracking-tight leading-none">
+                        {c.name}
+                      </div>
+                      <div className="text-[8px] text-white/60 font-mono-pretty mt-0.5 tracking-wider">
+                        {c.age} · {c.traits[0]}
+                      </div>
                     </div>
                   </div>
-
-                  {/* 悬浮 accent ring */}
-                  <div
-                    className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{ boxShadow: `inset 0 0 0 1px ${c.accent}55, 0 0 30px ${c.accent}22` }}
-                  />
                 </button>
               ))}
             </div>
-
-            {/* 真实数据 fallback —— 如果后端有更多角色，水平滚动展示 */}
-            {!loading && girlfriends.length > 4 && (
-              <div className="mt-12">
-                <div className="text-xs font-mono-pretty tracking-[0.2em] text-white/40 uppercase mb-4">More Companions</div>
-                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-                  {girlfriends.slice(4).map((gf) => (
-                    <div
-                      key={gf.id}
-                      onClick={() => handleCardClick(gf.slug)}
-                      className="flex-shrink-0 w-40 aspect-[3/4] rounded-xl overflow-hidden bg-white/[0.04] border border-white/[0.08] hover:border-[#FF2D78]/40 cursor-pointer transition-all"
-                    >
-                      {gf.image_url ? (
-                        <Image src={gf.image_url} alt={gf.name} fill className="object-cover" sizes="160px" unoptimized />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Heart className="w-6 h-6 text-[#FF2D78]/40" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
-        </section>
 
-        {/* ===== Stats Section ===== */}
-        <section className="border-y border-white/[0.06] bg-white/[0.02] backdrop-blur-xl py-16 my-8">
-          <div className="max-w-4xl mx-auto px-6 grid grid-cols-3 gap-8 text-center">
-            {[
-              { n: '20M+', l: 'Monthly Messages' },
-              { n: '350+', l: 'AI Models' },
-              { n: '3M+', l: 'Monthly Visits' },
-            ].map((s) => (
-              <div key={s.l}>
-                <div className="font-mono-pretty text-3xl md:text-4xl font-bold bg-gradient-to-r from-[#FF2D78] to-[#d946ef] bg-clip-text text-transparent">{s.n}</div>
-                <div className="text-xs text-[#8B8BA3] mt-2 font-heading tracking-wider uppercase">{s.l}</div>
-              </div>
+          {/* 右下角：场景轮转指示器（小点点） */}
+          <div className="absolute right-6 bottom-32 z-[6] hidden lg:flex flex-col gap-2">
+            {SCENES.map((s, i) => (
+              <span
+                key={s.slug}
+                className="block rounded-full transition-all duration-500"
+                style={{
+                  width: i === sceneIdx ? 3 : 3,
+                  height: i === sceneIdx ? 18 : 6,
+                  background: i === sceneIdx ? active.accent : 'rgba(255,255,255,0.25)',
+                  boxShadow: i === sceneIdx ? `0 0 8px ${active.accent}` : 'none',
+                }}
+              />
             ))}
           </div>
         </section>
-
-        {/* ===== Footer ===== */}
-        <footer className="border-t border-white/[0.06] py-8 text-center text-xs text-[#8B8BA3]/60">
-          <div className="max-w-4xl mx-auto px-6">
-            <p>© 2026 {APP_NAME}. All rights reserved.</p>
-            <div className="flex items-center justify-center gap-4 mt-3">
-              <Link href="/terms" className="hover:text-[#F0F0F5] transition-colors">Terms</Link>
-              <Link href="/privacy" className="hover:text-[#F0F0F5] transition-colors">Privacy</Link>
-            </div>
-          </div>
-        </footer>
       </div>
     </>
+  );
+}
+
+// ===============================================================
+// 全新导航（不依赖 DynamicNav）— 顶部毛玻璃 + 圆角 pill 链接
+// ===============================================================
+function NewTopNav({
+  user,
+  onGetStarted,
+  t,
+}: {
+  user: any;
+  onGetStarted: () => void;
+  t: (k: string) => string;
+}) {
+  return (
+    <header className="fixed top-0 left-0 right-0 z-50">
+      <div className="mx-auto max-w-7xl px-4 md:px-6 mt-4">
+        <div className="flex items-center justify-between h-14 px-4 md:px-6 rounded-2xl bg-[#0c0c18]/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_10px_30px_rgba(0,0,0,0.45)]">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#FF2D78] via-[#d946ef] to-[#8b5cf6] flex items-center justify-center shadow-[0_0_18px_rgba(255,45,120,0.45)]">
+              <Heart className="w-4 h-4 text-white fill-white" />
+            </div>
+            <span className="font-display text-base font-bold tracking-tight text-white">
+              {APP_NAME}
+            </span>
+          </Link>
+
+          {/* Center nav (desktop) */}
+          <nav className="hidden md:flex items-center gap-1">
+            {[
+              { href: '/', label: 'Home', active: true },
+              { href: '/gallery', label: 'Companions' },
+              { href: '/pricing', label: 'Pricing' },
+              { href: '/explore', label: 'Explore' },
+            ].map((it) => (
+              <Link
+                key={it.href}
+                href={it.href}
+                className={
+                  'px-3.5 py-1.5 text-[13px] font-heading tracking-wide rounded-full transition-all ' +
+                  (it.active
+                    ? 'text-white bg-white/[0.08] border border-white/[0.10]'
+                    : 'text-white/55 hover:text-white hover:bg-white/[0.04]')
+                }
+              >
+                {it.label}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Right side */}
+          <div className="flex items-center gap-2">
+            <Link
+              href="/login"
+              className="hidden sm:inline-flex text-[13px] font-heading text-white/65 hover:text-white px-3 py-1.5"
+            >
+              {t('hero.signIn')}
+            </Link>
+            <Button
+              onClick={onGetStarted}
+              size="sm"
+              className="font-heading text-[13px] tracking-wide h-9 px-4 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#d946ef] shadow-[0_0_20px_rgba(255,45,120,0.4)] hover:shadow-[0_0_30px_rgba(255,45,120,0.6)]"
+            >
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+              {t('hero.getStarted')}
+            </Button>
+
+            {/* Mobile menu */}
+            <div className="md:hidden">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <button className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-white/70">
+                    <Menu className="w-4 h-4" />
+                  </button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[280px] bg-[#0c0c18]/95 backdrop-blur-2xl border-l border-white/[0.08]">
+                  <div className="flex items-center justify-between mt-4 mb-8">
+                    <span className="font-display text-base font-bold">{APP_NAME}</span>
+                    <X className="w-5 h-5 text-white/60" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {[
+                      { href: '/', label: 'Home' },
+                      { href: '/gallery', label: 'Companions' },
+                      { href: '/pricing', label: 'Pricing' },
+                      { href: '/explore', label: 'Explore' },
+                    ].map((it) => (
+                      <Link
+                        key={it.href}
+                        href={it.href}
+                        className="px-4 py-3 text-sm rounded-xl text-white/75 hover:bg-white/[0.06]"
+                      >
+                        {it.label}
+                      </Link>
+                    ))}
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
   );
 }

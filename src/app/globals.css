@@ -856,6 +856,76 @@ html {
   100% { transform: scaleX(1); transform-origin: left; }
 }
 
+/* ===== 单屏 hero — 角色立绘动态效果 ===== */
+/* 角色呼吸（微微缩放） */
+@keyframes portraitBreathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.012); }
+}
+.portrait-breathe {
+  animation: portraitBreathe 5s ease-in-out infinite;
+}
+
+/* 头发飘动（轻微 skew + translate） */
+@keyframes hairFlow {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  50% { transform: translateX(3px) rotate(0.4deg); }
+}
+.hair-flow {
+  animation: hairFlow 6s ease-in-out infinite;
+}
+
+/* 眨眼（快闪） */
+@keyframes blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  94%, 98% { transform: scaleY(0.1); }
+}
+.eye-blink {
+  animation: blink 6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* 气泡上升 */
+@keyframes bubbleRise {
+  0% { opacity: 0; transform: translateY(8px) scale(0.94); }
+  8%, 88% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+.bubble-rise {
+  animation: bubbleRise 7s ease-in-out infinite;
+}
+
+/* 多语言问好切换（fade） */
+@keyframes langFade {
+  0%, 100% { opacity: 0; transform: translateY(8px); }
+  20%, 80% { opacity: 1; transform: translateY(0); }
+}
+.lang-fade {
+  animation: langFade 9s ease-in-out infinite;
+}
+
+/* 角色卡片 hover 缩放 50%（用 CSS variable 给每个角色独立延迟） */
+.card-zoom {
+  transition: transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1),
+              box-shadow 0.55s ease,
+              border-color 0.4s ease,
+              filter 0.4s ease;
+  transform: scale(1);
+}
+.card-zoom:hover {
+  transform: scale(1.5);
+  z-index: 30;
+  filter: brightness(1.1);
+}
+
+/* 卡片切换角色时高亮 */
+.card-glow-active {
+  box-shadow:
+    0 0 0 2px var(--card-accent, #FF2D78),
+    0 25px 60px rgba(0, 0, 0, 0.55),
+    0 0 40px var(--card-glow, rgba(255, 45, 120, 0.4));
+}
+
 /* Reduced motion — kill all VN animations */
 @media (prefers-reduced-motion: reduce) {
   .vn-vignette,
