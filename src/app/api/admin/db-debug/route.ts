@@ -4,6 +4,17 @@ import { queryPg } from '@/storage/database/supabase-client';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const SUPABASE_URL =
+  process.env.SUPABASE_URL_FOR_REFRESH ||
+  process.env.COZE_SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  '';
+const SUPABASE_KEY =
+  process.env.SUPABASE_KEY_FOR_REFRESH ||
+  process.env.COZE_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  '';
+
 export async function GET(_req: NextRequest) {
   const out: any = {
     env_has_COZE_SUPABASE_DB_URL: !!process.env.COZE_SUPABASE_DB_URL,
@@ -38,6 +49,38 @@ export async function GET(_req: NextRequest) {
       `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND (table_name ILIKE '%girl%' OR table_name ILIKE '%companion%' OR table_name ILIKE '%character%' OR table_name ILIKE '%ai_%') ORDER BY table_name`,
     );
     out.girlfriend_like_tables = r5.rows?.map((x) => x.table_name);
+
+    // list buckets via REST
+    if (SUPABASE_URL && SUPABASE_KEY) {
+      try {
+        const bRes = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+        });
+        out.buckets_status = bRes.status;
+        if (bRes.ok) {
+          const buckets = await bRes.json();
+          out.buckets = buckets.map((b: any) => ({ name: b.name, public: b.public, file_size_limit: b.file_size_limit }));
+        } else {
+          out.buckets_error = (await bRes.text()).slice(0, 300);
+        }
+      } catch (e: any) {
+        out.buckets_exception = e?.message;
+      }
+
+      // try GET the portrait URL that refresh returned
+      const u = `${SUPABASE_URL}/storage/v1/object/portraits/portraits/luna_1783036793301.png`;
+      try {
+        const objRes = await fetch(u, {
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+        });
+        out.portrait_get_status = objRes.status;
+        out.portrait_get_body = (await objRes.text()).slice(0, 300);
+      } catch (e: any) {
+        out.portrait_get_exception = e?.message;
+      }
+    } else {
+      out.buckets_skipped = 'SUPABASE_URL or KEY missing';
+    }
 
     return NextResponse.json(out);
   } catch (e: any) {
