@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadDataUrl } from '@/lib/storage';
 import { queryPg } from '@/storage/database/supabase-client';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 // ============================================================
 // Admin — 批量刷新 4 个角色立绘
-// Body: { adminSecret: string, characters?: [{slug, prompt, seed, ...}] }
+// 鉴权：仅 superadmin（双层防御，与 ENABLE_DEBUG_ROUTES 互不替代）
+// Body: { characters?: [{slug, prompt, seed, ...}] }
 // 不传 characters 则用默认 Luna/Ruby/Summer/Scarlet prompt
 // ============================================================
 
@@ -229,13 +231,12 @@ async function refreshOne(char: CharacterConfig) {
 }
 
 export async function POST(request: NextRequest) {
+  // 双层防御：仅 superadmin 可访问；与 ENABLE_DEBUG_ROUTES 互不替代。
+  const guard = await requireAdmin(request, 'superadmin');
+  if (guard.error) return guard.error;
+
   try {
     const body = await request.json().catch(() => ({}));
-    const adminSecret = body.adminSecret || request.headers.get('x-admin-secret') || '';
-    const expected = process.env.ADMIN_REFRESH_SECRET || 'soulmate-refresh-2026';
-    if (adminSecret !== expected) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
 
     const debugEnv = {
       has_RUNPOD_API_KEY: !!RUNPOD_API_KEY,
@@ -273,12 +274,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // 双层防御：仅 superadmin 可访问；与 ENABLE_DEBUG_ROUTES 互不替代。
+  const guard = await requireAdmin(req, 'superadmin');
+  if (guard.error) return guard.error;
+
   return NextResponse.json({
-    message: 'POST to this endpoint with { adminSecret } to refresh 4 character portraits.',
-    example: {
-      adminSecret: 'soulmate-refresh-2026',
-      // optional characters override
-    },
+    message: 'POST to this endpoint with optional { characters: [...] } to refresh character portraits.',
   });
 }

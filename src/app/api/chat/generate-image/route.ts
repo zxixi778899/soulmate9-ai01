@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { runpodClient } from '@/lib/runpod';
 import { uploadDataUrl } from '@/lib/storage';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const IMAGE_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 }; // 10/h/user — RunPod FLUX 烧钱
 
 /**
  * Preset options for image generation
@@ -110,6 +113,15 @@ export async function POST(request: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // 限流：RunPod FLUX GPU 烧钱，防脚本刷
+  const rl = await checkRateLimitAsync(`chat-img-gen:${user.id}`, IMAGE_GEN_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many image generation requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, IMAGE_GEN_LIMIT) },
+    );
   }
 
   const { girlfriend_id, mood, pose, environment } = await request.json();

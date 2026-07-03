@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -20,11 +21,21 @@ export const runtime = 'nodejs';
  */
 
 const RECALL_WINDOW_MS = 5 * 60 * 1000;
+const REGEN_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user — LLM 重生成
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const auth = await getAuthUser(req);
   if (!auth.user) return NextResponse.json({ error: auth.error ?? 'Unauthorized' }, { status: 401 });
   const { user, client: supabase } = auth;
+
+  // 限流：防脚本频繁重生成
+  const rl = await checkRateLimitAsync(`chat-regen:${user.id}`, REGEN_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many regenerate requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, REGEN_LIMIT) },
+    );
+  }
 
   const body = (await req.json().catch(() => ({}))) as { girlfriend_id?: string };
   const girlfriendId = typeof body.girlfriend_id === 'string' ? body.girlfriend_id : '';

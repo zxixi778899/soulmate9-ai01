@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { ensureImageKey, resolveImageUrl } from '@/lib/storage';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+
+const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
 
 export async function GET(req: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(req);
@@ -48,6 +51,15 @@ export async function POST(request: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // 限流：防脚本批量创建女友
+  const rl = await checkRateLimitAsync(`gf-create:${user.id}`, CREATE_GF_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, CREATE_GF_LIMIT) },
+    );
   }
 
   const body = await request.json();

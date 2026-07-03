@@ -5,7 +5,10 @@
  * - 开发环境输出彩色文本
  * - 自动注入 traceId（若 header 中带 x-request-id 则使用，否则随机）
  * - 自动屏蔽常见敏感字段（token / password / secret）
+ * - logger.error() 同步上报 Sentry（懒加载；@sentry/nextjs 未装则 no-op）
  */
+
+import { captureException } from './sentry';
 
 const REDACT_KEYS = new Set([
   'password',
@@ -108,6 +111,11 @@ function createLogger(baseFields: Record<string, unknown> = {}): Logger {
     },
     error(msg, fields) {
       emit('error', msg, { ...baseFields, ...fields });
+      // 同步上报 Sentry（无 DSN / 未装包 → no-op）。fields 已被 redact 过，安全。
+      captureException(new Error(msg), {
+        tags: { source: 'logger' },
+        extra: { ...baseFields, ...fields },
+      });
     },
     child(extraFields) {
       return createLogger({ ...baseFields, ...extraFields });

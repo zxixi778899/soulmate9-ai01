@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryPg } from '@/storage/database/supabase-client';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,11 @@ const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   '';
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+  // 双层防御：仅 superadmin 可访问；与 ENABLE_DEBUG_ROUTES 互不替代。
+  const guard = await requireAdmin(req, 'superadmin');
+  if (guard.error) return guard.error;
+
   const out: any = {
     env_has_COZE_SUPABASE_DB_URL: !!process.env.COZE_SUPABASE_DB_URL,
     env_COZE_SUPABASE_DB_URL_prefix: process.env.COZE_SUPABASE_DB_URL?.slice(0, 70) + '...',

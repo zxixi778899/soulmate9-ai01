@@ -2,11 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getCozeAccessToken, COZE_API_BASE } from '@/lib/coze-auth';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+
+const IMAGE_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 }; // 10/h/user
 
 export async function POST(request: NextRequest) {
   const { user, error: authError } = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // 限流：Coze doubao 图像生成也按配额计费
+  const rl = await checkRateLimitAsync(`gen-img:${user.id}`, IMAGE_GEN_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many image generation requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, IMAGE_GEN_LIMIT) },
+    );
   }
 
   try {

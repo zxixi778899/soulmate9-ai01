@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadDataUrl } from '@/lib/storage';
+import { getAuthUser } from '@/lib/supabase-server';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
+
+const PORTRAIT_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 }; // 10/h/user — RunPod FLUX 烧钱
 
 // ============================================================
 // 女友头像生成 — 直连 RunPod + Vercel Blob
@@ -82,20 +86,19 @@ async function uploadToStorage(base64Data: string, name: string): Promise<string
 
 export async function POST(request: NextRequest) {
   try {
-    // Authentication check
-    const token = request.headers.get('x-session');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authentication: 统一用 getAuthUser 拿到 user.id（既做鉴权也做限流 key）
+    const { user, error: authError } = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
     }
-    try {
-      const authRes = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`, {
-        headers: { Authorization: `Bearer ${token}`, apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' },
-      });
-      if (!authRes.ok) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // 限流：RunPod FLUX 烧钱
+    const rl = await checkRateLimitAsync(`portrait-gen:${user.id}`, PORTRAIT_GEN_LIMIT);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many portrait generation requests. Please try again later.' },
+        { status: 429, headers: rateLimitHeaders(rl, PORTRAIT_GEN_LIMIT) },
+      );
     }
 
     const { name, hairStyle, hairColor, eyeColor, bodyType, style, personality } = await request.json();
