@@ -60,6 +60,22 @@ export async function GET(_req: NextRequest) {
         if (bRes.ok) {
           const buckets = await bRes.json();
           out.buckets = buckets.map((b: any) => ({ name: b.name, public: b.public, file_size_limit: b.file_size_limit }));
+
+          // 顺手把 portraits 改 public（service_role 创建时常默认 private）
+          const portraitBucket = buckets.find((b: any) => b.name === 'portraits');
+          if (portraitBucket && !portraitBucket.public) {
+            const updRes = await fetch(`${SUPABASE_URL}/storage/v1/bucket/portraits`, {
+              method: 'PUT',
+              headers: {
+                apikey: SUPABASE_KEY,
+                Authorization: `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ public: true, file_size_limit: 5242880 }),
+            });
+            out.portrait_bucket_update_status = updRes.status;
+            out.portrait_bucket_update_body = (await updRes.text()).slice(0, 300);
+          }
         } else {
           out.buckets_error = (await bRes.text()).slice(0, 300);
         }
