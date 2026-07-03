@@ -181,7 +181,7 @@ export default function SingleViewportHero() {
                   alt={slug}
                   fill
                   priority={i === 0}
-                  className="object-cover scale-110 animate-[heroZoom_22s_ease-in-out_infinite_alternate]"
+                  className="object-cover scale-100"
                   sizes="100vw"
                   unoptimized
                 />
@@ -189,12 +189,12 @@ export default function SingleViewportHero() {
             </div>
           ))}
 
-          {/* 整体氛围遮罩 */}
+          {/* 整体氛围遮罩（减弱 30% 让背景更清晰） */}
           <div
             className="absolute inset-0 z-[2]"
             style={{
               background:
-                'linear-gradient(90deg, rgba(7,7,15,0.78) 0%, rgba(7,7,15,0.45) 45%, rgba(7,7,15,0.15) 75%, rgba(7,7,15,0.40) 100%), linear-gradient(180deg, rgba(7,7,15,0.30) 0%, rgba(7,7,15,0.10) 30%, rgba(7,7,15,0.65) 85%, rgba(7,7,15,0.95) 100%)',
+                'linear-gradient(90deg, rgba(7,7,15,0.55) 0%, rgba(7,7,15,0.30) 45%, rgba(7,7,15,0.10) 75%, rgba(7,7,15,0.30) 100%), linear-gradient(180deg, rgba(7,7,15,0.20) 0%, rgba(7,7,15,0.08) 30%, rgba(7,7,15,0.50) 85%, rgba(7,7,15,0.70) 100%)',
             }}
           />
 
@@ -230,8 +230,8 @@ export default function SingleViewportHero() {
             </div>
           </div>
 
-          {/* ── Layer 3: 人物立绘（视差 + 鼠标 3D tilt） ── */}
-          <div className="absolute inset-0 z-[4] pointer-events-none">
+          {/* ── Layer 3: 人物立绘（主视觉 · 居中偏右 · z=8） ── */}
+          <div className="absolute inset-0 z-[8] pointer-events-none">
             {CHARACTERS.map((c, i) => {
               // 鼠标方向产生倾斜（仅激活的）
               const tiltX = i === activeIdx ? (mouse.y - 0.5) * -8 : 0;
@@ -241,18 +241,16 @@ export default function SingleViewportHero() {
               return (
                 <div
                   key={c.slug}
-                  className="absolute portrait-breathe transition-all duration-[1400ms] ease-out"
+                  className="absolute transition-all duration-[1400ms] ease-out w-[547px] h-[702px]"
                   style={{
                     opacity: i === activeIdx ? 1 : 0,
-                    right: '6%',
-                    bottom: '0',
+                    top: '50%',
+                    left: '60%',
                     transform: i === activeIdx
-                      ? `translate3d(${px}px, ${py}px, 0) perspective(1200px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`
-                      : 'translate3d(0, 40px, 0) scale(0.94)',
-                    width: 'min(580px, 44vw)',
-                    height: 'min(800px, 84vh)',
+                      ? `translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`
+                      : `translate(-50%, calc(-50% + 40px)) scale(0.94)`,
                     filter: i === activeIdx ? 'drop-shadow(0 35px 70px rgba(0,0,0,0.55))' : 'none',
-                    transformStyle: 'preserve-3d',
+                    transformOrigin: 'center bottom',
                   }}
                 >
                   <Image
@@ -298,13 +296,13 @@ export default function SingleViewportHero() {
                   {/* 角色名 — 字符错位弹跳 */}
                   <div key={`name-${active.slug}`} className="animate-[nameStomp_900ms_cubic-bezier(0.34,1.56,0.64,1)_both]">
                     <h1
-                      className="font-display text-6xl md:text-7xl lg:text-[112px] font-bold italic leading-[0.88] tracking-tight"
+                      className="font-display text-6xl md:text-7xl lg:text-[112px] font-extrabold italic leading-[0.88] tracking-tight"
                       style={{
-                        background: `linear-gradient(180deg, #fff 0%, ${active.accent} 100%)`,
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                        textShadow: `0 0 40px ${active.bgAccent}`,
+                        // 实色白字 + 小幅 accent glow（之前用 bg-clip-text + 透明 fill
+                        // 在某些渲染下字形完全消失，只剩模糊光晕）
+                        color: '#ffffff',
+                        textShadow: `0 0 20px ${active.bgAccent}, 0 4px 16px rgba(0,0,0,0.6)`,
+                        WebkitTextFillColor: '#ffffff',
                       }}
                     >
                       {active.name.split('').map((ch, i) => (
@@ -379,11 +377,6 @@ export default function SingleViewportHero() {
                       Create Yours
                     </Button>
                   </div>
-
-                  {/* 鼠标坐标调试指示 */}
-                  <div className="mt-6 text-[10px] font-mono-pretty text-white/25 tracking-wider uppercase">
-                    cursor · {Math.round(mouse.x * 100)}, {Math.round(mouse.y * 100)}
-                  </div>
                 </div>
               </div>
 
@@ -423,36 +416,12 @@ export default function SingleViewportHero() {
             ))}
           </div>
 
-          {/* ── Layer 4: 底部轮转女友卡（hover scale 1.5 + 3D tilt） ── */}
-          <div className="absolute bottom-6 md:bottom-8 left-0 right-0 z-[7] flex justify-center pointer-events-none">
-            <div className="pointer-events-auto flex items-end gap-3 md:gap-5 px-6 max-w-[100vw] overflow-x-auto scrollbar-none pb-2">
-              {CHARACTERS.map((c, i) => (
-                <CharacterCard
-                  key={c.slug}
-                  c={c}
-                  active={i === activeIdx}
-                  onClick={() => setActiveIdx(i)}
-                  mouse={mouse}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* 右侧场景轮转指示器 */}
-          <div className="absolute right-6 bottom-32 z-[6] hidden lg:flex flex-col gap-2">
-            {SCENES.map((slug, i) => (
-              <span
-                key={slug}
-                className="block rounded-full transition-all duration-500"
-                style={{
-                  width: 3,
-                  height: i === sceneIdx ? 18 : 6,
-                  background: i === sceneIdx ? active.accent : 'rgba(255,255,255,0.25)',
-                  boxShadow: i === sceneIdx ? `0 0 8px ${active.accent}` : 'none',
-                }}
-              />
-            ))}
-          </div>
+          {/* ── Layer 4: 底部女友卡（5 张等比铺满 nav pill 宽，300px 高，可前后拖动） ── */}
+          <MarqueeRow
+            characters={CHARACTERS}
+            activeIdx={activeIdx}
+            setActiveIdx={setActiveIdx}
+          />
 
           {/* 鼠标轨迹粒子容器（绝对定位，跟随鼠标生成粒子） */}
           <CursorTrail targetRef={heroRef} accent={active.accent} />
@@ -463,110 +432,187 @@ export default function SingleViewportHero() {
 }
 
 // ===============================================================
-// 角色卡 — 鼠标 3D tilt + hover scale 1.5
+// 女友卡走马灯 — 5 张等比铺满 nav pill 宽（x=80, right=1360, 宽 1280）
+// 每张 248px + 4 gap × 8px = 1280（卡宽自适应到 5 张总宽 = nav pill 宽）
+// 高度 300px（3:4 比例）
+// 默认位置：5 张首尾相接，起点 x=80
+// 走马灯：JS setInterval 每帧 scrollX 减少 0.5px，无缝循环（复制 1 份做无限）
+// hover 任意卡 → 暂停 + 放大 1.2x + 上移
+// 鼠标拖动 → 手动滚动（pointer events）
+// 点击 → setActiveIdx（轮转仍继续）
+// ===============================================================
+function MarqueeRow({
+  characters,
+  activeIdx,
+  setActiveIdx,
+}: {
+  characters: Character[];
+  activeIdx: number;
+  setActiveIdx: (i: number) => void;
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  // 复制 1 份做无缝循环：5 张 → 10 张
+  const totalOriginal = characters.length;
+  const totalDoubled = totalOriginal * 2;
+  // 5 张等比铺满 nav pill 宽（x=80, right=1360, 总宽 1280）
+  // 卡宽 = (1280 - 4*8) / 5 = 247.2
+  const navPadLeft = 80;
+  const navWidth = 1280;
+  const cardGap = 8;
+  const cardWidth = (navWidth - (totalOriginal - 1) * cardGap) / totalOriginal;
+  const cardHeight = 300; // 固定 300px（用户指定）
+  // 走马灯位移状态（hover 时暂停）
+  const [scrollX, setScrollX] = useState(0);
+  useEffect(() => {
+    if (hoverIdx !== null) return;
+    const id = setInterval(() => {
+      setScrollX((x) => {
+        // 一个循环单位 = 5 张总宽（single pass）= cardWidth * 5 + gap * 4
+        const singleUnit = cardWidth * totalOriginal + cardGap * (totalOriginal - 1);
+        const next = x - 0.5; // 每帧 -0.5px ≈ 30px/s
+        if (next <= -singleUnit) return 0;
+        return next;
+      });
+    }, 33);
+    return () => clearInterval(id);
+  }, [hoverIdx, cardWidth, totalOriginal]);
+
+  // 鼠标拖动（pointer events）
+  const dragStartX = useRef(0);
+  const dragStartScrollX = useRef(0);
+  const isDragging = useRef(false);
+  const onPointerDown = (e: React.PointerEvent) => {
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartScrollX.current = scrollX;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!isDragging.current) return;
+    const dx = e.clientX - dragStartX.current;
+    let next = dragStartScrollX.current + dx;
+    // wrap
+    const singleUnit = cardWidth * totalOriginal + cardGap * (totalOriginal - 1);
+    while (next > 0) next -= singleUnit;
+    while (next <= -singleUnit) next += singleUnit;
+    setScrollX(next);
+  };
+  const onPointerUp = () => { isDragging.current = false; };
+
+  return (
+    <div
+      className="absolute bottom-0 left-0 right-0 z-[9] pointer-events-none"
+      style={{ height: cardHeight + 24 }}
+    >
+      <div
+        className="pointer-events-auto relative w-full overflow-hidden select-none"
+        style={{ height: cardHeight + 24, cursor: isDragging.current ? 'grabbing' : 'grab' }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onMouseLeave={() => setHoverIdx(null)}
+      >
+        <div
+          ref={trackRef}
+          className="absolute bottom-0 flex"
+          style={{
+            gap: cardGap,
+            paddingLeft: navPadLeft,
+            width: trackRef.current?.offsetWidth || navWidth + 200,
+            transform: `translateX(${scrollX}px)`,
+          }}
+        >
+          {[...characters, ...characters].map((c, i) => {
+            const slotIdx = i % totalOriginal;
+            const isHovered = hoverIdx === i;
+            const isActive = activeIdx === slotIdx;
+            return (
+              <div
+                key={`${c.slug}-${i}`}
+                className="flex-shrink-0"
+                style={{
+                  width: cardWidth,
+                  height: cardHeight,
+                  transform: isHovered
+                    ? `scale(1.2) translateY(-16px)`
+                    : isActive
+                      ? `scale(1.04)`
+                      : 'scale(1)',
+                  transformOrigin: 'center bottom',
+                  transition: 'transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1)',
+                  zIndex: isHovered ? 50 : isActive ? 10 : 1,
+                }}
+                onMouseEnter={() => setHoverIdx(i)}
+              >
+                <CharacterCard
+                  c={c}
+                  active={isActive}
+                  onClick={() => setActiveIdx(slotIdx)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===============================================================
+// 角色卡（走马灯用）— 用 characters/{slug}.png（透明立绘 PNG）
 // ===============================================================
 function CharacterCard({
   c,
   active,
   onClick,
-  mouse,
 }: {
   c: Character;
   active: boolean;
   onClick: () => void;
-  mouse: { x: number; y: number };
 }) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const [hover, setHover] = useState(false);
-  const [local, setLocal] = useState({ x: 0, y: 0 });
-
-  const onMove = (e: React.MouseEvent) => {
-    if (!ref.current) return;
-    const r = ref.current.getBoundingClientRect();
-    setLocal({
-      x: (e.clientX - r.left) / r.width,
-      y: (e.clientY - r.top) / r.height,
-    });
-  };
-
-  const tiltX = (local.y - 0.5) * -16;
-  const tiltY = (local.x - 0.5) * 16;
-  const glowX = local.x * 100;
-  const glowY = local.y * 100;
-
   return (
     <button
-      ref={ref}
       onClick={onClick}
-      onMouseMove={onMove}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => {
-        setHover(false);
-        setLocal({ x: 0.5, y: 0.5 });
-      }}
-      className="card-zoom group relative origin-bottom"
+      className="group relative w-full h-full origin-bottom"
       style={{
-        width: 'min(140px, 22vw)',
-        aspectRatio: '3 / 4',
         '--card-accent': c.accent,
         '--card-glow': `${c.accent}66`,
-        transform: hover
-          ? `scale(1.5) perspective(900px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`
-          : active
-            ? 'scale(1.08) perspective(900px) rotateX(0deg) rotateY(0deg)'
-            : 'scale(1) perspective(900px) rotateX(0deg) rotateY(0deg)',
-        transformStyle: 'preserve-3d',
-        transition: 'transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1)',
-        zIndex: hover ? 40 : active ? 5 : 1,
+        boxShadow: active
+          ? `0 0 0 2px ${c.accent}, 0 12px 32px ${c.accent}55`
+          : '0 6px 18px rgba(0,0,0,0.4)',
       } as React.CSSProperties}
     >
-      <div
-        className={`relative w-full h-full rounded-2xl overflow-hidden border ${
-          active ? 'card-glow-active border-white/40' : 'border-white/[0.10]'
-        }`}
-        style={{
-          background: `linear-gradient(160deg, ${c.accent} 0%, ${c.accent}88 50%, #1a1a2e 100%)`,
-        }}
-      >
+      {/* 卡图：characters/{slug}.png（透明立绘 PNG，object-contain 显示人物） */}
+      <div className="absolute inset-0">
         <Image
           src={`${SUPABASE_BASE}/characters/${c.slug}.png`}
           alt={c.name}
           fill
           className="object-contain object-bottom"
-          sizes="140px"
+          sizes="248px"
           unoptimized
         />
+      </div>
 
-        {/* 鼠标光斑 */}
-        {hover && (
-          <div
-            className="absolute inset-0 pointer-events-none mix-blend-screen"
-            style={{
-              background: `radial-gradient(circle 80px at ${glowX}% ${glowY}%, rgba(255,255,255,0.4) 0%, transparent 60%)`,
-            }}
-          />
-        )}
-
-        <div className="absolute top-2 left-2 inline-flex items-center gap-1 bg-black/50 backdrop-blur-md border border-white/20 rounded-full px-1.5 py-0.5 text-[8px] font-mono-pretty text-white tracking-wider uppercase">
-          <span
-            className="w-1 h-1 rounded-full animate-pulse"
-            style={{ background: c.accent }}
-          />
-          Live
+      {/* 底部名字条 */}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/55 to-transparent pt-8 pb-2 px-2">
+        <div className="text-white text-[14px] font-bold tracking-tight leading-none text-center">
+          {c.name}
         </div>
-
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <ChevronRight className="w-3.5 h-3.5 text-white" />
+        <div className="text-[9px] text-white/65 font-mono-pretty mt-0.5 text-center tracking-wider">
+          {c.age} · {c.traits[0]}
         </div>
+      </div>
 
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent pt-10 pb-2 px-2">
-          <div className="font-display text-base font-bold italic text-white tracking-tight leading-none">
-            {c.name}
-          </div>
-          <div className="text-[8px] text-white/60 font-mono-pretty mt-0.5 tracking-wider">
-            {c.age} · {c.traits[0]}
-          </div>
-        </div>
+      {/* Live 角标 */}
+      <div className="absolute top-2 left-2 inline-flex items-center gap-0.5 bg-black/60 backdrop-blur-sm border border-white/20 rounded-full px-1.5 py-0.5 text-[8px] font-mono-pretty text-white tracking-wider uppercase">
+        <span
+          className="w-1 h-1 rounded-full animate-pulse"
+          style={{ background: c.accent }}
+        />
+        Live
       </div>
     </button>
   );
