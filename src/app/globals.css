@@ -819,6 +819,43 @@ html {
   animation-delay: 1.5s;
 }
 
+/* ===== HERO LANDING — 分层动效 ===== */
+/* 背景缓慢推近 — Ken Burns 效果 */
+@keyframes heroZoom {
+  0% { transform: scale(1.0) translate(0, 0); }
+  100% { transform: scale(1.12) translate(-1%, -1%); }
+}
+
+/* 人物立绘轻微浮动 */
+@keyframes heroFloat {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-10px); }
+}
+
+/* 背景氛围 shift（accent 切换）*/
+@keyframes ambientShift {
+  0% { opacity: 0; transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* 大字 rise — 切换角色时 */
+@keyframes textRise {
+  0% { opacity: 0; transform: translateY(40px) skewY(8deg); filter: blur(8px); }
+  100% { opacity: 1; transform: translateY(0) skewY(0); filter: blur(0); }
+}
+
+/* 副标题 fade */
+@keyframes textFade {
+  0% { opacity: 0; transform: translateX(-12px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* accent 横线展开 */
+@keyframes lineExpand {
+  0% { transform: scaleX(0); transform-origin: left; }
+  100% { transform: scaleX(1); transform-origin: left; }
+}
+
 /* Reduced motion — kill all VN animations */
 @media (prefers-reduced-motion: reduce) {
   .vn-vignette,
