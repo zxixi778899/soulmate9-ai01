@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { AgeVerification } from '@/components/AgeVerification';
 import { useAuth } from '@/components/AuthProvider';
-import { useTranslation } from '@/lib/i18n/context';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 // ============ 角色定义 ============
@@ -133,7 +132,6 @@ const GREETINGS: Record<string, string[]> = {
 export default function SingleViewportHero() {
   const router = useRouter();
   const { user } = useAuth();
-  const { t } = useTranslation();
 
   const [activeIdx, setActiveIdx] = useState(0);
   const [sceneIdx, setSceneIdx] = useState(0);
@@ -166,7 +164,7 @@ export default function SingleViewportHero() {
       <AgeVerification />
       <div className="min-h-screen text-[#F0F0F5] bg-[#07070F] overflow-x-hidden">
         {/* ===================== 全新导航 ===================== */}
-        <NewTopNav user={user} onGetStarted={handleGetStarted} t={t} />
+        <NewTopNav user={user} onGetStarted={handleGetStarted} />
 
         {/* ===================== 单屏 Hero（100vh）===================== */}
         <section
@@ -474,11 +472,9 @@ export default function SingleViewportHero() {
 function NewTopNav({
   user,
   onGetStarted,
-  t,
 }: {
   user: any;
   onGetStarted: () => void;
-  t: (k: string) => string;
 }) {
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
@@ -523,7 +519,7 @@ function NewTopNav({
               href="/login"
               className="hidden sm:inline-flex text-[13px] font-heading text-white/65 hover:text-white px-3 py-1.5"
             >
-              {t('hero.signIn')}
+              Sign In
             </Link>
             <Button
               onClick={onGetStarted}
@@ -531,7 +527,7 @@ function NewTopNav({
               className="font-heading text-[13px] tracking-wide h-9 px-4 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#d946ef] shadow-[0_0_20px_rgba(255,45,120,0.4)] hover:shadow-[0_0_30px_rgba(255,45,120,0.6)]"
             >
               <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-              {t('hero.getStarted')}
+              Get Started
             </Button>
 
             {/* Mobile menu */}
