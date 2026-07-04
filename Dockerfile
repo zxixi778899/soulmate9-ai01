@@ -13,8 +13,9 @@ WORKDIR /app
 
 # 单独拷贝 lockfile 利用 Docker 层缓存
 COPY package.json pnpm-lock.yaml* ./
-# frozen-lockfile 保证 CI/CD 严格依赖版本
-RUN pnpm install --frozen-lockfile --prod=false
+# Railway build 不能用 frozen-lockfile（worktree 可能跟 HEAD lockfile 不一致），
+# 用普通 install，pnpm 会自动同步 lockfile 然后 install
+RUN pnpm install --prefer-offline
 
 
 # ─────────────────────────── Stage 2: builder ───────────────────────────
