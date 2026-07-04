@@ -63,11 +63,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 EXPOSE 3000
 
-# dumb-init 正确处理 PID 1 + 信号转发
-ENTRYPOINT ["dumb-init", "--"]
-
-# standalone 模式的启动命令
-CMD ["node", "server.js"]
+# dumb-init 正确处理 PID 1 + 信号转发。shell 形式让 Railway 即使读 CMD 也走 dumb-init。
+# Railway 偶尔会忽略 ENTRYPOINT 而只跑 CMD，用 shell 形式可以同时覆盖两种行为。
+CMD dumb-init -- node server.js
 
 
 # ─────────────────────────── Healthcheck ───────────────────────────
