@@ -63,12 +63,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 EXPOSE 3000
 
-# dumb-init 正确处理 PID 1 + 信号转发。shell 形式让 Railway 即使读 CMD 也走 dumb-init。
-# Railway 偶尔会忽略 ENTRYPOINT 而只跑 CMD，用 shell 形式可以同时覆盖两种行为。
-CMD dumb-init -- node server.js
+# Plain node — Node 20 handles SIGTERM natively. dumb-init not strictly needed.
+# Railway may use Dockerfile CMD OR railway.json startCommand; both set to same.
+CMD ["node", "server.js"]
 
 
 # ─────────────────────────── Healthcheck ───────────────────────────
 # Railway 用此判断容器健康
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:3000/ || exit 1
+  CMD curl -f http://localhost:3000/api/health || exit 1
