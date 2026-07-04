@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────
+# Soulmate9 .gitignore
+# 关键：必须排除所有 secrets 文件
+# ─────────────────────────────────────────
+
+# === Secrets — 绝对不能 commit ===
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# === 依赖 ===
+node_modules/
+.pnpm-store/
+
+# === 构建产物 ===
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# === Next.js ===
+next-env.d.ts
+
+# === 测试 ===
+coverage/
+.nyc_output/
+
+# === 日志 ===
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# === IDE / 编辑器 ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === 缓存 ===
+.eslintcache
+.cache/
+.turbo/
+
+# === Vercel ===
+.vercel
+
+# === Railway ===
+.railway/
+
+# === Docker (我们用 Dockerfile 但排除本地 docker artifacts) ===
+Dockerfile.local
+docker-compose.override.yml
+
+# === 类型生成 ===
+/generated/
+
+# === 测试 fixtures (含敏感数据) ===
+__tests__/fixtures/
+test-data/

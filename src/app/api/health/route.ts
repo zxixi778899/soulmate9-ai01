@@ -29,10 +29,10 @@ async function checkStripe(): Promise<DependencyResult> {
   if (!key) return { ok: true, error: 'not configured' };
   try {
     const res = await fetch('https://api.stripe.com/v1/balance', {
-      headers: { Authorization: `Bearer ${key}` },
+      headers: { Authorization: 'Bearer ' + key },
       signal: AbortSignal.timeout(5000),
     });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
     return { ok: true, latencyMs: Date.now() - start };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -45,11 +45,11 @@ async function checkRunPod(): Promise<DependencyResult> {
   const endpoint = process.env.RUNPOD_ENDPOINT_ID;
   if (!key || !endpoint) return { ok: false, error: 'RunPod env not configured' };
   try {
-    const res = await fetch(`https://api.runpod.ai/v2/${endpoint}/health`, {
-      headers: { Authorization: `Bearer ${key}` },
+    const res = await fetch('https://api.runpod.ai/v2/' + endpoint + '/health', {
+      headers: { Authorization: 'Bearer ' + key },
       signal: AbortSignal.timeout(5000),
     });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
     return { ok: true, latencyMs: Date.now() - start };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -62,11 +62,11 @@ async function checkUpstash(): Promise<DependencyResult> {
   if (!url || !token) return { ok: true, error: 'not configured (memory fallback)' };
   const start = Date.now();
   try {
-    const res = await fetch(`${url}/ping`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const res = await fetch(url + '/ping', {
+      headers: { Authorization: 'Bearer ' + token },
       signal: AbortSignal.timeout(3000),
     });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
     return { ok: true, latencyMs: Date.now() - start };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -93,9 +93,21 @@ export async function GET(): Promise<NextResponse> {
     {
       ok: allOk,
       ts: new Date().toISOString(),
+      service: 'soulmate9',
       checks: { supabase, stripe, runpod, upstash },
       version: process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev',
     },
     { status },
   );
+}
+
+/**
+ * HEAD 用于 Kubernetes 风格 readiness 探针 / Docker HEALTHCHECK
+ * 不查外部依赖，只确认进程响应
+ */
+export function HEAD(): NextResponse {
+  return new NextResponse(null, {
+    status: 200,
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }

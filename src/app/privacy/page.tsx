@@ -116,6 +116,36 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
+        {/* Adult Content Storage — NSFW */}
+        <section className="bg-card/40 backdrop-blur-sm border border-border/30 rounded-xl p-6 mb-6">
+          <h2 className="text-xl font-semibold mt-0 mb-3 text-foreground">Adult Content Storage</h2>
+          <div className="border-t border-border/20 mb-4" />
+          <p className="text-muted-foreground leading-relaxed">
+            The Service generates and stores adult-oriented conversational and visual content
+            featuring fictional adult characters. We take additional precautions with this content:
+          </p>
+          <ul className="mt-3 space-y-2 text-muted-foreground leading-relaxed list-disc pl-5">
+            <li>
+              <strong>Private storage:</strong> All generated images are stored in a private
+              object storage bucket with access restricted to time-limited signed URLs. Content
+              is not publicly indexable or accessible without authentication.
+            </li>
+            <li>
+              <strong>No third-party scanning:</strong> We deliberately avoid CDN providers and
+              image hosts that perform automated content moderation scanning on stored media.
+            </li>
+            <li>
+              <strong>Not used for training:</strong> Your conversations and generated content
+              are not used to train third-party AI models or shared with other users.
+            </li>
+            <li>
+              <strong>Deletion rights:</strong> You may permanently delete your conversation
+              history and generated images at any time through your account settings. Deletion
+              is irreversible.
+            </li>
+          </ul>
+        </section>
+
         {/* Data Retention */}
         <section className="bg-card/40 backdrop-blur-sm border border-border/30 rounded-xl p-6 mb-6">
           <h2 className="text-xl font-semibold mt-0 mb-3 text-foreground">Data Retention</h2>
