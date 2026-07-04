@@ -64,9 +64,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 EXPOSE 3000
 
-# Plain node — Node 20 handles SIGTERM natively. dumb-init not strictly needed.
-# Railway may use Dockerfile CMD OR railway.json startCommand; both set to same.
-CMD ["node", "server.js"]
+# Use sh -c to override PORT before launching server.js
+# Railway injects PORT=8080 by default; our Dockerfile healthcheck assumes 3000,
+# so we explicitly set PORT=3000 to make standalone use the same port as healthcheck.
+CMD ["sh", "-c", "PORT=3000 HOSTNAME=0.0.0.0 exec node server.js"]
 
 
 # ─────────────────────────── Healthcheck ───────────────────────────
