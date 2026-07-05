@@ -49,6 +49,11 @@ export default function RegisterPage() {
       }
 
       // Set session on the Supabase client so it persists properly
+      if (!supabase) {
+        setError('Service temporarily unavailable. Please refresh.');
+        setLoading(false);
+        return;
+      }
       await supabase.auth.setSession({
         access_token: data.access_token,
         refresh_token: data.refresh_token,
@@ -63,6 +68,11 @@ export default function RegisterPage() {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
+    if (!supabase) {
+      setError('Service temporarily unavailable. Please refresh.');
+      setLoading(false);
+      return;
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -202,14 +212,15 @@ export default function RegisterPage() {
           </CardContent>
           <CardFooter className="justify-center">
             <p className="text-sm text-[#8B8BA3]">
-              {t('auth.hasAccount')}{' '}
+              {t('auth.haveAccount')}{' '}
               <Link href="/login" className="font-medium text-[#FF2D78] hover:text-[#FF6BA6] hover:underline">
-                {t('auth.login')}
+                {t('auth.signIn')}
               </Link>
             </p>
           </CardFooter>
         </Card>
       </div>
     </div>
-  );
+  </div>
+);
 }

@@ -1,7 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   allowedDevOrigins: ['*.dev.coze.site'],
   images: {
     remotePatterns: [
@@ -11,18 +10,8 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   serverExternalPackages: ['coze-coding-dev-sdk', '@aws-sdk/*', 'stripe'],
-
-  // Production deployment uses standalone
   output: 'standalone',
-
-  // Enable compression
   compress: true,
-
-  // ── Plan L: Explicitly declare NEXT_PUBLIC_* so Next.js inlines them into the
-  // client bundle at build time. Next.js reads these from process.env during
-  // build, which is set by Railway Service Variables (passed to Docker builder).
-  // Without this, in some bundling setups Turbopack may not see all NEXT_PUBLIC_*
-  // vars, leading to `process.env.NEXT_PUBLIC_X === undefined` at runtime.
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

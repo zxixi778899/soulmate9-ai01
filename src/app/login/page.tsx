@@ -32,6 +32,11 @@ export default function LoginPage() {
     setError('');
 
     try {
+      if (!supabase) {
+        setError('Service temporarily unavailable. Please refresh.');
+        setLoading(false);
+        return;
+      }
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -159,13 +164,12 @@ export default function LoginPage() {
           <CardFooter className="justify-center">
             <p className="text-sm text-[#8B8BA3]">
               {t('auth.noAccount')}{' '}
-              <Link href="/register" className="font-medium text-[#FF2D78] hover:text-[#FF6BA6] hover:underline">
-                {t('auth.register')}
-              </Link>
+              <Link href="/register" className="font-medium text-[#FF2D78] hover:text-[#FF6BA6] hover:underline">{t('auth.register')}</Link>
             </p>
           </CardFooter>
         </Card>
       </div>
     </div>
-  );
+  </div>
+);
 }
