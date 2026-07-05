@@ -1,42 +1,57 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Client-side needs NEXT_PUBLIC_ prefix to be exposed to browser
-// Fallback chain: NEXT_PUBLIC_COZE_SUPABASE_URL → NEXT_PUBLIC_SUPABASE_URL → empty (deferred check)
-// Empty fallback lets client bundle build even if vars are missing at build time;
-// actual API calls will still work because RuntimeRailway sets them as process.env at runtime
-// in some bundling setups (NOT actual client vars — true runtime resolution requires server).
+// ============================================================================
+// Client-side Supabase (lazy, DCE-proof)
+// ============================================================================
+// Why DCE-proof: Turbopack/webpack inlines `process.env.NEXT_PUBLIC_*` at build
+// time as a string literal. If the var is missing, it becomes JS `undefined`,
+// and the minifier aggressively removes "always-false" guards around constants.
+// Module-top-level `const publicUrl = process.env.X` gets fully inlined, and
+// `if (!publicUrl) return null` becomes dead code that vanishes from the bundle.
 //
-// For correct production behavior, NEXT_PUBLIC_SUPABASE_URL must be set on Railway
-// AND passed to Docker build (Railway does this automatically when var has NEXT_PUBLIC_ prefix).
-function readPublicEnv(...keys: string[]): string | undefined {
-  for (const k of keys) {
-    const v = process.env[k];
-    if (v && v.length > 0) return v;
-  }
-  return undefined;
-}
+// To defeat this:
+//   (1) Read env inside the function body, not at module scope. The minifier
+//       cannot inline function-local reads that depend on a runtime construct.
+//   (2) Use a `typeof check + throw` indirection that the minifier cannot prove
+//       is dead — when the env var is missing, calling `readEnv(name)` throws
+//       synchronously, which we catch and convert to `null`.
+//   (3) Pass values to `createClient` from the same runtime read, never from
+//       a captured constant.
+// ============================================================================
 
-const publicUrl: string | undefined = readPublicEnv(
-  'NEXT_PUBLIC_COZE_SUPABASE_URL',
-  'NEXT_PUBLIC_SUPABASE_URL',
-);
-const publicAnonKey: string | undefined = readPublicEnv(
-  'NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY',
-  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-);
+const ENV_KEYS = [
+  ['NEXT_PUBLIC_COZE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'],
+  ['NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'],
+] as const;
 
 /**
- * Browser-side Supabase client (uses anon key, respects RLS)
- * Used by AuthProvider for session management.
- *
- * Lazy: returns null if env vars are missing — caller must handle that case
- * (e.g. show "Config error" instead of crashing the whole page).
+ * Runtime env read. Wrapped in a try/catch so the minifier can't prove the
+ * "missing var" branch is unreachable — the `throw` itself is the side effect
+ * that forces the branch to be preserved in the emitted bundle.
  */
+function readEnv(names: readonly string[]): string {
+  for (const k of names) {
+    // Use indirect property access via bracket notation — minifier keeps it.
+    const v = (globalThis as any).process?.env?.[k];
+    if (typeof v === 'string' && v.length > 0 && v !== 'undefined') return v;
+  }
+  throw new Error(`[soulmate9] Missing required env var: ${names.join(' / ')}`);
+}
+
 let _browserClient: SupabaseClient | null = null;
+
+/**
+ * Browser-side Supabase client. Lazy + DCE-proof.
+ * Returns `null` if NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY are missing at build.
+ */
 export function createBrowserClient(): SupabaseClient | null {
-  if (!publicUrl || !publicAnonKey) {
+  let url: string;
+  let key: string;
+  try {
+    url = readEnv(ENV_KEYS[0]);
+    key = readEnv(ENV_KEYS[1]);
+  } catch {
     if (typeof window !== 'undefined') {
-      // Only warn once in browser to avoid console spam
       console.warn(
         '[soulmate9] Supabase browser client unavailable: NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY missing at build time.',
       );
@@ -44,11 +59,8 @@ export function createBrowserClient(): SupabaseClient | null {
     return null;
   }
   if (!_browserClient) {
-    _browserClient = createClient(publicUrl, publicAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
+    _browserClient = createClient(url, key, {
+      auth: { persistSession: true, autoRefreshToken: true },
     });
   }
   return _browserClient;
@@ -61,14 +73,17 @@ export type { SupabaseClient };
  */
 export function getSessionToken(): string | null {
   if (typeof window === 'undefined') return null;
-  if (!publicUrl) return null;
-  const raw = localStorage.getItem(
-    `sb-${publicUrl.match(/https?:\/\/([^.]+)/)?.[1]}-auth-token`
-  );
+  let projectRef: string;
+  try {
+    projectRef = readEnv(ENV_KEYS[0]).match(/https?:\/\/([^.]+)/)?.[1] ?? '';
+  } catch {
+    return null;
+  }
+  if (!projectRef) return null;
+  const raw = localStorage.getItem(`sb-${projectRef}-auth-token`);
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw);
-    return parsed.access_token || null;
+    return JSON.parse(raw).access_token || null;
   } catch {
     return null;
   }

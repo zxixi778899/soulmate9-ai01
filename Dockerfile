@@ -32,31 +32,31 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# ── Plan G: Bake NEXT_PUBLIC_* vars into the client bundle at build time ──
-# Without these, createClient(undefined) throws on hydration.
-# Railway passes ARGs via "Builder ENV" in service settings, OR via API/programmatic deploys.
-# We default them to empty so standalone build always succeeds.
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ARG NEXT_PUBLIC_COZE_SUPABASE_URL
-ARG NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY
-ARG NEXT_PUBLIC_APP_URL
-ARG NEXT_PUBLIC_SITE_URL
-ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-ARG NEXT_PUBLIC_GA_ID
-ARG NEXT_PUBLIC_POSTHOG_KEY
-ARG NEXT_PUBLIC_POSTHOG_HOST
-
-ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL} \
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY} \
-    NEXT_PUBLIC_COZE_SUPABASE_URL=${NEXT_PUBLIC_COZE_SUPABASE_URL} \
-    NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY=${NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY} \
-    NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL} \
-    NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL} \
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY} \
-    NEXT_PUBLIC_GA_ID=${NEXT_PUBLIC_GA_ID} \
-    NEXT_PUBLIC_POSTHOG_KEY=${NEXT_PUBLIC_POSTHOG_KEY} \
-    NEXT_PUBLIC_POSTHOG_HOST=${NEXT_PUBLIC_POSTHOG_HOST}
+# ── Plan J: Bake NEXT_PUBLIC_* into the client bundle ──
+# Railway does NOT auto-pass NEXT_PUBLIC_* vars to Docker build ARGs.
+# Strategy: read them from the ENV set on the service, then write a
+# .env.production file inside the builder stage. Next.js automatically
+# loads .env.production at build time, which causes it to inline
+# NEXT_PUBLIC_* values into the client bundle (correct behavior).
+#
+# All NEXT_PUBLIC_* vars must be set as Service Variables on Railway
+# (Settings → Variables). They become part of the build ENV when
+# Railway builds the Docker image.
+RUN touch .env.production && \
+    { \
+      [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" >> .env.production || true; \
+      [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] && echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY" >> .env.production || true; \
+      [ -n "$NEXT_PUBLIC_COZE_SUPABASE_URL" ] && echo "NEXT_PUBLIC_COZE_SUPABASE_URL=$NEXT_PUBLIC_COZE_SUPABASE_URL" >> .env.production || true; \
+      [ -n "$NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY" ] && echo "NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY=$NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY" >> .env.production || true; \
+      [ -n "$NEXT_PUBLIC_APP_URL" ] && echo "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" >> .env.production || true; \
+      [ -n "$NEXT_PUBLIC_SITE_URL" ] && echo "NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL" >> .env.production || true; \
+      [ -n "$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY" ] && echo "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY" >> .env.production || true; \
+      [ -n "$NEXT_PUBLIC_GA_ID" ] && echo "NEXT_PUBLIC_GA_ID=$NEXT_PUBLIC_GA_ID" >> .env.production || true; \
+      [ -n "$NEXT_PUBLIC_POSTHOG_KEY" ] && echo "NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY" >> .env.production || true; \
+      [ -n "$NEXT_PUBLIC_POSTHOG_HOST" ] && echo "NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST" >> .env.production || true; \
+    } && \
+    echo "=== .env.production written ===" && \
+    cat .env.production
 
 # 构建（standalone 输出在 .next/standalone）
 RUN pnpm build
