@@ -62,7 +62,7 @@ export function getSupabaseClient(token?: string): SupabaseClient {
 }
 
 // =============================================================================
-// Direct Postgres (pg) connection — bypasses PostgREST schema cache
+// Direct Postgres (pg) connection �?bypasses PostgREST schema cache
 // =============================================================================
 // Use when Supabase PostgREST cache is stale and you need raw SQL access.
 // Requires COZE_SUPABASE_DB_URL env var (Transaction pooler URL).
@@ -88,7 +88,7 @@ export function getPostgresPool(): Pool {
     application_name: 'soulmate-railway',
   });
 
-  // 每个新连接执行 SET search_path（pg.Pool options 不可靠）
+  // 每个新连接执�?SET search_path（pg.Pool options 不可靠）
   pgPool.on('connect', (client) => {
     client.query('SET search_path TO public').catch((e) => {
       logger.error('[pg] SET search_path failed:', { data: e?.message });
@@ -136,4 +136,4 @@ export async function withPgClient<T>(fn: (client: PoolClient) => Promise<T>): P
   }
 }
 
-export { getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };
+
