@@ -18,7 +18,7 @@ RUN pnpm install --prefer-offline
 
 # ─────────────────────────── Stage 2: builder ───────────────────────────
 FROM node:20-alpine AS builder
-ENV NEXT_DISABLE_TURBOPACK=1
+
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 WORKDIR /app
