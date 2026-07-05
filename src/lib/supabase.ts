@@ -1,21 +1,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Plan AJ: Use Next.js inlining via NEXT_PUBLIC_* prefix.
-// These are inlined into the client bundle at build time when read directly,
-// as long as they are NOT inside a block the minifier considers dead.
-// We use them at module scope with a typeof check that the minifier keeps.
+// Plan AK — use Next.js inlining for NEXT_PUBLIC_*.
+// These read at module load. process.env.NEXT_PUBLIC_X is inlined to string
+// literal by Next.js during build. If vars missing at build time, fallback
+// to empty string + return null in createBrowserClient.
 
 const SUPABASE_URL: string = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY: string = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  // Loud warning at module load if vars missing at build time
-  if (typeof window !== 'undefined') {
-    console.warn(
-      '[soulmate9] Supabase env missing at build: NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY',
-    );
-  }
-}
 
 let _browserClient: SupabaseClient | null = null;
 

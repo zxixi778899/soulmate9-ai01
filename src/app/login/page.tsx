@@ -16,7 +16,7 @@ export default function LoginPage() {
     }
   }, [user, isLoading]);
   async function handleLogin(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setLoading(true);
     setError("");
     if (!supabase) {
