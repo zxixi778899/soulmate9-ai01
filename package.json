@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "NEXT_DISABLE_TURBOPACK=1 next build",
+    "build": "next build",
     "dev": "bash ./scripts/dev.sh",
     "preinstall": "npx only-allow pnpm",
     "lint": "eslint",
