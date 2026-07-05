@@ -184,7 +184,7 @@ export default function ProfilePage() {
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16 border-2 border-primary/20">
-                  <AvatarFallback className="bg-[#FF2D78]/10 text-[#FF2D78] text-lg">
+                  <AvatarFallback className="bg-[#FF2D78]/[10] text-[#FF2D78] text-lg">
                     {user?.email?.charAt(0).toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
@@ -231,17 +231,17 @@ export default function ProfilePage() {
                     </div>
                   ) : stats ? (
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="p-3 rounded-lg bg-[#FF2D78]/5 border border-[#FF2D78]/10 text-center">
+                      <div className="p-3 rounded-lg bg-[#FF2D78]/[5] border border-[#FF2D78]/[10] text-center">
                         <Users className="h-4 w-4 mx-auto text-primary mb-1" />
                         <p className="text-lg font-bold">{stats.girlfriendCount}</p>
                         <p className="text-[10px] text-[#8B8BA3]">Girlfriends</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-[#FF2D78]/5 border border-[#FF2D78]/10 text-center">
+                      <div className="p-3 rounded-lg bg-[#FF2D78]/[5] border border-[#FF2D78]/[10] text-center">
                         <MessageCircle className="h-4 w-4 mx-auto text-primary mb-1" />
                         <p className="text-lg font-bold">{stats.messagesToday}</p>
                         <p className="text-[10px] text-[#8B8BA3]">Msgs Today</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-[#FF2D78]/5 border border-[#FF2D78]/10 text-center">
+                      <div className="p-3 rounded-lg bg-[#FF2D78]/[5] border border-[#FF2D78]/[10] text-center">
                         <Heart className="h-4 w-4 mx-auto text-primary mb-1" />
                         <p className="text-lg font-bold">{stats.avgIntimacy.toFixed(1)}</p>
                         <p className="text-[10px] text-[#8B8BA3]">Avg Intimacy</p>
@@ -264,7 +264,7 @@ export default function ProfilePage() {
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-3 gap-3">
                     <div className={`p-4 rounded-lg border text-center ${
-                      membershipTier === 'free' ? 'border-[#FF2D78]/30 bg-[#FF2D78]/5' : 'border-white/[0.06] bg-white/[0.04]'
+                      membershipTier === 'free' ? 'border-[#FF2D78]/[30] bg-[#FF2D78]/[5]' : 'border-white/[0.06] bg-white/[0.04]'
                     }`}>
                       <p className="text-xs text-[#8B8BA3]">Free</p>
                       <p className="text-lg font-bold">$0</p>
@@ -274,7 +274,7 @@ export default function ProfilePage() {
                       </Button>
                     </div>
                     <div className={`p-4 rounded-lg border text-center ${
-                      membershipTier === 'pro' ? 'border-[#FF2D78]/30 bg-[#FF2D78]/5' : 'border-white/[0.06] bg-white/[0.04]'
+                      membershipTier === 'pro' ? 'border-[#FF2D78]/[30] bg-[#FF2D78]/[5]' : 'border-white/[0.06] bg-white/[0.04]'
                     }`}>
                       <p className="text-xs font-medium text-purple-400">Pro</p>
                       <p className="text-lg font-bold">$19.99</p>
@@ -334,7 +334,7 @@ export default function ProfilePage() {
                     </div>
                   ) : notifications.length === 0 ? (
                     <div className="text-center py-8">
-                      <Bell className="h-6 w-6 mx-auto text-[#8B8BA3]/50 mb-2" />
+                      <Bell className="h-6 w-6 mx-auto text-[#8B8BA3]/[50] mb-2" />
                       <p className="text-xs text-[#8B8BA3]">No notifications yet</p>
                     </div>
                   ) : (
@@ -343,7 +343,7 @@ export default function ProfilePage() {
                         <div
                           key={n.id}
                           className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                            n.is_read ? 'bg-white/[0.03]' : 'bg-[#FF2D78]/5 border border-[#FF2D78]/10'
+                            n.is_read ? 'bg-white/[0.03]' : 'bg-[#FF2D78]/[5] border border-[#FF2D78]/[10]'
                           }`}
                           onClick={() => { markAsRead(n.id); if (n.link_url) window.open(n.link_url, '_blank'); }}
                         >
@@ -357,12 +357,12 @@ export default function ProfilePage() {
                               {n.title}
                             </p>
                             <p className="text-[11px] text-[#8B8BA3] mt-0.5 line-clamp-2">{n.message}</p>
-                            <p className="text-[9px] text-[#8B8BA3]/50 mt-1">
+                            <p className="text-[9px] text-[#8B8BA3]/[50] mt-1">
                               {new Date(n.created_at).toLocaleDateString()}
                             </p>
                           </div>
                           {n.link_url && (
-                            <ExternalLink className="h-3 w-3 text-[#8B8BA3]/50 flex-shrink-0 mt-1" />
+                            <ExternalLink className="h-3 w-3 text-[#8B8BA3]/[50] flex-shrink-0 mt-1" />
                           )}
                         </div>
                       ))}

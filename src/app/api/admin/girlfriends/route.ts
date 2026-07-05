@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
+
+const ADMIN_GF_WRITE_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 }; // 60/h/admin
 
 // PATCH 允许修改的字段白名单，**严禁**透传 user_id / id / created_at 等敏感字段
 const ALLOWED_PATCH_FIELDS = new Set<string>([
@@ -114,6 +118,14 @@ export async function POST(request: NextRequest) {
   if (adminCheck.error) return adminCheck.error;
   const { supabase, user } = adminCheck;
 
+  const rl = await checkRateLimitAsync(`admin-gf-write:${user.id}`, ADMIN_GF_WRITE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many admin girlfriend requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, ADMIN_GF_WRITE_LIMIT) },
+    );
+  }
+
   try {
     const body = await request.json();
 
@@ -164,7 +176,15 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const adminCheck = await requireAdmin(request);
   if (adminCheck.error) return adminCheck.error;
-  const { supabase } = adminCheck;
+  const { supabase, user } = adminCheck;
+
+  const rl = await checkRateLimitAsync(`admin-gf-write:${user.id}`, ADMIN_GF_WRITE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many admin girlfriend requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, ADMIN_GF_WRITE_LIMIT) },
+    );
+  }
 
   try {
     const body = await request.json();
@@ -211,7 +231,15 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const adminCheck = await requireAdmin(request);
   if (adminCheck.error) return adminCheck.error;
-  const { supabase } = adminCheck;
+  const { supabase, user } = adminCheck;
+
+  const rl = await checkRateLimitAsync(`admin-gf-write:${user.id}`, ADMIN_GF_WRITE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many admin girlfriend requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, ADMIN_GF_WRITE_LIMIT) },
+    );
+  }
 
   try {
     const { searchParams } = new URL(request.url);
@@ -355,7 +383,7 @@ CRITICAL rules:
       .single();
 
     if (insertErr) {
-      console.error('Failed to insert girlfriend:', insertErr);
+      logger.error('admin/girlfriends: batch insert failed', { insertErr });
       continue;
     }
 

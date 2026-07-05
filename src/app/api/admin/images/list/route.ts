@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { logger } from '@/lib/logger';
 
 export async function GET(req: NextRequest) {
   const guard = await requireAdmin(req);
@@ -92,7 +93,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ girlfriends, outfits, shopItems });
   } catch (error) {
-    console.error('list error:', error);
+    logger.error('list error:', { data: error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to load list' },
       { status: 500 }

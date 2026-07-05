@@ -96,10 +96,10 @@ function getUpstash(): UpstashClient | null {
   return upstashClient;
 }
 
-// Lua：原子计数 + 首次写入设过期，返回 [count, ttl_ms]
+// Lua：原子计数 + 首次写入设过期，返回 [count, { data: ttl_ms]
 const RATE_LIMIT_LUA = `
 local key = KEYS[1]
-local limit = tonumber(ARGV[1])
+local limit = tonumber(ARGV[1] })
 local window = tonumber(ARGV[2])
 local count = redis.call('INCR', key)
 if count == 1 then

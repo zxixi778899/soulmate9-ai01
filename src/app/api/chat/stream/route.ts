@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { rateLimitMiddleware, RATE_LIMITS } from '@/lib/rate-limit';
 import { analyzeAndRoute } from '@/lib/llm-router';
 import { getCozeAccessToken, COZE_API_BASE, DEFAULT_LLM_MODEL } from '@/lib/coze-auth';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -224,7 +225,7 @@ async function detectEmotion(message: string): Promise<string> {
     const validEmotions = ['happy', 'sad', 'romantic', 'playful', 'angry', 'neutral', 'anxious'];
     return validEmotions.includes(emotion) ? emotion : 'neutral';
   } catch (e) {
-    console.warn('[detectEmotion] failed, returning neutral:', e);
+    logger.warn('[detectEmotion] failed, returning neutral:', { err: e });
     return 'neutral';
   }
 }
@@ -431,7 +432,7 @@ export async function POST(request: NextRequest) {
   // Build message array for LLM
   const llmMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
     { role: 'system', content: hardenedSystemPrompt },
-    ...(recentMessages || []).reverse().map(m => ({
+    ...(recentMessages || []).reverse().map((m: { role: string; content: string }) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content
     })),

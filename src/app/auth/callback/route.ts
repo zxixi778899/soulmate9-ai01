@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -13,14 +14,14 @@ export async function GET(request: NextRequest) {
 
   // Handle OAuth error from Supabase
   if (error || errorDescription) {
-    console.error('[Auth Callback] OAuth error from Supabase:', error, errorDescription);
+    logger.error('[Auth Callback] OAuth error from Supabase:', { error, errorDescription });
     return NextResponse.redirect(
       `${origin}/login?error=${encodeURIComponent(errorDescription || error || 'auth_failed')}`
     );
   }
 
   if (!code) {
-    console.error('[Auth Callback] No code in callback URL. Full URL:', request.url);
+    logger.error('[Auth Callback] No code in callback URL. Full URL:', { data: request.url });
     return NextResponse.redirect(`${origin}/login?error=no_code`);
   }
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
     const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError || !data.session) {
-      console.error('[Auth Callback] Code exchange failed:', exchangeError?.message);
+      logger.error('[Auth Callback] Code exchange failed:', { data: exchangeError?.message });
       return NextResponse.redirect(
         `${origin}/login?error=exchange_failed&details=${encodeURIComponent(exchangeError?.message || 'unknown')}`
       );
@@ -71,7 +72,7 @@ try {
   localStorage.setItem('${STORAGE_KEY}', ${JSON.stringify(sessionJson)});
   window.location.href = '/';
 } catch(e) {
-  console.error('Failed to store session:', e);
+  logger.error('Failed to store session:', { data: e });
   window.location.href = '/login?error=storage_failed';
 }
 </script>
@@ -97,7 +98,7 @@ try {
 
     return response;
   } catch (err) {
-    console.error('[Auth Callback] Exception:', err);
+    logger.error('[Auth Callback] Exception:', { data: err });
     return NextResponse.redirect(`${origin}/login?error=callback_error`);
-  }
+   }
 }

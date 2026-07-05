@@ -157,7 +157,7 @@ export default function AdminCryptoPage() {
       ) : payments.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
-            <Search className="h-12 w-12 mx-auto mb-4 text-[#8B8BA3]/40" />
+            <Search className="h-12 w-12 mx-auto mb-4 text-[#8B8BA3]/[40]" />
             <p className="text-[#8B8BA3]">No crypto payments found</p>
           </CardContent>
         </Card>

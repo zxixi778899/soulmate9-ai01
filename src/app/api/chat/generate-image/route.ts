@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { runpodClient } from '@/lib/runpod';
 import { uploadDataUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -182,7 +183,7 @@ export async function POST(request: NextRequest) {
         );
         if (generatedUrl) imageUrl = generatedUrl;
       } catch (err) {
-        console.warn('[Chat Generate Image] RunPod failed, falling back to direct RunPod:', err);
+        logger.warn('[Chat Generate Image] RunPod failed, falling back to direct RunPod:', { err });
       }
     }
 
@@ -208,7 +209,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ imageUrl, message });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[Chat Generate Image] Error:', errMsg);
+    logger.error('[Chat Generate Image] Error:', { data: errMsg });
     return NextResponse.json({ error: errMsg }, { status: 500 });
-  }
+   }
 }

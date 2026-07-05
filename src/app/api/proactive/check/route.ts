@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     if (existingLog && existingLog.length > 0) continue;
 
     // Check intimacy requirement
-    const score = (scores || []).find(s => s.girlfriend_id === gf.id);
+    const score = (scores || []).find((s: { girlfriend_id: string; score: number }) => s.girlfriend_id === gf.id);
     const intimacyLevel = score?.score || 0;
 
     // Check if user has been away >12 hours (for "miss you" messages)
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       new Date(lastUserMsg[0].created_at) < new Date(twelveHoursAgo);
 
     // Collect eligible templates: default slot templates + miss-you if away + holiday if applicable
-    let eligibleTemplates = allTemplates.filter(t => {
+    let eligibleTemplates = allTemplates.filter((t: { template: string; time_slot: string; min_intimacy: number }) => {
       if (t.time_slot === currentSlot) return t.min_intimacy <= intimacyLevel;
       if (hasBeenAway && t.time_slot === currentSlot && t.min_intimacy <= intimacyLevel) {
         // Also check for "miss you" themed messages
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (hasBeenAway) {
-      const missTemplates = allTemplates.filter(t =>
+      const missTemplates = allTemplates.filter((t: { template: string; min_intimacy: number }) =>
         t.template.toLowerCase().includes('miss') &&
         t.min_intimacy <= intimacyLevel
       );

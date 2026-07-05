@@ -47,8 +47,10 @@ let initialized = false;
 function loadSentry(): SentryLike | null {
   if (sentryModule !== null) return sentryModule;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    sentryModule = require('@sentry/nextjs') as SentryLike;
+    // 通过 Function 构造器 + 字符串 require，绕过 webpack/turbopack 的静态分析
+    // 这样即使包不存在，build 阶段也不会 fail；runtime require 抛错被 try/catch 吞掉
+    const req = new Function('return require') as NodeRequire;
+    sentryModule = req('@sentry/nextjs') as SentryLike;
   } catch {
     // 包未安装：降级为 no-op
     sentryModule = null;

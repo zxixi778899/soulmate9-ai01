@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
+
+const UPDATE_LIMIT = { maxRequests: 120, windowMs: 60 * 60 * 1000 }; // 120/h/admin
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin(req);
   if ('error' in guard && guard.error) return guard.error;
+
+  const rl = await checkRateLimitAsync(`admin-img-update:${guard.user!.id}`, UPDATE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many update requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, UPDATE_LIMIT) },
+    );
+  }
 
   const client = guard.supabase;
   const body = await req.json();
@@ -43,6 +55,7 @@ export async function POST(req: NextRequest) {
     .eq('id', id);
 
   if (error) {
+    logger.error('admin/images/update: db error', { table, id, error });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

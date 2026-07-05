@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: Request) {
   try {
@@ -18,13 +19,13 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false });
 
     if (dbError) {
-      console.error('Failed to fetch crypto orders:', dbError);
+      logger.error('Failed to fetch crypto orders:', { data: dbError });
       return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, orders: orders || [] });
   } catch (err) {
-    console.error('Crypto orders error:', err);
+    logger.error('Crypto orders error:', { data: err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

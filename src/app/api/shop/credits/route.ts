@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthUser } from '@/lib/supabase-server';
+import { logger } from '@/lib/logger';
 
 const CREDIT_PLANS = [
   { id: 'starter-pack', name: 'Starter Pack', amount: 500, price: '$4.99', price_cents: 499 },
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (err) {
-    console.error('[Credits API] Error:', err);
+    logger.error('[Credits API] Error:', { data: err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

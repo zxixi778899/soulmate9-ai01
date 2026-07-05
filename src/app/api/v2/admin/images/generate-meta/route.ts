@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCozeAccessToken, COZE_API_BASE, DEFAULT_LLM_MODEL } from '@/lib/coze-auth';
 import { requireAdmin } from '@/lib/require-admin';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -143,7 +144,7 @@ async function tryLLMWithFallback(userPrompt: string, concept: string, type: str
       throw new Error('Invalid metadata structure from LLM');
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      console.error(`[generate-meta] Attempt ${attempt} failed:`, lastError.message);
+      logger.error(`[generate-meta] Attempt ${attempt} failed:`, { data: lastError.message });
 
       if (attempt < 3) {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -152,7 +153,7 @@ async function tryLLMWithFallback(userPrompt: string, concept: string, type: str
   }
 
   // LLM 调用失败：根据 type 返回贴合的兜底元数据
-  console.warn('[generate-meta] LLM unavailable, returning default metadata for type:', type);
+  logger.warn('[generate-meta] LLM unavailable, returning default metadata for type:', { type });
   const fallback = {
     title: concept || 'Generated Image',
     description: type === 'outfit'
@@ -327,10 +328,10 @@ Return ONLY valid JSON: name, description, tags, appearance. No markdown.`;
 
     return await tryLLMWithFallback(userPrompt, concept, type);
   } catch (error) {
-    console.error('Generate metadata error:', error);
+    logger.error('Generate metadata error:', { data: error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to generate metadata' },
       { status: 500 }
     );
-  }
+    }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from '@/lib/logger';
 
 const OUTFIT_IMAGES: Record<string, string> = {
   "casual-elegance": "https://coze-coding-project.tos.coze.site/coze_storage_7653290042231849012/outfits/casual-elegance_8656ceaf.jpeg?sign=1782769385-a1b7bb3355-0-ccfc34a623409d66287fbc5d42570493fbbd06001cfee964c12f1e7666732921",
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ outfits: result });
   } catch (error) {
-    console.error("[Outfits API] Error:", error);
+    logger.error("[Outfits API] Error:", { data: error });
     return NextResponse.json({ error: "Failed to fetch outfits" }, { status: 500 });
   }
 }

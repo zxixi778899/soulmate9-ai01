@@ -68,7 +68,7 @@ export default function BottomNav() {
                 textShadow: '0 0 12px rgba(201, 166, 107, 0.4)',
               } : {}}
             >
-              <Icon className={cn('h-5 w-5', active && 'fill-[#FF2D78]/20')} />
+              <Icon className={cn('h-5 w-5', active && 'fill-[#FF2D78]/[20]')} />
               <span className="text-[10px] leading-tight font-medium">
                 {t(item.labelKey)}
               </span>

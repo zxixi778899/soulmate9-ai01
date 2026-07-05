@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryPg } from '@/storage/database/supabase-client';
 import { resolveImageUrl } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 interface GirlfriendRow {
   id: string;
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ girlfriends });
   } catch (e: any) {
-    console.error('girlfriends/public error:', e?.message);
+    logger.error('girlfriends/public error:', { data: e?.message });
     return NextResponse.json(
       { error: e?.message || 'Unknown error', hint: '如果 COZE_SUPABASE_DB_URL 未配，请先在 Vercel env 添加 Supabase Transaction pooler URL' },
       { status: 500 },

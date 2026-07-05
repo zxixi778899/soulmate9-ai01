@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   try {
@@ -169,7 +170,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err) {
-    console.error('[Shop Purchase] Error:', err);
+    logger.error('[Shop Purchase] Error:', { data: err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

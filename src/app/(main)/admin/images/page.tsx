@@ -1255,7 +1255,7 @@ export default function AdminImagesPage() {
                         value={currentGenState.positivePrompt}
                         onChange={(e) => selectedItem && updateGenState(selectedItem.id, { positivePrompt: e.target.value, activePreset: null })}
                         placeholder="Describe the image you want to generate..."
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 resize-y min-h-[60px]"
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/[30] resize-y min-h-[60px]"
                         rows={3}
                       />
                     </div>
@@ -1267,7 +1267,7 @@ export default function AdminImagesPage() {
                         value={currentGenState.negativePrompt}
                         onChange={(e) => selectedItem && updateGenState(selectedItem.id, { negativePrompt: e.target.value })}
                         placeholder="Things to avoid..."
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 resize-y min-h-[40px]"
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/[30] resize-y min-h-[40px]"
                         rows={2}
                       />
                     </div>
@@ -1484,7 +1484,7 @@ export default function AdminImagesPage() {
                   value={newPresetLabel}
                   onChange={(e) => setNewPresetLabel(e.target.value)}
                   placeholder="例如: 赛博朋克"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/[30]"
                 />
               </div>
               <div>
@@ -1493,7 +1493,7 @@ export default function AdminImagesPage() {
                   value={newPresetPositive}
                   onChange={(e) => setNewPresetPositive(e.target.value)}
                   placeholder="Describe the image style..."
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 resize-y"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/[30] resize-y"
                   rows={3}
                 />
               </div>
@@ -1503,7 +1503,7 @@ export default function AdminImagesPage() {
                   value={newPresetNegative}
                   onChange={(e) => setNewPresetNegative(e.target.value)}
                   placeholder="Things to avoid..."
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 resize-y"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/[30] resize-y"
                   rows={2}
                 />
               </div>

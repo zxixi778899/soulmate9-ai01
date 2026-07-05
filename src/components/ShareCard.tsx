@@ -4,6 +4,7 @@ import { useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Heart, Download, Share2, X, Sparkles } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 interface GirlfriendData {
   name: string;
@@ -222,7 +223,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
         URL.revokeObjectURL(url);
       }, 'image/png');
     } catch (err) {
-      console.error('Failed to generate share card:', err);
+      logger.error('Failed to generate share card:', { data: err });
     }
   }, [girlfriend]);
 
@@ -276,15 +277,15 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
             }}
           >
             {/* Decorative glow */}
-            <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#e11d48]/10 blur-3xl rounded-full" />
-            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-[#d946ef]/10 blur-3xl rounded-full" />
+            <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#e11d48]/[10] blur-3xl rounded-full" />
+            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-[#d946ef]/[10] blur-3xl rounded-full" />
 
             {/* Top border glow */}
             <div className="absolute top-3 left-3 right-3 h-1.5 rounded-full bg-gradient-to-r from-[#e11d48] to-[#d946ef]" />
 
             {/* Avatar */}
             <div className="flex flex-col items-center pt-12">
-              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-[#e11d48]/20 to-[#d946ef]/20 flex items-center justify-center border-2 border-[#e11d48]/40 shadow-lg shadow-[#e11d48]/20">
+              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-[#e11d48]/[20] to-[#d946ef]/[20] flex items-center justify-center border-2 border-[#e11d48]/[40] shadow-lg shadow-[#e11d48]/[20]">
                 {girlfriend.portrait_url ? (
                   <img
                     src={girlfriend.portrait_url}
@@ -293,7 +294,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
                     crossOrigin="anonymous"
                   />
                 ) : (
-                  <Heart className="w-10 h-10 text-[#e11d48] fill-[#e11d48]/30" />
+                  <Heart className="w-10 h-10 text-[#e11d48] fill-[#e11d48]/[30]" />
                 )}
               </div>
 

@@ -47,7 +47,7 @@ export function LanguageSwitcher({ variant = 'default' }: { variant?: 'default' 
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <div className="absolute right-0 top-full z-50 mt-1 w-36 rounded-lg border border-border/40 bg-[#0a0a0f]/95 backdrop-blur-xl p-1 shadow-lg">
+            <div className="absolute right-0 top-full z-50 mt-1 w-36 rounded-lg border border-border/40 bg-[#0a0a0f]/[95] backdrop-blur-xl p-1 shadow-lg">
               {LOCALES.map((l) => (
                 <button
                   key={l.code}
@@ -84,7 +84,7 @@ export function LanguageSwitcher({ variant = 'default' }: { variant?: 'default' 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-44 rounded-xl border border-border/40 bg-[#0a0a0f]/95 backdrop-blur-xl p-2 shadow-xl">
+          <div className="absolute right-0 top-full z-50 mt-2 w-44 rounded-xl border border-border/40 bg-[#0a0a0f]/[95] backdrop-blur-xl p-2 shadow-xl">
             {LOCALES.map((l) => (
               <button
                 key={l.code}

@@ -189,7 +189,7 @@ export default function LorePage() {
       ) : entries.length === 0 ? (
         <Card className="bg-card/40 backdrop-blur-sm border-white/[0.05]">
           <CardContent className="py-12 text-center">
-            <BookOpen className="h-12 w-12 mx-auto mb-3 text-[#8B8BA3]/50" />
+            <BookOpen className="h-12 w-12 mx-auto mb-3 text-[#8B8BA3]/[50]" />
             <p className="text-[#8B8BA3] mb-4">No lore entries yet. Add keywords and content to build your character&apos;s world.</p>
             <Button onClick={openCreate} variant="outline">
               <Plus className="h-4 w-4 mr-1" />

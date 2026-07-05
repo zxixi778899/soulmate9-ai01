@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, memory: data });
   } catch (err) {
-    console.error('Memory create error:', err);
+    logger.error('Memory create error:', { data: err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -487,7 +487,7 @@ export default function SingleViewportHero() {
                       onClick={handleCreate}
                       size="xl"
                       variant="outline"
-                      className="font-heading uppercase tracking-wider border-2 border-white/30 text-white hover:border-[#FF2D78] hover:bg-[#FF2D78]/10 hover:scale-105 transition-all duration-300 backdrop-blur-md group"
+                      className="font-heading uppercase tracking-wider border-2 border-white/30 text-white hover:border-[#FF2D78] hover:bg-[#FF2D78]/[10] hover:scale-105 transition-all duration-300 backdrop-blur-md group"
                     >
                       <Wand2 className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform" />
                       Create Yours
@@ -826,7 +826,7 @@ function NewTopNav({
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
       <div className="mx-auto max-w-7xl px-4 md:px-6 mt-4">
-        <div className="flex items-center justify-between h-14 px-4 md:px-6 rounded-2xl bg-[#0c0c18]/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_10px_30px_rgba(0,0,0,0.45)]">
+        <div className="flex items-center justify-between h-14 px-4 md:px-6 rounded-2xl bg-[#0c0c18]/[70] backdrop-blur-2xl border border-white/[0.08] shadow-[0_10px_30px_rgba(0,0,0,0.45)]">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#FF2D78] via-[#d946ef] to-[#8b5cf6] flex items-center justify-center shadow-[0_0_18px_rgba(255,45,120,0.45)] animate-[heartbeat_3s_ease-in-out_infinite]">
               <Heart className="w-4 h-4 text-white fill-white" />
@@ -888,7 +888,7 @@ function NewTopNav({
                     <Menu className="w-4 h-4" />
                   </button>
                 </SheetTrigger>
-                <SheetContent side="right" className="w-[280px] bg-[#0c0c18]/95 backdrop-blur-2xl border-l border-white/[0.08]">
+                <SheetContent side="right" className="w-[280px] bg-[#0c0c18]/[95] backdrop-blur-2xl border-l border-white/[0.08]">
                   <div className="flex items-center justify-between mt-4 mb-8">
                     <span className="font-display text-base font-bold">{APP_NAME}</span>
                     <X className="w-5 h-5 text-white/60" />

@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { uploadDataUrl } from '@/lib/storage';
 import { queryPg } from '@/storage/database/supabase-client';
 import { requireAdmin } from '@/lib/require-admin';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
+
+// 4 张 GPU 图，限制 10 次/小时/superadmin
+const REFRESH_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
 
 // ============================================================
 // Admin — 批量刷新 4 个角色立绘
@@ -149,9 +154,9 @@ async function generateImage(prompt: string, seed: number): Promise<string> {
 }
 
 async function refreshOne(char: CharacterConfig) {
-  console.log(`[${char.slug}] generating portrait seed=${char.seed}...`);
+  logger.info(`[${char.slug}] generating portrait seed=${char.seed}...`);
   const base64 = await generateImage(char.prompt, char.seed);
-  console.log(`[${char.slug}] generated (${(base64.length * 3 / 4 / 1024).toFixed(0)} KB), uploading...`);
+  logger.info(`[${char.slug}] generated (${(base64.length * 3 / 4 / 1024).toFixed(0)} KB), uploading...`);
 
   // 优先 Supabase Storage（service_role 直接有权限）
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'portraits';
@@ -190,15 +195,15 @@ async function refreshOne(char: CharacterConfig) {
     );
     if (uploadRes.ok) {
       publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${filePath}`;
-      console.log(`[${char.slug}] Supabase Storage OK: ${publicUrl}`);
+      logger.info(`[${char.slug}] Supabase Storage OK: ${publicUrl}`);
     } else {
       const errText = await uploadRes.text();
       lastError = `Supabase Storage ${uploadRes.status}: ${errText.slice(0, 300)}`;
-      console.warn(`[${char.slug}] ${lastError}`);
+      logger.warn(`[${char.slug}] ${lastError}`);
     }
   } catch (e: any) {
     lastError = `Supabase Storage exception: ${e?.message}`;
-    console.warn(`[${char.slug}] ${lastError}`);
+    logger.warn(`[${char.slug}] ${lastError}`);
   }
 
   // fallback Coze OSS（如果 Supabase 失败）
@@ -207,7 +212,7 @@ async function refreshOne(char: CharacterConfig) {
       const dataUrl = `data:image/png;base64,${base64}`;
       const key = await uploadDataUrl(dataUrl, `portraits/${char.slug}`);
       publicUrl = key;
-      console.log(`[${char.slug}] Coze OSS fallback key=${key}`);
+      logger.info(`[${char.slug}] Coze OSS fallback key=${key}`);
     } catch (e: any) {
       lastError += ` | Coze OSS: ${e?.message}`;
     }
@@ -219,14 +224,14 @@ async function refreshOne(char: CharacterConfig) {
 
   const { rows: cols } = await queryPg<{ id: string; name: string }>(
     `UPDATE girlfriends
-        SET portrait_url = $1, updated_at = NOW()
+        SET portrait_url = $1, { data: updated_at = NOW( })
       WHERE slug = $2
       RETURNING id, name`,
     [publicUrl, char.slug],
   );
   const row = cols?.[0] || null;
   if (!row) throw new Error(`DB update failed: no girlfriend with slug=${char.slug}`);
-  console.log(`[${char.slug}] DB updated:`, JSON.stringify(row));
+  logger.info(`[${char.slug}] DB updated`, { slug: char.slug, row });
   return { slug: char.slug, url: publicUrl, row };
 }
 
@@ -234,6 +239,14 @@ export async function POST(request: NextRequest) {
   // 双层防御：仅 superadmin 可访问；与 ENABLE_DEBUG_ROUTES 互不替代。
   const guard = await requireAdmin(request, 'superadmin');
   if (guard.error) return guard.error;
+
+  const rl = await checkRateLimitAsync(`admin-refresh-portraits:${guard.user!.id}`, REFRESH_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many refresh requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, REFRESH_LIMIT) },
+    );
+  }
 
   try {
     const body = await request.json().catch(() => ({}));
@@ -262,14 +275,14 @@ export async function POST(request: NextRequest) {
         const r = await refreshOne(char);
         results.push({ ok: true, ...r });
       } catch (e: any) {
-        console.error(`[${char.slug}] FAILED:`, e?.message);
+        logger.error(`refresh-portraits: ${char.slug} FAILED`, { err: e?.message });
         results.push({ ok: false, slug: char.slug, error: e?.message });
       }
     }
 
     return NextResponse.json({ ok: true, results, debug: debugEnv });
   } catch (e: any) {
-    console.error('refresh-portraits error:', e);
+    logger.error('refresh-portraits error', { err: e?.message });
     return NextResponse.json({ error: e?.message || 'Unknown error' }, { status: 500 });
   }
 }

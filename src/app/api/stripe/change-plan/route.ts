@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe-server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { logger } from '@/lib/logger';
 
 /**
  * POST /api/stripe/change-plan
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[stripe/change-plan] error', errMsg);
+    logger.error('[stripe/change-plan] error', { data: errMsg });
     return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }

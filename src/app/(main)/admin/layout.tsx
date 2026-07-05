@@ -28,7 +28,7 @@ const adminNav = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -39,14 +39,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.push('/login');
       return;
     }
-    // Check admin role — include auth token in x-session header
-    const SUPABASE_AUTH_KEY = 'sb-ywktqpaycmuoxnzxxlbr-auth-token';
-    const sessionStr = localStorage.getItem(SUPABASE_AUTH_KEY);
-    let token = '';
-    try {
-      const session = JSON.parse(sessionStr || '{}');
-      token = session?.access_token || '';
-    } catch {}
+    // 从 AuthProvider 拿 token（不再读硬编码 localStorage key）
+    const token = session?.access_token || '';
 
     fetch('/api/admin/check-role', {
       headers: token ? { 'x-session': token } : {},
@@ -62,7 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .catch(() => {
         router.push('/gallery');
       });
-  }, [user, router]);
+  }, [user, session, router]);
 
   if (!user || isAdmin === null) {
     return (

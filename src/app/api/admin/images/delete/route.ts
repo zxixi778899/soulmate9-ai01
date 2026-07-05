@@ -1,12 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { extractKeyFromUrl, deleteFile } from '@/lib/storage';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
+
+const DELETE_LIMIT = { maxRequests: 120, windowMs: 60 * 60 * 1000 }; // 120/h/admin
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin(req);
   if ('error' in guard && guard.error) return guard.error;
+
+  const rl = await checkRateLimitAsync(`admin-img-delete:${guard.user!.id}`, DELETE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many delete requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, DELETE_LIMIT) },
+    );
+  }
 
   const client = guard.supabase;
   const body = await req.json();
@@ -60,7 +72,7 @@ export async function POST(req: NextRequest) {
         await deleteFile(key);
       }
     } catch (e) {
-      console.warn('Failed to delete file from storage:', e);
+      logger.warn('admin/images/delete: failed to delete file from storage', { err: String(e) });
       // Continue even if storage deletion fails
     }
   }
@@ -72,6 +84,7 @@ export async function POST(req: NextRequest) {
     .eq('id', id);
 
   if (error) {
+    logger.error('admin/images/delete: db error', { table, id, error });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

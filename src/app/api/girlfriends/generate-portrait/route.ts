@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { uploadDataUrl } from '@/lib/storage';
 import { getAuthUser } from '@/lib/supabase-server';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -108,16 +109,16 @@ export async function POST(request: NextRequest) {
 
     const prompt = `Stunningly beautiful gorgeous young woman named ${name}, ${hairStyle} hair (${hairColor}), gorgeous ${eyeColor} eyes, ${bodyType} sexy figure, dressed in ${style} style attire that flatters her figure. ${personality ? `Personality: ${personality}` : ''}. Elegant portrait, warm vibrant lighting, ultra photorealistic, shot on Canon EOS R5 85mm f/1.4, magazine cover quality, 8K UHD, detailed beautiful face, warm genuine smile, radiant glowing skin, natural skin texture, captivating alluring presence, looking at viewer, clean background, sharp focus, professional photography.`;
 
-    console.log('[Generate Portrait] Generating for:', name);
+    logger.info('[Generate Portrait] Generating for:', { data: name });
     const base64 = await generateImage(prompt);
 
-    console.log('[Generate Portrait] Uploading to storage...');
+    logger.info('[Generate Portrait] Uploading to storage...');
     const signedUrl = await uploadToStorage(base64, name);
 
     return NextResponse.json({ imageUrl: signedUrl, key: null });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[Generate Portrait] Error:', errMsg);
+    logger.error('[Generate Portrait] Error:', { data: errMsg });
     return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }

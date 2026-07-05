@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -9,36 +12,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
   || '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// ── Auth ──
-async function verifyAuth(request: NextRequest): Promise<{ userId: string } | { error: NextResponse }> {
-  const token = request.headers.get('x-session');
-  if (!token) return { error: NextResponse.json({ error: 'Unauthorized: no session' }, { status: 401 }) };
-
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    const proxyUrl = process.env.COZE_SUPABASE_URL;
-    const proxyKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
-    if (proxyUrl && proxyKey) {
-      const authRes = await fetch(`${proxyUrl}/rest/v1/rpc/get_auth_user`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: proxyKey, Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ token }),
-      });
-      if (authRes.ok) {
-        const authData = await authRes.json();
-        if (authData?.user_id) return { userId: authData.user_id };
-      }
-    }
-    return { error: NextResponse.json({ error: 'Unauthorized: Supabase not configured' }, { status: 500 }) };
-  }
-
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY },
-  });
-  if (!res.ok) return { error: NextResponse.json({ error: 'Unauthorized: invalid token' }, { status: 401 }) };
-  const user = await res.json();
-  if (!user?.id) return { error: NextResponse.json({ error: 'Unauthorized: no user id' }, { status: 401 }) };
-  return { userId: user.id };
-}
+const BATCH_LIMIT = { maxRequests: 20, windowMs: 60 * 60 * 1000 }; // 20/h/admin
 
 // ── Random Data Pools ──
 // 100+ diverse first names for Western market
@@ -279,14 +253,23 @@ function generateGirlfriend(userId: string) {
 // ── POST /api/v2/admin/girlfriends/batch ──
 export async function POST(request: NextRequest) {
   try {
-    const auth = await verifyAuth(request);
-    if ('error' in auth) return auth.error;
-    const { userId } = auth;
+    // 修复：原 verifyAuth 仅校验 token 存在，任何登录用户都能调用。改为 admin 守卫 + 限流。
+    const guard = await requireAdmin(request);
+    if (guard.error) return guard.error;
 
+    const rl = await checkRateLimitAsync(`admin-gf-batch:${guard.user!.id}`, BATCH_LIMIT);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many batch requests. Please try again later.' },
+        { status: 429, headers: rateLimitHeaders(rl, BATCH_LIMIT) },
+      );
+    }
+
+    const userId = guard.user!.id;
     const body = await request.json();
     const count = Math.min(Math.max(body.count || 1, 1), 10);
 
-    console.log(`[batch] Creating ${count} girlfriends for user ${userId}`);
+    logger.info('admin/girlfriends/batch: creating', { count, userId });
 
     // Generate multiple girlfriends
     const girlfriends = Array.from({ length: count }, () => generateGirlfriend(userId));
@@ -312,12 +295,12 @@ export async function POST(request: NextRequest) {
 
     if (!insertRes.ok) {
       const errText = await insertRes.text();
-      console.error('[batch] Insert failed:', errText);
+      logger.error('admin/girlfriends/batch: insert failed', { errText });
       return NextResponse.json({ error: `Failed to create girlfriends: ${errText}` }, { status: 500 });
     }
 
     const created = await insertRes.json();
-    console.log(`[batch] Created ${created.length} girlfriends`);
+    logger.info('admin/girlfriends/batch: created', { count: created.length, userId });
 
     return NextResponse.json({
       success: true,
@@ -325,7 +308,7 @@ export async function POST(request: NextRequest) {
       girlfriends: created,
     });
   } catch (err) {
-    console.error('[batch] Error:', err);
+    logger.error('admin/girlfriends/batch error', { err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

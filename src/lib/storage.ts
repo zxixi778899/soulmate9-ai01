@@ -9,6 +9,7 @@
  */
 
 import { S3Storage } from "coze-coding-dev-sdk";
+import { logger } from '@/lib/logger';
 
 let _client: S3Storage | null = null;
 
@@ -25,7 +26,9 @@ function client(): S3Storage {
 }
 
 const URL_CACHE: Map<string, { url: string; expiresAt: number }> = new Map();
-const URL_TTL_SEC = 86400; // 1 day
+// 公开页（/girlfriend/[slug] 等）走 30 天签名 URL，配合 ISR revalidate 周期。
+// 私密页（chat、gallery 等）由 R2DBC 接口按需解析并短 TTL 缓存。
+const URL_TTL_SEC = 30 * 24 * 60 * 60; // 30 days
 
 function isDataUrl(s: string | null | undefined): boolean {
   return !!s && s.startsWith("data:");
@@ -104,7 +107,7 @@ export async function resolveImageUrl(value: string | null | undefined): Promise
     URL_CACHE.set(value, { url, expiresAt: Date.now() + (URL_TTL_SEC - 600) * 1000 });
     return url;
   } catch (err) {
-    console.error("[storage] generatePresignedUrl failed for key:", value, err);
+    logger.error("[storage] generatePresignedUrl failed for key:", { key: value, err });
     return "";
   }
 }
@@ -120,7 +123,7 @@ export async function ensureImageKey(value: string | null | undefined, prefix = 
     try {
       return await uploadDataUrl(value, prefix);
     } catch (err) {
-      console.error("[storage] uploadDataUrl failed:", err);
+      logger.error("[storage] uploadDataUrl failed:", { data: err });
       return value; // 上传失败时退回原值，不阻塞业务
     }
   }
@@ -183,7 +186,7 @@ export async function deleteFile(key: string): Promise<void> {
   try {
     await client().deleteFile({ fileKey: key });
   } catch (err) {
-    console.error("[storage] deleteFile failed:", key, err);
+    logger.error("[storage] deleteFile failed:", { key, err });
   }
 }
 

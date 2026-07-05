@@ -1,5 +1,6 @@
 'use client';
 import { authedFetch } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -107,7 +108,7 @@ interface Outfit {
    ========================================================= */
 function Stepper({ current, steps }: { current: number; steps: string[] }) {
   return (
-    <div className="flex items-center justify-center gap-2 sm:gap-4 px-4 py-5 border-b border-white/[0.06] bg-[#0E0E1A]/95 backdrop-blur-xl sticky top-0 z-10">
+    <div className="flex items-center justify-center gap-2 sm:gap-4 px-4 py-5 border-b border-white/[0.06] bg-[#0E0E1A]/[95] backdrop-blur-xl sticky top-0 z-10">
       {steps.map((label, idx) => {
         const isActive = idx === current;
         const isDone = idx < current;
@@ -118,7 +119,7 @@ function Stepper({ current, steps }: { current: number; steps: string[] }) {
                 isActive
                   ? 'bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white shadow-[0_0_20px_rgba(255,45,120,0.4)]'
                   : isDone
-                    ? 'bg-[#FF2D78]/80 text-white'
+                    ? 'bg-[#FF2D78]/[80] text-white'
                     : 'bg-white/[0.06] text-[#8B8BA3]'
               }`}
             >
@@ -132,7 +133,7 @@ function Stepper({ current, steps }: { current: number; steps: string[] }) {
               {label}
             </span>
             {idx < steps.length - 1 && (
-              <span className={`h-px w-6 sm:w-12 transition-colors ${isDone ? 'bg-[#FF2D78]/60' : 'bg-white/[0.08]'}`} />
+              <span className={`h-px w-6 sm:w-12 transition-colors ${isDone ? 'bg-[#FF2D78]/[60]' : 'bg-white/[0.08]'}`} />
             )}
           </div>
         );
@@ -158,7 +159,7 @@ function OptionPill({
       className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-all ${
         active
           ? 'bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white border-transparent shadow-[0_0_16px_rgba(255,45,120,0.3)]'
-          : 'bg-white/[0.04] border-white/[0.08] text-[#8B8BA3] hover:border-[#FF2D78]/40 hover:text-white backdrop-blur-sm'
+          : 'bg-white/[0.04] border-white/[0.08] text-[#8B8BA3] hover:border-[#FF2D78]/[40] hover:text-white backdrop-blur-sm'
       }`}
     >
       {children}
@@ -186,8 +187,8 @@ function OptionCard({
       onClick={onClick}
       className={`relative flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-all ${
         active
-          ? 'border-[#FF2D78]/60 bg-[#FF2D78]/5 ring-2 ring-[#FF2D78]/30 shadow-[0_0_24px_rgba(255,45,120,0.12)]'
-          : 'border-white/[0.08] bg-white/[0.03] backdrop-blur-sm hover:border-[#FF2D78]/40 hover:bg-white/[0.06]'
+          ? 'border-[#FF2D78]/[60] bg-[#FF2D78]/[5] ring-2 ring-[#FF2D78]/[30] shadow-[0_0_24px_rgba(255,45,120,0.12)]'
+          : 'border-white/[0.08] bg-white/[0.03] backdrop-blur-sm hover:border-[#FF2D78]/[40] hover:bg-white/[0.06]'
       }`}
     >
       {active && (
@@ -290,7 +291,7 @@ export default function CreatePage() {
         if (data.portrait_url || data.url) setPortraitUrl(data.portrait_url || data.url);
       }
     } catch (e) {
-      console.error(e);
+      logger.error(String(e));
     } finally {
       setGeneratingPortrait(false);
     }
@@ -348,7 +349,7 @@ export default function CreatePage() {
       }
       router.push('/');
     } catch (e) {
-      console.error(e);
+      logger.error(String(e));
       setError('Network error');
     } finally {
       setSaving(false);
@@ -458,7 +459,7 @@ export default function CreatePage() {
                         title={c.name}
                         className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all ${
                           hairColor === c.hex
-                            ? 'border-[#FF2D78] ring-2 ring-[#FF2D78]/30 scale-110'
+                            ? 'border-[#FF2D78] ring-2 ring-[#FF2D78]/[30] scale-110'
                             : 'border-white/[0.08] hover:scale-105'
                         }`}
                         style={{ backgroundColor: c.hex }}
@@ -642,7 +643,7 @@ export default function CreatePage() {
                 )}
 
                 {error && (
-                  <div className="rounded-lg border border-[#FF2D78]/40 bg-[#FF2D78]/10 px-4 py-3 text-sm text-[#FF6BA6]">
+                  <div className="rounded-lg border border-[#FF2D78]/[40] bg-[#FF2D78]/[10] px-4 py-3 text-sm text-[#FF6BA6]">
                     {error}
                   </div>
                 )}
@@ -656,7 +657,7 @@ export default function CreatePage() {
           <div className="p-5 space-y-4">
             <p className="text-xs uppercase tracking-wide text-[#8B8BA3]">Live Preview</p>
             <Card className="overflow-hidden border-white/[0.08]">
-              <div className="aspect-[3/4] bg-gradient-to-br from-[#FF2D78]/40 via-[#8b5cf6]/30 to-[#6d28d9]/40 relative flex items-center justify-center">
+              <div className="aspect-[3/4] bg-gradient-to-br from-[#FF2D78]/[40] via-[#8b5cf6]/[30] to-[#6d28d9]/[40] relative flex items-center justify-center">
                 {portraitUrl ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={portraitUrl} alt="preview" className="h-full w-full object-cover" />

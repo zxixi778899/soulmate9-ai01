@@ -3,6 +3,7 @@ import { getCozeAccessToken, COZE_API_BASE } from '@/lib/coze-auth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
 import { requireAdmin } from '@/lib/require-admin';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for batch generation
@@ -255,7 +256,7 @@ async function generateAndUpload(char: any, params: any): Promise<{ name: string
   const negativePrompt = genNegativePrompt();
   const workflow = buildWorkflow(prompt, negativePrompt, params);
 
-  console.log(`[batch] Generating for ${char.name || 'unknown'}, prompt length: ${prompt.length}`);
+  logger.info(`[batch] Generating for ${char.name || 'unknown'}, prompt length: ${prompt.length}`);
 
   // Submit to RunPod
   const submitRes = await fetch(`${RUNPOD_BASE_URL}/run`, {
@@ -295,9 +296,9 @@ async function generateAndUpload(char: any, params: any): Promise<{ name: string
             .from('girlfriends')
             .update({ avatar_url: url })
             .eq('id', char.id);
-          console.log(`[batch] Updated girlfriend ${char.id} avatar_url`);
+          logger.info(`[batch] Updated girlfriend ${char.id} avatar_url`);
         } catch (err) {
-          console.error(`[batch] Failed to update girlfriend ${char.id}:`, err);
+          logger.error(`[batch] Failed to update girlfriend ${char.id}:`, { data: err });
         }
       }
 
@@ -342,7 +343,7 @@ export async function POST(req: NextRequest) {
         .limit(20);
 
       if (error) {
-        console.error('[batch] DB fetch error:', error);
+        logger.error('[batch] DB fetch error:', { data: error });
       }
 
       if (girlfriends && girlfriends.length > 0) {
@@ -366,7 +367,7 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (err) {
-      console.error('[batch] Failed to fetch girlfriends:', err);
+      logger.error('[batch] Failed to fetch girlfriends:', { data: err });
     }
   }
 

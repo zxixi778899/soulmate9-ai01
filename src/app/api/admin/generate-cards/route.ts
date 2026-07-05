@@ -14,9 +14,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { runpodClient } from '@/lib/runpod';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // Vercel Pro 上限
+
+// 单次 RunPod 烧钱：限制 30 次/小时/superadmin
+const GEN_CARD_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
 
 // 与 page.tsx CHARACTERS 同步
 const CHARACTERS: Record<string, { name: string; age: number; traits: string; sceneSlug: string }> = {
@@ -63,6 +68,14 @@ export async function POST(req: NextRequest) {
   const guard = await requireAdmin(req, 'superadmin');
   if (guard.error) return guard.error;
 
+  const rl = await checkRateLimitAsync(`admin-gen-card:${guard.user!.id}`, GEN_CARD_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many generate-card requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, GEN_CARD_LIMIT) },
+    );
+  }
+
   if (!runpodClient.isConfigured) {
     return NextResponse.json(
       { error: 'RunPod not configured. Set RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID on Vercel.' },
@@ -71,6 +84,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
+  // 单张模式：{ slug: 'luna' }
+  // 批量模式：{ slugs: ['luna', 'ruby', ...] }（前端一次传多张，但每张一个独立 fetch）
+  // 但当前 route 一次只能跑 1 张（防 Vercel 60s timeout）
+  // 批量参数 slugs 只是为了让 admin UI 知道这一批是哪些，实际是多次 POST
   const slug = typeof body.slug === 'string' ? body.slug : '';
   const character = CHARACTERS[slug];
 
@@ -156,6 +173,7 @@ export async function POST(req: NextRequest) {
       url: `${SUPABASE_URL}/storage/v1/object/public/portraits/${targetKey}`,
     });
   } catch (e: any) {
+    logger.error('admin/generate-cards failed', { slug, err: e?.message });
     return NextResponse.json(
       { status: 'failed', slug, error: e?.message ?? 'Unknown error' },
       { status: 500 },

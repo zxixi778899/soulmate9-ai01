@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, Settings, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 type ModelSetting = {
   key: string;
@@ -40,7 +41,7 @@ export default function AdminModelsPage() {
       if (data.settings) setSettings(data.settings);
       else if (Array.isArray(data)) setSettings(data);
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('Failed to load model settings');
     } finally {
       setLoading(false);
@@ -73,7 +74,7 @@ export default function AdminModelsPage() {
       if (!res.ok) throw new Error('Failed to save');
       toast.success('Settings saved successfully');
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('Failed to save settings');
     } finally {
       setSaving(false);

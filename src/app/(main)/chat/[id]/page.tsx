@@ -1,5 +1,6 @@
 'use client';
 import { useTranslation } from '@/lib/i18n/context';
+import { formatBubbleTime, dateGroupLabel, dayKey } from '@/lib/chat-utils';
 
 import { authedFetch } from '@/lib/supabase';
 import { useEffect, useState, useRef, use, useMemo, useCallback } from 'react';
@@ -40,6 +41,7 @@ import {
   X,
 } from 'lucide-react';
 import { INTIMACY_LEVELS } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 type Message = {
   id: string;
@@ -99,33 +101,7 @@ const MOODS = ['romantic', 'playful', 'sweet', 'passionate', 'cozy', 'cheerful']
 const POSES = ['sitting', 'standing', 'lying_down', 'walking', 'dancing', 'close_up'];
 const ENVS = ['bedroom', 'beach', 'garden', 'city', 'cozy_room', 'outdoor'];
 
-function formatBubbleTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
-
-function dateGroupLabel(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startYesterday = startToday - 86400000;
-  const ts = date.getTime();
-  if (ts >= startToday) return 'Today';
-  if (ts >= startYesterday) return 'Yesterday';
-  if (now.getTime() - ts < 7 * 86400000) {
-    return date.toLocaleDateString('en-US', { weekday: 'long' });
-  }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function dayKey(dateStr: string): string {
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
+// (helpers moved to @/lib/chat-utils)
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { t } = useTranslation();
@@ -208,7 +184,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         });
       }
     } catch (err) {
-      console.error('Failed to load chat:', err);
+      logger.error('Failed to load chat:', { data: err });
     }
     setIsLoading(false);
   };
@@ -319,7 +295,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         setMessages(prev => [...prev, newMsg]);
       }
     } catch (err) {
-      console.error('Generate selfie error:', err);
+      logger.error('Generate selfie error:', { data: err });
     }
     setIsGenerating(false);
   };
@@ -383,7 +359,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           try {
             const json = JSON.parse(line.slice(6));
             if (json.error) {
-              console.error('Stream error:', json.error);
+              logger.error('Stream error:', { data: json.error });
               continue;
             }
             fullContent += json.content || '';
@@ -424,7 +400,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         }));
       }
     } catch (err) {
-      console.error('Send error:', err);
+      logger.error('Send error:', { data: err });
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
       setIsTyping(false);
     }
@@ -591,7 +567,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       <Sheet open={showMemories} onOpenChange={setShowMemories}>
         <SheetContent
           side="right"
-          className="w-full sm:max-w-sm bg-[#0E0E1A]/95 backdrop-blur-2xl border-l border-white/[0.08]"
+          className="w-full sm:max-w-sm bg-[#0E0E1A]/[95] backdrop-blur-2xl border-l border-white/[0.08]"
         >
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2 text-base font-display">
@@ -606,7 +582,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               </div>
             ) : memories.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Heart className="h-8 w-8 text-[#8B8BA3]/30 mb-3" />
+                <Heart className="h-8 w-8 text-[#8B8BA3]/[30] mb-3" />
                 <p className="text-xs text-[#8B8BA3]">
                   {t('chat.noMemoriesYet') || 'No memories yet. Start chatting and she will remember!'}
                 </p>
@@ -618,14 +594,14 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                   className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-3 backdrop-blur-md"
                 >
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="text-[10px] font-medium text-[#FF6BA6]/80 uppercase tracking-wider">
+                    <span className="text-[10px] font-medium text-[#FF6BA6]/[80] uppercase tracking-wider">
                       {mem.category}
                     </span>
                     <span className="text-[10px] text-[#8B8BA3]">
                       {new Date(mem.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="text-sm text-[#F0F0F5]/90 leading-relaxed">{mem.content}</p>
+                  <p className="text-sm text-[#F0F0F5]/[90] leading-relaxed">{mem.content}</p>
                 </div>
               ))
             )}
@@ -647,7 +623,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               <button
                 key={gift.id}
                 onClick={() => handleSendGift(gift)}
-                className="flex items-center gap-4 p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06] hover:border-[#FF2D78]/30 transition-all text-left active:scale-[0.98]"
+                className="flex items-center gap-4 p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06] hover:border-[#FF2D78]/[30] transition-all text-left active:scale-[0.98]"
               >
                 <span className="text-3xl shrink-0">{gift.emoji}</span>
                 <div className="flex-1 min-w-0">
@@ -678,7 +654,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 onClick={() => handleEquipOutfit(outfit.id)}
                 className={`relative flex flex-col items-center gap-1.5 p-4 rounded-2xl border transition-all active:scale-[0.97] ${
                   selectedOutfit === outfit.id
-                    ? 'border-[#FF2D78]/50 bg-[#FF2D78]/10 ring-1 ring-[#FF2D78]/20 shadow-[0_0_18px_rgba(255,45,120,0.18)]'
+                    ? 'border-[#FF2D78]/[50] bg-[#FF2D78]/[10] ring-1 ring-[#FF2D78]/[20] shadow-[0_0_18px_rgba(255,45,120,0.18)]'
                     : 'border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.12]'
                 }`}
               >
@@ -756,7 +732,7 @@ function ChatAppBar(props: {
 }) {
   const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories } = props;
   return (
-    <header className="sticky top-0 z-30 backdrop-blur-2xl bg-[#07070F]/75 border-b border-white/[0.06]">
+    <header className="sticky top-0 z-30 backdrop-blur-2xl bg-[#07070F]/[75] border-b border-white/[0.06]">
       <div className="flex items-center gap-2 px-2 sm:px-4 py-2.5">
         <button
           onClick={onBack}
@@ -771,7 +747,7 @@ function ChatAppBar(props: {
             {girlfriend.avatar_url ? (
               <AvatarImage src={girlfriend.avatar_url} alt={girlfriend.name} className="object-cover" />
             ) : (
-              <AvatarFallback className="bg-gradient-to-br from-[#FF2D78]/30 to-[#C026D3]/20 text-[#FF6BA6] text-sm font-semibold">
+              <AvatarFallback className="bg-gradient-to-br from-[#FF2D78]/[30] to-[#C026D3]/[20] text-[#FF6BA6] text-sm font-semibold">
                 {girlfriend.name.charAt(0).toUpperCase()}
               </AvatarFallback>
             )}
@@ -808,7 +784,7 @@ function ChatAppBar(props: {
         <button
           onClick={onSelfie}
           disabled={isGenerating}
-          className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-[#F0F0F5] bg-white/[0.04] border border-white/[0.08] hover:border-[#FF2D78]/30 hover:bg-[#FF2D78]/8 active:scale-95 disabled:opacity-50 transition-all"
+          className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-[#F0F0F5] bg-white/[0.04] border border-white/[0.08] hover:border-[#FF2D78]/[30] hover:bg-[#FF2D78]/[8] active:scale-95 disabled:opacity-50 transition-all"
           title="Generate selfie"
         >
           {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
@@ -881,7 +857,7 @@ function ChatStream(props: {
 
         {rows.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="h-14 w-14 rounded-full bg-gradient-to-br from-[#FF2D78]/20 to-[#C026D3]/10 ring-1 ring-[#FF2D78]/20 flex items-center justify-center mb-4">
+            <div className="h-14 w-14 rounded-full bg-gradient-to-br from-[#FF2D78]/[20] to-[#C026D3]/[10] ring-1 ring-[#FF2D78]/[20] flex items-center justify-center mb-4">
               <Heart className="h-6 w-6 text-[#FF6BA6]" />
             </div>
             <p className="font-display text-base text-[#F0F0F5]">Say hi to {girlfriend.name}</p>
@@ -921,7 +897,7 @@ function ChatStream(props: {
                         {girlfriend.avatar_url ? (
                           <AvatarImage src={girlfriend.avatar_url} alt={girlfriend.name} className="object-cover" />
                         ) : (
-                          <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">
+                          <AvatarFallback className="bg-[#FF2D78]/[15] text-[#FF6BA6] text-[10px]">
                             {girlfriend.name.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         )}
@@ -938,7 +914,7 @@ function ChatStream(props: {
                         : msg.is_proactive
                         ? `bg-white/[0.06] backdrop-blur-md border border-white/[0.08] border-l-2 border-l-[#FF2D78] text-[#F0F0F5] rounded-2xl ${merged ? 'rounded-tl-2xl' : 'rounded-tl-md'}`
                         : isOutfit
-                        ? `bg-[#FF2D78]/8 backdrop-blur-md border border-[#FF2D78]/15 text-[#F0F0F5] italic rounded-2xl ${merged ? 'rounded-tl-2xl' : 'rounded-tl-md'}`
+                        ? `bg-[#FF2D78]/[8] backdrop-blur-md border border-[#FF2D78]/[15] text-[#F0F0F5] italic rounded-2xl ${merged ? 'rounded-tl-2xl' : 'rounded-tl-md'}`
                         : `bg-white/[0.06] backdrop-blur-md border border-white/[0.08] text-[#F0F0F5] rounded-2xl ${merged ? 'rounded-tl-2xl' : 'rounded-tl-md'}`
                     }`}
                   >
@@ -984,13 +960,13 @@ function ChatStream(props: {
                       <span className="text-[10px] text-red-400 font-medium">Failed</span>
                     )}
                     {msg.is_proactive && (
-                      <span className="text-[10px] text-[#FF6BA6]/70 flex items-center gap-0.5">
+                      <span className="text-[10px] text-[#FF6BA6]/[70] flex items-center gap-0.5">
                         <Sparkles className="h-2.5 w-2.5" />
                         proactive
                       </span>
                     )}
                     {isOutfit && (
-                      <span className="text-[10px] text-[#FF6BA6]/70 flex items-center gap-0.5">
+                      <span className="text-[10px] text-[#FF6BA6]/[70] flex items-center gap-0.5">
                         <Shirt className="h-2.5 w-2.5" />
                         new outfit
                       </span>
@@ -1008,7 +984,7 @@ function ChatStream(props: {
                   {girlfriend.avatar_url ? (
                     <AvatarImage src={girlfriend.avatar_url} alt={girlfriend.name} className="object-cover" />
                   ) : (
-                    <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">
+                    <AvatarFallback className="bg-[#FF2D78]/[15] text-[#FF6BA6] text-[10px]">
                       {girlfriend.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   )}
@@ -1067,7 +1043,7 @@ function ChatInputBar(props: {
   }, [input]);
 
   return (
-    <div className="sticky bottom-0 z-20 backdrop-blur-2xl bg-[#07070F]/80 border-t border-white/[0.06]">
+    <div className="sticky bottom-0 z-20 backdrop-blur-2xl bg-[#07070F]/[80] border-t border-white/[0.06]">
       {/* Presets row (collapsible) */}
       {showPresets && (
         <div className="max-w-3xl mx-auto px-3 sm:px-4 pt-2 pb-1.5 space-y-1.5">
@@ -1086,7 +1062,7 @@ function ChatInputBar(props: {
                   onClick={() => set(selected === it ? null : it)}
                   className={`text-[11px] px-2.5 py-0.5 rounded-full border transition-all active:scale-95 ${
                     selected === it
-                      ? 'bg-[#FF2D78]/20 border-[#FF2D78]/50 text-[#FF6BA6] shadow-[0_0_10px_rgba(255,45,120,0.2)]'
+                      ? 'bg-[#FF2D78]/[20] border-[#FF2D78]/[50] text-[#FF6BA6] shadow-[0_0_10px_rgba(255,45,120,0.2)]'
                       : 'bg-white/[0.03] border-white/[0.06] text-[#8B8BA3] hover:border-white/[0.12]'
                   }`}
                 >
@@ -1130,7 +1106,7 @@ function ChatInputBar(props: {
               onKeyDown={onKeyDown}
               placeholder={placeholder}
               rows={1}
-              className="w-full resize-none rounded-2xl bg-white/[0.06] border border-white/[0.10] px-4 py-2.5 text-base md:text-sm text-[#F0F0F5] placeholder:text-[#8B8BA3]/60 focus:border-[#FF2D78]/40 focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-[#FF2D78]/20 transition-all leading-snug min-h-[40px] max-h-[120px]"
+              className="w-full resize-none rounded-2xl bg-white/[0.06] border border-white/[0.10] px-4 py-2.5 text-base md:text-sm text-[#F0F0F5] placeholder:text-[#8B8BA3]/[60] focus:border-[#FF2D78]/[40] focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-[#FF2D78]/[20] transition-all leading-snug min-h-[40px] max-h-[120px]"
             />
           </div>
 
@@ -1146,7 +1122,7 @@ function ChatInputBar(props: {
             </button>
           ) : (
             <button
-              className="h-10 w-10 shrink-0 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#8B8BA3] hover:text-[#FF6BA6] hover:border-[#FF6BA6]/30 flex items-center justify-center active:scale-95 transition-all"
+              className="h-10 w-10 shrink-0 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#8B8BA3] hover:text-[#FF6BA6] hover:border-[#FF6BA6]/[30] flex items-center justify-center active:scale-95 transition-all"
               aria-label="Voice (coming soon)"
               title="Voice (coming soon)"
             >
@@ -1174,7 +1150,7 @@ function AttachmentsSheet(props: {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="rounded-t-3xl bg-[#0E0E1A]/95 backdrop-blur-2xl border-t border-white/[0.10] max-h-[60vh]"
+        className="rounded-t-3xl bg-[#0E0E1A]/[95] backdrop-blur-2xl border-t border-white/[0.10] max-h-[60vh]"
       >
         <SheetHeader>
           <SheetTitle className="font-display text-lg text-center">Add to chat</SheetTitle>

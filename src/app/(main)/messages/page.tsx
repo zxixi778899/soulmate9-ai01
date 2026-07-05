@@ -76,7 +76,7 @@ export default function MessagesPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-gradient-to-b from-transparent via-transparent to-[#FF2D78]/[0.02]">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-20 backdrop-blur-2xl bg-[#07070F]/80 border-b border-white/[0.06]">
+      <div className="sticky top-0 z-20 backdrop-blur-2xl bg-[#07070F]/[80] border-b border-white/[0.06]">
         <div className="flex items-center justify-between px-4 pt-5 pb-2">
           <h1 className="font-display text-2xl font-bold tracking-tight gradient-text">
             {t('messages.friends') || 'Messages'}
@@ -99,7 +99,7 @@ export default function MessagesPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search conversations..."
-              className="w-full h-10 rounded-full bg-white/[0.05] backdrop-blur-xl border border-white/[0.08] pl-10 pr-9 text-sm text-[#F0F0F5] placeholder:text-[#8B8BA3]/70 focus:border-[#FF2D78]/40 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-[#FF2D78]/20 transition-all"
+              className="w-full h-10 rounded-full bg-white/[0.05] backdrop-blur-xl border border-white/[0.08] pl-10 pr-9 text-sm text-[#F0F0F5] placeholder:text-[#8B8BA3]/[70] focus:border-[#FF2D78]/[40] focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-[#FF2D78]/[20] transition-all"
             />
             {query && (
               <button
@@ -122,7 +122,7 @@ export default function MessagesPage() {
           </div>
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-6 gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#FF2D78]/20 to-[#C026D3]/10 ring-1 ring-[#FF2D78]/20">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#FF2D78]/[20] to-[#C026D3]/[10] ring-1 ring-[#FF2D78]/[20]">
               <MessageCircle className="h-7 w-7 text-[#FF6BA6]" />
             </div>
             <div className="text-center max-w-xs">
@@ -175,7 +175,7 @@ export default function MessagesPage() {
                         {gf.avatar_url ? (
                           <AvatarImage src={gf.avatar_url} alt={gf.name} className="object-cover" />
                         ) : (
-                          <AvatarFallback className="bg-gradient-to-br from-[#FF2D78]/30 to-[#C026D3]/20 text-[#FF6BA6] text-base font-semibold">
+                          <AvatarFallback className="bg-gradient-to-br from-[#FF2D78]/[30] to-[#C026D3]/[20] text-[#FF6BA6] text-base font-semibold">
                             {gf.name?.charAt(0).toUpperCase() || '?'}
                           </AvatarFallback>
                         )}

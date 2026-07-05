@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { rateLimitMiddleware, RATE_LIMITS } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.COZE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY;
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (err) {
-    console.error('[AUTH:SIGNIN] Exception:', err);
+    logger.error('[AUTH:SIGNIN] Exception:', { data: err });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

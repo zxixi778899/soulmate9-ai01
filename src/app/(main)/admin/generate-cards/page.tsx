@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { logger } from '@/lib/logger';
 
 interface GenerateResult {
   slug: string;
@@ -24,7 +25,7 @@ export default function AdminGenerateCardsPage() {
     fetch('/api/admin/generate-cards', { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => setSlugs(data.slugs ?? []))
-      .catch((e) => console.error('fetch slugs failed', e));
+      .catch((e) => logger.error('fetch slugs failed', { data: e }));
   }, []);
 
   const generateOne = async (slug: string): Promise<GenerateResult> => {

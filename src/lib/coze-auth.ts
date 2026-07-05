@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Coze API 认证工具
  * 支持两种环境：
@@ -52,7 +53,7 @@ export async function getCozeAccessToken(): Promise<string> {
       tokenExpiry = now + 1.5 * 60 * 60 * 1000;
       return token;
     } catch (err) {
-      console.error('[coze-auth] Failed to get token via API:', err);
+      logger.error('[coze-auth] Failed to get token via API:', { data: err });
       throw new Error('Failed to authenticate with Coze API');
     }
   }
@@ -69,7 +70,7 @@ export async function getCozeAccessToken(): Promise<string> {
     tokenExpiry = now + 1.5 * 60 * 60 * 1000;
     return token;
   } catch (err) {
-    console.error('[coze-auth] Failed to get Coze access token via Python:', err);
+    logger.error('[coze-auth] Failed to get Coze access token via Python:', { data: err });
     throw new Error('Failed to authenticate with Coze API');
   }
 }

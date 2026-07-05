@@ -4,6 +4,8 @@ import { AuthProvider } from '@/components/AuthProvider';
 import { AgeVerification } from '@/components/AgeVerification';
 import { I18nProvider } from '@/lib/i18n/context';
 import BottomNav from '@/components/BottomNav';
+import { PostHogProvider } from '@/components/PostHogProvider';
+import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
 import { Toaster } from '@/components/ui/sonner';
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from '@/lib/constants';
 import './globals.css';
@@ -103,14 +105,17 @@ export default function RootLayout({
             </Script>
           </>
         )}
-        <AuthProvider>
-          <I18nProvider>
-            <AgeVerification />
-            {children}
-            <Toaster position="top-center" richColors />
-            <BottomNav />
-          </I18nProvider>
-        </AuthProvider>
+        <PostHogProvider>
+          <AuthProvider>
+            <I18nProvider>
+              <AgeVerification />
+              {children}
+              <Toaster position="top-center" richColors />
+              <BottomNav />
+            </I18nProvider>
+          </AuthProvider>
+        </PostHogProvider>
+        <ServiceWorkerRegistrar />
         <Script id="h5-reveal" strategy="afterInteractive">{`
           (function(){
             if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return;
@@ -129,22 +134,15 @@ export default function RootLayout({
             new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
           })();
         `}</Script>
-        <Script
-          id="sw-register"
-          strategy="afterInteractive"
-        >{`
-          if ('serviceWorker' in navigator) {
-            window.addEventListener('load', async () => {
-              // Clear ALL caches first to force fresh load
-              const keys = await caches.keys();
-              await Promise.all(keys.map(k => caches.delete(k)));
-              // Register new service worker
-              try {
-                const reg = await navigator.serviceWorker.register('/sw.js');
-                if (reg.active) reg.active.postMessage({ type: 'SKIP_WAITING' });
-              } catch(e) {}
-            });
-          }
+        <Script id="app-init" strategy="afterInteractive">{`
+          (function(){
+            try {
+              // Mark PWA-ready
+              if ('serviceWorker' in navigator) {
+                document.documentElement.classList.add('pwa-capable');
+              }
+            } catch(e){}
+          })();
         `}</Script>
       </body>
     </html>

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/lore?girlfriend_id=xxx&message=xxx
- * 
+ *
  * Used by the chat system to find lore entries matching keywords in the user's message
  * Returns lore entries whose keys contain any word from the message
  */
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Match keywords from message against lore keys
-  const matchedLore = (allLore || []).filter(entry => {
+  const matchedLore = (allLore || []).filter((entry: { keys: string[] }) => {
     const loreKeys = entry.keys.map((k: string) => k.toLowerCase());
     return words.some((word: string) =>
       loreKeys.some((key: string) => key.includes(word) || word.includes(key))

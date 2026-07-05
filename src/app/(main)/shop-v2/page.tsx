@@ -14,6 +14,7 @@ import { useTranslation } from '@/lib/i18n/context';
 import { Sparkles, Tag, Coins, ShoppingBag, Loader2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { logger } from '@/lib/logger';
 
 interface Product {
   id: string;
@@ -78,7 +79,7 @@ export default function ShopV2Page() {
       const data = await res.json();
       setBalance(data.balance || 0);
     } catch (e) {
-      console.error('load balance failed', e);
+      logger.error('load balance failed', { data: e });
     }
   }, [user]);
 
@@ -93,7 +94,7 @@ export default function ShopV2Page() {
       const data = await res.json();
       setProducts(data.products || []);
     } catch (e) {
-      console.error('load products failed', e);
+      logger.error('load products failed', { data: e });
       showToast('error', 'Failed to load shop');
     } finally {
       setLoading(false);
@@ -171,7 +172,7 @@ export default function ShopV2Page() {
           </div>
 
           {/* 余额卡 */}
-          <div className="flex items-center gap-3 rounded-2xl border border-[#FF2D78]/30 bg-gradient-to-br from-[#FF2D78]/10 to-[#C026D3]/10 px-5 py-3 backdrop-blur-xl">
+          <div className="flex items-center gap-3 rounded-2xl border border-[#FF2D78]/[30] bg-gradient-to-br from-[#FF2D78]/[10] to-[#C026D3]/[10] px-5 py-3 backdrop-blur-xl">
             <Coins className="h-6 w-6 text-[#FF6BA6]" />
             <div>
               <div className="text-[10px] uppercase tracking-widest text-[#8B8BA3]">Your Credits</div>
@@ -182,7 +183,7 @@ export default function ShopV2Page() {
             <Button
               size="sm"
               variant="outline"
-              className="ml-2 border-[#FF2D78]/40 text-[#FF2D78] hover:bg-[#FF2D78]/10"
+              className="ml-2 border-[#FF2D78]/[40] text-[#FF2D78] hover:bg-[#FF2D78]/[10]"
               onClick={() => alert('Redirect to credits purchase page')}
             >
               + Top Up
@@ -198,7 +199,7 @@ export default function ShopV2Page() {
               onClick={() => setCategory(c.id)}
               className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all ${
                 category === c.id
-                  ? 'border-[#FF2D78] bg-[#FF2D78]/15 text-white shadow-[0_0_15px_rgba(255,45,120,0.3)]'
+                  ? 'border-[#FF2D78] bg-[#FF2D78]/[15] text-white shadow-[0_0_15px_rgba(255,45,120,0.3)]'
                   : 'border-white/10 bg-white/[0.04] text-[#8B8BA3] hover:border-white/20 hover:text-white'
               }`}
             >
@@ -256,7 +257,7 @@ function ProductCard({
       />
 
       {/* Image */}
-      <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-[#FF2D78]/5 to-[#C026D3]/5">
+      <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-[#FF2D78]/[5] to-[#C026D3]/[5]">
         {product.preview_url ? (
           <img
             src={product.preview_url}
@@ -266,7 +267,7 @@ function ProductCard({
           />
         ) : (
           <div className="flex h-full items-center justify-center">
-            <Sparkles className="h-12 w-12 text-[#8B8BA3]/50" />
+            <Sparkles className="h-12 w-12 text-[#8B8BA3]/[50]" />
           </div>
         )}
 

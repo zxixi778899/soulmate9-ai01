@@ -1,12 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { uploadFile } from '@/lib/storage';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
+
+const UPLOAD_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 }; // 60/h/admin
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin(req);
   if ('error' in guard && guard.error) return guard.error;
+
+  const rl = await checkRateLimitAsync(`admin-upload:${guard.user!.id}`, UPLOAD_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many upload requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, UPLOAD_LIMIT) },
+    );
+  }
 
   const client = guard.supabase;
 
@@ -76,7 +88,7 @@ export async function POST(req: NextRequest) {
       url: result.url,
     });
   } catch (error) {
-    console.error('Admin upload error:', error);
+    logger.error('Admin upload error', { error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }

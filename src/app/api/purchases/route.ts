@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: Request) {
   try {
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
       .limit(50);
 
     if (cryptoErr) {
-      console.error('Failed to fetch crypto orders:', cryptoErr);
+      logger.error('Failed to fetch crypto orders:', { data: cryptoErr });
     }
 
     // Also check if there's a stripe_purchases or memberships history
@@ -72,7 +73,7 @@ export async function GET(request: Request) {
       membership: profile || null,
     });
   } catch (err) {
-    console.error('Purchases API error:', err);
+    logger.error('Purchases API error:', { data: err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

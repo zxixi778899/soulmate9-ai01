@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { execSync } from 'child_process';
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import { logger } from '@/lib/logger';
 
 let envLoaded = false;
 
@@ -29,6 +30,7 @@ function loadEnv(): void {
     const pythonCode = `
 import os
 import sys
+import { logger } from '@/lib/logger';
 try:
     from coze_workload_identity import Client
     client = Client()
@@ -153,12 +155,12 @@ export function getPostgresPool(): Pool {
   // 每个新连接执行 SET search_path（pg.Pool options 不可靠）
   pgPool.on('connect', (client) => {
     client.query('SET search_path TO public').catch((e) => {
-      console.error('[pg] SET search_path failed:', e?.message);
+      logger.error('[pg] SET search_path failed:', { data: e?.message });
     });
   });
 
   pgPool.on('error', (err) => {
-    console.error('Unexpected error on idle Postgres client', err);
+    logger.error('Unexpected error on idle Postgres client', { data: err });
   });
 
   return pgPool;
@@ -197,5 +199,4 @@ export async function withPgClient<T>(fn: (client: PoolClient) => Promise<T>): P
     client.release();
   }
 }
-
 export { loadEnv, getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };

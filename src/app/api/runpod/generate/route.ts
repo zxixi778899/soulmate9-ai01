@@ -27,6 +27,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { runpodClient } from '@/lib/runpod';
+import { logger } from '@/lib/logger';
 import {
   buildGirlfriendPrompt,
   buildOutfitPrompt,
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('RunPod generate error:', error);
+    logger.error('RunPod generate error:', { data: error });
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
       .eq('id', paymentId);
 
     if (updateError) {
-      console.error('Failed to update crypto payment:', updateError);
+      logger.error('Failed to update crypto payment:', { data: updateError });
       return NextResponse.json({ error: 'Failed to submit payment' }, { status: 500 });
     }
 
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
       message: 'Payment submitted for verification. Please allow up to 24 hours for confirmation.',
     });
   } catch (err) {
-    console.error('Crypto submit error:', err);
+    logger.error('Crypto submit error:', { data: err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

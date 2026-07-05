@@ -49,6 +49,9 @@ src/
 ├── lib/
 │   ├── supabase.ts           # Supabase 客户端 (Browser + authedFetch) — 客户端安全
 │   ├── supabase-server.ts    # getAuthUser() — 服务端专用 (通过 Coze proxy 连接完整 Schema)
+│   ├── logger.ts             # 结构化日志 + password/token/authorization 字段自动 redact
+│   ├── sentry.ts             # Sentry 懒加载适配层 (captureException / captureMessage)
+│   ├── rate-limit.ts         # Upstash Redis Lua 限流 + 内存兜底 (checkRateLimitAsync / rateLimitMiddleware)
 │   └── constants.ts          # 常量 (INTIMACY_LEVELS 等)
 ├── storage/
 │   └── database/
@@ -93,6 +96,24 @@ Free限制(50条/日+Lv3上限) → 充值 → 完整功能
 - 函数参数/返回值必须标注类型
 - API 路由使用 `getAuthUser(req)` 获取认证用户 — **从 `@/lib/supabase-server` 导入**
 - 所有 API 通过 `x-session` header 传递 Supabase token
+- **必须用 `logger.*`，禁止 `console.*`**（`src/lib/logger.ts` 自动 redact 敏感字段）
+- 报错统一走 `captureException(err, { tags, extra })` → Sentry，敏感字段不进 extra
+
+### 限流 (CRITICAL)
+- 危险写入（admin / RunPod GPU / Stripe webhook）**必须**挂 `checkRateLimitAsync` 或 `rateLimitMiddleware`
+- Key 用 `action:userId` 或 `action:ip`，从 `@/lib/rate-limit` 导入
+- 内存 fallback 已内置（Redis 不可用时降级）
+
+### Admin 鉴权 (CRITICAL)
+- 任何 admin 路由必须 `await requireAdmin(req)`（`@/lib/require-admin`）
+- superadmin-only 路由用 `requireSuperAdmin`
+- 不得自行校验 `role` / `is_admin` 字段
+
+### 公开页 SSR/ISR (CRITICAL)
+- `/girlfriend/[slug]` 等公开营销页用 **server component** + `export const revalidate = N`
+- 顶层直查 DB + 解析签名 URL，绕开客户端 waterfall
+- LCP `<Image>` 必须加 `priority` + `fetchPriority="high"`
+- 交互按钮（Add/Chat/Share）拆到独立 client 子组件
 
 ### i18n 多语言规范 (CRITICAL)
 - 支持 7 种语言：en / zh / ja / ko / es / fr / de

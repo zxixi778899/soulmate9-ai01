@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, Plus, Pencil, Trash2, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 type ShopItem = {
   id: string;
@@ -73,7 +74,7 @@ export default function AdminShopPage() {
       if (data.items) setItems(data.items);
       else if (Array.isArray(data)) setItems(data);
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('加载商品失败');
     } finally {
       setLoading(false);
@@ -133,7 +134,7 @@ export default function AdminShopPage() {
       resetForm();
       fetchItems();
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('保存商品失败');
     } finally {
       setSaving(false);
@@ -153,7 +154,7 @@ export default function AdminShopPage() {
       setDeletingId(null);
       fetchItems();
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('删除物品失败');
     } finally {
       setSaving(false);

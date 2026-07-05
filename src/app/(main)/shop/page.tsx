@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ShoppingBag, Heart, Sparkles, Lock, Star, Gift, Coins, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 type ShopItem = {
   id: string;
@@ -71,7 +72,7 @@ export default function ShopPage() {
         setCredits(data);
       }
     } catch (err) {
-      console.error('Failed to load credits:', err);
+      logger.error('Failed to load credits:', { data: err });
     }
   };
 
@@ -83,7 +84,7 @@ export default function ShopPage() {
         setGirlfriends(data.girlfriends || []);
       }
     } catch (err) {
-      console.error('Failed to load girlfriends:', err);
+      logger.error('Failed to load girlfriends:', { data: err });
     }
   };
 
@@ -209,7 +210,7 @@ export default function ShopPage() {
               </div>
               {SHOP_ITEMS.filter(i => tab === 'all' || getCategory(i) === tab).length === 0 && (
                 <div className="text-center py-20">
-                  <ShoppingBag className="h-10 w-10 text-[#8B8BA3]/30 mx-auto mb-3" />
+                  <ShoppingBag className="h-10 w-10 text-[#8B8BA3]/[30] mx-auto mb-3" />
                   <p className="text-sm text-[#8B8BA3]">No items in this category yet</p>
                 </div>
               )}

@@ -19,6 +19,7 @@ import {
   Package,
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/context';
+import { logger } from '@/lib/logger';
 
 interface Purchase {
   id: string;
@@ -54,7 +55,7 @@ export default function PurchasesPage() {
         setMembership(data.membership);
       }
     } catch (e) {
-      console.error('Failed to fetch purchases', e);
+      logger.error('Failed to fetch purchases', { data: e });
     } finally {
       setLoading(false);
     }

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Loader2, CheckSquare, Check, X, Eye, Heart, ImageOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 type ReviewItem = {
   id: string;
@@ -62,7 +63,7 @@ export default function AdminReviewPage() {
       else if (Array.isArray(data)) setItems(data);
       else setItems([]);
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('加载审核列表失败');
     } finally {
       setLoading(false);
@@ -89,7 +90,7 @@ export default function AdminReviewPage() {
         setSelectedItem(null);
       }
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('审批失败');
     } finally {
       setProcessingId(null);
@@ -117,7 +118,7 @@ export default function AdminReviewPage() {
       setSelectedItem(null);
       setRejectReason('');
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('驳回失败');
     } finally {
       setProcessingId(null);
@@ -170,13 +171,13 @@ export default function AdminReviewPage() {
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                           (e.target as HTMLImageElement).parentElement!.innerHTML =
-                            '<div class="h-14 w-14 rounded-xl bg-[#FF2D78]/10 flex items-center justify-center text-[#FF2D78] text-lg font-semibold">' +
+                            '<div class="h-14 w-14 rounded-xl bg-[#FF2D78]/[10] flex items-center justify-center text-[#FF2D78] text-lg font-semibold">' +
                             item.name.charAt(0) +
                             '</div>';
                         }}
                       />
                     ) : (
-                      <div className="h-14 w-14 rounded-xl bg-[#FF2D78]/10 flex items-center justify-center text-[#FF2D78] text-lg font-semibold">
+                      <div className="h-14 w-14 rounded-xl bg-[#FF2D78]/[10] flex items-center justify-center text-[#FF2D78] text-lg font-semibold">
                         {item.name.charAt(0)}
                       </div>
                     )}
@@ -283,7 +284,7 @@ export default function AdminReviewPage() {
                     }}
                   />
                 ) : (
-                  <div className="h-20 w-20 rounded-xl bg-[#FF2D78]/10 flex items-center justify-center text-[#FF2D78] text-2xl font-semibold">
+                  <div className="h-20 w-20 rounded-xl bg-[#FF2D78]/[10] flex items-center justify-center text-[#FF2D78] text-2xl font-semibold">
                     {selectedItem.name.charAt(0)}
                   </div>
                 )}

@@ -12,6 +12,8 @@
 
 import fs from 'node:fs';
 import { uploadFile } from './storage';
+import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
+import { capture, AnalyticsEvents } from './analytics';
 
 // ────────────────────────────────
 // RunPod credentials — MUST come from environment variables
@@ -270,19 +272,55 @@ class RunPodClient {
 
   /**
    * Generate images and upload to S3, returning public URLs
+   *
+   * 集成 generation-cache：同 (prompt + params) 24h 内直接复用 OSS 路径，跳过 GPU。
+   * 命中时返回预签名 URL；未命中 → 真调 RunPod → 上传 → 写缓存。
+   *
+   * ⚠️ 返回的 URL 是签名 URL，30 天内有效；调用方不要再加 resolveImageUrl。
    */
   async generateAndUpload(options: RunPodGenerateOptions, folder = 'runpod'): Promise<string[]> {
-    const result = await this.generate(options);
+    const cacheKey = computeCacheKey({
+      prompt: options.prompt,
+      negativePrompt: options.negative_prompt,
+      width: options.width,
+      height: options.height,
+      steps: options.num_inference_steps,
+      guidance: options.guidance_scale,
+      model: 'flux-dev',
+      kind: 'image',
+    });
 
+    // 1. cache hit
+    const cachedKey = await lookupCache(cacheKey, 'image');
+    if (cachedKey) {
+      try {
+        const { resolveImageUrl } = await import('./storage');
+        const url = await resolveImageUrl(cachedKey);
+        if (url) {
+          capture('runpod-cache', AnalyticsEvents.IMAGE_CACHED_HIT, { cache_key: cacheKey });
+          return [url];
+        }
+      } catch {}
+    }
+
+    // 2. cache miss -> RunPod
+    const result = await this.generate(options);
     const urls: string[] = [];
     for (let i = 0; i < result.images.length; i++) {
       const base64 = result.images[i];
       const buffer = Buffer.from(base64, 'base64');
       const filename = `runpod_${Date.now()}_${i}.png`;
-      const { url } = await uploadFile(buffer, filename, 'image/png', folder);
+      const { key, url } = await uploadFile(buffer, filename, 'image/png', folder);
       urls.push(url);
+      if (i === 0) {
+        await writeCache(cacheKey, 'image', key);
+        capture('runpod-gen', AnalyticsEvents.IMAGE_GENERATED, {
+          model: 'flux-dev',
+          job_id: result.job_id,
+          execution_time_ms: result.execution_time,
+        });
+      }
     }
-
     return urls;
   }
 

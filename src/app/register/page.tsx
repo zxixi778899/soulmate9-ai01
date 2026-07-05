@@ -190,7 +190,7 @@ export default function RegisterPage() {
                   id="agree-tos"
                   checked={agreeToS}
                   onCheckedChange={(c) => setAgreeToS(c === true)}
-                  className="mt-0.5 border-[#8B8BA3]/40 data-[state=checked]:border-[#FF2D78] data-[state=checked]:bg-[#FF2D78]"
+                  className="mt-0.5 border-[#8B8BA3]/[40] data-[state=checked]:border-[#FF2D78] data-[state=checked]:bg-[#FF2D78]"
                 />
                 <label htmlFor="agree-tos" className="text-xs text-[#8B8BA3] leading-relaxed cursor-pointer">
                   I agree to the{' '}

@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, Search, User, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 type UserData = {
   id: string;
@@ -74,7 +75,7 @@ export default function AdminUsersPage() {
       if (data.users) setUsers(data.users);
       if (data.totalPages) setTotalPages(data.totalPages);
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
@@ -116,7 +117,7 @@ export default function AdminUsersPage() {
       setDialogOpen(false);
       fetchUsers();
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('Failed to update user');
     } finally {
       setSaving(false);
@@ -225,7 +226,7 @@ export default function AdminUsersPage() {
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FF2D78]/10 text-sm font-semibold text-[#FF2D78]">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FF2D78]/[10] text-sm font-semibold text-[#FF2D78]">
                             {getInitials(u.display_name)}
                           </div>
                           <span className="text-sm font-medium">{u.display_name || 'Anonymous'}</span>
@@ -331,7 +332,7 @@ export default function AdminUsersPage() {
             <div className="space-y-6 py-2">
               {/* User Info Summary */}
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/20">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FF2D78]/10 text-base font-semibold text-[#FF2D78]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FF2D78]/[10] text-base font-semibold text-[#FF2D78]">
                   {getInitials(selectedUser.display_name)}
                 </div>
                 <div>

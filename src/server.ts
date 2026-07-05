@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import { resolve } from 'path';
+import { logger } from '@/lib/logger';
 
 // ============================================================
 // CRITICAL: Load .env.local BEFORE any framework module loads.
@@ -28,17 +29,17 @@ async function bootstrap() {
       const parsedUrl = parse(req.url!, true);
       await handle(req, res, parsedUrl);
     } catch (err) {
-      console.error('Error occurred handling', req.url, err);
+      logger.error('Error occurred handling', { reqUrl: req.url, data: err });
       res.statusCode = 500;
       res.end('Internal server error');
     }
   });
   server.once('error', err => {
-    console.error(err);
+    logger.error(String(err));
     process.exit(1);
   });
   server.listen(port, () => {
-    console.log(
+    logger.info(
       `> Server listening at http://${hostname}:${port} as ${
         dev ? 'development' : process.env.COZE_PROJECT_ENV
       }`,
@@ -47,6 +48,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch(err => {
-  console.error('Failed to bootstrap server:', err);
+  logger.error('Failed to bootstrap server:', { data: err });
   process.exit(1);
 });

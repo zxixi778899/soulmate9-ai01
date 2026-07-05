@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, Plus, Pencil, Trash2, ImageOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 type AdData = {
   id: string;
@@ -68,7 +69,7 @@ export default function AdminAdsPage() {
       if (data.ads) setAds(data.ads);
       else if (Array.isArray(data)) setAds(data);
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('Failed to load ads');
     } finally {
       setLoading(false);
@@ -129,7 +130,7 @@ export default function AdminAdsPage() {
       resetForm();
       fetchAds();
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('Failed to save ad');
     } finally {
       setSaving(false);
@@ -149,7 +150,7 @@ export default function AdminAdsPage() {
       setDeletingId(null);
       fetchAds();
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('Failed to delete ad');
     } finally {
       setSaving(false);
@@ -167,7 +168,7 @@ export default function AdminAdsPage() {
       toast.success(ad.active ? 'Ad deactivated' : 'Ad activated');
       fetchAds();
     } catch (err) {
-      console.error(err);
+      logger.error(String(err));
       toast.error('Failed to toggle ad');
     }
   };
@@ -225,7 +226,7 @@ export default function AdminAdsPage() {
                     }}
                   />
                 ) : (
-                  <ImageOff className="h-10 w-10 text-[#8B8BA3]/30" />
+                  <ImageOff className="h-10 w-10 text-[#8B8BA3]/[30]" />
                 )}
                 <div className="absolute top-2 right-2">
                   <Badge

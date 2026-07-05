@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Cryptocurrency wallet addresses for payment processing
  * In production, override via env vars:
@@ -99,7 +100,7 @@ export async function fetchLiveCryptoRates(): Promise<Record<string, number>> {
     ratesCache = { rates, fetchedAt: now };
     return rates;
   } catch (e) {
-    console.warn('[crypto-config] fetchLiveCryptoRates failed, using fallback:', e);
+    logger.warn('[crypto-config] fetchLiveCryptoRates failed, using fallback:', { err: e });
     return CRYPTO_RATES_FALLBACK;
   }
 }

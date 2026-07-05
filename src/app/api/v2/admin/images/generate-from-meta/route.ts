@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/storage';
+import { requireAdmin } from '@/lib/require-admin';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for image generation
@@ -13,22 +16,12 @@ const COZE_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || '';
 const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID || '';
 if (!RUNPOD_API_KEY || !RUNPOD_ENDPOINT_ID) {
-  console.error('[generate-from-meta] RunPod credentials not configured');
+  logger.error('[generate-from-meta] RunPod credentials not configured');
 }
 const RUNPOD_BASE_URL = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}`;
 
-async function verifyAuth(request: NextRequest): Promise<boolean> {
-  const token = request.headers.get('x-session');
-  if (!token) return false;
-  try {
-    const res = await fetch(`${COZE_SUPABASE_URL}/auth/v1/user`, {
-      headers: { Authorization: `Bearer ${token}`, apikey: COZE_SUPABASE_ANON_KEY },
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
+// FLUX GPU 烧钱：限制 30 次/小时/admin
+const FLUX_GEN_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
 
 // ── FLUX 提示词构建器 ─────────────────────────────────────
 // 核心表达：美女 · 女友 · 性感 · 真实 · 自然
@@ -95,8 +88,7 @@ function buildFluxPrompt(characterDesc: string): string {
  * If metadata is provided, use its appearance description for scene/lighting/pose
  */
 function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<string, string>): string {
-  console.log('[buildGirlfriendPrompt] Full girlfriend data:', JSON.stringify(gf, null, 2));
-  console.log('[buildGirlfriendPrompt] Metadata:', metadata ? JSON.stringify(metadata, null, 2) : 'none');
+  logger.debug('buildGirlfriendPrompt', { hasMetadata: !!metadata });
   
   const card = (gf.character_card && typeof gf.character_card === 'object')
     ? gf.character_card as Record<string, unknown>
@@ -120,11 +112,7 @@ function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<st
   const roleEn = (card.role as string) || '';
   const roleLabel = (card.role_label as string) || '';
 
-  console.log('[Prompt Builder] Name:', name);
-  console.log('[Prompt Builder] Race:', race, '| Hair:', hair, hairColor, '| Eyes:', eyes, '| Body:', body);
-  console.log('[Prompt Builder] Role:', roleEn, '/', roleLabel, '| Occupation:', occupation);
-  console.log('[Prompt Builder] Personality:', personality);
-  console.log('[Prompt Builder] Style:', style);
+  logger.debug('Prompt Builder', { name, race, hair, hairColor, eyes, body, roleEn, roleLabel, occupation, personality, style });
 
   // ── Random pools for diverse generation — 基于参考图片的自然姿势 ──
   // 核心：不对称、放松、自然S曲线、亲密感
@@ -253,8 +241,7 @@ function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<st
       subjectParts.join(', '),
       cleanedAppearance,
     ].join('. ');
-    console.log('[Prompt Builder] ✅ SIMPLIFIED: Using metadata appearance as SOLE visual source');
-    console.log('[Prompt Builder] Metadata appearance (cleaned):', cleanedAppearance.substring(0, 300));
+    logger.debug('Prompt Builder: using metadata appearance as SOLE visual source');
   } else {
     // Fallback: Use random pools for diversity when no metadata
     const randomPose = posePool[Math.floor(Math.random() * posePool.length)];
@@ -285,12 +272,10 @@ function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<st
       `Setting: ${randomScene}`,
       `Lighting: ${randomLighting}`,
     ].join('. ');
-    console.log('[Prompt Builder] Using random pools for scene/lighting/pose');
+    logger.debug('Prompt Builder: using random pools for scene/lighting/pose');
   }
 
-  console.log('[Prompt Builder] Final prompt length:', fullPrompt.length, 'chars');
-  console.log('[Prompt Builder] Final prompt preview:', fullPrompt.substring(0, 400));
-
+  logger.debug('Prompt Builder: final prompt', { len: fullPrompt.length });
   return fullPrompt;
 }
 
@@ -317,7 +302,7 @@ function buildSimplePrompt(gf: Record<string, unknown>): string {
   const eyes = (gf.appearance_eyes as string) || cardAppearance.eyes || '';
   const style = (gf.appearance_style as string) || cardAppearance.style || '';
 
-  console.log('[SimplePrompt] Race:', race, '| Hair:', hair, hairColor, '| Eyes:', eyes, '| Style:', style);
+  logger.debug('SimplePrompt', { race, hair, hairColor, eyes, style });
 
   // Build simple subject description
   const subject = `Full body portrait of a beautiful ${race || 'young'} woman`;
@@ -402,8 +387,7 @@ function buildSimplePrompt(gf: Record<string, unknown>): string {
 
   const fullPrompt = parts.join(', ');
 
-  console.log('[SimplePrompt] Simple natural prompt:', fullPrompt.substring(0, 300));
-
+  logger.debug('SimplePrompt: built', { len: fullPrompt.length });
   return fullPrompt;
 }
 
@@ -474,12 +458,7 @@ function buildWorkflow(prompt: string, negativePrompt: string, params: GenParams
   const fluxPrompt = buildFluxPrompt(prompt);
   const negPrompt = negativePrompt || NEGATIVE_PROMPT;
 
-  console.log('[RunPod] FLUX prompt (' + fluxPrompt.length + ' chars):', fluxPrompt.substring(0, 300));
-  console.log('[RunPod] Params:', JSON.stringify({
-    seed, steps: params.steps, cfg: params.cfg,
-    sampler: params.sampler, scheduler: params.scheduler,
-    width: params.width, height: params.height,
-  }));
+  logger.debug('RunPod: built workflow', { fluxLen: fluxPrompt.length, seed, steps: params.steps, cfg: params.cfg });
 
   return {
     // 1. Load FLUX fp8 checkpoint (includes MODEL + CLIP + VAE)
@@ -560,12 +539,12 @@ async function submitJob(prompt: string, negativePrompt: string, params: GenPara
   });
   if (!submitRes.ok) {
     const errText = await submitRes.text();
-    console.error('[RunPod] Submit failed:', errText);
+    logger.error('RunPod: submit failed', { errText });
     throw new Error(`RunPod submit failed: ${errText}`);
   }
   const { id: jobId } = await submitRes.json();
   if (!jobId) throw new Error('No RunPod job ID');
-  console.log('[RunPod] Job submitted:', jobId);
+  logger.info('RunPod: job submitted', { jobId });
   return jobId;
 }
 
@@ -582,18 +561,17 @@ async function pollJob(jobId: string): Promise<string> {
     if (status.status === 'COMPLETED') {
       const images = status.output?.images || [];
       if (!images.length) throw new Error('No images in output');
-      console.log('[RunPod] Job', jobId, 'completed, image size:', images[0].data?.length || 'unknown');
+      logger.info('RunPod: job completed', { jobId, imageSize: images[0].data?.length || 0 });
       return images[0].data || images[0];
     }
     if (status.status === 'FAILED') {
       const errMsg = status.error || JSON.stringify(status.output) || 'unknown';
-      console.error('[RunPod] Job', jobId, 'failed:', errMsg);
-      console.error('[RunPod] Full status:', JSON.stringify(status, null, 2));
+      logger.error('RunPod: job failed', { jobId, errMsg });
       throw new Error(`RunPod error: ${errMsg}`);
     }
     // Log progress every 30 seconds
     if (i % 30 === 0 && i > 0) {
-      console.log(`[RunPod] Job ${jobId} still running... (${i}s elapsed)`);
+      logger.debug('RunPod: job still running', { jobId, elapsedSec: i });
     }
   }
   throw new Error(`RunPod timeout after 5 minutes for job ${jobId}`);
@@ -607,8 +585,17 @@ async function uploadToStorage(base64Data: string, folder: string): Promise<stri
 
 // ── 请求入口 ──────────────────────────────────────
 export async function POST(req: NextRequest) {
-  if (!(await verifyAuth(req))) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // 修复：原 verifyAuth 仅校验 token 存在，任何登录用户都能调用并烧 RunPod GPU。
+  // 改用 requireAdmin + 限流双层防护。
+  const guard = await requireAdmin(req);
+  if (guard.error) return guard.error;
+
+  const rl = await checkRateLimitAsync(`flux-gen:${guard.user!.id}`, FLUX_GEN_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many image generation requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, FLUX_GEN_LIMIT) },
+    );
   }
 
   let body: Record<string, unknown>;
@@ -637,61 +624,29 @@ export async function POST(req: NextRequest) {
   // If girlfriendId is provided, fetch girlfriend data and build personalized prompt
   if (girlfriendId) {
     try {
-      console.log('[generate-from-meta] Fetching girlfriend data for ID:', girlfriendId);
-      const { requireAdmin } = await import('@/lib/require-admin');
-      const adminCheck = await requireAdmin(req);
-      
-      if (adminCheck.error) {
-        console.error('[generate-from-meta] Admin check failed:', adminCheck.error);
+      logger.info('generate-from-meta: fetching girlfriend data', { girlfriendId });
+      // 外层 requireAdmin 已通过守卫，直接用 service_role supabase 查询
+      const { data, error } = await guard.supabase
+        .from('girlfriends')
+        .select('*')
+        .eq('id', girlfriendId)
+        .single();
+
+      if (error) {
+        logger.error('generate-from-meta: database query error', { girlfriendId, error });
       }
-      
-      if (!adminCheck.error && adminCheck.supabase) {
-        console.log('[generate-from-meta] Admin check passed, querying database...');
-        const { data, error } = await adminCheck.supabase
-          .from('girlfriends')
-          .select('*')
-          .eq('id', girlfriendId)
-          .single();
-        
-        if (error) {
-          console.error('[generate-from-meta] Database query error:', error);
-        }
-        
-        if (!data) {
-          console.warn('[generate-from-meta] No girlfriend data returned for ID:', girlfriendId);
-        }
-        
-        if (!error && data) {
-          console.log('[generate-from-meta] ✅ Girlfriend data received:', JSON.stringify({
-            id: data.id,
-            name: data.name,
-            appearance_race: data.appearance_race,
-            appearance_hair: data.appearance_hair,
-            appearance_hair_color: data.appearance_hair_color,
-            appearance_eyes: data.appearance_eyes,
-            appearance_body: data.appearance_body,
-            appearance_style: data.appearance_style,
-            personality: data.personality,
-            occupation: data.occupation,
-            has_character_card: !!data.character_card,
-            character_card_keys: data.character_card ? Object.keys(data.character_card) : [],
-          }, null, 2));
-          
-          // Use simplified prompt builder
-          rawPrompt = buildSimplePrompt(data as Record<string, unknown>);
-          console.log('[generate-from-meta] ✅ Built simple prompt from girlfriend:', girlfriendId);
-          console.log('[generate-from-meta] Prompt preview (first 500 chars):', rawPrompt.substring(0, 500));
-        } else {
-          console.warn('[generate-from-meta] Girlfriend not found:', girlfriendId, error);
-        }
-      } else {
-        console.error('[generate-from-meta] Admin check did not return supabase client');
+      if (!data) {
+        logger.warn('generate-from-meta: girlfriend not found', { girlfriendId });
+      }
+      if (!error && data) {
+        rawPrompt = buildSimplePrompt(data as Record<string, unknown>);
+        logger.info('generate-from-meta: built prompt from girlfriend', { girlfriendId, promptLen: rawPrompt.length });
       }
     } catch (err) {
-      console.error('[generate-from-meta] Failed to fetch girlfriend:', err);
+      logger.error('generate-from-meta: failed to fetch girlfriend', { girlfriendId, err });
     }
   } else {
-    console.log('[generate-from-meta] No girlfriendId provided, using custom prompt or metadata');
+    logger.info('generate-from-meta: no girlfriendId, using custom prompt or metadata');
   }
 
   // Fallback to custom prompt or metadata
@@ -723,13 +678,7 @@ export async function POST(req: NextRequest) {
     finalNegativePrompt = assembled.negative;
   }
 
-  console.log('[generate-from-meta] type =', type);
-  console.log('[generate-from-meta] rawPrompt length:', rawPrompt.length);
-  console.log('[generate-from-meta] === FULL POSITIVE PROMPT ===');
-  console.log(rawPrompt);
-  console.log('[generate-from-meta] === FULL NEGATIVE PROMPT ===');
-  console.log(finalNegativePrompt);
-  console.log('[generate-from-meta] === END PROMPT ===');
+  logger.info('generate-from-meta: prompt assembled', { type, rawPromptLen: rawPrompt.length });
 
   if (!rawPrompt) {
     return NextResponse.json({ error: 'No prompt provided' }, { status: 400 });
@@ -737,46 +686,39 @@ export async function POST(req: NextRequest) {
 
   // Parallel generation - submit all jobs at once, poll in parallel
   try {
-    console.log('[generate-from-meta] Starting parallel generation...');
-    
+    logger.info('generate-from-meta: starting parallel generation', { count, type });
+
     const folder = (type || 'girlfriend') + 's';
-    
+
     // Use a base seed and increment for each image (more predictable than random)
     const baseSeed = params.seed > 0 ? params.seed : Math.floor(Math.random() * 1000000);
-    console.log('[generate-from-meta] Using base seed:', baseSeed);
-    
+    logger.debug('generate-from-meta: base seed', { baseSeed });
+
     // Step 1: Submit all jobs in parallel
-    console.log(`[generate-from-meta] Submitting ${count} jobs in parallel...`);
     const jobPromises = [];
     for (let i = 0; i < count; i++) {
       const seed = baseSeed + i;
-      console.log(`[generate-from-meta] Submitting job ${i + 1}/${count} with seed ${seed}...`);
       jobPromises.push(submitJob(rawPrompt, finalNegativePrompt, { ...params, seed }));
     }
-    
-    // Wait for all jobs to be submitted
+
     const jobIds = await Promise.all(jobPromises);
-    console.log('[generate-from-meta] All jobs submitted:', jobIds);
-    
+    logger.info('generate-from-meta: jobs submitted', { count: jobIds.length });
+
     // Step 2: Poll all jobs in parallel
-    console.log('[generate-from-meta] Polling all jobs in parallel...');
-    const pollPromises = jobIds.map((jobId, i) => 
+    const pollPromises = jobIds.map((jobId, i) =>
       pollJob(jobId).then(base64 => ({ base64, index: i }))
     );
-    
-    // Wait for all jobs to complete
+
     const pollResults = await Promise.all(pollPromises);
-    console.log('[generate-from-meta] All jobs completed');
-    
+
     // Step 3: Upload all images in parallel
-    console.log('[generate-from-meta] Uploading all images in parallel...');
-    const uploadPromises = pollResults.map(({ base64, index }) => 
+    const uploadPromises = pollResults.map(({ base64, index }) =>
       uploadToStorage(base64, folder).then(url => ({ url, alt: `Generated ${index + 1}` }))
     );
-    
+
     const results = await Promise.all(uploadPromises);
-    console.log('[generate-from-meta] Generation completed, results:', results.length);
-    
+    logger.info('generate-from-meta: completed', { results: results.length });
+
     return NextResponse.json({
       success: true,
       images: results,
@@ -784,8 +726,8 @@ export async function POST(req: NextRequest) {
       optimizedPrompt: rawPrompt,
     });
   } catch (err) {
-    console.error('[generate-from-meta] Generation failed:', err);
-    return NextResponse.json({ 
+    logger.error('generate-from-meta: generation failed', { err });
+    return NextResponse.json({
       error: err instanceof Error ? err.message : 'Generation failed',
       success: false,
     }, { status: 500 });

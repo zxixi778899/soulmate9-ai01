@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { CRYPTO_CURRENCIES, PLAN_PRICES } from '@/lib/crypto-config';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
       .single();
 
     if (dbError || !payment) {
-      console.error('Failed to create crypto payment record:', dbError);
+      logger.error('Failed to create crypto payment record:', { data: dbError });
       return NextResponse.json({ error: 'Failed to initiate payment' }, { status: 500 });
     }
 
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
       minConfirmations: currency.minConfirmations,
     });
   } catch (err) {
-    console.error('Crypto initiate error:', err);
+    logger.error('Crypto initiate error:', { data: err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

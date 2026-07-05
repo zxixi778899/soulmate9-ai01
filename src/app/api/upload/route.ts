@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { uploadFile } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
   const { user, error: authError } = await getAuthUser(request);
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
       fileType: file.type,
     });
   } catch (error) {
-    console.error('Upload error:', error);
+    logger.error('Upload error:', { data: error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }

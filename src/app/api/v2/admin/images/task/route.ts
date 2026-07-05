@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTask, getAllTasks } from '@/lib/task-queue';
 import { requireAdmin } from '@/lib/require-admin';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ error: 'taskId or girlfriendId required' }, { status: 400 });
   } catch (err) {
-    console.error('[task-status] Error:', err);
+    logger.error('[task-status] Error:', { data: err });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Unknown' },
       { status: 500 }

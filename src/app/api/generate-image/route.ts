@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { getCozeAccessToken, COZE_API_BASE } from '@/lib/coze-auth';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 const IMAGE_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 }; // 10/h/user
 
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
         try {
           const imgRes = await fetch(tempUrl);
           if (!imgRes.ok) {
-            console.error('Failed to fetch generated image:', imgRes.status);
+            logger.error('Failed to fetch generated image:', { data: imgRes.status });
             return { url: '', prompt };
           }
           const buf = Buffer.from(await imgRes.arrayBuffer());
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
           const signed = await resolveImageUrl(key);
           return { url: signed, key, prompt };
         } catch (e) {
-          console.error('OSS upload failed for generated image:', e);
+          logger.error('OSS upload failed for generated image:', { data: e });
           return { url: '', prompt };
         }
       })
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ images });
   } catch (error) {
-    console.error('Image generation error:', error);
+    logger.error('Image generation error:', { data: error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Image generation failed' },
       { status: 500 }

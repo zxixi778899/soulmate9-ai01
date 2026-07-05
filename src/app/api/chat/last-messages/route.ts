@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     if (fallback) {
       // Deduplicate: keep only latest per girlfriend
       const seen = new Set<string>();
-      const deduped = fallback.filter(m => {
+      const deduped = fallback.filter((m: { girlfriend_id: string }) => {
         if (seen.has(m.girlfriend_id)) return false;
         seen.add(m.girlfriend_id);
         return true;

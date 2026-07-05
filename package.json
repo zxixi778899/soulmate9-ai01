@@ -86,8 +86,7 @@
     "posthog-node": "^4.4.0",
     "posthog-js": "^1.261.0",
     "resend": "^4.0.0",
-    "web-push": "^3.6.7",
-    "@sentry/nextjs": "^9.0.0"
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@react-dev-inspector/babel-plugin": "^2.0.1",

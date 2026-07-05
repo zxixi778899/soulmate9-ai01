@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.COZE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY;
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('[AUTH:FORGOT_PASSWORD] API error:', data);
+      logger.error('[AUTH:FORGOT_PASSWORD] API error:', { data: data });
       return NextResponse.json(
         { error: data.msg || data.error_description || 'Failed to send reset link' },
         { status: response.status }
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
       ...(process.env.NODE_ENV === 'development' && actionLink ? { reset_link: actionLink } : {}),
     });
   } catch (err) {
-    console.error('[AUTH:FORGOT_PASSWORD] Exception:', err);
+    logger.error('[AUTH:FORGOT_PASSWORD] Exception:', { data: err });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
