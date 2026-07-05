@@ -1,8 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const publicAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Lazy-read PUBLIC env vars so module-load doesn't crash if vars are missing
+// (defensive — this file is server-only and should never be bundled to client,
+//  but a stray import from a client component would otherwise throw at hydration).
+function readPublicEnv(...keys: string[]): string | undefined {
+  for (const k of keys) {
+    const v = process.env[k];
+    if (v && v.length > 0) return v;
+  }
+  return undefined;
+}
+
+const publicUrl = readPublicEnv(
+  'NEXT_PUBLIC_COZE_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_URL',
+);
+const publicAnonKey = readPublicEnv(
+  'NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+);
 
 /**
  * Server-side: validate token against PUBLIC Supabase and return user info.
