@@ -31,7 +31,4 @@ export default function RegisterPage() {
         <label className="flex items-center gap-2"><input type="checkbox" checked={agree} onChange={(ev) => setAgree(ev.target.checked)} /> I agree to terms</label>
         <button type="submit" disabled={!agree} className="w-full p-2 bg-blue-500 text-white rounded disabled:opacity-50">Register</button>
       </form>
-      <p className="mt-4">Have an account? <a href="/login" className="text-blue-500">Login</a></p>
-    </main>
-  );
-}
+      <p className="mt-4">Have 
