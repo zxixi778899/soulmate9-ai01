@@ -63,11 +63,11 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 pb-24 md:pb-4">
       {/* 50% semi-transparent overlay — lets homepage starry background show through */}
-      <div className="fixed inset-0 bg-[#07070F]/50 backdrop-blur-md pointer-events-none -z-10" />
+      <div className="fixed inset-0 bg-[#07070F]/[50] backdrop-blur-md pointer-events-none -z-10" />
       {/* Background decoration */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-[#FF2D78]/6 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-[#8b5cf6]/5 blur-3xl" />
+        <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-[#FF2D78]/[6] blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-[#8b5cf6]/[5] blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-sm">
