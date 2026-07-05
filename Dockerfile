@@ -44,7 +44,8 @@ ENV NODE_ENV=production
 RUN printenv | grep -E '^NEXT_PUBLIC_' | tee .env.production && echo "=== .env.production has $(wc -l < .env.production) lines ==="
 
 # 构建（standalone 输出在 .next/standalone）
-RUN pnpm build
+# 清掉 Next.js build cache，避免 Railway builder image cache 提供旧 source
+RUN rm -rf .next && pnpm build
 
 
 # ─────────────────────────── Stage 3: runner ───────────────────────────
