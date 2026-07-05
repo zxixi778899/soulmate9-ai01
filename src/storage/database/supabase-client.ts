@@ -1,98 +1,44 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { execSync } from 'child_process';
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { logger } from '@/lib/logger';
-
-let envLoaded = false;
 
 interface SupabaseCredentials {
   url: string;
   anonKey: string;
 }
 
-function loadEnv(): void {
-  if (envLoaded || (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY)) {
-    return;
-  }
-
-  try {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('dotenv').config();
-      if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
-        envLoaded = true;
-        return;
-      }
-    } catch {
-      // dotenv not available
-    }
-
-    const pythonCode = `
-import os
-import sys
-import { logger } from '@/lib/logger';
-try:
-    from coze_workload_identity import Client
-    client = Client()
-    env_vars = client.get_project_env_vars()
-    client.close()
-    for env_var in env_vars:
-        print(f"{env_var.key}={env_var.value}")
-except Exception as e:
-    print(f"# Error: {e}", file=sys.stderr)
-`;
-
-    const output = execSync(`python3 -c '${pythonCode.replace(/'/g, "'\"'\"'")}'`, {
-      encoding: 'utf-8',
-      timeout: 10000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    const lines = output.trim().split('\n');
-    for (const line of lines) {
-      if (line.startsWith('#')) continue;
-      const eqIndex = line.indexOf('=');
-      if (eqIndex > 0) {
-        const key = line.substring(0, eqIndex);
-        let value = line.substring(eqIndex + 1);
-        if ((value.startsWith("'") && value.endsWith("'")) ||
-            (value.startsWith('"') && value.endsWith('"'))) {
-          value = value.slice(1, -1);
-        }
-        if (!process.env[key]) {
-          process.env[key] = value;
-        }
-      }
-    }
-
-    envLoaded = true;
-  } catch {
-    // Silently fail
-  }
-}
+/**
+ * Production startup contract:
+ *  - COZE_SUPABASE_URL is required
+ *  - COZE_SUPABASE_ANON_KEY is required
+ *  - COZE_SUPABASE_SERVICE_ROLE_KEY is optional (falls back to anon key)
+ *  - COZE_SUPABASE_DB_URL is required for raw pg queries
+ *
+ * If a required var is missing we throw immediately at startup, instead of
+ * silently degrading. Lazy auto-fetch via dotenv / Python subprocess was
+ * fragile (Python heredoc embedded a TS import which silently failed),
+ * and on Vercel the env is always already populated by the platform.
+ */
 
 function getSupabaseCredentials(): SupabaseCredentials {
-  loadEnv();
-
   const url = process.env.COZE_SUPABASE_URL;
   const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
 
   if (!url) {
-    throw new Error('COZE_SUPABASE_URL is not set');
+    throw new Error('COZE_SUPABASE_URL is not set. Required for Supabase client.');
   }
   if (!anonKey) {
-    throw new Error('COZE_SUPABASE_ANON_KEY is not set');
+    throw new Error('COZE_SUPABASE_ANON_KEY is not set. Required for Supabase client.');
   }
 
   return { url, anonKey };
 }
 
 function getSupabaseServiceRoleKey(): string | undefined {
-  loadEnv();
   return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
 }
 
-function getSupabaseClient(token?: string): SupabaseClient {
+export function getSupabaseClient(token?: string): SupabaseClient {
   const { url, anonKey } = getSupabaseCredentials();
 
   let key: string;
@@ -110,13 +56,8 @@ function getSupabaseClient(token?: string): SupabaseClient {
 
   return createClient(url, key, {
     global: globalOptions,
-    db: {
-      timeout: 60000,
-    },
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+    db: { timeout: 60000 },
+    auth: { autoRefreshToken: false, persistSession: false },
   });
 }
 
@@ -128,19 +69,14 @@ function getSupabaseClient(token?: string): SupabaseClient {
 // =============================================================================
 
 let pgPool: Pool | null = null;
-let pgPoolInitTried = false;
 
 export function getPostgresPool(): Pool {
   if (pgPool) return pgPool;
-  if (pgPoolInitTried) {
-    throw new Error('Postgres pool init failed previously. Check COZE_SUPABASE_DB_URL.');
-  }
-  pgPoolInitTried = true;
-
-  loadEnv();
   const url = process.env.COZE_SUPABASE_DB_URL;
   if (!url) {
-    throw new Error('COZE_SUPABASE_DB_URL is not set. Add the Supabase Transaction pooler URL to Vercel env.');
+    throw new Error(
+      'COZE_SUPABASE_DB_URL is not set. Add the Supabase Transaction pooler URL to Railway env.',
+    );
   }
 
   pgPool = new Pool({
@@ -149,7 +85,7 @@ export function getPostgresPool(): Pool {
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
     ssl: url.includes('localhost') ? false : { rejectUnauthorized: false },
-    application_name: 'soulmate-vercel',
+    application_name: 'soulmate-railway',
   });
 
   // 每个新连接执行 SET search_path（pg.Pool options 不可靠）
@@ -168,7 +104,7 @@ export function getPostgresPool(): Pool {
 
 export async function queryPg<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: unknown[]
+  params?: unknown[],
 ): Promise<QueryResult<T>> {
   const pool = getPostgresPool();
   return pool.query<T>(text, params as never[]);
@@ -176,7 +112,7 @@ export async function queryPg<T extends QueryResultRow = QueryResultRow>(
 
 export async function queryPgOne<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: unknown[]
+  params?: unknown[],
 ): Promise<T | null> {
   const res = await queryPg<T>(text, params);
   return res.rows[0] ?? null;
@@ -184,7 +120,7 @@ export async function queryPgOne<T extends QueryResultRow = QueryResultRow>(
 
 export async function queryPgMany<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: unknown[]
+  params?: unknown[],
 ): Promise<T[]> {
   const res = await queryPg<T>(text, params);
   return res.rows;
@@ -199,4 +135,5 @@ export async function withPgClient<T>(fn: (client: PoolClient) => Promise<T>): P
     client.release();
   }
 }
-export { loadEnv, getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };
+
+export { getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };

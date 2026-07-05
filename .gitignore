@@ -61,6 +61,15 @@ docker-compose.override.yml
 # === 类型生成 ===
 /generated/
 
+# === Node / package manager ===
+package-lock.json
+yarn.lock
+bun.lockb
+node_modules/.package-lock.json
+
 # === 测试 fixtures (含敏感数据) ===
 __tests__/fixtures/
-test-data/
+test-data/package-lock.json
+package-lock.json
+package-lock.json
+package-lock.json

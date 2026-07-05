@@ -28,6 +28,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { runpodClient } from '@/lib/runpod';
 import { logger } from '@/lib/logger';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { moderateText } from '@/lib/content-moderation';
 import {
   buildGirlfriendPrompt,
   buildOutfitPrompt,
@@ -37,12 +39,33 @@ import {
   OutfitCategory,
 } from '@/lib/prompts';
 
+const RUNPOD_GENERATE_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
+const MIN_IMAGE_DIMENSION = 256;
+const MAX_IMAGE_DIMENSION = 1024;
+
+function isValidDimension(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= MIN_IMAGE_DIMENSION &&
+    value <= MAX_IMAGE_DIMENSION
+  );
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Verify authentication
     const { user } = await getAuthUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rl = await checkRateLimitAsync(`runpod-generate:${user.id}`, RUNPOD_GENERATE_LIMIT);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many image generation requests. Please try again later.' },
+        { status: 429, headers: rateLimitHeaders(rl, RUNPOD_GENERATE_LIMIT) },
+      );
     }
 
     const body = await req.json();
@@ -80,8 +103,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing prompt or preset parameters' }, { status: 400 });
     }
 
-    const width = size?.width || 768;
-    const height = size?.height || 1024;
+    // 内容审核：拦截涉未成年人/非自愿/真实人物等违规 prompt
+    const moderation = moderateText(finalPrompt);
+    if (!moderation.allowed) {
+      logger.warn('RunPod prompt blocked by moderation', {
+        userId: user.id,
+        reason: moderation.reason,
+        matched: moderation.matchedPattern,
+      });
+      return NextResponse.json(
+        { error: 'Prompt violates content policy.', reason: moderation.reason },
+        { status: 400 },
+      );
+    }
+    if (finalNegative) {
+      const negMod = moderateText(finalNegative);
+      if (!negMod.allowed) {
+        return NextResponse.json(
+          { error: 'Negative prompt violates content policy.', reason: negMod.reason },
+          { status: 400 },
+        );
+      }
+    }
+
+    const width = size?.width ?? 768;
+    const height = size?.height ?? 1024;
+    if (!isValidDimension(width) || !isValidDimension(height)) {
+      return NextResponse.json(
+        {
+          error: `Image size must be an integer between ${MIN_IMAGE_DIMENSION} and ${MAX_IMAGE_DIMENSION}px.`,
+        },
+        { status: 400 },
+      );
+    }
 
     // Check if RunPod is configured
     if (!runpodClient.isConfigured) {

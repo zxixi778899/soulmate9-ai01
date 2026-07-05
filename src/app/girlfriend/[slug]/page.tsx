@@ -13,6 +13,26 @@ import { GirlfriendView } from '@/components/girlfriend-public/GirlfriendView';
 export const revalidate = 3600;
 export const dynamicParams = true;
 
+/**
+ * 预渲染头部公开角色，让 Railway cold start 第一字节延迟 < 1s。
+ * 仅取前 8 个（人气角色）；剩余的客户端 ISR 按需生成。
+ * 失败时静默回退到全 ISR。
+ */
+export async function generateStaticParams() {
+  try {
+    const supabase = getSupabaseClient();
+    const { data } = await supabase
+      .from('girlfriends')
+      .select('slug')
+      .eq('is_public', true)
+      .order('view_count', { ascending: false })
+      .limit(8);
+    return (data ?? []).map((row: { slug: string }) => ({ slug: row.slug }));
+  } catch {
+    return [];
+  }
+}
+
 interface PublicGirlfriend {
   id: string;
   name: string;

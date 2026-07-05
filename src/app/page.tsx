@@ -1,5 +1,15 @@
 'use client';
 
+// ============ 角色定义 ============
+// 注：本页为硬编码营销内容（CHARACTERS 数据不查 DB）。
+// 真正的公开女友列表走 /girlfriend/[slug]（已是 SSR + ISR）。
+// 当前首页以交互为主（Age / Auth modal / Mobile menu），保持 client。
+// 如需 SEO + 首屏加速，最优做法：
+//   1. 把 CHARACTERS 静态部分提到 src/data/marketing-characters.ts
+//   2. 新建 src/app/_home/StaticHero.tsx 作为 server component 渲染
+//   3. 客户端只包 <Sheet> / <AgeVerification> / <HeroAuthButton>
+// 留作未来重构；本次修复优先聚焦 P0 安全/合规。
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
