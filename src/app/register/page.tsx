@@ -1,73 +1,35 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/components/AuthProvider";
-import { useTranslation } from "@/lib/i18n/context";
-
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [agree, setAgree] = useState(false);
-  const { supabase } = useAuth();
-  const { t } = useTranslation();
-  async function handleRegister(e) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, username }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Registration failed");
-        setLoading(false);
-        return;
-      }
-      if (data.auto_signin_error) {
-        setError(data.auto_signin_error);
-        setLoading(false);
-        return;
-      }
-      if (!supabase) {
-        setError("Service temporarily unavailable. Please refresh.");
-        setLoading(false);
-        return;
-      }
-      await supabase.auth.setSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-      });
-      window.location.href = "/gallery";
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
-      setLoading(false);
+  async function handleRegister() {
+    const res = await fetch("/api/auth/signup", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, username }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Registration failed"); return; }
+    const mod = await import("@/components/AuthProvider");
+    const supabase = mod.useAuth?.()?.supabase;
+    if (supabase && data.access_token) {
+      await supabase.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
     }
+    window.location.href = "/gallery";
   }
   return (
-    <main style={{padding: 32}}>
-      <h1>Register</h1>
-      <form onSubmit={handleRegister}>
-        <p>
-          <label>Username: <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required /></label>
-        </p>
-        <p>
-          <label>Email: <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
-        </p>
-        <p>
-          <label>Password: <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required /></label>
-        </p>
-        <p>
-          <label><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /> I agree to terms</label>
-        </p>
-        {error && <p style={{color: "red"}}>{error}</p>}
-        <button type="submit" disabled={loading || !agree}>{loading ? "..." : "Register"}</button>
+    <main className="flex min-h-screen flex-col items-center justify-center px-4">
+      <h1 className="text-2xl font-bold mb-4">Register</h1>
+      <form onSubmit={(ev) => { ev.stopPropagation(); handleRegister(); }} className="w-full max-w-sm space-y-3">
+        <input type="text" value={username} onChange={(ev) => setUsername(ev.target.value)} placeholder="Username" required className="w-full p-2 border rounded" />
+        <input type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="Email" required className="w-full p-2 border rounded" />
+        <input type="password" value={password} onChange={(ev) => setPassword(ev.target.value)} placeholder="Password (min 6 chars)" minLength={6} required className="w-full p-2 border rounded" />
+        <label className="flex items-center gap-2"><input type="checkbox" checked={agree} onChange={(ev) => setAgree(ev.target.checked)} /> I agree to terms</label>
+        <button type="submit" disabled={!agree} className="w-full p-2 bg-blue-500 text-white rounded disabled:opacity-50">Register</button>
       </form>
-      <p>Have an account? <a href="/login">Login</a></p>
+      <p className="mt-4">Have an account? <a href="/login" className="text-blue-500">Login</a></p>
     </main>
   );
 }
