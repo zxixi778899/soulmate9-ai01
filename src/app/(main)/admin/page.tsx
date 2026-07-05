@@ -105,7 +105,7 @@ export default function AdminDashboard() {
                   onClick={() => router.push(action.href)}
                   className="flex items-center gap-3 rounded-lg border border-border/20 bg-muted/10 p-3 text-sm hover:bg-muted/20 transition-colors text-left"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FF2D78]/[10]">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FF2D78]/10">
                     <action.icon className="h-4 w-4 text-[#FF2D78]" />
                   </div>
                   <span>{action.label}</span>

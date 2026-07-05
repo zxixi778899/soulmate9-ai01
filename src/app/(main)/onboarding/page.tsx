@@ -79,11 +79,11 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]/[50] backdrop-blur-md flex items-center justify-center px-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#0a0a0f]/50 backdrop-blur-md flex items-center justify-center px-4 relative overflow-hidden">
       {/* Background decoration */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-[#FF2D78]/[5] blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-[#FF2D78]/[5] blur-3xl" />
+        <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-[#FF2D78]/5 blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-[#FF2D78]/5 blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-lg">
@@ -96,7 +96,7 @@ export default function OnboardingPage() {
                 i === step
                   ? 'w-8 bg-gradient-to-r from-rose-500 to-fuchsia-500'
                   : i < step
-                  ? 'w-4 bg-[#FF2D78]/[40]'
+                  ? 'w-4 bg-[#FF2D78]/40'
                   : 'w-4 bg-border/30'
               }`}
             />

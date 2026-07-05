@@ -226,7 +226,7 @@ export default function AdminAdsPage() {
                     }}
                   />
                 ) : (
-                  <ImageOff className="h-10 w-10 text-[#8B8BA3]/[30]" />
+                  <ImageOff className="h-10 w-10 text-[#8B8BA3]/30" />
                 )}
                 <div className="absolute top-2 right-2">
                   <Badge

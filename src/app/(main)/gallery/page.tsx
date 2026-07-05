@@ -156,7 +156,7 @@ export default function GalleryPage() {
   return (
     <div className="flex h-full flex-col overflow-y-auto pb-20">
       {/* Header */}
-      <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0E0E1A]/[80] px-4 sm:px-8 py-5 backdrop-blur-xl">
+      <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0E0E1A]/80 px-4 sm:px-8 py-5 backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display text-3xl md:text-4xl font-bold italic bg-gradient-to-r from-white via-[#FFB3CD] to-[#FF6BA6] bg-clip-text text-transparent">{t('gallery.title')}</h1>
@@ -175,7 +175,7 @@ export default function GalleryPage() {
       <div className="flex-1 p-4 sm:p-8">
         {girlfriends.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-6">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#FF2D78]/[10] ring-1 ring-[#FF2D78]/[20]">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#FF2D78]/10 ring-1 ring-[#FF2D78]/20">
               <Heart className="h-10 w-10 text-[#FF2D78]" />
             </div>
             <div className="text-center">
@@ -202,16 +202,16 @@ export default function GalleryPage() {
               return (
                 <Card
                   key={gf.id}
-                  className="group cursor-pointer overflow-hidden border-white/[0.06] bg-white/[0.04] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-[#FF2D78]/[30] hover:shadow-[0_0_30px_-5px_rgba(255,45,120,0.15)]"
+                  className="group cursor-pointer overflow-hidden border-white/[0.06] bg-white/[0.04] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-[#FF2D78]/30 hover:shadow-[0_0_30px_-5px_rgba(255,45,120,0.15)]"
                 >
                   <CardContent className="p-0">
                     {/* Portrait */}
                     <div
-                      className="relative flex h-44 items-center justify-center bg-gradient-to-b from-[#FF2D78]/[5] via-[#15152A] to-[#0E0E1A]"
+                      className="relative flex h-44 items-center justify-center bg-gradient-to-b from-[#FF2D78]/5 via-[#15152A] to-[#0E0E1A]"
                       onClick={() => router.push(`/chat/${gf.id}`)}
                     >
                       <div
-                        className="relative flex h-20 w-20 items-center justify-center rounded-full text-3xl font-bold shadow-[0_0_20px_rgba(255,45,120,0.2)] ring-2 ring-[#FF2D78]/[20] overflow-hidden group/avatar"
+                        className="relative flex h-20 w-20 items-center justify-center rounded-full text-3xl font-bold shadow-[0_0_20px_rgba(255,45,120,0.2)] ring-2 ring-[#FF2D78]/20 overflow-hidden group/avatar"
                         style={{
                           background: `linear-gradient(135deg, ${
                             (gf as any).apperance_hair_color || '#d4a574'

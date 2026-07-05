@@ -171,13 +171,13 @@ export default function AdminReviewPage() {
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                           (e.target as HTMLImageElement).parentElement!.innerHTML =
-                            '<div class="h-14 w-14 rounded-xl bg-[#FF2D78]/[10] flex items-center justify-center text-[#FF2D78] text-lg font-semibold">' +
+                            '<div class="h-14 w-14 rounded-xl bg-[#FF2D78]/10 flex items-center justify-center text-[#FF2D78] text-lg font-semibold">' +
                             item.name.charAt(0) +
                             '</div>';
                         }}
                       />
                     ) : (
-                      <div className="h-14 w-14 rounded-xl bg-[#FF2D78]/[10] flex items-center justify-center text-[#FF2D78] text-lg font-semibold">
+                      <div className="h-14 w-14 rounded-xl bg-[#FF2D78]/10 flex items-center justify-center text-[#FF2D78] text-lg font-semibold">
                         {item.name.charAt(0)}
                       </div>
                     )}
@@ -284,7 +284,7 @@ export default function AdminReviewPage() {
                     }}
                   />
                 ) : (
-                  <div className="h-20 w-20 rounded-xl bg-[#FF2D78]/[10] flex items-center justify-center text-[#FF2D78] text-2xl font-semibold">
+                  <div className="h-20 w-20 rounded-xl bg-[#FF2D78]/10 flex items-center justify-center text-[#FF2D78] text-2xl font-semibold">
                     {selectedItem.name.charAt(0)}
                   </div>
                 )}

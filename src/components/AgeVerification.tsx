@@ -31,10 +31,10 @@ export function AgeVerification() {
   if (showOverlay !== true) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#07070F]/[80] backdrop-blur-md">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#07070F]/80 backdrop-blur-md">
       {/* Pink orb glow - subtle accents only, let homepage show through */}
-      <div className="absolute top-1/4 right-1/4 w-80 h-80 rounded-full bg-[#FF2D78]/[8] blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/3 left-1/4 w-60 h-60 rounded-full bg-[#8b5cf6]/[6] blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 right-1/4 w-80 h-80 rounded-full bg-[#FF2D78]/8 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/3 left-1/4 w-60 h-60 rounded-full bg-[#8b5cf6]/6 blur-3xl pointer-events-none" />
 
       <div className="relative z-10 mx-auto w-full max-w-md px-6 text-center">
         {/* Logo */}
@@ -55,7 +55,7 @@ export function AgeVerification() {
 
           <div className="mt-6 space-y-4">
             <div
-              className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl p-4 text-left transition-all hover:border-[#FF2D78]/[20]"
+              className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl p-4 text-left transition-all hover:border-[#FF2D78]/20"
               onClick={() => setAgreed((prev) => !prev)}
               role="checkbox"
               aria-checked={agreed}
@@ -71,7 +71,7 @@ export function AgeVerification() {
                 checked={agreed}
                 onCheckedChange={(v) => setAgreed(v === true)}
                 onClick={(e) => e.stopPropagation()}
-                className="mt-0.5 border-[#8B8BA3]/[40] data-[state=checked]:border-[#FF2D78] data-[state=checked]:bg-[#FF2D78]"
+                className="mt-0.5 border-[#8B8BA3]/40 data-[state=checked]:border-[#FF2D78] data-[state=checked]:bg-[#FF2D78]"
               />
               <span className="select-none text-sm leading-relaxed text-[#8B8BA3]">
                 I confirm that I am <strong className="text-[#F0F0F5]">18 years or older</strong> and I agree to the{' '}

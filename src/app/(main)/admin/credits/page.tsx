@@ -166,7 +166,7 @@ export default function AdminCreditsPage() {
                     <tr key={u.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FF2D78]/[10] text-sm font-semibold text-[#FF2D78]">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FF2D78]/10 text-sm font-semibold text-[#FF2D78]">
                             {u.display_name ? u.display_name.charAt(0).toUpperCase() : '?'}
                           </div>
                           <span className="text-sm font-medium">{u.display_name || 'Anonymous'}</span>
@@ -271,7 +271,7 @@ export default function AdminCreditsPage() {
 
               {/* Preview */}
               {addAmount && parseInt(addAmount) > 0 && (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-[#FF2D78]/[5] border border-primary/10">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-[#FF2D78]/5 border border-primary/10">
                   <span className="text-sm">New balance will be</span>
                   <span className="text-lg font-bold text-[#FF2D78]">
                     {selectedUser.credits_remaining + parseInt(addAmount)}

@@ -221,7 +221,7 @@ export function Sidebar() {
                     onClick={() => router.push(`/chat/${gf.id}`)}
                     className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all duration-200 ${
                       isChatActive
-                        ? 'bg-[#FF2D78]/[15] text-foreground ring-1 ring-[#FF2D78]/[30]'
+                        ? 'bg-[#FF2D78]/15 text-foreground ring-1 ring-[#FF2D78]/30'
                         : 'hover:bg-white/[0.06] text-foreground/80'
                     }`}
                   >
@@ -229,7 +229,7 @@ export function Sidebar() {
                       {gf.avatar_url ? (
                         <AvatarImage src={gf.avatar_url} alt={gf.name} />
                       ) : (
-                        <AvatarFallback className="bg-[#FF2D78]/[10] text-[#FF2D78] text-xs">
+                        <AvatarFallback className="bg-[#FF2D78]/10 text-[#FF2D78] text-xs">
                           {getInitials(gf.name)}
                         </AvatarFallback>
                       )}

@@ -387,7 +387,7 @@ export default function AdminGirlfriendsPage() {
             placeholder="Search by name, slug or creator..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/[0.06] border-none rounded-lg pl-9 pr-4 py-2 text-sm placeholder:text-[#8B8BA3]/[50] focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full bg-white/[0.06] border-none rounded-lg pl-9 pr-4 py-2 text-sm placeholder:text-[#8B8BA3]/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
         <select
@@ -424,7 +424,7 @@ export default function AdminGirlfriendsPage() {
             onClick={() => setActiveTab(tab)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
               activeTab === tab
-                ? 'bg-[#FF2D78]/[10] text-[#FF2D78]'
+                ? 'bg-[#FF2D78]/10 text-[#FF2D78]'
                 : 'text-[#8B8BA3] hover:bg-muted/20'
             }`}
           >
@@ -471,7 +471,7 @@ export default function AdminGirlfriendsPage() {
                 </thead>
                 <tbody>
                   {filteredGirlfriends.map((gf) => (
-                    <tr key={gf.id} className={`border-b border-border/20 hover:bg-muted/20 transition-colors ${selectedIds.has(gf.id) ? 'bg-[#FF2D78]/[5]' : ''}`}>
+                    <tr key={gf.id} className={`border-b border-border/20 hover:bg-muted/20 transition-colors ${selectedIds.has(gf.id) ? 'bg-[#FF2D78]/5' : ''}`}>
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
@@ -488,11 +488,11 @@ export default function AdminGirlfriendsPage() {
                             className="h-10 w-10 rounded-full object-cover"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none';
-                              (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="h-10 w-10 rounded-full bg-[#FF2D78]/[10] flex items-center justify-center text-[#FF2D78] text-sm font-semibold">' + gf.name.charAt(0) + '</div>';
+                              (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="h-10 w-10 rounded-full bg-[#FF2D78]/10 flex items-center justify-center text-[#FF2D78] text-sm font-semibold">' + gf.name.charAt(0) + '</div>';
                             }}
                           />
                         ) : (
-                          <div className="h-10 w-10 rounded-full bg-[#FF2D78]/[10] flex items-center justify-center text-[#FF2D78] text-sm font-semibold">
+                          <div className="h-10 w-10 rounded-full bg-[#FF2D78]/10 flex items-center justify-center text-[#FF2D78] text-sm font-semibold">
                             {gf.name.charAt(0)}
                           </div>
                         )}

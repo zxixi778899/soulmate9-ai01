@@ -119,7 +119,7 @@ export function LandingSections() {
               return (
                 <div
                   key={step.title}
-                  className="relative bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 hover:border-[#e11d48]/[40] hover:bg-white/[0.05] transition-all"
+                  className="relative bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 hover:border-[#e11d48]/40 hover:bg-white/[0.05] transition-all"
                 >
                   <div className="absolute -top-3 -left-3 w-7 h-7 rounded-full bg-gradient-to-br from-[#e11d48] to-[#d946ef] text-white text-xs font-bold flex items-center justify-center">
                     {idx + 1}
@@ -151,9 +151,9 @@ export function LandingSections() {
               return (
                 <div
                   key={r.title}
-                  className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 hover:border-[#d946ef]/[40] hover:bg-white/[0.05] transition-all"
+                  className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 hover:border-[#d946ef]/40 hover:bg-white/[0.05] transition-all"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#e11d48]/[15] to-[#d946ef]/[15] flex items-center justify-center mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#e11d48]/15 to-[#d946ef]/15 flex items-center justify-center mb-4">
                     <Icon className="w-5 h-5 text-[#d946ef]" />
                   </div>
                   <h3 className="text-base font-semibold text-white">{r.title}</h3>

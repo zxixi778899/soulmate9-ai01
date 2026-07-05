@@ -153,7 +153,7 @@ export default function WardrobePage() {
           ) : items.length === 0 ? (
             <div className="text-center py-24">
               <div className="w-16 h-16 rounded-full bg-accent/30 flex items-center justify-center mx-auto mb-4">
-                <Heart className="h-8 w-8 text-[#8B8BA3]/[40]" />
+                <Heart className="h-8 w-8 text-[#8B8BA3]/40" />
               </div>
               <h3 className="text-sm font-medium text-foreground/80">Your wardrobe is empty</h3>
               <p className="text-xs text-[#8B8BA3] mt-1">Visit the shop to buy outfits and gifts for your companion</p>
@@ -176,7 +176,7 @@ export default function WardrobePage() {
                       <Card key={item.id} className="border-white/[0.06] border-dashed">
                         <CardHeader className="p-0">
                           <div className="aspect-square flex items-center justify-center bg-accent/20">
-                            <Shirt className="h-10 w-10 text-[#8B8BA3]/[30]" />
+                            <Shirt className="h-10 w-10 text-[#8B8BA3]/30" />
                           </div>
                         </CardHeader>
                         <CardContent className="p-4 space-y-2">
@@ -261,7 +261,7 @@ export default function WardrobePage() {
                               : 'bg-accent/20'
                           }`}>
                             <Shirt className={`h-10 w-10 ${
-                              item.is_equipped ? 'text-primary' : 'text-[#8B8BA3]/[30]'
+                              item.is_equipped ? 'text-primary' : 'text-[#8B8BA3]/30'
                             }`} />
                           </div>
                         </CardHeader>

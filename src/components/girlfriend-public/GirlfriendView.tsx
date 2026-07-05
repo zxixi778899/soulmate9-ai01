@@ -109,7 +109,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
       <AgeVerification />
       <div className="min-h-screen bg-[#0a0a0f] text-[#fafafa] flex flex-col pb-20 md:pb-0">
         {/* Navbar */}
-        <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0a0a0f]/[80] backdrop-blur-xl">
+        <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-xl">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] flex items-center justify-center">
@@ -139,7 +139,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
         <div className="flex-1 flex flex-col lg:flex-row pt-16">
           {/* Left: Portrait Area (LCP element — SSR'd above-the-fold) */}
           <div className="lg:w-3/5 h-[45vh] lg:h-[calc(100vh-4rem)] bg-white/[0.02] border-b lg:border-b-0 lg:border-r border-white/[0.06] relative flex items-center justify-center overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-[#e11d48]/[5]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-[#e11d48]/5" />
             <div className="relative z-10 flex flex-col items-center">
               {imgUrl ? (
                 <div className="relative w-40 h-40 md:w-56 md:h-56 rounded-full overflow-hidden border-4 border-white/[0.06]">
@@ -155,8 +155,8 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
                   />
                 </div>
               ) : (
-                <div className="w-40 h-40 md:w-56 md:h-56 rounded-full bg-gradient-to-br from-[#FF2D78]/[20] to-[#8b5cf6]/[20] flex items-center justify-center border-4 border-white/[0.06]">
-                  <Heart className="w-16 h-16 md:w-20 md:h-20 text-[#FF2D78]/[40]" />
+                <div className="w-40 h-40 md:w-56 md:h-56 rounded-full bg-gradient-to-br from-[#FF2D78]/20 to-[#8b5cf6]/20 flex items-center justify-center border-4 border-white/[0.06]">
+                  <Heart className="w-16 h-16 md:w-20 md:h-20 text-[#FF2D78]/40" />
                 </div>
               )}
               <div className="mt-6 text-center">
@@ -286,7 +286,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
             </div>
 
             {/* Privacy */}
-            <p className="mt-6 text-center text-xs text-[#a1a1aa]/[50]">
+            <p className="mt-6 text-center text-xs text-[#a1a1aa]/50">
               <Shield className="w-3 h-3 inline mr-1" />
               Your conversations are private and encrypted.
             </p>

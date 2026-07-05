@@ -210,7 +210,7 @@ export default function ShopPage() {
               </div>
               {SHOP_ITEMS.filter(i => tab === 'all' || getCategory(i) === tab).length === 0 && (
                 <div className="text-center py-20">
-                  <ShoppingBag className="h-10 w-10 text-[#8B8BA3]/[30] mx-auto mb-3" />
+                  <ShoppingBag className="h-10 w-10 text-[#8B8BA3]/30 mx-auto mb-3" />
                   <p className="text-sm text-[#8B8BA3]">No items in this category yet</p>
                 </div>
               )}
