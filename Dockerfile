@@ -44,7 +44,8 @@ ENV NODE_ENV=production
 RUN printenv | grep -E '^NEXT_PUBLIC_' | tee .env.production && echo "=== .env.production has $(wc -l < .env.production) lines ==="
 
 # 构建（standalone 输出在 .next/standalone）
-# 清掉 Next.js build cache，避免 Railway builder image cache 提供旧 source
+# Turbopack 16.1.1 has parse bugs on certain JSX. Force webpack via env var.
+ENV NEXT_DISABLE_TURBOPACK=1
 RUN rm -rf .next && pnpm build
 
 
