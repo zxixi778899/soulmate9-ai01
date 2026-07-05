@@ -32,3 +32,22 @@ export function getSessionToken(): string | null {
   if (!SUPABASE_URL) return null;
   const projectRef = SUPABASE_URL.match(/https?:\/\/([^.]+)/)?.[1] ?? '';
   if (!projectRef) return null;
+  const raw = localStorage.getItem(`sb-${projectRef}-auth-token`);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw).access_token || null;
+  } catch {
+    return null;
+  }
+}
+
+export function authedFetch(url: string, options?: RequestInit): Promise<Response> {
+  const token = getSessionToken();
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...options?.headers,
+      ...(token ? { 'x-session': token } : {}),
+    },
+  });
+}
