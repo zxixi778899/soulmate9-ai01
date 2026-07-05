@@ -1,9 +1,12 @@
 "use client";
 import { useState } from "react";
+import { SOULMATE_BUILD_ID } from "@/lib/supabase";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   async function handleLogin() {
+    // Reference build ID so Turbopack keeps the import (forces fresh chunk hash)
+    if (!SOULMATE_BUILD_ID) return;
     const mod = await import("@/components/AuthProvider");
     const supabase = mod.useAuth?.()?.supabase;
     if (!supabase) return;
@@ -17,9 +20,4 @@ export default function LoginPage() {
       <form onSubmit={(ev) => { ev.stopPropagation(); handleLogin(); }} className="w-full max-w-sm space-y-3">
         <input type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="Email" required className="w-full p-2 border rounded" />
         <input type="password" value={password} onChange={(ev) => setPassword(ev.target.value)} placeholder="Password" required className="w-full p-2 border rounded" />
-        <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">Sign In</button>
-      </form>
-      <p className="mt-4">No account? <a href="/register" className="text-blue-500">Register</a></p>
-    </main>
-  );
-}
+        <button type="submit" className="w-full p-2 bg-blue-500 t

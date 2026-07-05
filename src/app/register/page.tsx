@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
+import { SOULMATE_BUILD_ID } from "@/lib/supabase";
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [agree, setAgree] = useState(false);
   async function handleRegister() {
+    if (!SOULMATE_BUILD_ID) return;
     const res = await fetch("/api/auth/signup", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, username }),
@@ -29,7 +31,4 @@ export default function RegisterPage() {
         <label className="flex items-center gap-2"><input type="checkbox" checked={agree} onChange={(ev) => setAgree(ev.target.checked)} /> I agree to terms</label>
         <button type="submit" disabled={!agree} className="w-full p-2 bg-blue-500 text-white rounded disabled:opacity-50">Register</button>
       </form>
-      <p className="mt-4">Have an account? <a href="/login" className="text-blue-500">Login</a></p>
-    </main>
-  );
-}
+      <p className="mt-4">Have 
