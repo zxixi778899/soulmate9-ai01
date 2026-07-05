@@ -47,7 +47,7 @@ export async function getAuthUser(request: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: { user }, error } = await publicClient.auth.getUser();
+  const { data: { user }, error } = await publicClient.auth.getUser(token);
   if (error || !user) {
     return { user: null, error: error?.message || 'Invalid session' as const };
   }
