@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@/lib/supabase';
 type AuthContextType = {
   user: User | null;
   session: Session | null;
-  supabase: SupabaseClient;
+  supabase: SupabaseClient | null;
   isLoading: boolean;
   signOut: () => Promise<void>;
 };
@@ -17,7 +17,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
-  supabase: null as unknown as SupabaseClient,
+  supabase: null,
   isLoading: true,
   signOut: async () => {},
 });
@@ -30,16 +30,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // 用 useState lazy init 替代 useRef render-time mutation，符合 React 19 严格规则
-  const [supabase] = useState<SupabaseClient>(() => createBrowserClient());
+  // supabase is null when NEXT_PUBLIC_SUPABASE_URL is missing at build time.
+  // In that case user/session stay null and we still render children —
+  // but protected routes will redirect to /login.
+  const [supabase] = useState<SupabaseClient | null>(() => createBrowserClient());
   const router = useRouter();
 
   useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
+    if (!supabase) {
       setIsLoading(false);
+      return;
+    }
+    const getSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+      } catch {
+        // ignore — supabase init failed
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     getSession();
@@ -55,9 +66,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase]);
 
   const signOut = async () => {
+    if (!supabase) {
+      router.push('/login');
+      return;
+    }
     await supabase.auth.signOut();
     router.push('/login');
   };
