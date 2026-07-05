@@ -1,12 +1,12 @@
 /**
- * Outfit (服装) Prompt Preset
- * 输出：高级时装画册风 — 深色背景 + 隐形 ghost mannequin + 主体居中 + 背光勾勒
+ * Outfit () Prompt Preset
+ *    +  ghost mannequin +  + 
  *
- * 关键设计：服装作为主语前置（FLUX 对前 75 tokens 权重最高）。
+ * FLUX  75 tokens 
  */
 import { sanitizeBlurKeywords, joinParts, type AssembledPrompt, type PresetContext } from './shared';
 
-/** Outfit 视觉规范 — 拆解成结构化字段便于后续单点调整 */
+/** Outfit    */
 export const OUTFIT_DSL = {
   shotType: 'ultra-luxurious haute couture editorial product photography',
   composition:
@@ -33,10 +33,10 @@ export const OUTFIT_DSL = {
     'commercial product shot, masterpiece, Vogue editorial style',
 } as const;
 
-/** Outfit 默认主语（rawPrompt 为空时兜底） */
+/** Outfit rawPrompt  */
 export const OUTFIT_DEFAULT_SUBJECT = 'luxury high-fashion garment with exquisite craftsmanship';
 
-/** Outfit 负面词（强排除人体部位 + 多衣物 + 模糊） */
+/** Outfit  +  +  */
 export const OUTFIT_NEGATIVE =
   'person, people, human, woman, man, girl, boy, child, lady, female, male, model, real person, photoreal human, ' +
   'mannequin head, mannequin face, visible head, face, eyes, eyeballs, mouth, lips, nose, ears, hair, scalp, ' +
@@ -54,11 +54,11 @@ export function assembleOutfitPrompt(ctx: PresetContext): AssembledPrompt {
   const cleaned = sanitizeBlurKeywords(ctx.rawPrompt || '');
   const garmentSubject =
     cleaned && cleaned.trim().length > 0
-      ? cleaned.trim().replace(/[.,，。\s]+$/g, '')
+      ? cleaned.trim().replace(/[.,\s]+$/g, '')
       : OUTFIT_DEFAULT_SUBJECT;
 
   const positive = joinParts([
-    garmentSubject, // 主体前置
+    garmentSubject, // 
     OUTFIT_DSL.shotType,
     OUTFIT_DSL.composition,
     OUTFIT_DSL.mannequin,

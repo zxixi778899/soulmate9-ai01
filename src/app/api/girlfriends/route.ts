@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 兼容历史数据：image_url 优先取 portrait_url，回退到 avatar_url
+  // image_url  portrait_url avatar_url
   type Row = Record<string, unknown> & {
     portrait_url?: string | null;
     avatar_url?: string | null;
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 限流：防脚本批量创建女友
+  // 
   const rl = await checkRateLimitAsync(`gf-create:${user.id}`, CREATE_GF_LIMIT);
   if (!rl.allowed) {
     return NextResponse.json(
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
   }
 
-  // 写入侧：base64 data URL 上传到 OSS，存 key
+  // base64 data URL  OSS key
   const avatarKey = await ensureImageKey(avatar_url, 'girlfriends');
   const portraitKey = await ensureImageKey(portrait_url, 'girlfriends');
 
@@ -167,7 +167,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 });
   }
 
-  // 写入侧：base64 data URL 上传到 OSS，存 key
+  // base64 data URL  OSS key
   const updates: Record<string, unknown> = { ...rest };
   if (pAvatar !== undefined) updates.avatar_url = await ensureImageKey(pAvatar, 'girlfriends');
   if (pPortrait !== undefined) updates.portrait_url = await ensureImageKey(pPortrait, 'girlfriends');

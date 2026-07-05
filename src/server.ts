@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 
 // ============================================================
 // CRITICAL: Load .env.local BEFORE any framework module loads.
-// Static ES imports are hoisted — they execute BEFORE module code.
+// Static ES imports are hoisted  they execute BEFORE module code.
 // Dynamic import() breaks this hoisting, ensuring dotenv runs
 // before Next.js/Turbopack compiles any SDK-dependent module.
 // ============================================================

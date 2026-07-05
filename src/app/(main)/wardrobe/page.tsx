@@ -136,7 +136,7 @@ export default function WardrobePage() {
           <div>
             <h1 className="text-sm font-semibold">My Wardrobe</h1>
             <p className="text-xs text-[#8B8BA3] mt-0.5">
-              {loading ? '' : `${gifted.filter(i => i.is_equipped).length} equipped · ${gifted.length} gifted · ${ungifted.length} unworn`}
+              {loading ? '' : `${gifted.filter(i => i.is_equipped).length} equipped  ${gifted.length} gifted  ${ungifted.length} unworn`}
             </p>
           </div>
         </div>
@@ -164,12 +164,12 @@ export default function WardrobePage() {
             </div>
           ) : (
             <>
-              {/* Ungifted items — gift them to a girl */}
+              {/* Ungifted items  gift them to a girl */}
               {ungifted.length > 0 && (
                 <div className="mb-8">
                   <h2 className="text-xs font-semibold text-[#8B8BA3] uppercase tracking-wider mb-3 flex items-center gap-2">
                     <Gift className="h-3.5 w-3.5" />
-                    Unworn — gift to a companion
+                    Unworn  gift to a companion
                   </h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {ungifted.map((item) => (
@@ -239,7 +239,7 @@ export default function WardrobePage() {
                 </div>
               )}
 
-              {/* Gifted items — toggle equip/unequip */}
+              {/* Gifted items  toggle equip/unequip */}
               {gifted.length > 0 && (
                 <div>
                   <h2 className="text-xs font-semibold text-[#8B8BA3] uppercase tracking-wider mb-3 flex items-center gap-2">

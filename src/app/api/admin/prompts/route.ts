@@ -81,12 +81,12 @@ const DEFAULT_PRESETS: PromptPreset[] = [
   },
 ];
 
-// GET — list all presets
+// GET  list all presets
 export async function GET() {
   return NextResponse.json({ presets: loadPresets() });
 }
 
-// POST — add a new preset
+// POST  add a new preset
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin(req);
   if ('error' in guard && guard.error) return guard.error;
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ preset: newPreset });
 }
 
-// DELETE — remove a preset by id
+// DELETE  remove a preset by id
 export async function DELETE(req: NextRequest) {
   const guard = await requireAdmin(req);
   if ('error' in guard && guard.error) return guard.error;

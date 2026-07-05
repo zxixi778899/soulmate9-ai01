@@ -1,19 +1,19 @@
 /**
- * 生成结果缓存层（GPU 成本 -60%）
+ * GPU  -60%
  *
- * 工作原理：
- * 1. 调用 RunPod 之前算 `prompt_hash + params_hash`
- * 2. 查 `generation_cache` 表：命中 → 直接返回 OSS key
- * 3. 未命中 → 调 RunPod → 上传 OSS → 写缓存 → 返回
+ * 
+ * 1.  RunPod  `prompt_hash + params_hash`
+ * 2.  `generation_cache`    OSS key
+ * 3.    RunPod   OSS    
  *
- * TTL：
- * - 图片 24h（同一 prompt 复用常见）
- * - 视频 7d（生成成本高，缓存更久）
+ * TTL
+ * -  24h prompt 
+ * -  7d
  *
- * 注意：
- * - 这是 **服务端 API 路由** 才用得到的层
- * - 调用方必须已认证 + 已限流
- * - 不暴露给客户端
+ * 
+ * -  ** API ** 
+ * -  + 
+ * - 
  */
 
 import crypto from 'node:crypto';
@@ -44,7 +44,7 @@ const DEFAULT_TTL_HOURS: Record<CacheKind, number> = {
 };
 
 /**
- * 计算缓存 key（SHA256 of canonical params）
+ *  keySHA256 of canonical params
  */
 export function computeCacheKey(params: CacheRecordParams): string {
   const canonical = JSON.stringify({
@@ -61,7 +61,7 @@ export function computeCacheKey(params: CacheRecordParams): string {
 }
 
 /**
- * 查缓存（命中即返回 oss_key；否则返回 null）
+ *  oss_key null
  */
 export async function lookupCache(key: string, kind: CacheKind): Promise<string | null> {
   try {
@@ -75,7 +75,7 @@ export async function lookupCache(key: string, kind: CacheKind): Promise<string 
     if (error || !data) return null;
     if (new Date(data.expires_at) < new Date()) return null;
 
-    // 命中：异步更新 hit_count（不阻塞主流程）
+    //  hit_count
     void incrementHit(key);
 
     return data.oss_key;
@@ -86,7 +86,7 @@ export async function lookupCache(key: string, kind: CacheKind): Promise<string 
 }
 
 /**
- * 写入缓存（生成成功后调用）
+ * 
  */
 export async function writeCache(
   key: string,
@@ -116,12 +116,12 @@ async function incrementHit(key: string): Promise<void> {
   try {
     await getSupabaseClient().rpc('increment_cache_hit', { p_key: key });
   } catch {
-    // RPC 可能没建；忽略
+    // RPC 
   }
 }
 
 /**
- * 清理过期缓存（cron 调用，建议每天一次）
+ * cron 
  */
 export async function pruneExpiredCache(): Promise<number> {
   try {

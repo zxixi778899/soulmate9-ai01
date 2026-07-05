@@ -7,14 +7,14 @@ export const runtime = 'nodejs';
 /**
  * GET /api/admin/stats
  *
- * 返回 admin dashboard 所需的真实数据：
+ *  admin dashboard 
  *   - total_users, paid_users, today_active, today_revenue_cents
- *   - 营收 30 日趋势（按 membership_tier 三档）
- *   - 用户 7 日增长（new + retained）
- *   - 待办：pending_girlfriends / pending_cms_pages / open_tickets / failed_runpod
- *   - 近 5 笔订单
+ *   -  30  membership_tier 
+ *   -  7 new + retained
+ *   - pending_girlfriends / pending_cms_pages / open_tickets / failed_runpod
+ *   -  5 
  *
- * 故意把所有查询并行化，给前端一次返回；任何子查询失败不阻断其他指标。
+ * 
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const admin = await requireAdmin(req, 'reviewer');
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     0,
   );
 
-  // 30 日营收：单次拉全量，前端聚合
+  // 30 
   const revenue30d = await safeAny(
     supabase
       .from('orders')

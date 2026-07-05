@@ -1,10 +1,10 @@
 /**
- * Onboarding 状态管理 hook（DB-backed）
+ * Onboarding  hookDB-backed
  *
- * 替代之前的 localStorage 方案：
- * - 跨设备同步（同一 user 任意设备看到一致进度）
- * - 不会被缓存清除影响
- * - 可被服务端 cron 用于 funnel 分析
+ *  localStorage 
+ * -  user 
+ * - 
+ * -  cron  funnel 
  */
 
 'use client';
@@ -31,7 +31,7 @@ export function useOnboarding() {
   const [state, setState] = useState<OnboardingState | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 加载初始状态
+  // 
   useEffect(() => {
     let cancelled = false;
     authedFetch('/api/onboarding')
@@ -54,7 +54,7 @@ export function useOnboarding() {
     };
   }, []);
 
-  // 更新 step
+  //  step
   const setStep = useCallback(async (step: number) => {
     setState((s) => (s ? { ...s, current_step: step } : { ...DEFAULT_STATE, current_step: step }));
     try {
@@ -68,7 +68,7 @@ export function useOnboarding() {
     }
   }, []);
 
-  // 更新偏好
+  // 
   const setPreferences = useCallback(async (prefs: Record<string, unknown>) => {
     setState((s) => (s ? { ...s, preferences: { ...s.preferences, ...prefs } } : { ...DEFAULT_STATE, preferences: prefs }));
     try {
@@ -82,7 +82,7 @@ export function useOnboarding() {
     }
   }, []);
 
-  // 完成
+  // 
   const complete = useCallback(async () => {
     setState((s) => (s ? { ...s, completed: true } : { ...DEFAULT_STATE, completed: true }));
     try {
@@ -96,7 +96,7 @@ export function useOnboarding() {
     }
   }, []);
 
-  // 跳过
+  // 
   const skip = useCallback(async () => {
     setState((s) => (s ? { ...s, skipped: true, completed: true } : { ...DEFAULT_STATE, skipped: true, completed: true }));
     try {

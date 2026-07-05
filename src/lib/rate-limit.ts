@@ -1,11 +1,11 @@
 /**
- * 限流：Upstash Redis 优先 + 内存兜底
+ * Upstash Redis  + 
  *
- * 启用 Upstash 只需配置以下环境变量（任一即可）：
+ *  Upstash 
  *   - UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
- * 未配置时自动降级为单实例内存 Map，仅适合开发。
+ *  Map
  *
- * 接口保持向后兼容，调用方无需改动。
+ * 
  */
 import { logger } from './logger';
 
@@ -20,7 +20,7 @@ export interface RateLimitResult {
   resetInMs: number;
 }
 
-// ============= 内存实现（开发与兜底） =============
+// =============  =============
 
 interface MemoryEntry {
   count: number;
@@ -57,7 +57,7 @@ function memoryCheck(key: string, config: RateLimitConfig): RateLimitResult {
   return { allowed: true, remaining: config.maxRequests - entry.count, resetInMs: entry.resetAt - now };
 }
 
-// ============= Upstash Redis 实现 =============
+// ============= Upstash Redis  =============
 
 interface UpstashClient {
   evalScript(
@@ -67,7 +67,7 @@ interface UpstashClient {
   ): Promise<unknown>;
 }
 
-let upstashClient: UpstashClient | null | undefined; // undefined=未尝试 / null=不可用 / 对象=可用
+let upstashClient: UpstashClient | null | undefined; // undefined= / null= / =
 
 function getUpstash(): UpstashClient | null {
   if (upstashClient !== undefined) return upstashClient;
@@ -96,7 +96,7 @@ function getUpstash(): UpstashClient | null {
   return upstashClient;
 }
 
-// Lua：原子计数 + 首次写入设过期，返回 [count, { data: ttl_ms]
+// Lua +  [count, { data: ttl_ms]
 const RATE_LIMIT_LUA = `
 local key = KEYS[1]
 local limit = tonumber(ARGV[1])
@@ -132,11 +132,11 @@ async function upstashCheck(
   };
 }
 
-// ============= 对外 API =============
+// =============  API =============
 
 /**
- * 检查并消费一次限流配额。
- * - 优先使用 Upstash（异步），未配置时降级内存版（同步包成 Promise）。
+ * 
+ * -  Upstash Promise
  */
 export async function checkRateLimitAsync(
   key: string,
@@ -155,7 +155,7 @@ export async function checkRateLimitAsync(
 }
 
 /**
- * 同步版（仅走内存）。保留以兼容旧调用方。新代码请用 async 版。
+ *  async 
  */
 export function checkRateLimit(key: string, config: RateLimitConfig): RateLimitResult {
   return memoryCheck(key, config);
@@ -185,7 +185,7 @@ export function rateLimitMiddleware(
   };
 }
 
-// 预设配置
+// 
 export const RATE_LIMITS = {
   chat: { maxRequests: 60, windowMs: 60_000 }, // 60/min
   login: { maxRequests: 10, windowMs: 60_000 },

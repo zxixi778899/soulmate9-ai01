@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for image generation
 
 // ============================================================
-// v2 — FLUX 图片生成路由（欧美 AI 女友 · 高质量 · 暧昧诱惑风格）
+// v2  FLUX  AI     
 // ============================================================
 
 const COZE_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -20,12 +20,12 @@ if (!RUNPOD_API_KEY || !RUNPOD_ENDPOINT_ID) {
 }
 const RUNPOD_BASE_URL = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}`;
 
-// FLUX GPU 烧钱：限制 30 次/小时/admin
+// FLUX GPU  30 //admin
 const FLUX_GEN_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
 
-// ── FLUX 提示词构建器 ─────────────────────────────────────
-// 核心表达：美女 · 女友 · 性感 · 真实 · 自然
-// FLUX 对自然语言理解优于关键词堆砌
+//  FLUX  
+//         
+// FLUX 
 
 const QUALITY_DIRECTION = "ultra photorealistic, shot on Canon EOS R5 with 85mm f/1.4 lens, shallow depth of field, creamy bokeh, magazine cover quality, 8K UHD, visible natural skin texture, natural skin pores and subtle imperfections, no plastic smoothing, no AI artifacts, hyperrealistic photograph, natural film grain";
 
@@ -34,7 +34,7 @@ const BEAUTY_DIRECTION = "stunningly beautiful gorgeous young woman, sexy attrac
 const MOOD_DIRECTION = "warm vibrant colors, bright and inviting atmosphere, intimate genuine moment, girlfriend-next-door vibe, approachable beauty, natural genuine emotion, alive and dynamic, soft warm tones, romantic tender quality";
 
 const EXPRESSION_POOL = [
-  // 基于参考图片的自然表情
+  // 
   'soft warm genuine smile showing teeth, eyes sparkling with natural catchlights, looking directly at viewer',
   'lips slightly parted, soft contemplative gaze, eyes half-lidded, looking at viewer with quiet confidence',
   'playful smirk, one corner of mouth lifted, mischievous glint in eyes, natural asymmetry',
@@ -54,12 +54,12 @@ const EXPRESSION_POOL = [
 
 /**
  * Build FLUX-optimized prompt
- * 核心：简洁、聚焦、高质量
+ * 
  */
 function buildFluxPrompt(characterDesc: string): string {
   let desc = characterDesc.trim();
 
-  // FLUX模型对长提示词效果差，限制在800字符以内
+  // FLUX800
   if (desc.length > 800) {
     desc = desc.substring(0, 800);
     const lastPeriod = desc.lastIndexOf('.');
@@ -68,16 +68,16 @@ function buildFluxPrompt(characterDesc: string): string {
     }
   }
 
-  // 随机选择表情
+  // 
   const randomExpression = EXPRESSION_POOL[Math.floor(Math.random() * EXPRESSION_POOL.length)];
   
-  // 简洁的提示词结构：质量 + 主体 + 表情
+  //  +  + 
   return `masterpiece, best quality, ultra photorealistic, 8k, sharp focus. ${desc} ${randomExpression}.`;
 }
 
 /**
  * Build a heart-fluttering prompt from girlfriend data
- * This is the core logic: extract characteristics → build personalized prompt
+ * This is the core logic: extract characteristics  build personalized prompt
  * Structure: [Quality] + [Full Body + Appearance] + [Action/Pose] + [Scene] + [Mood]
  * 
  * Data extraction priority:
@@ -97,7 +97,7 @@ function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<st
     ? card.appearance as Record<string, string>
     : {} as Record<string, string>;
 
-  // Extract characteristics — top-level first, then character_card fallback
+  // Extract characteristics  top-level first, then character_card fallback
   const name = (gf.name as string) || (card.title as string) || 'a beautiful woman';
   const race = (gf.appearance_race as string) || cardAppearance.race || '';
   const hair = (gf.appearance_hair as string) || cardAppearance.hair_style || '';
@@ -108,32 +108,32 @@ function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<st
   const personality = (gf.personality as string) || (card.personality as string) || '';
   const occupation = (card.occupation as string) || '';
 
-  // Role — from character_card.role (English) or character_card.role_label (Chinese)
+  // Role  from character_card.role (English) or character_card.role_label (Chinese)
   const roleEn = (card.role as string) || '';
   const roleLabel = (card.role_label as string) || '';
 
   logger.debug('Prompt Builder', { name, race, hair, hairColor, eyes, body, roleEn, roleLabel, occupation, personality, style });
 
-  // ── Random pools for diverse generation — 基于参考图片的自然姿势 ──
-  // 核心：不对称、放松、自然S曲线、亲密感
+  //  Random pools for diverse generation   
+  // S
   const posePool = [
-    // 参考图1: 跪坐沙发旁，手托脸颊
+    // 1: 
     'kneeling on wooden floor, leaning forward with elbows resting on sofa arm, head tilted and resting on fist, relaxed asymmetrical pose, soft natural body curve',
-    // 参考图2: 靠窗拉伸，双手举过头顶
+    // 2: 
     'standing leaning back against window frame, arms raised overhead in loose stretch, one hand resting on back of head, weight on back leg, front leg bent, casual relaxed pose',
-    // 参考图3: 站立三分身，手放在内衣边缘
+    // 3: 
     'standing in relaxed three-quarter pose, weight shifted to one hip, natural S-curve in torso, hands resting lightly on bra edge, fingers slightly curled, confident inviting stance',
-    // 参考图4: 盘腿坐在镜面房间
+    // 4: 
     'sitting cross-legged on reflective floor, torso leaning back slightly, one hand resting on floor behind, other hand lifted to face with fingers touching lower lip, thoughtful pensive pose',
-    // 参考图5: 跪姿，双手拉起衣服下摆
+    // 5: 
     'kneeling with knees spread, hips slightly forward, torso upright with slight back arch, hands gripping bottom of top pulling it upward, confident direct gaze at viewer',
-    // 参考图6: 海滩自拍角度
+    // 6: 
     'casual selfie angle, one arm extended forward holding camera, upper body turned slightly, head tilted toward shoulder, relaxed asymmetrical pose, wind-tousled hair',
-    // 参考图7: 坐在椅子上，肩带滑落
+    // 7: 
     'seated in wooden chair, leaning slightly forward toward camera, head tilted gently to one side, one shoulder strap slipped down arm, relaxed unposed posture, introspective downward gaze',
-    // 参考图8: 坐在沙发上，手放在大腿上
+    // 8: 
     'seated cross-legged on soft sofa, knees bent wide, torso slightly angled toward camera with gentle backward lean, hands resting loosely on thighs, relaxed casual slouch',
-    // 更多自然姿势
+    // 
     'sitting on windowsill, legs dangling, chin resting on one hand, gazing at viewer with soft inviting eyes, warm natural light on face',
     'leaning against doorframe, one hand on frame above head, looking back over shoulder with coy smile, hair cascading down',
     'walking toward camera mid-stride, hair flowing with movement, caught in candid moment, natural smile, arms relaxed at sides',
@@ -158,22 +158,22 @@ function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<st
     'standing with one hand touching hair, slight head tilt, lips parted, eyes locked on viewer, natural catchlights',
   ];
 
-  // ── 光线池 — 基于参考图片的温暖自然光 ──
-  // 核心：柔和、温暖、方向性、自然渐变
+  //     
+  // 
   const lightingPool = [
-    // 参考图1/7/8: 柔和窗户侧光
+    // 1/7/8: 
     'soft natural window light streaming from side, warm golden highlights on skin, gentle diffused shadows, radiant glowing complexion, creamy bokeh background',
-    // 参考图2: 明亮窗户光+轻微镜头光晕
+    // 2: +
     'bright natural daylight from large window, soft diffused quality, subtle lens flare, warm skin tones, natural catchlights in eyes, gentle shadow gradients',
-    // 参考图3: 柔和明亮室内光
+    // 3: 
     'soft bright diffused indoor lighting, warm even illumination, no harsh shadows, skin glowing naturally, vibrant warm colors, magazine quality light',
-    // 参考图4: 顶部暖光+环境霓虹反射
+    // 4: +
     'warm overhead key light creating soft shadows under chin and neck, ambient colored reflections adding depth, skin luminous and warm, dramatic but flattering',
-    // 参考图5: 双色戏剧性光线
+    // 5: 
     'dual-color dramatic lighting, warm pink-red light on one side blending with cool blue-purple on other, soft gradients across skin, sensual moody atmosphere',
-    // 参考图6: 明亮海滩阳光
+    // 6: 
     'bright natural overhead sunlight, warm golden quality, sun-kissed skin with natural highlights on collarbones and shoulders, vibrant turquoise water reflections, summer energy',
-    // 更多温暖自然光线
+    // 
     'golden hour sunlight through large windows, warm amber glow on skin, vibrant colors, soft shadow gradients, radiant ethereal quality',
     'warm sunset light casting golden-orange tones, romantic glow, skin luminous and radiant, hair catching light with warm highlights',
     'bright morning sunlight, fresh energetic vibe, clear vibrant colors, dewy fresh skin, natural window light quality',
@@ -190,8 +190,8 @@ function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<st
     'warm tropical sunlight with palm tree shadow patterns, vibrant vacation vibes, sun-kissed glowing skin, paradise atmosphere',
   ];
 
-  // ── 场景池 — 简洁聚焦的场景描述 ──
-  // 核心：简短、清晰、不堆砌细节
+  //     
+  // 
   const scenePool = [
     'warm sunlit living room with wooden floor and white sofa',
     'bright cozy bedroom with large window and natural light',
@@ -219,14 +219,14 @@ function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<st
   const useMetadata = metadata?.appearance && metadata.appearance.trim().length > 100;
   const metadataAppearance = useMetadata ? metadata!.appearance : null;
 
-  // ── Build subject identification — only race/hair/eyes ──
+  //  Build subject identification  only race/hair/eyes 
   const subjectParts: string[] = ['Full body portrait of a stunningly beautiful gorgeous young woman'];
   
   if (race) subjectParts.push(`${race} ethnicity`);
   if (hair || hairColor) subjectParts.push(`with beautiful ${[hairColor, hair].filter(Boolean).join(' ')} hair`);
   if (eyes) subjectParts.push(`gorgeous ${eyes} eyes`);
 
-  // ── SIMPLIFIED PROMPT STRUCTURE ──
+  //  SIMPLIFIED PROMPT STRUCTURE 
   // When metadata is available, use it as the ONLY source for visual description
   // This ensures each girlfriend's unique scene/lighting/pose/clothing is used
   
@@ -234,7 +234,7 @@ function buildGirlfriendPrompt(gf: Record<string, unknown>, metadata?: Record<st
   if (useMetadata && metadataAppearance) {
     // SIMPLIFIED: Just subject + metadata appearance
     // The metadata appearance already contains: scene, lighting, pose, clothing, mood
-    // 关键：先把 LLM 可能注入的模糊关键词洗掉
+    //  LLM 
     const cleanedAppearance = sanitizeBlurKeywords(metadataAppearance);
     fullPrompt = [
       GIRLFRIEND_QUALITY_PREFIX,
@@ -393,10 +393,10 @@ function buildSimplePrompt(gf: Record<string, unknown>): string {
 
 const NEGATIVE_PROMPT = `blurry, blur, blurred, soft focus, out of focus, defocused, hazy, dreamy haze, smudged, motion blur, depth of field, shallow depth of field, bokeh, gaussian blur, lens blur, oof, low quality, worst quality, lowres, pixelated, deformed, bad anatomy, bad hands, extra fingers, ugly, watermark, text, jpeg artifacts, compression artifacts, grainy, noisy, cartoon, anime, illustration, cgi, 3d render, painting, sketch, low resolution, downscaled, jpg, jpeg`;
 
-// ─── Blur-inducing keyword sanitizer ─────────────────────────────
-// LLM 生成的 appearance/scene 文本可能包含让 FLUX 输出模糊的关键词
-// 比如 "soft focus", "dreamy", "ethereal", "bokeh background"
-// 必须在拼到最终 prompt 前过滤掉
+//  Blur-inducing keyword sanitizer 
+// LLM  appearance/scene  FLUX 
+//  "soft focus", "dreamy", "ethereal", "bokeh background"
+//  prompt 
 const BLUR_KEYWORDS = [
   'soft focus', 'soft-focus', 'out of focus', 'out-of-focus', 'defocused',
   'blurry', 'blurred', 'blur background', 'blurred background',
@@ -407,10 +407,10 @@ const BLUR_KEYWORDS = [
   'low resolution', 'lowres', 'pixelated', 'low detail',
 ];
 
-// 否定指令在 positive prompt 中会让扩散模型把"被否定的概念"画出来
-// 例: "no person" 在 positive 里反而强化 person 概念
-// 整段 "no person, no model, no mannequin" 会让模型完全失焦渲成全黑
-// 这些短语必须在送入生成器前从 positive prompt 中物理清除
+//  positive prompt ""
+// : "no person"  positive  person 
+//  "no person, no model, no mannequin" 
+//  positive prompt 
 const NEGATION_PHRASES = [
   'no person', 'no people', 'no human', 'no humans', 'no woman', 'no man',
   'no model', 'no models', 'no mannequin', 'no mannequins',
@@ -427,12 +427,12 @@ function sanitizeBlurKeywords(text: string): string {
     const re = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\b`, 'gi');
     cleaned = cleaned.replace(re, '');
   }
-  // 清理多余逗号空格
+  // 
   cleaned = cleaned.replace(/\s*,\s*,+/g, ', ').replace(/^[\s,]+|[\s,]+$/g, '').replace(/\s+/g, ' ');
   return cleaned;
 }
 
-// ─── 通用高质量提示词前缀 ─────────────────────────────────────
+//   
 const GIRLFRIEND_QUALITY_PREFIX = 'RAW photo, masterpiece, best quality, ultra-high resolution, 4K, 8K UHD, super resolution, highly detailed, ultra photorealistic, photorealism, hyperrealistic, dslr, sharp focus, tack sharp, in-focus, crisp details, detailed eyes, detailed face, detailed skin texture, natural skin pores, professional photography, shot on Canon EOS R5, 85mm f/1.4 lens, soft cinematic lighting';
 
 interface GenParams {
@@ -493,7 +493,7 @@ function buildWorkflow(prompt: string, negativePrompt: string, params: GenParams
         batch_size: 1,
       },
     },
-    // 5. KSampler — FLUX fp8 optimal settings
+    // 5. KSampler  FLUX fp8 optimal settings
     '5': {
       class_type: 'KSampler',
       inputs: {
@@ -583,10 +583,10 @@ async function uploadToStorage(base64Data: string, folder: string): Promise<stri
   return key;
 }
 
-// ── 请求入口 ──────────────────────────────────────
+//   
 export async function POST(req: NextRequest) {
-  // 修复：原 verifyAuth 仅校验 token 存在，任何登录用户都能调用并烧 RunPod GPU。
-  // 改用 requireAdmin + 限流双层防护。
+  //  verifyAuth  token  RunPod GPU
+  //  requireAdmin + 
   const guard = await requireAdmin(req);
   if (guard.error) return guard.error;
 
@@ -625,7 +625,7 @@ export async function POST(req: NextRequest) {
   if (girlfriendId) {
     try {
       logger.info('generate-from-meta: fetching girlfriend data', { girlfriendId });
-      // 外层 requireAdmin 已通过守卫，直接用 service_role supabase 查询
+      //  requireAdmin  service_role supabase 
       const { data, error } = await guard.supabase
         .from('girlfriends')
         .select('*')
@@ -654,10 +654,10 @@ export async function POST(req: NextRequest) {
     rawPrompt = (body.customPrompt as string) || (metadata?.appearance) || (body.concept as string) || '';
   }
 
-  // ─── 类型相关的提示词与负面词增强 ────────────────────
-  // 服装库/道具库使用独立的视觉规范（产品摄影 / ghost mannequin，不含人物）
+  //   
+  // / / ghost mannequin
   let finalNegativePrompt = negativePrompt;
-  // 先把 LLM 生成的 appearance 中的模糊关键词洗掉
+  //  LLM  appearance 
   rawPrompt = sanitizeBlurKeywords(rawPrompt);
 
   if (type === 'outfit') {

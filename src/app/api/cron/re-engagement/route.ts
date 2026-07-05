@@ -1,9 +1,9 @@
 /**
- * Cron: 主动召回（流失用户）
- * - 流失 > 7 天：发邮件（仅订阅用户）/ Web Push
- * - 流失 > 14 天：发更强烈的召回邮件 + 限时优惠
- * 调用方：Vercel Cron / 外部 cron（每天 14:00 UTC）
- * 鉴权：CRON_SECRET header
+ * Cron: 
+ * -  > 7 / Web Push
+ * -  > 14  + 
+ * Vercel Cron /  cron 14:00 UTC
+ * CRON_SECRET header
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
   let failed = 0;
 
   try {
-    // 7 日 / 14 日流失用户：找 chat_messages 最近一条超过阈值
-    // 简化：直接拉所有有过消息的 user，按 max(created_at) 分组
+    // 7  / 14  chat_messages 
+    //  user max(created_at) 
     const { data: users } = await supabase
       .from('chat_messages')
       .select('user_id, girlfriend_id, content, created_at')
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, sent: 0, skipped: 0 });
     }
 
-    // 按 user_id 聚合最近消息
+    //  user_id 
     const userMap = new Map<string, { last_msg: string; last_at: string; girlfriend_id: string }>();
     for (const m of users) {
       if (!userMap.has(m.user_id)) {
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
       const lastAt = new Date(info.last_at).getTime();
       const daysSince = (now - lastAt) / DAY7;
 
-      // 去重：同一用户 7 天内只召回一次
+      //  7 
       const dedupeKey = `recall_7d_${userId}`;
       const { data: existing } = await supabase
         .from('user_meta')
@@ -77,11 +77,11 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // 仅在 7-14 天或 14 天以上区间召回
+      //  7-14  14 
       if (daysSince < 1) continue;
       const isAggressive = daysSince >= 2;
 
-      // 拿到女友名 + 邮箱
+      //  + 
       const [{ data: gf }, { data: profile }, { data: subs }] = await Promise.all([
         supabase.from('girlfriends').select('name').eq('id', info.girlfriend_id).single(),
         supabase.from('profiles').select('email').eq('user_id', userId).single(),
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
       const lastMessagePreview = (info.last_msg || '').slice(0, 120);
       const ctaUrl = `${appUrl}/chat/${info.girlfriend_id}`;
 
-      // 1) 邮件（仅订阅用户）
+      // 1) 
       if (subs && profile.email) {
         const result = await sendReEngagementEmail({
           to: profile.email,
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
         else failed++;
       }
 
-      // 2) Web Push（所有流失用户）
+      // 2) Web Push
       if (pushEnabled) {
         const { data: pushSubs } = await supabase
           .from('push_subscriptions')
@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
               keys: { p256dh: ps.p256dh, auth: ps.auth },
             },
             {
-              title: isAggressive ? `${girlfriendName} really misses you 💕` : `${girlfriendName} is waiting`,
+              title: isAggressive ? `${girlfriendName} really misses you ` : `${girlfriendName} is waiting`,
               body: isAggressive
                 ? `Come back for a limited-time bonus. Pick up where you left off.`
                 : `Continue your conversation. ${lastMessagePreview ? `Last: "${lastMessagePreview.slice(0, 60)}..."` : ''}`,
@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // 标记已召回
+      // 
       await supabase.from('user_meta').upsert({
         user_id: userId,
         key: dedupeKey,

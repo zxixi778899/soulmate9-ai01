@@ -11,16 +11,16 @@ const OUTFIT_IMAGES: Record<string, string> = {
 };
 
 const FALLBACK_OUTFITS = [
-  { id: "casual-elegance", name: "Casual Elegance", emoji: "👚", description: "A sophisticated casual look with a fitted blazer and silk camisole", price_cents: 0, tier: "free", category: "everyday", intimacy_boost: 1, preview_url: OUTFIT_IMAGES["casual-elegance"] },
-  { id: "evening-gown", name: "Evening Gown", emoji: "👗", description: "A stunning floor-length gown perfect for romantic dinners", price_cents: 0, tier: "free", category: "formal", intimacy_boost: 2, preview_url: OUTFIT_IMAGES["evening-gown"] },
-  { id: "silk-lingerie", name: "Silk Lingerie", emoji: "💋", description: "Delicate silk lingerie set for intimate moments", price_cents: 0, tier: "free", category: "intimate", intimacy_boost: 3, preview_url: OUTFIT_IMAGES["silk-lingerie"] },
-  { id: "bunny-suit", name: "Bunny Suit", emoji: "🐰", description: "Playful and bold - a classic bunny costume", price_cents: 499, tier: "premium", category: "costume", intimacy_boost: 5, preview_url: OUTFIT_IMAGES["bunny-suit"] },
-  { id: "royal-corset", name: "Royal Corset", emoji: "👑", description: "An elegant Victorian-inspired corset dress", price_cents: 799, tier: "premium", category: "formal", intimacy_boost: 4, preview_url: OUTFIT_IMAGES["royal-corset"] },
-  { id: "fantasy-dream", name: "Fantasy Dream", emoji: "✨", description: "An ethereal fantasy ensemble with flowing fabrics", price_cents: 1299, tier: "unlimited", category: "fantasy", intimacy_boost: 7, preview_url: OUTFIT_IMAGES["fantasy-dream"] },
-  { id: "summer-breeze", name: "Summer Breeze", emoji: "🌺", description: "Light and airy sundress perfect for warm days", price_cents: 0, tier: "free", category: "everyday", intimacy_boost: 1, preview_url: null },
-  { id: "leather-lace", name: "Leather & Lace", emoji: "🖤", description: "Edgy leather jacket over delicate lace", price_cents: 599, tier: "premium", category: "edgy", intimacy_boost: 4, preview_url: null },
-  { id: "kimono-night", name: "Kimono Night", emoji: "🎎", description: "Traditional silk kimono with modern elegance", price_cents: 999, tier: "unlimited", category: "formal", intimacy_boost: 5, preview_url: null },
-  { id: "sporty-spice", name: "Sporty Spice", emoji: "🏋️", description: "Athletic wear that shows off your active side", price_cents: 0, tier: "free", category: "everyday", intimacy_boost: 1, preview_url: null },
+  { id: "casual-elegance", name: "Casual Elegance", emoji: "", description: "A sophisticated casual look with a fitted blazer and silk camisole", price_cents: 0, tier: "free", category: "everyday", intimacy_boost: 1, preview_url: OUTFIT_IMAGES["casual-elegance"] },
+  { id: "evening-gown", name: "Evening Gown", emoji: "", description: "A stunning floor-length gown perfect for romantic dinners", price_cents: 0, tier: "free", category: "formal", intimacy_boost: 2, preview_url: OUTFIT_IMAGES["evening-gown"] },
+  { id: "silk-lingerie", name: "Silk Lingerie", emoji: "", description: "Delicate silk lingerie set for intimate moments", price_cents: 0, tier: "free", category: "intimate", intimacy_boost: 3, preview_url: OUTFIT_IMAGES["silk-lingerie"] },
+  { id: "bunny-suit", name: "Bunny Suit", emoji: "", description: "Playful and bold - a classic bunny costume", price_cents: 499, tier: "premium", category: "costume", intimacy_boost: 5, preview_url: OUTFIT_IMAGES["bunny-suit"] },
+  { id: "royal-corset", name: "Royal Corset", emoji: "", description: "An elegant Victorian-inspired corset dress", price_cents: 799, tier: "premium", category: "formal", intimacy_boost: 4, preview_url: OUTFIT_IMAGES["royal-corset"] },
+  { id: "fantasy-dream", name: "Fantasy Dream", emoji: "", description: "An ethereal fantasy ensemble with flowing fabrics", price_cents: 1299, tier: "unlimited", category: "fantasy", intimacy_boost: 7, preview_url: OUTFIT_IMAGES["fantasy-dream"] },
+  { id: "summer-breeze", name: "Summer Breeze", emoji: "", description: "Light and airy sundress perfect for warm days", price_cents: 0, tier: "free", category: "everyday", intimacy_boost: 1, preview_url: null },
+  { id: "leather-lace", name: "Leather & Lace", emoji: "", description: "Edgy leather jacket over delicate lace", price_cents: 599, tier: "premium", category: "edgy", intimacy_boost: 4, preview_url: null },
+  { id: "kimono-night", name: "Kimono Night", emoji: "", description: "Traditional silk kimono with modern elegance", price_cents: 999, tier: "unlimited", category: "formal", intimacy_boost: 5, preview_url: null },
+  { id: "sporty-spice", name: "Sporty Spice", emoji: "", description: "Athletic wear that shows off your active side", price_cents: 0, tier: "free", category: "everyday", intimacy_boost: 1, preview_url: null },
 ];
 
 export async function GET(request: Request) {

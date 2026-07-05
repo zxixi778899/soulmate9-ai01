@@ -2,11 +2,11 @@ export type Locale = 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr' | 'de';
 
 export const LOCALES: { code: Locale; label: string; nativeLabel: string }[] = [
   { code: 'en', label: 'English', nativeLabel: 'English' },
-  { code: 'zh', label: 'Chinese', nativeLabel: '中文' },
-  { code: 'ja', label: 'Japanese', nativeLabel: '日本語' },
-  { code: 'ko', label: 'Korean', nativeLabel: '한국어' },
-  { code: 'es', label: 'Spanish', nativeLabel: 'Español' },
-  { code: 'fr', label: 'French', nativeLabel: 'Français' },
+  { code: 'zh', label: 'Chinese', nativeLabel: '' },
+  { code: 'ja', label: 'Japanese', nativeLabel: '' },
+  { code: 'ko', label: 'Korean', nativeLabel: '' },
+  { code: 'es', label: 'Spanish', nativeLabel: 'Espaol' },
+  { code: 'fr', label: 'French', nativeLabel: 'Franais' },
   { code: 'de', label: 'German', nativeLabel: 'Deutsch' },
 ];
 

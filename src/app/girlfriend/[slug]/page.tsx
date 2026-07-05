@@ -1,7 +1,7 @@
-// /girlfriend/[slug] — 公开营销页（SSR + ISR 1h）
-// - 顶层 server component：DB 直查 + 签名 URL 解析，避免客户端 waterfall
-// - revalidate = 3600：Next.js CDN 边缘缓存，流量越大越省
-// - 交互（Add/Chat/Share）拆到 GirlfriendActions 客户端子组件
+// /girlfriend/[slug]  SSR + ISR 1h
+// -  server componentDB  +  URL  waterfall
+// - revalidate = 3600Next.js CDN 
+// - Add/Chat/Share GirlfriendActions 
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
@@ -9,14 +9,14 @@ import { resolveImageUrl } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 import { GirlfriendView } from '@/components/girlfriend-public/GirlfriendView';
 
-// 公开页：每 1h 重新生成，签名 URL 30 天内可重复利用。
+//  1h  URL 30 
 export const revalidate = 3600;
 export const dynamicParams = true;
 
 /**
- * 预渲染头部公开角色，让 Railway cold start 第一字节延迟 < 1s。
- * 仅取前 8 个（人气角色）；剩余的客户端 ISR 按需生成。
- * 失败时静默回退到全 ISR。
+ *  Railway cold start  < 1s
+ *  8  ISR 
+ *  ISR
  */
 export async function generateStaticParams() {
   try {
@@ -79,7 +79,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!gf) return { title: 'Companion not found' };
   const desc = gf.short_description || `Meet ${gf.name}, your AI companion`;
   return {
-    title: `${gf.name}, ${gf.age} — AI Companion`,
+    title: `${gf.name}, ${gf.age}  AI Companion`,
     description: desc,
     openGraph: {
       title: gf.name,
@@ -97,7 +97,7 @@ export default async function PublicGirlfriendPage({
 }) {
   const { slug } = await params;
 
-  // 并行：拿 girlfriend + 备用（公开女友经常被多个 slug 引用，hover 失败就走 404）
+  //  girlfriend +  slug hover  404
   const gf = await getPublicGirlfriend(slug);
   if (!gf) notFound();
 

@@ -7,7 +7,7 @@ import { logger } from '@/lib/logger';
 /**
  * POST /api/stripe/change-plan
  *
- * 切换订阅档位（Pro <-> Unlimited）。使用 proration 自动按时间差结算差价。
+ * Pro <-> Unlimited proration 
  * Body: { plan: 'pro' | 'unlimited' }
  */
 export async function POST(req: NextRequest) {
@@ -59,13 +59,13 @@ export async function POST(req: NextRequest) {
       metadata: { user_id: user.id, plan },
     });
 
-    // 由 webhook 触发权益同步；这里同步乐观写以便前端立刻刷新
+    //  webhook 
     await supabase
       .from('profiles')
       .update({ membership_tier: plan })
       .eq('user_id', user.id);
 
-    // Stripe v2025: current_period_end 在 items.data[0]
+    // Stripe v2025: current_period_end  items.data[0]
     const updatedAny = updated as unknown as {
       items?: { data?: Array<{ current_period_end?: number }> };
     };

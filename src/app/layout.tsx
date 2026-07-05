@@ -10,7 +10,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from '@/lib/constants';
 import './globals.css';
 
-// Force all routes dynamic at build time — prevents prerender from triggering Supabase client init
+// Force all routes dynamic at build time  prevents prerender from triggering Supabase client init
 // (build env doesn't have env vars, runtime does)
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +25,8 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: `${APP_NAME} — Your AI Companion`,
-    template: `%s — ${APP_NAME}`,
+    default: `${APP_NAME}  Your AI Companion`,
+    template: `%s  ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
   keywords: [
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: `${APP_NAME} — Your AI Companion`,
+    title: `${APP_NAME}  Your AI Companion`,
     description: APP_DESCRIPTION,
     siteName: APP_NAME,
     url: APP_URL,
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${APP_NAME} — Your AI Companion`,
+    title: `${APP_NAME}  Your AI Companion`,
     description: APP_DESCRIPTION,
   },
   robots: {
@@ -77,7 +77,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className="antialiased relative font-sans">
-        {/* Starry night background — global, behind all content */}
+        {/* Starry night background  global, behind all content */}
         <div className="starry-bg" aria-hidden="true">
           <div className="stars-sm" />
           <div className="stars-md" />

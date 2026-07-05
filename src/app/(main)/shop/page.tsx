@@ -38,14 +38,14 @@ type CreditsInfo = {
 };
 
 const SHOP_ITEMS: ShopItem[] = [
-  { id: 'rose-bouquet', name: 'Rose Bouquet', emoji: '🌹', description: 'A dozen red roses that will warm her heart', price_cents: 150, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 15 }, tier: 'free' },
-  { id: 'chocolate-box', name: 'Chocolate Box', emoji: '🍫', description: 'Luxury chocolates for a sweet surprise', price_cents: 300, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 30 }, tier: 'free' },
-  { id: 'teddy-bear', name: 'Teddy Bear', emoji: '🧸', description: 'A giant teddy bear for cuddles', price_cents: 500, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 50 }, tier: 'free' },
-  { id: 'perfume-bottle', name: 'Designer Perfume', emoji: '🌸', description: 'A designer scent she will adore', price_cents: 800, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 80 }, tier: 'premium' },
-  { id: 'lingerie-set', name: 'Silk Lingerie Set', emoji: '💋', description: 'Delicate lingerie for intimate moments', price_cents: 1200, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 150 }, tier: 'premium' },
-  { id: 'double-intimacy', name: 'Double Intimacy Boost', emoji: '⚡', description: 'Double intimacy gains for 24 hours', price_cents: 600, item_type: 'cap_unlock', effect_value: { effect_type: 'double_intimacy', duration_hours: 24 }, tier: 'free' },
-  { id: 'unlimited-msg', name: 'Unlimited Messages', emoji: '💬', description: 'No message limits for 48 hours', price_cents: 1000, item_type: 'cap_unlock', effect_value: { effect_type: 'unlimited_messages', duration_hours: 48 }, tier: 'premium' },
-  { id: 'valentine-special', name: "Valentine's Special Box", emoji: '💝', description: 'Exclusive box with 300 intimacy boost', price_cents: 2000, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 300 }, tier: 'premium', is_limited: true },
+  { id: 'rose-bouquet', name: 'Rose Bouquet', emoji: '', description: 'A dozen red roses that will warm her heart', price_cents: 150, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 15 }, tier: 'free' },
+  { id: 'chocolate-box', name: 'Chocolate Box', emoji: '', description: 'Luxury chocolates for a sweet surprise', price_cents: 300, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 30 }, tier: 'free' },
+  { id: 'teddy-bear', name: 'Teddy Bear', emoji: '', description: 'A giant teddy bear for cuddles', price_cents: 500, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 50 }, tier: 'free' },
+  { id: 'perfume-bottle', name: 'Designer Perfume', emoji: '', description: 'A designer scent she will adore', price_cents: 800, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 80 }, tier: 'premium' },
+  { id: 'lingerie-set', name: 'Silk Lingerie Set', emoji: '', description: 'Delicate lingerie for intimate moments', price_cents: 1200, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 150 }, tier: 'premium' },
+  { id: 'double-intimacy', name: 'Double Intimacy Boost', emoji: '', description: 'Double intimacy gains for 24 hours', price_cents: 600, item_type: 'cap_unlock', effect_value: { effect_type: 'double_intimacy', duration_hours: 24 }, tier: 'free' },
+  { id: 'unlimited-msg', name: 'Unlimited Messages', emoji: '', description: 'No message limits for 48 hours', price_cents: 1000, item_type: 'cap_unlock', effect_value: { effect_type: 'unlimited_messages', duration_hours: 48 }, tier: 'premium' },
+  { id: 'valentine-special', name: "Valentine's Special Box", emoji: '', description: 'Exclusive box with 300 intimacy boost', price_cents: 2000, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 300 }, tier: 'premium', is_limited: true },
 ];
 
 const getCategory = (item: ShopItem): string => {

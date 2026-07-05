@@ -1,6 +1,6 @@
 /**
- * Cron: 清理过期 generation_cache（每天 03:00 UTC）
- * 鉴权：CRON_SECRET header
+ * Cron:  generation_cache 03:00 UTC
+ * CRON_SECRET header
  */
 
 import { NextRequest, NextResponse } from 'next/server';

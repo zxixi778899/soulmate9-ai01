@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for batch generation
 
 // ============================================================
-// v2 — 完全自包含的批量生成路由（SSE 流式输出）
+// v2  SSE 
 // ============================================================
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || '';
@@ -54,7 +54,7 @@ async function callLLM(messages: { role: string; content: string }[]): Promise<s
   return fullContent.trim();
 }
 
-// ── 核心提示词常量 — 强调美女/女友/性感 ──
+//    // 
 const QUALITY_DIRECTION = "ultra photorealistic, shot on Canon EOS R5 with 85mm f/1.4 lens, shallow depth of field, creamy bokeh, magazine cover quality, 8K UHD, visible natural skin texture, natural skin pores and subtle imperfections, no plastic smoothing, no AI artifacts, hyperrealistic photograph, natural film grain";
 
 const BEAUTY_DIRECTION = "stunningly beautiful gorgeous young woman, sexy attractive alluring, perfect figure, flawless glowing skin, magazine model quality, Instagram influencer aesthetic, captivating natural beauty, warm radiant complexion";
@@ -62,7 +62,7 @@ const BEAUTY_DIRECTION = "stunningly beautiful gorgeous young woman, sexy attrac
 const MOOD_DIRECTION = "warm vibrant colors, bright and inviting atmosphere, intimate genuine moment, girlfriend-next-door vibe, approachable beauty, natural genuine emotion, alive and dynamic, soft warm tones, romantic tender quality";
 
 const EXPRESSION_POOL = [
-  // 基于参考图片的自然表情
+  // 
   'soft warm genuine smile showing teeth, eyes sparkling with natural catchlights, looking directly at viewer',
   'lips slightly parted, soft contemplative gaze, eyes half-lidded, looking at viewer with quiet confidence',
   'playful smirk, one corner of mouth lifted, mischievous glint in eyes, natural asymmetry',
@@ -95,26 +95,26 @@ function genPrompt(gf: Record<string, unknown>): string {
   const body = (gf.appearance_body as string) || cardAppearance.body || '';
   const style = (gf.appearance_style as string) || cardAppearance.style || '';
 
-  // Random pools for diversity — 基于参考图片的自然姿势
-  // 核心：不对称、放松、自然S曲线、亲密感
+  // Random pools for diversity  
+  // S
   const posePool = [
-    // 参考图1: 跪坐沙发旁，手托脸颊
+    // 1: 
     'kneeling on wooden floor, leaning forward with elbows resting on sofa arm, head tilted and resting on fist, relaxed asymmetrical pose, soft natural body curve',
-    // 参考图2: 靠窗拉伸，双手举过头顶
+    // 2: 
     'standing leaning back against window frame, arms raised overhead in loose stretch, one hand resting on back of head, weight on back leg, front leg bent, casual relaxed pose',
-    // 参考图3: 站立三分身，手放在内衣边缘
+    // 3: 
     'standing in relaxed three-quarter pose, weight shifted to one hip, natural S-curve in torso, hands resting lightly on bra edge, fingers slightly curled, confident inviting stance',
-    // 参考图4: 盘腿坐在镜面房间
+    // 4: 
     'sitting cross-legged on reflective floor, torso leaning back slightly, one hand resting on floor behind, other hand lifted to face with fingers touching lower lip, thoughtful pensive pose',
-    // 参考图5: 跪姿，双手拉起衣服下摆
+    // 5: 
     'kneeling with knees spread, hips slightly forward, torso upright with slight back arch, hands gripping bottom of top pulling it upward, confident direct gaze at viewer',
-    // 参考图6: 海滩自拍角度
+    // 6: 
     'casual selfie angle, one arm extended forward holding camera, upper body turned slightly, head tilted toward shoulder, relaxed asymmetrical pose, wind-tousled hair',
-    // 参考图7: 坐在椅子上，肩带滑落
+    // 7: 
     'seated in wooden chair, leaning slightly forward toward camera, head tilted gently to one side, one shoulder strap slipped down arm, relaxed unposed posture, introspective downward gaze',
-    // 参考图8: 坐在沙发上，手放在大腿上
+    // 8: 
     'seated cross-legged on soft sofa, knees bent wide, torso slightly angled toward camera with gentle backward lean, hands resting loosely on thighs, relaxed casual slouch',
-    // 更多自然姿势
+    // 
     'sitting on windowsill, legs dangling, chin resting on one hand, gazing at viewer with soft inviting eyes, warm natural light on face',
     'leaning against doorframe, one hand on frame above head, looking back over shoulder with coy smile, hair cascading down',
     'walking toward camera mid-stride, hair flowing with movement, caught in candid moment, natural smile, arms relaxed at sides',
@@ -139,7 +139,7 @@ function genPrompt(gf: Record<string, unknown>): string {
     'standing with one hand touching hair, slight head tilt, lips parted, eyes locked on viewer, natural catchlights',
   ];
 
-  // ── 光线池 — 基于参考图片的温暖自然光 ──
+  //     
   const lightingPool = [
     'soft natural window light streaming from side, warm golden highlights on skin, gentle diffused shadows, radiant glowing complexion, creamy bokeh background',
     'bright natural daylight from large window, soft diffused quality, subtle lens flare, warm skin tones, natural catchlights in eyes, gentle shadow gradients',
@@ -163,7 +163,7 @@ function genPrompt(gf: Record<string, unknown>): string {
     'warm tropical sunlight with palm tree shadow patterns, vibrant vacation vibes, sun-kissed glowing skin, paradise atmosphere',
   ];
 
-  // ── 场景池 — 基于参考图片的温馨亲密场景 ──
+  //     
   const scenePool = [
     'warm sunlit room with honey-blonde wooden floor, plush white tufted sofa, large window with sheer curtains revealing green garden outside, shallow depth of field, cozy intimate home atmosphere',
     'bright cozy bedroom with patterned curtain, black-framed window with bright daylight, warm neutral walls, lived-in intimate space, natural home environment',
@@ -191,7 +191,7 @@ function genPrompt(gf: Record<string, unknown>): string {
   const randomLighting = lightingPool[Math.floor(Math.random() * lightingPool.length)];
   const randomScene = scenePool[Math.floor(Math.random() * scenePool.length)];
 
-  // ── Build subject description — 强调美女/性感 ──
+  //  Build subject description  / 
   const subjectParts: string[] = [BEAUTY_DIRECTION, 'Full body portrait'];
   if (race) subjectParts.push(`${race} ethnicity`);
   if (hair || hairColor) subjectParts.push(`with beautiful ${[hairColor, hair].filter(Boolean).join(' ')} hair`);
@@ -212,7 +212,7 @@ function genPrompt(gf: Record<string, unknown>): string {
   };
   const clothing = clothingDescs[style] || `a stylish ${style || 'casual'} outfit that flatters her figure`;
 
-  // 随机选择表情
+  // 
   const randomExpression = EXPRESSION_POOL[Math.floor(Math.random() * EXPRESSION_POOL.length)];
 
   const fullPrompt = [
@@ -288,7 +288,7 @@ async function generateAndUpload(char: any, params: any): Promise<{ name: string
       const key = await uploadDataUrl(dataUrl, fileName);
       const url = await resolveImageUrl(key);
 
-      // 如果是女友，更新数据库中的 avatar_url
+      //  avatar_url
       if (char.isGirlfriend && char.id) {
         try {
           const supabase = getSupabaseClient();
@@ -309,12 +309,12 @@ async function generateAndUpload(char: any, params: any): Promise<{ name: string
   throw new Error('RunPod timeout');
 }
 
-// ── SSE Helper ────────────────────────────────────
+//  SSE Helper 
 function encodeSSE(event: string, data: any): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-// ── 批量生成入口 ──────────────────────────────────
+//   
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin(req);
   if ('error' in guard && guard.error) {
@@ -331,7 +331,7 @@ export async function POST(req: NextRequest) {
   const params = body.params || {};
   const specCategory = body.specCategory;
 
-  // 如果没有传入 characters，从数据库获取没有头像的女友
+  //  characters
   if (!characters.length) {
     try {
       const supabase = getSupabaseClient();
@@ -352,7 +352,7 @@ export async function POST(req: NextRequest) {
           isGirlfriend: true,
         }));
       } else {
-        // 如果没有没有头像的女友，获取所有女友
+        // 
         const { data: allGirlfriends } = await supabase
           .from('girlfriends')
           .select('*')
@@ -371,7 +371,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 如果还是没有，使用默认角色
+  // 
   if (!characters.length) {
     const categories = body.categories || ['girlfriend', 'girlfriend', 'girlfriend', 'girlfriend'];
     characters = categories.map((cat: string, i: number) => ({
@@ -384,7 +384,7 @@ export async function POST(req: NextRequest) {
     }));
   }
 
-  // 过滤
+  // 
   const chars = specCategory ? characters.filter((c: any) => c.itemCategory === specCategory) : characters;
 
   const stream = new ReadableStream({

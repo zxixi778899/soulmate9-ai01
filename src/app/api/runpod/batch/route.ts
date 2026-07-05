@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { uploadFile } from '@/lib/storage';
 
-// ── RunPod credentials — MUST come from environment variables ──
+//  RunPod credentials  MUST come from environment variables 
 const API_KEY = process.env.RUNPOD_API_KEY || '';
 const ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID || '';
 const BASE_URL = `https://api.runpod.ai/v2/${ENDPOINT_ID}`;
 const HEADERS = { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' };
 
-// ── Generation parameters interface ──
+//  Generation parameters interface 
 interface GenParams {
   steps: number;
   cfg_scale: number;
@@ -60,7 +60,7 @@ function buildWorkflow(
   };
 }
 
-// ── Style direction pool for variety ──
+//  Style direction pool for variety 
 const STYLE_DIRECTIONS = [
   'soft natural lighting, sunlit, warm tones, candid',
   'dramatic film noir, high contrast, deep shadows, gritty',
@@ -89,7 +89,7 @@ function generateCharacterPrompt(
   return { prompt, negativePrompt, seed };
 }
 
-// ── Single image generation via RunPod (async polling) ──
+//  Single image generation via RunPod (async polling) 
 async function generateImage(
   prompt: string,
   negativePrompt: string,
@@ -133,7 +133,7 @@ async function generateImage(
   throw new Error(`RunPod generation timed out after 800s (GPU queue congestion)`);
 }
 
-// ── SSE helpers ──
+//  SSE helpers 
 function sseEvent(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
@@ -211,11 +211,11 @@ export async function POST(req: NextRequest) {
           await supabase.from('girlfriends').update({ avatar_url: url }).eq('id', item.id);
 
           completed++;
-          send('log', { type: 'success', message: `✓ ${label}: Generation complete + DB updated` });
+          send('log', { type: 'success', message: ` ${label}: Generation complete + DB updated` });
           send('complete', { id: item.id, name: item.name, avatar_url: url });
         } catch (e: any) {
           failed++;
-          send('log', { type: 'error', message: `✗ ${label}: ${e.message}` });
+          send('log', { type: 'error', message: ` ${label}: ${e.message}` });
         }
       }
 

@@ -6,8 +6,8 @@ import { logger } from '@/lib/logger';
 export const runtime = 'nodejs';
 
 /**
- * 返回 Stripe Billing Portal session URL，用户可自助管理卡片、查看发票、取消订阅。
- * 要求用户已经走过 checkout，profile.stripe_customer_id 不为空。
+ *  Stripe Billing Portal session URL
+ *  checkoutprofile.stripe_customer_id 
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const auth = await getAuthUser(req);

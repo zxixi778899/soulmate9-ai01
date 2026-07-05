@@ -8,21 +8,21 @@ import { logger } from '@/lib/logger';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-// 4 张 GPU 图，限制 10 次/小时/superadmin
+// 4  GPU  10 //superadmin
 const REFRESH_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
 
 // ============================================================
-// Admin — 批量刷新 4 个角色立绘
-// 鉴权：仅 superadmin（双层防御，与 ENABLE_DEBUG_ROUTES 互不替代）
+// Admin   4 
+//  superadmin ENABLE_DEBUG_ROUTES 
 // Body: { characters?: [{slug, prompt, seed, ...}] }
-// 不传 characters 则用默认 Luna/Ruby/Summer/Scarlet prompt
+//  characters  Luna/Ruby/Summer/Scarlet prompt
 // ============================================================
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || '';
 const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID || '';
 const RUNPOD_BASE_URL = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}`;
 
-// 优先用专用 env vars（绕开 Coze Supabase proxy 的 schema cache 问题）
+//  env vars Coze Supabase proxy  schema cache 
 const SUPABASE_URL =
   process.env.SUPABASE_URL_FOR_REFRESH ||
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -158,13 +158,13 @@ async function refreshOne(char: CharacterConfig) {
   const base64 = await generateImage(char.prompt, char.seed);
   logger.info(`[${char.slug}] generated (${(base64.length * 3 / 4 / 1024).toFixed(0)} KB), uploading...`);
 
-  // 优先 Supabase Storage（service_role 直接有权限）
+  //  Supabase Storageservice_role 
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'portraits';
   const filePath = `portraits/${char.slug}_${Date.now()}.png`;
   let publicUrl = '';
   let lastError = '';
 
-  // 自动确保 bucket 存在（首次调用时建）
+  //  bucket 
   try {
     await fetch(`${SUPABASE_URL}/storage/v1/bucket/${bucket}`, {
       method: 'POST',
@@ -177,7 +177,7 @@ async function refreshOne(char: CharacterConfig) {
     });
   } catch {}
 
-  // 上传到 Supabase Storage
+  //  Supabase Storage
   try {
     const buffer = Buffer.from(base64, 'base64');
     const uploadRes = await fetch(
@@ -206,7 +206,7 @@ async function refreshOne(char: CharacterConfig) {
     logger.warn(`[${char.slug}] ${lastError}`);
   }
 
-  // fallback Coze OSS（如果 Supabase 失败）
+  // fallback Coze OSS Supabase 
   if (!publicUrl) {
     try {
       const dataUrl = `data:image/png;base64,${base64}`;
@@ -236,7 +236,7 @@ async function refreshOne(char: CharacterConfig) {
 }
 
 export async function POST(request: NextRequest) {
-  // 双层防御：仅 superadmin 可访问；与 ENABLE_DEBUG_ROUTES 互不替代。
+  //  superadmin  ENABLE_DEBUG_ROUTES 
   const guard = await requireAdmin(request, 'superadmin');
   if (guard.error) return guard.error;
 
@@ -288,7 +288,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  // 双层防御：仅 superadmin 可访问；与 ENABLE_DEBUG_ROUTES 互不替代。
+  //  superadmin  ENABLE_DEBUG_ROUTES 
   const guard = await requireAdmin(req, 'superadmin');
   if (guard.error) return guard.error;
 

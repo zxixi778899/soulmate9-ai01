@@ -45,7 +45,7 @@ export function AgeVerification() {
           <span className="text-2xl font-bold tracking-tight">{APP_NAME}</span>
         </div>
 
-        {/* Age Gate Card — glass style */}
+        {/* Age Gate Card  glass style */}
         <div className="rounded-2xl border border-white/[0.12] bg-white/[0.04] backdrop-blur-2xl p-8 shadow-[0_25px_60px_rgba(0,0,0,0.6),0_0_40px_rgba(255,45,120,0.08)]">
           <h1 className="text-xl font-semibold tracking-tight">Age Verification Required</h1>
           <p className="mt-3 text-sm leading-relaxed text-[#8B8BA3]">

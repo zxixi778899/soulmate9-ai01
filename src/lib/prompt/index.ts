@@ -1,7 +1,7 @@
 /**
- * PromptDSL 统一入口 — 根据 type 分发到对应 preset
+ * PromptDSL    type  preset
  *
- * 使用：
+ * 
  *   import { assemblePrompt } from '@/lib/prompt';
  *   const { positive, negative } = assemblePrompt('outfit', { rawPrompt });
  */
@@ -16,9 +16,9 @@ export * as Outfit from './outfit';
 export * as ShopItem from './shop_item';
 
 export interface AssembleOptions extends PresetContext {
-  /** Girlfriend 类型才需要的主体特征 */
+  /** Girlfriend  */
   subject?: GirlfriendSubject;
-  /** 用户/上游手动指定的 negative，append 到 preset 内置 negative 之后 */
+  /** / negativeappend  preset  negative  */
   extraNegative?: string;
 }
 

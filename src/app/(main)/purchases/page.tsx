@@ -172,7 +172,7 @@ export default function PurchasesPage() {
                         <div>
                           <p className="text-sm font-medium">
                             {p.type === 'crypto'
-                              ? `${p.plan || 'Subscription'} — ${p.currency}`
+                              ? `${p.plan || 'Subscription'}  ${p.currency}`
                               : p.item_name || 'Shop Item'}
                           </p>
                           <p className="text-xs text-muted-foreground">
@@ -181,7 +181,7 @@ export default function PurchasesPage() {
                               month: 'short',
                               day: 'numeric',
                             })}
-                            {p.tx_hash && ` · ${p.tx_hash.slice(0, 10)}...`}
+                            {p.tx_hash && `  ${p.tx_hash.slice(0, 10)}...`}
                           </p>
                         </div>
                       </div>

@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
   const isUnlocked = activeItems && activeItems.length > 0;
   const today = new Date().toISOString().split('T')[0];
 
-  // Daily cap check — reset daily_score_gained if it's a new day
+  // Daily cap check  reset daily_score_gained if it's a new day
   const DAILY_CAP = 17;
   const isNewDay = current.last_daily_reset !== today;
   const todayGain = isNewDay ? 0 : (current.daily_score_gained || 0);

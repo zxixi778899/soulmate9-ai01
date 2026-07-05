@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       .from('shop_items')
       .insert({
         name,
-        emoji: emoji || '🎁',
+        emoji: emoji || '',
         description,
         price_cents: price_cents || 0,
         tier: tier || 'free',

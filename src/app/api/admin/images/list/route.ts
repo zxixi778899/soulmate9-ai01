@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       /* table may not exist */
     }
 
-    // Outfits — 服装库（独立数据源，含 description / category / tier）
+    // Outfits   description / category / tier
     let outfits: unknown[] = [];
     try {
       const { data, error } = await db
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       /* table may not exist */
     }
 
-    // Shop / prop items — 道具库（独立数据源，含 description / item_type / category / intimacy_boost）
+    // Shop / prop items   description / item_type / category / intimacy_boost
     let shopItems: unknown[] = [];
     try {
       const { data, error } = await db

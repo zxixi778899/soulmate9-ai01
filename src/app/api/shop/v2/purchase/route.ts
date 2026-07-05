@@ -1,8 +1,8 @@
 /**
- * 虚拟商城 v2 — 购买商品
+ *  v2  
  * POST /api/shop/v2/purchase
  *
- * 改用 pg 库直连 + 事务（绕开 PostgREST cache + 不用 RPC）。
+ *  pg  +  PostgREST cache +  RPC
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 限流
+  // 
   const rl = await checkRateLimitAsync(`shop-purchase:${user.id}`, {
     maxRequests: 10,
     windowMs: 60 * 1000,
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   const quantity = Math.max(1, Math.min(MAX_QUANTITY, body.quantity ?? 1));
 
   try {
-    // 1) 查询商品
+    // 1) 
     const product = await queryPgOne<{
       id: string;
       type: string;
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Product has no price' }, { status: 400 });
     }
 
-    // 2) 事务：扣积分 + 创建订单 + 写 inventory + 销量 +1
+    // 2)  +  +  inventory +  +1
     const orderNumber = `SM-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const isConsumable = (product.virtual_meta as any)?.kind === 'consumable';
     const assetType = (product.virtual_meta as any)?.kind || product.sku;
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     const result = await withPgClient(async (db) => {
       await db.query('BEGIN');
       try {
-        // 2.1 锁定 profile 并扣分
+        // 2.1  profile 
         const profileRes = await db.query<{ credits_remaining: number }>(
           'SELECT credits_remaining FROM profiles WHERE user_id = $1 FOR UPDATE',
           [user.id]
@@ -115,14 +115,14 @@ export async function POST(request: NextRequest) {
           'UPDATE profiles SET credits_remaining = $1 WHERE user_id = $2',
           [newBalance, user.id]
         );
-        // 写 ledger
+        //  ledger
         await db.query(
           `INSERT INTO user_credits_ledger (user_id, delta, balance_after, reason, ref_id)
            VALUES ($1, $2, $3, 'purchase', $4)`,
           [user.id, -totalCredits, newBalance, body.product_id]
         );
 
-        // 2.2 创建订单
+        // 2.2 
         const orderRes = await db.query<{ id: string }>(
           `INSERT INTO shop_orders
             (order_number, user_id, product_id, quantity, price_credits, price_cents,
@@ -133,10 +133,10 @@ export async function POST(request: NextRequest) {
         );
         const orderId = orderRes.rows[0].id;
 
-        // 2.3 履约：写入 user_inventory
+        // 2.3  user_inventory
         let inventoryId: string | null = null;
         if (isConsumable) {
-          // 消耗品：累加
+          // 
           const invRes = await db.query<{ id: string }>(
             `INSERT INTO user_inventory
               (user_id, product_id, asset_type, asset_id, asset_payload, quantity, source, source_ref, metadata)
@@ -160,13 +160,13 @@ export async function POST(request: NextRequest) {
           inventoryId = invRes.rows[0]?.id ?? null;
         }
 
-        // 2.4 销量 +1
+        // 2.4  +1
         await db.query(
           'UPDATE products SET sales_count = sales_count + $1 WHERE id = $2',
           [quantity, product.id]
         );
 
-        // 2.5 标记订单完成
+        // 2.5 
         if (inventoryId) {
           await db.query(
             `UPDATE shop_orders SET status = 'completed', fulfilled_at = NOW(), inventory_item_id = $1 WHERE id = $2`,

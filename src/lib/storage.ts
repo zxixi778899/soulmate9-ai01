@@ -1,11 +1,11 @@
 /**
- * OSS 存储工具：女友头像/图片资产统一通过对象存储管理
+ * OSS /
  *
- * 关键约定：
- * - 数据库中持久化的是 OSS key（如 `girlfriends/avatar_xxxx.png`），永不存签名 URL
- * - 读取时统一通过 `resolveImageUrl()` 生成签名 URL 返回前端
- * - 兼容历史 base64 data URL：检测到 `data:` 前缀直接原样返回
- * - 兼容外部图片 URL：`http(s)://` 前缀也直接原样返回
+ * 
+ * -  OSS key `girlfriends/avatar_xxxx.png` URL
+ * -  `resolveImageUrl()`  URL 
+ * -  base64 data URL `data:` 
+ * -  URL`http(s)://` 
  */
 
 import { S3Storage } from "coze-coding-dev-sdk";
@@ -26,8 +26,8 @@ function client(): S3Storage {
 }
 
 const URL_CACHE: Map<string, { url: string; expiresAt: number }> = new Map();
-// 公开页（/girlfriend/[slug] 等）走 30 天签名 URL，配合 ISR revalidate 周期。
-// 私密页（chat、gallery 等）由 R2DBC 接口按需解析并短 TTL 缓存。
+// /girlfriend/[slug]  30  URL ISR revalidate 
+// chatgallery  R2DBC  TTL 
 const URL_TTL_SEC = 30 * 24 * 60 * 60; // 30 days
 
 function isDataUrl(s: string | null | undefined): boolean {
@@ -43,10 +43,10 @@ function isLikelyOssKey(s: string | null | undefined): boolean {
 }
 
 /**
- * 解析 base64 data URL 为 { buffer, contentType, ext }
+ *  base64 data URL  { buffer, contentType, ext }
  */
 function parseDataUrl(dataUrl: string): { buffer: Buffer; contentType: string; ext: string } {
-  // 形如: data:image/png;base64,iVBORw0KGgo...
+  // : data:image/png;base64,iVBORw0KGgo...
   const m = /^data:([^;,]+)(?:;base64)?,([\s\S]+)$/.exec(dataUrl);
   if (!m) throw new Error("invalid data url");
   const contentType = m[1] || "application/octet-stream";
@@ -65,8 +65,8 @@ function parseDataUrl(dataUrl: string): { buffer: Buffer; contentType: string; e
 }
 
 /**
- * 上传 base64 data URL 到 OSS，返回 key
- * 调用方应将返回的 key 持久化到数据库
+ *  base64 data URL  OSS key
+ *  key 
  */
 export async function uploadDataUrl(dataUrl: string, prefix = "girlfriends"): Promise<string> {
   if (!isDataUrl(dataUrl)) throw new Error("not a data url");
@@ -83,11 +83,11 @@ export async function uploadDataUrl(dataUrl: string, prefix = "girlfriends"): Pr
 }
 
 /**
- * 将任意来源的 image 字段值解析为可访问 URL：
- * - data:url      → 原样返回（兼容历史数据）
- * - http(s)://... → 原样返回（兼容外链）
- * - OSS key       → 生成签名 URL
- * - 空            → 空字符串
+ *  image  URL
+ * - data:url       
+ * - http(s)://...  
+ * - OSS key         URL
+ * -              
  */
 export async function resolveImageUrl(value: string | null | undefined): Promise<string> {
   if (!value) return "";
@@ -95,7 +95,7 @@ export async function resolveImageUrl(value: string | null | undefined): Promise
   if (isHttpUrl(value)) return value;
   if (!isLikelyOssKey(value)) return value;
 
-  // 命中缓存
+  // 
   const cached = URL_CACHE.get(value);
   if (cached && cached.expiresAt > Date.now()) return cached.url;
 
@@ -113,9 +113,9 @@ export async function resolveImageUrl(value: string | null | undefined): Promise
 }
 
 /**
- * 如果 value 是 data:url 则上传到 OSS 并返回 key；
- * 否则原样返回（已是 key/外链/空）。
- * 写入侧统一调此函数，确保库中永远只存 key/url，不存 base64。
+ *  value  data:url  OSS  key
+ *  key//
+ *  key/url base64
  */
 export async function ensureImageKey(value: string | null | undefined, prefix = "girlfriends"): Promise<string> {
   if (!value) return "";
@@ -124,19 +124,19 @@ export async function ensureImageKey(value: string | null | undefined, prefix = 
       return await uploadDataUrl(value, prefix);
     } catch (err) {
       logger.error("[storage] uploadDataUrl failed:", { data: err });
-      return value; // 上传失败时退回原值，不阻塞业务
+      return value; // 
     }
   }
   return value;
 }
 
 // ============================================================
-// Legacy compat (保留旧 API 与现存调用方兼容)
+// Legacy compat ( API )
 // ============================================================
 
 /**
- * 直接上传 Buffer/二进制内容，返回 { key, url } 兼容旧调用
- * 旧调用如：upload/route.ts、runpod.ts 等
+ *  Buffer/ { key, url } 
+ * upload/route.tsrunpod.ts 
  */
 export async function uploadFile(
   buffer: Buffer,
@@ -158,7 +158,7 @@ export async function uploadFile(
 }
 
 /**
- * 从 URL 中提取 OSS key（兼容签名 URL 或裸 key）
+ *  URL  OSS key URL  key
  */
 export function extractKeyFromUrl(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -166,21 +166,21 @@ export function extractKeyFromUrl(value: string | null | undefined): string | nu
   if (isHttpUrl(value)) {
     try {
       const u = new URL(value);
-      // 路径形如 /<bucket-folder>/girlfriends/avatar_xxx.png
-      // 我们假设 key 是路径去掉前导 / 后的全部，但若包含 bucket-folder 需保留
+      //  /<bucket-folder>/girlfriends/avatar_xxx.png
+      //  key  /  bucket-folder 
       const path = u.pathname.replace(/^\/+/, "");
-      // 取最后一段 folder 起算：寻找已知前缀 girlfriends/、uploads/、images/
+      //  folder  girlfriends/uploads/images/
       const m = path.match(/(girlfriends\/[^?]+|uploads\/[^?]+|images\/[^?]+|generated\/[^?]+)/);
       return m ? m[1] : path;
     } catch {
       return null;
     }
   }
-  return value; // 已是 key
+  return value; //  key
 }
 
 /**
- * 删除 OSS 对象
+ *  OSS 
  */
 export async function deleteFile(key: string): Promise<void> {
   try {
@@ -191,7 +191,7 @@ export async function deleteFile(key: string): Promise<void> {
 }
 
 /**
- * 批量解析（用于列表接口）
+ * 
  */
 export async function resolveImageUrlBatch(values: (string | null | undefined)[]): Promise<string[]> {
   return Promise.all(values.map((v) => resolveImageUrl(v)));

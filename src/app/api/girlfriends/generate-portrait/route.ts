@@ -6,10 +6,10 @@ import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
-const PORTRAIT_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 }; // 10/h/user — RunPod FLUX 烧钱
+const PORTRAIT_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 }; // 10/h/user  RunPod FLUX 
 
 // ============================================================
-// 女友头像生成 — 直连 RunPod + Vercel Blob
+//    RunPod + Vercel Blob
 // ============================================================
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || '';
@@ -80,20 +80,20 @@ async function generateImage(prompt: string): Promise<string> {
 async function uploadToStorage(base64Data: string, name: string): Promise<string> {
   const safeName = name.replace(/[^a-zA-Z0-9]/g, '_');
   const dataUrl = `data:image/png;base64,${base64Data}`;
-  // 上传到 OSS，返回 key（数据库中存 key，前端调用 image_url 时会被签名）
+  //  OSS key key image_url 
   const key = await uploadDataUrl(dataUrl, `portraits/${safeName}_${Date.now()}`);
   return key;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // Authentication: 统一用 getAuthUser 拿到 user.id（既做鉴权也做限流 key）
+    // Authentication:  getAuthUser  user.id key
     const { user, error: authError } = await getAuthUser(request);
     if (!user) {
       return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
     }
 
-    // 限流：RunPod FLUX 烧钱
+    // RunPod FLUX 
     const rl = await checkRateLimitAsync(`portrait-gen:${user.id}`, PORTRAIT_GEN_LIMIT);
     if (!rl.allowed) {
       return NextResponse.json(

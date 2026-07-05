@@ -91,10 +91,10 @@ type MemoryItem = {
 };
 
 const GIFTS = [
-  { id: 'rose', name: 'Red Rose', emoji: '🌹', boost: 3, desc: 'A classic romantic gesture' },
-  { id: 'chocolate', name: 'Chocolate Box', emoji: '🍫', boost: 5, desc: 'Sweet and thoughtful' },
-  { id: 'necklace', name: 'Silver Necklace', emoji: '💎', boost: 8, desc: 'Elegant and memorable' },
-  { id: 'ring', name: 'Promise Ring', emoji: '💍', boost: 15, desc: 'A deep commitment' },
+  { id: 'rose', name: 'Red Rose', emoji: '', boost: 3, desc: 'A classic romantic gesture' },
+  { id: 'chocolate', name: 'Chocolate Box', emoji: '', boost: 5, desc: 'Sweet and thoughtful' },
+  { id: 'necklace', name: 'Silver Necklace', emoji: '', boost: 8, desc: 'Elegant and memorable' },
+  { id: 'ring', name: 'Promise Ring', emoji: '', boost: 15, desc: 'A deep commitment' },
 ] as const;
 
 const MOODS = ['romantic', 'playful', 'sweet', 'passionate', 'cozy', 'cheerful'];
@@ -288,7 +288,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         const newMsg: Message = {
           id: `selfie-${Date.now()}`,
           role: 'assistant',
-          content: "Here's a selfie for you 📸",
+          content: "Here's a selfie for you ",
           created_at: new Date().toISOString(),
           media_url: data.image_url,
         };
@@ -539,7 +539,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         onSend={() => sendMessage()}
         onKeyDown={handleKeyDown}
         isSending={isSending}
-        placeholder={`Message ${girlfriend.name}…`}
+        placeholder={`Message ${girlfriend.name}`}
         onOpenAttachments={() => setShowAttachments(true)}
         showPresets={showPresets}
         togglePresets={() => setShowPresets(s => !s)}
@@ -613,7 +613,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       <Dialog open={showGiftDialog} onOpenChange={setShowGiftDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">Send a Gift 🎁</DialogTitle>
+            <DialogTitle className="font-display text-xl">Send a Gift </DialogTitle>
             <DialogDescription>
               Choose a gift to send to {girlfriend.name}. Gifts boost intimacy!
             </DialogDescription>
@@ -644,7 +644,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       <Dialog open={showWardrobeDialog} onOpenChange={setShowWardrobeDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">{t('chat.wardrobe') || 'Wardrobe'} 👗</DialogTitle>
+            <DialogTitle className="font-display text-xl">{t('chat.wardrobe') || 'Wardrobe'} </DialogTitle>
             <DialogDescription>Dress up {girlfriend.name} with a new outfit.</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2">
@@ -717,7 +717,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 /*           Sub-components (rendered as placeholders below)     */
 /* ============================================================= */
 
-// Placeholder implementations — will be replaced via edit_file in next steps.
+// Placeholder implementations  will be replaced via edit_file in next steps.
 type LevelInfo = typeof INTIMACY_LEVELS[number];
 
 function ChatAppBar(props: {
@@ -772,10 +772,10 @@ function ChatAppBar(props: {
           </div>
           <div className="text-[11px] mt-0.5 truncate">
             {isTyping ? (
-              <span className="text-[#FF6BA6] font-medium animate-pulse">typing…</span>
+              <span className="text-[#FF6BA6] font-medium animate-pulse">typing</span>
             ) : (
               <span className="text-[#8B8BA3]">
-                {levelInfo.title} · <span className="font-mono tabular-nums">{Math.round(intimacy.score)}pts</span>
+                {levelInfo.title}  <span className="font-mono tabular-nums">{Math.round(intimacy.score)}pts</span>
               </span>
             )}
           </div>

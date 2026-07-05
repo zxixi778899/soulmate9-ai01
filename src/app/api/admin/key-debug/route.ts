@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  // 双层防御：仅 superadmin 可访问；与 ENABLE_DEBUG_ROUTES 互不替代。
+  //  superadmin  ENABLE_DEBUG_ROUTES 
   const guard = await requireAdmin(req, 'superadmin');
   if (guard.error) return guard.error;
 
@@ -15,14 +15,14 @@ export async function GET(req: NextRequest) {
     { name: 'SUPABASE_SERVICE_ROLE_KEY', val: process.env.SUPABASE_SERVICE_ROLE_KEY },
   ];
 
-  // 密钥 prefix 长度即足以区分；不返回明文前缀，避免日志/Sentry 抓取时泄漏。
+  //  prefix /Sentry 
   return NextResponse.json({
     found: candidates.filter((c) => !!c.val).length,
     items: candidates.map((c) => ({
       name: c.name,
       present: !!c.val,
       length: c.val?.length || 0,
-      // 解码 JWT 中段看 role
+      //  JWT  role
       role_from_payload: decodeRole(c.val),
     })),
   });

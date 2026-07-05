@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
     }
 
-    // 限制单次最多 50 条，防止越权或意外
+    //  50 
     if (ids.length > 50) {
       return NextResponse.json({ error: 'Cannot delete more than 50 at a time' }, { status: 400 });
     }

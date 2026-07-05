@@ -12,7 +12,7 @@ interface GenerateResult {
 }
 
 const BATCH_SIZE = 5;
-const BATCH_PAUSE_MS = 5000; // 批间休息 5s 让 Vercel 冷启动恢复
+const BATCH_PAUSE_MS = 5000; //  5s  Vercel 
 
 export default function AdminGenerateCardsPage() {
   const [running, setRunning] = useState(false);
@@ -48,7 +48,7 @@ export default function AdminGenerateCardsPage() {
     }
   };
 
-  // 分批：每批 5 张，3 批完成 14 张（5+5+4）
+  //  5 3  14 5+5+4
   const startGeneration = async () => {
     setRunning(true);
     setResults({});
@@ -65,7 +65,7 @@ export default function AdminGenerateCardsPage() {
         setResults((prev) => ({ ...prev, [slug]: result }));
       }
 
-      // 批间休息（最后一批不休息）
+      // 
       if (batchIdx < totalBatches - 1) {
         for (let s = BATCH_PAUSE_MS / 1000; s > 0; s--) {
           setCurrentBatch(batchIdx + 1);
@@ -83,7 +83,7 @@ export default function AdminGenerateCardsPage() {
   const partial = Object.values(results).filter((r) => r.status === 'partial').length;
   const done = succeeded + failed + partial;
 
-  // 把 slugs 分成 3 批（仅显示用）
+  //  slugs  3 
   const batches: string[][] = [];
   for (let i = 0; i < slugs.length; i += BATCH_SIZE) {
     batches.push(slugs.slice(i, i + BATCH_SIZE));
@@ -91,16 +91,16 @@ export default function AdminGenerateCardsPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto text-white">
-      <h1 className="text-2xl font-bold mb-4">🎨 批量生成女友卡图（分 3 批，防超时）</h1>
+      <h1 className="text-2xl font-bold mb-4">  3 </h1>
 
       <div className="bg-yellow-900/30 border border-yellow-600/40 rounded-lg p-4 mb-6">
-        <h3 className="font-bold text-yellow-300 mb-2">⚠️ 分批策略</h3>
+        <h3 className="font-bold text-yellow-300 mb-2"> </h3>
         <ul className="text-sm text-yellow-200/80 space-y-1 list-disc pl-5">
-          <li>14 张分 3 批跑：5 + 5 + 4 张（每批 ≈ 2.5-5 分钟）</li>
-          <li>批间休息 5 秒让 Vercel 冷启动恢复</li>
-          <li>每张 Vercel function 调用 30-60s，Pro 60s timeout 够</li>
-          <li>总耗时 ≈ 7-10 分钟（保持页面打开）</li>
-          <li>Vercel env 必须有：RUNPOD_API_KEY, RUNPOD_ENDPOINT_ID, COZE_SUPABASE_URL, COZE_SUPABASE_SERVICE_ROLE_KEY</li>
+          <li>14  3 5 + 5 + 4   2.5-5 </li>
+          <li> 5  Vercel </li>
+          <li> Vercel function  30-60sPro 60s timeout </li>
+          <li>  7-10 </li>
+          <li>Vercel env RUNPOD_API_KEY, RUNPOD_ENDPOINT_ID, COZE_SUPABASE_URL, COZE_SUPABASE_SERVICE_ROLE_KEY</li>
         </ul>
       </div>
 
@@ -108,11 +108,11 @@ export default function AdminGenerateCardsPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-sm text-zinc-400">
-              状态：{done} / {slugs.length}
-              {currentBatch && <span className="ml-3 text-pink-400">第 {currentBatch} / {batches.length} 批</span>}
+              {done} / {slugs.length}
+              {currentBatch && <span className="ml-3 text-pink-400"> {currentBatch} / {batches.length} </span>}
             </p>
             {currentSlug && (
-              <p className="text-sm text-pink-400">⏳ 正在生成: {currentSlug}</p>
+              <p className="text-sm text-pink-400"> : {currentSlug}</p>
             )}
           </div>
           <button
@@ -120,7 +120,7 @@ export default function AdminGenerateCardsPage() {
             disabled={running || slugs.length === 0}
             className="px-6 py-3 bg-pink-600 hover:bg-pink-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white font-bold rounded-lg transition"
           >
-            {running ? `⏳ 生成中 (${done}/${slugs.length})` : `🚀 开始生成 ${slugs.length} 张（分 3 批）`}
+            {running ? `  (${done}/${slugs.length})` : `  ${slugs.length}  3 `}
           </button>
         </div>
 
@@ -135,25 +135,25 @@ export default function AdminGenerateCardsPage() {
 
         {done > 0 && (
           <div className="text-sm mb-4">
-            <span className="text-green-400">✅ {succeeded}</span>
-            {partial > 0 && <> <span className="text-yellow-400 ml-3">⚠️ {partial}</span></>}
-            {failed > 0 && <> <span className="text-red-400 ml-3">❌ {failed}</span></>}
+            <span className="text-green-400"> {succeeded}</span>
+            {partial > 0 && <> <span className="text-yellow-400 ml-3"> {partial}</span></>}
+            {failed > 0 && <> <span className="text-red-400 ml-3"> {failed}</span></>}
           </div>
         )}
 
-        {/* 分批显示 */}
+        {/*  */}
         <div className="space-y-3 max-h-[500px] overflow-y-auto">
           {batches.map((batch, bIdx) => (
             <div key={bIdx} className="border border-zinc-700/50 rounded p-2">
               <div className="text-xs text-zinc-500 mb-1">
-                批 {bIdx + 1}（{batch.length} 张）
-                {currentBatch === bIdx + 1 && <span className="ml-2 text-pink-400">← 当前</span>}
+                 {bIdx + 1}{batch.length} 
+                {currentBatch === bIdx + 1 && <span className="ml-2 text-pink-400"> </span>}
               </div>
               <div className="space-y-0.5">
                 {batch.map((slug) => {
                   const r = results[slug];
                   const status = r?.status ?? 'pending';
-                  const emoji = status === 'ok' ? '✅' : status === 'failed' ? '❌' : status === 'partial' ? '⚠️' : status === 'skipped' ? '⏭️' : '⏳';
+                  const emoji = status === 'ok' ? '' : status === 'failed' ? '' : status === 'partial' ? '' : status === 'skipped' ? '' : '';
                   return (
                     <div
                       key={slug}
@@ -162,7 +162,7 @@ export default function AdminGenerateCardsPage() {
                       <span>{emoji}</span>
                       <span className="font-mono w-24">{slug}</span>
                       <span className="text-zinc-400 text-xs flex-1 truncate">
-                        {r?.url ?? r?.error ?? r?.note ?? (currentSlug === slug ? '生成中...' : '等待')}
+                        {r?.url ?? r?.error ?? r?.note ?? (currentSlug === slug ? '...' : '')}
                       </span>
                     </div>
                   );
@@ -174,9 +174,9 @@ export default function AdminGenerateCardsPage() {
       </div>
 
       <div className="mt-6 text-sm text-zinc-400">
-        <h3 className="font-bold mb-2">📝 完成后</h3>
-        <p>✅ 状态表示 cards/&#123;slug&#125;.png 已就绪，page.tsx 自动加载。</p>
-        <p>⚠️ partial 状态表示生成成功但 storage 重命名失败 — 需到 Supabase Storage 手动重命名。</p>
+        <h3 className="font-bold mb-2"> </h3>
+        <p>  cards/&#123;slug&#125;.png page.tsx </p>
+        <p> partial  storage    Supabase Storage </p>
       </div>
     </div>
   );

@@ -1,11 +1,11 @@
 /**
- * 轻量级结构化日志（无外部依赖）
+ * 
  *
- * - 生产环境输出 JSON 行，方便 Vercel/Grafana/Loki 聚合
- * - 开发环境输出彩色文本
- * - 自动注入 traceId（若 header 中带 x-request-id 则使用，否则随机）
- * - 自动屏蔽常见敏感字段（token / password / secret）
- * - logger.error() 同步上报 Sentry（懒加载；@sentry/nextjs 未装则 no-op）
+ * -  JSON  Vercel/Grafana/Loki 
+ * - 
+ * -  traceId header  x-request-id 
+ * - token / password / secret
+ * - logger.error()  Sentry@sentry/nextjs  no-op
  */
 
 import { captureException } from './sentry';
@@ -55,7 +55,7 @@ function redact(input: unknown, depth = 0): unknown {
       continue;
     }
     if (typeof v === 'string' && v.length > 2000) {
-      out[k] = v.slice(0, 2000) + `…(${v.length - 2000} more)`;
+      out[k] = v.slice(0, 2000) + `(${v.length - 2000} more)`;
       continue;
     }
     out[k] = redact(v, depth + 1);
@@ -111,7 +111,7 @@ function createLogger(baseFields: Record<string, unknown> = {}): Logger {
     },
     error(msg, fields) {
       emit('error', msg, { ...baseFields, ...fields });
-      // 同步上报 Sentry（无 DSN / 未装包 → no-op）。fields 已被 redact 过，安全。
+      //  Sentry DSN /   no-opfields  redact 
       captureException(new Error(msg), {
         tags: { source: 'logger' },
         extra: { ...baseFields, ...fields },
@@ -126,8 +126,8 @@ function createLogger(baseFields: Record<string, unknown> = {}): Logger {
 export const logger: Logger = createLogger();
 
 /**
- * 从 NextRequest 创建带 traceId 的 child logger。
- * 优先使用上游 x-request-id（Vercel/Cloudflare 透传），否则生成本地 traceId。
+ *  NextRequest  traceId  child logger
+ *  x-request-idVercel/Cloudflare  traceId
  */
 export function loggerFromRequest(req: { headers: Headers | Record<string, string> }): Logger {
   const h = req.headers;

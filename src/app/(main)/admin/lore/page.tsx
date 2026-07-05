@@ -155,7 +155,7 @@ export default function LorePage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">World Lore</h1>
-          <p className="text-sm text-[#8B8BA3]">Manage character world knowledge — keywords trigger context injection in chat</p>
+          <p className="text-sm text-[#8B8BA3]">Manage character world knowledge  keywords trigger context injection in chat</p>
         </div>
         <div className="flex items-center gap-3">
           <select
@@ -212,7 +212,7 @@ export default function LorePage() {
                     <p className="text-sm text-[#8B8BA3] line-clamp-3">{entry.content}</p>
                     <div className="flex items-center gap-3 text-xs text-[#8B8BA3]">
                       <span>Order: {entry.insertion_order}</span>
-                      <span>Active: {entry.active ? '✅' : '❌'}</span>
+                      <span>Active: {entry.active ? '' : ''}</span>
                       <span>Created: {new Date(entry.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>

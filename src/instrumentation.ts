@@ -1,22 +1,22 @@
 /**
  * Next.js instrumentation entry
  *
- * 在 Next.js 启动时执行一次（仅 server side）。
- * 用于：Sentry / OpenTelemetry 初始化、性能监控。
+ *  Next.js  server side
+ * Sentry / OpenTelemetry 
  *
- * Next.js 16 自动加载此文件（无需 next.config.js 改动）
+ * Next.js 16  next.config.js 
  */
 
 export async function register(): Promise<void> {
-  // 只在 Node runtime 初始化 Sentry（edge runtime 无 module resolver）
+  //  Node runtime  Sentryedge runtime  module resolver
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     await import('./lib/sentry-instrumentation');
   }
 }
 
 /**
- * Sentry 启动时的 hook（如未装包则静默 no-op）
- * 未来加 traceableResource / OpenTelemetry exporter
+ * Sentry  hook no-op
+ *  traceableResource / OpenTelemetry exporter
  */
 export async function onRequestError(
   err: unknown,
@@ -52,6 +52,6 @@ export async function onRequestError(
       },
     });
   } catch {
-    // Sentry 不可用时静默
+    // Sentry 
   }
 }

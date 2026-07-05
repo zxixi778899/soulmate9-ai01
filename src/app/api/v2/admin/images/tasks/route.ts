@@ -5,9 +5,9 @@ import { logger } from '@/lib/logger';
 export const runtime = 'nodejs';
 
 /**
- * 图片生成任务持久化（替代纯内存任务表）。
+ * 
  *
- * 依赖表：image_generation_tasks
+ * image_generation_tasks
  *   CREATE TABLE image_generation_tasks (
  *     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  *     user_id uuid NOT NULL,

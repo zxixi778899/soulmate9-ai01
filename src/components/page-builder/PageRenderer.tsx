@@ -55,7 +55,7 @@ export default function PageRenderer({ slug }: PageRendererProps) {
   if (!page) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <p className="text-muted-foreground">页面未找到</p>
+        <p className="text-muted-foreground"></p>
       </div>
     );
   }
@@ -104,7 +104,7 @@ export default function PageRenderer({ slug }: PageRendererProps) {
               {mod.content.split('\n').filter(l => l.trim()).map((line, i) => (
                 <Card key={i} className="border-border/30 bg-card/40 backdrop-blur-sm">
                   <CardContent className="p-6 text-center">
-                    <div className="text-3xl mb-3">{['🎯', '✨', '💎', '🔥', '💜', '🌟'][i % 6]}</div>
+                    <div className="text-3xl mb-3">{['', '', '', '', '', ''][i % 6]}</div>
                     <p className="font-medium">{line}</p>
                   </CardContent>
                 </Card>

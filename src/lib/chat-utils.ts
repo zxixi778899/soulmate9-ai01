@@ -1,12 +1,12 @@
 /**
- * 聊天 UI 公共工具
+ *  UI 
  *
- * 从 chat/[id]/page.tsx 抽离的纯函数（无副作用、可 SSR）。
- * 避免每个页面重新实现相同的日期格式化。
+ *  chat/[id]/page.tsx  SSR
+ * 
  */
 
 /**
- * 聊天气泡时间戳（HH:MM）
+ * HH:MM
  */
 export function formatBubbleTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -18,7 +18,7 @@ export function formatBubbleTime(dateStr: string): string {
 }
 
 /**
- * 日期分组标签（Today / Yesterday / 星期 / 完整日期）
+ * Today / Yesterday /  / 
  */
 export function dateGroupLabel(dateStr: string): string {
   const date = new Date(dateStr);
@@ -35,7 +35,7 @@ export function dateGroupLabel(dateStr: string): string {
 }
 
 /**
- * 用于消息分组的 day key
+ *  day key
  */
 export function dayKey(dateStr: string): string {
   const d = new Date(dateStr);
@@ -43,15 +43,15 @@ export function dayKey(dateStr: string): string {
 }
 
 /**
- * 截断长消息预览
+ * 
  */
 export function previewText(text: string, maxLen = 80): string {
   if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen).trim() + '…';
+  return text.slice(0, maxLen).trim() + '';
 }
 
 /**
- * 判断两条消息是否需要日期分隔符
+ * 
  */
 export function shouldShowDateSeparator(prev: string | null, current: string): boolean {
   if (!prev) return true;
@@ -59,7 +59,7 @@ export function shouldShowDateSeparator(prev: string | null, current: string): b
 }
 
 /**
- * 消息内容中的 URL 转链接（保留 XSS 安全）
+ *  URL  XSS 
  */
 export function linkifyText(text: string): string {
   const urlRegex = /(https?:\/\/[^\s]+)/g;

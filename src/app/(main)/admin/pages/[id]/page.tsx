@@ -30,12 +30,12 @@ type PageModule = {
 };
 
 const MODULE_TYPES = [
-  { value: 'hero', label: '大横幅 (Hero)', icon: '🎯' },
-  { value: 'text', label: '文本内容', icon: '📝' },
-  { value: 'features', label: '特色列表', icon: '✨' },
-  { value: 'cta', label: '行动号召 (CTA)', icon: '🔘' },
-  { value: 'gallery', label: '图片画廊', icon: '🖼️' },
-  { value: 'cards', label: '卡片网格', icon: '📇' },
+  { value: 'hero', label: ' (Hero)', icon: '' },
+  { value: 'text', label: '', icon: '' },
+  { value: 'features', label: '', icon: '' },
+  { value: 'cta', label: ' (CTA)', icon: '' },
+  { value: 'gallery', label: '', icon: '' },
+  { value: 'cards', label: '', icon: '' },
 ];
 
 export default function PageEditor({ params }: { params: Promise<{ id: string }> }) {
@@ -48,12 +48,12 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
     try {
       const { id } = await params;
       const res = await authedFetch(`/api/admin/pages?slug=${id}`);
-      if (!res.ok) { toast.error('加载页面失败'); router.push('/admin/pages'); return; }
+      if (!res.ok) { toast.error(''); router.push('/admin/pages'); return; }
       const data = await res.json();
       setPage(data);
       setModules(data.modules || []);
     } catch (e) {
-      toast.error('加载失败');
+      toast.error('');
     } finally {
       setLoading(false);
     }
@@ -77,14 +77,14 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
   };
 
   const deleteModule = async (modId: string) => {
-    if (!confirm('确定删除此模块？')) return;
+    if (!confirm('')) return;
     await authedFetch('/api/admin/pages/modules', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'delete', id: modId }),
     });
     setModules(modules.filter(m => m.id !== modId));
-    toast.success('模块已删除');
+    toast.success('');
   };
 
   const addModule = async (type: string) => {
@@ -100,10 +100,10 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
         sort_order: modules.length,
       }),
     });
-    if (!res.ok) { toast.error('添加模块失败'); return; }
+    if (!res.ok) { toast.error(''); return; }
     const mod = await res.json();
     setModules([...modules, mod]);
-    toast.success('模块已添加');
+    toast.success('');
   };
 
   const updateModule = async (modId: string, field: string, value: string | number | boolean) => {
@@ -121,22 +121,22 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
     </div>
   );
 
-  const moduleIcons: Record<string, string> = { hero: '🎯', text: '📝', features: '✨', cta: '🔘', gallery: '🖼️', cards: '📇' };
+  const moduleIcons: Record<string, string> = { hero: '', text: '', features: '', cta: '', gallery: '', cards: '' };
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <button onClick={() => router.push('/admin/pages')} className="text-sm text-[#8B8BA3] hover:text-white mb-1">
-            ← 返回页面列表
+             
           </button>
-          <h1 className="text-2xl font-bold">{page?.title as string} - 模块编辑</h1>
+          <h1 className="text-2xl font-bold">{page?.title as string} - </h1>
           <p className="text-sm text-[#8B8BA3]">/{page?.slug as string}</p>
         </div>
         <div className="flex gap-2">
           <Select onValueChange={(v) => addModule(v)}>
             <SelectTrigger className="w-44">
-              <Plus className="h-4 w-4 mr-2" /> 添加模块
+              <Plus className="h-4 w-4 mr-2" /> 
             </SelectTrigger>
             <SelectContent>
               {MODULE_TYPES.map(t => (
@@ -150,7 +150,7 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
       {modules.length === 0 ? (
         <Card className="border-white/[0.05] bg-card/40">
           <CardContent className="p-12 text-center">
-            <p className="text-[#8B8BA3] mb-4">暂无模块，点击右上角添加</p>
+            <p className="text-[#8B8BA3] mb-4"></p>
           </CardContent>
         </Card>
       ) : (
@@ -170,19 +170,19 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
                   <div className="flex-1 space-y-3">
                     <div className="flex items-center justify-between">
                       <Badge variant="outline" className="text-xs">
-                        {moduleIcons[mod.module_type] || '📦'} {MODULE_TYPES.find(t => t.value === mod.module_type)?.label || mod.module_type}
+                        {moduleIcons[mod.module_type] || ''} {MODULE_TYPES.find(t => t.value === mod.module_type)?.label || mod.module_type}
                       </Badge>
                       <Button variant="ghost" size="icon" onClick={() => deleteModule(mod.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
                     <Input
-                      placeholder="模块标题"
+                      placeholder=""
                       value={mod.title}
                       onChange={e => updateModule(mod.id, 'title', e.target.value)}
                     />
                     <Textarea
-                      placeholder={mod.module_type === 'hero' ? '大标题文字...' : '内容文字...'}
+                      placeholder={mod.module_type === 'hero' ? '...' : '...'}
                       value={mod.content}
                       onChange={e => updateModule(mod.id, 'content', e.target.value)}
                       rows={3}
@@ -190,13 +190,13 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
                     {(mod.module_type === 'hero' || mod.module_type === 'cta' || mod.module_type === 'cards') && (
                       <div className="flex gap-2">
                         <Input
-                          placeholder="按钮文字"
+                          placeholder=""
                           value={mod.button_text}
                           onChange={e => updateModule(mod.id, 'button_text', e.target.value)}
                           className="flex-1"
                         />
                         <Input
-                          placeholder="按钮链接"
+                          placeholder=""
                           value={mod.button_url}
                           onChange={e => updateModule(mod.id, 'button_url', e.target.value)}
                           className="flex-1"
@@ -206,7 +206,7 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
                     {(mod.module_type === 'hero' || mod.module_type === 'gallery' || mod.module_type === 'cards') && (
                       <div className="flex items-center gap-2">
                         <Input
-                          placeholder="图片 URL"
+                          placeholder=" URL"
                           value={mod.image_url}
                           onChange={e => updateModule(mod.id, 'image_url', e.target.value)}
                           className="flex-1"

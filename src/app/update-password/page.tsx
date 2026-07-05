@@ -125,7 +125,7 @@ function UpdatePasswordForm() {
                     <Input
                       id="password"
                       type="password"
-                      placeholder="••••••••"
+                      placeholder=""
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-10 bg-background/50 border-border/40"
@@ -145,7 +145,7 @@ function UpdatePasswordForm() {
                     <Input
                       id="confirm"
                       type="password"
-                      placeholder="••••••••"
+                      placeholder=""
                       value={confirm}
                       onChange={(e) => setConfirm(e.target.value)}
                       className="pl-10 bg-background/50 border-border/40"

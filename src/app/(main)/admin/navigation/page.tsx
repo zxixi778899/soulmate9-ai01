@@ -39,7 +39,7 @@ export default function AdminNavigation() {
       const data = await res.json();
       setItems(data.items || []);
     } catch (e) {
-      toast.error('加载导航失败');
+      toast.error('');
     } finally {
       setLoading(false);
     }
@@ -48,7 +48,7 @@ export default function AdminNavigation() {
   useEffect(() => { fetchItems(); }, []);
 
   const handleSave = async () => {
-    if (!form.label || !form.url) { toast.error('请填写名称和链接'); return; }
+    if (!form.label || !form.url) { toast.error(''); return; }
     try {
       const body: Record<string, unknown> = editItem ? { id: editItem.id, ...form } : form;
       if (body.parent_id === '') body.parent_id = null;
@@ -57,23 +57,23 @@ export default function AdminNavigation() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) { toast.error('保存失败'); return; }
-      toast.success(editItem ? '导航已更新' : '导航已创建');
+      if (!res.ok) { toast.error(''); return; }
+      toast.success(editItem ? '' : '');
       setShowDialog(false);
       setEditItem(null);
       setForm({ label: '', url: '', parent_id: '' });
       fetchItems();
-    } catch (e) { toast.error('保存失败'); }
+    } catch (e) { toast.error(''); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定删除此导航项？')) return;
+    if (!confirm('')) return;
     await authedFetch('/api/admin/navigation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'delete', id }),
     });
-    toast.success('导航已删除');
+    toast.success('');
     fetchItems();
   };
 
@@ -110,34 +110,34 @@ export default function AdminNavigation() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">导航管理</h1>
-          <p className="text-sm text-[#8B8BA3] mt-1">管理站点顶部导航菜单</p>
+          <h1 className="text-2xl font-bold"></h1>
+          <p className="text-sm text-[#8B8BA3] mt-1"></p>
         </div>
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogTrigger asChild>
             <Button onClick={() => { setEditItem(null); setForm({ label: '', url: '', parent_id: '' }); }}>
-              <Plus className="h-4 w-4 mr-2" /> 添加导航
+              <Plus className="h-4 w-4 mr-2" /> 
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{editItem ? '编辑导航' : '添加导航'}</DialogTitle>
+              <DialogTitle>{editItem ? '' : ''}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-1 block">名称</label>
-                <Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="例如：首页" />
+                <label className="text-sm font-medium mb-1 block"></label>
+                <Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="" />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">链接</label>
-                <Input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="例如：/" />
+                <label className="text-sm font-medium mb-1 block"></label>
+                <Input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="/" />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">父级导航</label>
+                <label className="text-sm font-medium mb-1 block"></label>
                 <Select value={form.parent_id} onValueChange={v => setForm({ ...form, parent_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="无（顶级导航）" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">无（顶级导航）</SelectItem>
+                    <SelectItem value=""></SelectItem>
                     {items.filter(i => !i.parent_id).map(i => (
                       <SelectItem key={i.id} value={i.id}>{i.label}</SelectItem>
                     ))}
@@ -145,8 +145,8 @@ export default function AdminNavigation() {
                 </Select>
               </div>
               <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setShowDialog(false)}>取消</Button>
-                <Button onClick={handleSave}>保存</Button>
+                <Button variant="outline" onClick={() => setShowDialog(false)}></Button>
+                <Button onClick={handleSave}></Button>
               </div>
             </div>
           </DialogContent>
@@ -157,12 +157,12 @@ export default function AdminNavigation() {
         <Card className="border-white/[0.05] bg-card/40">
           <CardContent className="p-12 text-center">
             <Menu className="h-12 w-12 mx-auto text-[#8B8BA3] mb-3" />
-            <p className="text-[#8B8BA3]">暂无导航项，点击添加</p>
+            <p className="text-[#8B8BA3]"></p>
           </CardContent>
         </Card>
       ) : (
         <Card className="border-white/[0.05] bg-card/40">
-          <CardHeader><CardTitle>导航项列表</CardTitle></CardHeader>
+          <CardHeader><CardTitle></CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-2">
               {items.map((item, index) => (
@@ -180,7 +180,7 @@ export default function AdminNavigation() {
                       <p className="text-sm font-medium">{item.label}</p>
                       <p className="text-xs text-[#8B8BA3]">{item.url}</p>
                     </div>
-                    {item.parent_id && <Badge variant="outline" className="text-[10px]">子菜单</Badge>}
+                    {item.parent_id && <Badge variant="outline" className="text-[10px]"></Badge>}
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" onClick={() => toggleVisibility(item)}>

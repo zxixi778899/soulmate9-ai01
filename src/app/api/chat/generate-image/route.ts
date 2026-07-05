@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const IMAGE_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 }; // 10/h/user — RunPod FLUX 烧钱
+const IMAGE_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 }; // 10/h/user  RunPod FLUX 
 
 /**
  * Preset options for image generation
@@ -105,7 +105,7 @@ async function generateWithRunPod(
 
 async function uploadToStorage(base64Data: string): Promise<string> {
   const dataUrl = `data:image/png;base64,${base64Data}`;
-  // 上传到 OSS，返回 key（数据库存 key，读取侧通过 image_url 转签名 URL）
+  //  OSS key key image_url  URL
   const key = await uploadDataUrl(dataUrl, 'chat_photos/photo');
   return key;
 }
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 限流：RunPod FLUX GPU 烧钱，防脚本刷
+  // RunPod FLUX GPU 
   const rl = await checkRateLimitAsync(`chat-img-gen:${user.id}`, IMAGE_GEN_LIMIT);
   if (!rl.allowed) {
     return NextResponse.json(
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
   const poseTag = pose ? POSE_TAGS[pose] || pose : 'natural pose';
   const envTag = environment ? ENV_TAGS[environment] || environment : 'soft clean background';
 
-  // Build a rich photorealistic prompt — 强调美女/女友/性感
+  // Build a rich photorealistic prompt  //
   const prompt = `Stunningly beautiful gorgeous young woman ${gf.name}, ${appearanceDesc}. ${poseTag}. ${envTag}. ${moodTag}. Intimate selfie-style photo, looking at camera, ultra photorealistic, shot on Canon EOS R5 85mm f/1.4, ultra high quality, 8K, sharp focus, natural skin texture, professional photography, warm vibrant colors, radiant glowing skin, magazine cover quality, captivating presence.`;
 
   const negativePrompt = 'nsfw, nude, explicit, cartoon, anime, illustration, painting, 3d render, low quality, blurry, distorted, bad anatomy, extra limbs, ugly, deformed, watermark, text, signature, logo, stiff, unnatural, plastic, artificial, dead eyes, blank expression, gloomy, depressing, dark shadows';
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
 
     if (!imageUrl) throw new Error('Failed to generate image');
 
-    const message = `${gf.name} sends you a photo ✨ [${[mood, pose, environment].filter(Boolean).join(', ')}]`;
+    const message = `${gf.name} sends you a photo  [${[mood, pose, environment].filter(Boolean).join(', ')}]`;
 
     // Save as chat message
     await client.from('chat_messages').insert({

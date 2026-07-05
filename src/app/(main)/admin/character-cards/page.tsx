@@ -138,7 +138,7 @@ export default function CharacterCardsPage() {
                   <p><span className="text-[#8B8BA3]">Name:</span> {result.girlfriend.name}</p>
                   <p><span className="text-[#8B8BA3]">Format:</span> <Badge variant="outline" className="text-xs">{result.girlfriend.version.toUpperCase()}</Badge></p>
                   <p><span className="text-[#8B8BA3]">Tags:</span> {result.girlfriend.tags.join(', ') || 'None'}</p>
-                  <p><span className="text-[#8B8BA3]">First Message:</span> {result.girlfriend.hasFirstMessage ? '✅' : '❌'}</p>
+                  <p><span className="text-[#8B8BA3]">First Message:</span> {result.girlfriend.hasFirstMessage ? '' : ''}</p>
                 </div>
                 <Button size="sm" variant="outline" className="w-full" onClick={() => window.open(`/chat/${result.girlfriend.id}`, '_blank')}>
                   Open Chat

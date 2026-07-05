@@ -103,14 +103,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
   }
 
-  // Stripe checkout URL (placeholder — set STRIPE_PUBLISHABLE_KEY + STRIPE_SECRET_KEY in env)
+  // Stripe checkout URL (placeholder  set STRIPE_PUBLISHABLE_KEY + STRIPE_SECRET_KEY in env)
   const stripePriceIds: Record<string, string> = {
     premium: process.env.STRIPE_PRICE_PREMIUM || '',
     unlimited: process.env.STRIPE_PRICE_UNLIMITED || '',
   };
 
   if (!stripePriceIds[plan]) {
-    // Stripe not configured — reject the request instead of auto-upgrading
+    // Stripe not configured  reject the request instead of auto-upgrading
     return NextResponse.json({ 
       error: 'Payment system not configured. Please contact support.',
     }, { status: 503 });

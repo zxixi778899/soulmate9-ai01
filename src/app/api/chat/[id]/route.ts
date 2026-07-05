@@ -12,7 +12,7 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // M12 修复：强制 limit 上限（默认 30，最大 100），防止 limit=100000 拖死 DB
+  // M12  limit  30 100 limit=100000  DB
   const { page, limit, offset } = parsePagination(request, { defaultLimit: 30, maxLimit: 100 });
 
   const { data: messages, error } = await client

@@ -40,7 +40,7 @@ export default function AdminPages() {
       const data = await res.json();
       setPages(data.pages || []);
     } catch (e) {
-      toast.error('加载页面列表失败');
+      toast.error('');
     } finally {
       setLoading(false);
     }
@@ -49,34 +49,34 @@ export default function AdminPages() {
   useEffect(() => { fetchPages(); }, []);
 
   const handleSave = async () => {
-    if (!form.title || !form.slug) { toast.error('请填写页面标题和别名'); return; }
+    if (!form.title || !form.slug) { toast.error(''); return; }
     try {
       const res = await authedFetch('/api/admin/pages', {
         method: editPage ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editPage ? { id: editPage.id, ...form } : form),
       });
-      if (!res.ok) { const d = await res.json(); toast.error(d.error || '保存失败'); return; }
-      toast.success(editPage ? '页面已更新' : '页面已创建');
+      if (!res.ok) { const d = await res.json(); toast.error(d.error || ''); return; }
+      toast.success(editPage ? '' : '');
       setShowDialog(false);
       setEditPage(null);
       setForm({ title: '', slug: '', description: '' });
       fetchPages();
-    } catch (e) { toast.error('保存失败'); }
+    } catch (e) { toast.error(''); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定删除此页面？所有模块将一同删除。')) return;
+    if (!confirm('')) return;
     try {
       const res = await authedFetch('/api/admin/pages', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       });
-      if (!res.ok) { toast.error('删除失败'); return; }
-      toast.success('页面已删除');
+      if (!res.ok) { toast.error(''); return; }
+      toast.success('');
       fetchPages();
-    } catch (e) { toast.error('删除失败'); }
+    } catch (e) { toast.error(''); }
   };
 
   const togglePublish = async (page: SitePage) => {
@@ -86,10 +86,10 @@ export default function AdminPages() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: page.id, is_published: !page.is_published }),
       });
-      if (!res.ok) { toast.error('操作失败'); return; }
-      toast.success(page.is_published ? '已下架' : '已发布');
+      if (!res.ok) { toast.error(''); return; }
+      toast.success(page.is_published ? '' : '');
       fetchPages();
-    } catch (e) { toast.error('操作失败'); }
+    } catch (e) { toast.error(''); }
   };
 
   if (loading) return (
@@ -102,38 +102,38 @@ export default function AdminPages() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">页面管理</h1>
-          <p className="text-sm text-[#8B8BA3] mt-1">创建和管理站点页面及模块</p>
+          <h1 className="text-2xl font-bold"></h1>
+          <p className="text-sm text-[#8B8BA3] mt-1"></p>
         </div>
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogTrigger asChild>
             <Button
               onClick={() => { setEditPage(null); setForm({ title: '', slug: '', description: '' }); }}
             >
-              <Plus className="h-4 w-4 mr-2" /> 新建页面
+              <Plus className="h-4 w-4 mr-2" /> 
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>{editPage ? '编辑页面' : '新建页面'}</DialogTitle>
+              <DialogTitle>{editPage ? '' : ''}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-1 block">页面标题</label>
-                <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="例如：关于我们" />
+                <label className="text-sm font-medium mb-1 block"></label>
+                <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="" />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">URL 别名 (slug)</label>
-                <Input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="例如：about-us" />
-                <p className="text-xs text-[#8B8BA3] mt-1">访问地址: /page/about-us</p>
+                <label className="text-sm font-medium mb-1 block">URL  (slug)</label>
+                <Input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="about-us" />
+                <p className="text-xs text-[#8B8BA3] mt-1">: /page/about-us</p>
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">描述</label>
+                <label className="text-sm font-medium mb-1 block"></label>
                 <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} />
               </div>
               <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setShowDialog(false)}>取消</Button>
-                <Button onClick={handleSave}>保存</Button>
+                <Button variant="outline" onClick={() => setShowDialog(false)}></Button>
+                <Button onClick={handleSave}></Button>
               </div>
             </div>
           </DialogContent>
@@ -144,7 +144,7 @@ export default function AdminPages() {
         <Card className="border-white/[0.05] bg-card/40">
           <CardContent className="p-12 text-center">
             <Globe className="h-12 w-12 mx-auto text-[#8B8BA3] mb-3" />
-            <p className="text-[#8B8BA3]">暂无页面，点击「新建页面」开始创建</p>
+            <p className="text-[#8B8BA3]"></p>
           </CardContent>
         </Card>
       ) : (
@@ -157,7 +157,7 @@ export default function AdminPages() {
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="font-semibold">{page.title}</h3>
                       <Badge variant={page.is_published ? 'default' : 'outline'} className="text-[10px]">
-                        {page.is_published ? '已发布' : '草稿'}
+                        {page.is_published ? '' : ''}
                       </Badge>
                     </div>
                     <p className="text-sm text-[#8B8BA3]">/{page.slug}</p>
@@ -166,7 +166,7 @@ export default function AdminPages() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => togglePublish(page)} title={page.is_published ? '下架' : '发布'}>
+                    <Button variant="ghost" size="icon" onClick={() => togglePublish(page)} title={page.is_published ? '' : ''}>
                       {page.is_published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => {
@@ -179,7 +179,7 @@ export default function AdminPages() {
                     <Button
                       variant="ghost" size="icon"
                       onClick={() => router.push(`/admin/pages/${page.id}`)}
-                      title="编辑模块"
+                      title=""
                     >
                       <Globe className="h-4 w-4" />
                     </Button>

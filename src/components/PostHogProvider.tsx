@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * PostHog 客户端 Provider
+ * PostHog  Provider
  *
- * - 挂载时 init posthog-js（懒加载 + 静默降级）
- * - 自动捕获 pageview
- * - 用户登录后 identify
+ * -  init posthog-js + 
+ * -  pageview
+ * -  identify
  *
- * 用法：在 app/layout.tsx 包裹 children
+ *  app/layout.tsx  children
  */
 
 import { useEffect, useRef } from 'react';
@@ -33,27 +33,27 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     if (!apiKey) return;
 
     try {
-      // 动态 import：包未装时静默降级
+      //  import
       // @ts-ignore - posthog-js is optional, install with `pnpm add posthog-js`
       import('posthog-js').then((mod) => {
         const ph = (mod.default || mod) as unknown as PostHogClient;
         ph.init(apiKey, {
           api_host: host,
-          capture_pageview: false, // 我们手动 capture（更准）
+          capture_pageview: false, //  capture
           capture_pageleave: true,
           autocapture: true,
-          // 性能：dev 模式关闭
+          // dev 
           disable_session_recording: process.env.NODE_ENV !== 'production',
         });
       }).catch(() => {
-        // 包未装 — no-op
+        //   no-op
       });
     } catch {
       // no-op
     }
   }, []);
 
-  // 路由变化时手动上报 pageview
+  //  pageview
   useEffect(() => {
     if (!pathname) return;
     if (typeof window === 'undefined') return;
@@ -67,7 +67,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * 客户端埋点 hook（包未装时 no-op）
+ *  hook no-op
  */
 export function useTrackEvent() {
   return (event: string, properties?: Record<string, unknown>) => {
@@ -80,7 +80,7 @@ export function useTrackEvent() {
 }
 
 /**
- * 客户端 identify helper
+ *  identify helper
  */
 export function identifyUser(distinctId: string, properties?: Record<string, unknown>) {
   if (typeof window === 'undefined') return;

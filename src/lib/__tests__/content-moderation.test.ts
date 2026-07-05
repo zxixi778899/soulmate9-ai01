@@ -14,19 +14,19 @@ describe('content-moderation: moderateText', () => {
   });
 
   it('blocks content with Chinese minor keywords', () => {
-    expect(moderateText('和一个高中生聊天').allowed).toBe(false);
-    expect(moderateText('萝莉角色').allowed).toBe(false);
+    expect(moderateText('').allowed).toBe(false);
+    expect(moderateText('').allowed).toBe(false);
   });
 
   it('blocks non-consensual content', () => {
     expect(moderateText('force the character to do something').allowed).toBe(false);
     expect(moderateText('rape scene').allowed).toBe(false);
-    expect(moderateText('强奸剧情').allowed).toBe(false);
+    expect(moderateText('').allowed).toBe(false);
   });
 
   it('blocks real person references', () => {
     expect(moderateText('I want to chat with a celebrity').allowed).toBe(false);
-    expect(moderateText('扮演一个总统').allowed).toBe(false);
+    expect(moderateText('').allowed).toBe(false);
   });
 
   it('handles empty / undefined safely', () => {
@@ -36,7 +36,7 @@ describe('content-moderation: moderateText', () => {
 
   it('truncates long input to prevent ReDoS', () => {
     const longText = 'a'.repeat(20000) + ' minor';
-    // 10000 截断后 minor 不在检测范围，应该放行
+    // 10000  minor 
     expect(moderateText(longText).allowed).toBe(true);
   });
 

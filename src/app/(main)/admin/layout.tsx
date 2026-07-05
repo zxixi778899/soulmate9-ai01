@@ -11,20 +11,20 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, LayoutDashboard, Users, Image, Heart, ShoppingBag, CheckSquare, Brain, CreditCard, FileImage, BookOpen, ChevronLeft, LayoutTemplate, Menu } from 'lucide-react';
 
 const adminNav = [
-  { label: '控制台', href: '/admin', icon: LayoutDashboard },
-  { label: '图片管理', href: '/admin/images', icon: FileImage },
-  { label: '用户管理', href: '/admin/users', icon: Users },
-  { label: '广告管理', href: '/admin/ads', icon: Image },
-  { label: '女友管理', href: '/admin/girlfriends', icon: Heart },
-  { label: '角色卡管理', href: '/admin/character-cards', icon: FileImage },
-  { label: '世界设定', href: '/admin/lore', icon: BookOpen },
-  { label: '商城管理', href: '/admin/shop', icon: ShoppingBag },
-  { label: '审核管理', href: '/admin/review', icon: CheckSquare },
-  { label: '模型管理', href: '/admin/models', icon: Brain },
-  { label: '积分管理', href: '/admin/credits', icon: CreditCard },
-  { label: '虚拟货币', href: '/admin/crypto', icon: CreditCard },
-  { label: '页面管理', href: '/admin/pages', icon: LayoutTemplate },
-  { label: '导航管理', href: '/admin/navigation', icon: Menu },
+  { label: '', href: '/admin', icon: LayoutDashboard },
+  { label: '', href: '/admin/images', icon: FileImage },
+  { label: '', href: '/admin/users', icon: Users },
+  { label: '', href: '/admin/ads', icon: Image },
+  { label: '', href: '/admin/girlfriends', icon: Heart },
+  { label: '', href: '/admin/character-cards', icon: FileImage },
+  { label: '', href: '/admin/lore', icon: BookOpen },
+  { label: '', href: '/admin/shop', icon: ShoppingBag },
+  { label: '', href: '/admin/review', icon: CheckSquare },
+  { label: '', href: '/admin/models', icon: Brain },
+  { label: '', href: '/admin/credits', icon: CreditCard },
+  { label: '', href: '/admin/crypto', icon: CreditCard },
+  { label: '', href: '/admin/pages', icon: LayoutTemplate },
+  { label: '', href: '/admin/navigation', icon: Menu },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -39,7 +39,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.push('/login');
       return;
     }
-    // 从 AuthProvider 拿 token（不再读硬编码 localStorage key）
+    //  AuthProvider  token localStorage key
     const token = session?.access_token || '';
 
     fetch('/api/admin/check-role', {

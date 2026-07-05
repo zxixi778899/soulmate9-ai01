@@ -174,11 +174,11 @@ export default function AdminCryptoPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="font-semibold capitalize">{payment.plan_id}</span>
-                        <span className="text-[#8B8BA3]">•</span>
+                        <span className="text-[#8B8BA3]"></span>
                         <span className="text-sm text-[#8B8BA3]">
                           {formatAmount(payment.amount_usd)}
                         </span>
-                        <span className="text-[#8B8BA3]">•</span>
+                        <span className="text-[#8B8BA3]"></span>
                         <Badge
                           variant="outline"
                           className={`${statusCfg.color} border text-[10px] px-2 py-0`}

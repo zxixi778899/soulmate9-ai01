@@ -1,6 +1,6 @@
 /**
- * Prompt Library — SoulMate AI
- * Optimized for Western market (欧美市场) adult aesthetic.
+ * Prompt Library  SoulMate AI
+ * Optimized for Western market () adult aesthetic.
  *
  * Design Principles:
  * - Photorealistic editorial quality (not anime/CG)
@@ -50,36 +50,36 @@ forced smile, mannequin-like, wax figure, doll-like`;
 
 /**
  * Preset prompts for quick selection
- * 基于参考图片优化 - 强调美女/女友/性感/自然表情
+ *  - ///
  */
 export const PRESET_TEMPLATES: PresetEntry[] = [
   {
-    label: '花园典雅',
+    label: '',
     positive: 'stunningly beautiful gorgeous young woman, sexy attractive alluring, perfect figure, flawless glowing skin, elegant in a sunlit garden, soft morning light filtering through leaves, wearing flowing silk dress that flatters her figure, warm golden hour lighting, shallow depth of field, bokeh background, romantic atmosphere, editorial photography, natural skin texture with pores, subtle dewy makeup, wind-swept hair, 85mm lens f/1.8, warm vibrant colors, radiant glowing skin, soft warm genuine smile showing teeth, eyes sparkling with natural catchlights, magazine cover quality, intimate genuine moment',
     negative: 'harsh shadows, direct sunlight, busy background, cluttered, neon colors, artificial, plastic skin, overexposed, stiff, unnatural, dead eyes, gloomy, depressing, dark shadows, harsh contrast, uncanny valley, symmetrical pose, rigid posture, forced smile, mannequin-like',
   },
   {
-    label: '赛博朋克',
+    label: '',
     positive: 'stunningly beautiful gorgeous young woman, sexy attractive alluring, perfect figure, flawless glowing skin, edgy urban fashion in neon-lit city at night, cyberpunk aesthetic, vibrant purple and blue neons, rain-slicked streets reflecting city lights, leather and metallic textures, dramatic side lighting, high contrast, energetic atmosphere, cinematic grain, editorial fashion photography, textured skin with natural pores, natural imperfections, 35mm lens, available light, confident knowing smile, direct eye contact, self-assured, relaxed features, captivating gaze',
     negative: 'cartoon, anime, video game, plastic, clean, sterile, daytime, bright, washed out, flat lighting, airbrushed, stiff, unnatural, dead eyes, blank expression, gloomy, depressing, uncanny valley, symmetrical pose, rigid posture, forced smile, mannequin-like',
   },
   {
-    label: '阳光运动',
+    label: '',
     positive: 'stunningly beautiful gorgeous young woman, sexy attractive alluring, perfect figure, flawless glowing skin, athletic in natural outdoor setting, golden hour beach or park, active pose, sporty casual wear that shows her figure, genuine bright warm smile, eyes crinkling at corners, natural midday sun with fill flash, freckles, sun-kissed glowing skin, motion blur on hair, lifestyle photography, Canon 5D, natural candid moment, dewy skin, authentic joyful expression, vibrant warm colors, girlfriend-next-door vibe',
     negative: 'studio lighting, artificial pose, stiff, mannequin-like, heavy makeup, photoshopped, airbrushed, plastic skin, grumpy, angry, gloomy, depressing, dead eyes, blank expression, uncanny valley, symmetrical pose, rigid posture, forced smile',
   },
   {
-    label: '暗黑哥特',
+    label: '',
     positive: 'stunningly beautiful gorgeous young woman, sexy attractive alluring, perfect figure, flawless glowing skin, dark aesthetic portrait, moody dim lighting with single rim light, pale skin, dark flowing fabrics, lace details, vintage Victorian-inspired fashion, dramatic shadows, chiaroscuro lighting, deep blacks, film photography aesthetic, natural skin texture with visible pores, mysterious alluring expression, editorial dark fashion, medium format film, captivating intense gaze, lips slightly parted, sultry bedroom eyes, sensual mood',
     negative: 'bright, cheerful, colorful, comic, cartoon, anime, flat lighting, overexposed, plastic, airbrushed, happy, smiling, studio clean, stiff, unnatural, dead eyes, blank expression, uncanny valley, symmetrical pose, rigid posture, forced smile, mannequin-like',
   },
   {
-    label: '时尚杂志',
+    label: '',
     positive: 'stunningly beautiful gorgeous young woman, sexy attractive alluring, perfect figure, flawless glowing skin, high fashion editorial shot, minimalist studio with architectural lighting, striking pose, avant-garde fashion that flatters her figure, clean composition with negative space, sharp focus on eyes, textured skin with natural makeup, high contrast, warm vibrant colors, Vogue editorial style, Hasselblad medium format, radiant glowing skin, confident knowing smile, direct eye contact, self-assured, magazine cover quality, captivating natural beauty',
     negative: 'cluttered background, amateur, snapshot, casual, messy lighting, oversaturated, plastic, smooth skin, Instagram filter, low quality, blurry, stiff, unnatural, dead eyes, blank expression, uncanny valley, symmetrical pose, rigid posture, forced smile, mannequin-like',
   },
   {
-    label: '清晨居家',
+    label: '',
     positive: 'stunningly beautiful gorgeous young woman, sexy attractive alluring, perfect figure, flawless glowing skin, intimate bedroom scene at dawn, soft window light creating gentle shadows, warm morning ambiance, subtle warm smile, cozy sheets and natural fabrics, relaxed pose, genuine candid moment, film grain, authentic skin texture with pores, minimal makeup, messy natural hair, warm color temperature, documentary photography style, available light only, radiant glowing skin, inviting girlfriend-next-door vibe, soft warm genuine smile, eyes sparkling with natural catchlights, lips slightly parted',
     negative: 'harsh lighting, studio flash, artificial, posed, stiff, heavy makeup, formal, bright colors, neon, oversaturated, plastic skin, gloomy, depressing, dead eyes, blank expression, uncanny valley, symmetrical pose, rigid posture, forced smile, mannequin-like',
   },

@@ -17,8 +17,8 @@ const SUPABASE_KEY =
   process.env.COZE_SUPABASE_SERVICE_ROLE_KEY ||
   '';
 
-// 允许的 bgDir 白名单根目录。POST 传入的 bgDir 必须 resolve 到以下任一前缀下，
-// 防止路径穿越（用户控制 bgDir → readFile /etc/...）。
+//  bgDir POST  bgDir  resolve 
+//  bgDir  readFile /etc/...
 const ALLOWED_BG_ROOTS = [
   '/sessions/peaceful-confident-dijkstra/mnt/runpod-handler/backgrounds',
   '/var/tmp/backgrounds',
@@ -37,7 +37,7 @@ const SCENES = [
 const UPLOAD_SCENES_LIMIT = { maxRequests: 20, windowMs: 60 * 60 * 1000 }; // 20/h/admin
 
 function isPathInside(child: string, parent: string): boolean {
-  // 防止 /foo/barbaz 误判为 /foo/bar 子路径：标准化后必须含分隔符
+  //  /foo/barbaz  /foo/bar 
   const rel = path.relative(parent, child);
   return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
@@ -48,11 +48,11 @@ function isAllowedBgDir(bgDir: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  // 双层防御：仅 admin+ 可访问
+  //  admin+ 
   const guard = await requireAdmin(req, 'admin');
   if (guard.error) return guard.error;
 
-  // 限流：防脚本批量上传
+  // 
   const rl = await checkRateLimitAsync(`upload-scenes:${guard.user!.id}`, UPLOAD_SCENES_LIMIT);
   if (!rl.allowed) {
     return NextResponse.json(
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const requestedBgDir: string = typeof body.bgDir === 'string' ? body.bgDir : ALLOWED_BG_ROOTS[0] || '';
-  // 路径白名单校验：把 bgDir resolve 为绝对路径，验证必须落在 ALLOWED_BG_ROOTS 任一根目录下
+  //  bgDir resolve  ALLOWED_BG_ROOTS 
   if (!requestedBgDir || !isAllowedBgDir(requestedBgDir)) {
     return NextResponse.json(
       { error: 'bgDir not allowed', allowed_roots: ALLOWED_BG_ROOTS },
@@ -79,13 +79,13 @@ export async function POST(req: NextRequest) {
 
   const results: any[] = [];
   for (const name of requested) {
-    // 二次防穿越：场景名只允许 kebab-case（a-z0-9-）
+    //  kebab-casea-z0-9-
     if (typeof name !== 'string' || !/^[a-z0-9-]{1,64}$/.test(name)) {
       results.push({ name, ok: false, error: 'invalid scene name' });
       continue;
     }
     const localPath = path.resolve(path.join(bgDir, `${name}.png`));
-    // 双重校验：单文件路径仍必须在 bgDir 下
+    //  bgDir 
     if (!isPathInside(localPath, path.resolve(bgDir))) {
       results.push({ name, ok: false, error: 'path traversal blocked' });
       continue;
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  // 同样加 admin 守卫（之前 GET 也是裸的）
+  //  admin  GET 
   const guard = await requireAdmin(req, 'admin');
   if (guard.error) return guard.error;
 

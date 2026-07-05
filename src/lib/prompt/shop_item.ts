@@ -1,12 +1,12 @@
 /**
- * Shop Item (道具) Prompt Preset
- * 输出：高级博物馆/画册风产品摄影 — 中性灰渐变背景 + 柔光勾勒 + 主体居中
+ * Shop Item () Prompt Preset
+ * /   +  + 
  *
- * 参考用户提供的画册参考图：不要纯黑，要能体现出产品细节
+ * 
  */
 import { sanitizeBlurKeywords, joinParts, type AssembledPrompt, type PresetContext } from './shared';
 
-/** Shop Item 视觉规范 */
+/** Shop Item  */
 export const SHOP_ITEM_DSL = {
   shotType: 'ultra-luxurious editorial product photography',
   composition:
@@ -50,11 +50,11 @@ export function assembleShopItemPrompt(ctx: PresetContext): AssembledPrompt {
   const cleaned = sanitizeBlurKeywords(ctx.rawPrompt || '');
   const objectSubject =
     cleaned && cleaned.trim().length > 0
-      ? cleaned.trim().replace(/[.,，。\s]+$/g, '')
+      ? cleaned.trim().replace(/[.,\s]+$/g, '')
       : SHOP_ITEM_DEFAULT_SUBJECT;
 
   const positive = joinParts([
-    objectSubject, // 主体前置
+    objectSubject, // 
     SHOP_ITEM_DSL.shotType,
     SHOP_ITEM_DSL.composition,
     SHOP_ITEM_DSL.background,

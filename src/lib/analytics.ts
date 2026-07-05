@@ -1,14 +1,14 @@
 /**
- * PostHog 分析适配层（懒加载）
+ * PostHog 
  *
- * - 服务端：用于事件埋点 + funnel 分析
- * - 客户端：通过 posthog-js 单独接入（见 PostHogProvider）
+ * -  + funnel 
+ * -  posthog-js  PostHogProvider
  *
- * 设计原则：
- * 1. posthog-node 未安装时静默 no-op
- * 2. POSTHOG_API_KEY / POSTHOG_PROJECT_API_KEY 未配时不上报
- * 3. 不阻塞主流程（fire-and-forget）
- * 4. 自动注入 server / route 上下文作为 super properties
+ * 
+ * 1. posthog-node  no-op
+ * 2. POSTHOG_API_KEY / POSTHOG_PROJECT_API_KEY 
+ * 3. fire-and-forget
+ * 4.  server / route  super properties
  */
 
 interface PostHogLike {
@@ -38,9 +38,9 @@ function loadPostHog(): PostHogLike | null {
       process.env.POSTHOG_API_KEY || process.env.POSTHOG_PROJECT_API_KEY || 'disabled',
       {
         host: process.env.POSTHOG_HOST || 'https://us.i.posthog.com',
-        // 批量发送：避免阻塞主流程
+        // 
         flushInterval: Number(process.env.POSTHOG_FLUSH_INTERVAL ?? 5000),
-        // 失败重试：1 次即丢（不要阻塞业务）
+        // 1 
         maxRetries: 1,
       },
     ) as PostHogLike;
@@ -57,11 +57,11 @@ function ensureInitialized(): PostHogLike | null {
 }
 
 /**
- * 上报一个事件（服务端）
+ * 
  *
- * @param distinctId 用户 ID 或匿名 ID
- * @param event 事件名（如 'chat_message_sent', 'subscription_started'）
- * @param properties 事件属性
+ * @param distinctId  ID  ID
+ * @param event  'chat_message_sent', 'subscription_started'
+ * @param properties 
  */
 export function capture(
   distinctId: string,
@@ -76,19 +76,19 @@ export function capture(
       event,
       properties: {
         ...properties,
-        // 自动注入的服务端环境上下文
+        // 
         server: true,
         env: process.env.NODE_ENV,
         route: properties?.route as string | undefined,
       },
     });
   } catch {
-    // 上报失败不抛错
+    // 
   }
 }
 
 /**
- * 标识用户（合并匿名 ID → 用户 ID）
+ *  ID   ID
  */
 export function identify(
   distinctId: string,
@@ -104,7 +104,7 @@ export function identify(
 }
 
 /**
- * 在 serverless 环境中强制 flush（如 Vercel function 退出前）
+ *  serverless  flush Vercel function 
  */
 export async function flush(): Promise<void> {
   const ph = ensureInitialized();
@@ -117,15 +117,15 @@ export async function flush(): Promise<void> {
 }
 
 /**
- * 判断 PostHog 是否已可用（包已装 + key 已配）
+ *  PostHog  + key 
  */
 export function isPostHogActive(): boolean {
   return ensureInitialized() !== null && !!process.env.POSTHOG_API_KEY;
 }
 
-// ─────────────────────────────────────────
-// 业务事件常量（统一埋点名称）
-// ─────────────────────────────────────────
+// 
+// 
+// 
 export const AnalyticsEvents = {
   USER_SIGNED_UP: 'user_signed_up',
   USER_LOGGED_IN: 'user_logged_in',

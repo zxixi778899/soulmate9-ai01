@@ -1,8 +1,8 @@
 /**
- * 虚拟商城 v2 — 用户资产清单
+ *  v2  
  * GET /api/shop/v2/inventory
  *
- * 改用 pg 库直连。
+ *  pg 
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';

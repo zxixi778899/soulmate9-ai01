@@ -64,7 +64,7 @@ export default function OnboardingPage() {
     try {
       // Mark onboarding complete in localStorage
       localStorage.setItem('soulmate_onboarding_complete', 'true');
-      toast.success('Welcome aboard! 🎉');
+      toast.success('Welcome aboard! ');
       router.push('/gallery');
     } catch {
       // Still proceed even if API fails

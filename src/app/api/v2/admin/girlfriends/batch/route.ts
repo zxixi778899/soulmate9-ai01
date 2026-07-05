@@ -6,7 +6,7 @@ import { logger } from '@/lib/logger';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// ── ENV ──
+//  ENV 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
   || process.env.COZE_SUPABASE_URL
   || '';
@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 const BATCH_LIMIT = { maxRequests: 20, windowMs: 60 * 60 * 1000 }; // 20/h/admin
 
-// ── Random Data Pools ──
+//  Random Data Pools 
 // 100+ diverse first names for Western market
 const FIRST_NAMES = [
   // American/British
@@ -144,24 +144,24 @@ const BACKSTORIES = [
   'Writer who published her first novel at 25. Draws inspiration from her quirky observations of everyday life.',
 ];
 
-// ── Relationship Roles (immersive settings) ──
+//  Relationship Roles (immersive settings) 
 const ROLES = [
-  { role: 'coworker', label: '同事', desc: 'Your new colleague who sits across from you. Late nights at the office lead to unexpected conversations over coffee.' },
-  { role: 'older_sister', label: '姐姐', desc: 'The girl next door who has always looked after you. She is a few years older, experienced and caring.' },
-  { role: 'younger_sister', label: '妹妹', desc: 'A bubbly younger girl who admires you and always wants to tag along. Full of energy and curiosity.' },
-  { role: 'neighbor', label: '邻居', desc: 'The attractive woman who lives next door. You keep running into each other in the hallway and elevator.' },
-  { role: 'classmate', label: '同学', desc: 'Your former classmate from university. You reconnected on social media and started chatting again.' },
-  { role: 'gym_partner', label: '健身搭档', desc: 'You see her at the gym every morning. She spotted you once, and now you always work out together.' },
-  { role: 'barista', label: '咖啡师', desc: 'The charming barista at your favorite cafe. She always remembers your order and slips little notes into your cup.' },
-  { role: 'personal_trainer', label: '私教', desc: 'Your personal fitness trainer. She pushes you hard but celebrates every milestone with you.' },
-  { role: 'photographer', label: '摄影师', desc: 'A freelance photographer who asked to take your portrait. The photo sessions became your favorite time together.' },
-  { role: 'bookstore_owner', label: '书店老板', desc: 'She runs the cozy bookstore down the street. You started visiting daily just to talk to her.' },
-  { role: 'yoga_instructor', label: '瑜伽老师', desc: 'Your yoga instructor at the local studio. Her calming voice and gentle corrections make every class special.' },
-  { role: 'dog_walker', label: '遛狗女孩', desc: 'You keep meeting her at the park while walking your dog. Your dogs became best friends first.' },
-  { role: 'childhood_friend', label: '青梅竹马', desc: 'You have known her since you were kids. Over the years, friendship slowly turned into something more.' },
-  { role: 'travel_companion', label: '旅伴', desc: 'You met by chance while traveling solo. What was supposed to be a one-time encounter turned into daily calls.' },
-  { role: 'landlord_daughter', label: '房东女儿', desc: 'She helps her parents manage the apartment building. Fixing that leaky faucet gave you an excuse to see her again.' },
-  { role: 'music_teacher', label: '音乐老师', desc: 'She teaches piano at the music school nearby. Your lessons became the highlight of your week.' },
+  { role: 'coworker', label: '', desc: 'Your new colleague who sits across from you. Late nights at the office lead to unexpected conversations over coffee.' },
+  { role: 'older_sister', label: '', desc: 'The girl next door who has always looked after you. She is a few years older, experienced and caring.' },
+  { role: 'younger_sister', label: '', desc: 'A bubbly younger girl who admires you and always wants to tag along. Full of energy and curiosity.' },
+  { role: 'neighbor', label: '', desc: 'The attractive woman who lives next door. You keep running into each other in the hallway and elevator.' },
+  { role: 'classmate', label: '', desc: 'Your former classmate from university. You reconnected on social media and started chatting again.' },
+  { role: 'gym_partner', label: '', desc: 'You see her at the gym every morning. She spotted you once, and now you always work out together.' },
+  { role: 'barista', label: '', desc: 'The charming barista at your favorite cafe. She always remembers your order and slips little notes into your cup.' },
+  { role: 'personal_trainer', label: '', desc: 'Your personal fitness trainer. She pushes you hard but celebrates every milestone with you.' },
+  { role: 'photographer', label: '', desc: 'A freelance photographer who asked to take your portrait. The photo sessions became your favorite time together.' },
+  { role: 'bookstore_owner', label: '', desc: 'She runs the cozy bookstore down the street. You started visiting daily just to talk to her.' },
+  { role: 'yoga_instructor', label: '', desc: 'Your yoga instructor at the local studio. Her calming voice and gentle corrections make every class special.' },
+  { role: 'dog_walker', label: '', desc: 'You keep meeting her at the park while walking your dog. Your dogs became best friends first.' },
+  { role: 'childhood_friend', label: '', desc: 'You have known her since you were kids. Over the years, friendship slowly turned into something more.' },
+  { role: 'travel_companion', label: '', desc: 'You met by chance while traveling solo. What was supposed to be a one-time encounter turned into daily calls.' },
+  { role: 'landlord_daughter', label: '', desc: 'She helps her parents manage the apartment building. Fixing that leaky faucet gave you an excuse to see her again.' },
+  { role: 'music_teacher', label: '', desc: 'She teaches piano at the music school nearby. Your lessons became the highlight of your week.' },
 ];
 
 // 50+ tags (more diverse)
@@ -175,7 +175,7 @@ const TAGS_POOL = [
   'dreamer', 'realist', 'optimist', 'mysterious', 'confident', 'shy', 'bold', 'gentle',
 ];
 
-// ── Helper Functions ──
+//  Helper Functions 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -189,7 +189,7 @@ function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Math.random().toString(36).slice(2, 8);
 }
 
-// ── Generate a unique girlfriend ──
+//  Generate a unique girlfriend 
 function generateGirlfriend(userId: string) {
   const firstName = pick(FIRST_NAMES);
   const lastName = pick(LAST_NAMES);
@@ -217,7 +217,7 @@ function generateGirlfriend(userId: string) {
   // Build character_card with full profile info
   const characterCard = {
     title: fullName,
-    description: `${fullName} — your ${roleData.label}. A stunning ${occupation} with ${appearanceDescription}. ${personality}`,
+    description: `${fullName}  your ${roleData.label}. A stunning ${occupation} with ${appearanceDescription}. ${personality}`,
     tags: tags,
     role: roleData.role,
     role_label: roleData.label,
@@ -250,10 +250,10 @@ function generateGirlfriend(userId: string) {
   };
 }
 
-// ── POST /api/v2/admin/girlfriends/batch ──
+//  POST /api/v2/admin/girlfriends/batch 
 export async function POST(request: NextRequest) {
   try {
-    // 修复：原 verifyAuth 仅校验 token 存在，任何登录用户都能调用。改为 admin 守卫 + 限流。
+    //  verifyAuth  token  admin  + 
     const guard = await requireAdmin(request);
     if (guard.error) return guard.error;
 

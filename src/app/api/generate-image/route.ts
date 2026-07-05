@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 限流：Coze doubao 图像生成也按配额计费
+  // Coze doubao 
   const rl = await checkRateLimitAsync(`gen-img:${user.id}`, IMAGE_GEN_LIMIT);
   if (!rl.allowed) {
     return NextResponse.json(
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     const genData = await genRes.json();
     const rawImages = (genData.data || []) as Array<{ url?: string }>;
 
-    // 持久化到 OSS：下载临时 URL → 转 data URL → 上传 OSS → 返回签名 URL
+    //  OSS URL   data URL   OSS   URL
     const images = await Promise.all(
       rawImages.map(async (item) => {
         const tempUrl = item.url || '';

@@ -1,15 +1,15 @@
 /**
- * Admin: 单张生成女友卡图（Vercel compatible）
+ * Admin: Vercel compatible
  *
- * 用法：
+ * 
  *   POST /api/admin/generate-cards
- *   Body: { slug: string }  // 单张角色 slug
+ *   Body: { slug: string }  //  slug
  *
- * 行为：
- *   - 单张调用 RunPod + 上传，约 30-60s
- *   - Vercel Pro 60s timeout 够单张；Hobby 30s 接近边缘
- *   - 重复 POST 同一 slug 会覆盖 storage cards/{slug}.png
- *   - 配合前端 admin 页面循环调用 14 次
+ * 
+ *   -  RunPod +  30-60s
+ *   - Vercel Pro 60s timeout Hobby 30s 
+ *   -  POST  slug  storage cards/{slug}.png
+ *   -  admin  14 
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
@@ -18,12 +18,12 @@ import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60; // Vercel Pro 上限
+export const maxDuration = 60; // Vercel Pro 
 
-// 单次 RunPod 烧钱：限制 30 次/小时/superadmin
+//  RunPod  30 //superadmin
 const GEN_CARD_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
 
-// 与 page.tsx CHARACTERS 同步
+//  page.tsx CHARACTERS 
 const CHARACTERS: Record<string, { name: string; age: number; traits: string; sceneSlug: string }> = {
   luna: { name: 'Luna', age: 24, traits: 'Poetic, Tender, Soft-spoken', sceneSlug: 'moonlit-bedroom' },
   ruby: { name: 'Ruby', age: 22, traits: 'Playful, Spicy, Polyglot', sceneSlug: 'infinity-pool-night' },
@@ -84,10 +84,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  // 单张模式：{ slug: 'luna' }
-  // 批量模式：{ slugs: ['luna', 'ruby', ...] }（前端一次传多张，但每张一个独立 fetch）
-  // 但当前 route 一次只能跑 1 张（防 Vercel 60s timeout）
-  // 批量参数 slugs 只是为了让 admin UI 知道这一批是哪些，实际是多次 POST
+  // { slug: 'luna' }
+  // { slugs: ['luna', 'ruby', ...] } fetch
+  //  route  1  Vercel 60s timeout
+  //  slugs  admin UI  POST
   const slug = typeof body.slug === 'string' ? body.slug : '';
   const character = CHARACTERS[slug];
 
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 1) RunPod 生成
+    // 1) RunPod 
     const prompt = buildPrompt(character);
     const result = await runpodClient.generateAndUpload(
       { prompt, width: 768, height: 1024, num_inference_steps: 28, guidance_scale: 3.5 },
@@ -107,8 +107,8 @@ export async function POST(req: NextRequest) {
     );
     const generatedUrl = result[0];
 
-    // 2) 移动到固定路径 cards/{slug}.png（用 service_role 重命名）
-    // result[0] 是带签名 URL，提取 key
+    // 2)  cards/{slug}.png service_role 
+    // result[0]  URL key
     const urlObj = new URL(generatedUrl);
     const pathParts = urlObj.pathname.split('/storage/v1/object/sign/');
     if (pathParts.length < 2 || !SUPABASE_URL || !SUPABASE_KEY) {
@@ -116,17 +116,17 @@ export async function POST(req: NextRequest) {
         status: 'partial',
         slug,
         url: generatedUrl,
-        note: '生成成功但无法自动重命名 — 请到 Supabase Storage 手动把 cards/{ts}_*_runpod_0.png 重命名为 cards/{slug}.png',
+        note: '   Supabase Storage  cards/{ts}_*_runpod_0.png  cards/{slug}.png',
       });
     }
 
-    // 提取源 key（去掉签名参数）
+    //  key
     const sourceSignedKey = pathParts[1].split('?')[0];
-    // 解码（如果 URL encoded）
+    //  URL encoded
     const sourceKey = decodeURIComponent(sourceSignedKey);
     const targetKey = `cards/${slug}.png`;
 
-    // 3) 复制到目标 key
+    // 3)  key
     const copyRes = await fetch(
       `${SUPABASE_URL}/storage/v1/object/copy`,
       {
@@ -150,11 +150,11 @@ export async function POST(req: NextRequest) {
         slug,
         generatedKey: sourceKey,
         generatedUrl,
-        note: '生成成功但复制到 cards/{slug}.png 失败 — 请到 Supabase Storage 手动重命名',
+        note: ' cards/{slug}.png    Supabase Storage ',
       });
     }
 
-    // 4) 删除原 generated key
+    // 4)  generated key
     await fetch(
       `${SUPABASE_URL}/storage/v1/object/portraits/${sourceKey}`,
       {
@@ -185,7 +185,7 @@ export async function GET(req: NextRequest) {
   const guard = await requireAdmin(req, 'superadmin');
   if (guard.error) return guard.error;
 
-  // 返回所有 slugs 列表（前端 admin 页面循环调用时知道顺序）
+  //  slugs  admin 
   return NextResponse.json({
     slugs: Object.keys(CHARACTERS),
     total: Object.keys(CHARACTERS).length,

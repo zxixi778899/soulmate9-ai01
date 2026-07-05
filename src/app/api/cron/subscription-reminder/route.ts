@@ -1,7 +1,7 @@
 /**
- * Cron: 订阅到期提醒（提前 3 天）
- * 调用方：Vercel Cron / 外部 cron（每天 09:00 UTC）
- * 鉴权：CRON_SECRET header
+ * Cron:  3 
+ * Vercel Cron /  cron 09:00 UTC
+ * CRON_SECRET header
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,7 +10,7 @@ import { sendSubscriptionRenewalReminder } from '@/lib/email';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 export async function GET(req: NextRequest) {
-  // 鉴权
+  // 
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = req.headers.get('authorization');
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const log = loggerFromRequest(req);
   const supabase = getSupabaseClient();
 
-  // 查找 3 天后到期的 active 订阅
+  //  3  active 
   const now = new Date();
   const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
   const fourDaysFromNow = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   let failed = 0;
 
   for (const sub of subs || []) {
-    // 去重：同一订阅只发一次（通过 metadata 或 user_meta 字段标记）
+    //  metadata  user_meta 
     const dedupeKey = `renewal_reminded_${sub.user_id}_${sub.plan_id}_${sub.current_period_end}`;
     const { data: existing } = await supabase
       .from('user_meta')
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    // 拿邮箱
+    // 
     const { data: profile } = await supabase
       .from('profiles')
       .select('email')
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (result.ok) {
-      // 标记已发
+      // 
       await supabase.from('user_meta').upsert({
         user_id: sub.user_id,
         key: dedupeKey,

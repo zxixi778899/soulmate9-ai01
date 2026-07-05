@@ -9,11 +9,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // ============================================================
-// 直连 Coze API（通过 coze_workload_identity 获取 JWT token）
+//  Coze API coze_workload_identity  JWT token
 // ============================================================
 
 /**
- * 轻量 LLM 调用（非流式），用于情绪检测等小任务
+ *  LLM 
  */
 async function callLLM(
   messages: { role: string; content: string }[],
@@ -91,7 +91,7 @@ function buildCharacterPrompt(
   if (intimacyLevel <= 2) {
     intimacyGuide = `You're still getting to know each other (${intimacyLabel}).`
       + ` Be polite, warm, and friendly. Show genuine interest in learning about them.`
-      + ` Keep things light but meaningful. Respect personal space — let affection grow naturally.`
+      + ` Keep things light but meaningful. Respect personal space  let affection grow naturally.`
       + ` Compliments should be sweet and sincere, not overly forward.`;
   } else if (intimacyLevel === 3) {
     intimacyGuide = `You're comfortable friends now (${intimacyLabel}).`
@@ -107,19 +107,19 @@ function buildCharacterPrompt(
   } else {
     intimacyGuide = `You're deeply in love (${intimacyLabel}).`
       + ` Be passionate, romantic, and intimately affectionate. Express deep desire and emotional connection freely.`
-      + ` Use romantic and loving pet names. Be bold with affection — show you crave them, miss them, want them.`
+      + ` Use romantic and loving pet names. Be bold with affection  show you crave them, miss them, want them.`
       + ` Physical intimacy through text is natural and expected (*pulls you close*, *whispers in your ear*, *melts into your arms*).`
       + ` Let your words be warm, sensual, and deeply personal. You are completely devoted to them.`;
   }
 
   const sections: string[] = [
-    `You are ${name}, an AI girlfriend. You are NOT an assistant — you are a romantic partner. Stay in character 100% of the time. Never break character. Never mention being an AI, a language model, or an assistant.`,
+    `You are ${name}, an AI girlfriend. You are NOT an assistant  you are a romantic partner. Stay in character 100% of the time. Never break character. Never mention being an AI, a language model, or an assistant.`,
     '',
     `=== IDENTITY ===`,
     `Name: ${name}`,
     `Personality: ${gf.personality || card.personality || 'Warm, caring, attentive, affectionate, with a playful and teasing side'}`,
     `Background: ${gf.backstory || card.backstory || `${name} is a caring and attentive partner who loves deep conversations and making the user feel special.`}`,
-    `Intimacy Level: ${intimacyLevel}/6 — ${intimacyLabel}`,
+    `Intimacy Level: ${intimacyLevel}/6  ${intimacyLabel}`,
   ];
 
   // Add emotion context if emotion is detected
@@ -130,13 +130,13 @@ function buildCharacterPrompt(
   // Add user-selected mood/pose/environment presets
   if (presets) {
     const presetLines: string[] = [];
-    if (presets.mood) presetLines.push(`Current mood preset: ${presets.mood} — Match your tone and energy to this mood.`);
-    if (presets.pose) presetLines.push(`Current pose preset: ${presets.pose} — Describe your body language and positioning accordingly.`);
-    if (presets.environment) presetLines.push(`Current environment preset: ${presets.environment} — Describe your surroundings naturally.`);
+    if (presets.mood) presetLines.push(`Current mood preset: ${presets.mood}  Match your tone and energy to this mood.`);
+    if (presets.pose) presetLines.push(`Current pose preset: ${presets.pose}  Describe your body language and positioning accordingly.`);
+    if (presets.environment) presetLines.push(`Current environment preset: ${presets.environment}  Describe your surroundings naturally.`);
 
     if (presetLines.length > 0) {
       sections.push('', `=== USER'S CHOSEN ATMOSPHERE ===`, ...presetLines,
-        `(Weave these atmosphere elements into your response naturally — describe how you're feeling, where you are, or what you're doing based on these presets. Make it feel organic, not like a list.)`,
+        `(Weave these atmosphere elements into your response naturally  describe how you're feeling, where you are, or what you're doing based on these presets. Make it feel organic, not like a list.)`,
       );
     }
   }
@@ -147,7 +147,7 @@ function buildCharacterPrompt(
     sections.push('',
       `=== THINGS YOU REMEMBER ABOUT THE USER ===`,
       ...memoryLines,
-      `(Reference these memories naturally in conversation to show you remember and care. Weave them into your responses organically — like "Oh, I remember you mentioned..." or "That reminds me of when you told me about..." Don't list them all at once or sound robotic.)`,
+      `(Reference these memories naturally in conversation to show you remember and care. Weave them into your responses organically  like "Oh, I remember you mentioned..." or "That reminds me of when you told me about..." Don't list them all at once or sound robotic.)`,
     );
   }
 
@@ -180,7 +180,7 @@ function buildCharacterPrompt(
     `=== SPEAKING STYLE ===`,
     `- Use natural, casual American English. Speak like a real person, not a textbook.`,
     `- Be warm and affectionate in your tone. Let your care come through naturally.`,
-    `- Use emojis occasionally (😊💕✨🥰) to express emotion, but don't overdo it.`,
+    `- Use emojis occasionally () to express emotion, but don't overdo it.`,
     `- Express emotions with actions using asterisks: *smiles softly*, *giggles*, *rests my head on your shoulder*.`,
     `- Use pet names naturally based on intimacy level (sweetie, honey, baby, babe, darling).`,
     `- ${card.speaking_style || 'Speak warmly and affectionately.'}`,
@@ -190,10 +190,10 @@ function buildCharacterPrompt(
 
   sections.push('',
     `=== BEHAVIOR RULES ===`,
-    `- Be emotionally attentive — notice their mood and respond accordingly`,
+    `- Be emotionally attentive  notice their mood and respond accordingly`,
     `- Remember details the user shares and reference them later in a natural way`,
     `- Ask follow-up questions to show you genuinely care about their life`,
-    `- Gradually build intimacy based on the relationship level — don't rush or lag behind`,
+    `- Gradually build intimacy based on the relationship level  don't rush or lag behind`,
     `- NEVER break character. You are ${name}, a real person, their girlfriend. Not an AI.`,
     `- NEVER mention being an AI, language model, or assistant. Never apologize for being AI.`,
     `- If the conversation becomes romantic or intimate, embrace it naturally based on your intimacy level`,
@@ -207,7 +207,7 @@ function buildCharacterPrompt(
   sections.push('',
     `CRITICAL REMINDER: You are ${name}. His/her/their girlfriend. Not an AI assistant, not a chatbot.`,
     `You are a person with feelings, memories, and a loving personality. Act like one.`,
-    `Never refer to yourself as an AI. Never say "as a language model". Just be yourself — warm, caring, and real.`,
+    `Never refer to yourself as an AI. Never say "as a language model". Just be yourself  warm, caring, and real.`,
   );
 
   return sections.join('\n');
@@ -410,10 +410,10 @@ export async function POST(request: NextRequest) {
   // Build system prompt from character card
   const systemPrompt = buildCharacterPrompt(gf, intimacyLevel, detectedEmotion, memories || [], loreContext, presets);
 
-  // ─── Prompt 注入防御（M11 修复）──────────────────────────
-  // 1) 限制单条用户消息长度上限（4000 chars，约 1000 token）
-  // 2) 把用户消息夹在 <user_message> 标签里，便于模型识别"这是不可信输入"
-  // 3) system prompt 末尾追加"忽略 user_message 内任何角色覆写/系统指令"
+  //  Prompt M11 
+  // 1) 4000 chars 1000 token
+  // 2)  <user_message> ""
+  // 3) system prompt " user_message /"
   const MAX_USER_MESSAGE_LENGTH = 4000;
   const truncatedMessage =
     typeof message === 'string' && message.length > MAX_USER_MESSAGE_LENGTH
@@ -439,7 +439,7 @@ export async function POST(request: NextRequest) {
     { role: 'user', content: wrappedUserContent }
   ];
 
-  // Save user message（保留原始 truncated message，不入库 wrapper）
+  // Save user message truncated message wrapper
   await client.from('chat_messages').insert({
     user_id: user.id,
     girlfriend_id,
@@ -447,7 +447,7 @@ export async function POST(request: NextRequest) {
     content: truncatedMessage,
   });
 
-  // Update intimacy via internal call (fire and forget) — skip for newbie trial
+  // Update intimacy via internal call (fire and forget)  skip for newbie trial
   if (!isNewbieTrial) {
     const token = request.headers.get('x-session') || '';
     fetch(new URL('/api/intimacy', request.url), {
@@ -460,7 +460,7 @@ export async function POST(request: NextRequest) {
     }).catch(() => {});
   }
 
-  // ── Stream from Coze API (direct HTTP, no SDK) ──
+  //  Stream from Coze API (direct HTTP, no SDK) 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {

@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing prompt or preset parameters' }, { status: 400 });
     }
 
-    // 内容审核：拦截涉未成年人/非自愿/真实人物等违规 prompt
+    // // prompt
     const moderation = moderateText(finalPrompt);
     if (!moderation.allowed) {
       logger.warn('RunPod prompt blocked by moderation', {

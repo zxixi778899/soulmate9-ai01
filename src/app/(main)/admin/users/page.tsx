@@ -132,8 +132,8 @@ export default function AdminUsersPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">用户管理</h1>
-        <p className="text-sm text-[#8B8BA3] mt-1">查看和管理所有注册用户</p>
+        <h1 className="text-2xl font-bold"></h1>
+        <p className="text-sm text-[#8B8BA3] mt-1"></p>
       </div>
 
       {/* Search + Filters */}
@@ -175,7 +175,7 @@ export default function AdminUsersPage() {
             className="w-[140px] h-8 text-xs"
             placeholder="From date"
           />
-          <span className="text-xs text-[#8B8BA3] self-center">—</span>
+          <span className="text-xs text-[#8B8BA3] self-center"></span>
           <Input
             type="date"
             value={dateTo}

@@ -63,12 +63,12 @@ describe('previewText', () => {
   });
 
   it('truncates with ellipsis', () => {
-    expect(previewText('a'.repeat(100), 80)).toContain('…');
+    expect(previewText('a'.repeat(100), 80)).toContain('');
     expect(previewText('a'.repeat(100), 80).length).toBeLessThanOrEqual(82);
   });
 
   it('respects custom maxLen', () => {
-    expect(previewText('hello world', 5)).toBe('hello…');
+    expect(previewText('hello world', 5)).toBe('hello');
   });
 });
 

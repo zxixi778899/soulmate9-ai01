@@ -167,7 +167,7 @@ export function parseCharacterCard(buffer: Buffer): ParsedCharacterCard {
     throw new Error('No character data (chara/ccv3) found in PNG');
   }
 
-  // Parse character card data — supports V2 (spec + data), V1 (flat), and V1-with-data
+  // Parse character card data  supports V2 (spec + data), V1 (flat), and V1-with-data
   try {
     const parsed = JSON.parse(charaData);
 

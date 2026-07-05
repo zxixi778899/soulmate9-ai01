@@ -71,9 +71,9 @@ const PLANS = [
 ];
 
 const CRYPTO_CURRENCIES = [
-  { id: 'USDT', name: 'USDT', network: 'TRC-20', icon: '💎', placeholder: 'TRC-20 tx hash...' },
-  { id: 'BTC', name: 'Bitcoin', network: 'Bitcoin', icon: '₿', placeholder: 'BTC tx hash...' },
-  { id: 'ETH', name: 'Ethereum', network: 'ERC-20', icon: '♦', placeholder: 'ETH tx hash...' },
+  { id: 'USDT', name: 'USDT', network: 'TRC-20', icon: '', placeholder: 'TRC-20 tx hash...' },
+  { id: 'BTC', name: 'Bitcoin', network: 'Bitcoin', icon: '', placeholder: 'BTC tx hash...' },
+  { id: 'ETH', name: 'Ethereum', network: 'ERC-20', icon: '', placeholder: 'ETH tx hash...' },
 ];
 
 function PricingContent() {
@@ -288,7 +288,7 @@ function PricingContent() {
                   disabled={loading === plan.id}
                 >
                   {loading === plan.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {plan.id === 'free' ? 'Current Plan' : '💳 Pay with Card'}
+                  {plan.id === 'free' ? 'Current Plan' : ' Pay with Card'}
                 </Button>
                 {plan.id !== 'free' && (
                   <Button
@@ -314,10 +314,10 @@ function PricingContent() {
 
         <div className="mt-12 text-center space-y-4">
           <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">🔒 Secure checkout</span>
-            <span className="flex items-center gap-1">💳 Credit/Debit Card</span>
-            <span className="flex items-center gap-1">₿ Crypto (USDT/BTC/ETH)</span>
-            <span className="flex items-center gap-1">↩️ Cancel anytime</span>
+            <span className="flex items-center gap-1"> Secure checkout</span>
+            <span className="flex items-center gap-1"> Credit/Debit Card</span>
+            <span className="flex items-center gap-1"> Crypto (USDT/BTC/ETH)</span>
+            <span className="flex items-center gap-1"> Cancel anytime</span>
           </div>
           <p className="text-[11px] text-muted-foreground/50">
             Your subscription will auto-renew. Cancel anytime from your account settings.

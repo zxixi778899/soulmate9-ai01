@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * SW 注册占位组件
- * 实际逻辑在 useServiceWorker hook 内（生产环境自动 register）
+ * SW 
+ *  useServiceWorker hook  register
  */
 
 import { useServiceWorker } from '@/hooks/useServiceWorker';

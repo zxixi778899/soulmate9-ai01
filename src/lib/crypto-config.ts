@@ -22,7 +22,7 @@ export const CRYPTO_CURRENCIES: CryptoCurrency[] = [
     symbol: 'USDT',
     network: 'TRC-20',
     address: process.env.CRYPTO_WALLET_USDT || '',
-    icon: '💎',
+    icon: '',
     minConfirmations: 2,
   },
   {
@@ -31,7 +31,7 @@ export const CRYPTO_CURRENCIES: CryptoCurrency[] = [
     symbol: 'BTC',
     network: 'Bitcoin',
     address: process.env.CRYPTO_WALLET_BTC || '',
-    icon: '₿',
+    icon: '',
     minConfirmations: 3,
   },
   {
@@ -40,15 +40,15 @@ export const CRYPTO_CURRENCIES: CryptoCurrency[] = [
     symbol: 'ETH',
     network: 'ERC-20',
     address: process.env.CRYPTO_WALLET_ETH || '',
-    icon: '♦',
+    icon: '',
     minConfirmations: 12,
   },
 ];
 
 /**
  * Crypto-to-USD exchange rates
- * - 静态 fallback 在外部价格 API 失败时兜底使用
- * - 通过 fetchLiveCryptoRates() 实时拉取 CoinGecko 价格并缓存 5 分钟
+ * -  fallback  API 
+ * -  fetchLiveCryptoRates()  CoinGecko  5 
  */
 export const CRYPTO_RATES_FALLBACK: Record<string, number> = {
   USDT: 1.0,
@@ -56,10 +56,10 @@ export const CRYPTO_RATES_FALLBACK: Record<string, number> = {
   ETH: 3400,
 };
 
-// 兼容旧引用
+// 
 export const CRYPTO_RATES: Record<string, number> = { ...CRYPTO_RATES_FALLBACK };
 
-// 内存缓存（5 分钟 TTL）
+// 5  TTL
 interface RatesCache {
   rates: Record<string, number>;
   fetchedAt: number;
@@ -67,13 +67,13 @@ interface RatesCache {
 let ratesCache: RatesCache | null = null;
 const RATES_TTL_MS = 5 * 60 * 1000;
 
-// CoinGecko 公开 API：免费、无需 key
+// CoinGecko  API key
 const COINGECKO_URL =
   'https://api.coingecko.com/api/v3/simple/price?ids=tether,bitcoin,ethereum&vs_currencies=usd';
 
 /**
- * 从 CoinGecko 拉取实时汇率，失败时回退到静态值
- * 缓存 5 分钟，避免触发免费额度
+ *  CoinGecko 
+ *  5 
  */
 export async function fetchLiveCryptoRates(): Promise<Record<string, number>> {
   const now = Date.now();
@@ -93,7 +93,7 @@ export async function fetchLiveCryptoRates(): Promise<Record<string, number>> {
       BTC: data.bitcoin?.usd ?? CRYPTO_RATES_FALLBACK.BTC,
       ETH: data.ethereum?.usd ?? CRYPTO_RATES_FALLBACK.ETH,
     };
-    // 同步到全局快照
+    // 
     for (const k of Object.keys(rates)) {
       CRYPTO_RATES[k] = rates[k];
     }
@@ -107,7 +107,7 @@ export async function fetchLiveCryptoRates(): Promise<Record<string, number>> {
 
 /**
  * Calculate crypto amount for a given USD price and currency
- * 同步函数（使用最近一次缓存或 fallback）；如需实时请先 await fetchLiveCryptoRates()
+ *  fallback await fetchLiveCryptoRates()
  */
 export function getCryptoAmount(usdCents: number, currencyId: string): string {
   const usd = usdCents / 100;
@@ -121,7 +121,7 @@ export function getCryptoAmount(usdCents: number, currencyId: string): string {
 }
 
 /**
- * 异步版本：先刷新汇率再计算（推荐在 API 路由中使用）
+ *  API 
  */
 export async function getCryptoAmountLive(usdCents: number, currencyId: string): Promise<string> {
   await fetchLiveCryptoRates();

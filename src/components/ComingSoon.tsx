@@ -4,16 +4,16 @@ import Link from 'next/link';
 interface ComingSoonProps {
   title: string;
   description?: string;
-  /** 可选：估计的上线节点描述，如 "Q2 2026" */
+  /**  "Q2 2026" */
   eta?: string;
-  /** 可选：返回链接，默认指向 /gallery */
+  /**  /gallery */
   backHref?: string;
 }
 
 /**
- * Coming Soon 占位页（避免暴露未完成功能给用户）
+ * Coming Soon 
  *
- * 用法：
+ * 
  *   <ComingSoon title="Voice Messages" description="..." eta="Q2 2026" />
  */
 export default function ComingSoon({

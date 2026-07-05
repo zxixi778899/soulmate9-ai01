@@ -137,7 +137,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col lg:flex-row pt-16">
-          {/* Left: Portrait Area (LCP element — SSR'd above-the-fold) */}
+          {/* Left: Portrait Area (LCP element  SSR'd above-the-fold) */}
           <div className="lg:w-3/5 h-[45vh] lg:h-[calc(100vh-4rem)] bg-white/[0.02] border-b lg:border-b-0 lg:border-r border-white/[0.06] relative flex items-center justify-center overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-[#e11d48]/5" />
             <div className="relative z-10 flex flex-col items-center">
@@ -232,7 +232,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
                 <div className="h-full w-3/5 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6]" />
               </div>
               <p className="text-xs text-[#a1a1aa] mt-2">
-                Intimacy Level: Friend · 45/60
+                Intimacy Level: Friend  45/60
               </p>
             </div>
 
@@ -309,7 +309,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
   );
 }
 
-// 防止首屏 layout shift — 客户端导航期间用 skeleton 兜底
+//  layout shift   skeleton 
 export function GirlfriendViewSkeleton() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex">

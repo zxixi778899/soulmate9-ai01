@@ -1,29 +1,29 @@
 /**
- * 统一分页参数解析 — 强制上限，防止恶意 limit=100000 拖死 DB
+ *    limit=100000  DB
  */
 import { NextRequest } from 'next/server';
 
 export interface PaginationOptions {
-  /** limit 上限，默认 100 */
+  /** limit  100 */
   maxLimit?: number;
-  /** limit 默认值，默认 20 */
+  /** limit  20 */
   defaultLimit?: number;
 }
 
 export interface PaginationResult {
   page: number;
   limit: number;
-  /** Supabase `.range(from, to)` 的 from */
+  /** Supabase `.range(from, to)`  from */
   from: number;
-  /** Supabase `.range(from, to)` 的 to（含） */
+  /** Supabase `.range(from, to)`  to */
   to: number;
-  /** offset 形式，等价于 from */
+  /** offset  from */
   offset: number;
 }
 
 /**
- * 解析 page/limit query 参数，并强制上限与正整数。
- * 任意非法值都会被规范化到安全范围内（不抛错）。
+ *  page/limit query 
+ * 
  */
 export function parsePagination(
   req: NextRequest | URL,

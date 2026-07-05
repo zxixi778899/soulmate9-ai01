@@ -1,15 +1,15 @@
 /**
- * 邮件服务 - Resend 适配层（懒加载）
+ *  - Resend 
  *
- * - resend 包未装时 no-op
- * - RESEND_API_KEY 未配时 no-op
- * - 不阻塞主流程（fire-and-forget + try/catch）
+ * - resend  no-op
+ * - RESEND_API_KEY  no-op
+ * - fire-and-forget + try/catch
  *
- * 业务场景：
- * - 订阅到期提醒（订阅前 3 天）
- * - 主动召回邮件（DAU 流失 > 7 天）
- * - 关键事件（亲密值达到阈值、新女友公开通知）
- * - 管理员告警（关键路由异常激增）
+ * 
+ * -  3 
+ * - DAU  > 7 
+ * - 
+ * - 
  */
 
 interface ResendLike {
@@ -52,7 +52,7 @@ function getDefaultFrom(): string {
 }
 
 /**
- * 发送邮件（通用入口）
+ * 
  *
  * @returns Promise<{ ok: boolean; id?: string; error?: string }>
  */
@@ -86,18 +86,18 @@ export async function sendEmail(options: {
 }
 
 /**
- * 判断邮件是否可用
+ * 
  */
 export function isEmailActive(): boolean {
   return ensureInitialized() !== null && !!process.env.RESEND_API_KEY;
 }
 
-// ─────────────────────────────────────────────────
-// 业务模板
-// ─────────────────────────────────────────────────
+// 
+// 
+// 
 
 /**
- * 订阅即将到期提醒（提前 3 天）
+ *  3 
  */
 export async function sendSubscriptionRenewalReminder(params: {
   to: string;
@@ -141,7 +141,7 @@ export async function sendSubscriptionRenewalReminder(params: {
 }
 
 /**
- * 主动召回邮件（流失 > 7 天）
+ *  > 7 
  */
 export async function sendReEngagementEmail(params: {
   to: string;
@@ -160,7 +160,7 @@ export async function sendReEngagementEmail(params: {
         <blockquote style="border-left: 3px solid #ec4899; padding-left: 16px; color: #6b7280; margin: 16px 0;">
           "${params.lastMessagePreview}"
         </blockquote>
-        <p>Come back and say hi — ${params.girlfriendName} has something new to share.</p>
+        <p>Come back and say hi  ${params.girlfriendName} has something new to share.</p>
         <p style="margin-top: 24px;">
           <a href="${params.ctaUrl}" style="display: inline-block; padding: 12px 24px; background: #ec4899; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Continue the conversation</a>
         </p>
@@ -175,7 +175,7 @@ export async function sendReEngagementEmail(params: {
 }
 
 /**
- * 亲密值里程碑通知
+ * 
  */
 export async function sendIntimacyMilestone(params: {
   to: string;
@@ -206,7 +206,7 @@ export async function sendIntimacyMilestone(params: {
 }
 
 /**
- * 管理员告警邮件（关键指标异常）
+ * 
  */
 export async function sendAdminAlert(params: {
   subject: string;

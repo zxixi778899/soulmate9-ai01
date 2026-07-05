@@ -1,11 +1,11 @@
 /**
- * Push 订阅管理 API
+ * Push  API
  *
- * POST   /api/push/subscribe    订阅
- * DELETE /api/push/subscribe    退订（通过 endpoint）
- * GET    /api/push/subscribe    列出当前用户所有订阅
+ * POST   /api/push/subscribe    
+ * DELETE /api/push/subscribe     endpoint
+ * GET    /api/push/subscribe    
  *
- * 鉴权：必须登录
+ * 
  */
 
 import { NextRequest, NextResponse } from 'next/server';

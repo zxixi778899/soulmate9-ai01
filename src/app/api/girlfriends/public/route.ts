@@ -20,8 +20,8 @@ interface GirlfriendRow {
 export const dynamic = 'force-dynamic';
 
 /**
- * 缓存数据查询 60s：公开女友列表签名 URL 30 天有效，
- * 60s 缓存对用户体验无感。按 (tag, limit) 分别缓存。
+ *  60s URL 30 
+ * 60s  (tag, limit) 
  */
 const fetchPublicGirlfriends = unstable_cache(
   async (tag: string | null, limit: number) => {
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
   } catch (e: any) {
     logger.error('girlfriends/public error:', { data: e?.message });
     return NextResponse.json(
-      { error: e?.message || 'Unknown error', hint: '如果 COZE_SUPABASE_DB_URL 未配，请先在 Vercel env 添加 Supabase Transaction pooler URL' },
+      { error: e?.message || 'Unknown error', hint: ' COZE_SUPABASE_DB_URL  Vercel env  Supabase Transaction pooler URL' },
       { status: 500 },
     );
   }

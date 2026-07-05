@@ -40,11 +40,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.8,
       }));
   } catch {
-    // 直查 SB 失败也保证 sitemap 不空
+    //  SB  sitemap 
     girlfriendUrls = [];
   }
 
-  // CMS 自定义页面
+  // CMS 
   let cmsUrls: MetadataRoute.Sitemap = [];
   try {
     const sb = getSupabaseClient();

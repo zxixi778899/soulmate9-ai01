@@ -1,13 +1,13 @@
 /**
- * 用户数据删除 API — GDPR / CCPA 合规
+ *  API  GDPR / CCPA 
  *
  * POST /api/account/delete
- *   - 用户请求删除自己的数据
- *   - scope: 'all' (全部) 或 'nsfw_only' (只删 NSFW 内容)
- *   - 异步执行（避免大用户阻塞），返回 deletion_request_id
+ *   - 
+ *   - scope: 'all' ()  'nsfw_only' ( NSFW )
+ *   -  deletion_request_id
  *
  * GET /api/account/delete
- *   - 查询当前用户的删除请求历史
+ *   - 
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   const supabase = getSupabaseClient();
 
-  // 写入删除请求记录
+  // 
   const { data: reqRow, error: insertErr } = await supabase
     .from('user_deletion_requests')
     .insert({
@@ -51,8 +51,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'create_request_failed' }, { status: 500 });
   }
 
-  // 立即返回，异步执行删除
-  // 生产应接 cron 或 queue；MVP 阶段返回后由用户手动刷新查看状态
+  // 
+  //  cron  queueMVP 
   log.info('account/delete: request created', {
     userId,
     deletionId: reqRow.id,

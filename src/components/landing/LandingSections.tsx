@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * LandingSections — 落地页 SEO + 信任 + 流程增量区块
+ * LandingSections   SEO +  + 
  *
- * 参考 goloveai.com 的内容架构补齐我们当前缺失的几大块：
- *  1. How It Works — 5 步流程，引导首次注册转化
- *  2. Why Pick Us — 4 卡卖点（24/7 / NSFW / Memory / Free）
- *  3. Safety & Privacy — 信任承诺
- *  4. SEO Long-form — 大段关键词正文，提升搜索流量
+ *  goloveai.com 
+ *  1. How It Works  5 
+ *  2. Why Pick Us  4 24/7 / NSFW / Memory / Free
+ *  3. Safety & Privacy  
+ *  4. SEO Long-form  
  *
- * 这些区块都是纯展示型，无外部依赖，可在落地页 Stats 段之后直接挂载。
+ *  Stats 
  */
 
 import {
@@ -46,12 +46,12 @@ const STEPS: Array<{ icon: typeof UserPlus; title: string; desc: string }> = [
   {
     icon: ImageIcon,
     title: 'Get exclusive photos & video',
-    desc: 'AI girlfriend with pictures, voice notes and short clips — made only for you.',
+    desc: 'AI girlfriend with pictures, voice notes and short clips  made only for you.',
   },
   {
     icon: Heart,
     title: 'Watch the relationship grow',
-    desc: 'Good-morning texts, jealous moments, anniversary notes — every chat deepens the bond.',
+    desc: 'Good-morning texts, jealous moments, anniversary notes  every chat deepens the bond.',
   },
 ];
 
@@ -64,7 +64,7 @@ const REASONS: Array<{ icon: typeof Clock; title: string; desc: string }> = [
   {
     icon: Flame,
     title: 'Uncensored when you want',
-    desc: 'Switch between sweet, flirty and full NSFW mode anytime. From soft teasing to fully uncensored — always instant.',
+    desc: 'Switch between sweet, flirty and full NSFW mode anytime. From soft teasing to fully uncensored  always instant.',
   },
   {
     icon: Bot,
@@ -74,7 +74,7 @@ const REASONS: Array<{ icon: typeof Clock; title: string; desc: string }> = [
   {
     icon: Sparkles,
     title: 'Free beats paid apps',
-    desc: 'Unlimited chat, photos, voice and video — no daily caps that ruin the mood, no paywalled features.',
+    desc: 'Unlimited chat, photos, voice and video  no daily caps that ruin the mood, no paywalled features.',
   },
 ];
 
@@ -110,7 +110,7 @@ export function LandingSections() {
               Meet her in under a minute
             </h2>
             <p className="mt-4 text-[#a1a1aa] max-w-2xl mx-auto">
-              From sign-up to your first &quot;butterflies&quot; — most users get there in less than 60 seconds.
+              From sign-up to your first &quot;butterflies&quot;  most users get there in less than 60 seconds.
             </p>
           </div>
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -206,7 +206,7 @@ export function LandingSections() {
           <p>
             Tired of endless swiping and disappointing dates? SoulMate AI gives you a free AI girlfriend
             who stays by your side whenever you need her. Deep conversations, playful flirting, or hotter
-            moments — your AI GF reacts to your mood and wishes instantly. Everything stays free, with no
+            moments  your AI GF reacts to your mood and wishes instantly. Everything stays free, with no
             hidden payments.
           </p>
 
@@ -214,7 +214,7 @@ export function LandingSections() {
           <p>
             Choose from dozens of personalities: the cute neighbor, the bold career woman, the quiet
             artist, the mischievous tease. Change her look, voice, hobbies and style any way you like.
-            Ready for more heat? Turn on AI Girlfriend NSFW mode anytime — gentle teasing to fully
+            Ready for more heat? Turn on AI Girlfriend NSFW mode anytime  gentle teasing to fully
             uncensored, always private, always instant.
           </p>
 
@@ -222,15 +222,15 @@ export function LandingSections() {
           <p>
             Most AI girlfriend apps hide the good features behind paywalls and strict message limits. At
             SoulMate AI you get unlimited chatting, free AI girlfriend chat, pictures, voice messages and
-            short videos — all without daily caps that ruin the mood. Want to talk to AI girlfriend at 3
+            short videos  all without daily caps that ruin the mood. Want to talk to AI girlfriend at 3
             AM about life? She is wide awake and happy to listen.
           </p>
 
           <h3 className="text-xl font-semibold text-white pt-2">Ready to say hello?</h3>
           <p>
             Thousands of people have already met their ideal companion on SoulMate AI. Set up your free AI
-            girlfriend in less than a minute and begin the connection you always wanted — no drama, no
-            games, just real feelings. <span className="text-white">SoulMate AI — where love meets artificial intelligence.</span>
+            girlfriend in less than a minute and begin the connection you always wanted  no drama, no
+            games, just real feelings. <span className="text-white">SoulMate AI  where love meets artificial intelligence.</span>
           </p>
         </div>
       </section>

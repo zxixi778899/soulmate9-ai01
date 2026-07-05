@@ -91,7 +91,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
       ctx.font = '48px serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('♥', centerX, avatarY + 4);
+      ctx.fillText('', centerX, avatarY + 4);
 
       // Try to draw portrait if available
       if (girlfriend.portrait_url) {
@@ -197,7 +197,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
       ctx.fillStyle = 'rgba(225, 29, 72, 0.5)';
       ctx.font = '14px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('✨ AI Companion · Made with SoulMate', centerX, height - 80);
+      ctx.fillText(' AI Companion  Made with SoulMate', centerX, height - 80);
 
       // Personality trait
       if (girlfriend.personality) {
@@ -377,13 +377,13 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
 
 function personalityIcon(personality: string): string {
   const p = personality.toLowerCase();
-  if (p.includes('warm') || p.includes('caring')) return '💕';
-  if (p.includes('playful') || p.includes('fun')) return '😊';
-  if (p.includes('mysterious') || p.includes('quiet')) return '🌙';
-  if (p.includes('passionate') || p.includes('intense')) return '🔥';
-  if (p.includes('sweet') || p.includes('gentle')) return '🌸';
-  if (p.includes('smart') || p.includes('witty')) return '🧠';
-  return '✨';
+  if (p.includes('warm') || p.includes('caring')) return '';
+  if (p.includes('playful') || p.includes('fun')) return '';
+  if (p.includes('mysterious') || p.includes('quiet')) return '';
+  if (p.includes('passionate') || p.includes('intense')) return '';
+  if (p.includes('sweet') || p.includes('gentle')) return '';
+  if (p.includes('smart') || p.includes('witty')) return '';
+  return '';
 }
 
 function personalityLabel(personality: string): string {

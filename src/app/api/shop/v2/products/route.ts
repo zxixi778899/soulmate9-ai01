@@ -1,16 +1,16 @@
 /**
- * 虚拟商城 v2 — 商品列表
+ *  v2  
  * GET /api/shop/v2/products
  *
- * 改用 pg 库直连 Postgres（绕开 PostgREST cache）。
- * 需要 Vercel env: COZE_SUPABASE_DB_URL
+ *  pg  Postgres PostgREST cache
+ *  Vercel env: COZE_SUPABASE_DB_URL
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { queryPgMany } from '@/storage/database/supabase-client';
 import { resolveImageUrl } from '@/lib/storage';
 import { parsePagination } from '@/lib/pagination';
 
-export const revalidate = 120; // 2 分钟 ISR
+export const revalidate = 120; // 2  ISR
 
 interface ProductRow {
   id: string;
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
   `;
   const rows = await queryPgMany<ProductRow>(rowsSql, params);
 
-  // 解析图片为签名 URL
+  //  URL
   const products = await Promise.all(
     rows.map(async (p) => {
       const rawImages = (typeof p.images === 'string' ? JSON.parse(p.images) : p.images || []) as Array<{ key: string; alt?: string }>;

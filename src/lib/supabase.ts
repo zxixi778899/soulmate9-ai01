@@ -4,7 +4,7 @@ const SUPABASE_URL: string = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY: string = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 /**
- * Plan X — runtime export that forces Turbopack to keep this string in the
+ * Plan X  runtime export that forces Turbopack to keep this string in the
  * client bundle (DCE can't remove a string used in a public export).
  * Each redeploy that changes this string forces a fresh chunk hash, which
  * invalidates the stale `33c8a2200066d1a9` chunk.

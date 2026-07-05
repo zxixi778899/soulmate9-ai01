@@ -1,14 +1,14 @@
 'use client';
 
-// ============ 角色定义 ============
-// 注：本页为硬编码营销内容（CHARACTERS 数据不查 DB）。
-// 真正的公开女友列表走 /girlfriend/[slug]（已是 SSR + ISR）。
-// 当前首页以交互为主（Age / Auth modal / Mobile menu），保持 client。
-// 如需 SEO + 首屏加速，最优做法：
-//   1. 把 CHARACTERS 静态部分提到 src/data/marketing-characters.ts
-//   2. 新建 src/app/_home/StaticHero.tsx 作为 server component 渲染
-//   3. 客户端只包 <Sheet> / <AgeVerification> / <HeroAuthButton>
-// 留作未来重构；本次修复优先聚焦 P0 安全/合规。
+// ============  ============
+// CHARACTERS  DB
+//  /girlfriend/[slug] SSR + ISR
+// Age / Auth modal / Mobile menu client
+//  SEO + 
+//   1.  CHARACTERS  src/data/marketing-characters.ts
+//   2.  src/app/_home/StaticHero.tsx  server component 
+//   3.  <Sheet> / <AgeVerification> / <HeroAuthButton>
+//  P0 /
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -32,7 +32,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
-// ============ 角色定义 ============
+// ============  ============
 type Character = {
   slug: string;
   name: string;
@@ -94,8 +94,8 @@ const CHARACTERS: Character[] = [
     bgAccent: 'rgba(239,68,68,0.55)',
     sceneSlug: 'onsen-spa',
   },
-  // 随机新角色（测试走马灯 14 张卡的整体效果）
-  // 全部使用现有 6 个 scene 之一作卡图
+  //  14 
+  //  6  scene 
   {
     slug: 'mira',
     name: 'Mira',
@@ -228,12 +228,12 @@ export default function SingleViewportHero() {
   const [sceneIdx, setSceneIdx] = useState(0);
   const [paused, setPaused] = useState(false);
 
-  // 鼠标位置（用于全局视差 + 光斑）
+  //  + 
   const [mouse, setMouse] = useState({ x: 0.5, y: 0.5 });
   const heroRef = useRef<HTMLElement | null>(null);
   const cursorTrailRef = useRef<HTMLDivElement>(null);
 
-  // 视差更新（节流到 rAF）
+  //  rAF
   useEffect(() => {
     let raf = 0;
     let lastX = 0.5, lastY = 0.5;
@@ -256,23 +256,23 @@ export default function SingleViewportHero() {
     };
   }, []);
 
-  // 自动轮转场景
+  // 
   useEffect(() => {
     if (paused) return;
     const id = setInterval(() => setSceneIdx((i) => (i + 1) % SCENES.length), 8000);
     return () => clearInterval(id);
   }, [paused]);
 
-  // 文字打字机效果 key
+  //  key
   const active = CHARACTERS[activeIdx];
 
   const handleGetStarted = () => (user ? router.push('/gallery') : router.push('/register'));
   const handleCardClick = (slug: string) => router.push(`/girlfriend/${slug}`);
   const handleCreate = () => router.push('/create');
 
-  // 视差 transform helper
+  //  transform helper
   const parallax = (depth: number) => {
-    // depth: 0-1, 越大移动越多
+    // depth: 0-1, 
     const dx = (mouse.x - 0.5) * depth * 40;
     const dy = (mouse.y - 0.5) * depth * 40;
     return { transform: `translate3d(${dx}px, ${dy}px, 0)` };
@@ -290,7 +290,7 @@ export default function SingleViewportHero() {
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
-          {/* ── Layer 1: 全屏场景底图（视差移动 + 轮转） ── */}
+          {/*  Layer 1:  +   */}
           {SCENES.map((slug, i) => (
             <div
               key={slug}
@@ -311,7 +311,7 @@ export default function SingleViewportHero() {
             </div>
           ))}
 
-          {/* 整体氛围遮罩（减弱 30% 让背景更清晰） */}
+          {/*  30%  */}
           <div
             className="absolute inset-0 z-[2]"
             style={{
@@ -320,7 +320,7 @@ export default function SingleViewportHero() {
             }}
           />
 
-          {/* 鼠标光斑（跟随移动的彩色光晕） */}
+          {/*  */}
           <div
             className="absolute z-[3] pointer-events-none transition-[opacity,transform] duration-300"
             style={{
@@ -335,7 +335,7 @@ export default function SingleViewportHero() {
             }}
           />
 
-          {/* 角色 accent 氛围光 */}
+          {/*  accent  */}
           <div
             key={`glow-${active.slug}`}
             className="absolute inset-0 z-[3] animate-[ambientShift_1800ms_ease-out] pointer-events-none"
@@ -344,18 +344,18 @@ export default function SingleViewportHero() {
             }}
           />
 
-          {/* 顶部 LIVE 状态条 */}
+          {/*  LIVE  */}
           <div className="absolute top-24 left-0 right-0 z-10 flex justify-center pointer-events-none">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/40 border border-white/[0.14] backdrop-blur-md text-[11px] font-mono-pretty tracking-[0.2em] text-[#FF6BA6] uppercase">
               <span className="w-1.5 h-1.5 rounded-full bg-[#FF2D78] animate-pulse" />
-              Live · 18+ Only
+              Live  18+ Only
             </div>
           </div>
 
-          {/* ── Layer 3: 人物立绘（主视觉 · 居中偏右 · z=8） ── */}
+          {/*  Layer 3:     z=8  */}
           <div className="absolute inset-0 z-[8] pointer-events-none">
             {CHARACTERS.map((c, i) => {
-              // 鼠标方向产生倾斜（仅激活的）
+              // 
               const tiltX = i === activeIdx ? (mouse.y - 0.5) * -8 : 0;
               const tiltY = i === activeIdx ? (mouse.x - 0.5) * 8 : 0;
               const px = i === activeIdx ? (mouse.x - 0.5) * 12 : 0;
@@ -368,8 +368,8 @@ export default function SingleViewportHero() {
                     opacity: i === activeIdx ? 1 : 0,
                     top: '50%',
                     left: '60%',
-                    // 避免 `calc(... + 0px)` 这种 CSS spec 不接受的表达式
-                    // px===0 时直接用 -50%
+                    //  `calc(... + 0px)`  CSS spec 
+                    // px===0  -50%
                     transform: i === activeIdx
                       ? (px === 0 && py === 0
                         ? 'translate(-50%, -50%)'
@@ -388,12 +388,12 @@ export default function SingleViewportHero() {
                     sizes="44vw"
                     unoptimized
                   />
-                  {/* 立绘底部 accent 投影 */}
+                  {/*  accent  */}
                   <div
                     className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3/4 h-10 blur-3xl rounded-full pointer-events-none"
                     style={{ background: c.accent, opacity: 0.45 }}
                   />
-                  {/* 鼠标位置 accent 环 — 立绘胸口位置的标记 */}
+                  {/*  accent    */}
                   {i === activeIdx && (
                     <div
                       className="absolute w-3 h-3 rounded-full pointer-events-none"
@@ -411,7 +411,7 @@ export default function SingleViewportHero() {
             })}
           </div>
 
-          {/* ── Layer 2: 文字中景（视差 + 字符错位弹跳） ── */}
+          {/*  Layer 2:  +   */}
           <div
             className="absolute inset-0 z-[5] flex items-center pointer-events-none"
             style={parallax(0.015)}
@@ -419,13 +419,13 @@ export default function SingleViewportHero() {
             <div className="w-full max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
               <div className="md:col-span-7 lg:col-span-6 pointer-events-auto">
                 <div className="max-w-[560px]">
-                  {/* 角色名 — 字符错位弹跳 */}
+                  {/*    */}
                   <div key={`name-${active.slug}`} className="animate-[nameStomp_900ms_cubic-bezier(0.34,1.56,0.64,1)_both]">
                     <h1
                       className="font-display text-6xl md:text-7xl lg:text-[112px] font-extrabold italic leading-[0.88] tracking-tight"
                       style={{
-                        // 实色白字 + 小幅 accent glow（之前用 bg-clip-text + 透明 fill
-                        // 在某些渲染下字形完全消失，只剩模糊光晕）
+                        //  +  accent glow bg-clip-text +  fill
+                        // 
                         color: '#ffffff',
                         textShadow: `0 0 20px ${active.bgAccent}, 0 4px 16px rgba(0,0,0,0.6)`,
                         WebkitTextFillColor: '#ffffff',
@@ -448,7 +448,7 @@ export default function SingleViewportHero() {
                     <div className="mt-4 h-[2px] w-32 bg-gradient-to-r from-transparent via-[#FF2D78] to-transparent animate-[lineExpand_1100ms_ease-out]" />
                   </div>
 
-                  {/* 标语 — 打字机 */}
+                  {/*    */}
                   <div
                     key={`tag-${active.slug}`}
                     className="mt-5 font-heading text-lg md:text-xl text-white/85 italic tracking-wide overflow-hidden whitespace-nowrap animate-[typeIn_1200ms_steps(40)_both]"
@@ -457,7 +457,7 @@ export default function SingleViewportHero() {
                     "{active.tagline}"
                   </div>
 
-                  {/* 简介 — 渐显 */}
+                  {/*    */}
                   <p
                     key={`desc-${active.slug}`}
                     className="mt-4 font-sans text-sm md:text-[15px] text-white/65 leading-relaxed max-w-[480px] animate-[textFade_1100ms_ease-out_400ms_both]"
@@ -465,7 +465,7 @@ export default function SingleViewportHero() {
                     {active.shortDescription}
                   </p>
 
-                  {/* 特质 chip */}
+                  {/*  chip */}
                   <div className="mt-5 flex flex-wrap gap-2">
                     {active.traits.map((t, i) => (
                       <span
@@ -482,7 +482,7 @@ export default function SingleViewportHero() {
                     ))}
                   </div>
 
-                  {/* CTA + 创建专属 */}
+                  {/* CTA +  */}
                   <div className="mt-7 flex flex-wrap items-center gap-3 pointer-events-auto">
                     <Button
                       onClick={() => handleCardClick(active.slug)}
@@ -510,7 +510,7 @@ export default function SingleViewportHero() {
             </div>
           </div>
 
-          {/* 左侧轮转指示器 */}
+          {/*  */}
           <div className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 z-[6] flex flex-col gap-3">
             {CHARACTERS.map((c, i) => (
               <button
@@ -542,14 +542,14 @@ export default function SingleViewportHero() {
             ))}
           </div>
 
-          {/* ── Layer 4: 底部女友卡（5 张等比铺满 nav pill 宽，300px 高，可前后拖动） ── */}
+          {/*  Layer 4: 5  nav pill 300px   */}
           <MarqueeRow
             characters={CHARACTERS}
             activeIdx={activeIdx}
             setActiveIdx={setActiveIdx}
           />
 
-          {/* 鼠标轨迹粒子容器（绝对定位，跟随鼠标生成粒子） */}
+          {/*  */}
           <CursorTrail targetRef={heroRef} accent={active.accent} />
         </section>
       </div>
@@ -558,14 +558,14 @@ export default function SingleViewportHero() {
 }
 
 // ===============================================================
-// 女友卡走马灯 — 5 张等比铺满 nav pill 宽（x=80, right=1360, 宽 1280）
-// 每张 248px + 4 gap × 8px = 1280（卡宽自适应到 5 张总宽 = nav pill 宽）
-// 高度 300px（3:4 比例）
-// 默认位置：5 张首尾相接，起点 x=80
-// 走马灯：JS setInterval 每帧 scrollX 减少 0.5px，无缝循环（复制 1 份做无限）
-// hover 任意卡 → 暂停 + 放大 1.2x + 上移
-// 鼠标拖动 → 手动滚动（pointer events）
-// 点击 → setActiveIdx（轮转仍继续）
+//   5  nav pill x=80, right=1360,  1280
+//  248px + 4 gap  8px = 1280 5  = nav pill 
+//  300px3:4 
+// 5  x=80
+// JS setInterval  scrollX  0.5px 1 
+// hover    +  1.2x + 
+//   pointer events
+//   setActiveIdx
 // ===============================================================
 function MarqueeRow({
   characters,
@@ -578,27 +578,27 @@ function MarqueeRow({
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  // 复制 1 份做无缝循环：5 张 → 10 张
+  //  1 5   10 
   const totalOriginal = characters.length;
   const totalDoubled = totalOriginal * 2;
-  // 5 张等比铺满 nav pill 宽（x=80, right=1360, 总宽 1280）
-  // 卡宽 = (1280 - 4*8) / 5 = 247.2（无论总角色数，可见 5 张铺满 nav pill 宽）
-  // 14 张角色只有 5 张可见 + 9 张在 marquee 滚动中
+  // 5  nav pill x=80, right=1360,  1280
+  //  = (1280 - 4*8) / 5 = 247.2 5  nav pill 
+  // 14  5  + 9  marquee 
   const navPadLeft = 80;
   const navWidth = 1280;
   const VISIBLE_CARDS = 5;
   const cardGap = 8;
   const cardWidth = (navWidth - (VISIBLE_CARDS - 1) * cardGap) / VISIBLE_CARDS;
-  const cardHeight = 300; // 固定 300px（用户指定）
-  // 走马灯位移状态（hover 时暂停）
+  const cardHeight = 300; //  300px
+  // hover 
   const [scrollX, setScrollX] = useState(0);
   useEffect(() => {
     if (hoverIdx !== null) return;
     const id = setInterval(() => {
       setScrollX((x) => {
-        // 一个循环单位 = 5 张总宽（single pass）= cardWidth * 5 + gap * 4
+        //  = 5 single pass= cardWidth * 5 + gap * 4
         const singleUnit = cardWidth * totalOriginal + cardGap * (totalOriginal - 1);
-        const next = x - 0.5; // 每帧 -0.5px ≈ 30px/s
+        const next = x - 0.5; //  -0.5px  30px/s
         if (next <= -singleUnit) return 0;
         return next;
       });
@@ -606,7 +606,7 @@ function MarqueeRow({
     return () => clearInterval(id);
   }, [hoverIdx, cardWidth, totalOriginal]);
 
-  // 鼠标拖动（pointer events）
+  // pointer events
   const dragStartX = useRef(0);
   const dragStartScrollX = useRef(0);
   const isDragging = useRef(false);
@@ -689,7 +689,7 @@ function MarqueeRow({
 }
 
 // ===============================================================
-// 角色卡（走马灯用）— 用 characters/{slug}.png（透明立绘 PNG）
+//   characters/{slug}.png PNG
 // ===============================================================
 function CharacterCard({
   c,
@@ -712,7 +712,7 @@ function CharacterCard({
           : '0 6px 18px rgba(0,0,0,0.4)',
       } as React.CSSProperties}
     >
-      {/* 卡图：cards/{slug}.png（RunPod 生成的有背景实景图，与背景 scenes 图分开） */}
+      {/* cards/{slug}.pngRunPod  scenes  */}
       <div className="absolute inset-0">
         <Image
           src={`${SUPABASE_BASE}/cards/${c.slug}.png`}
@@ -722,7 +722,7 @@ function CharacterCard({
           sizes="248px"
           unoptimized
           onError={(e) => {
-            // 卡图未生成时回退到 scenes 图
+            //  scenes 
             const target = e.target as HTMLImageElement;
             if (!target.dataset.fallback) {
               target.dataset.fallback = '1';
@@ -732,17 +732,17 @@ function CharacterCard({
         />
       </div>
 
-      {/* 底部名字条 */}
+      {/*  */}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/55 to-transparent pt-8 pb-2 px-2">
         <div className="text-white text-[14px] font-bold tracking-tight leading-none text-center">
           {c.name}
         </div>
         <div className="text-[9px] text-white/65 font-mono-pretty mt-0.5 text-center tracking-wider">
-          {c.age} · {c.traits[0]}
+          {c.age}  {c.traits[0]}
         </div>
       </div>
 
-      {/* Live 角标 */}
+      {/* Live  */}
       <div className="absolute top-2 left-2 inline-flex items-center gap-0.5 bg-black/60 backdrop-blur-sm border border-white/20 rounded-full px-1.5 py-0.5 text-[8px] font-mono-pretty text-white tracking-wider uppercase">
         <span
           className="w-1 h-1 rounded-full animate-pulse"
@@ -755,7 +755,7 @@ function CharacterCard({
 }
 
 // ===============================================================
-// 鼠标轨迹粒子 — 每 ~80ms 在鼠标位置放一个发光点，自动 fade
+//    ~80ms  fade
 // ===============================================================
 function CursorTrail({
   targetRef,
@@ -771,7 +771,7 @@ function CursorTrail({
     const onMove = (e: MouseEvent) => {
       if (!targetRef.current) return;
       const r = targetRef.current.getBoundingClientRect();
-      // 只在 hero 区域内生成
+      //  hero 
       if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
       const now = Date.now();
       if (now - lastSpawn.current < 60) return;
@@ -792,7 +792,7 @@ function CursorTrail({
     return () => window.removeEventListener('mousemove', onMove);
   }, [targetRef, accent]);
 
-  // 清理旧粒子
+  // 
   useEffect(() => {
     const id = setInterval(() => {
       const cutoff = Date.now() - 900;
@@ -824,7 +824,7 @@ function CursorTrail({
 }
 
 // ===============================================================
-// 全新导航 — 顶部毛玻璃 pill
+//    pill
 // ===============================================================
 function NewTopNav({
   user,

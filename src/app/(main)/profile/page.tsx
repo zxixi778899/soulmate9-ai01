@@ -89,7 +89,7 @@ export default function ProfilePage() {
           id: w.id,
           type: 'outfit' as const,
           name: w.outfit?.name || w.outfit_name || 'Outfit',
-          icon: w.outfit?.emoji || w.outfit_emoji || '👗',
+          icon: w.outfit?.emoji || w.outfit_emoji || '',
           tier: w.outfit?.tier || w.tier || 'free',
           equipped: w.is_equipped || false,
           girlfriend_id: w.girlfriend_id,

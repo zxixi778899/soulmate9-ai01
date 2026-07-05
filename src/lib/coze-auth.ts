@@ -1,18 +1,18 @@
 import { logger } from '@/lib/logger';
 /**
- * Coze API 认证工具
- * 支持两种环境：
- * 1. Coze 沙箱：使用 Python coze_workload_identity
- * 2. Vercel/生产：使用环境变量直接调用 API
+ * Coze API 
+ * 
+ * 1. Coze  Python coze_workload_identity
+ * 2. Vercel/ API
  */
 
-// 缓存 token，避免每次请求都调用
+//  token
 let cachedToken: string | null = null;
 let tokenExpiry = 0;
 
 /**
- * 获取 Coze API 访问令牌（JWT）
- * Token 有效期约 2 小时，缓存 1.5 小时后刷新
+ *  Coze API JWT
+ * Token  2  1.5 
  */
 export async function getCozeAccessToken(): Promise<string> {
   const now = Date.now();
@@ -20,13 +20,13 @@ export async function getCozeAccessToken(): Promise<string> {
     return cachedToken;
   }
 
-  // 优先使用环境变量（Vercel/生产环境）
+  // Vercel/
   const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY;
   const clientSecret = process.env.COZE_WORKLOAD_IDENTITY_CLIENT_SECRET;
 
   if (apiKey && clientSecret) {
     try {
-      // 使用环境变量直接调用 Coze API 获取 token
+      //  Coze API  token
       const response = await fetch('https://api.coze.cn/api/authorization/token', {
         method: 'POST',
         headers: {
@@ -58,7 +58,7 @@ export async function getCozeAccessToken(): Promise<string> {
     }
   }
 
-  // 回退到 Python 模块（Coze 沙箱环境）
+  //  Python Coze 
   try {
     const { execSync } = await import('child_process');
     const token = execSync(
@@ -76,7 +76,7 @@ export async function getCozeAccessToken(): Promise<string> {
 }
 
 /**
- * 清除缓存的 token（用于强制刷新）
+ *  token
  */
 export function clearCozeTokenCache(): void {
   cachedToken = null;
@@ -84,12 +84,12 @@ export function clearCozeTokenCache(): void {
 }
 
 /**
- * Coze API 基础 URL
+ * Coze API  URL
  */
 export const COZE_API_BASE = process.env.COZE_INTEGRATION_MODEL_BASE_URL
   || `${process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn'}/api/v3`;
 
 /**
- * 默认模型
+ * 
  */
 export const DEFAULT_LLM_MODEL = 'doubao-seed-2-0-pro-260215';

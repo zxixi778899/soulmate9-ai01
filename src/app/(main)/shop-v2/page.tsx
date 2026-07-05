@@ -1,9 +1,9 @@
 /**
- * 虚拟商城 v2 — 主页面
+ *  v2  
  * /shop-v2
  *
- * 风格：继承 DESIGN.md 的深色 + 粉色高亮，玻璃卡片
- * 功能：商品列表（按 category 筛选）、购买按钮、积分余额显示
+ *  DESIGN.md  + 
+ *  category 
  */
 'use client';
 
@@ -49,12 +49,12 @@ const RARITY_BG: Record<string, string> = {
 };
 
 const CATEGORIES = [
-  { id: 'all', label: 'All', emoji: '✨' },
-  { id: 'outfit', label: 'Outfits', emoji: '👗' },
-  { id: 'voice_pack', label: 'Voices', emoji: '🎙️' },
-  { id: 'effect', label: 'Effects', emoji: '💫' },
-  { id: 'background', label: 'Backgrounds', emoji: '🌆' },
-  { id: 'consumable', label: 'Consumables', emoji: '🎁' },
+  { id: 'all', label: 'All', emoji: '' },
+  { id: 'outfit', label: 'Outfits', emoji: '' },
+  { id: 'voice_pack', label: 'Voices', emoji: '' },
+  { id: 'effect', label: 'Effects', emoji: '' },
+  { id: 'background', label: 'Backgrounds', emoji: '' },
+  { id: 'consumable', label: 'Consumables', emoji: '' },
 ];
 
 export default function ShopV2Page() {
@@ -130,9 +130,9 @@ export default function ShopV2Page() {
         return;
       }
 
-      showToast('success', `✨ ${product.name} added to your inventory!`);
+      showToast('success', ` ${product.name} added to your inventory!`);
       setBalance(data.new_credits_balance);
-      // 可选：刷新商品列表看销量
+      // 
     } catch (e) {
       showToast('error', 'Network error');
     } finally {
@@ -171,7 +171,7 @@ export default function ShopV2Page() {
             </p>
           </div>
 
-          {/* 余额卡 */}
+          {/*  */}
           <div className="flex items-center gap-3 rounded-2xl border border-[#FF2D78]/30 bg-gradient-to-br from-[#FF2D78]/10 to-[#C026D3]/10 px-5 py-3 backdrop-blur-xl">
             <Coins className="h-6 w-6 text-[#FF6BA6]" />
             <div>

@@ -1,14 +1,14 @@
 /**
- * Sentry 服务端初始化（仅 nodejs runtime）
- * 由 instrumentation.ts 在 Next.js 启动时 import 触发。
- * 仅在 SENTRY_DSN 已配 + @sentry/nextjs 已装时才真正 init。
+ * Sentry  nodejs runtime
+ *  instrumentation.ts  Next.js  import 
+ *  SENTRY_DSN  + @sentry/nextjs  init
  */
 
 const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN;
 
 if (dsn) {
   try {
-    // 用 Function 构造器 + 字符串 require 绕过 webpack 静态分析（包不存在时不会 build-fail）
+    //  Function  +  require  webpack  build-fail
     const req = new Function('return require') as NodeRequire;
     const Sentry = req('@sentry/nextjs') as {
       init(opts: Record<string, unknown>): void;
@@ -32,7 +32,7 @@ if (dsn) {
       ],
     });
   } catch (err) {
-    // @sentry/nextjs 未装或 init 失败 - 静默降级
+    // @sentry/nextjs  init  - 
     // eslint-disable-next-line no-console
     console.warn('[sentry-instrumentation] init skipped:', (err as Error).message);
   }

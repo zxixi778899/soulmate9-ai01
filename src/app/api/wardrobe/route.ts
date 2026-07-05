@@ -89,7 +89,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ item: data });
   }
 
-  // Item is NOT yet gifted — gifting it for the first time
+  // Item is NOT yet gifted  gifting it for the first time
   if (is_equipped) {
     if (!girlfriend_id) {
       return NextResponse.json({ error: 'girlfriend_id is required when gifting' }, { status: 400 });

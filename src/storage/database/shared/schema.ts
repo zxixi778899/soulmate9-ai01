@@ -14,13 +14,13 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-// ── 系统表 ──
+//   
 export const healthCheck = pgTable("health_check", {
   id: serial().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow(),
 });
 
-// ── 用户扩展表（extends auth.users） ──
+//  extends auth.users 
 export const profiles = pgTable(
   "profiles",
   {
@@ -42,7 +42,7 @@ export const profiles = pgTable(
   (table) => [index("profiles_user_id_idx").on(table.user_id)]
 );
 
-// ── 女友角色表 ──
+//   
 export const girlfriends = pgTable(
   "girlfriends",
   {
@@ -71,7 +71,7 @@ export const girlfriends = pgTable(
   ]
 );
 
-// ── 聊天记录表 ──
+//   
 export const chatMessages = pgTable(
   "chat_messages",
   {
@@ -96,7 +96,7 @@ export const chatMessages = pgTable(
   ]
 );
 
-// ── 亲密值表 ──
+//   
 export const intimacyScores = pgTable(
   "intimacy_scores",
   {
@@ -121,7 +121,7 @@ export const intimacyScores = pgTable(
   ]
 );
 
-// ── 服装/商品表（商城） ──
+//  / 
 export const outfits = pgTable(
   "outfits",
   {
@@ -146,7 +146,7 @@ export const outfits = pgTable(
   ]
 );
 
-// ── 商城道具表 ──
+//   
 export const shopItems = pgTable(
   "shop_items",
   {
@@ -167,7 +167,7 @@ export const shopItems = pgTable(
   (table) => [index("shop_items_type_idx").on(table.item_type)]
 );
 
-// ── 用户衣柜（已购服装） ──
+//   
 export const wardrobe = pgTable(
   "wardrobe",
   {
@@ -188,7 +188,7 @@ export const wardrobe = pgTable(
   ]
 );
 
-// ── 用户生效中的道具 ──
+//   
 export const userActiveItems = pgTable(
   "user_active_items",
   {
@@ -210,7 +210,7 @@ export const userActiveItems = pgTable(
   ]
 );
 
-// ── 虚拟货币支付表 ──
+//   
 export const cryptoPayments = pgTable(
   "crypto_payments",
   {
@@ -235,7 +235,7 @@ export const cryptoPayments = pgTable(
   ]
 );
 
-// ── 主动问候模板 ──
+//   
 export const proactiveMessageTemplates = pgTable(
   "proactive_message_templates",
   {
@@ -249,7 +249,7 @@ export const proactiveMessageTemplates = pgTable(
   (table) => [index("proactive_templates_slot_idx").on(table.time_slot)]
 );
 
-// ── 主动问候发送日志 ──
+//   
 export const proactiveMessageLog = pgTable(
   "proactive_message_log",
   {
@@ -269,7 +269,7 @@ export const proactiveMessageLog = pgTable(
   ]
 );
 
-// ── Stripe 订阅表 ──
+//  Stripe  
 export const subscriptions = pgTable(
   "subscriptions",
   {
@@ -290,7 +290,7 @@ export const subscriptions = pgTable(
   ]
 );
 
-// ── 购买记录表 ──
+//   
 export const purchaseHistory = pgTable(
   "purchase_history",
   {

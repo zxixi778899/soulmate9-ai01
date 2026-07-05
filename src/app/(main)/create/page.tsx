@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 /* =========================================================
-   Option Banks (参考 goloveai.com 创建页 3 步流程)
+   Option Banks ( goloveai.com  3 )
    ========================================================= */
 const VISUAL_STYLES: Array<{ id: 'realistic' | 'anime'; label: string; desc: string }> = [
   { id: 'realistic', label: 'Realistic', desc: 'Photorealistic, lifelike skin & expressions' },
@@ -212,7 +212,7 @@ export default function CreatePage() {
   // Stepper
   const [step, setStep] = useState(0);
 
-  // Step 1 — Look
+  // Step 1  Look
   const [visualStyle, setVisualStyle] = useState<'realistic' | 'anime'>('realistic');
   const [ethnicity, setEthnicity] = useState('Caucasian');
   const [hairStyle, setHairStyle] = useState('Long Flowing');
@@ -222,13 +222,13 @@ export default function CreatePage() {
   const [fashionStyle, setFashionStyle] = useState('Casual');
   const [appearancePrompt, setAppearancePrompt] = useState('');
 
-  // Step 2 — Personality
+  // Step 2  Personality
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [voice, setVoice] = useState('soft');
   const [occupation, setOccupation] = useState('Student');
   const [hobbies, setHobbies] = useState('');
 
-  // Step 3 — Identity & Relationship
+  // Step 3  Identity & Relationship
   const [name, setName] = useState('');
   const [age, setAge] = useState(22);
   const [shortDescription, setShortDescription] = useState('');
@@ -307,7 +307,7 @@ export default function CreatePage() {
         `Ethnicity: ${ethnicity}.`,
         `Occupation: ${occupation}.`,
         `Voice: ${voice}.`,
-        relMeta ? `Relationship to user: ${relMeta.label} — ${relMeta.desc}.` : '',
+        relMeta ? `Relationship to user: ${relMeta.label}  ${relMeta.desc}.` : '',
         hobbies ? `Hobbies & interests: ${hobbies}.` : '',
         backstory ? `Backstory: ${backstory}` : '',
       ]
@@ -388,7 +388,7 @@ export default function CreatePage() {
       {/* Stepper */}
       <Stepper current={step} steps={['Look', 'Personality', 'Identity']} />
 
-      {/* Body — 2 columns: form + preview */}
+      {/* Body  2 columns: form + preview */}
       <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
         {/* Left: form */}
         <ScrollArea className="flex-1">
@@ -408,7 +408,7 @@ export default function CreatePage() {
                         onClick={() => setVisualStyle(v.id)}
                         title={v.label}
                         description={v.desc}
-                        emoji={v.id === 'realistic' ? '📷' : '🎨'}
+                        emoji={v.id === 'realistic' ? '' : ''}
                       />
                     ))}
                   </div>
@@ -513,7 +513,7 @@ export default function CreatePage() {
                   <h2 className="mb-1 flex items-center gap-2 text-base font-semibold">
                     <Heart className="h-4 w-4 text-rose-400" /> Personality Traits
                   </h2>
-                  <p className="mb-3 text-xs text-[#8B8BA3]">Pick 1–8 traits ({selectedTags.length}/8)</p>
+                  <p className="mb-3 text-xs text-[#8B8BA3]">Pick 18 traits ({selectedTags.length}/8)</p>
                   <div className="flex flex-wrap gap-2">
                     {PERSONALITY_TAGS.map((tag) => (
                       <OptionPill key={tag} active={selectedTags.includes(tag)} onClick={() => toggleTag(tag)}>
@@ -590,7 +590,7 @@ export default function CreatePage() {
                 <section>
                   <Label className="mb-2 block text-sm">Tagline (Optional)</Label>
                   <Input
-                    placeholder="e.g. Bookstore owner with secrets — and a quiet smile"
+                    placeholder="e.g. Bookstore owner with secrets  and a quiet smile"
                     value={shortDescription}
                     onChange={(e) => setShortDescription(e.target.value)}
                     maxLength={120}
@@ -702,7 +702,7 @@ export default function CreatePage() {
             <div className="rounded-lg bg-white/[0.03] p-3 text-[11px] text-[#8B8BA3] leading-relaxed">
               <p className="font-semibold text-white mb-1">Tips</p>
               <ul className="space-y-1 list-disc pl-4">
-                <li>Portrait costs 1 credit — first one free</li>
+                <li>Portrait costs 1 credit  first one free</li>
                 <li>You can edit her anytime after creation</li>
                 <li>NSFW mode unlocks after intimacy Lv 3</li>
               </ul>

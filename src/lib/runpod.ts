@@ -2,12 +2,12 @@
  * RunPod Serverless API Client
  *
  * Handles image generation via RunPod serverless endpoints (ComfyUI / FLUX).
- * Uses async mode only: POST /run → poll /status/{id}.
+ * Uses async mode only: POST /run  poll /status/{id}.
  *
  * Architecture verified on this endpoint:
  * - CheckpointLoaderSimple with 'flux1-dev-fp8.safetensors'
  * - CLIPTextEncode (positive + negative)
- * - EmptyLatentImage → KSampler → VAEDecode → SaveImage
+ * - EmptyLatentImage  KSampler  VAEDecode  SaveImage
  */
 
 import fs from 'node:fs';
@@ -15,9 +15,9 @@ import { uploadFile } from './storage';
 import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
 import { capture, AnalyticsEvents } from './analytics';
 
-// ────────────────────────────────
-// RunPod credentials — MUST come from environment variables
-// ────────────────────────────────
+// 
+// RunPod credentials  MUST come from environment variables
+// 
 
 function getRunPodConfig(): { apiKey: string; endpointId: string; baseUrl: string } {
   const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
@@ -28,10 +28,10 @@ function getRunPodConfig(): { apiKey: string; endpointId: string; baseUrl: strin
   return { apiKey, endpointId, baseUrl };
 }
 
-// ────────────────────────────────
+// 
 // FLUX.1-dev ComfyUI Workflow Template (API format)
 // Using CheckpointLoaderSimple (single unified checkpoint file)
-// ────────────────────────────────
+// 
 
 export function buildFluxWorkflow(opts: {
   prompt: string;
@@ -113,9 +113,9 @@ export function buildFluxWorkflow(opts: {
   };
 }
 
-// ────────────────────────────────
+// 
 // Types
-// ────────────────────────────────
+// 
 
 export interface RunPodGenerateOptions {
   prompt: string;
@@ -153,9 +153,9 @@ interface RunPodJobStatus {
   execution_time?: number;
 }
 
-// ────────────────────────────────
+// 
 // Client
-// ────────────────────────────────
+// 
 
 class RunPodClient {
   private apiKey: string;
@@ -273,10 +273,10 @@ class RunPodClient {
   /**
    * Generate images and upload to S3, returning public URLs
    *
-   * 集成 generation-cache：同 (prompt + params) 24h 内直接复用 OSS 路径，跳过 GPU。
-   * 命中时返回预签名 URL；未命中 → 真调 RunPod → 上传 → 写缓存。
+   *  generation-cache (prompt + params) 24h  OSS  GPU
+   *  URL   RunPod    
    *
-   * ⚠️ 返回的 URL 是签名 URL，30 天内有效；调用方不要再加 resolveImageUrl。
+   *   URL  URL30  resolveImageUrl
    */
   async generateAndUpload(options: RunPodGenerateOptions, folder = 'runpod'): Promise<string[]> {
     const cacheKey = computeCacheKey({

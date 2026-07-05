@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Service Worker 注册 hook
+ * Service Worker  hook
  *
- * - 仅在 production + https + 浏览器支持时注册
- * - dev 模式完全跳过（避免缓存阻碍调试）
- * - 检测到更新时自动提示用户刷新
+ * -  production + https + 
+ * - dev 
+ * - 
  */
 
 import { useEffect, useState } from 'react';
@@ -30,7 +30,7 @@ export function useServiceWorker() {
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then((registration) => {
-        // 检查已有更新
+        // 
         if (registration.waiting) {
           onUpdate(registration);
         }
@@ -45,10 +45,10 @@ export function useServiceWorker() {
         });
       })
       .catch(() => {
-        // 注册失败不抛错
+        // 
       });
 
-    // 监听 controller 切换（用户接受更新后）
+    //  controller 
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (refreshing) return;

@@ -1,8 +1,8 @@
 /**
- * 虚拟商城 v2 — 积分流水 + 余额
+ *  v2   + 
  * GET /api/shop/v2/credits
  *
- * 改用 pg 库直连。
+ *  pg 
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';

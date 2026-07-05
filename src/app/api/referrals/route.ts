@@ -5,11 +5,11 @@ import { logger } from '@/lib/logger';
 export const runtime = 'nodejs';
 
 /**
- * GET /api/referrals   — 获取我的邀请码 + 邀请战绩
- * POST /api/referrals  — 用邀请码兑换奖励（注册后调用）
+ * GET /api/referrals     + 
+ * POST /api/referrals   
  *
- * 依赖表：referrals { id, inviter_id, code (UNIQUE), used_by, reward_credits, created_at }
- * 注意：表如果不存在会返回 500，需要先在 Supabase 中创建：
+ * referrals { id, inviter_id, code (UNIQUE), used_by, reward_credits, created_at }
+ *  500 Supabase 
  *   CREATE TABLE referrals (
  *     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  *     inviter_id uuid NOT NULL,
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!auth.user) return NextResponse.json({ error: auth.error ?? 'Unauthorized' }, { status: 401 });
   const { user, client: supabase } = auth;
 
-  // 查询我已生成的码（取第一个，若没有则新建）
+  // 
   let { data: code } = await supabase
     .from('referrals')
     .select('code')
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     code = { code: newCode };
   }
 
-  // 战绩：被使用过的邀请数 + 累计奖励
+  //  + 
   const { count: invited } = await supabase
     .from('referrals')
     .select('id', { count: 'exact', head: true })
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Code already used' }, { status: 409 });
   }
 
-  // 原子标记 used_by，防止并发重复发奖
+  //  used_by
   const { data: claimed, error: claimErr } = await supabase
     .from('referrals')
     .update({ used_by: user.id })
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Code already used' }, { status: 409 });
   }
 
-  // 双方各加积分（profile.credits_remaining）
+  // profile.credits_remaining
   await supabase.rpc('grant_credits', { uid: user.id, amount: INVITEE_REWARD }).then(() => null);
   await supabase
     .rpc('grant_credits', { uid: referral.inviter_id, amount: referral.reward_credits ?? INVITER_REWARD })

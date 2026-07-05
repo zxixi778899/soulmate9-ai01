@@ -7,28 +7,28 @@ export const runtime = 'nodejs';
 
 /**
  * POST /api/chat/regenerate
- * 重新生成最后一条 AI 回复：
- *   1. 删除最后一条 role=assistant 的消息
- *   2. 让前端用相同的 user 消息再次调用 /api/chat/stream
+ *  AI 
+ *   1.  role=assistant 
+ *   2.  user  /api/chat/stream
  *
- * 真正"重新生成"是前端事件链：先调本接口删除 → 再调 stream 接口重出。
- * 这样可避免在后端复用 stream 逻辑造成的代码重复与会话漂移。
+ * ""   stream 
+ *  stream 
  *
  * Body: { girlfriend_id: string }
- * Returns: { ok: true, removed: { id, content } } 或 { error }
+ * Returns: { ok: true, removed: { id, content } }  { error }
  *
- * 也支持 DELETE /api/chat/regenerate?message_id=xxx 单条撤回（仅本人 user 消息且 5 分钟内）。
+ *  DELETE /api/chat/regenerate?message_id=xxx  user  5 
  */
 
 const RECALL_WINDOW_MS = 5 * 60 * 1000;
-const REGEN_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user — LLM 重生成
+const REGEN_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user  LLM 
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const auth = await getAuthUser(req);
   if (!auth.user) return NextResponse.json({ error: auth.error ?? 'Unauthorized' }, { status: 401 });
   const { user, client: supabase } = auth;
 
-  // 限流：防脚本频繁重生成
+  // 
   const rl = await checkRateLimitAsync(`chat-regen:${user.id}`, REGEN_LIMIT);
   if (!rl.allowed) {
     return NextResponse.json(
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'girlfriend_id required' }, { status: 400 });
   }
 
-  // 鉴权：女友必须属于当前用户
+  // 
   const { data: gf, error: gfErr } = await supabase
     .from('girlfriends')
     .select('id, user_id')
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // 取最后一条 assistant 消息
+  //  assistant 
   const { data: msgs } = await supabase
     .from('chat_messages')
     .select('id, role, content')
@@ -89,7 +89,7 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
     .maybeSingle();
   if (!msg) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // 仅本人 user 消息且 5 分钟内可撤回
+  //  user  5 
   if (msg.user_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (msg.role !== 'user') {
     return NextResponse.json({ error: 'Only user messages can be recalled' }, { status: 400 });

@@ -1,31 +1,31 @@
 /**
- * 集中的 localStorage key 列表
+ *  localStorage key 
  *
- * 之前各组件硬编码 'sb-{project_ref}-auth-token' 等字符串，容易在 Supabase project 切换时失效。
- * 这里集中管理，并提供类型化的 helper 防止 key 拼写错误。
+ *  'sb-{project_ref}-auth-token'  Supabase project 
+ *  helper  key 
  */
 
 const PREFIX = 'soulmate9:';
 
 export const StorageKeys = {
-  /** 当前选中的语言（也支持 SSR cookie） */
+  /**  SSR cookie */
   locale: `${PREFIX}locale`,
-  /** onboarding 已读版本号 */
+  /** onboarding  */
   onboardingVersion: `${PREFIX}onboarding_v`,
-  /** 客户端匿名 ID（PostHog distinctId fallback） */
+  /**  IDPostHog distinctId fallback */
   anonymousId: `${PREFIX}anon_id`,
-  /** PWA 安装提示是否已显示 */
+  /** PWA  */
   pwaInstallDismissed: `${PREFIX}pwa_install_dismissed`,
-  /** 主题偏好（light/dark/system） */
+  /** light/dark/system */
   theme: `${PREFIX}theme`,
-  /** 用户最近一次访问的 chat 女友 ID */
+  /**  chat  ID */
   lastVisitedGirlfriend: `${PREFIX}last_girlfriend`,
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
 
 /**
- * 安全地读 localStorage（SSR 时返回 null）
+ *  localStorageSSR  null
  */
 export function getStorageItem(key: StorageKey): string | null {
   if (typeof window === 'undefined') return null;
@@ -37,7 +37,7 @@ export function getStorageItem(key: StorageKey): string | null {
 }
 
 /**
- * 安全地写 localStorage（SSR 时 no-op）
+ *  localStorageSSR  no-op
  */
 export function setStorageItem(key: StorageKey, value: string): void {
   if (typeof window === 'undefined') return;
@@ -49,7 +49,7 @@ export function setStorageItem(key: StorageKey, value: string): void {
 }
 
 /**
- * 安全地删除
+ * 
  */
 export function removeStorageItem(key: StorageKey): void {
   if (typeof window === 'undefined') return;

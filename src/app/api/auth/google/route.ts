@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const origin = new URL(request.url).origin;
   const redirectTo = new URL('/auth/callback', origin).toString();
 
-  // Create server client — cookies go on request, copied to response later
+  // Create server client  cookies go on request, copied to response later
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       sameSite: 'lax',
       secure: true,
       path: '/',
-      maxAge: 60 * 10, // 10 minutes — enough for OAuth flow
+      maxAge: 60 * 10, // 10 minutes  enough for OAuth flow
     });
   });
 

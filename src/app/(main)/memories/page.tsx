@@ -8,7 +8,7 @@ export default function MemoriesPage() {
   return (
     <ComingSoon
       title="Shared Memories"
-      description="A timeline of the moments you've built together — milestones, anniversaries, favourite quotes — automatically curated by your girlfriend."
+      description="A timeline of the moments you've built together  milestones, anniversaries, favourite quotes  automatically curated by your girlfriend."
       eta="Coming Soon"
     />
   );

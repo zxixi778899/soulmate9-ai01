@@ -116,7 +116,7 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
-        {/* Adult Content Storage — NSFW */}
+        {/* Adult Content Storage  NSFW */}
         <section className="bg-card/40 backdrop-blur-sm border border-border/30 rounded-xl p-6 mb-6">
           <h2 className="text-xl font-semibold mt-0 mb-3 text-foreground">Adult Content Storage</h2>
           <div className="border-t border-border/20 mb-4" />

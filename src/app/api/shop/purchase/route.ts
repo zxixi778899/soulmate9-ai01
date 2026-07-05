@@ -18,11 +18,11 @@ export async function POST(req: NextRequest) {
 
     // Get shop items (same data as GET)
     const SHOP_ITEMS = [
-      { id: 'rose-bouquet', name: 'Rose Bouquet', price_cents: 150, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 15 }, tier: 'free', emoji: '🌹' },
-      { id: 'chocolate-box', name: 'Chocolate Box', price_cents: 300, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 30 }, tier: 'free', emoji: '🍫' },
-      { id: 'teddy-bear', name: 'Teddy Bear', price_cents: 500, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 50 }, tier: 'free', emoji: '🧸' },
-      { id: 'perfume-bottle', name: 'Designer Perfume', price_cents: 800, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 80 }, tier: 'premium', emoji: '🌸' },
-      { id: 'lingerie-set', name: 'Silk Lingerie Set', price_cents: 1200, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 150 }, tier: 'premium', emoji: '💋' },
+      { id: 'rose-bouquet', name: 'Rose Bouquet', price_cents: 150, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 15 }, tier: 'free', emoji: '' },
+      { id: 'chocolate-box', name: 'Chocolate Box', price_cents: 300, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 30 }, tier: 'free', emoji: '' },
+      { id: 'teddy-bear', name: 'Teddy Bear', price_cents: 500, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 50 }, tier: 'free', emoji: '' },
+      { id: 'perfume-bottle', name: 'Designer Perfume', price_cents: 800, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 80 }, tier: 'premium', emoji: '' },
+      { id: 'lingerie-set', name: 'Silk Lingerie Set', price_cents: 1200, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 150 }, tier: 'premium', emoji: '' },
       { id: 'school-uniform', name: 'School Uniform', price_cents: 500, item_type: 'outfit', tier: 'free' },
       { id: 'maid-costume', name: 'French Maid', price_cents: 800, item_type: 'outfit', tier: 'premium' },
       { id: 'evening-gown-sapphire', name: 'Sapphire Evening Gown', price_cents: 1500, item_type: 'outfit', tier: 'premium' },
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    // M8 修复：验证 girlfriend 归属当前用户（防为他人角色购买）
+    // M8  girlfriend 
     const { data: girlfriendOwn, error: gfErr } = await supabase
       .from('girlfriends')
       .select('id, user_id')
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: girlfriend does not belong to you' }, { status: 403 });
     }
 
-    // M7 修复：服装类商品防重购（应用层检查；DB 唯一索引由迁移脚本补全）
+    // M7 DB 
     if (item.item_type === 'outfit') {
       const { data: existing } = await supabase
         .from('wardrobe')

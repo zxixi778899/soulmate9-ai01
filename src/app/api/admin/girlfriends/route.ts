@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 const ADMIN_GF_WRITE_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 }; // 60/h/admin
 
-// PATCH 允许修改的字段白名单，**严禁**透传 user_id / id / created_at 等敏感字段
+// PATCH **** user_id / id / created_at 
 const ALLOWED_PATCH_FIELDS = new Set<string>([
   'name',
   'age',
@@ -30,7 +30,7 @@ const ALLOWED_PATCH_FIELDS = new Set<string>([
   'approved_at',
 ]);
 
-// 服务端 age 18+ 强校验（M17）
+//  age 18+ M17
 function validateAge(age: unknown): { ok: true; age: number } | { ok: false; error: string } {
   const n = Number(age);
   if (!Number.isFinite(n) || !Number.isInteger(n)) {
@@ -129,12 +129,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // ── Batch create via LLM ──
+    //  Batch create via LLM 
     if (body.batch) {
       return await handleBatchCreate(supabase, user, body.count);
     }
 
-    // 服务端 age 18+ 校验
+    //  age 18+ 
     const ageCheck = validateAge(body.age);
     if (!ageCheck.ok) {
       return NextResponse.json({ error: ageCheck.error }, { status: 400 });
@@ -194,7 +194,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    // 字段白名单过滤：禁止透传 user_id 等敏感字段（M15 修复）
+    //  user_id M15 
     const updates: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(rawUpdates)) {
       if (ALLOWED_PATCH_FIELDS.has(key)) {
@@ -202,7 +202,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // age 字段若存在，强制 18+ 校验
+    // age  18+ 
     if ('age' in updates) {
       const ageCheck = validateAge(updates.age);
       if (!ageCheck.ok) {
@@ -257,7 +257,7 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-// ── Batch create handler ──
+//  Batch create handler 
 async function handleBatchCreate(supabase: any, user: { id: string }, rawCount: number) {
   const count = Math.min(Math.max(Number(rawCount) || 3, 1), 10);
 

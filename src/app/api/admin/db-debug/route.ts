@@ -17,7 +17,7 @@ const SUPABASE_KEY =
   '';
 
 export async function GET(req: NextRequest) {
-  // 双层防御：仅 superadmin 可访问；与 ENABLE_DEBUG_ROUTES 互不替代。
+  //  superadmin  ENABLE_DEBUG_ROUTES 
   const guard = await requireAdmin(req, 'superadmin');
   if (guard.error) return guard.error;
 
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
           const buckets = await bRes.json();
           out.buckets = buckets.map((b: any) => ({ name: b.name, public: b.public, file_size_limit: b.file_size_limit }));
 
-          // 顺手把 portraits 改 public（service_role 创建时常默认 private）
+          //  portraits  publicservice_role  private
           const portraitBucket = buckets.find((b: any) => b.name === 'portraits');
           if (portraitBucket && !portraitBucket.public) {
             const updRes = await fetch(`${SUPABASE_URL}/storage/v1/bucket/portraits`, {

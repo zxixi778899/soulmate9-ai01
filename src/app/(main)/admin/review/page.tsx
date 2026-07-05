@@ -64,7 +64,7 @@ export default function AdminReviewPage() {
       else setItems([]);
     } catch (err) {
       logger.error(String(err));
-      toast.error('加载审核列表失败');
+      toast.error('');
     } finally {
       setLoading(false);
     }
@@ -83,7 +83,7 @@ export default function AdminReviewPage() {
         body: JSON.stringify({ id, action: 'approve' }),
       });
       if (!res.ok) throw new Error('Failed to approve');
-      toast.success('已通过');
+      toast.success('');
       setItems((prev) => prev.filter((item) => item.id !== id));
       if (selectedItem?.id === id) {
         setDetailOpen(false);
@@ -91,7 +91,7 @@ export default function AdminReviewPage() {
       }
     } catch (err) {
       logger.error(String(err));
-      toast.error('审批失败');
+      toast.error('');
     } finally {
       setProcessingId(null);
     }
@@ -111,7 +111,7 @@ export default function AdminReviewPage() {
         }),
       });
       if (!res.ok) throw new Error('Failed to reject');
-      toast.success('已驳回');
+      toast.success('');
       setItems((prev) => prev.filter((item) => item.id !== selectedItem.id));
       setRejectOpen(false);
       setDetailOpen(false);
@@ -119,7 +119,7 @@ export default function AdminReviewPage() {
       setRejectReason('');
     } catch (err) {
       logger.error(String(err));
-      toast.error('驳回失败');
+      toast.error('');
     } finally {
       setProcessingId(null);
     }
@@ -133,9 +133,9 @@ export default function AdminReviewPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">审核管理</h1>
+        <h1 className="text-2xl font-bold"></h1>
         <p className="text-sm text-[#8B8BA3] mt-1">
-          审批或驳回女友角色的用户提交
+          
         </p>
       </div>
 
@@ -147,8 +147,8 @@ export default function AdminReviewPage() {
         <Card className="border-white/[0.05] bg-card/40 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-20 text-[#8B8BA3]">
             <CheckSquare className="h-12 w-12 mb-2 opacity-30" />
-            <p className="text-base font-medium">全部审核完毕！</p>
-            <p className="text-sm mt-1">暂无待审核的提交</p>
+            <p className="text-base font-medium"></p>
+            <p className="text-sm mt-1"></p>
           </CardContent>
         </Card>
       ) : (
@@ -187,7 +187,7 @@ export default function AdminReviewPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold text-sm">{item.name}</h3>
-                      <span className="text-xs text-[#8B8BA3]">年龄: {item.age}</span>
+                      <span className="text-xs text-[#8B8BA3]">: {item.age}</span>
                       <Badge variant="secondary" className="text-[9px] capitalize">
                         {item.review_status}
                       </Badge>
@@ -207,11 +207,11 @@ export default function AdminReviewPage() {
                       ))}
                       {(item.tags || []).length > 4 && (
                         <span className="text-[9px] text-[#8B8BA3]">
-                          +{item.tags.length - 4} 更多
+                          +{item.tags.length - 4} 
                         </span>
                       )}
                       <span className="text-[10px] text-[#8B8BA3] ml-auto">
-                        提交于 {new Date(item.created_at).toLocaleDateString()}
+                         {new Date(item.created_at).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
@@ -232,7 +232,7 @@ export default function AdminReviewPage() {
                       ) : (
                         <Check className="h-3.5 w-3.5" />
                       )}
-                      通过
+                      
                     </Button>
                     <Button
                       size="sm"
@@ -247,7 +247,7 @@ export default function AdminReviewPage() {
                       disabled={processingId === item.id}
                     >
                       <X className="h-3.5 w-3.5" />
-                      驳回
+                      
                     </Button>
                   </div>
                 </div>
@@ -263,10 +263,10 @@ export default function AdminReviewPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Heart className="h-4 w-4 text-[#FF2D78]" />
-              {selectedItem?.name || '角色详情'}
+              {selectedItem?.name || ''}
             </DialogTitle>
             <DialogDescription>
-              请在做出决定前仔细查看角色详情
+              
             </DialogDescription>
           </DialogHeader>
 
@@ -291,11 +291,11 @@ export default function AdminReviewPage() {
                 <div>
                   <h3 className="text-lg font-semibold">{selectedItem.name}</h3>
                   <p className="text-sm text-[#8B8BA3]">
-                    年龄: {selectedItem.age} · 标识: {selectedItem.slug}
+                    : {selectedItem.age}  : {selectedItem.slug}
                   </p>
                   {selectedItem.submitted_by && (
                     <p className="text-xs text-[#8B8BA3] mt-1">
-                      提交者: {selectedItem.submitted_by}
+                      : {selectedItem.submitted_by}
                     </p>
                   )}
                 </div>
@@ -304,7 +304,7 @@ export default function AdminReviewPage() {
               {/* Personality */}
               {selectedItem.personality && (
                 <div>
-                  <h4 className="text-sm font-medium mb-1">性格</h4>
+                  <h4 className="text-sm font-medium mb-1"></h4>
                   <p className="text-sm text-[#8B8BA3]">{selectedItem.personality}</p>
                 </div>
               )}
@@ -312,7 +312,7 @@ export default function AdminReviewPage() {
               {/* Tags */}
               {selectedItem.tags && selectedItem.tags.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium mb-2">标签</h4>
+                  <h4 className="text-sm font-medium mb-2"></h4>
                   <div className="flex flex-wrap gap-1.5">
                     {selectedItem.tags.map((tag, i) => (
                       <Badge key={i} variant="secondary" className="text-[10px]">
@@ -326,7 +326,7 @@ export default function AdminReviewPage() {
               {/* Short Description */}
               {selectedItem.short_description && (
                 <div>
-                  <h4 className="text-sm font-medium mb-1">描述</h4>
+                  <h4 className="text-sm font-medium mb-1"></h4>
                   <p className="text-sm text-[#8B8BA3]">{selectedItem.short_description}</p>
                 </div>
               )}
@@ -334,7 +334,7 @@ export default function AdminReviewPage() {
               {/* Backstory */}
               {selectedItem.backstory && (
                 <div>
-                  <h4 className="text-sm font-medium mb-1">背景故事</h4>
+                  <h4 className="text-sm font-medium mb-1"></h4>
                   <p className="text-sm text-[#8B8BA3] whitespace-pre-wrap">{selectedItem.backstory}</p>
                 </div>
               )}
@@ -342,22 +342,22 @@ export default function AdminReviewPage() {
               {/* Appearance */}
               {selectedItem.appearance && (
                 <div>
-                  <h4 className="text-sm font-medium mb-2">外观</h4>
+                  <h4 className="text-sm font-medium mb-2"></h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {selectedItem.appearance.hair && (
-                      <div><span className="text-[#8B8BA3]">发型:</span> {selectedItem.appearance.hair}</div>
+                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.hair}</div>
                     )}
                     {selectedItem.appearance.hair_color && (
-                      <div><span className="text-[#8B8BA3]">发色:</span> {selectedItem.appearance.hair_color}</div>
+                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.hair_color}</div>
                     )}
                     {selectedItem.appearance.eyes && (
-                      <div><span className="text-[#8B8BA3]">眼睛:</span> {selectedItem.appearance.eyes}</div>
+                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.eyes}</div>
                     )}
                     {selectedItem.appearance.body && (
-                      <div><span className="text-[#8B8BA3]">体型:</span> {selectedItem.appearance.body}</div>
+                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.body}</div>
                     )}
                     {selectedItem.appearance.style && (
-                      <div><span className="text-[#8B8BA3]">风格:</span> {selectedItem.appearance.style}</div>
+                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.style}</div>
                     )}
                   </div>
                 </div>
@@ -375,7 +375,7 @@ export default function AdminReviewPage() {
               }}
             >
               <X className="h-4 w-4" />
-              驳回
+              
             </Button>
             <Button
               className="gap-2"
@@ -387,7 +387,7 @@ export default function AdminReviewPage() {
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              通过
+              
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -397,14 +397,14 @@ export default function AdminReviewPage() {
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>驳回角色</DialogTitle>
+            <DialogTitle></DialogTitle>
             <DialogDescription>
-              请输入驳回「{selectedItem?.name}」的原因
+              {selectedItem?.name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Textarea
-              placeholder="驳回原因..."
+              placeholder="..."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               rows={4}
@@ -412,7 +412,7 @@ export default function AdminReviewPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectOpen(false)}>
-              取消
+              
             </Button>
             <Button
               variant="destructive"
@@ -422,7 +422,7 @@ export default function AdminReviewPage() {
               {processingId === selectedItem?.id ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : null}
-              确认驳回
+              
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,9 +1,9 @@
 /**
- * Web Push 适配层（懒加载）
+ * Web Push 
  *
- * - web-push 包未装时 no-op
- * - VAPID 未配置时 no-op
- * - 用户订阅存到 user_push_subscriptions 表
+ * - web-push  no-op
+ * - VAPID  no-op
+ * -  user_push_subscriptions 
  */
 
 interface PushSubscriptionLike {
@@ -48,14 +48,14 @@ function ensureInitialized(): WebPushLike | null {
     try {
       wp.setVapidDetails(subject, publicKey, privateKey);
     } catch {
-      // init 失败时下一次调用降级
+      // init 
     }
   }
   return wp;
 }
 
 /**
- * 推送一条 Web Push 通知
+ *  Web Push 
  */
 export async function sendPushNotification(
   subscription: PushSubscriptionLike,
@@ -83,7 +83,7 @@ export async function sendPushNotification(
         data: { url: payload.url || '/', ...payload.data },
         tag: payload.tag,
       }),
-      { TTL: '86400' }, // 24h 过期
+      { TTL: '86400' }, // 24h 
     );
     return { ok: true };
   } catch (err) {
@@ -92,7 +92,7 @@ export async function sendPushNotification(
 }
 
 /**
- * 判断 Web Push 是否可用
+ *  Web Push 
  */
 export function isPushActive(): boolean {
   return ensureInitialized() !== null && !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;

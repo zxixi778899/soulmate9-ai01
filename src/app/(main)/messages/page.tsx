@@ -159,7 +159,7 @@ export default function MessagesPage() {
                 ? lastMsg.role === 'user'
                   ? `You: ${lastMsg.content}`
                   : lastMsg.content
-                : 'Tap to start a conversation…';
+                : 'Tap to start a conversation';
               return (
                 <li
                   key={gf.id}

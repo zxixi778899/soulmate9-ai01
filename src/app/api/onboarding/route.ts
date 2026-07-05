@@ -1,9 +1,9 @@
 /**
- * Onboarding API（DB-backed）
+ * Onboarding APIDB-backed
  *
- * GET   /api/onboarding        获取当前用户 onboarding 状态
- * POST  /api/onboarding        更新 step / preferences
- * POST  /api/onboarding/complete  标记完成
+ * GET   /api/onboarding         onboarding 
+ * POST  /api/onboarding         step / preferences
+ * POST  /api/onboarding/complete  
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 未开始过：返回默认值
+  // 
   if (!data) {
     return NextResponse.json({
       current_step: 0,

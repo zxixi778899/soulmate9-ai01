@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
-  // Handle visibility toggle or update (has id → PATCH, no id → POST)
+  // Handle visibility toggle or update (has id  PATCH, no id  POST)
   if (body.id) {
     const { id, ...updateData } = body;
     const res = await fetch(`${SUPABASE_URL}/rest/v1/nav_items?id=eq.${id}`, {

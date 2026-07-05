@@ -102,7 +102,7 @@ export default function AdminGirlfriendsPage() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchLogs, setBatchLogs] = useState<string[]>([]);
 
-  // New: 多维筛选
+  // New: 
   const [searchQ, setSearchQ] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [visibility, setVisibility] = useState<'all' | 'public' | 'private'>('all');
@@ -139,7 +139,7 @@ export default function AdminGirlfriendsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, activeTab, searchQ, visibility, creator, sortBy]);
 
-  // 搜索防抖
+  // 
   useEffect(() => {
     const t = setTimeout(() => {
       setSearchQ(searchInput.trim());
@@ -274,7 +274,7 @@ export default function AdminGirlfriendsPage() {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('Failed to save');
-      toast.success(isEdit ? '女友已更新' : '女友已创建');
+      toast.success(isEdit ? '' : '');
       setDialogOpen(false);
       resetForm();
       fetchGirlfriends();
@@ -294,13 +294,13 @@ export default function AdminGirlfriendsPage() {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Failed to delete');
-      toast.success('女友已删除');
+      toast.success('');
       setDeleteDialogOpen(false);
       setDeletingId(null);
       fetchGirlfriends();
     } catch (err) {
       logger.error(String(err));
-      toast.error('删除女友失败');
+      toast.error('');
     } finally {
       setSaving(false);
     }
@@ -321,18 +321,18 @@ export default function AdminGirlfriendsPage() {
         addLog(`Error: ${data.error}`);
         throw new Error(data.error || 'Batch create failed');
       }
-      addLog(`✅ Successfully created ${data.count} girlfriends:`);
+      addLog(` Successfully created ${data.count} girlfriends:`);
       if (data.girlfriends) {
         data.girlfriends.forEach((gf: { name: string }) => {
           addLog(`  - ${gf.name}`);
         });
       }
-      toast.success(`成功创建 ${data.count} 个女友`);
+      toast.success(` ${data.count} `);
       setBatchDialogOpen(false);
       fetchGirlfriends();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Batch create failed';
-      addLog(`❌ Failed: ${msg}`);
+      addLog(` Failed: ${msg}`);
       toast.error(msg);
     } finally {
       setBatchLoading(false);
@@ -357,23 +357,23 @@ export default function AdminGirlfriendsPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">女友角色管理</h1>
-          <p className="text-sm text-[#8B8BA3] mt-1">管理 AI 女友角色</p>
+          <h1 className="text-2xl font-bold"></h1>
+          <p className="text-sm text-[#8B8BA3] mt-1"> AI </p>
         </div>
         <div className="flex items-center gap-3">
           {selectedIds.size > 0 && (
             <Button variant="destructive" onClick={handleBatchDelete} disabled={batchDeleting} className="gap-2">
               {batchDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              删除选中 ({selectedIds.size})
+               ({selectedIds.size})
             </Button>
           )}
           <Button variant="outline" onClick={() => setBatchDialogOpen(true)} className="gap-2">
             <Sparkles className="h-4 w-4" />
-            批量生成
+            
           </Button>
           <Button onClick={openAddDialog} className="gap-2">
             <Plus className="h-4 w-4" />
-            添加女友
+            
           </Button>
         </div>
       </div>
@@ -443,7 +443,7 @@ export default function AdminGirlfriendsPage() {
           ) : filteredGirlfriends.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-[#8B8BA3]">
               <Heart className="h-12 w-12 mb-2 opacity-30" />
-              <p>暂无女友数据</p>
+              <p></p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -458,15 +458,15 @@ export default function AdminGirlfriendsPage() {
                         className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
                       />
                     </th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">头像</th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">名称</th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">角色</th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">年龄</th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">标签</th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">状态</th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">公开</th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">创建时间</th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">操作</th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -548,11 +548,11 @@ export default function AdminGirlfriendsPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-4">
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            上一页
+            
           </Button>
-          <span className="text-sm text-[#8B8BA3]">第 {page} 页，共 {totalPages} 页</span>
+          <span className="text-sm text-[#8B8BA3]"> {page}  {totalPages} </span>
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-            下一页
+            
           </Button>
         </div>
       )}
@@ -561,9 +561,9 @@ export default function AdminGirlfriendsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? '编辑女友' : '添加新女友'}</DialogTitle>
+            <DialogTitle>{editingId ? '' : ''}</DialogTitle>
             <DialogDescription>
-              {editingId ? '更新女友角色详情' : '创建新的 AI 女友角色'}
+              {editingId ? '' : ' AI '}
             </DialogDescription>
           </DialogHeader>
 
@@ -571,75 +571,75 @@ export default function AdminGirlfriendsPage() {
             {/* Basic Info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="gf-name">名称</Label>
-                <Input id="gf-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="角色名称" />
+                <Label htmlFor="gf-name"></Label>
+                <Input id="gf-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gf-age">年龄</Label>
+                <Label htmlFor="gf-age"></Label>
                 <Input id="gf-age" type="number" value={form.age} onChange={(e) => setForm({ ...form, age: parseInt(e.target.value) || 18 })} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="gf-slug">标识</Label>
-                <Input id="gf-slug" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder="唯一标识" />
+                <Label htmlFor="gf-slug"></Label>
+                <Input id="gf-slug" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder="" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gf-tags">标签（逗号分隔）</Label>
+                <Label htmlFor="gf-tags"></Label>
                 <Input id="gf-tags" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="cute, gentle, smart" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="gf-personality">性格</Label>
-              <Input id="gf-personality" value={form.personality} onChange={(e) => setForm({ ...form, personality: e.target.value })} placeholder="性格特征" />
+              <Label htmlFor="gf-personality"></Label>
+              <Input id="gf-personality" value={form.personality} onChange={(e) => setForm({ ...form, personality: e.target.value })} placeholder="" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="gf-short-desc">简短描述</Label>
-              <Input id="gf-short-desc" value={form.short_description} onChange={(e) => setForm({ ...form, short_description: e.target.value })} placeholder="简短描述" />
+              <Label htmlFor="gf-short-desc"></Label>
+              <Input id="gf-short-desc" value={form.short_description} onChange={(e) => setForm({ ...form, short_description: e.target.value })} placeholder="" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="gf-backstory">背景故事</Label>
-              <Textarea id="gf-backstory" value={form.backstory} onChange={(e) => setForm({ ...form, backstory: e.target.value })} placeholder="角色背景故事..." />
+              <Label htmlFor="gf-backstory"></Label>
+              <Textarea id="gf-backstory" value={form.backstory} onChange={(e) => setForm({ ...form, backstory: e.target.value })} placeholder="..." />
             </div>
 
             {/* Images */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="gf-portrait">头像 URL</Label>
+                <Label htmlFor="gf-portrait"> URL</Label>
                 <Input id="gf-portrait" value={form.portrait_url} onChange={(e) => setForm({ ...form, portrait_url: e.target.value })} placeholder="https://..." />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gf-avatar">立绘 URL</Label>
+                <Label htmlFor="gf-avatar"> URL</Label>
                 <Input id="gf-avatar" value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} placeholder="https://..." />
               </div>
             </div>
 
             {/* Appearance */}
             <div className="border-t border-border/20 pt-4">
-              <h4 className="text-sm font-medium mb-3">外观</h4>
+              <h4 className="text-sm font-medium mb-3"></h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="gf-hair">发型</Label>
+                  <Label htmlFor="gf-hair"></Label>
                   <Input id="gf-hair" value={form.hair} onChange={(e) => setForm({ ...form, hair: e.target.value })} placeholder="Long, short..." />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="gf-hair-color">发色</Label>
+                  <Label htmlFor="gf-hair-color"></Label>
                   <Input id="gf-hair-color" value={form.hair_color} onChange={(e) => setForm({ ...form, hair_color: e.target.value })} placeholder="Blonde, brown..." />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="gf-eyes">眼睛</Label>
+                  <Label htmlFor="gf-eyes"></Label>
                   <Input id="gf-eyes" value={form.eyes} onChange={(e) => setForm({ ...form, eyes: e.target.value })} placeholder="Blue, green..." />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="gf-body">体型</Label>
+                  <Label htmlFor="gf-body"></Label>
                   <Input id="gf-body" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Slim, athletic..." />
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <Label htmlFor="gf-style">风格</Label>
+                  <Label htmlFor="gf-style"></Label>
                   <Input id="gf-style" value={form.style} onChange={(e) => setForm({ ...form, style: e.target.value })} placeholder="Casual, elegant..." />
                 </div>
               </div>
@@ -648,31 +648,31 @@ export default function AdminGirlfriendsPage() {
             {/* Status & Public */}
             <div className="grid grid-cols-2 gap-4 border-t border-border/20 pt-4">
               <div className="space-y-2">
-                <Label htmlFor="gf-status">审核状态</Label>
+                <Label htmlFor="gf-status"></Label>
                 <Select value={form.review_status} onValueChange={(v) => setForm({ ...form, review_status: v })}>
                   <SelectTrigger id="gf-status">
-                    <SelectValue placeholder="选择状态" />
+                    <SelectValue placeholder="" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">草稿</SelectItem>
-                    <SelectItem value="pending">待审核</SelectItem>
-                    <SelectItem value="approved">已通过</SelectItem>
-                    <SelectItem value="rejected">已驳回</SelectItem>
+                    <SelectItem value="draft"></SelectItem>
+                    <SelectItem value="pending"></SelectItem>
+                    <SelectItem value="approved"></SelectItem>
+                    <SelectItem value="rejected"></SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex items-center gap-3 pt-8">
                 <Switch checked={form.is_public} onCheckedChange={(v) => setForm({ ...form, is_public: v })} id="gf-public" />
-                <Label htmlFor="gf-public">公开</Label>
+                <Label htmlFor="gf-public"></Label>
               </div>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}></Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {editingId ? '更新' : '创建'}
+              {editingId ? '' : ''}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -682,14 +682,14 @@ export default function AdminGirlfriendsPage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>删除女友</DialogTitle>
-            <DialogDescription>确定要删除吗？此操作不可撤销。</DialogDescription>
+            <DialogTitle></DialogTitle>
+            <DialogDescription></DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setDeletingId(null); }}>取消</Button>
+            <Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setDeletingId(null); }}></Button>
             <Button variant="destructive" onClick={handleDelete} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              删除
+              
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -699,15 +699,15 @@ export default function AdminGirlfriendsPage() {
       <Dialog open={batchDialogOpen} onOpenChange={(open) => { if (!batchLoading) setBatchDialogOpen(open); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>批量生成女友</DialogTitle>
+            <DialogTitle></DialogTitle>
             <DialogDescription>
-              使用 AI 随机生成多位女友角色资料，包含姓名、性格、外观等完整信息。
+               AI 
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>生成数量</Label>
+              <Label></Label>
               <div className="flex gap-2">
                 {[1, 3, 5, 10].map((n) => (
                   <button
@@ -739,11 +739,11 @@ export default function AdminGirlfriendsPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBatchDialogOpen(false); setBatchLogs([]); }} disabled={batchLoading}>
-              取消
+              
             </Button>
             <Button onClick={handleBatchCreate} disabled={batchLoading}>
               {batchLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-              {batchLoading ? '生成中...' : '开始生成'}
+              {batchLoading ? '...' : ''}
             </Button>
           </DialogFooter>
         </DialogContent>

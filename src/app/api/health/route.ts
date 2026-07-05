@@ -81,7 +81,7 @@ export async function GET(): Promise<NextResponse> {
     checkUpstash(),
   ]);
 
-  // 关键依赖：Supabase。其他依赖故障不阻断 ok，但状态可见
+  // Supabase ok
   const allOk = supabase.ok;
   const status = allOk ? 200 : 503;
 
@@ -102,8 +102,8 @@ export async function GET(): Promise<NextResponse> {
 }
 
 /**
- * HEAD 用于 Kubernetes 风格 readiness 探针 / Docker HEALTHCHECK
- * 不查外部依赖，只确认进程响应
+ * HEAD  Kubernetes  readiness  / Docker HEALTHCHECK
+ * 
  */
 export function HEAD(): NextResponse {
   return new NextResponse(null, {

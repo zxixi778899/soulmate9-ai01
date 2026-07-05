@@ -1,6 +1,6 @@
 /**
- * Girlfriend (女友) Prompt Preset
- * 输出：DSLR 真人写真风格，主体居中，柔光，4K
+ * Girlfriend () Prompt Preset
+ * DSLR 4K
  */
 import { sanitizeBlurKeywords, joinParts, COMMON_NEGATIVE_TAIL, type AssembledPrompt, type PresetContext } from './shared';
 
@@ -25,7 +25,7 @@ export interface GirlfriendSubject {
 }
 
 /**
- * 构造 girlfriend 的主语片段
+ *  girlfriend 
  */
 export function buildSubjectClause(s: GirlfriendSubject): string {
   const subject: string[] = ['Full body portrait of a stunningly beautiful gorgeous young woman'];
@@ -38,7 +38,7 @@ export function buildSubjectClause(s: GirlfriendSubject): string {
 }
 
 /**
- * 拼装 girlfriend 完整 prompt
+ *  girlfriend  prompt
  */
 export function assembleGirlfriendPrompt(
   ctx: PresetContext,

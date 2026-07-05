@@ -13,7 +13,7 @@ import {
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 
-// ─── Types ───────────────────────────────────────────
+//  Types 
 interface ImageItem {
   id: string;
   name: string;
@@ -38,9 +38,9 @@ interface ImageItem {
   character_card?: Record<string, unknown>;
   tags?: string[] | string;
   createdAt?: string;
-  // 服装库字段
+  // 
   description?: string;
-  // 道具库字段
+  // 
   item_type?: string;
   intimacy_boost?: number;
 }
@@ -125,7 +125,7 @@ interface LogEntry {
   type: 'info' | 'success' | 'error' | 'progress';
 }
 
-// ─── Helpers ─────────────────────────────────────────
+//  Helpers 
 function authedFetch(url: string, options?: RequestInit) {
   const token = getSessionToken();
   return fetch(url, {
@@ -151,7 +151,7 @@ function getSessionToken(): string | null {
   return null;
 }
 
-// ─── Main Page ───────────────────────────────────────
+//  Main Page 
 export default function AdminImagesPage() {
   const [activeTab, setActiveTab] = useState<'girlfriend' | 'outfit' | 'shop_item'>('girlfriend');
   const [stats, setStats] = useState<Stats | null>(null);
@@ -199,12 +199,12 @@ export default function AdminImagesPage() {
   const [promptExpanded, setPromptExpanded] = useState(true);
   const [logExpanded, setLogExpanded] = useState(true);
 
-  // ─── Filters & Search ─────────────────────────────
+  //  Filters & Search 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'with_image' | 'without_image'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('name');
 
-  // ─── Delete confirmation ─────────────────────────
+  //  Delete confirmation 
   const [deleteTarget, setDeleteTarget] = useState<ImageItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -219,7 +219,7 @@ export default function AdminImagesPage() {
   // Saving
   const [saving, setSaving] = useState(false);
 
-  // ─── Load data ──────────────────────────────────
+  //  Load data 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -264,7 +264,7 @@ export default function AdminImagesPage() {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  // ─── Delete item ─────────────────────────────────
+  //  Delete item 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -302,7 +302,7 @@ export default function AdminImagesPage() {
     }
   };
 
-  // ─── Upload image ────────────────────────────────
+  //  Upload image 
   const handleUploadClick = (item: ImageItem) => {
     setUploadTarget(item);
     fileInputRef.current?.click();
@@ -348,7 +348,7 @@ export default function AdminImagesPage() {
     }
   };
 
-  // ─── Get current items with filters ──────────────────────────
+  //  Get current items with filters 
   const filteredItems = useMemo(() => {
     const items = activeTab === 'girlfriend' ? girlfriends
       : activeTab === 'outfit' ? outfits : shopItems;
@@ -385,9 +385,9 @@ export default function AdminImagesPage() {
 
   const currentItems = filteredItems;
 
-  const currentLabel = activeTab === 'girlfriend' ? '女友' : activeTab === 'outfit' ? '服装' : '道具';
+  const currentLabel = activeTab === 'girlfriend' ? '' : activeTab === 'outfit' ? '' : '';
 
-  // ─── Apply preset ───────────────────────────────
+  //  Apply preset 
   const applyPreset = (preset: PromptPreset) => {
     if (!selectedItem) return;
     updateGenState(selectedItem.id, {
@@ -397,7 +397,7 @@ export default function AdminImagesPage() {
     });
   };
 
-  // ─── Add/Delete Preset ──────────────────────────
+  //  Add/Delete Preset 
   const addPreset = async () => {
     if (!newPresetLabel || !newPresetPositive) return;
     const res = await authedFetch('/api/admin/prompts', {
@@ -425,7 +425,7 @@ export default function AdminImagesPage() {
     }
   };
 
-  // ─── Step 1: Generate Metadata (via LLM) ────────
+  //  Step 1: Generate Metadata (via LLM) 
   // Auto-generate metadata when selecting a card (girlfriend only)
   useEffect(() => {
     if (selectedItem?.itemCategory === 'girlfriend') {
@@ -452,7 +452,7 @@ export default function AdminImagesPage() {
     });
 
     try {
-      // Build a rich concept from item's own traits — 服装库/道具库使用独立数据，不调用女友库
+      // Build a rich concept from item's own traits  /
       let concept = state.positivePrompt;
       let girlfriendData: Record<string, unknown> | null = null;
       let outfitData: Record<string, unknown> | null = null;
@@ -481,7 +481,7 @@ export default function AdminImagesPage() {
           character_card: selectedItem.character_card,
         };
       } else if (!concept && selectedItem.itemCategory === 'outfit') {
-        // 服装库：使用服装自身数据，不引入女友信息
+        // 
         const traits = [selectedItem.name];
         if (selectedItem.category) traits.push(`category: ${selectedItem.category}`);
         if (selectedItem.tier) traits.push(`tier: ${selectedItem.tier}`);
@@ -495,7 +495,7 @@ export default function AdminImagesPage() {
           tier: selectedItem.tier,
         };
       } else if (!concept && selectedItem.itemCategory === 'shop_item') {
-        // 道具库：使用道具自身数据，不引入女友信息
+        // 
         const traits = [selectedItem.name];
         if (selectedItem.item_type) traits.push(`type: ${selectedItem.item_type}`);
         if (selectedItem.category) traits.push(`category: ${selectedItem.category}`);
@@ -536,7 +536,7 @@ export default function AdminImagesPage() {
           editDescription: data.metadata.description || '',
           editTags: data.metadata.tags?.join(', ') || '',
           editAppearance: data.metadata.appearance || '',
-          genProgress: '✅ Metadata generated! Review and edit below, then click "生成图片".',
+          genProgress: ' Metadata generated! Review and edit below, then click "".',
           metaGenerating: false,
         });
       } else {
@@ -544,13 +544,13 @@ export default function AdminImagesPage() {
       }
     } catch (err) {
       updateGenState(selectedItem.id, {
-        genProgress: `❌ Error: ${err instanceof Error ? err.message : 'Unknown'}`,
+        genProgress: ` Error: ${err instanceof Error ? err.message : 'Unknown'}`,
         metaGenerating: false,
       });
     }
   };
 
-  // ─── Step 2: Generate Images (from confirmed metadata) ────────
+  //  Step 2: Generate Images (from confirmed metadata) 
   const generateFromMeta = async (deleteExisting = false) => {
     if (!selectedItem) return;
     const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
@@ -611,32 +611,32 @@ export default function AdminImagesPage() {
       }));
       updateGenState(selectedItem.id, {
         generatedImages: images,
-        genProgress: `✅ ${images.length} images generated`,
+        genProgress: ` ${images.length} images generated`,
         generating: false,
       });
     } catch (err) {
       updateGenState(selectedItem.id, {
-        genProgress: `❌ Error: ${err instanceof Error ? err.message : 'Unknown'}`,
+        genProgress: ` Error: ${err instanceof Error ? err.message : 'Unknown'}`,
         generating: false,
       });
     }
   };
 
-  // ─── Manual mode: optimize prompt + generate ───
+  //  Manual mode: optimize prompt + generate 
   const generateFromCustomPrompt = () => {
     if (!selectedItem) return;
     updateGenState(selectedItem.id, { generatedMeta: null }); // skip metadata step
     generateFromMeta(false);
   };
 
-  // ─── Regenerate (delete old + generate new) ────
+  //  Regenerate (delete old + generate new) 
   const handleRegenerate = () => {
     if (!selectedItem) return;
     const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
     if (state.generatedMeta) {
       generateFromMeta(true);
     } else {
-      // No metadata yet — generate metadata first if concept, else manual
+      // No metadata yet  generate metadata first if concept, else manual
       if (state.positivePrompt) {
         generateFromCustomPrompt();
       } else {
@@ -645,7 +645,7 @@ export default function AdminImagesPage() {
     }
   };
 
-  // ─── Confirm selected image ─────────────────────
+  //  Confirm selected image 
   const confirmImage = async () => {
     if (!selectedItem) return;
     const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
@@ -680,7 +680,7 @@ export default function AdminImagesPage() {
 
       if (!res.ok) throw new Error('Failed to save');
 
-      addLog('success', `✅ ${selectedItem.name || selectedItem.id} image updated`);
+      addLog('success', ` ${selectedItem.name || selectedItem.id} image updated`);
       updateGenState(selectedItem.id, {
         generatedImages: [],
         selectedImages: new Set(),
@@ -691,19 +691,19 @@ export default function AdminImagesPage() {
       // Update selected item
       setSelectedItem((prev) => prev ? { ...prev, imageUrl, hasImage: true } : prev);
     } catch (err) {
-      addLog('error', `❌ Failed to save: ${err instanceof Error ? err.message : 'Unknown'}`);
+      addLog('error', ` Failed to save: ${err instanceof Error ? err.message : 'Unknown'}`);
     } finally {
       setSaving(false);
     }
   };
 
-  // ─── Batch generate all ─────────────────────────
+  //  Batch generate all 
   const batchGenerate = async () => {
     if (batchRunning) return;
     setBatchRunning(true);
     setLogs([]);
 
-    addLog('info', '🔄 Scanning for missing images...');
+    addLog('info', ' Scanning for missing images...');
 
     try {
       // Use default params for batch (or could aggregate from all girlfriends)
@@ -739,16 +739,16 @@ export default function AdminImagesPage() {
               if (currentEvent === 'log') {
                 if (data.type === 'info') addLog('info', data.message);
                 else if (data.type === 'success') addLog('success', data.message);
-                else if (data.type === 'error') addLog('error', `❌ ${data.message}`);
+                else if (data.type === 'error') addLog('error', ` ${data.message}`);
                 else if (data.type === 'progress') addLog('progress', data.message);
                 else if (data.type === 'done') addLog('success', data.message);
                 else addLog('info', data.message);
               } else if (currentEvent === 'error') {
-                addLog('error', `❌ ${data.error || data.message || 'Unknown error'}`);
+                addLog('error', ` ${data.error || data.message || 'Unknown error'}`);
               } else if (currentEvent === 'done') {
-                addLog('success', `🎉 All done! ${data.completed} succeeded, ${data.failed} failed.`);
+                addLog('success', ` All done! ${data.completed} succeeded, ${data.failed} failed.`);
               } else if (currentEvent === 'complete') {
-                addLog('success', `✅ ${data.name || data.id} generated`);
+                addLog('success', ` ${data.name || data.id} generated`);
               }
             } catch { /* ignore */ }
           }
@@ -758,13 +758,13 @@ export default function AdminImagesPage() {
       // Refresh data after batch completes
       loadData();
     } catch (err) {
-      addLog('error', `❌ Batch error: ${err instanceof Error ? err.message : 'Unknown'}`);
+      addLog('error', ` Batch error: ${err instanceof Error ? err.message : 'Unknown'}`);
     } finally {
       setBatchRunning(false);
     }
   };
 
-  // ─── Regenerate single item ─────────────────────
+  //  Regenerate single item 
   const regenerateItem = async (item: ImageItem) => {
     setSelectedItem(item);
     updateGenState(item.id, {
@@ -780,7 +780,7 @@ export default function AdminImagesPage() {
     setTimeout(() => generateMetaData(), 300);
   };
 
-  // ─── Replace image ──────────────────────────────
+  //  Replace image 
   const replaceImage = (item: ImageItem) => {
     setSelectedItem(item);
     updateGenState(item.id, {
@@ -798,12 +798,12 @@ export default function AdminImagesPage() {
     }, 100);
   };
 
-  // ─── Log helper ─────────────────────────────────
+  //  Log helper 
   const addLog = (type: LogEntry['type'], message: string) => {
     setLogs((prev) => [...prev, { time: new Date().toLocaleTimeString(), message, type }]);
   };
 
-  // ─── Toggle image selection ─────────────────────
+  //  Toggle image selection 
   const toggleSelect = (idx: number) => {
     if (!selectedItem) return;
     const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
@@ -813,7 +813,7 @@ export default function AdminImagesPage() {
     updateGenState(selectedItem.id, { selectedImages: next });
   };
 
-  // ─── Render ─────────────────────────────────────
+  //  Render 
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -839,11 +839,11 @@ export default function AdminImagesPage() {
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] p-6" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* ─── Header ──────────────────────────────── */}
+      {/*  Header  */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#1E293B]">图片资源管理</h1>
-          <p className="mt-1 text-sm text-[#64748B]">管理全站女友肖像、服装预览和道具图片</p>
+          <h1 className="text-2xl font-bold text-[#1E293B]"></h1>
+          <p className="mt-1 text-sm text-[#64748B]"></p>
         </div>
         <button
           onClick={batchGenerate}
@@ -851,48 +851,48 @@ export default function AdminImagesPage() {
           className="flex items-center gap-2 rounded-lg bg-[#2563EB] px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {batchRunning ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> 生成中...</>
+            <><Loader2 className="h-4 w-4 animate-spin" /> ...</>
           ) : (
-            <><Sparkles className="h-4 w-4" /> 一键生成全站</>
+            <><Sparkles className="h-4 w-4" /> </>
           )}
         </button>
       </div>
 
-      {/* ─── Stats Cards ──────────────────────────── */}
+      {/*  Stats Cards  */}
       <div className="mb-6 grid grid-cols-4 gap-4">
         <StatCard
           icon={<User className="h-5 w-5" />}
-          label="女友总数"
+          label=""
           value={stats?.totalGirlfriends ?? 0}
-          sub={`已生成 ${stats?.withPortrait ?? 0} 张肖像`}
+          sub={` ${stats?.withPortrait ?? 0} `}
           color="blue"
         />
         <StatCard
           icon={<Shirt className="h-5 w-5" />}
-          label="服装总数"
+          label=""
           value={stats?.totalOutfits ?? 0}
-          sub={`已生成 ${stats?.withPreview ?? 0} 张预览`}
+          sub={` ${stats?.withPreview ?? 0} `}
           color="emerald"
         />
         <StatCard
           icon={<Package className="h-5 w-5" />}
-          label="道具总数"
+          label=""
           value={stats?.totalShopItems ?? 0}
-          sub={`已生成 ${stats?.shopItemsWithImage ?? 0} 张图片`}
+          sub={` ${stats?.shopItemsWithImage ?? 0} `}
           color="amber"
         />
         <StatCard
           icon={<ImageIcon className="h-5 w-5" />}
-          label="待生成"
+          label=""
           value={(stats?.totalGirlfriends ?? 0) - (stats?.withPortrait ?? 0) +
                    (stats?.totalOutfits ?? 0) - (stats?.withPreview ?? 0) +
                    (stats?.totalShopItems ?? 0) - (stats?.shopItemsWithImage ?? 0)}
-          sub="需要生成图片的资源"
+          sub=""
           color="rose"
         />
       </div>
 
-      {/* ─── Generation Parameters (standalone) ── */}
+      {/*  Generation Parameters (standalone)  */}
       <div className="rounded-xl bg-white shadow-sm border border-gray-100">
         <button
           onClick={() => setParamsExpanded(!paramsExpanded)}
@@ -900,11 +900,11 @@ export default function AdminImagesPage() {
         >
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-[#64748B]" />
-            <span>生成参数控制{selectedItem ? ` — ${selectedItem.name}` : ''}</span>
+            <span>{selectedItem ? `  ${selectedItem.name}` : ''}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-[#64748B]">
-              {currentGenState.genParams.steps}步 · CFG {currentGenState.genParams.cfg} · {currentGenState.genParams.width}×{currentGenState.genParams.height}
+              {currentGenState.genParams.steps}  CFG {currentGenState.genParams.cfg}  {currentGenState.genParams.width}{currentGenState.genParams.height}
             </span>
             {paramsExpanded ? <ChevronUp className="h-4 w-4 text-[#64748B]" /> : <ChevronDown className="h-4 w-4 text-[#64748B]" />}
           </div>
@@ -934,23 +934,23 @@ export default function AdminImagesPage() {
               </div>
               {/* Seed */}
               <div>
-                <label className="text-xs text-[#64748B] mb-1 block">Seed（-1 随机）</label>
+                <label className="text-xs text-[#64748B] mb-1 block">Seed-1 </label>
                 <input type="number" value={currentGenState.genParams.seed}
                   onChange={(e) => selectedItem && updateGenState(selectedItem.id, { genParams: { ...currentGenState.genParams, seed: Number(e.target.value) } })}
                   className="w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#2563EB]" />
               </div>
               {/* Size */}
               <div>
-                <label className="text-xs text-[#64748B] mb-1 block">尺寸</label>
+                <label className="text-xs text-[#64748B] mb-1 block"></label>
                 <select value={`${currentGenState.genParams.width}x${currentGenState.genParams.height}`}
                   onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); selectedItem && updateGenState(selectedItem.id, { genParams: { ...currentGenState.genParams, width: w, height: h } }); }}
                   className="w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#2563EB]">
-                  <option value="512x768">竖版 512×768</option>
-                  <option value="768x1024">竖版 768×1024</option>
-                  <option value="1024x1280">竖版 1024×1280</option>
-                  <option value="1024x1024">方形 1024×1024</option>
-                  <option value="1024x768">横版 1024×768</option>
-                  <option value="768x512">横版 768×512</option>
+                  <option value="512x768"> 512768</option>
+                  <option value="768x1024"> 7681024</option>
+                  <option value="1024x1280"> 10241280</option>
+                  <option value="1024x1024"> 10241024</option>
+                  <option value="1024x768"> 1024768</option>
+                  <option value="768x512"> 768512</option>
                 </select>
               </div>
               {/* Sampler */}
@@ -983,17 +983,17 @@ export default function AdminImagesPage() {
         )}
       </div>
 
-      {/* ─── Main Content ────────────────────────── */}
+      {/*  Main Content  */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* ─── Left: Resource Library ──────────────── */}
+        {/*  Left: Resource Library  */}
         <div className="xl:col-span-2">
           <div className="rounded-xl bg-white shadow-sm border border-gray-100">
             {/* Tabs */}
             <div className="flex border-b border-gray-100">
               {[
-                { key: 'girlfriend' as const, label: '女友库', count: girlfriends.length, icon: <User className="h-4 w-4" /> },
-                { key: 'outfit' as const, label: '服装库', count: outfits.length, icon: <Shirt className="h-4 w-4" /> },
-                { key: 'shop_item' as const, label: '道具库', count: shopItems.length, icon: <Package className="h-4 w-4" /> },
+                { key: 'girlfriend' as const, label: '', count: girlfriends.length, icon: <User className="h-4 w-4" /> },
+                { key: 'outfit' as const, label: '', count: outfits.length, icon: <Shirt className="h-4 w-4" /> },
+                { key: 'shop_item' as const, label: '', count: shopItems.length, icon: <Package className="h-4 w-4" /> },
               ].map((tab) => (
                 <button
                   key={tab.key}
@@ -1013,10 +1013,10 @@ export default function AdminImagesPage() {
                 <button
                   onClick={loadData}
                   className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-[#64748B] hover:bg-gray-100 hover:text-[#1E293B] transition-colors"
-                  title="刷新列表"
+                  title=""
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
-                  <span>刷新</span>
+                  <span></span>
                 </button>
               </div>
             </div>
@@ -1028,7 +1028,7 @@ export default function AdminImagesPage() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder={`搜索${currentLabel}...`}
+                  placeholder={`${currentLabel}...`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-10 pr-4 text-sm focus:border-[#2563EB] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
@@ -1041,9 +1041,9 @@ export default function AdminImagesPage() {
                 onChange={(e) => setFilterStatus(e.target.value as 'all' | 'with_image' | 'without_image')}
                 className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
               >
-                <option value="all">全部</option>
-                <option value="with_image">有图片</option>
-                <option value="without_image">无图片</option>
+                <option value="all"></option>
+                <option value="with_image"></option>
+                <option value="without_image"></option>
               </select>
 
               {/* Sort */}
@@ -1052,13 +1052,13 @@ export default function AdminImagesPage() {
                 onChange={(e) => setSortBy(e.target.value as 'name' | 'created_at')}
                 className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
               >
-                <option value="name">按名称</option>
-                <option value="created_at">按创建时间</option>
+                <option value="name"></option>
+                <option value="created_at"></option>
               </select>
 
               {/* Count */}
               <div className="ml-auto text-sm text-gray-500">
-                显示 {currentItems.length} / {activeTab === 'girlfriend' ? girlfriends.length : activeTab === 'outfit' ? outfits.length : shopItems.length}
+                 {currentItems.length} / {activeTab === 'girlfriend' ? girlfriends.length : activeTab === 'outfit' ? outfits.length : shopItems.length}
               </div>
             </div>
 
@@ -1066,7 +1066,7 @@ export default function AdminImagesPage() {
             <div className="p-4">
               {currentItems.length === 0 ? (
                 <div className="flex h-32 items-center justify-center text-sm text-[#64748B]">
-                  暂无 {currentLabel}
+                   {currentLabel}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -1113,7 +1113,7 @@ export default function AdminImagesPage() {
                         <div
                           onClick={(e) => { e.stopPropagation(); setDeleteTarget(item); }}
                           className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-md text-red-500 transition-all hover:bg-red-500 hover:text-white hover:scale-105 cursor-pointer"
-                          title="删除"
+                          title=""
                         >
                           <Trash2 className="h-4 w-4" />
                         </div>
@@ -1122,7 +1122,7 @@ export default function AdminImagesPage() {
                         <div
                           onClick={(e) => { e.stopPropagation(); handleUploadClick(item); }}
                           className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-md text-[#2563EB] transition-all hover:bg-[#2563EB] hover:text-white hover:scale-105 cursor-pointer"
-                          title="上传图片"
+                          title=""
                         >
                           <Upload className="h-4 w-4" />
                         </div>
@@ -1152,7 +1152,7 @@ export default function AdminImagesPage() {
                           <p className="truncate text-[10px] text-[#64748B]">{item.category}</p>
                         )}
                         {genStates[item.id]?.generating && (
-                          <p className="truncate text-[10px] text-[#2563EB] font-medium">生成中...</p>
+                          <p className="truncate text-[10px] text-[#2563EB] font-medium">...</p>
                         )}
                         {genStates[item.id]?.genProgress && !genStates[item.id]?.generating && (
                           <p className="truncate text-[10px] text-[#64748B]">{genStates[item.id].genProgress.slice(0, 30)}</p>
@@ -1166,7 +1166,7 @@ export default function AdminImagesPage() {
           </div>
         </div>
 
-        {/* ─── Right: Detail + Generation Panel ──── */}
+        {/*  Right: Detail + Generation Panel  */}
         <div className="space-y-4">
           {selectedItem ? (
             <>
@@ -1185,15 +1185,15 @@ export default function AdminImagesPage() {
                   <div className="min-w-0 flex-1">
                     <h3 className="font-semibold text-[#1E293B] truncate">{selectedItem.name}</h3>
                     <p className="text-xs text-[#64748B]">
-                      {currentLabel} · {selectedItem.hasImage ? '已生成' : '待生成'}
-                      {selectedItem.category && ` · ${selectedItem.category}`}
+                      {currentLabel}  {selectedItem.hasImage ? '' : ''}
+                      {selectedItem.category && `  ${selectedItem.category}`}
                     </p>
                   </div>
                   <div className="flex gap-1">
                     <button
                       onClick={() => regenerateItem(selectedItem)}
                       className="rounded-md bg-gray-100 p-2 text-gray-500 hover:bg-gray-200"
-                      title="重新生成"
+                      title=""
                     >
                       <RefreshCw className="h-4 w-4" />
                     </button>
@@ -1207,7 +1207,7 @@ export default function AdminImagesPage() {
                   onClick={() => setPromptExpanded(!promptExpanded)}
                   className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-[#1E293B]"
                 >
-                  提示词编辑
+                  
                   {promptExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
 
@@ -1216,12 +1216,12 @@ export default function AdminImagesPage() {
                     {/* Presets */}
                     <div>
                       <div className="mb-1.5 flex items-center justify-between">
-                        <span className="text-xs font-medium text-[#64748B]">提示词预设</span>
+                        <span className="text-xs font-medium text-[#64748B]"></span>
                         <button
                           onClick={() => setShowAddPreset(true)}
                           className="flex items-center gap-1 text-xs text-[#2563EB] hover:text-blue-700"
                         >
-                          <Plus className="h-3 w-3" /> 添加
+                          <Plus className="h-3 w-3" /> 
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -1250,7 +1250,7 @@ export default function AdminImagesPage() {
 
                     {/* Positive */}
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-[#64748B]">正面提示词</label>
+                      <label className="mb-1 block text-xs font-medium text-[#64748B]"></label>
                       <textarea
                         value={currentGenState.positivePrompt}
                         onChange={(e) => selectedItem && updateGenState(selectedItem.id, { positivePrompt: e.target.value, activePreset: null })}
@@ -1262,7 +1262,7 @@ export default function AdminImagesPage() {
 
                     {/* Negative */}
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-[#64748B]">负面提示词</label>
+                      <label className="mb-1 block text-xs font-medium text-[#64748B]"></label>
                       <textarea
                         value={currentGenState.negativePrompt}
                         onChange={(e) => selectedItem && updateGenState(selectedItem.id, { negativePrompt: e.target.value })}
@@ -1282,8 +1282,8 @@ export default function AdminImagesPage() {
                           className="h-4 w-4 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
                         />
                         <div className="flex-1">
-                          <span className="text-sm font-medium text-[#1E293B]">保持人物一致性</span>
-                          <p className="text-xs text-[#64748B]">以当前图片为参考，生成同一人物的不同形象</p>
+                          <span className="text-sm font-medium text-[#1E293B]"></span>
+                          <p className="text-xs text-[#64748B]"></p>
                         </div>
                       </label>
                     )}
@@ -1298,9 +1298,9 @@ export default function AdminImagesPage() {
                           className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#2563EB] bg-white px-4 py-2.5 text-sm font-medium text-[#2563EB] hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {currentGenState.metaGenerating ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> 生成元数据中...</>
+                            <><Loader2 className="h-4 w-4 animate-spin" /> ...</>
                           ) : (
-                            <><Sparkles className="h-4 w-4" /> 生成元数据</>
+                            <><Sparkles className="h-4 w-4" /> </>
                           )}
                         </button>
                       )}
@@ -1316,11 +1316,11 @@ export default function AdminImagesPage() {
                         }`}
                       >
                         {currentGenState.generating ? (
-                          <><Loader2 className="h-4 w-4 animate-spin" /> 生成中...</>
+                          <><Loader2 className="h-4 w-4 animate-spin" /> ...</>
                         ) : currentGenState.generatedMeta ? (
-                          <><Sparkles className="h-4 w-4" /> 生成图片</>
+                          <><Sparkles className="h-4 w-4" /> </>
                         ) : (
-                          <><Sparkles className="h-4 w-4" /> 优化并生成</>
+                          <><Sparkles className="h-4 w-4" /> </>
                         )}
                       </button>
                     </div>
@@ -1335,7 +1335,7 @@ export default function AdminImagesPage() {
               {/* Generated Results */}
               {currentGenState.generatedImages.length > 0 && (
                 <div className="rounded-xl bg-white shadow-sm border border-gray-100 p-4">
-                  <h4 className="mb-3 text-sm font-semibold text-[#1E293B]">生成预览</h4>
+                  <h4 className="mb-3 text-sm font-semibold text-[#1E293B]"></h4>
                   <div className="grid grid-cols-2 gap-2">
                     {currentGenState.generatedImages.map((img, idx) => (
                       <button
@@ -1357,22 +1357,22 @@ export default function AdminImagesPage() {
                     ))}
                   </div>
 
-                  {/* ✏️ Metadata Editor (shown after Step 1) */}
+                  {/*  Metadata Editor (shown after Step 1) */}
                   {currentGenState.generatedMeta && (
                     <div className="mt-3 space-y-2 rounded-lg bg-[#F8FAFC] border border-gray-100 p-3">
                       <div className="flex items-center justify-between">
-                        <h5 className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">生成描述信息（可编辑）</h5>
+                        <h5 className="text-xs font-semibold text-[#64748B] uppercase tracking-wider"></h5>
                         <button
                           onClick={() => generateMetaData()}
                           disabled={currentGenState.metaGenerating}
                           className="flex items-center gap-1 text-xs text-[#2563EB] hover:text-blue-700"
                         >
                           <RefreshCw className={`h-3 w-3 ${currentGenState.metaGenerating ? 'animate-spin' : ''}`} />
-                          重新生成
+                          
                         </button>
                       </div>
                       <div>
-                        <label className="block text-xs text-[#64748B] mb-1">标题/名称</label>
+                        <label className="block text-xs text-[#64748B] mb-1">/</label>
                         <input
                           type="text"
                           value={currentGenState.editTitle}
@@ -1381,7 +1381,7 @@ export default function AdminImagesPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-[#64748B] mb-1">描述/简介</label>
+                        <label className="block text-xs text-[#64748B] mb-1">/</label>
                         <textarea
                           value={currentGenState.editDescription}
                           onChange={(e) => selectedItem && updateGenState(selectedItem.id, { editDescription: e.target.value })}
@@ -1390,7 +1390,7 @@ export default function AdminImagesPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-[#64748B] mb-1">标签（逗号分隔）</label>
+                        <label className="block text-xs text-[#64748B] mb-1"></label>
                         <input
                           type="text"
                           value={currentGenState.editTags}
@@ -1400,13 +1400,13 @@ export default function AdminImagesPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-[#64748B] mb-1">外观描述（用于生成图片的提示词）</label>
+                        <label className="block text-xs text-[#64748B] mb-1"></label>
                         <textarea
                           value={currentGenState.editAppearance}
                           onChange={(e) => selectedItem && updateGenState(selectedItem.id, { editAppearance: e.target.value })}
                           rows={2}
                           className="w-full resize-y rounded-md border border-gray-200 px-3 py-1.5 text-sm text-[#1E293B] bg-white focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
-                          placeholder="Visual description for image generation — will be auto-optimized"
+                          placeholder="Visual description for image generation  will be auto-optimized"
                         />
                       </div>
                     </div>
@@ -1418,7 +1418,7 @@ export default function AdminImagesPage() {
                       disabled={currentGenState.selectedImages.size === 0 || saving}
                       className="flex-1 rounded-lg bg-[#10B981] px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : '✓ 确认选用'}
+                      {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : ' '}
                     </button>
                     <button
                       onClick={() => generateFromMeta(true)}
@@ -1435,19 +1435,19 @@ export default function AdminImagesPage() {
             <div className="flex h-48 items-center justify-center rounded-xl bg-white shadow-sm border border-gray-100">
               <div className="text-center text-sm text-[#64748B]">
                 <ImageIcon className="mx-auto mb-2 h-8 w-8 text-gray-300" />
-                <p>选择一个资源开始管理</p>
+                <p></p>
               </div>
             </div>
           )}
 
-          {/* ─── Generation Log ──────────────────── */}
+          {/*  Generation Log  */}
           {logs.length > 0 && (
             <div className="rounded-xl bg-white shadow-sm border border-gray-100">
               <button
                 onClick={() => setLogExpanded(!logExpanded)}
                 className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-[#1E293B]"
               >
-                生成日志
+                
                 {logExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </button>
 
@@ -1472,23 +1472,23 @@ export default function AdminImagesPage() {
         </div>
       </div>
 
-      {/* ─── Add Preset Modal ───────────────────── */}
+      {/*  Add Preset Modal  */}
       {showAddPreset && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-lg">
-            <h3 className="mb-4 text-lg font-semibold text-[#1E293B]">添加提示词预设</h3>
+            <h3 className="mb-4 text-lg font-semibold text-[#1E293B]"></h3>
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-[#64748B]">名称</label>
+                <label className="mb-1 block text-sm font-medium text-[#64748B]"></label>
                 <input
                   value={newPresetLabel}
                   onChange={(e) => setNewPresetLabel(e.target.value)}
-                  placeholder="例如: 赛博朋克"
+                  placeholder=": "
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-[#64748B]">正面提示词</label>
+                <label className="mb-1 block text-sm font-medium text-[#64748B]"></label>
                 <textarea
                   value={newPresetPositive}
                   onChange={(e) => setNewPresetPositive(e.target.value)}
@@ -1498,7 +1498,7 @@ export default function AdminImagesPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-[#64748B]">负面提示词</label>
+                <label className="mb-1 block text-sm font-medium text-[#64748B]"></label>
                 <textarea
                   value={newPresetNegative}
                   onChange={(e) => setNewPresetNegative(e.target.value)}
@@ -1513,21 +1513,21 @@ export default function AdminImagesPage() {
                 onClick={() => setShowAddPreset(false)}
                 className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-gray-200"
               >
-                取消
+                
               </button>
               <button
                 onClick={addPreset}
                 disabled={!newPresetLabel || !newPresetPositive}
                 className="rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                添加
+                
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ─── Hidden file input for upload ───────────── */}
+      {/*  Hidden file input for upload  */}
       <input
         ref={fileInputRef}
         type="file"
@@ -1536,26 +1536,26 @@ export default function AdminImagesPage() {
         onChange={handleFileSelected}
       />
 
-      {/* ─── Delete Confirmation Dialog ─────────────── */}
+      {/*  Delete Confirmation Dialog  */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => {
         if (!open && !deleting) setDeleteTarget(null);
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogTitle></AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除 <strong>{deleteTarget?.name}</strong> 吗？此操作不可撤销。
-              {deleteTarget?.hasImage && ' 对应的图片也会被删除。'}
+               <strong>{deleteTarget?.name}</strong> 
+              {deleteTarget?.hasImage && ' '}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}></AlertDialogCancel>
             <button
               onClick={handleDelete}
               disabled={deleting}
               className="inline-flex items-center justify-center rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {deleting ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> 删除中...</> : '确认删除'}
+              {deleting ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> ...</> : ''}
             </button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1564,7 +1564,7 @@ export default function AdminImagesPage() {
   );
 }
 
-// ─── StatCard Component ──────────────────────────────
+//  StatCard Component 
 function StatCard({
   icon,
   label,

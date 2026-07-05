@@ -23,17 +23,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   if (!gf) {
     return {
-      title: `AI Companion — ${APP_NAME}`,
+      title: `AI Companion  ${APP_NAME}`,
       description: `Meet your perfect AI companion on ${APP_NAME}.`,
     };
   }
 
   return {
-    title: `${gf.name} — ${APP_NAME}`,
+    title: `${gf.name}  ${APP_NAME}`,
     description: `${gf.name}: ${gf.description}`,
     keywords: [...gf.tags, 'AI companion', 'AI girlfriend', 'virtual relationship', 'NSFW AI chat', slug],
     openGraph: {
-      title: `${gf.name} — ${APP_NAME}`,
+      title: `${gf.name}  ${APP_NAME}`,
       description: gf.description,
       url: `${BASE_URL}/girlfriend/${slug}`,
       siteName: APP_NAME,
@@ -43,7 +43,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${gf.name} — ${APP_NAME}`,
+      title: `${gf.name}  ${APP_NAME}`,
       description: gf.description,
     },
     alternates: { canonical: `/girlfriend/${slug}` },

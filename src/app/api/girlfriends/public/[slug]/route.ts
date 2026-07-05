@@ -19,7 +19,7 @@ export async function GET(
     return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
   }
 
-  // 读取侧：将 OSS key 解析为签名 URL，data:url/外链原样返回
+  //  OSS key  URLdata:url/
   const gf = girlfriend as Record<string, unknown> & {
     portrait_url?: string | null;
     avatar_url?: string | null;

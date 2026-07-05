@@ -1,5 +1,5 @@
 /**
- * 虚拟商城 v2 — 装备/卸下 服装到角色
+ *  v2  / 
  * POST /api/shop/v2/outfits/equip
  *
  * Body: { girlfriend_id, outfit_asset_id, action: 'equip' | 'unequip' }
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'action must be equip or unequip' }, { status: 400 });
   }
 
-  // 校验角色归属
+  // 
   const { data: gf, error: gfErr } = await client
     .from('girlfriends')
     .select('id, name')
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Girlfriend not found or not owned' }, { status: 404 });
   }
 
-  // 校验用户是否拥有此 outfit（user_inventory 里有）
+  //  outfituser_inventory 
   const { data: inv, error: invErr } = await client
     .from('user_inventory')
     .select('id, asset_payload')
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (body.action === 'unequip') {
-    // 卸下：把这个 girlfriend 的所有 equipped = false
+    //  girlfriend  equipped = false
     await client
       .from('girlfriend_outfits')
       .update({ is_equipped: false, equipped_at: new Date().toISOString() })
@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, action: 'unequipped' });
   }
 
-  // equip：先卸下当前装备，再装上新 outfit
-  // 1) 卸下当前 equipped
+  // equip outfit
+  // 1)  equipped
   await client
     .from('girlfriend_outfits')
     .update({ is_equipped: false })
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     .eq('girlfriend_id', body.girlfriend_id)
     .eq('is_equipped', true);
 
-  // 2) upsert 新装备
+  // 2) upsert 
   const { data: go, error: upsertErr } = await client
     .from('girlfriend_outfits')
     .upsert(

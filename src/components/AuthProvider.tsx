@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   // supabase is null when NEXT_PUBLIC_SUPABASE_URL is missing at build time.
-  // In that case user/session stay null and we still render children —
+  // In that case user/session stay null and we still render children 
   // but protected routes will redirect to /login.
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserClient());
   const router = useRouter();
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
       } catch {
-        // ignore — supabase init failed
+        // ignore  supabase init failed
       } finally {
         setIsLoading(false);
       }
