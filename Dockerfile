@@ -32,31 +32,16 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# ── Plan J: Bake NEXT_PUBLIC_* into the client bundle ──
-# Railway does NOT auto-pass NEXT_PUBLIC_* vars to Docker build ARGs.
-# Strategy: read them from the ENV set on the service, then write a
-# .env.production file inside the builder stage. Next.js automatically
-# loads .env.production at build time, which causes it to inline
-# NEXT_PUBLIC_* values into the client bundle (correct behavior).
+# ── Plan K: Bake NEXT_PUBLIC_* into the client bundle ──
+# Railway does NOT auto-pass NEXT_PUBLIC_* vars to Docker build ARGs
+# (only DOCKERFILE BUILDKIT args, not service env).
+# Strategy: printenv → grep NEXT_PUBLIC_ → write .env.production.
+# Next.js automatically loads .env.production at build time, which causes
+# it to inline NEXT_PUBLIC_* values into the client bundle (correct behavior).
 #
 # All NEXT_PUBLIC_* vars must be set as Service Variables on Railway
-# (Settings → Variables). They become part of the build ENV when
-# Railway builds the Docker image.
-RUN touch .env.production && \
-    { \
-      [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" >> .env.production || true; \
-      [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] && echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY" >> .env.production || true; \
-      [ -n "$NEXT_PUBLIC_COZE_SUPABASE_URL" ] && echo "NEXT_PUBLIC_COZE_SUPABASE_URL=$NEXT_PUBLIC_COZE_SUPABASE_URL" >> .env.production || true; \
-      [ -n "$NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY" ] && echo "NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY=$NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY" >> .env.production || true; \
-      [ -n "$NEXT_PUBLIC_APP_URL" ] && echo "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" >> .env.production || true; \
-      [ -n "$NEXT_PUBLIC_SITE_URL" ] && echo "NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL" >> .env.production || true; \
-      [ -n "$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY" ] && echo "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY" >> .env.production || true; \
-      [ -n "$NEXT_PUBLIC_GA_ID" ] && echo "NEXT_PUBLIC_GA_ID=$NEXT_PUBLIC_GA_ID" >> .env.production || true; \
-      [ -n "$NEXT_PUBLIC_POSTHOG_KEY" ] && echo "NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY" >> .env.production || true; \
-      [ -n "$NEXT_PUBLIC_POSTHOG_HOST" ] && echo "NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST" >> .env.production || true; \
-    } && \
-    echo "=== .env.production written ===" && \
-    cat .env.production
+# (Settings → Variables). They become part of the build ENV.
+RUN printenv | grep -E '^NEXT_PUBLIC_' | tee .env.production && echo "=== .env.production has $(wc -l < .env.production) lines ==="
 
 # 构建（standalone 输出在 .next/standalone）
 RUN pnpm build
