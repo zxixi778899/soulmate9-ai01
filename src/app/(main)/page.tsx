@@ -1,14 +1,5 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-
-export default function MainRedirect() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace('/gallery');
-  }, [router]);
-
-  return null;
+export default function MainPage() {
+  redirect('/gallery');
 }
