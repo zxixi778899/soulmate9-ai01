@@ -11,20 +11,20 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, LayoutDashboard, Users, Image, Heart, ShoppingBag, CheckSquare, Brain, CreditCard, FileImage, BookOpen, ChevronLeft, LayoutTemplate, Menu } from 'lucide-react';
 
 const adminNav = [
-  { label: '', href: '/admin', icon: LayoutDashboard },
-  { label: '', href: '/admin/images', icon: FileImage },
-  { label: '', href: '/admin/users', icon: Users },
-  { label: '', href: '/admin/ads', icon: Image },
-  { label: '', href: '/admin/girlfriends', icon: Heart },
-  { label: '', href: '/admin/character-cards', icon: FileImage },
-  { label: '', href: '/admin/lore', icon: BookOpen },
-  { label: '', href: '/admin/shop', icon: ShoppingBag },
-  { label: '', href: '/admin/review', icon: CheckSquare },
-  { label: '', href: '/admin/models', icon: Brain },
-  { label: '', href: '/admin/credits', icon: CreditCard },
-  { label: '', href: '/admin/crypto', icon: CreditCard },
-  { label: '', href: '/admin/pages', icon: LayoutTemplate },
-  { label: '', href: '/admin/navigation', icon: Menu },
+  { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+  { label: 'Images', href: '/admin/images', icon: FileImage },
+  { label: 'Users', href: '/admin/users', icon: Users },
+  { label: 'Ads', href: '/admin/ads', icon: Image },
+  { label: 'Girlfriends', href: '/admin/girlfriends', icon: Heart },
+  { label: 'Character Cards', href: '/admin/character-cards', icon: FileImage },
+  { label: 'Lore', href: '/admin/lore', icon: BookOpen },
+  { label: 'Shop', href: '/admin/shop', icon: ShoppingBag },
+  { label: 'Review', href: '/admin/review', icon: CheckSquare },
+  { label: 'AI Models', href: '/admin/models', icon: Brain },
+  { label: 'Credits', href: '/admin/credits', icon: CreditCard },
+  { label: 'Crypto', href: '/admin/crypto', icon: CreditCard },
+  { label: 'Pages', href: '/admin/pages', icon: LayoutTemplate },
+  { label: 'Navigation', href: '/admin/navigation', icon: Menu },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

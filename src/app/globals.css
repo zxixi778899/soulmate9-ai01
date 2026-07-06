@@ -1082,3 +1082,63 @@ html {
   pointer-events: none;
   animation: ambientFloat var(--duration, 12s) var(--delay, 0s) ease-in-out infinite;
 }
+
+/* ─── Admin Panel Light Theme Overrides ─── */
+.admin-layout {
+  color: #1E293B;
+}
+.admin-layout h1,
+.admin-layout h2,
+.admin-layout h3,
+.admin-layout h4 {
+  color: #1E293B !important;
+}
+.admin-layout p,
+.admin-layout span,
+.admin-layout label,
+.admin-layout td,
+.admin-layout th {
+  color: inherit;
+}
+/* Override dark text colors used in admin pages */
+.admin-layout .text-white { color: #1E293B !important; }
+.admin-layout .text-\[\#F0F0F5\] { color: #1E293B !important; }
+.admin-layout .text-\[\#8B8BA3\] { color: #64748B !important; }
+.admin-layout .text-\[white\] { color: #1E293B !important; }
+/* Override dark backgrounds */
+.admin-layout .bg-\[\#07070F\] { background-color: transparent !important; }
+.admin-layout .bg-\[\#0E0E1A\] { background-color: #fff !important; }
+.admin-layout .bg-card\/40,
+.admin-layout .bg-card\/50 { background-color: #fff !important; }
+.admin-layout .bg-white\/\[0\.03\],
+.admin-layout .bg-white\/\[0\.04\],
+.admin-layout .bg-white\/\[0\.06\] { background-color: #fff !important; }
+/* Override borders */
+.admin-layout .border-white\/\[0\.05\],
+.admin-layout .border-white\/\[0\.06\],
+.admin-layout .border-white\/\[0\.08\],
+.admin-layout .border-white\/\[0\.1\] { border-color: #E2E8F0 !important; }
+/* Override Card component in admin */
+.admin-layout [class*="border-white"] { border-color: #E2E8F0 !important; }
+/* Keep accent colors intact */
+.admin-layout .text-\[\#FF2D78\] { color: #2563EB !important; }
+.admin-layout .bg-\[\#FF2D78\] { background-color: #2563EB !important; }
+.admin-layout .text-\[\#FF6BA6\] { color: #3B82F6 !important; }
+/* Gradient text fix */
+.admin-layout .gradient-text {
+  background: linear-gradient(135deg, #2563EB, #7C3AED) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+/* Input/Select fixes */
+.admin-layout input,
+.admin-layout select,
+.admin-layout textarea {
+  color: #1E293B !important;
+  background-color: #fff !important;
+  border-color: #E2E8F0 !important;
+}
+.admin-layout input::placeholder,
+.admin-layout textarea::placeholder {
+  color: #94A3B8 !important;
+}

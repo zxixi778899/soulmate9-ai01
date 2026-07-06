@@ -51,17 +51,17 @@ export default function AdminDashboard() {
   }
 
   const statCards = [
-    { label: '', value: stats?.totalUsers ?? 0, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { label: '', value: stats?.totalGirlfriends ?? 0, icon: Heart, color: 'text-rose-500', bg: 'bg-rose-500/10' },
-    { label: '', value: stats?.pendingReview ?? 0, icon: CheckSquare, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-    { label: '', value: stats?.activeAds ?? 0, icon: Image, color: 'text-violet-500', bg: 'bg-violet-500/10' },
+    { label: 'Total Users', value: stats?.totalUsers ?? 0, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+    { label: 'Girlfriends', value: stats?.totalGirlfriends ?? 0, icon: Heart, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+    { label: 'Pending Review', value: stats?.pendingReview ?? 0, icon: CheckSquare, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+    { label: 'Active Ads', value: stats?.activeAds ?? 0, icon: Image, color: 'text-violet-500', bg: 'bg-violet-500/10' },
   ];
 
   return (
     <div className="p-6">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold"></h1>
-        <p className="text-sm text-[#8B8BA3] mt-1"> & </p>
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-sm text-[#8B8BA3] mt-1">Overview & Quick Actions</p>
       </div>
 
       {/* Stat Cards */}
@@ -89,16 +89,16 @@ export default function AdminDashboard() {
           <CardContent className="p-5">
             <h2 className="font-semibold mb-4 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-[#FF2D78]" />
-              
+              Quick Actions
             </h2>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: '', href: '/admin/users', icon: Users },
-                { label: '', href: '/admin/review', icon: CheckSquare },
-                { label: '', href: '/admin/ads', icon: Image },
-                { label: '', href: '/admin/girlfriends', icon: Heart },
-                { label: '', href: '/admin/shop', icon: ShoppingBag },
-                { label: '', href: '/admin/pages', icon: LayoutTemplate },
+                { label: 'Users', href: '/admin/users', icon: Users },
+                { label: 'Review', href: '/admin/review', icon: CheckSquare },
+                { label: 'Ads', href: '/admin/ads', icon: Image },
+                { label: 'Girlfriends', href: '/admin/girlfriends', icon: Heart },
+                { label: 'Shop', href: '/admin/shop', icon: ShoppingBag },
+                { label: 'Pages', href: '/admin/pages', icon: LayoutTemplate },
               ].map((action) => (
                 <button
                   key={action.label}
@@ -120,16 +120,16 @@ export default function AdminDashboard() {
           <CardContent className="p-5">
             <h2 className="font-semibold mb-4 flex items-center gap-2">
               <Users className="h-4 w-4 text-[#FF2D78]" />
-              
+              Recent Users
             </h2>
             {recentUsers.length === 0 ? (
-              <p className="text-sm text-[#8B8BA3] text-center py-8"></p>
+              <p className="text-sm text-[#8B8BA3] text-center py-8">No recent users</p>
             ) : (
               <div className="space-y-3">
                 {recentUsers.map((u) => (
                   <div key={u.id} className="flex items-center justify-between py-1">
                     <div>
-                      <p className="text-sm font-medium">{u.display_name || ''}</p>
+                      <p className="text-sm font-medium">{u.display_name || u.id.slice(0, 8)}</p>
                       <p className="text-xs text-[#8B8BA3]">{new Date(u.created_at).toLocaleDateString()}</p>
                     </div>
                     <Badge variant={u.membership_tier === 'unlimited' ? 'default' : 'outline'} className="text-[10px]">
