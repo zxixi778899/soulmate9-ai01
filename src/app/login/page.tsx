@@ -1,28 +1,94 @@
 "use client";
 import { useState } from "react";
-import { SOULMATE_BUILD_ID } from "@/lib/supabase";
+import { createBrowserClient, SOULMATE_BUILD_ID } from "@/lib/supabase";
+import { Loader2 } from "lucide-react";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  async function handleLogin() {
-    // Reference build ID so Turbopack keeps the import (forces fresh chunk hash)
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleLogin(ev: React.FormEvent) {
+    ev.preventDefault();
+    ev.stopPropagation();
     if (!SOULMATE_BUILD_ID) return;
-    const mod = await import("@/components/AuthProvider");
-    const supabase = mod.useAuth?.()?.supabase;
-    if (!supabase) return;
-    const r = await supabase.auth.signInWithPassword({ email, password });
-    if (r.error) { alert(r.error.message); return; }
-    window.location.href = "/gallery";
+    setError(null);
+    setLoading(true);
+
+    try {
+      const supabase = createBrowserClient();
+      if (!supabase) {
+        setError("Failed to initialize. Please refresh the page.");
+        setLoading(false);
+        return;
+      }
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      if (authError) {
+        setError(authError.message);
+        setLoading(false);
+        return;
+      }
+      window.location.href = "/gallery";
+    } catch (err) {
+      setError("Network error. Please try again.");
+      setLoading(false);
+    }
   }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4">
-      <h1 className="text-2xl font-bold mb-4">Sign In</h1>
-      <form onSubmit={(ev) => { ev.stopPropagation(); handleLogin(); }} className="w-full max-w-sm space-y-3">
-        <input type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="Email" required className="w-full p-2 border rounded" />
-        <input type="password" value={password} onChange={(ev) => setPassword(ev.target.value)} placeholder="Password" required className="w-full p-2 border rounded" />
-        <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">Sign In</button>
-      </form>
-      <p className="mt-4">No account? <a href="/register" className="text-blue-500">Register</a></p>
+    <main className="flex min-h-screen flex-col items-center justify-center px-4 bg-[#07070F]">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="text-center">
+          <h1 className="font-display text-3xl font-bold gradient-text mb-1">Welcome Back</h1>
+          <p className="text-sm text-white/40">Sign in to continue to SoulMate AI</p>
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-xs text-white/50 mb-1.5 font-heading">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(ev) => setEmail(ev.target.value)}
+              placeholder="you@example.com"
+              required
+              className="w-full p-3 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-[#FF2D78]/40 focus:border-[#FF2D78]/40 transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-white/50 mb-1.5 font-heading">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(ev) => setPassword(ev.target.value)}
+              placeholder="••••••••"
+              required
+              className="w-full p-3 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-[#FF2D78]/40 focus:border-[#FF2D78]/40 transition-all"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full p-3 rounded-lg bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white font-heading font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-all flex items-center justify-center gap-2"
+          >
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</> : "Sign In"}
+          </button>
+        </form>
+
+        <p className="text-center text-sm text-white/30">
+          No account?{" "}
+          <a href="/register" className="text-[#FF6BA6] hover:text-[#FF2D78] transition-colors">
+            Create one
+          </a>
+        </p>
+      </div>
     </main>
   );
 }
