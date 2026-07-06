@@ -32,6 +32,7 @@ RUN pnpm install && pnpm list
 # Next.js standalone 构建需要关闭 telemetry
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV SOULMATE_STANDALONE=1
 
 # ── Plan K: Bake NEXT_PUBLIC_* into the client bundle ──
 # Railway does NOT auto-pass NEXT_PUBLIC_* vars to Docker build ARGs

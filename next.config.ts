@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
   serverExternalPackages: ['coze-coding-dev-sdk', '@aws-sdk/*', 'stripe'],
-  output: process.env.VERCEL ? undefined : 'standalone',
+  output: process.env.SOULMATE_STANDALONE === '1' ? 'standalone' as const : undefined,
   compress: true,
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
