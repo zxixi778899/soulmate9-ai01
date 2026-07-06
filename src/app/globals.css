@@ -988,3 +988,46 @@ html {
   }
   .vn-fade-in { opacity: 1; transform: none; }
 }
+
+/* ─── Chat Markdown Styles ─── */
+.chat-markdown {
+  line-height: 1.6;
+  word-break: break-word;
+}
+.chat-markdown p {
+  margin-bottom: 0.5rem;
+}
+.chat-markdown p:last-child {
+  margin-bottom: 0;
+}
+.chat-markdown pre {
+  margin: 0.5rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.chat-markdown ul,
+.chat-markdown ol {
+  padding-left: 1.25rem;
+  margin: 0.25rem 0;
+}
+.chat-markdown li {
+  margin-bottom: 0.125rem;
+}
+.chat-markdown hr {
+  border-color: rgba(255, 255, 255, 0.08);
+  margin: 0.75rem 0;
+}
+.chat-markdown table {
+  font-size: 0.85em;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+.chat-markdown th,
+.chat-markdown td {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.25rem 0.5rem;
+}
+.chat-markdown th {
+  background: rgba(255, 255, 255, 0.04);
+  font-weight: 600;
+}

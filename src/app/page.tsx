@@ -31,6 +31,14 @@ import { AgeVerification } from '@/components/AgeVerification';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { SocialProof } from '@/components/landing/SocialProof';
+import { HowItWorks } from '@/components/landing/HowItWorks';
+import { Features } from '@/components/landing/Features';
+import { CharacterGallery } from '@/components/landing/CharacterGallery';
+import { PricingPreview } from '@/components/landing/PricingPreview';
+import { FAQ } from '@/components/landing/FAQ';
+import { FinalCTA } from '@/components/landing/FinalCTA';
+import { Footer } from '@/components/landing/Footer';
 
 // ============  ============
 type Character = {
@@ -552,6 +560,16 @@ export default function SingleViewportHero() {
           {/*  */}
           <CursorTrail targetRef={heroRef} accent={active.accent} />
         </section>
+
+        {/* ─── Marketing Sections ─── */}
+        <SocialProof />
+        <HowItWorks />
+        <Features />
+        <CharacterGallery />
+        <PricingPreview />
+        <FAQ />
+        <FinalCTA />
+        <Footer />
       </div>
     </>
   );

@@ -1,29 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthUser } from '@/lib/supabase-server';
+import { withAuth, withAuthBody } from '@/lib/api-handler';
+import { z } from 'zod';
 
-export async function GET(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
-  if (!user || !client) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+const intimacyBodySchema = z.object({
+  girlfriend_id: z.string().uuid('girlfriend_id must be a valid UUID'),
+  message_type: z.enum(['first_chat', 'reply_proactive', 'normal']).default('normal'),
+});
 
+export const GET = withAuth(async (req, { user, client }) => {
   const { data: scores, error } = await client
     .from('intimacy_scores')
     .select('*')
     .eq('user_id', user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ scores: [] });
   }
 
   return NextResponse.json({ scores });
-}
+});
 
-export async function POST(request: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(request);
-  if (!user || !client) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+export const POST = withAuthBody(
+  intimacyBodySchema,
+  async (req, { user, client, body }) => {
+  const { girlfriend_id, message_type } = body;
 
   // Check user membership tier
   const { data: profile } = await client
@@ -34,13 +34,6 @@ export async function POST(request: NextRequest) {
 
   const isFree = profile?.membership_tier === 'free';
   const FREE_INTIMACY_CAP = 59; // Level 3 (Friend) max
-
-  const body = await request.json();
-  const { girlfriend_id, message_type } = body;
-
-  if (!girlfriend_id) {
-    return NextResponse.json({ error: 'girlfriend_id is required' }, { status: 400 });
-  }
 
   // Get current intimacy score
   const { data: current } = await client
@@ -67,7 +60,7 @@ export async function POST(request: NextRequest) {
   const isUnlocked = activeItems && activeItems.length > 0;
   const today = new Date().toISOString().split('T')[0];
 
-  // Daily cap check  reset daily_score_gained if it's a new day
+  // Daily cap check - reset daily_score_gained if it's a new day
   const DAILY_CAP = 17;
   const isNewDay = current.last_daily_reset !== today;
   const todayGain = isNewDay ? 0 : (current.daily_score_gained || 0);
@@ -93,7 +86,7 @@ export async function POST(request: NextRequest) {
   const newLevel = getLevel(newScore);
 
   // Update
-  const { data: updated, error } = await client
+  const { error } = await client
     .from('intimacy_scores')
     .update({
       score: newScore,
@@ -102,16 +95,19 @@ export async function POST(request: NextRequest) {
       last_daily_reset: today,
       last_interacted_at: new Date().toISOString(),
     })
-    .eq('id', current.id)
-    .select()
-    .single();
+    .eq('id', current.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update intimacy score' }, { status: 500 });
   }
 
-  return NextResponse.json({ gained: gain, capped: !isUnlocked && todayGain + gain >= DAILY_CAP, score: newScore, level: newLevel });
-}
+  return NextResponse.json({
+    gained: gain,
+    capped: !isUnlocked && todayGain + gain >= DAILY_CAP,
+    score: newScore,
+    level: newLevel,
+  });
+});
 
 function getLevel(score: number): number {
   if (score >= 100) return 6;

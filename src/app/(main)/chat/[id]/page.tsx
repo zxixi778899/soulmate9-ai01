@@ -1,6 +1,8 @@
 'use client';
 import { useTranslation } from '@/lib/i18n/context';
 import { formatBubbleTime, dateGroupLabel, dayKey } from '@/lib/chat-utils';
+import { ChatMarkdown } from '@/components/chat/ChatMarkdown';
+import { motion } from 'motion/react';
 
 import { authedFetch } from '@/lib/supabase';
 import { useEffect, useState, useRef, use, useMemo, useCallback } from 'react';
@@ -91,10 +93,10 @@ type MemoryItem = {
 };
 
 const GIFTS = [
-  { id: 'rose', name: 'Red Rose', emoji: '', boost: 3, desc: 'A classic romantic gesture' },
-  { id: 'chocolate', name: 'Chocolate Box', emoji: '', boost: 5, desc: 'Sweet and thoughtful' },
-  { id: 'necklace', name: 'Silver Necklace', emoji: '', boost: 8, desc: 'Elegant and memorable' },
-  { id: 'ring', name: 'Promise Ring', emoji: '', boost: 15, desc: 'A deep commitment' },
+  { id: 'rose', name: 'Red Rose', emoji: '\uD83C\uDF39', boost: 3, desc: 'A classic romantic gesture' },
+  { id: 'chocolate', name: 'Chocolate Box', emoji: '\uD83C\uDF6B', boost: 5, desc: 'Sweet and thoughtful' },
+  { id: 'necklace', name: 'Silver Necklace', emoji: '\uD83D\uDCFF', boost: 8, desc: 'Elegant and memorable' },
+  { id: 'ring', name: 'Promise Ring', emoji: '\uD83D\uDC8D', boost: 15, desc: 'A deep commitment' },
 ] as const;
 
 const MOODS = ['romantic', 'playful', 'sweet', 'passionate', 'cozy', 'cheerful'];
@@ -886,8 +888,11 @@ function ChatStream(props: {
             const isFailed = msg.status === 'failed';
 
             return (
-              <div
+              <motion.div
                 key={row.key}
+                initial={{ opacity: 0, y: 8, x: isUser ? 12 : -12 }}
+                animate={{ opacity: 1, y: 0, x: 0 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
                 className={`flex gap-2 items-end ${isUser ? 'flex-row-reverse' : ''} ${merged ? 'mt-0.5' : 'mt-3'}`}
               >
                 {isAssistant && (
@@ -918,8 +923,11 @@ function ChatStream(props: {
                         : `bg-white/[0.06] backdrop-blur-md border border-white/[0.08] text-[#F0F0F5] rounded-2xl ${merged ? 'rounded-tl-2xl' : 'rounded-tl-md'}`
                     }`}
                   >
-                    {msg.content && (
+                    {msg.content && isUser && (
                       <span className="whitespace-pre-wrap">{msg.content}</span>
+                    )}
+                    {msg.content && !isUser && (
+                      <ChatMarkdown content={msg.content} />
                     )}
                     {!msg.content && isAssistant && (
                       <span className="inline-flex gap-1 py-0.5">
@@ -973,7 +981,7 @@ function ChatStream(props: {
                     )}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
 
