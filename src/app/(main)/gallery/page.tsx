@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from '@/lib/i18n/context';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import { authedFetch } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import {
@@ -23,6 +25,8 @@ import {
   UserPlus,
   Trash2,
   ImagePlus,
+  Search,
+  ArrowUpDown,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -62,6 +66,33 @@ export default function GalleryPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Girlfriend | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'name'>('newest');
+
+  const filteredGirlfriends = useMemo(() => {
+    let list = [...girlfriends];
+    // Search filter
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(g =>
+        g.name.toLowerCase().includes(q) ||
+        g.personality?.toLowerCase().includes(q) ||
+        g.tags?.some(t => t.toLowerCase().includes(q))
+      );
+    }
+    // Status filter
+    if (statusFilter !== 'all') {
+      list = list.filter(g => g.review_status === statusFilter);
+    }
+    // Sort
+    if (sortOrder === 'name') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+    return list;
+  }, [girlfriends, search, statusFilter, sortOrder]);
 
   const fetchGirlfriends = async () => {
     try {
@@ -156,18 +187,58 @@ export default function GalleryPage() {
   return (
     <div className="flex h-full flex-col overflow-y-auto pb-20">
       {/* Header */}
-      <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0E0E1A]/80 px-4 sm:px-8 py-5 backdrop-blur-xl">
+      <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0E0E1A]/80 px-4 sm:px-8 py-5 backdrop-blur-xl space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display text-3xl md:text-4xl font-bold italic bg-gradient-to-r from-white via-[#FFB3CD] to-[#FF6BA6] bg-clip-text text-transparent">{t('gallery.title')}</h1>
             <p className="mt-0.5 text-sm text-[#8B8BA3]">
               {t('gallery.companionCount', { count: girlfriends.length })}
+              {search && ` · ${filteredGirlfriends.length} matched`}
             </p>
           </div>
           <Button onClick={() => router.push('/create')} variant="glow" className="gap-2">
             <Plus className="h-4 w-4" />
             {t('gallery.createNew')}
           </Button>
+        </div>
+
+        {/* Search + Filters */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+            <Input
+              placeholder="Search by name, trait, tag..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 bg-white/[0.04] border-white/[0.08] text-sm placeholder:text-white/25"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Status filter pills */}
+            {['all', 'draft', 'pending', 'approved'].map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1.5 rounded-full text-xs font-heading transition-all ${
+                  statusFilter === s
+                    ? 'bg-[#FF2D78]/15 text-[#FF2D78] ring-1 ring-[#FF2D78]/30'
+                    : 'bg-white/[0.04] text-white/40 hover:text-white/60 hover:bg-white/[0.06]'
+                }`}
+              >
+                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+
+            {/* Sort toggle */}
+            <button
+              onClick={() => setSortOrder(sortOrder === 'newest' ? 'name' : 'newest')}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-heading bg-white/[0.04] text-white/40 hover:text-white/60 hover:bg-white/[0.06] transition-all"
+            >
+              <ArrowUpDown className="h-3 w-3" />
+              {sortOrder === 'newest' ? 'Newest' : 'A-Z'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -194,14 +265,32 @@ export default function GalleryPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-            {girlfriends.map((gf) => {
+          <motion.div
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: {},
+              visible: { transition: { staggerChildren: 0.06 } },
+            }}
+          >
+            <AnimatePresence mode="popLayout">
+            {filteredGirlfriends.map((gf, idx) => {
               const badge = getReviewBadge(gf.review_status);
               const tags = gf.tags?.length > 0 ? gf.tags : gf.personality?.split(',').map((t: string) => t.trim()).filter(Boolean);
 
               return (
-                <Card
+                <motion.div
                   key={gf.id}
+                  variants={{
+                    hidden: { opacity: 0, y: 20, scale: 0.95 },
+                    visible: { opacity: 1, y: 0, scale: 1 },
+                  }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.35, ease: 'easeOut' }}
+                  layout
+                >
+                <Card
                   className="group cursor-pointer overflow-hidden border-white/[0.06] bg-white/[0.04] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-[#FF2D78]/30 hover:shadow-[0_0_30px_-5px_rgba(255,45,120,0.15)]"
                 >
                   <CardContent className="p-0">
@@ -346,9 +435,11 @@ export default function GalleryPage() {
                     </div>
                   </CardContent>
                 </Card>
+                </motion.div>
               );
             })}
-          </div>
+            </AnimatePresence>
+          </motion.div>
         )}
       </div>
 

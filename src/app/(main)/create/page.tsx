@@ -3,6 +3,7 @@ import { authedFetch } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -393,9 +394,16 @@ export default function CreatePage() {
         {/* Left: form */}
         <ScrollArea className="flex-1">
           <div className="mx-auto max-w-3xl p-4 sm:p-6 space-y-8">
+            <AnimatePresence mode="wait">
             {/* ============ STEP 1 ============ */}
             {step === 0 && (
-              <>
+              <motion.div
+                key="step-look"
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.3 }}
+              >
                 <section>
                   <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
                     <Sparkles className="h-4 w-4 text-rose-400" /> Visual Style
@@ -503,12 +511,18 @@ export default function CreatePage() {
                     className="resize-none"
                   />
                 </section>
-              </>
+              </motion.div>
             )}
 
             {/* ============ STEP 2 ============ */}
             {step === 1 && (
-              <>
+              <motion.div
+                key="step-personality"
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.3 }}
+              >
                 <section>
                   <h2 className="mb-1 flex items-center gap-2 text-base font-semibold">
                     <Heart className="h-4 w-4 text-rose-400" /> Personality Traits
@@ -557,12 +571,18 @@ export default function CreatePage() {
                     className="resize-none"
                   />
                 </section>
-              </>
+              </motion.div>
             )}
 
             {/* ============ STEP 3 ============ */}
             {step === 2 && (
-              <>
+              <motion.div
+                key="step-identity"
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.3 }}
+              >
                 <section className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="name" className="mb-2 block text-sm">Name <span className="text-rose-400">*</span></Label>
@@ -647,8 +667,9 @@ export default function CreatePage() {
                     {error}
                   </div>
                 )}
-              </>
+              </motion.div>
             )}
+            </AnimatePresence>
           </div>
         </ScrollArea>
 

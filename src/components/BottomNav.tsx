@@ -45,8 +45,8 @@ export default function BottomNav() {
     <nav
       className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-2xl pb-[env(safe-area-inset-bottom)]"
       style={{
-        background: 'rgba(10, 5, 8, 0.85)',
-        borderTop: '1px solid rgba(201, 166, 107, 0.25)',
+        background: 'rgba(7, 7, 15, 0.9)',
+        borderTop: '1px solid rgba(255, 45, 120, 0.15)',
       }}
     >
       <div className="mx-auto flex max-w-lg items-center justify-center gap-1 px-2 py-1.5">
@@ -61,14 +61,14 @@ export default function BottomNav() {
               className={cn(
                 'flex flex-col items-center gap-0.5 px-4 py-1.5 text-xs transition-all duration-200 min-w-[60px] relative',
                 active
-                  ? 'text-[#C9A66B]'
-                  : 'text-[#8B6F4D] hover:text-[#C9A66B]',
+                  ? 'text-[#FF2D78]'
+                  : 'text-white/35 hover:text-white/60',
               )}
               style={active ? {
-                textShadow: '0 0 12px rgba(201, 166, 107, 0.4)',
+                textShadow: '0 0 12px rgba(255, 45, 120, 0.5)',
               } : {}}
             >
-              <Icon className={cn('h-5 w-5', active && 'fill-[#FF2D78]/20')} />
+              <Icon className={cn('h-5 w-5 transition-all', active && 'fill-[#FF2D78]/15 scale-110')} />
               <span className="text-[10px] leading-tight font-medium">
                 {t(item.labelKey)}
               </span>
