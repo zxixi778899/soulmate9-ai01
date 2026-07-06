@@ -76,6 +76,10 @@ export default function RootLayout({
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <meta name="supabase-url" content="https://vvblrkngzuyxeeoslzkl.supabase.co" />
+        <meta name="supabase-anon-key" content="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Ymxya25nend5eGVlb3Nsemt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDE4NzU0OTgsImV4cCI6MjAxNzQ1MTQ5OH0.dcXgk_H_1TNBuNwGg4p4lERm_6vWQfYNwvoEGnVQYl0" />
+      </head>
       <body className="antialiased relative font-sans">
         {/* Starry night background  global, behind all content */}
         <div className="starry-bg" aria-hidden="true">
