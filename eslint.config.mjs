@@ -1,6 +1,14 @@
-import nextTs from 'eslint-config-next/typescript';
-import nextVitals from 'eslint-config-next/core-web-vitals';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { FlatCompat } from '@eslint/eslintrc';
 import { defineConfig, globalIgnores } from 'eslint/config';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
 
 const syntaxRules = [
   {
@@ -20,8 +28,7 @@ const nextConfigRestrictedSyntaxRules = [
 ];
 
 const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
+  ...compat.config({ extends: ['next/core-web-vitals', 'next/typescript'] }),
   {
     rules: {
       'import/no-cycle': ['error', { ignoreExternal: true }],
@@ -38,17 +45,13 @@ const eslintConfig = defineConfig([
       'no-restricted-syntax': ['error', ...nextConfigRestrictedSyntaxRules],
     },
   },
-  // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
     '.next/**',
     'out/**',
     'build/**',
     'next-env.d.ts',
-    // Build artifacts:
     'server.js',
     'dist/**',
-    // Script files (CommonJS):
     'scripts/**/*.js',
   ]),
 ]);

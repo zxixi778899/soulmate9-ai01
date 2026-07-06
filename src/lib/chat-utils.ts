@@ -20,15 +20,15 @@ export function formatBubbleTime(dateStr: string): string {
 /**
  * Today / Yesterday /  / 
  */
-export function dateGroupLabel(dateStr: string): string {
+export function dateGroupLabel(dateStr: string, now?: Date): string {
   const date = new Date(dateStr);
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const ref = now || new Date();
+  const startToday = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
   const startYesterday = startToday - 86400000;
   const ts = date.getTime();
   if (ts >= startToday) return 'Today';
   if (ts >= startYesterday) return 'Yesterday';
-  if (now.getTime() - ts < 7 * 86400000) {
+  if (ref.getTime() - ts < 7 * 86400000) {
     return date.toLocaleDateString('en-US', { weekday: 'long' });
   }
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -63,8 +63,10 @@ export function shouldShowDateSeparator(prev: string | null, current: string): b
  */
 export function linkifyText(text: string): string {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;');
   return text.replace(urlRegex, (url) => {
-    const safe = url.replace(/"/g, '&quot;');
-    return `<a href="${safe}" target="_blank" rel="noopener noreferrer" class="underline">${url}</a>`;
+    const safe = escapeHtml(url);
+    return `<a href="${safe}" target="_blank" rel="noopener noreferrer" class="underline">${safe}</a>`;
   });
 }

@@ -24,23 +24,23 @@ describe('dateGroupLabel', () => {
   const now = new Date('2024-03-15T15:00:00Z');
   it('returns Today for same day', () => {
     const today = new Date('2024-03-15T08:00:00Z').toISOString();
-    expect(dateGroupLabel(today)).toBe('Today');
+    expect(dateGroupLabel(today, now)).toBe('Today');
   });
 
   it('returns Yesterday for previous day', () => {
     const yesterday = new Date('2024-03-14T20:00:00Z').toISOString();
-    expect(dateGroupLabel(yesterday)).toBe('Yesterday');
+    expect(dateGroupLabel(yesterday, now)).toBe('Yesterday');
   });
 
   it('returns weekday name for 2-7 days ago', () => {
     const threeDaysAgo = new Date('2024-03-12T10:00:00Z').toISOString();
-    const result = dateGroupLabel(threeDaysAgo);
+    const result = dateGroupLabel(threeDaysAgo, now);
     expect(result).toMatch(/Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday/);
   });
 
   it('returns full date for > 7 days ago', () => {
     const longAgo = new Date('2024-01-01T10:00:00Z').toISOString();
-    const result = dateGroupLabel(longAgo);
+    const result = dateGroupLabel(longAgo, now);
     expect(result).toMatch(/\d{4}/);
   });
 });

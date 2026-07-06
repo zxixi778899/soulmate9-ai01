@@ -24,28 +24,28 @@ export type NsfwLevel = 'sfw' | 'mild' | 'moderate' | 'explicit';
  * - 
  */
 const HARD_BLOCK_PATTERNS: RegExp[] = [
-  // 
+  // Minor-related keywords (English)
   /\bminor(s)?\b/i,
   /\bunder\s*age\b/i,
   /\bchild(ren)?\b/i,
   /\bteen(ager|age)?s?\b/i,
   /\b(school|student|kid|kids|boy|girl)\b/i,
-  /\b\b/,
-  /\b\b/,
-  /\b\b/,
-  /\b\b/,
-  /\b\b/,
-  /\b\b/,
-  /\b\b/,
   /\b(loli|shota|cub)\b/i,
 
-  // 
-  /\b(non[- ]?consensual|rape|forced|coercion)\b/i,
-  /\b(|||)\b/,
+  // Minor-related keywords (Chinese)
+  /(未成年|少女|幼女|女童|童颜)/,
 
-  //  / 
+  // Non-consensual content (English)
+  /\b(non[- ]?consensual|rape|force(d|ful)?|coercion)\b/i,
+
+  // Non-consensual content (Chinese)
+  /(强迫|强暴|迷奸)/,
+
+  // Real person references (English)
   /\b(celebrity|politician|real\s*person)\b/i,
-  /\b(||)\b/,
+
+  // Real person references (Chinese)
+  /(明星|名人|真人)/,
 ];
 
 export interface ModerationResult {

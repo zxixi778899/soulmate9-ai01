@@ -14,19 +14,19 @@ describe('content-moderation: moderateText', () => {
   });
 
   it('blocks content with Chinese minor keywords', () => {
-    expect(moderateText('').allowed).toBe(false);
-    expect(moderateText('').allowed).toBe(false);
+    expect(moderateText('\u8FD9\u4E2A\u89D2\u8272\u770B\u8D77\u6765\u672A\u6210\u5E74').allowed).toBe(false);
+    expect(moderateText('\u6211\u559C\u6B22\u5C11\u5973\u89D2\u8272').allowed).toBe(false);
   });
 
   it('blocks non-consensual content', () => {
     expect(moderateText('force the character to do something').allowed).toBe(false);
     expect(moderateText('rape scene').allowed).toBe(false);
-    expect(moderateText('').allowed).toBe(false);
+    expect(moderateText('\u5F3A\u8FEB\u5979\u505A\u67D0\u4E8B').allowed).toBe(false);
   });
 
   it('blocks real person references', () => {
     expect(moderateText('I want to chat with a celebrity').allowed).toBe(false);
-    expect(moderateText('').allowed).toBe(false);
+    expect(moderateText('\u6211\u60F3\u548C\u660E\u661F\u804A\u5929').allowed).toBe(false);
   });
 
   it('handles empty / undefined safely', () => {

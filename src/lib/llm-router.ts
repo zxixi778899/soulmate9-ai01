@@ -58,6 +58,8 @@ const MODEL_MAP: Record<string, { id: string; capability: string; cost: 'low' | 
 const INTENT_PATTERNS: { pattern: RegExp; task: TaskType; priority: number }[] = [
   { pattern: /(generate|create|make|draw|render|show me)\s.*(picture|image|photo|selfie|art|pic|portrait)/i, task: 'image_generation', priority: 10 },
   { pattern: /(send me|take|snap|shoot)\s.*(selfie|photo|picture|pic)/i, task: 'image_generation', priority: 10 },
+  { pattern: /\b(draw|sketch|paint|render)\s+(yourself|you|urself)\b/i, task: 'image_generation', priority: 10 },
+  { pattern: /\b(selfie|photo|picture)\b/i, task: 'image_generation', priority: 9 },
   { pattern: /(what do I look|how do I|can you see|look at)\s/i, task: 'image_generation', priority: 9 },
   { pattern: /(why|how does|explain|analyze|compare|difference|reason|logic)/i, task: 'complex_reasoning', priority: 5 },
   { pattern: /(math|calculate|solve|equation|formula|proof)/i, task: 'complex_reasoning', priority: 6 },

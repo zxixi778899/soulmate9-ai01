@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
+  if (!event) {
+    return NextResponse.json({ error: 'Failed to construct event' }, { status: 400 });
+  }
+
   const supabaseAdmin = getAdminClient();
   const isFirst = await tryRecordEvent(supabaseAdmin, event.id, event.type);
   if (!isFirst) {
