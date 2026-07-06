@@ -3,14 +3,29 @@ import { capture, AnalyticsEvents } from './analytics';
 import { getCozeAccessToken } from '@/lib/coze-auth';
 
 /**
- * LLM Service - dual-route with fallback chain
+ * LLM Service - multi-provider with NSFW-aware routing
  *
- * Primary: Coze API (Doubao models)
- * Fallback: Claude 3.5 Haiku (Anthropic direct) -> Local Llama 3.1 8B (Ollama)
+ * Providers:
+ *   1. Coze (Doubao) - SFW content, Chinese compliance
+ *   2. Together AI (Llama 3.3) - SFW content, uncensored-lite
+ *   3. RunPod vLLM (Noromaid/Lumimaid) - NSFW content, fully uncensored
+ *   4. Claude Haiku - fallback
+ *   5. Local Llama - last resort
  */
 
 const API_BASE = process.env.COZE_INTEGRATION_MODEL_BASE_URL || process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn';
 const DEFAULT_MODEL = 'doubao-seed-2-0-pro-260215';
+
+// Together AI (OpenAI-compatible)
+const TOGETHER_API_BASE = 'https://api.together.xyz/v1';
+const TOGETHER_API_KEY = process.env.TOGETHER_API_KEY || '';
+const TOGETHER_SFW_MODEL = process.env.TOGETHER_MODEL || 'meta-llama/Llama-3.3-70B-Instruct-Turbo-Free';
+const TOGETHER_FAST_MODEL = process.env.TOGETHER_FAST_MODEL || 'meta-llama/Llama-3.1-8B-Instruct-Turbo';
+
+// RunPod vLLM (OpenAI-compatible, self-hosted NSFW models)
+const RUNPOD_VLLM_BASE = process.env.RUNPOD_VLLM_URL || '';
+const RUNPOD_VLLM_KEY = process.env.RUNPOD_VLLM_API_KEY || '';
+const RUNPOD_NSFW_MODEL = process.env.RUNPOD_VLLM_MODEL || 'NeverSleep/Llama-3-Lumimaid-8B-v0.1';
 
 export async function generateText(options: {
   prompt: string;
@@ -172,20 +187,269 @@ async function callLlama(options: {
   return content.trim();
 }
 
-export async function generateStructured<T>(options: {
+/**
+ * Together AI - OpenAI-compatible API for uncensored SFW models
+ * Uses Llama 3.3 70B (free tier) or 8B (fast tier)
+ */
+async function callTogetherAI(options: {
   prompt: string;
   systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
   model?: string;
-}): Promise<T> {
-  const systemPrompt = options.systemPrompt
-    ? `${options.systemPrompt}\n\nAlways respond with valid JSON only, no markdown.`
-    : 'Always respond with valid JSON only, no markdown.';
-  const text = await generateText({ ...options, systemPrompt });
-  const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/) || text.match(/\{[\s\S]*\}/);
-  const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text;
-  try {
-    return JSON.parse(jsonStr) as T;
-  } catch {
-    throw new Error(`Failed to parse LLM response as JSON: ${text.slice(0, 200)}`);
+}): Promise<string> {
+  if (!TOGETHER_API_KEY) throw new Error('TOGETHER_API_KEY not configured');
+  const model = options.model || TOGETHER_SFW_MODEL;
+  const res = await fetch(`${TOGETHER_API_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${TOGETHER_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: options.maxTokens ?? 1024,
+      temperature: options.temperature ?? 0.85,
+      messages: [
+        ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
+        { role: 'user', content: options.prompt },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => 'unknown');
+    throw new Error(`Together AI error (${res.status}): ${errText.slice(0, 200)}`);
   }
+  const json = await res.json();
+  const text = json?.choices?.[0]?.message?.content;
+  if (!text) throw new Error('Together AI returned empty content');
+  return text.trim();
+}
+
+/**
+ * RunPod vLLM - self-hosted NSFW model (Noromaid/Lumimaid)
+ * OpenAI-compatible API, fully uncensored for NSFW roleplay
+ */
+async function callRunPodVLLM(options: {
+  prompt: string;
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+  stream?: boolean;
+}): Promise<string> {
+  if (!RUNPOD_VLLM_BASE) throw new Error('RUNPOD_VLLM_URL not configured');
+  const res = await fetch(`${RUNPOD_VLLM_BASE}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(RUNPOD_VLLM_KEY ? { Authorization: `Bearer ${RUNPOD_VLLM_KEY}` } : {}),
+    },
+    body: JSON.stringify({
+      model: RUNPOD_NSFW_MODEL,
+      max_tokens: options.maxTokens ?? 1024,
+      temperature: options.temperature ?? 0.9,
+      messages: [
+        ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
+        { role: 'user', content: options.prompt },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => 'unknown');
+    throw new Error(`RunPod vLLM error (${res.status}): ${errText.slice(0, 200)}`);
+  }
+  const json = await res.json();
+  const text = json?.choices?.[0]?.message?.content;
+  if (!text) throw new Error('RunPod vLLM returned empty content');
+  return text.trim();
+}
+
+/**
+ * NSFW-aware text generation with multi-provider fallback.
+ *
+ * Routing logic:
+ *   - isNsfw=true + RunPod configured → RunPod vLLM (Noromaid) → Together AI → Claude
+ *   - isNsfw=false + Together configured → Together AI → Coze → Claude
+ *   - Otherwise → existing Coze → Claude → Llama chain
+ */
+export async function generateTextSmart(options: {
+  prompt: string;
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+  isNsfw?: boolean;
+  userTier?: 'free' | 'pro' | 'unlimited';
+  taskType?: string;
+}): Promise<{ content: string; provider: string }> {
+  const { isNsfw = false, userTier = 'free' } = options;
+
+  // NSFW route: RunPod vLLM → Together AI → Claude
+  if (isNsfw && (userTier === 'pro' || userTier === 'unlimited')) {
+    if (RUNPOD_VLLM_BASE) {
+      try {
+        const content = await callRunPodVLLM({
+          prompt: options.prompt,
+          systemPrompt: options.systemPrompt,
+          temperature: options.temperature ?? 0.9,
+          maxTokens: options.maxTokens ?? 1024,
+        });
+        return { content, provider: 'runpod-vllm' };
+      } catch (err) {
+        logger.warn('[llm] RunPod NSFW failed, trying Together AI', { err: String(err).slice(0, 100) });
+      }
+    }
+    // Fallback to Together AI (mild NSFW tolerance)
+    if (TOGETHER_API_KEY) {
+      try {
+        const content = await callTogetherAI({
+          prompt: options.prompt,
+          systemPrompt: options.systemPrompt,
+          temperature: options.temperature ?? 0.9,
+          maxTokens: options.maxTokens ?? 1024,
+        });
+        return { content, provider: 'together-nsfw-fallback' };
+      } catch (err) {
+        logger.warn('[llm] Together NSFW fallback failed', { err: String(err).slice(0, 100) });
+      }
+    }
+  }
+
+  // SFW route: Together AI (free users) → Coze (pro) → Claude → Llama
+  if (TOGETHER_API_KEY && userTier === 'free') {
+    try {
+      const content = await callTogetherAI({
+        prompt: options.prompt,
+        systemPrompt: options.systemPrompt,
+        temperature: options.temperature ?? 0.85,
+        maxTokens: options.maxTokens ?? 512,
+        model: TOGETHER_FAST_MODEL,
+      });
+      return { content, provider: 'together-fast' };
+    } catch (err) {
+      logger.warn('[llm] Together fast failed, trying Coze', { err: String(err).slice(0, 100) });
+    }
+  }
+
+  if (TOGETHER_API_KEY && userTier !== 'free') {
+    try {
+      const content = await callTogetherAI({
+        prompt: options.prompt,
+        systemPrompt: options.systemPrompt,
+        temperature: options.temperature ?? 0.85,
+        maxTokens: options.maxTokens ?? 1024,
+        model: TOGETHER_SFW_MODEL,
+      });
+      return { content, provider: 'together-pro' };
+    } catch (err) {
+      logger.warn('[llm] Together pro failed, trying Coze', { err: String(err).slice(0, 100) });
+    }
+  }
+
+  // Final fallback: existing chain (Coze → Claude → Llama)
+  const result = await generateTextWithFallback({
+    prompt: options.prompt,
+    systemPrompt: options.systemPrompt,
+    temperature: options.temperature,
+    maxTokens: options.maxTokens,
+    taskType: options.taskType as 'chat' | 'emotion_detection' | 'metadata' | 'image_prompt' | undefined,
+  });
+  return { content: result.content, provider: result.provider };
+}
+
+/**
+ * Resolve streaming provider config based on NSFW + tier.
+ * All providers use OpenAI-compatible /chat/completions with stream:true.
+ */
+export function resolveStreamProvider(options: {
+  isNsfw?: boolean;
+  userTier?: 'free' | 'pro' | 'unlimited';
+}): { baseUrl: string; apiKey: string; model: string; provider: string } {
+  const { isNsfw = false, userTier = 'free' } = options;
+
+  // NSFW route: RunPod vLLM (fully uncensored)
+  if (isNsfw && (userTier === 'pro' || userTier === 'unlimited') && RUNPOD_VLLM_BASE) {
+    return {
+      baseUrl: RUNPOD_VLLM_BASE,
+      apiKey: RUNPOD_VLLM_KEY,
+      model: RUNPOD_NSFW_MODEL,
+      provider: 'runpod-vllm',
+    };
+  }
+
+  // SFW route: Together AI for free/pro users
+  if (TOGETHER_API_KEY) {
+    if (userTier === 'free') {
+      return {
+        baseUrl: TOGETHER_API_BASE,
+        apiKey: TOGETHER_API_KEY,
+        model: TOGETHER_FAST_MODEL,
+        provider: 'together-fast',
+      };
+    }
+    return {
+      baseUrl: TOGETHER_API_BASE,
+      apiKey: TOGETHER_API_KEY,
+      model: TOGETHER_SFW_MODEL,
+      provider: 'together-pro',
+    };
+  }
+
+  // Fallback: Coze (Doubao)
+  return {
+    baseUrl: API_BASE,
+    apiKey: '', // Will be resolved at call time via getCozeAccessToken()
+    model: userTier === 'free' ? 'doubao-seed-2-0-lite-260215' : DEFAULT_MODEL,
+    provider: 'coze',
+  };
+}
+
+/**
+ * NSFW-aware streaming text generation.
+ * Returns a fetch Response with SSE stream from the optimal provider.
+ *
+ * Usage in chat/stream/route.ts:
+ *   const llmResponse = await streamTextSmart({ messages: llmMessages, isNsfw, userTier });
+ *   // Then read llmResponse.body as SSE stream
+ */
+export async function streamTextSmart(options: {
+  messages: Array<{ role: string; content: string }>;
+  temperature?: number;
+  maxTokens?: number;
+  isNsfw?: boolean;
+  userTier?: 'free' | 'pro' | 'unlimited';
+}): Promise<{ response: Response; provider: string; model: string }> {
+  const { messages, temperature = 0.85, maxTokens = 2048 } = options;
+  const config = resolveStreamProvider(options);
+
+  // Resolve API key for Coze (async token fetch)
+  let apiKey = config.apiKey;
+  if (config.provider === 'coze' && !apiKey) {
+    apiKey = await getCozeAccessToken();
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
+  const res = await fetch(`${config.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: config.model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      stream: true,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => 'unknown');
+    throw new Error(`[${config.provider}] Stream error (${res.status}): ${errText.slice(0, 200)}`);
+  }
+
+  return { response: res, provider: config.provider, model: config.model };
 }
