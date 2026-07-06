@@ -94,9 +94,9 @@ export function getTaskType(
 
 export function routeToModel(
   taskType: TaskType,
-  userTier?: 'free' | 'premium' | 'admin',
+  userTier?: 'free' | 'pro' | 'admin',
 ): RouterDecision {
-  const isPremium = userTier === 'premium' || userTier === 'admin';
+  const isPro = userTier === 'pro' || userTier === 'admin';
   const cfg = loadModelConfig();
 
   const configModel = (key: string, fallback: string) => cfg[key] || fallback;
@@ -158,12 +158,12 @@ export function routeToModel(
     case 'complex_reasoning':
       return {
         taskType,
-        modelId: isPremium ? 'deepseek-v3-2-251201' : configModel('chat_model', 'doubao-seed-2-0-pro-260215'),
+        modelId: isPro ? 'deepseek-v3-2-251201' : configModel('chat_model', 'doubao-seed-2-0-pro-260215'),
         fallbackChain: defaultFallbackChain,
         useLocalLlama: false,
         temperature: 0.5,
         thinking: 'enabled',
-        description: isPremium
+        description: isPro
           ? 'Complex reasoning - DeepSeek V3 with thinking mode'
           : 'Complex reasoning - configured model with thinking mode',
       };
@@ -172,12 +172,12 @@ export function routeToModel(
     default:
       return {
         taskType,
-        modelId: configModel('chat_model', isPremium ? 'doubao-seed-2-0-pro-260215' : 'doubao-seed-2-0-lite-260215'),
+        modelId: configModel('chat_model', isPro ? 'doubao-seed-2-0-pro-260215' : 'doubao-seed-2-0-lite-260215'),
         fallbackChain: defaultFallbackChain,
         useLocalLlama: false,
         temperature: configTemp('chat_temperature', 0.85),
         thinking: 'disabled',
-        description: isPremium
+        description: isPro
           ? 'Premium chat - Coze -> Claude fallback'
           : 'Standard chat - Coze -> Claude fallback',
       };
@@ -187,7 +187,7 @@ export function routeToModel(
 export function analyzeAndRoute(
   message: string,
   options?: {
-    userTier?: 'free' | 'premium' | 'admin';
+    userTier?: 'free' | 'pro' | 'admin';
     context?: { recentMessages?: string[]; girlfriendId?: string };
   },
 ): RouterDecision {

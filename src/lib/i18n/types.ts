@@ -66,6 +66,7 @@ export type TranslationKey =
   | 'chat.send'
   | 'chat.sendGift'
   | 'chat.thinking'
+  | 'chat.usageWarning'
   | 'chat.wardrobe'
   | 'common.all'
   | 'common.cancel'

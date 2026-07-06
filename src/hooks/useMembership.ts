@@ -6,7 +6,7 @@ import { authedFetch } from '@/lib/supabase';
 /**
  * 
  */
-export type MembershipTier = 'free' | 'premium' | 'unlimited' | 'admin';
+export type MembershipTier = 'free' | 'pro' | 'unlimited' | 'admin';
 
 /**
  * 
@@ -20,7 +20,7 @@ export const MEMBERSHIP_LIMITS = {
     canGenerateImages: false,
     canUsePremiumOutfits: false,
   },
-  premium: {
+  pro: {
     dailyMessageLimit: Number.POSITIVE_INFINITY,
     maxIntimacyLevel: 5,
     maxGirlfriends: 10,

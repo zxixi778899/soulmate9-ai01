@@ -52,14 +52,6 @@ export async function GET(req: NextRequest) {
     pro: {
       name: 'Pro',
       price_cents: 1999,
-      messages_per_day: 300,
-      max_intimacy_level: 5,
-      max_girlfriends: 10,
-      features: ['300 messages/day', 'Intimacy up to Level 5 (Lover)', 'Up to 10 companions', 'Extended NSFW content', 'Voice messages'],
-    },
-    premium: {
-      name: 'Premium',
-      price_cents: 1999,
       messages_per_day: -1, // unlimited
       max_intimacy_level: 6,
       max_girlfriends: -1,
@@ -97,30 +89,28 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { plan } = body; // 'premium' | 'unlimited'
+  const { plan } = body; // 'pro' | 'unlimited'
 
-  if (!plan || !['premium', 'unlimited'].includes(plan)) {
+  if (!plan || !['pro', 'unlimited'].includes(plan)) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
   }
 
   // Stripe checkout URL (placeholder  set STRIPE_PUBLISHABLE_KEY + STRIPE_SECRET_KEY in env)
   const stripePriceIds: Record<string, string> = {
-    premium: process.env.STRIPE_PRICE_PREMIUM || '',
+    pro: process.env.STRIPE_PRICE_PREMIUM || '',
     unlimited: process.env.STRIPE_PRICE_UNLIMITED || '',
   };
 
   if (!stripePriceIds[plan]) {
-    // Stripe not configured  reject the request instead of auto-upgrading
     return NextResponse.json({ 
       error: 'Payment system not configured. Please contact support.',
     }, { status: 503 });
   }
 
-  // Actual Stripe checkout would go here when keys are configured
+  // Stripe keys exist but no checkout URL generated yet - return error
   return NextResponse.json({
-    success: true,
-    checkout_url: `/checkout?plan=${plan}`,
-  });
+    error: 'Checkout session creation failed. Please try again.',
+  }, { status: 500 });
 }
 
 export async function PATCH(req: NextRequest) {

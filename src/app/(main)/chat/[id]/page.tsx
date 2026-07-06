@@ -41,9 +41,11 @@ import {
   Plus,
   ChevronDown,
   X,
+  Crown,
 } from 'lucide-react';
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
+import { useMembership } from '@/hooks/useMembership';
 
 type Message = {
   id: string;
@@ -144,6 +146,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const [selectedPose, setSelectedPose] = useState<string | null>(null);
   const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
+
+  // Membership & usage banner
+  const membership = useMembership();
+  const [usageBannerDismissed, setUsageBannerDismissed] = useState(false);
 
   // Scroll
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -533,6 +539,40 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         >
           <ChevronDown className="h-5 w-5" />
         </button>
+      )}
+
+      {/* Usage warning banner for free users at 80% daily limit */}
+      {!usageBannerDismissed && membership.tier === 'free' && membership.todayMessagesCount >= 40 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="mx-3 sm:mx-6 mb-1 flex items-center gap-3 rounded-2xl bg-white/[0.06] backdrop-blur-xl border border-white/[0.10] px-4 py-2.5 shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-[#F0F0F5]/90 leading-snug">
+              {t('chat.usageWarning')
+                .replace('{count}', String(membership.todayMessagesCount))
+                .replace('{limit}', '50')}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => router.push('/shop')}
+            className="shrink-0 h-7 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] text-white text-[11px] font-semibold px-3 shadow-[0_2px_10px_rgba(255,45,120,0.35)] hover:opacity-90 active:scale-95 transition-all border-0"
+          >
+            <Crown className="h-3 w-3 mr-1" />
+            Upgrade
+          </Button>
+          <button
+            onClick={() => setUsageBannerDismissed(true)}
+            className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-[#8B8BA3] hover:text-[#F0F0F5] hover:bg-white/[0.08] active:scale-95 transition-all"
+            aria-label="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </motion.div>
       )}
 
       <ChatInputBar

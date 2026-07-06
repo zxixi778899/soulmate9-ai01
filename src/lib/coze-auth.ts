@@ -1,18 +1,28 @@
 import { logger } from '@/lib/logger';
+
 /**
- * Coze API 
- * 
- * 1. Coze  Python coze_workload_identity
- * 2. Vercel/ API
+ * Coze API Authentication — single source of truth
+ *
+ * Obtains a JWT via the Coze authorization/token endpoint using
+ * workload-identity credentials (API key + client secret).
+ *
+ * Token is cached in-memory with a 50-minute TTL (tokens are valid
+ * for ~2 hours, so this gives a comfortable safety margin).
+ *
+ * This module is safe for serverless (Vercel / Railway) — no child_process.
  */
 
-//  token
+// ── Token cache ──────────────────────────────────────────────
 let cachedToken: string | null = null;
 let tokenExpiry = 0;
+const TOKEN_CACHE_TTL = 50 * 60 * 1000; // 50 minutes
 
 /**
- *  Coze API JWT
- * Token  2  1.5 
+ * Obtain a Coze API JWT access token.
+ *
+ * 1. Return cached token if still valid.
+ * 2. Exchange workload-identity credentials for a fresh JWT via HTTP POST.
+ * 3. Throw a clear error if required env vars are missing.
  */
 export async function getCozeAccessToken(): Promise<string> {
   const now = Date.now();
@@ -20,63 +30,53 @@ export async function getCozeAccessToken(): Promise<string> {
     return cachedToken;
   }
 
-  // Vercel/
   const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY;
   const clientSecret = process.env.COZE_WORKLOAD_IDENTITY_CLIENT_SECRET;
 
-  if (apiKey && clientSecret) {
-    try {
-      //  Coze API  token
-      const response = await fetch('https://api.coze.cn/api/authorization/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          api_key: apiKey,
-          client_secret: clientSecret,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-      }
-
-      const data = await response.json();
-      const token = data.access_token || data.token;
-
-      if (!token) {
-        throw new Error('No token in response');
-      }
-
-      cachedToken = token;
-      tokenExpiry = now + 1.5 * 60 * 60 * 1000;
-      return token;
-    } catch (err) {
-      logger.error('[coze-auth] Failed to get token via API:', { data: err });
-      throw new Error('Failed to authenticate with Coze API');
-    }
+  if (!apiKey || !clientSecret) {
+    throw new Error(
+      '[coze-auth] Missing COZE_WORKLOAD_IDENTITY_API_KEY or COZE_WORKLOAD_IDENTITY_CLIENT_SECRET env vars. ' +
+      'Set both to enable Coze API authentication.'
+    );
   }
 
-  //  Python Coze 
   try {
-    const { execSync } = await import('child_process');
-    const token = execSync(
-      'python3 -c "from coze_workload_identity import Client; print(Client().get_access_token())"',
-      { encoding: 'utf-8', timeout: 10000 }
-    ).trim();
+    const response = await fetch('https://api.coze.cn/api/authorization/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        client_secret: clientSecret,
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => 'unknown');
+      throw new Error(`HTTP ${response.status}: ${errBody.slice(0, 300)}`);
+    }
+
+    const data = await response.json();
+    const token: string | undefined = data.access_token || data.token;
+
+    if (!token) {
+      throw new Error('No access_token in Coze authorization response');
+    }
 
     cachedToken = token;
-    tokenExpiry = now + 1.5 * 60 * 60 * 1000;
+    tokenExpiry = now + TOKEN_CACHE_TTL;
+
+    logger.info('[coze-auth] Token refreshed, expires in 50 min');
     return token;
   } catch (err) {
-    logger.error('[coze-auth] Failed to get Coze access token via Python:', { data: err });
+    logger.error('[coze-auth] Failed to obtain Coze access token', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     throw new Error('Failed to authenticate with Coze API');
   }
 }
 
 /**
- *  token
+ * Clear the in-memory token cache (useful for tests or forced refresh).
  */
 export function clearCozeTokenCache(): void {
   cachedToken = null;
@@ -84,12 +84,12 @@ export function clearCozeTokenCache(): void {
 }
 
 /**
- * Coze API  URL
+ * Coze Integration API base URL.
  */
 export const COZE_API_BASE = process.env.COZE_INTEGRATION_MODEL_BASE_URL
   || `${process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn'}/api/v3`;
 
 /**
- * 
+ * Default LLM model identifier.
  */
 export const DEFAULT_LLM_MODEL = 'doubao-seed-2-0-pro-260215';

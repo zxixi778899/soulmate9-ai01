@@ -43,6 +43,8 @@ export function buildFluxWorkflow(opts: {
   seed?: number;
   sampler_name?: string;
   scheduler?: string;
+  input_image?: string;
+  denoising_strength?: number;
 }): Record<string, unknown> {
   const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 32);
   const width = opts.width ?? 768;
@@ -52,27 +54,103 @@ export function buildFluxWorkflow(opts: {
   const sampler_name = opts.sampler_name || 'euler';
   const scheduler = opts.scheduler || 'simple';
 
+  // Shared nodes: checkpoint + CLIP encoders
+  const checkpointNode = {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "flux1-dev-fp8.safetensors"
+    }
+  };
+  const positivePromptNode = {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": opts.prompt,
+      "clip": ["4", 1]
+    }
+  };
+  const negativePromptNode = {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": opts.negativePrompt ?? 'blurry, low quality, deformed, distorted, ugly, bad anatomy, watermark, text, signature, logo, nsfw, lowres, bad proportions, stiff, unnatural, plastic, artificial, dead eyes, blank expression, gloomy, depressing',
+      "clip": ["4", 1]
+    }
+  };
+  const decodeNode = {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["8", 0],
+      "vae": ["4", 2]
+    }
+  };
+  const saveNode = {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "soulmate",
+      "images": ["9", 0]
+    }
+  };
+
+  // img2img path: LoadImage -> ImageScale -> VAEEncode -> KSampler (with denoise)
+  if (opts.input_image) {
+    const denoise = opts.denoising_strength ?? 0.65;
+
+    const loadImageNode = {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": opts.input_image
+      }
+    };
+    const imageScaleNode = {
+      "class_type": "ImageScale",
+      "inputs": {
+        "image": ["11", 0],
+        "upscale_method": "lanczos",
+        "width": width,
+        "height": height,
+        "crop": "center"
+      }
+    };
+    const vaeEncodeNode = {
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": ["12", 0],
+        "vae": ["4", 2]
+      }
+    };
+    const samplerNode = {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": seed,
+        "steps": steps,
+        "cfg": guidance,
+        "sampler_name": sampler_name,
+        "scheduler": scheduler,
+        "denoise": denoise,
+        "model": ["4", 0],
+        "positive": ["5", 0],
+        "negative": ["6", 0],
+        "latent_image": ["13", 0]
+      }
+    };
+
+    return {
+      "4": checkpointNode,
+      "5": positivePromptNode,
+      "6": negativePromptNode,
+      "8": samplerNode,
+      "9": decodeNode,
+      "10": saveNode,
+      "11": loadImageNode,
+      "12": imageScaleNode,
+      "13": vaeEncodeNode,
+    };
+  }
+
+  // txt2img path (default): EmptyLatentImage -> KSampler (full denoise)
   return {
-    "4": {
-      "class_type": "CheckpointLoaderSimple",
-      "inputs": {
-        "ckpt_name": "flux1-dev-fp8.safetensors"
-      }
-    },
-    "5": {
-      "class_type": "CLIPTextEncode",
-      "inputs": {
-        "text": opts.prompt,
-        "clip": ["4", 1]
-      }
-    },
-    "6": {
-      "class_type": "CLIPTextEncode",
-      "inputs": {
-        "text": opts.negativePrompt ?? 'blurry, low quality, deformed, distorted, ugly, bad anatomy, watermark, text, signature, logo, nsfw, lowres, bad proportions, stiff, unnatural, plastic, artificial, dead eyes, blank expression, gloomy, depressing',
-        "clip": ["4", 1]
-      }
-    },
+    "4": checkpointNode,
+    "5": positivePromptNode,
+    "6": negativePromptNode,
     "7": {
       "class_type": "EmptyLatentImage",
       "inputs": {
@@ -96,20 +174,8 @@ export function buildFluxWorkflow(opts: {
         "latent_image": ["7", 0]
       }
     },
-    "9": {
-      "class_type": "VAEDecode",
-      "inputs": {
-        "samples": ["8", 0],
-        "vae": ["4", 2]
-      }
-    },
-    "10": {
-      "class_type": "SaveImage",
-      "inputs": {
-        "filename_prefix": "soulmate",
-        "images": ["9", 0]
-      }
-    }
+    "9": decodeNode,
+    "10": saveNode,
   };
 }
 
@@ -201,6 +267,8 @@ class RunPodClient {
       seed: options.seed,
       sampler_name: options.scheduler === 'karras' ? 'dpmpp_2m' : 'euler',
       scheduler: options.scheduler ?? 'karras',
+      input_image: options.input_image,
+      denoising_strength: options.denoising_strength,
     });
 
     // Step 1: Submit job with workflow

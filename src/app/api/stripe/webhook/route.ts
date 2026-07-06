@@ -4,6 +4,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from '@/lib/analytics';
+import { captureException } from '@/lib/sentry';
 
 function getAdminClient(): SupabaseClient {
   return getSupabaseClient();
@@ -68,8 +69,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
     }
 
-    const tierMap: Record<string, string> = { pro: 'premium', unlimited: 'unlimited' };
-    const tier = tierMap[plan] || 'premium';
+    const tierMap: Record<string, string> = { pro: 'pro', unlimited: 'unlimited' };
+    const tier = tierMap[plan] || 'pro';
 
     await supabaseAdmin
       .from('profiles')
@@ -111,25 +112,178 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // ── invoice.payment_failed ────────────────────────────────────────
+  if (event.type === 'invoice.payment_failed') {
+    try {
+      const invoice = event.data.object as any;
+      const stripeCustomerId: string | undefined = invoice.customer;
+
+      // Resolve user_id: prefer subscription metadata, fall back to DB lookup
+      let userId: string | undefined = invoice.metadata?.user_id;
+      if (!userId && stripeCustomerId) {
+        const { data: sub } = await supabaseAdmin
+          .from('subscriptions')
+          .select('user_id')
+          .eq('stripe_customer_id', stripeCustomerId)
+          .limit(1)
+          .maybeSingle();
+        userId = sub?.user_id;
+      }
+
+      if (userId) {
+        await supabaseAdmin
+          .from('profiles')
+          .update({ membership_tier: 'free', updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+
+        if (stripeCustomerId) {
+          await supabaseAdmin
+            .from('subscriptions')
+            .update({ status: 'past_due', updated_at: new Date().toISOString() })
+            .eq('stripe_customer_id', stripeCustomerId);
+        }
+
+        logger.warn('[stripe-webhook] payment failed — downgraded to free', {
+          userId,
+          stripeCustomerId,
+          invoiceId: invoice.id,
+        });
+      } else {
+        logger.warn('[stripe-webhook] payment failed but could not resolve user', {
+          stripeCustomerId,
+          invoiceId: invoice.id,
+        });
+      }
+    } catch (err) {
+      logger.error('[stripe-webhook] error handling invoice.payment_failed', { error: String(err) });
+      captureException(err, { tags: { handler: 'invoice.payment_failed' } });
+    }
+  }
+
+  // ── customer.subscription.updated ─────────────────────────────────
+  if (event.type === 'customer.subscription.updated') {
+    try {
+      const subscription = event.data.object as any;
+      const previousAttributes = event.data.previous_attributes as any;
+      const stripeCustomerId: string = subscription.customer;
+
+      // Resolve user_id
+      let userId: string | undefined = subscription.metadata?.user_id;
+      if (!userId && stripeCustomerId) {
+        const { data: sub } = await supabaseAdmin
+          .from('subscriptions')
+          .select('user_id')
+          .eq('stripe_customer_id', stripeCustomerId)
+          .limit(1)
+          .maybeSingle();
+        userId = sub?.user_id;
+      }
+
+      const currentStatus: string = subscription.status;
+      const previousStatus: string | undefined = previousAttributes?.status;
+
+      // If status changed to past_due, log warning but do NOT downgrade yet
+      if (currentStatus === 'past_due') {
+        logger.warn('[stripe-webhook] subscription is now past_due — no downgrade yet', {
+          userId,
+          subscriptionId: subscription.id,
+          previousStatus,
+        });
+      }
+
+      // If the plan/price changed, update membership_tier accordingly
+      const prevItems = previousAttributes?.items?.data;
+      const currItems = subscription.items?.data;
+      const planChanged =
+        prevItems && currItems &&
+        prevItems[0]?.price?.id !== currItems[0]?.price?.id;
+
+      if (planChanged && userId) {
+        // Derive tier from the new price lookup key or product metadata
+        const newPriceId: string | undefined = currItems?.[0]?.price?.id;
+        const newLookupKey: string | undefined = currItems?.[0]?.price?.lookup_key;
+
+        const tierMap: Record<string, string> = {
+          pro: 'pro',
+          premium: 'pro',
+          unlimited: 'unlimited',
+        };
+        const newTier = tierMap[newLookupKey || ''] || 'pro';
+
+        await supabaseAdmin
+          .from('profiles')
+          .update({ membership_tier: newTier, updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+
+        await supabaseAdmin
+          .from('subscriptions')
+          .update({
+            plan_id: newLookupKey || newPriceId || 'unknown',
+            status: currentStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('stripe_subscription_id', subscription.id);
+
+        logger.info('[stripe-webhook] subscription plan changed', {
+          userId,
+          newTier,
+          newPriceId,
+          subscriptionId: subscription.id,
+        });
+      }
+    } catch (err) {
+      logger.error('[stripe-webhook] error handling customer.subscription.updated', { error: String(err) });
+      captureException(err, { tags: { handler: 'customer.subscription.updated' } });
+    }
+  }
+
+  // ── customer.subscription.deleted ─────────────────────────────────
   if (event.type === 'customer.subscription.deleted') {
-    const subscription = event.data.object as any;
-    const userId = subscription.metadata?.user_id;
+    try {
+      const subscription = event.data.object as any;
+      const stripeCustomerId: string | undefined = subscription.customer;
 
-    if (userId) {
-      await supabaseAdmin
-        .from('profiles')
-        .update({ membership_tier: 'free', updated_at: new Date().toISOString() })
-        .eq('user_id', userId);
+      // Resolve user_id: prefer metadata, fall back to DB lookup
+      let userId: string | undefined = subscription.metadata?.user_id;
+      if (!userId && stripeCustomerId) {
+        const { data: sub } = await supabaseAdmin
+          .from('subscriptions')
+          .select('user_id')
+          .eq('stripe_customer_id', stripeCustomerId)
+          .limit(1)
+          .maybeSingle();
+        userId = sub?.user_id;
+      }
 
-      await supabaseAdmin
-        .from('subscriptions')
-        .update({ status: 'canceled', updated_at: new Date().toISOString() })
-        .eq('stripe_subscription_id', subscription.id);
+      if (userId) {
+        await supabaseAdmin
+          .from('profiles')
+          .update({ membership_tier: 'free', updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
 
-      capture(userId, AnalyticsEvents.SUBSCRIPTION_CANCELED, {
-        stripe_subscription_id: subscription.id,
-        route: 'stripe-webhook',
-      });
+        await supabaseAdmin
+          .from('subscriptions')
+          .update({ status: 'canceled', updated_at: new Date().toISOString() })
+          .eq('stripe_subscription_id', subscription.id);
+
+        logger.info('[stripe-webhook] subscription deleted — downgraded to free', {
+          userId,
+          subscriptionId: subscription.id,
+        });
+
+        capture(userId, AnalyticsEvents.SUBSCRIPTION_CANCELED, {
+          stripe_subscription_id: subscription.id,
+          route: 'stripe-webhook',
+        });
+      } else {
+        logger.warn('[stripe-webhook] subscription deleted but could not resolve user', {
+          stripeCustomerId,
+          subscriptionId: subscription.id,
+        });
+      }
+    } catch (err) {
+      logger.error('[stripe-webhook] error handling customer.subscription.deleted', { error: String(err) });
+      captureException(err, { tags: { handler: 'customer.subscription.deleted' } });
     }
   }
 

@@ -52,7 +52,7 @@ describe('routeToModel', () => {
   });
 
   it('routes complex_reasoning with thinking enabled', () => {
-    const decision = routeToModel('complex_reasoning', 'premium');
+    const decision = routeToModel('complex_reasoning', 'pro');
     expect(decision.thinking).toBe('enabled');
     expect(decision.modelId).toBe('deepseek-v3-2-251201');
   });
@@ -63,7 +63,7 @@ describe('routeToModel', () => {
   });
 
   it('uses pro model for premium users', () => {
-    const decision = routeToModel('chat', 'premium');
+    const decision = routeToModel('chat', 'pro');
     expect(decision.modelId).toBe('doubao-seed-2-0-pro-260215');
   });
 

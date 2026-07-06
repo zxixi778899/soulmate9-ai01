@@ -1,40 +1,13 @@
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from './analytics';
+import { getCozeAccessToken } from '@/lib/coze-auth';
+
 /**
  * LLM Service - dual-route with fallback chain
  *
  * Primary: Coze API (Doubao models)
  * Fallback: Claude 3.5 Haiku (Anthropic direct) -> Local Llama 3.1 8B (Ollama)
  */
-
-let cachedToken: string | null = null;
-let tokenExpiry: number = 0;
-const TOKEN_CACHE_TTL = 50 * 60 * 1000;
-
-async function getCozeAccessToken(): Promise<string> {
-  if (cachedToken && Date.now() < tokenExpiry) {
-    return cachedToken;
-  }
-  const envToken = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || process.env.COZE_API_KEY;
-  if (envToken) {
-    cachedToken = envToken;
-    tokenExpiry = Date.now() + TOKEN_CACHE_TTL;
-    return envToken;
-  }
-  try {
-    const { execSync } = await import('child_process');
-    const token = execSync(
-      'python3 -c "from coze_workload_identity import Client; print(Client().get_access_token())"',
-      { encoding: 'utf-8', timeout: 10000 }
-    ).trim();
-    cachedToken = token;
-    tokenExpiry = Date.now() + TOKEN_CACHE_TTL;
-    return token;
-  } catch (err) {
-    logger.error('[llm-service] Failed to get Coze access token:', { data: err });
-    throw new Error('Failed to authenticate with Coze API. Set COZE_WORKLOAD_IDENTITY_API_KEY environment variable.');
-  }
-}
 
 const API_BASE = process.env.COZE_INTEGRATION_MODEL_BASE_URL || process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn';
 const DEFAULT_MODEL = 'doubao-seed-2-0-pro-260215';

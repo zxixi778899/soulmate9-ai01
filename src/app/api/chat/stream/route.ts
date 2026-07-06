@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
   }
 
   const isFree = profile?.membership_tier === 'free';
-  const isPremium = profile?.membership_tier === 'premium';
+  const isPro = profile?.membership_tier === 'pro';
 
   // Daily message limit for free users (skip for newbie trial)
   if (isFree && !isNewbieTrial) {
@@ -341,7 +341,7 @@ export async function POST(request: NextRequest) {
     const FREE_DAILY_LIMIT = 50;
     if (count && count >= FREE_DAILY_LIMIT) {
       return NextResponse.json({
-        error: `You've reached your daily message limit (${FREE_DAILY_LIMIT}). Upgrade to Premium for unlimited chats!`
+        error: `You've reached your daily message limit (${FREE_DAILY_LIMIT}). Upgrade to Pro for unlimited chats!`
       }, { status: 403 });
     }
   }
@@ -355,57 +355,58 @@ export async function POST(request: NextRequest) {
   const presets = { mood, pose, environment };
   // Use the LLM Router to analyze intent and get optimal model
   const routing = analyzeAndRoute(message, {
-    userTier: profile?.membership_tier as 'free' | 'premium' | 'admin' | undefined,
+    userTier: profile?.membership_tier as 'free' | 'pro' | 'admin' | undefined,
   });
 
-  // Get girlfriend info
-  const { data: gf } = await client
-    .from('girlfriends')
-    .select('*')
-    .eq('id', girlfriend_id)
-    .eq('user_id', user.id)
-    .single();
+  // Run independent DB queries in parallel
+  const [girlfriendResult, intimacyResult, recentMessagesResult, memoriesResult] = await Promise.all([
+    client
+      .from('girlfriends')
+      .select('*')
+      .eq('id', girlfriend_id)
+      .eq('user_id', user.id)
+      .single(),
+    client
+      .from('intimacy_scores')
+      .select('level')
+      .eq('girlfriend_id', girlfriend_id)
+      .eq('user_id', user.id)
+      .single(),
+    client
+      .from('chat_messages')
+      .select('content, role')
+      .eq('girlfriend_id', girlfriend_id)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    client
+      .from('memories')
+      .select('content, type')
+      .eq('girlfriend_id', girlfriend_id)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10),
+  ]);
 
+  const gf = girlfriendResult.data;
   if (!gf) {
     return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
   }
 
-  // Get intimacy score
+  // Get intimacy level
   let intimacyLevel = 1;
-  const { data: intimacyData } = await client
-    .from('intimacy_scores')
-    .select('level')
-    .eq('girlfriend_id', girlfriend_id)
-    .eq('user_id', user.id)
-    .single();
-
-  if (intimacyData) {
-    intimacyLevel = intimacyData.level;
+  if (intimacyResult.data) {
+    intimacyLevel = intimacyResult.data.level;
   }
 
-  // Get recent messages for context (last 20)
-  const { data: recentMessages } = await client
-    .from('chat_messages')
-    .select('content, role')
-    .eq('girlfriend_id', girlfriend_id)
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(20);
+  const recentMessages = recentMessagesResult.data;
+  const memories = memoriesResult.data;
 
-  // Fetch recent memories for context
-  const { data: memories } = await client
-    .from('memories')
-    .select('content, type')
-    .eq('girlfriend_id', girlfriend_id)
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(10);
-
-  // Detect user emotion from message (direct HTTP, no SDK)
-  const detectedEmotion = await detectEmotion(message);
-
-  // Fetch world lore for context
-  const loreContext = await getLoreContext(client, user.id, girlfriend_id, message);
+  // Run emotion detection and lore context in parallel (both depend on message + gf)
+  const [detectedEmotion, loreContext] = await Promise.all([
+    detectEmotion(message),
+    getLoreContext(client, user.id, girlfriend_id, message),
+  ]);
 
   // Build system prompt from character card
   const systemPrompt = buildCharacterPrompt(gf, intimacyLevel, detectedEmotion, memories || [], loreContext, presets);
