@@ -462,7 +462,7 @@ export default function SingleViewportHero() {
                     className="mt-5 font-heading text-lg md:text-xl text-white/85 italic tracking-wide overflow-hidden whitespace-nowrap animate-[typeIn_1200ms_steps(40)_both]"
                     style={{ borderRight: '2px solid rgba(255,45,120,0.6)' }}
                   >
-                    "{active.tagline}"
+                    &ldquo;{active.tagline}&rdquo;
                   </div>
 
                   {/*    */}

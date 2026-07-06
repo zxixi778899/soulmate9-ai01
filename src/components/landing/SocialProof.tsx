@@ -8,16 +8,16 @@ function AnimatedCounter({ target, suffix = '' }: { target: number; suffix?: str
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
   const [display, setDisplay] = useState('0');
+  const mv = useMotionValue(0);
 
   useEffect(() => {
     if (!inView) return;
-    const mv = useMotionValue(0);
     const unsub = mv.on('change', (v) => {
       setDisplay(v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}K` : String(Math.round(v)));
     });
     animate(mv, target, { duration: 2, ease: 'easeOut' });
     return () => unsub();
-  }, [inView, target]);
+  }, [inView, target, mv]);
 
   return <span ref={ref}>{display}{suffix}</span>;
 }

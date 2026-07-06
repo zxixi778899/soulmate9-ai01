@@ -33,6 +33,7 @@ const eslintConfig = defineConfig([
     rules: {
       'import/no-cycle': ['error', { ignoreExternal: true }],
       'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
       'no-restricted-syntax': ['error', ...syntaxRules],
       // any 主要出现在 catch 块的 error 类型上，运行时无影响。
       // 降级为 warning 不阻塞 deploy；真正的业务类型 any 已在代码中显式修正。

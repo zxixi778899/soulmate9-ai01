@@ -34,7 +34,6 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
 
     try {
       //  import
-      // @ts-ignore - posthog-js is optional, install with `pnpm add posthog-js`
       import('posthog-js').then((mod) => {
         const ph = (mod.default || mod) as unknown as PostHogClient;
         ph.init(apiKey, {

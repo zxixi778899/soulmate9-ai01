@@ -130,7 +130,6 @@ function PricingContent() {
         return;
       }
 
-      // eslint-disable-next-line react-hooks/immutability
       window.location.href = data.url;
     } catch {
       toast.error('Network error. Please try again.');
