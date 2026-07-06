@@ -228,6 +228,19 @@ const SCENES = [
 const SUPABASE_BASE =
   'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits';
 
+// Pre-generated ambient particles for hero background
+const AMBIENT_PARTICLES = Array.from({ length: 25 }, (_, i) => ({
+  id: i,
+  left: `${Math.random() * 100}%`,
+  top: `${20 + Math.random() * 70}%`,
+  size: 2 + Math.random() * 4,
+  driftX: `${(Math.random() - 0.5) * 80}px`,
+  driftY: `${-60 - Math.random() * 120}px`,
+  duration: `${10 + Math.random() * 14}s`,
+  delay: `${-Math.random() * 12}s`,
+  opacity: 0.2 + Math.random() * 0.4,
+}));
+
 export default function SingleViewportHero() {
   const router = useRouter();
   const { user } = useAuth();
@@ -240,6 +253,17 @@ export default function SingleViewportHero() {
   const [mouse, setMouse] = useState({ x: 0.5, y: 0.5 });
   const heroRef = useRef<HTMLElement | null>(null);
   const cursorTrailRef = useRef<HTMLDivElement>(null);
+
+  // Click ripple state
+  const [ripples, setRipples] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
+  const handleHeroClick = useCallback((e: React.MouseEvent) => {
+    if (!heroRef.current) return;
+    const rect = heroRef.current.getBoundingClientRect();
+    const id = Date.now();
+    const accent = CHARACTERS[activeIdx].accent;
+    setRipples((prev) => [...prev.slice(-3), { id, x: e.clientX - rect.left, y: e.clientY - rect.top, color: accent }]);
+    setTimeout(() => setRipples((prev) => prev.filter((r) => r.id !== id)), 800);
+  }, [activeIdx]);
 
   //  rAF
   useEffect(() => {
@@ -297,6 +321,7 @@ export default function SingleViewportHero() {
           className="relative w-full h-screen min-h-[640px] overflow-hidden cursor-crosshair"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
+          onClick={handleHeroClick}
         >
           {/*  Layer 1:  +   */}
           {SCENES.map((slug, i) => (
@@ -352,6 +377,59 @@ export default function SingleViewportHero() {
             }}
           />
 
+          {/* Gradient mesh blob — morphing organic shape in background */}
+          <div
+            className="absolute z-[4] pointer-events-none transition-all duration-[3000ms] ease-in-out"
+            style={{
+              left: `${30 + mouse.x * 20}%`,
+              top: `${30 + mouse.y * 15}%`,
+              width: 500,
+              height: 500,
+              background: `radial-gradient(circle at 30% 40%, ${active.accent}22, ${active.bgAccent.replace('0.55', '0.12')} 60%, transparent 80%)`,
+              filter: 'blur(60px)',
+              animation: 'meshMorph 20s ease-in-out infinite',
+            }}
+          />
+
+          {/* Floating ambient particles */}
+          <div className="absolute inset-0 z-[5] pointer-events-none overflow-hidden">
+            {AMBIENT_PARTICLES.map((p) => (
+              <span
+                key={p.id}
+                className="ambient-particle"
+                style={{
+                  left: p.left,
+                  top: p.top,
+                  width: p.size,
+                  height: p.size,
+                  background: `${active.accent}88`,
+                  boxShadow: `0 0 ${p.size * 2}px ${active.accent}44`,
+                  '--drift-x': p.driftX,
+                  '--drift-y': p.driftY,
+                  '--duration': p.duration,
+                  '--delay': p.delay,
+                  opacity: p.opacity,
+                } as React.CSSProperties}
+              />
+            ))}
+          </div>
+
+          {/* Click ripple effects */}
+          {ripples.map((r) => (
+            <span
+              key={r.id}
+              className="absolute z-[7] pointer-events-none rounded-full border-2"
+              style={{
+                left: r.x,
+                top: r.y,
+                width: 200,
+                height: 200,
+                borderColor: r.color,
+                animation: 'clickRipple 800ms ease-out forwards',
+              }}
+            />
+          ))}
+
           {/*  LIVE  */}
           <div className="absolute top-24 left-0 right-0 z-10 flex justify-center pointer-events-none">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/40 border border-white/[0.14] backdrop-blur-md text-[11px] font-mono-pretty tracking-[0.2em] text-[#FF6BA6] uppercase">
@@ -387,6 +465,10 @@ export default function SingleViewportHero() {
                     transformOrigin: 'center bottom',
                   }}
                 >
+                  <div
+                    className="relative w-full h-full"
+                    style={i === activeIdx ? { animation: 'characterBreathe 4s ease-in-out infinite, windSway 6s ease-in-out infinite' } : undefined}
+                  >
                   <Image
                     src={`${SUPABASE_BASE}/characters/${c.slug}.png`}
                     alt={c.name}
@@ -396,6 +478,7 @@ export default function SingleViewportHero() {
                     sizes="44vw"
                     unoptimized
                   />
+                  </div>
                   {/*  accent  */}
                   <div
                     className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3/4 h-10 blur-3xl rounded-full pointer-events-none"
@@ -782,61 +865,59 @@ function CursorTrail({
   targetRef: React.RefObject<HTMLElement | null>;
   accent: string;
 }) {
-  const [particles, setParticles] = useState<{ id: number; x: number; y: number; t: number; c: string }[]>([]);
+  const [particles, setParticles] = useState<{ id: number; x: number; y: number; t: number; c: string; s: number }[]>([]);
   const lastSpawn = useRef(0);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!targetRef.current) return;
       const r = targetRef.current.getBoundingClientRect();
-      //  hero 
       if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
       const now = Date.now();
-      if (now - lastSpawn.current < 60) return;
+      if (now - lastSpawn.current < 35) return; // faster spawn
       lastSpawn.current = now;
       const id = now + Math.random();
+      const size = 4 + Math.random() * 8; // varied sizes 4-12px
       setParticles((prev) => [
-        ...prev.slice(-12),
-        {
-          id,
-          x: e.clientX - r.left,
-          y: e.clientY - r.top,
-          t: now,
-          c: accent,
-        },
+        ...prev.slice(-20), // keep more particles
+        { id, x: e.clientX - r.left, y: e.clientY - r.top, t: now, c: accent, s: size },
       ]);
     };
     window.addEventListener('mousemove', onMove);
     return () => window.removeEventListener('mousemove', onMove);
   }, [targetRef, accent]);
 
-  // 
   useEffect(() => {
     const id = setInterval(() => {
-      const cutoff = Date.now() - 900;
+      const cutoff = Date.now() - 1200; // longer trail
       setParticles((prev) => prev.filter((p) => p.t > cutoff));
-    }, 200);
+    }, 150);
     return () => clearInterval(id);
   }, []);
 
   return (
     <div className="absolute inset-0 z-[6] pointer-events-none">
-      {particles.map((p) => (
-        <span
-          key={p.id}
-          className="absolute rounded-full"
-          style={{
-            left: p.x,
-            top: p.y,
-            width: 8,
-            height: 8,
-            background: p.c,
-            boxShadow: `0 0 12px ${p.c}, 0 0 24px ${p.c}66`,
-            animation: 'particleFade 900ms ease-out forwards',
-            transform: 'translate(-50%, -50%)',
-          }}
-        />
-      ))}
+      {particles.map((p, idx) => {
+        const age = (Date.now() - p.t) / 1200;
+        const opacity = Math.max(0, 1 - age);
+        return (
+          <span
+            key={p.id}
+            className="absolute rounded-full"
+            style={{
+              left: p.x,
+              top: p.y,
+              width: p.s * (1 - age * 0.5),
+              height: p.s * (1 - age * 0.5),
+              background: p.c,
+              opacity,
+              boxShadow: `0 0 ${p.s * 2}px ${p.c}, 0 0 ${p.s * 4}px ${p.c}44`,
+              transform: 'translate(-50%, -50%)',
+              transition: 'opacity 100ms, width 100ms, height 100ms',
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

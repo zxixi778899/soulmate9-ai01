@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import { AuthProvider } from '@/components/AuthProvider';
-import { AgeVerification } from '@/components/AgeVerification';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { I18nProvider } from '@/lib/i18n/context';
 import BottomNav from '@/components/BottomNav';
@@ -110,7 +109,6 @@ export default function RootLayout({
         <PostHogProvider>
           <AuthProvider>
             <I18nProvider>
-              <AgeVerification />
               <ErrorBoundary>
                 {children}
               </ErrorBoundary>

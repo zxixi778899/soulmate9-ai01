@@ -1031,3 +1031,54 @@ html {
   background: rgba(255, 255, 255, 0.04);
   font-weight: 600;
 }
+
+/* ─── Hero Dynamic Animations ─── */
+
+/* Floating ambient particles */
+@keyframes ambientFloat {
+  0%   { transform: translate(0, 0) scale(1);   opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { transform: translate(var(--drift-x, 30px), var(--drift-y, -120px)) scale(0.4); opacity: 0; }
+}
+
+/* Character breathing — subtle scale + translateY */
+@keyframes characterBreathe {
+  0%, 100% { transform: translate(-50%, -50%) scaleY(1) translateY(0); }
+  50%      { transform: translate(-50%, -50%) scaleY(1.006) translateY(-2px); }
+}
+
+/* Character wind sway — very subtle rotation */
+@keyframes windSway {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(0.3deg); }
+  75%      { transform: rotate(-0.3deg); }
+}
+
+/* Click ripple expand */
+@keyframes clickRipple {
+  0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+/* Enhanced cursor glow pulse */
+@keyframes cursorGlow {
+  0%, 100% { box-shadow: 0 0 12px var(--accent, #FF2D78), 0 0 28px color-mix(in srgb, var(--accent, #FF2D78) 40%, transparent); }
+  50%      { box-shadow: 0 0 20px var(--accent, #FF2D78), 0 0 48px color-mix(in srgb, var(--accent, #FF2D78) 50%, transparent); }
+}
+
+/* Gradient mesh morph for background */
+@keyframes meshMorph {
+  0%   { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
+  34%  { border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%; }
+  67%  { border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%; }
+  100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
+}
+
+/* Ambient particle base class */
+.ambient-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: ambientFloat var(--duration, 12s) var(--delay, 0s) ease-in-out infinite;
+}
