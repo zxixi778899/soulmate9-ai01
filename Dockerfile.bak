@@ -1,0 +1,73 @@
+# ============================================================
+# Soulmate9 生产 Dockerfile
+# 多阶段构建：deps → build → runner
+# 目标平台：Railway / 自托管 VPS
+# 输出镜像：node:20-alpine，~150MB
+# ============================================================
+
+# ─────────────────────────── Stage 1: deps ───────────────────────────
+FROM node:20-alpine AS deps
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+WORKDIR /app
+
+# 单独拷贝 lockfile 利用 Docker 层缓存
+COPY package.json pnpm-lock.yaml* ./
+RUN rm -rf /app/node_modules/.cache && pnpm install --prefer-offline
+
+# ─────────────────────────── Stage 2: builder ───────────────────────────
+FROM node:20-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+WORKDIR /app
+
+# 将deps复制 node_modules（已包含 devDeps）
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# 确保依赖项完整
+RUN pnpm install && pnpm list
+
+# Next.js standalone 构建需要关闭 telemetry
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# ── Plan K: Bake NEXT_PUBLIC_* into the client bundle ──
+RUN printenv | grep -E '^NEXT_PUBLIC_' | tee .env.production && echo "=== .env.production has $(wc -l < .env.production) lines ==="
+
+# 构建
+ARG CACHE_BUST=unknown
+RUN echo "Cache bust: $CACHE_BUST $(date)" && rm -rf .next node_modules/.cache && pnpm build
+
+# ─────────────────────────── Stage 3: runner ───────────────────────────
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# 基础系统依赖（curl 用于 healthcheck，wget 作为 fallback）
+RUN apk add --no-cache curl dumb-init
+
+# 使用非root用户运行（安全最佳实践）
+RUN addgroup --system --gid 1001 nodejs \n && adduser --system --uid 1001 nextjs
+
+# 复制 standalone 输出
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+USER nextjs
+
+# Railway / 自托管默认的 PORT=3000
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+EXPOSE 3000
+
+# 启动命令
+CMD ["sh", "-c", "PORT=3000 HOSTNAME=0.0.0.0 exec node server.js"]
+
+# ─────────────────────────── Healthcheck ───────────────────────────
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
