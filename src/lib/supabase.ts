@@ -4,21 +4,26 @@ const SUPABASE_URL: string = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY: string = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 /**
- * Plan X  runtime export that forces Turbopack to keep this string in the
- * client bundle (DCE can't remove a string used in a public export).
- * Each redeploy that changes this string forces a fresh chunk hash, which
- * invalidates the stale `33c8a2200066d1a9` chunk.
+ * Plan NUCLEAR — hardcoded config + force cache bust
+ * Each deploy changes this timestamp to invalidate all chunk hashes
  */
-export const SOULMATE_BUILD_ID = 'planX-fresh-chunk-' + Date.now().toString(36);
+export const SOULMATE_BUILD_ID = 'nuclear-deploy-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
 
 let _browserClient: SupabaseClient | null = null;
 
 export function createBrowserClient(): SupabaseClient | null {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return null;
-  }
+  if (typeof window === 'undefined') return null;
+
+  // 硬编码方案 — 直接解决 Railway cache + Turbopack env 问题
+  const hardcodedUrl = 'https://vvblrkngzuyxeeoslzkl.supabase.co';
+  const hardcodedKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Ymxya25nend5eGVlb3Nsemt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDE4NzU0OTgsImV4cCI6MjAxNzQ1MTQ5OH0.dcXgk_H_1TNBuNwGg4p4lERm_6vWQfYNwvoEGnVQYl0';
+
+  // 优先使用 env vars，fallback 到硬编码
+  const url = SUPABASE_URL || hardcodedUrl;
+  const key = SUPABASE_ANON_KEY || hardcodedKey;
+
   if (!_browserClient) {
-    _browserClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    _browserClient = createClient(url, key, {
       auth: { persistSession: true, autoRefreshToken: true },
     });
   }
