@@ -1,109 +1,239 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
-import fs from 'fs';
-import path from 'path';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
-const CONFIG_PATH = '/tmp/llm_router_config.json';
+// GET /api/admin/models — List all model configs + usage summary
+export async function GET(request: NextRequest) {
+  const adminCheck = await requireAdmin(request, 'admin');
+  if (adminCheck.error) return adminCheck.error;
 
-const AVAILABLE_MODELS = [
-  { value: 'doubao-seed-2-0-pro-260215', label: 'Doubao Pro 2.0 ()  /' },
-  { value: 'doubao-seed-2-0-lite-260215', label: 'Doubao Lite 2.0 ()  ' },
-  { value: 'doubao-seed-2-0-mini-260215', label: 'Doubao Mini 2.0 ()  /' },
-  { value: 'deepseek-v3-2-251201', label: 'DeepSeek V3' },
-  { value: 'kimi-k2-5-260127', label: 'Kimi K2-5 ()' },
-  { value: 'glm-5-0-260211', label: 'GLM-5 ()' },
-  { value: 'minimax-m2-5-260212', label: 'MiniMax M2-5 (/)' },
-  { value: 'qwen-3-5-plus-260215', label: 'Qwen 3.5 Plus ()' },
-];
+  const { searchParams } = new URL(request.url);
+  const view = searchParams.get('view') || 'configs';
 
-const DEFAULT_CONFIG: Record<string, { value: string; label: string; type: string; options?: { label: string; value: string }[] }> = {
-  chat_model: {
-    value: 'doubao-seed-2-0-pro-260215',
-    label: '',
-    type: 'select',
-    options: AVAILABLE_MODELS,
-  },
-  chat_temperature: {
-    value: '0.85',
-    label: ' (0-2, )',
-    type: 'number',
-  },
-  prompt_optimizer_model: {
-    value: 'doubao-seed-2-0-lite-260215',
-    label: '',
-    type: 'select',
-    options: AVAILABLE_MODELS,
-  },
-  emotion_detection_model: {
-    value: 'doubao-seed-2-0-mini-260215',
-    label: ' ()',
-    type: 'select',
-    options: AVAILABLE_MODELS,
-  },
-  metadata_generation_model: {
-    value: 'doubao-seed-2-0-pro-260215',
-    label: ' (//)',
-    type: 'select',
-    options: AVAILABLE_MODELS,
-  },
-};
+  const supabase = getSupabaseClient();
 
-function loadConfig(): Record<string, string> {
-  try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+  if (view === 'usage') {
+    // Usage dashboard data: last 24h stats per model
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    let usageStats: unknown = null;
+    let usageErr: unknown = 'not attempted';
+    try {
+      const result = await supabase.rpc('get_model_usage_stats', { p_since: since });
+      usageStats = result.data;
+      usageErr = result.error;
+    } catch {
+      usageStats = null;
+      usageErr = 'rpc not found';
     }
-  } catch {}
-  // Default values
-  return Object.fromEntries(
-    Object.entries(DEFAULT_CONFIG).map(([key, cfg]) => [key, cfg.value])
-  );
+
+    // Fallback: manual aggregation if RPC doesn't exist
+    if (usageErr || !usageStats) {
+      const { data: logs, error } = await supabase
+        .from('ai_model_usage_logs')
+        .select('model_id, provider, task_type, input_tokens, output_tokens, latency_ms, cost_usd, success, error_message, created_at')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(5000);
+
+      if (error) {
+        logger.error('admin/models usage fetch failed', { error });
+        return NextResponse.json({ error: 'Failed to fetch usage data' }, { status: 500 });
+      }
+
+      // Aggregate by model
+      const byModel: Record<string, {
+        model_id: string;
+        provider: string;
+        total_calls: number;
+        success_calls: number;
+        error_calls: number;
+        total_input_tokens: number;
+        total_output_tokens: number;
+        total_cost_usd: number;
+        avg_latency_ms: number;
+        task_types: Record<string, number>;
+      }> = {};
+
+      for (const log of (logs || [])) {
+        const key = log.model_id;
+        if (!byModel[key]) {
+          byModel[key] = {
+            model_id: log.model_id,
+            provider: log.provider,
+            total_calls: 0,
+            success_calls: 0,
+            error_calls: 0,
+            total_input_tokens: 0,
+            total_output_tokens: 0,
+            total_cost_usd: 0,
+            avg_latency_ms: 0,
+            task_types: {},
+          };
+        }
+        const m = byModel[key];
+        m.total_calls++;
+        if (log.success) m.success_calls++;
+        else m.error_calls++;
+        m.total_input_tokens += log.input_tokens || 0;
+        m.total_output_tokens += log.output_tokens || 0;
+        m.total_cost_usd += Number(log.cost_usd) || 0;
+        m.avg_latency_ms += log.latency_ms || 0;
+        m.task_types[log.task_type] = (m.task_types[log.task_type] || 0) + 1;
+      }
+
+      // Finalize averages
+      const stats = Object.values(byModel).map(m => ({
+        ...m,
+        avg_latency_ms: m.total_calls > 0 ? Math.round(m.avg_latency_ms / m.total_calls) : 0,
+        success_rate: m.total_calls > 0 ? Math.round((m.success_calls / m.total_calls) * 100) : 0,
+      }));
+
+      // Hourly breakdown for charts (last 24h)
+      const hourly: Record<string, { hour: string; calls: number; cost: number; errors: number }> = {};
+      for (const log of (logs || [])) {
+        const h = new Date(log.created_at).toISOString().slice(0, 13) + ':00';
+        if (!hourly[h]) hourly[h] = { hour: h, calls: 0, cost: 0, errors: 0 };
+        hourly[h].calls++;
+        hourly[h].cost += Number(log.cost_usd) || 0;
+        if (!log.success) hourly[h].errors++;
+      }
+
+      // Totals
+      const totals = {
+        total_calls: stats.reduce((s, m) => s + m.total_calls, 0),
+        total_cost_usd: stats.reduce((s, m) => s + m.total_cost_usd, 0),
+        total_tokens: stats.reduce((s, m) => s + m.total_input_tokens + m.total_output_tokens, 0),
+        avg_latency_ms: stats.length > 0
+          ? Math.round(stats.reduce((s, m) => s + m.avg_latency_ms, 0) / stats.length)
+          : 0,
+        avg_success_rate: stats.length > 0
+          ? Math.round(stats.reduce((s, m) => s + m.success_rate, 0) / stats.length)
+          : 0,
+      };
+
+      return NextResponse.json({
+        stats,
+        hourly: Object.values(hourly).sort((a, b) => a.hour.localeCompare(b.hour)),
+        totals,
+        period: '24h',
+      });
+    }
+
+    return NextResponse.json({ stats: usageStats });
+  }
+
+  // Default: return model configs
+  const { data: configs, error } = await supabase
+    .from('ai_model_configs')
+    .select('*')
+    .order('priority', { ascending: false });
+
+  if (error) {
+    logger.error('admin/models fetch failed', { error });
+    return NextResponse.json({ error: 'Failed to fetch model configs' }, { status: 500 });
+  }
+
+  return NextResponse.json({ configs: configs || [] });
 }
 
-function saveConfig(config: Record<string, string>) {
-  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
-}
-
-export async function GET() {
-  const config = loadConfig();
-
-  const settings = Object.entries(DEFAULT_CONFIG).map(([key, cfg]) => ({
-    key,
-    label: cfg.label,
-    type: cfg.type,
-    value: config[key] || cfg.value,
-    options: cfg.options,
-  }));
-
-  return NextResponse.json({ settings });
-}
-
-export async function PATCH(request: NextRequest) {
-  const adminCheck = await requireAdmin(request);
+// POST /api/admin/models — Add a new model config
+export async function POST(request: NextRequest) {
+  const adminCheck = await requireAdmin(request, 'admin');
   if (adminCheck.error) return adminCheck.error;
 
   try {
     const body = await request.json();
-    const updates: { key: string; value: string }[] = body;
+    const { provider, model_id, display_name, task_type, api_base_url, api_key_env,
+            temperature, max_tokens, cost_per_1k_input, cost_per_1k_output,
+            priority, nsfw_capable, min_tier, notes } = body;
 
-    if (!Array.isArray(updates)) {
-      return NextResponse.json({ error: 'updates array is required' }, { status: 400 });
+    if (!provider || !model_id || !display_name) {
+      return NextResponse.json({ error: 'provider, model_id, and display_name are required' }, { status: 400 });
     }
 
-    const current = loadConfig();
-    for (const { key, value } of updates) {
-      if (DEFAULT_CONFIG[key]) {
-        current[key] = value;
-      }
-    }
-    saveConfig(current);
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('ai_model_configs')
+      .insert({
+        provider, model_id, display_name, task_type: task_type || 'chat',
+        api_base_url, api_key_env, temperature: temperature ?? 0.85,
+        max_tokens: max_tokens ?? 2048, cost_per_1k_input: cost_per_1k_input ?? 0,
+        cost_per_1k_output: cost_per_1k_output ?? 0, priority: priority ?? 0,
+        nsfw_capable: nsfw_capable ?? false, min_tier: min_tier || 'free', notes,
+      })
+      .select()
+      .single();
 
-    return NextResponse.json({ success: true });
+    if (error) {
+      logger.error('admin/models create failed', { error });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ config: data }, { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+// PATCH /api/admin/models — Update a model config
+export async function PATCH(request: NextRequest) {
+  const adminCheck = await requireAdmin(request, 'admin');
+  if (adminCheck.error) return adminCheck.error;
+
+  try {
+    const body = await request.json();
+    const { id, ...updates } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    }
+
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('ai_model_configs')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('admin/models update failed', { error });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ config: data });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+// DELETE /api/admin/models — Remove a model config
+export async function DELETE(request: NextRequest) {
+  const adminCheck = await requireAdmin(request, 'admin');
+  if (adminCheck.error) return adminCheck.error;
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+  if (!id) {
+    return NextResponse.json({ error: 'id query param is required' }, { status: 400 });
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('ai_model_configs')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    logger.error('admin/models delete failed', { error });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
 }

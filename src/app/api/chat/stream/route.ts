@@ -3,6 +3,8 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { rateLimitMiddleware, RATE_LIMITS } from '@/lib/rate-limit';
 import { analyzeAndRoute } from '@/lib/llm-router';
 import { getCozeAccessToken, COZE_API_BASE, DEFAULT_LLM_MODEL } from '@/lib/coze-auth';
+import { streamTextSmart } from '@/lib/llm-service';
+import { logModelUsage, estimateTokens, estimateCost } from '@/lib/model-usage';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
@@ -466,6 +468,7 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       let fullResponse = '';
+      const streamStart = Date.now();
 
       try {
         const token = await getCozeAccessToken();
@@ -532,6 +535,23 @@ export async function POST(request: NextRequest) {
             content: fullResponse,
           });
         }
+
+        // Log model usage (fire and forget)
+        const latencyMs = Date.now() - streamStart;
+        const inputTok = estimateTokens(systemPrompt + truncatedMessage);
+        const outputTok = estimateTokens(fullResponse);
+        logModelUsage({
+          provider: 'coze',
+          model_id: routing.modelId,
+          task_type: routing.taskType === 'image_generation' ? 'image_prompt' : routing.taskType,
+          user_id: user.id,
+          girlfriend_id,
+          input_tokens: inputTok,
+          output_tokens: outputTok,
+          latency_ms: latencyMs,
+          cost_usd: estimateCost(inputTok, outputTok, 0.0004, 0.0012),
+          success: true,
+        }).catch(() => {});
 
         // Extract memories from user message (fire and forget)
         extractMemories(client, user.id, girlfriend_id, message, gf.name).catch(() => {});
