@@ -65,7 +65,6 @@ export const metadata: Metadata = {
   other: {
     'mobile-web-app-capable': 'yes',
     'supabase-url': 'https://vvblrkngzuyxeeoslzkl.supabase.co',
-    'supabase-anon-key': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Ymxya25nend5eGVlb3Nsemt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDE4NzU0OTgsImV4cCI6MjAxNzQ1MTQ5OH0.dcXgk_H_1TNBuNwGg4p4lERm_6vWQfYNwvoEGnVQYl0',
   },
 };
 
