@@ -28,6 +28,19 @@ const ALLOWED_PATCH_FIELDS = new Set<string>([
   'rejection_reason',
   'submitted_at',
   'approved_at',
+  'avatar_video_url',
+  'portrait_video_url',
+  'card_url',
+  'album_urls',
+  'face_reference_url',
+  'image_prompt',
+  'negative_prompt',
+  'appearance_race',
+  'voice',
+  'relationship',
+  'occupation',
+  'hobbies',
+  'outfit_id',
 ]);
 
 //  age 18+ M17
@@ -50,6 +63,7 @@ interface GeneratedProfile {
   short_description: string;
   backstory: string;
   appearance: {
+    race: string;
     hair: string;
     hair_color: string;
     eyes: string;
@@ -257,31 +271,97 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+//  Build image prompt for character consistency 
+function buildImagePrompt(profile: GeneratedProfile): string {
+  const appearance = profile.appearance;
+  const parts: string[] = [];
+
+  // Base quality tags
+  parts.push('masterpiece', 'best quality', 'ultra detailed', 'professional photography');
+
+  // Character description
+  parts.push(`1girl, solo, ${profile.name || 'young woman'}`);
+
+  // Race/ethnicity
+  if (appearance?.race) parts.push(`${appearance.race} woman`);
+
+  // Age
+  if (profile.age) parts.push(`${profile.age} years old`);
+
+  // Hair
+  if (appearance.hair_color) parts.push(`${appearance.hair_color} hair`);
+  if (appearance.hair) parts.push(`${appearance.hair} hairstyle`);
+
+  // Eyes
+  if (appearance.eyes) parts.push(`${appearance.eyes} eyes`);
+
+  // Body
+  if (appearance.body) parts.push(`${appearance.body} body type`);
+
+  // Style
+  if (appearance.style) parts.push(`wearing ${appearance.style} clothing`);
+
+  // Personality-based expression
+  const personality = (profile.personality || '').toLowerCase();
+  if (personality.includes('shy') || personality.includes('gentle')) {
+    parts.push('soft smile', 'gentle expression');
+  } else if (personality.includes('bold') || personality.includes('confident')) {
+    parts.push('confident smile', 'direct gaze');
+  } else if (personality.includes('playful') || personality.includes('flirty')) {
+    parts.push('playful wink', 'mischievous smile');
+  } else if (personality.includes('mysterious')) {
+    parts.push('mysterious gaze', 'slight smirk');
+  } else {
+    parts.push('warm smile', 'friendly expression');
+  }
+
+  // Lighting and atmosphere
+  parts.push('soft studio lighting', 'bokeh background', 'shallow depth of field');
+
+  return parts.join(', ');
+}
+
 //  Batch create handler 
 async function handleBatchCreate(supabase: any, user: { id: string }, rawCount: number) {
   const count = Math.min(Math.max(Number(rawCount) || 3, 1), 10);
 
-  // LLM generates random girlfriend profiles
-  const systemPrompt = `You are a creative character generator for a Western-market AI companion platform (18+).
-Generate diverse, interesting girlfriend characters with unique personalities, appearances, and backgrounds.
+  // LLM generates random girlfriend profiles optimized for Western market
+  const systemPrompt = `You are an expert character designer for a premium AI companion platform targeting Western audiences (18+).
+Generate diverse, compelling girlfriend characters with rich personalities and detailed appearances.
 
-Return ONLY valid JSON with a "girlfriends" array. Each item must have:
-- name: A unique English female name (first name only, 2-8 letters)
-- age: A number between 18 and 35
-- personality: 1-2 sentences describing her personality traits and vibe
-- tags: Array of 3-5 English tags
-- short_description: A one-sentence tagline describing her
-- backstory: 1-2 sentences of backstory
-- appearance: An object with: hair, hair_color, eyes, body, style
+Return ONLY valid JSON: {"girlfriends": [...]}
+Each character MUST have:
+- name: Unique English female first name (2-8 letters, NO duplicates)
+- age: Integer 19-32
+- personality: 2-3 sentences. Include her communication style, quirks, what makes her unique in conversation
+- tags: Array of 4-6 descriptive English tags (e.g., "Sultry", "Bookworm", "Adventurous", "Flirty", "Artistic")
+- short_description: One captivating sentence that makes someone want to talk to her
+- backstory: 2-3 sentences. Where she's from, what she does, a hint of mystery
+- appearance: Object with these EXACT keys:
+  - race: One of [Caucasian, Asian, Latina, Ebony, Arab, Indian, Mixed, Slavic, Mediterranean, Nordic]
+  - hair: Specific style (e.g., "Long wavy", "Pixie cut", "Twin braids", "Messy bun", "Straight bob")
+  - hair_color: Specific color (e.g., "Platinum blonde", "Raven black", "Copper red", "Ash brown", "Pastel pink")
+  - eyes: Specific eye description (e.g., "Deep emerald green", "Honey brown", "Ice blue", "Hazel with gold flecks")
+  - body: One of [Petite, Slim, Athletic, Curvy, Busty, Hourglass, Tall and lean]
+  - style: Fashion style (e.g., "Boho chic", "Minimalist elegance", "Streetwear", "Classic feminine", "Edgy alternative", "Cozy academic")
 
-CRITICAL rules:
-- Each character must be UNIQUE - different names, personalities, appearances
-- Make profiles feel real and diverse
-- Keep it tasteful and romantic, not explicit
-- Generate EXACTLY ${count} characters
-- Use ONLY English for all text values`;
+DIVERSITY RULES - each batch MUST include:
+- At least 3 different races
+- At least 3 different hair colors
+- At least 3 different body types
+- Mix of personality archetypes (shy, bold, intellectual, playful, mysterious)
+- Age spread across the 19-32 range
 
-  const userPrompt = `Generate ${count} unique, diverse girlfriend characters for an AI companion platform.`;
+STYLE RULES:
+- Names must be memorable and fit the character's background
+- Descriptions should evoke emotion and curiosity
+- Appearance details must be specific enough for consistent image generation
+- Avoid generic descriptions like "beautiful" or "pretty" - show, don't tell
+- Each character should feel like a real person with depth
+
+Generate EXACTLY ${count} characters. Use ONLY English.`;
+
+  const userPrompt = `Generate ${count} unique, diverse girlfriend characters. Make each one unforgettable.`;
 
   // Direct HTTP LLM call (bypass SDK to avoid "Missing credentials" issue)
   const API_BASE = process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn';
@@ -370,11 +450,13 @@ CRITICAL rules:
         backstory: profile.backstory || '',
         portrait_url: null,
         avatar_url: null,
+        appearance_race: profile.appearance?.race || '',
         appearance_hair: profile.appearance?.hair || '',
         appearance_hair_color: profile.appearance?.hair_color || '',
         appearance_eyes: profile.appearance?.eyes || '',
         appearance_body: profile.appearance?.body || '',
         appearance_style: profile.appearance?.style || '',
+        image_prompt: buildImagePrompt(profile),
         is_public: false,
         review_status: 'draft',
         age_verified: true,
