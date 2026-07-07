@@ -23,7 +23,7 @@ const adminNav = [
   { label: '世界观', href: '/admin/lore', icon: BookOpen },
   { label: '积分管理', href: '/admin/credits', icon: CreditCard },
   { label: '加密货币', href: '/admin/crypto', icon: CreditCard },
-  { label: '主页管理', href: '/admin/homepage', icon: Home },
+  { label: '全站管理', href: '/admin/homepage', icon: Home },
   { label: '页面管理', href: '/admin/pages', icon: LayoutTemplate },
   { label: '导航管理', href: '/admin/navigation', icon: Menu },
 ];

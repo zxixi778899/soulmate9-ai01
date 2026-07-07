@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     try {
       const { data, error } = await db
         .from('girlfriends')
-        .select('id, name, personality, avatar_url, is_active, created_at, slug, tags, review_status, appearance_race, appearance_hair, appearance_hair_color, appearance_eyes, appearance_body, appearance_style, character_card')
+        .select('id, name, personality, avatar_url, portrait_url, created_at, slug, tags, review_status, appearance_race, appearance_hair, appearance_hair_color, appearance_eyes, appearance_body, appearance_style, character_card')
         .order('created_at', { ascending: false });
       if (error) throw error;
       if (data) {
@@ -39,10 +39,11 @@ export async function GET(req: NextRequest) {
           
           return {
             ...gf,
-            imageUrl: gf.avatar_url || null,
-            hasImage: !!gf.avatar_url,
+            imageUrl: gf.avatar_url || gf.portrait_url || null,
+            hasImage: !!(gf.avatar_url || gf.portrait_url),
             itemCategory: 'girlfriend',
             field: 'avatar_url',
+            portraitUrl: gf.portrait_url || null,
             appearance: appearanceParts.join(', '),
           };
         });
