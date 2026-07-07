@@ -93,7 +93,7 @@ const taskColors: Record<string, string> = {
 };
 
 export default function AdminModelsPage() {
-  const [tab, setTab] = useState<'models' | 'dashboard'>('models');
+  const [tab, setTab] = useState<'models' | 'dashboard' | 'guide'>('models');
   const [configs, setConfigs] = useState<ModelConfig[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -215,29 +215,37 @@ export default function AdminModelsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-            <Cpu className="h-6 w-6 text-[#FF2D78]" />
-            AI Model Management
+            <Cpu className="h-6 w-6 text-[#2563EB]" />
+            AI 模型管理
           </h1>
-          <p className="text-sm text-[#8B8BA3] mt-1">Configure providers, monitor usage, manage costs</p>
+          <p className="text-sm text-[#64748B] mt-1">配置模型提供商、监控用量、管理费用</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Tab switcher */}
-          <div className="flex rounded-lg border border-white/[0.08] bg-white/[0.03] p-0.5">
+          <div className="flex rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-0.5">
             <button
               onClick={() => setTab('models')}
               className={`px-4 py-2 text-sm rounded-md font-medium transition-all ${
-                tab === 'models' ? 'bg-[#FF2D78] text-white shadow-sm' : 'text-[#8B8BA3] hover:text-white'
+                tab === 'models' ? 'bg-[#2563EB] text-white shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'
               }`}
             >
-              <Settings className="h-3.5 w-3.5 inline mr-1.5" />Models
+              <Settings className="h-3.5 w-3.5 inline mr-1.5" />模型配置
             </button>
             <button
               onClick={() => setTab('dashboard')}
               className={`px-4 py-2 text-sm rounded-md font-medium transition-all ${
-                tab === 'dashboard' ? 'bg-[#FF2D78] text-white shadow-sm' : 'text-[#8B8BA3] hover:text-white'
+                tab === 'dashboard' ? 'bg-[#2563EB] text-white shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'
               }`}
             >
-              <BarChart3 className="h-3.5 w-3.5 inline mr-1.5" />Dashboard
+              <BarChart3 className="h-3.5 w-3.5 inline mr-1.5" />使用仪表盘
+            </button>
+            <button
+              onClick={() => setTab('guide')}
+              className={`px-4 py-2 text-sm rounded-md font-medium transition-all ${
+                tab === 'guide' ? 'bg-[#2563EB] text-white shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'
+              }`}
+            >
+              📖 使用说明
             </button>
           </div>
           {tab === 'models' && (
@@ -462,6 +470,154 @@ export default function AdminModelsPage() {
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* ═══ GUIDE TAB ═══ */}
+      {tab === 'guide' && (
+        <div className="space-y-6">
+          {/* Provider Overview */}
+          <Card className="border-[#E2E8F0] bg-white">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-bold text-[#1E293B] mb-4">📚 模型使用指南</h3>
+              <div className="space-y-6">
+                {/* Coze/Doubao */}
+                <div className="border-b border-[#E2E8F0] pb-4">
+                  <h4 className="text-sm font-semibold text-blue-600 mb-2 flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 text-[10px]">COZE</span>
+                    豆包 Doubao 系列（中国合规，SFW 专用）
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-[#475569]">
+                    <div className="p-3 rounded-lg bg-[#F8FAFC]">
+                      <p className="font-medium text-[#1E293B]">Doubao Pro 2.0</p>
+                      <p className="mt-1">🎯 <b>用途</b>：Pro/Unlimited 用户的日常聊天</p>
+                      <p>💰 <b>费用</b>：输入 $0.40/M token，输出 $1.20/M token</p>
+                      <p>⚠️ <b>限制</b>：有内容审核，不适合 NSFW 内容</p>
+                      <p>📊 <b>单条成本</b>：约 $0.002-0.004</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-[#F8FAFC]">
+                      <p className="font-medium text-[#1E293B]">Doubao Lite 2.0</p>
+                      <p className="mt-1">🎯 <b>用途</b>：Free 用户的日常聊天（节约成本）</p>
+                      <p>💰 <b>费用</b>：输入 $0.10/M token，输出 $0.30/M token</p>
+                      <p>⚠️ <b>限制</b>：回复质量略低于 Pro，有内容审核</p>
+                      <p>📊 <b>单条成本</b>：约 $0.0005-0.001</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-[#F8FAFC]">
+                      <p className="font-medium text-[#1E293B]">Doubao Mini 2.0</p>
+                      <p className="mt-1">🎯 <b>用途</b>：情感检测（分类用户情绪）</p>
+                      <p>💰 <b>费用</b>：输入 $0.05/M token，输出 $0.15/M token</p>
+                      <p>⚠️ <b>限制</b>：仅用于分类任务，温度设为 0.1</p>
+                      <p>📊 <b>单次成本</b>：约 $0.0001</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Together AI */}
+                <div className="border-b border-[#E2E8F0] pb-4">
+                  <h4 className="text-sm font-semibold text-emerald-600 mb-2 flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 text-[10px]">TOGETHER</span>
+                    Together AI（开源模型，轻度无审查）
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-[#475569]">
+                    <div className="p-3 rounded-lg bg-[#F8FAFC]">
+                      <p className="font-medium text-[#1E293B]">Llama 3.3 70B Instruct</p>
+                      <p className="mt-1">🎯 <b>用途</b>：Pro 用户的高质量 SFW 聊天</p>
+                      <p>💰 <b>费用</b>：$0.20/M token（输入输出同价）</p>
+                      <p>✅ <b>优势</b>：比豆包便宜，无中国审查，质量高</p>
+                      <p>⚠️ <b>注意</b>：轻度 NSFW 可能通过，重度会被拦截</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-[#F8FAFC]">
+                      <p className="font-medium text-[#1E293B]">Llama 3.1 8B Instruct</p>
+                      <p className="mt-1">🎯 <b>用途</b>：Free 用户的快速低成本聊天</p>
+                      <p>💰 <b>费用</b>：$0.10/M token</p>
+                      <p>✅ <b>优势</b>：最便宜的选择，响应速度快</p>
+                      <p>⚠️ <b>注意</b>：回复质量较低，适合简单对话</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RunPod vLLM */}
+                <div className="pb-4">
+                  <h4 className="text-sm font-semibold text-purple-600 mb-2 flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 text-[10px]">RUNPOD</span>
+                    RunPod vLLM（自托管，完全无审查 NSFW）
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-[#475569]">
+                    <div className="p-3 rounded-lg bg-[#F8FAFC]">
+                      <p className="font-medium text-[#1E293B]">Lumimaid 8B (NeverSleep)</p>
+                      <p className="mt-1">🎯 <b>用途</b>：Pro 用户的 NSFW 聊天（亲密度 ≥ Lv.4 自动触发）</p>
+                      <p>💰 <b>费用</b>：RunPod A4000 ~$0.0044/秒 × 约10秒 = ~$0.04/条</p>
+                      <p>✅ <b>优势</b>：完全无审查，专为 NSFW 角色扮演微调</p>
+                      <p>🔧 <b>部署</b>：RunPod Serverless，RTX A4000 GPU</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-[#F8FAFC]">
+                      <p className="font-medium text-[#1E293B]">Noromaid 12B</p>
+                      <p className="mt-1">🎯 <b>用途</b>：Unlimited 用户的高质量 NSFW 聊天</p>
+                      <p>💰 <b>费用</b>：RunPod A40 ~$0.007/秒 × 约15秒 = ~$0.10/条</p>
+                      <p>✅ <b>优势</b>：最高质量 NSFW 回复，角色一致性好</p>
+                      <p>🔧 <b>部署</b>：RunPod Serverless，需要更大显存</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Routing Logic */}
+          <Card className="border-[#E2E8F0] bg-white">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-bold text-[#1E293B] mb-4">🔀 路由逻辑说明</h3>
+              <div className="text-sm text-[#475569] space-y-3">
+                <div className="p-3 rounded-lg bg-[#F8FAFC]">
+                  <p className="font-medium text-[#1E293B]">模型选择流程：</p>
+                  <ol className="list-decimal pl-5 mt-2 space-y-1">
+                    <li>检测用户消息是否包含 NSFW 关键词（如 kiss, touch, bed, naked 等）</li>
+                    <li>检查用户亲密度等级（≥ Lv.4 自动启用 NSFW 模型）</li>
+                    <li>如果 NSFW 内容 + Pro/Unlimited 用户 → <b>RunPod vLLM</b></li>
+                    <li>否则 Free 用户 → <b>Together AI 8B</b>（最便宜）</li>
+                    <li>否则 Pro/Unlimited 用户 → <b>Together AI 70B</b>（高质量）</li>
+                    <li>所有提供商失败时 → <b>Coze 豆包</b>（最终降级）</li>
+                  </ol>
+                </div>
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                  <p className="font-medium text-amber-800">⚠️ 重要提醒：</p>
+                  <ul className="list-disc pl-5 mt-1 space-y-1 text-amber-700">
+                    <li>豆包（Coze）是中国公司的模型，<b>严格禁止 NSFW 内容</b>，发送色情内容会导致封号</li>
+                    <li>NSFW 功能仅对 Pro 和 Unlimited 用户开放，Free 用户始终使用 SFW 模型</li>
+                    <li>RunPod vLLM 需要先在 RunPod 控制台部署模型端点，并配置 RUNPOD_VLLM_URL 环境变量</li>
+                    <li>Together AI 需要注册账号获取 API Key，配置 TOGETHER_API_KEY 环境变量</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Cost Optimization Tips */}
+          <Card className="border-[#E2E8F0] bg-white">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-bold text-[#1E293B] mb-4">💡 成本优化建议</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-[#475569]">
+                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <p className="font-medium text-emerald-800">✅ 降低成本</p>
+                  <ul className="list-disc pl-5 mt-1 space-y-1 text-emerald-700">
+                    <li>Free 用户始终用最便宜的模型（Llama 8B 或 Doubao Lite）</li>
+                    <li>控制 max_tokens 限制回复长度（Free: 512, Pro: 1024）</li>
+                    <li>利用 generation_cache 缓存重复请求</li>
+                    <li>RunPod 使用 Spot 实例可节省 50-70%</li>
+                  </ul>
+                </div>
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                  <p className="font-medium text-blue-800">📈 提升质量</p>
+                  <ul className="list-disc pl-5 mt-1 space-y-1 text-blue-700">
+                    <li>Pro 用户用 Llama 70B 或 Doubao Pro 获得更好回复</li>
+                    <li>Unlimited 用户用 Noromaid 12B 获得最佳 NSFW 体验</li>
+                    <li>情感检测使用 Mini 模型（便宜且足够准确）</li>
+                    <li>复杂推理场景使用 DeepSeek V3（思维模式）</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 

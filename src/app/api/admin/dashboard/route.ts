@@ -52,6 +52,21 @@ export async function GET(request: Request) {
     const PLAN_PRICES: Record<string, number> = { pro: 999, unlimited: 1999 };
     const mrrCents = (activeSubs || []).reduce((acc, s) => acc + (PLAN_PRICES[s.plan_id] || 0), 0);
 
+    // Paid member counts
+    const { count: proCount } = await supabase
+      .from('profiles').select('id', { head: true, count: 'exact' })
+      .eq('membership_tier', 'pro');
+    const { count: unlimitedCount } = await supabase
+      .from('profiles').select('id', { head: true, count: 'exact' })
+      .eq('membership_tier', 'unlimited');
+
+    // Total paid amount (all time from purchase_history)
+    const { data: allPurchases } = await supabase
+      .from('purchase_history')
+      .select('amount_cents')
+      .eq('status', 'completed');
+    const totalPaidCents = (allPurchases || []).reduce((acc, p) => acc + (p.amount_cents || 0), 0);
+
     const { count: newUsers7d } = await supabase
       .from('profiles')
       .select('id', { head: true, count: 'exact' })
@@ -83,6 +98,10 @@ export async function GET(request: Request) {
         dau: dau ?? 0,
         wau: wau ?? 0,
         mrr_cents: mrrCents,
+        proMembers: proCount ?? 0,
+        unlimitedMembers: unlimitedCount ?? 0,
+        paidMembers: (proCount ?? 0) + (unlimitedCount ?? 0),
+        totalPaidCents,
         newUsers7d: newUsers7d ?? 0,
         images7d: images7d ?? 0,
         cacheHitRate: Number(avgHitRate.toFixed(2)),

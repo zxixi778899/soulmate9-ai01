@@ -8,23 +8,24 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, LayoutDashboard, Users, Image, Heart, ShoppingBag, CheckSquare, Brain, CreditCard, FileImage, BookOpen, ChevronLeft, LayoutTemplate, Menu } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Image, Heart, ShoppingBag, CheckSquare, Brain, CreditCard, FileImage, BookOpen, ChevronLeft, LayoutTemplate, Menu, Home } from 'lucide-react';
 
 const adminNav = [
-  { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-  { label: 'Images', href: '/admin/images', icon: FileImage },
-  { label: 'Users', href: '/admin/users', icon: Users },
-  { label: 'Ads', href: '/admin/ads', icon: Image },
-  { label: 'Girlfriends', href: '/admin/girlfriends', icon: Heart },
-  { label: 'Character Cards', href: '/admin/character-cards', icon: FileImage },
-  { label: 'Lore', href: '/admin/lore', icon: BookOpen },
-  { label: 'Shop', href: '/admin/shop', icon: ShoppingBag },
-  { label: 'Review', href: '/admin/review', icon: CheckSquare },
-  { label: 'AI Models', href: '/admin/models', icon: Brain },
-  { label: 'Credits', href: '/admin/credits', icon: CreditCard },
-  { label: 'Crypto', href: '/admin/crypto', icon: CreditCard },
-  { label: 'Pages', href: '/admin/pages', icon: LayoutTemplate },
-  { label: 'Navigation', href: '/admin/navigation', icon: Menu },
+  { label: '仪表盘', href: '/admin', icon: LayoutDashboard },
+  { label: '女友管理', href: '/admin/girlfriends', icon: Heart },
+  { label: '图片管理', href: '/admin/images', icon: FileImage },
+  { label: '用户管理', href: '/admin/users', icon: Users },
+  { label: '审核管理', href: '/admin/review', icon: CheckSquare },
+  { label: 'AI 模型', href: '/admin/models', icon: Brain },
+  { label: '商城管理', href: '/admin/shop', icon: ShoppingBag },
+  { label: '角色卡', href: '/admin/character-cards', icon: FileImage },
+  { label: '广告管理', href: '/admin/ads', icon: Image },
+  { label: '世界观', href: '/admin/lore', icon: BookOpen },
+  { label: '积分管理', href: '/admin/credits', icon: CreditCard },
+  { label: '加密货币', href: '/admin/crypto', icon: CreditCard },
+  { label: '主页管理', href: '/admin/homepage', icon: Home },
+  { label: '页面管理', href: '/admin/pages', icon: LayoutTemplate },
+  { label: '导航管理', href: '/admin/navigation', icon: Menu },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -84,7 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       >
         <div className="flex h-14 items-center gap-2 border-b border-[#E2E8F0] px-6">
           <LayoutDashboard className="h-5 w-5 text-[#2563EB]" />
-          <span className="font-semibold text-[#1E293B]">Admin Panel</span>
+          <span className="font-semibold text-[#1E293B]">管理后台</span>
         </div>
         <ScrollArea className="h-[calc(100%-56px)] p-3">
           <nav className="flex flex-col gap-1">
@@ -115,7 +116,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               onClick={() => router.push('/gallery')}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
-              Back to App
+              返回前台
             </Button>
           </div>
         </ScrollArea>
