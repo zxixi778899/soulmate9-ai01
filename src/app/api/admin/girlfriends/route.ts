@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         name: body.name,
         age: ageCheck.age,
-        slug: body.slug || body.name.toLowerCase().replace(/\s+/g, '-'),
+        slug: body.slug || String(body.name || 'girlfriend').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `girlfriend-${Date.now()}`,
         personality: body.personality || '',
         tags: body.tags || [],
         short_description: body.short_description || '',
@@ -435,27 +435,37 @@ Generate EXACTLY ${count} characters. Use ONLY English.`;
   const created: Record<string, unknown>[] = [];
 
   for (const profile of profiles.slice(0, count)) {
-    const slug = profile.name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    // Defensive: ensure name is always a valid string
+    const rawName = String(profile.name || `Girl-${Date.now()}`).trim();
+    const safeName = rawName.length > 0 ? rawName : `Girl-${Date.now()}`;
+
+    // Generate slug with fallback - ensure it's never empty
+    let slugBase = safeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    if (!slugBase) slugBase = `girl-${Math.random().toString(36).slice(2, 8)}`;
+    const slug = `${slugBase}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+    // Ensure age is valid
+    const safeAge = Number(profile.age) >= 18 && Number(profile.age) <= 99 ? Number(profile.age) : 22;
 
     const { data, error: insertErr } = await supabase
       .from('girlfriends')
       .insert({
         user_id: user.id,
-        name: profile.name,
-        age: profile.age,
-        slug: `${slug}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        personality: profile.personality || '',
-        tags: profile.tags || [],
-        short_description: profile.short_description || '',
-        backstory: profile.backstory || '',
+        name: safeName,
+        age: safeAge,
+        slug,
+        personality: String(profile.personality || ''),
+        tags: Array.isArray(profile.tags) ? profile.tags : [],
+        short_description: String(profile.short_description || ''),
+        backstory: String(profile.backstory || ''),
         portrait_url: null,
         avatar_url: null,
-        appearance_race: profile.appearance?.race || '',
-        appearance_hair: profile.appearance?.hair || '',
-        appearance_hair_color: profile.appearance?.hair_color || '',
-        appearance_eyes: profile.appearance?.eyes || '',
-        appearance_body: profile.appearance?.body || '',
-        appearance_style: profile.appearance?.style || '',
+        appearance_race: String(profile.appearance?.race || ''),
+        appearance_hair: String(profile.appearance?.hair || ''),
+        appearance_hair_color: String(profile.appearance?.hair_color || ''),
+        appearance_eyes: String(profile.appearance?.eyes || ''),
+        appearance_body: String(profile.appearance?.body || ''),
+        appearance_style: String(profile.appearance?.style || ''),
         image_prompt: buildImagePrompt(profile),
         is_public: false,
         review_status: 'draft',
