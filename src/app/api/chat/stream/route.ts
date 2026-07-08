@@ -2,62 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { rateLimitMiddleware, RATE_LIMITS } from '@/lib/rate-limit';
 import { analyzeAndRoute } from '@/lib/llm-router';
-import { getCozeAccessToken, COZE_API_BASE, DEFAULT_LLM_MODEL } from '@/lib/coze-auth';
-import { streamTextSmart } from '@/lib/llm-service';
+import { generateText, streamTextSmart } from '@/lib/llm-service';
 import { logModelUsage, estimateTokens, estimateCost } from '@/lib/model-usage';
+import { checkAchievements } from '@/lib/achievement-checker';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // ============================================================
-//  Coze API coze_workload_identity  JWT token
+//  LLM call helper (non-streaming) — uses RunPod vLLM / Together AI
 // ============================================================
 
-/**
- *  LLM 
- */
 async function callLLM(
   messages: { role: string; content: string }[],
-  options?: { temperature?: number; model?: string },
+  options?: { temperature?: number },
 ): Promise<string> {
-  const token = await getCozeAccessToken();
-  const res = await fetch(`${COZE_API_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      model: options?.model || DEFAULT_LLM_MODEL,
-      messages,
-      temperature: options?.temperature ?? 0.7,
-      max_tokens: 1024,
-      stream: false,
-    }),
+  const systemMsg = messages.find((m) => m.role === 'system');
+  const userMsg = messages.find((m) => m.role === 'user');
+  const prompt = userMsg?.content || systemMsg?.content || messages[0]?.content || '';
+  return generateText({
+    prompt,
+    systemPrompt: userMsg ? systemMsg?.content : undefined,
+    temperature: options?.temperature ?? 0.7,
+    maxTokens: 1024,
   });
-  if (!res.ok) throw new Error(`LLM error: ${await res.text().catch(() => 'unknown')}`);
-
-  // Coze API always returns SSE even for non-stream
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error('No response body');
-  const decoder = new TextDecoder();
-  let fullContent = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    for (const line of chunk.split('\n')) {
-      if (line.startsWith('data: ')) {
-        try {
-          const parsed = JSON.parse(line.slice(6));
-          const delta = parsed?.choices?.[0]?.delta?.content;
-          if (delta) fullContent += delta;
-        } catch { /* skip [DONE] etc */ }
-      }
-    }
-  }
-  return fullContent.trim();
 }
 
 function buildCharacterPrompt(
@@ -221,7 +190,7 @@ async function detectEmotion(message: string): Promise<string> {
     const emotionPrompt = `Analyze the user's emotional state from this message in the context of a romantic relationship with their AI girlfriend. Return only one word: happy/sad/romantic/playful/angry/neutral/anxious. Message: "${message}"`;
     const text = await callLLM(
       [{ role: 'system', content: emotionPrompt }],
-      { model: 'doubao-seed-2-0-pro-260215', temperature: 0.1 },
+      { temperature: 0.1 },
     );
     const emotion = text.trim().toLowerCase();
     const validEmotions = ['happy', 'sad', 'romantic', 'playful', 'angry', 'neutral', 'anxious'];
@@ -463,37 +432,27 @@ export async function POST(request: NextRequest) {
     }).catch(() => {});
   }
 
-  //  Stream from Coze API (direct HTTP, no SDK) 
+  //  Stream from RunPod vLLM (primary) or Together AI (fallback)
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       let fullResponse = '';
       const streamStart = Date.now();
+      let providerName = 'vllm';
 
       try {
-        const token = await getCozeAccessToken();
-        const cozeRes = await fetch(`${COZE_API_BASE}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            model: routing.modelId,
-            messages: llmMessages,
-            temperature: routing.temperature,
-            max_tokens: 2048,
-            stream: true,
-          }),
+        // Use the unified streamText which tries RunPod vLLM → Together AI
+        const { response, provider, model: modelId } = await streamTextSmart({
+          messages: llmMessages,
+          temperature: routing.temperature,
+          maxTokens: 2048,
+          userTier: profile?.membership_tier,
         });
 
-        if (!cozeRes.ok) {
-          const errText = await cozeRes.text().catch(() => 'unknown');
-          throw new Error(`Coze API error (${cozeRes.status}): ${errText}`);
-        }
+        providerName = provider;
 
-        const reader = cozeRes.body?.getReader();
-        if (!reader) throw new Error('No response body from Coze API');
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body from LLM');
 
         const decoder = new TextDecoder();
 
@@ -503,26 +462,25 @@ export async function POST(request: NextRequest) {
 
           const chunk = decoder.decode(value, { stream: true });
           for (const line of chunk.split('\n')) {
-            if (line.startsWith('data: ')) {
-              const dataStr = line.slice(6).trim();
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
 
-              // Check for [DONE]
-              if (dataStr === '[DONE]') continue;
+            const dataStr = trimmed.slice(6).trim();
+            if (dataStr === '[DONE]') continue;
 
-              try {
-                const parsed = JSON.parse(dataStr);
+            try {
+              const parsed = JSON.parse(dataStr);
 
-                // Skip reasoning_content
-                const reasoningContent = parsed?.choices?.[0]?.delta?.reasoning_content;
-                if (reasoningContent) continue;
+              // Skip reasoning_content
+              const reasoningContent = parsed?.choices?.[0]?.delta?.reasoning_content;
+              if (reasoningContent) continue;
 
-                const delta = parsed?.choices?.[0]?.delta?.content;
-                if (delta) {
-                  fullResponse += delta;
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: delta })}\n\n`));
-                }
-              } catch { /* skip malformed lines */ }
-            }
+              const delta = parsed?.choices?.[0]?.delta?.content;
+              if (delta) {
+                fullResponse += delta;
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: delta })}\n\n`));
+              }
+            } catch { /* skip malformed */ }
           }
         }
 
@@ -541,93 +499,30 @@ export async function POST(request: NextRequest) {
         const inputTok = estimateTokens(systemPrompt + truncatedMessage);
         const outputTok = estimateTokens(fullResponse);
         logModelUsage({
-          provider: 'coze',
-          model_id: routing.modelId,
+          provider: providerName,
+          model_id: modelId,
           task_type: routing.taskType === 'image_generation' ? 'image_prompt' : routing.taskType,
           user_id: user.id,
           girlfriend_id,
           input_tokens: inputTok,
           output_tokens: outputTok,
           latency_ms: latencyMs,
-          cost_usd: estimateCost(inputTok, outputTok, 0.0004, 0.0012),
+          cost_usd: estimateCost(inputTok, outputTok, 0.0003, 0.0006),
           success: true,
         }).catch(() => {});
 
         // Extract memories from user message (fire and forget)
         extractMemories(client, user.id, girlfriend_id, message, gf.name).catch(() => {});
 
+        // Check achievements (fire and forget)
+        checkAchievements(client, user.id).catch(() => {});
+
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[chat-stream] streaming failed', { err: errMsg.slice(0, 200) });
 
-        // Try vLLM fallback if configured
-        const vllmUrl = process.env.RUNPOD_VLLM_URL;
-        if (vllmUrl) {
-          try {
-            const vllmResponse = await fetch(vllmUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.RUNPOD_VLLM_API_KEY || ''}`,
-              },
-              body: JSON.stringify({
-                model: process.env.RUNPOD_VLLM_MODEL || 'qwen2.5-7b',
-                messages: llmMessages,
-                temperature: 0.8,
-                max_tokens: 1024,
-                stream: true,
-              }),
-            });
-
-            if (vllmResponse.ok) {
-              const reader = vllmResponse.body?.getReader();
-              const decoder = new TextDecoder();
-
-              if (reader) {
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-
-                  const chunk = decoder.decode(value, { stream: true });
-                  const lines = chunk.split('\n').filter(l => l.trim());
-
-                  for (const line of lines) {
-                    if (line === 'data: [DONE]') continue;
-                    if (!line.startsWith('data: ')) continue;
-
-                    try {
-                      const json = JSON.parse(line.slice(6));
-                      const content = json.choices?.[0]?.delta?.content || '';
-                      if (content) {
-                        fullResponse += content;
-                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
-                      }
-                    } catch {}
-                  }
-                }
-
-                if (fullResponse) {
-                  await client.from('chat_messages').insert({
-                    user_id: user.id,
-                    girlfriend_id,
-                    role: 'assistant',
-                    content: fullResponse,
-                  });
-                }
-
-                // Extract memories (fire and forget)
-                extractMemories(client, user.id, girlfriend_id, message, gf.name).catch(() => {});
-
-                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                controller.close();
-                return;
-              }
-            }
-          } catch {}
-        }
-
-        // If all fallbacks fail, send error
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errMsg })}\n\n`));
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();

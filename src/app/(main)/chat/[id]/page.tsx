@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { IntimacyProgress } from '@/components/IntimacyProgress';
 import {
   Sheet,
   SheetContent,
@@ -407,6 +408,17 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           daily_score_gained: (prev.daily_score_gained || 0) + (intData.gained || 0),
         }));
       }
+
+      // Check achievements (fire and forget)
+      authedFetch('/api/v2/user/achievements').then(r => r.json()).then(data => {
+        const newUnlocks = (data.achievements || []).filter((a: any) => a.user_progress?.unlocked && !a.user_progress?.reward_claimed);
+        if (newUnlocks.length > 0) {
+          toast.success(`🏆 Achievement Unlocked: ${newUnlocks[0].name}!`, {
+            description: `+${newUnlocks[0].reward_tokens} tokens`,
+            duration: 4000,
+          });
+        }
+      }).catch(() => {});
     } catch (err) {
       logger.error('Send error:', { data: err });
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
@@ -449,6 +461,15 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       if (score >= l.min_score) level = l;
     }
     return level;
+  };
+
+  const FEATURE_UNLOCKS: Record<number, string[]> = {
+    1: ['basic_chat', 'view_profile'],
+    2: ['personalized_greetings', 'send_gifts'],
+    3: ['nsfw_chat', 'advanced_memories'],
+    4: ['wardrobe_access', 'character_depth'],
+    5: ['exclusive_outfits', 'deep_roleplay'],
+    6: ['voice_messages', 'custom_stories', 'special_title'],
   };
 
   const levelInfo = getLevelInfo(intimacy.score);
@@ -515,6 +536,21 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         isGenerating={isGenerating}
         onMemories={() => setShowMemories(true)}
       />
+
+      {/* Intimacy Progress Bar */}
+      <div className="px-2 sm:px-4 pt-1">
+        <IntimacyProgress
+          currentLevel={levelInfo.level}
+          progressPercent={(() => {
+            const curMin = INTIMACY_LEVELS[levelInfo.level - 1]?.min_score || 0;
+            const nextMin = INTIMACY_LEVELS[levelInfo.level]?.min_score || levelInfo.min_score + 100;
+            return Math.min(100, Math.round((intimacy.score - curMin) / (nextMin - curMin) * 100)) || 0;
+          })()}
+          intimacyScore={Math.round(intimacy.score)}
+          nextLevelName={INTIMACY_LEVELS[levelInfo.level]?.title}
+          unlockedFeatures={FEATURE_UNLOCKS[levelInfo.level] || []}
+        />
+      </div>
 
       <ChatStream
         scrollRef={scrollRef}
@@ -592,6 +628,29 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         selectedEnvironment={selectedEnvironment}
         setSelectedEnvironment={setSelectedEnvironment}
       />
+
+      {/* Quick Reply Suggestions */}
+      {!isSending && !isTyping && (
+        <div className="flex gap-2 overflow-x-auto px-4 pb-2 scrollbar-hide">
+          {[
+            { emoji: '❤️', text: 'I miss you', msg: 'I miss you so much right now...' },
+            { emoji: '😘', text: 'You\'re beautiful', msg: 'You look so beautiful today' },
+            { emoji: '💭', text: 'Tell me a story', msg: 'Tell me a story about us' },
+            { emoji: '🤗', text: 'Hug me', msg: '*hugs you tightly*' },
+            { emoji: '🌙', text: 'Goodnight', msg: 'Goodnight babe, sweet dreams 💕' },
+            { emoji: '🔥', text: 'What are you wearing?', msg: 'What are you wearing right now?' },
+          ].map((suggestion) => (
+            <button
+              key={suggestion.text}
+              onClick={() => sendMessage(suggestion.msg)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-white/[0.04] border border-white/[0.08] text-[#8B8BA3] hover:text-white hover:bg-white/[0.08] hover:border-[#FF2D78]/30 active:scale-95 transition-all"
+            >
+              <span>{suggestion.emoji}</span>
+              {suggestion.text}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Attachment Sheet */}
       <AttachmentsSheet

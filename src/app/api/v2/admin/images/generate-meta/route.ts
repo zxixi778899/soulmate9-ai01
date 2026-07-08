@@ -1,67 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCozeAccessToken, COZE_API_BASE, DEFAULT_LLM_MODEL } from '@/lib/coze-auth';
+import { generateText } from '@/lib/llm-service';
 import { requireAdmin } from '@/lib/require-admin';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// ============================================================
-//  Coze API coze_workload_identity  JWT token
-// ============================================================
-
 /**
- *  LLM 
- *  Coze  doubao-seed-2-0-pro 
+ * Unified LLM call via RunPod vLLM (or Together AI fallback).
+ * Previously used Coze doubao-seed-2-0-pro (removed — NSFW censorship).
  */
 async function callLLM(prompt: string): Promise<string> {
-  const token = await getCozeAccessToken();
-
-  const res = await fetch(`${COZE_API_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      model: DEFAULT_LLM_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 2048,
-      stream: false,
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => 'unknown');
-    throw new Error(`LLM API error ${res.status}: ${errText}`);
-  }
-
-  const text = await res.text();
-  
-  // Coze API  SSE  JSON
-  //  JSON 
-  try {
-    const json = JSON.parse(text);
-    const content = json?.choices?.[0]?.message?.content || json?.choices?.[0]?.delta?.content;
-    if (content) return content.trim();
-  } catch {
-    //  JSON SSE 
-  }
-  
-  //  SSE 
-  let content = '';
-  for (const line of text.split('\n')) {
-    if (line.startsWith('data: ')) {
-      try {
-        const parsed = JSON.parse(line.slice(6));
-        const delta = parsed?.choices?.[0]?.delta?.content || parsed?.choices?.[0]?.message?.content;
-        if (delta) content += delta;
-      } catch { /* skip [DONE] etc */ }
-    }
-  }
-
-  return content.trim();
+  return generateText({ prompt, temperature: 0.7, maxTokens: 2048 });
 }
 
 /**

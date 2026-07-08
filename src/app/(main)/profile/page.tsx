@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Heart, Crown, MessageCircle, Users, Activity, LogOut, Star,
   ShoppingBag, Shirt, Zap, Settings, Package, CreditCard, Gem,
-  Sparkles, Loader2, Check, User as UserIcon
+  Sparkles, Loader2, Check, User as UserIcon, Trophy
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -308,6 +308,54 @@ export default function ProfilePage() {
                       </Button>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Prize Progress - Awards Tracker */}
+              <Card className="border-white/[0.06] bg-gradient-to-br from-amber-500/[0.03] to-amber-500/[0.01]">
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-amber-400" />
+                    Prize Progress
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Prize tiers */}
+                  <div className="space-y-2">
+                    {[
+                      { tier: 'Gold', reward: 'iPhone 16 Pro Max', target: '$5,000', icon: '📱', color: 'from-amber-400 to-yellow-500', bg: 'bg-amber-500/5 border-amber-500/20' },
+                      { tier: 'Silver', reward: 'AirPods Pro 2', target: '$2,500', icon: '🎧', color: 'from-slate-300 to-slate-400', bg: 'bg-slate-400/5 border-slate-400/20' },
+                      { tier: 'Bronze', reward: '$100 App Store Gift', target: '$500', icon: '🎁', color: 'from-amber-600 to-amber-700', bg: 'bg-amber-600/5 border-amber-600/20' },
+                    ].map((prize) => {
+                      const percent = Math.min(100, Math.round((0 / parseFloat(prize.target.replace('$','').replace(',',''))) * 100));
+                      return (
+                        <div key={prize.tier} className={`p-3 rounded-xl border ${prize.bg}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{prize.icon}</span>
+                              <div>
+                                <p className="text-xs font-semibold text-[#F0F0F5]">{prize.reward}</p>
+                                <p className="text-[10px] text-[#8B8BA3]">{prize.tier} Tier · Spend {prize.target}</p>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-[#8B8BA3]">0%</span>
+                          </div>
+                          <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                            <div className={`h-full bg-gradient-to-r ${prize.color} rounded-full`} style={{ width: '2%' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs gap-1.5 border-amber-500/20 text-amber-400 hover:bg-amber-500/10"
+                    onClick={() => router.push('/achievements')}
+                  >
+                    <Trophy className="h-3.5 w-3.5" />
+                    View All Achievements
+                  </Button>
                 </CardContent>
               </Card>
 

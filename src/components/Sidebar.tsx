@@ -8,7 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { APP_NAME, INTIMACY_LEVELS } from '@/lib/constants';
 import { authedFetch } from '@/lib/supabase';
-import { Heart, MessageCircle, ShoppingBag, User, LogOut, Plus, Sparkles, LayoutGrid, Shield, CreditCard, Bell, Receipt } from 'lucide-react';
+import { Heart, MessageCircle, ShoppingBag, User, LogOut, Plus, Sparkles, LayoutGrid, Shield, CreditCard, Bell, Receipt, Trophy } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/lib/i18n/context';
 import type { TranslationKey } from '@/lib/i18n/types';
@@ -110,9 +110,9 @@ export function Sidebar() {
   ];
 
   const bottomNavItems = [
+    { icon: Trophy, labelKey: 'nav.achievements', path: '/achievements' },
     { icon: CreditCard, labelKey: 'nav.pricing', path: '/pricing' },
     { icon: Receipt, labelKey: 'nav.purchases', path: '/purchases' },
-    { icon: Shield, labelKey: 'nav.admin', path: '/admin' },
   ];
 
   return (

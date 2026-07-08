@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/require-admin';
 import { uploadFile } from '@/lib/storage';
 
 //  RunPod credentials  MUST come from environment variables 
@@ -139,6 +140,11 @@ function sseEvent(event: string, data: unknown) {
 }
 
 export async function POST(req: NextRequest) {
+  // Admin-only: this endpoint scans and mutates the entire girlfriends table
+  // and consumes billable GPU time, not scoped to the caller's own data.
+  const guard = await requireAdmin(req);
+  if (guard.error) return guard.error;
+
   const auth = await getAuthUser(req);
   if (!auth.user) {
     return new NextResponse('Unauthorized', { status: 401 });
@@ -205,7 +211,7 @@ export async function POST(req: NextRequest) {
           const buffer = Buffer.from(imageBase64, 'base64');
           const filename = `girlfriend_${item.id}_${Date.now()}.png`;
           const folder = `girlfriends/${item.id}`;
-          const url = await uploadFile(buffer, filename, 'image/png', folder);
+          const { url } = await uploadFile(buffer, filename, 'image/png', folder);
 
           // Update DB
           await supabase.from('girlfriends').update({ avatar_url: url }).eq('id', item.id);

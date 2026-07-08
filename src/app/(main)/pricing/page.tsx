@@ -111,20 +111,9 @@ function PricingContent() {
       const data = await res.json();
 
       if (!res.ok) {
-        const fallbackRes = await authedFetch('/api/membership', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: planId }),
-        });
-        const fallbackData = await fallbackRes.json();
-        if (fallbackData.success) {
-          toast.success(`Upgraded to ${planId.charAt(0).toUpperCase() + planId.slice(1)}!`, {
-            description: 'Welcome aboard! Enjoy all the features.',
-          });
-          router.refresh();
-          setLoading(null);
-          return;
-        }
+        // NOTE: do NOT add a fallback here that calls /api/membership POST to
+        // grant the plan directly — that endpoint must never upgrade a user
+        // without a verified Stripe payment. See src/app/api/membership/route.ts.
         toast.error(data.error || 'Upgrade failed. Please try again.');
         setLoading(null);
         return;

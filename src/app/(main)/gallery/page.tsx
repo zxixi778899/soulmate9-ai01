@@ -27,6 +27,7 @@ import {
   ImagePlus,
   Search,
   ArrowUpDown,
+  Star,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -69,6 +70,15 @@ export default function GalleryPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'name'>('newest');
+  const [featured, setFeatured] = useState<any[]>([]);
+
+  // Fetch featured girlfriends
+  useEffect(() => {
+    authedFetch('/api/v2/girlfriends/featured')
+      .then(r => r.json())
+      .then(d => setFeatured(d.featured_girlfriends || []))
+      .catch(() => {});
+  }, []);
 
   const filteredGirlfriends = useMemo(() => {
     let list = [...girlfriends];
@@ -241,6 +251,35 @@ export default function GalleryPage() {
           </div>
         </div>
       </div>
+
+      {/* Featured Girlfriends */}
+      {featured.length > 0 && (
+        <div className="px-4 sm:px-8 pt-6 pb-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Star className="h-4 w-4 text-amber-400" />
+            <span className="text-sm font-semibold text-[#F0F0F5]">Featured Companions</span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {featured.map((gf: any) => (
+              <button
+                key={gf.id}
+                onClick={() => router.push(`/chat/${gf.base_girlfriend_id || gf.id}`)}
+                className="flex-shrink-0 w-36 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:border-accent/40 hover:bg-white/[0.08] transition-all overflow-hidden group"
+              >
+                <div className="aspect-[3/4] bg-gradient-to-b from-accent/20 to-accent/5 relative">
+                  <span className="absolute inset-0 flex items-center justify-center text-4xl">
+                    {gf.name.charAt(0)}
+                  </span>
+                </div>
+                <div className="p-2.5 text-left">
+                  <p className="text-xs font-semibold text-[#F0F0F5] truncate">{gf.name}</p>
+                  <p className="text-[10px] text-[#8B8BA3] truncate mt-0.5">{gf.subtitle}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 p-4 sm:p-8">

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getCozeAccessToken, COZE_API_BASE } from '@/lib/coze-auth';
+import { generateText } from '@/lib/llm-service';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
 import { requireAdmin } from '@/lib/require-admin';
@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for batch generation
 
 // ============================================================
-// v2  SSE 
+// v2 batch image generation (SSE)
 // ============================================================
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || '';
@@ -17,37 +17,15 @@ const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID || '';
 const RUNPOD_BASE_URL = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}`;
 
 async function callLLM(messages: { role: string; content: string }[]): Promise<string> {
-  const token = await getCozeAccessToken();
-  const res = await fetch(`${COZE_API_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      model: 'doubao-seed-2-0-pro-260215',
-      messages,
-      temperature: 0.8,
-      max_tokens: 1024,
-      stream: false,
-    }),
+  const systemMsg = messages.find((m) => m.role === 'system');
+  const userMsg = messages.find((m) => m.role === 'user');
+  return generateText({
+    prompt: userMsg?.content || '',
+    systemPrompt: systemMsg?.content,
+    temperature: 0.8,
+    maxTokens: 1024,
   });
-  if (!res.ok) throw new Error(`LLM error: ${await res.text().catch(() => 'unknown')}`);
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error('No response body');
-  const decoder = new TextDecoder();
-  let fullContent = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    for (const line of chunk.split('\n')) {
-      if (line.startsWith('data: ')) {
-        try {
-          const parsed = JSON.parse(line.slice(6));
-          const delta = parsed?.choices?.[0]?.delta?.content;
-          if (delta) fullContent += delta;
-        } catch {}
+}
       }
     }
   }

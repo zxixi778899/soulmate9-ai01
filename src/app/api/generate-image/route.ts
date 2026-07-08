@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { getCozeAccessToken, COZE_API_BASE } from '@/lib/coze-auth';
+import { runpodClient } from '@/lib/runpod';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 
 const IMAGE_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 }; // 10/h/user
 
+/**
+ * POST /api/generate-image
+ *
+ * Generates an image using RunPod FLUX (self-hosted, uncensored).
+ * Previously used Coze doubao model (removed — NSFW censorship).
+ */
 export async function POST(request: NextRequest) {
   const { user, error: authError } = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Coze doubao 
   const rl = await checkRateLimitAsync(`gen-img:${user.id}`, IMAGE_GEN_LIMIT);
   if (!rl.allowed) {
     return NextResponse.json(
@@ -30,66 +35,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
     }
 
-    const token = await getCozeAccessToken();
-
-    // Call Coze API directly via HTTP (no SDK, no OpenAI dependency)
-    const genRes = await fetch(`${COZE_API_BASE}/images/generations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        model: 'doubao-seed-2-0-pro-260215',
-        prompt,
-        n: 1,
-        size: String(size),
-      }),
-    });
-
-    if (!genRes.ok) {
-      const errText = await genRes.text();
+    const [width, height] = String(size).split('x').map(Number);
+    if (!runpodClient.isConfigured) {
       return NextResponse.json(
-        { error: `Image generation API failed (${genRes.status}): ${errText}` },
-        { status: 502 }
+        { error: 'Image generation is not configured. Set RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID.' },
+        { status: 500 },
       );
     }
 
-    const genData = await genRes.json();
-    const rawImages = (genData.data || []) as Array<{ url?: string }>;
+    // Generate via RunPod FLUX (returns base64 images)
+    const result = await runpodClient.generate({
+      prompt,
+      width: width || 1024,
+      height: height || 1024,
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
+    });
 
-    //  OSS URL   data URL   OSS   URL
+    // Upload each generated image to S3 and resolve public URLs
     const images = await Promise.all(
-      rawImages.map(async (item) => {
-        const tempUrl = item.url || '';
-        if (!tempUrl) {
-          return { url: '', prompt };
-        }
+      result.images.map(async (base64Data) => {
+        if (!base64Data) return { url: '', prompt };
         try {
-          const imgRes = await fetch(tempUrl);
-          if (!imgRes.ok) {
-            logger.error('Failed to fetch generated image:', { data: imgRes.status });
-            return { url: '', prompt };
-          }
-          const buf = Buffer.from(await imgRes.arrayBuffer());
-          const ct = imgRes.headers.get('content-type') || 'image/png';
-          const dataUrl = `data:${ct};base64,${buf.toString('base64')}`;
+          const dataUrl = `data:image/png;base64,${base64Data}`;
           const key = await uploadDataUrl(dataUrl, 'chat-images');
           const signed = await resolveImageUrl(key);
           return { url: signed, key, prompt };
         } catch (e) {
-          logger.error('OSS upload failed for generated image:', { data: e });
+          logger.error('Upload failed for generated image:', { data: e });
           return { url: '', prompt };
         }
-      })
+      }),
     );
 
-    return NextResponse.json({ images });
+    return NextResponse.json({ images, job_id: result.job_id });
   } catch (error) {
     logger.error('Image generation error:', { data: error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Image generation failed' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

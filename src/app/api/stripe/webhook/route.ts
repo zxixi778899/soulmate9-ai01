@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe-server';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
@@ -60,7 +61,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as any;
+    // `subscription_details.current_period_end` is present on the raw Stripe
+    // payload for subscription-mode checkout sessions but isn't always in the
+    // installed SDK's type definitions across versions, so we extend narrowly
+    // instead of casting the whole object to `any`.
+    const session = event.data.object as Stripe.Checkout.Session & {
+      subscription_details?: { current_period_end?: number };
+    };
     const userId = session.metadata?.user_id || session.client_reference_id;
     const plan = session.metadata?.plan || 'pro';
 
@@ -115,8 +122,9 @@ export async function POST(req: NextRequest) {
   // ── invoice.payment_failed ────────────────────────────────────────
   if (event.type === 'invoice.payment_failed') {
     try {
-      const invoice = event.data.object as any;
-      const stripeCustomerId: string | undefined = invoice.customer;
+      const invoice = event.data.object as Stripe.Invoice;
+      const stripeCustomerId: string | undefined =
+        typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
 
       // Resolve user_id: prefer subscription metadata, fall back to DB lookup
       let userId: string | undefined = invoice.metadata?.user_id;
@@ -163,9 +171,12 @@ export async function POST(req: NextRequest) {
   // ── customer.subscription.updated ─────────────────────────────────
   if (event.type === 'customer.subscription.updated') {
     try {
-      const subscription = event.data.object as any;
-      const previousAttributes = event.data.previous_attributes as any;
-      const stripeCustomerId: string = subscription.customer;
+      const subscription = event.data.object as Stripe.Subscription;
+      const previousAttributes = event.data.previous_attributes as
+        | Partial<Stripe.Subscription>
+        | undefined;
+      const stripeCustomerId: string =
+        typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
 
       // Resolve user_id
       let userId: string | undefined = subscription.metadata?.user_id;
@@ -240,8 +251,9 @@ export async function POST(req: NextRequest) {
   // ── customer.subscription.deleted ─────────────────────────────────
   if (event.type === 'customer.subscription.deleted') {
     try {
-      const subscription = event.data.object as any;
-      const stripeCustomerId: string | undefined = subscription.customer;
+      const subscription = event.data.object as Stripe.Subscription;
+      const stripeCustomerId: string | undefined =
+        typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
 
       // Resolve user_id: prefer metadata, fall back to DB lookup
       let userId: string | undefined = subscription.metadata?.user_id;

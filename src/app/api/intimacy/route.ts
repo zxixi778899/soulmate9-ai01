@@ -44,7 +44,29 @@ export const POST = withAuthBody(
     .single();
 
   if (!current) {
-    return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
+    // Auto-create intimacy record on first interaction
+    const today = new Date().toISOString().split('T')[0];
+    const { data: created } = await client
+      .from('intimacy_scores')
+      .insert({
+        user_id: user.id,
+        girlfriend_id,
+        score: 1,
+        level: 1,
+        last_interacted_at: new Date().toISOString(),
+        daily_message_count: 1,
+        daily_score_gained: 1,
+        last_daily_reset: today,
+      })
+      .select('*')
+      .single();
+
+    return NextResponse.json({
+      gained: 1,
+      score: 1,
+      level: 1,
+      daily_score_gained: 1,
+    });
   }
 
   // Check for active cap unlock item

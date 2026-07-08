@@ -10,10 +10,10 @@
  * - EmptyLatentImage  KSampler  VAEDecode  SaveImage
  */
 
-import fs from 'node:fs';
 import { uploadFile } from './storage';
 import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
 import { capture, AnalyticsEvents } from './analytics';
+import { logger } from './logger';
 
 // 
 // RunPod credentials  MUST come from environment variables
@@ -278,15 +278,13 @@ class RunPodClient {
       },
     };
     const bodyStr = JSON.stringify(requestBody);
-    const debugLog = `[RUNPOD_DEBUG ${new Date().toISOString()}] endpoint: ${this.baseUrl} workflow_keys: ${Object.keys(workflow).join(',')}\n`;
-    fs.appendFileSync('/app/work/logs/bypass//dev.log', debugLog);
-    const bodyPreview = bodyStr.length > 300 ? bodyStr.substring(0, 300) : bodyStr;
-    fs.appendFileSync('/app/work/logs/bypass//dev.log', `[RUNPOD_DEBUG] body_preview: ${bodyPreview}\n`);
+    logger.debug('[runpod] submit', { data: { endpoint: this.baseUrl, workflow_keys: Object.keys(workflow) } });
 
     const submitRes = await fetch(`${this.baseUrl}/run`, {
       method: 'POST',
       headers: this.headers,
       body: bodyStr,
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!submitRes.ok) {
@@ -295,13 +293,18 @@ class RunPodClient {
     }
 
     const { id } = await submitRes.json() as { id: string };
-    fs.appendFileSync('/app/work/logs/bypass//dev.log', `[RUNPOD_DEBUG] job submitted, id: ${id}\n`);
+    logger.debug('[runpod] job submitted', { data: { id } });
 
-    // Step 2: Poll until COMPLETED or FAILED
-    const maxAttempts = 120;
+    // Step 2: Poll until COMPLETED or FAILED.
+    // Keep this comfortably under typical serverless platform request timeouts
+    // (Vercel/Railway usually kill long-lived requests well before 6 minutes).
+    // If callers need longer generations they should move to job_id + async polling
+    // from the client instead of blocking a single request for the whole duration.
+    const maxAttempts = Math.floor(80000 / pollIntervalMs) || 1; // ~80s budget
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const statusRes = await fetch(`${this.baseUrl}/status/${id}`, {
         headers: this.headers,
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!statusRes.ok) {
@@ -326,7 +329,7 @@ class RunPodClient {
           };
         }
         case 'FAILED':
-          try { fs.appendFileSync('/app/work/logs/bypass//dev.log', `[RUNPOD_DEBUG] FAILED id:${id} error:${status.error} full:${JSON.stringify(status).substring(0,1000)}\n`); } catch(e) {}
+          logger.error('[runpod] job failed', { data: { id, error: status.error, status } });
           throw new Error(`RunPod generation failed: ${status.error || 'Unknown error'}`);
         case 'IN_QUEUE':
         case 'IN_PROGRESS':
@@ -335,7 +338,7 @@ class RunPodClient {
       }
     }
 
-    throw new Error(`RunPod generation timed out after ${maxAttempts * pollIntervalMs}ms`);
+    throw new Error(`RunPod generation timed out after ${maxAttempts * pollIntervalMs}ms (job_id: still running remotely, consider async polling)`);
   }
 
   /**

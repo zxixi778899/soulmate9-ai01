@@ -104,7 +104,7 @@
     "eslint-config-next": "15.5.20",
     "only-allow": "^1.2.2",
     "react-dev-inspector": "^2.0.1",
-    "shadcn": "latest",
+    "shadcn": "4.13.0",
     "tailwindcss": "^4",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",

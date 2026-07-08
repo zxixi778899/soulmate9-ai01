@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShoppingBag, Heart, Sparkles, Lock, Star, Gift, Coins, X } from 'lucide-react';
+import { ShoppingBag, Heart, Sparkles, Lock, Star, Gift, Coins, X, Shirt } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 
@@ -47,6 +47,18 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: 'unlimited-msg', name: 'Unlimited Messages', emoji: '', description: 'No message limits for 48 hours', price_cents: 1000, item_type: 'cap_unlock', effect_value: { effect_type: 'unlimited_messages', duration_hours: 48 }, tier: 'premium' },
   { id: 'valentine-special', name: "Valentine's Special Box", emoji: '', description: 'Exclusive box with 300 intimacy boost', price_cents: 2000, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 300 }, tier: 'premium', is_limited: true },
 ];
+
+const OUTFITS: ShopItem[] = [
+  { id: 'classic-dress', name: 'Classic Dress', emoji: '', description: 'Elegant everyday dress for casual dates', price_cents: 200, item_type: 'outfit', effect_value: { intimacy_boost: 5 }, tier: 'free' },
+  { id: 'beach-bikini', name: 'Beach Bikini', emoji: '', description: 'Stunning bikini for beach dates', price_cents: 800, item_type: 'outfit', effect_value: { intimacy_boost: 25 }, tier: 'premium' },
+  { id: 'yoga-set', name: 'Yoga Activewear', emoji: '', description: 'Form-fitting activewear for gym dates', price_cents: 600, item_type: 'outfit', effect_value: { intimacy_boost: 20 }, tier: 'premium' },
+  { id: 'evening-gown', name: 'Evening Gown', emoji: '', description: 'Red carpet gown for special nights', price_cents: 1500, item_type: 'outfit', effect_value: { intimacy_boost: 50 }, tier: 'premium' },
+  { id: 'silk-lingerie', name: 'Silk Lingerie', emoji: '', description: 'Delicate silk for intimate moments', price_cents: 3000, item_type: 'outfit', effect_value: { intimacy_boost: 100 }, tier: 'premium' },
+  { id: 'nurse-costume', name: 'Nurse Costume', emoji: '', description: 'Playful nurse fantasy roleplay', price_cents: 2000, item_type: 'outfit', effect_value: { intimacy_boost: 80 }, tier: 'premium' },
+  { id: 'maid-costume', name: 'French Maid', emoji: '', description: 'Classic French maid, timeless fantasy', price_cents: 2500, item_type: 'outfit', effect_value: { intimacy_boost: 90 }, tier: 'premium' },
+];
+
+const ALL_ITEMS = [...SHOP_ITEMS, ...OUTFITS];
 
 const getCategory = (item: ShopItem): string => {
   if (item.item_type === 'outfit') return 'outfits';
@@ -140,10 +152,11 @@ export default function ShopPage() {
             <div className="flex items-center gap-1.5 text-sm bg-white/[0.04] rounded-lg px-3 py-1.5 border border-white/[0.06]">
               <Coins className="h-4 w-4 text-amber-400" />
               <span className="font-semibold">{credits?.credits_remaining ?? '...'}</span>
+              <span className="text-[10px] text-[#8B8BA3]">credits</span>
             </div>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => router.push('/wardrobe')}>
-              <Heart className="h-3.5 w-3.5" />
-              Wardrobe
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs border-amber-500/20 text-amber-400 hover:bg-amber-500/10" onClick={() => router.push('/pricing')}>
+              <Coins className="h-3.5 w-3.5" />
+              Get Tokens
             </Button>
           </div>
         </div>
@@ -155,14 +168,15 @@ export default function ShopPage() {
           <TabsList className="mb-6 overflow-x-auto w-full justify-start sm:justify-center">
             <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
             <TabsTrigger value="gifts" className="text-xs">Gifts</TabsTrigger>
+            <TabsTrigger value="outfits" className="text-xs"><Shirt className="h-3 w-3 mr-1" />Outfits</TabsTrigger>
             <TabsTrigger value="boosts" className="text-xs">Boosts</TabsTrigger>
             <TabsTrigger value="limited" className="text-xs">Limited</TabsTrigger>
           </TabsList>
 
-          {['all', 'gifts', 'boosts', 'limited'].map((tab) => (
+          {['all', 'gifts', 'outfits', 'boosts', 'limited'].map((tab) => (
             <TabsContent key={tab} value={tab}>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {SHOP_ITEMS
+                {ALL_ITEMS
                   .filter(i => tab === 'all' || getCategory(i) === tab)
                   .map((item) => (
                     <Card key={item.id} className="border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors overflow-hidden">
@@ -208,7 +222,7 @@ export default function ShopPage() {
                     </Card>
                   ))}
               </div>
-              {SHOP_ITEMS.filter(i => tab === 'all' || getCategory(i) === tab).length === 0 && (
+              {ALL_ITEMS.filter(i => tab === 'all' || getCategory(i) === tab).length === 0 && (
                 <div className="text-center py-20">
                   <ShoppingBag className="h-10 w-10 text-[#8B8BA3]/30 mx-auto mb-3" />
                   <p className="text-sm text-[#8B8BA3]">No items in this category yet</p>

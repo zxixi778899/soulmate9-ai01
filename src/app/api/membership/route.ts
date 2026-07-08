@@ -95,22 +95,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
   }
 
-  // Stripe checkout URL (placeholder  set STRIPE_PUBLISHABLE_KEY + STRIPE_SECRET_KEY in env)
-  const stripePriceIds: Record<string, string> = {
-    pro: process.env.STRIPE_PRICE_PREMIUM || '',
-    unlimited: process.env.STRIPE_PRICE_UNLIMITED || '',
-  };
-
-  if (!stripePriceIds[plan]) {
-    return NextResponse.json({ 
-      error: 'Payment system not configured. Please contact support.',
-    }, { status: 503 });
-  }
-
-  // Stripe keys exist but no checkout URL generated yet - return error
+  // SECURITY: this endpoint must NEVER grant a membership tier directly.
+  // Upgrades only happen via a verified Stripe payment — see
+  // /api/stripe/checkout (creates the session) and /api/stripe/webhook
+  // (grants the tier on checkout.session.completed). Do not add logic here
+  // that flips membership_tier without a payment provider confirming the
+  // charge; a prior version of this endpoint returned `{success: true}`
+  // when Stripe was unconfigured, letting users upgrade for free.
   return NextResponse.json({
-    error: 'Checkout session creation failed. Please try again.',
-  }, { status: 500 });
+    error: 'Direct membership upgrades are not supported. Please use the checkout flow.',
+  }, { status: 403 });
 }
 
 export async function PATCH(req: NextRequest) {
