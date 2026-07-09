@@ -49,7 +49,7 @@ export interface Girl {
   id: string;
   name: string;
   tagline: string;
-  avatar: string;
+  avatar?: string;
   tags: string[];
   rarity?: Rarity;
   intimacy?: number; // 0-100
