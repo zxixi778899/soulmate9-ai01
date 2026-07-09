@@ -446,7 +446,6 @@ export async function POST(request: NextRequest) {
           messages: llmMessages,
           temperature: routing.temperature,
           maxTokens: 2048,
-          userTier: profile?.membership_tier,
         });
 
         providerName = provider;

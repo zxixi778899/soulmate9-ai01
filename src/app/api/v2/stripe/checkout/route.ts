@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const stripe = new Stripe(stripeKey, { apiVersion: '2025-06-16.basil' });
+    const stripe = new Stripe(stripeKey);
     const body = await req.json().catch(() => ({}));
     const { type, package_id, price_id } = body;
 

@@ -47,6 +47,7 @@ import {
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 import { useMembership } from '@/hooks/useMembership';
+import { toast } from 'sonner';
 
 type Message = {
   id: string;
@@ -472,6 +473,18 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     6: ['voice_messages', 'custom_stories', 'special_title'],
   };
 
+  function computeProgress(score: number, level: number): number {
+    if (level >= INTIMACY_LEVELS.length) return 100;
+    const curMin = (INTIMACY_LEVELS[level - 1] as any)?.min_score || 0;
+    const nextMin = (INTIMACY_LEVELS[level] as any)?.min_score || curMin + 100;
+    return Math.min(100, Math.round((score - curMin) / (nextMin - curMin) * 100)) || 0;
+  }
+
+  function getNextLevelTitle(level: number): string | undefined {
+    if (level >= INTIMACY_LEVELS.length) return undefined;
+    return (INTIMACY_LEVELS[level] as any)?.title;
+  }
+
   const levelInfo = getLevelInfo(intimacy.score);
 
   // Group messages by day + consecutive-merge (for IM look)
@@ -541,13 +554,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       <div className="px-2 sm:px-4 pt-1">
         <IntimacyProgress
           currentLevel={levelInfo.level}
-          progressPercent={(() => {
-            const curMin = INTIMACY_LEVELS[levelInfo.level - 1]?.min_score || 0;
-            const nextMin = INTIMACY_LEVELS[levelInfo.level]?.min_score || levelInfo.min_score + 100;
-            return Math.min(100, Math.round((intimacy.score - curMin) / (nextMin - curMin) * 100)) || 0;
-          })()}
+          progressPercent={computeProgress(intimacy.score, levelInfo.level)}
           intimacyScore={Math.round(intimacy.score)}
-          nextLevelName={INTIMACY_LEVELS[levelInfo.level]?.title}
+          nextLevelName={getNextLevelTitle(levelInfo.level)}
           unlockedFeatures={FEATURE_UNLOCKS[levelInfo.level] || []}
         />
       </div>

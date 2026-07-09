@@ -67,16 +67,16 @@ export function ErrorState({ message, onRetry }: { message?: string; onRetry?: (
  * Auth guard wrapper — redirects to login if no user.
  */
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!isLoading && !user) {
       router.push('/login');
     }
-  }, [user, loading, router]);
+  }, [user, isLoading, router]);
 
-  if (loading) return <PageLoading message="Checking session..." />;
+  if (isLoading) return <PageLoading message="Checking session..." />;
   if (!user) return null;
 
   return <>{children}</>;

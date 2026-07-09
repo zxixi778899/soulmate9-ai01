@@ -26,11 +26,6 @@ async function callLLM(messages: { role: string; content: string }[]): Promise<s
     maxTokens: 1024,
   });
 }
-      }
-    }
-  }
-  return fullContent.trim();
-}
 
 //    // 
 const QUALITY_DIRECTION = "ultra photorealistic, shot on Canon EOS R5 with 85mm f/1.4 lens, shallow depth of field, creamy bokeh, magazine cover quality, 8K UHD, visible natural skin texture, natural skin pores and subtle imperfections, no plastic smoothing, no AI artifacts, hyperrealistic photograph, natural film grain";

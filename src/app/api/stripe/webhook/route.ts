@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
       }
 
       const currentStatus: string = subscription.status;
-      const previousStatus: string | undefined = previousAttributes?.status;
+      const previousStatus: string | undefined = previousAttributes?.status ?? undefined;
 
       // If status changed to past_due, log warning but do NOT downgrade yet
       if (currentStatus === 'past_due') {
@@ -211,8 +211,8 @@ export async function POST(req: NextRequest) {
 
       if (planChanged && userId) {
         // Derive tier from the new price lookup key or product metadata
-        const newPriceId: string | undefined = currItems?.[0]?.price?.id;
-        const newLookupKey: string | undefined = currItems?.[0]?.price?.lookup_key;
+        const newPriceId: string | undefined = currItems?.[0]?.price?.id ?? undefined;
+        const newLookupKey: string | undefined = currItems?.[0]?.price?.lookup_key ?? undefined;
 
         const tierMap: Record<string, string> = {
           pro: 'pro',
