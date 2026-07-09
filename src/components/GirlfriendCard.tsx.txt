@@ -1,0 +1,54 @@
+'use client';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
+import { useRef } from 'react';
+
+interface Girl {
+  id: string;
+  name: string;
+  avatar: string;
+  tagline: string;
+  tags: string[];
+  intimacy: number;
+  rarity: 'R' | 'SR' | 'SSR';
+}
+
+export default function GirlfriendCard({ girl, onSelect }: { girl: Girl; onSelect: (girl: Girl) => void }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const rotateX = useTransform(y, [-200, 200], [18, -18]);
+  const rotateY = useTransform(x, [-200, 200], [-18, 18]);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const mx = (e.clientX - rect.left - rect.width / 2) * 0.9;
+    const my = (e.clientY - rect.top - rect.height / 2) * 0.9;
+    x.set(mx);
+    y.set(my);
+  };
+
+  const handleMouseLeave = () => { x.set(0); y.set(0); };
+
+  return (
+    <motion.div
+      ref={cardRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ rotateX, rotateY }}
+      whileHover={{ scale: 1.04 }}
+      className="relative w-full max-w-[280px] h-[420px] rounded-3xl overflow-hidden border-2 border-rose-500/50 bg-zinc-950 cursor-pointer group"
+      onClick={() => onSelect(girl)}
+    >
+      <div className="relative h-80 overflow-hidden">
+        <img src={girl.avatar} alt={girl.name} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-black/90" />
+      </div>
+      <div className="p-5">
+        <h3 className="text-2xl font-bold">OOXX • {girl.name}</h3>
+        <p className="text-rose-300">{girl.tagline}</p>
+        <button className="mt-4 w-full py-3 bg-gradient-to-r from-rose-600 to-purple-600 rounded-2xl">UNLEASH</button>
+      </div>
+    </motion.div>
+  );
+}

@@ -74,34 +74,34 @@ export function Sidebar() {
   };
   const getInitials = (name: string) => name.charAt(0).toUpperCase();
 
-  const navItems = [
-    { icon: LayoutGrid, labelKey: 'nav.gallery' as TranslationKey, path: '/gallery' },
-    { icon: MessageCircle, labelKey: 'nav.messages' as TranslationKey, path: '/messages' },
-    { icon: ShoppingBag, labelKey: 'nav.shop' as TranslationKey, path: '/shop' },
-    { icon: User, labelKey: 'nav.profile' as TranslationKey, path: '/profile' },
+  const navItems: { icon: typeof LayoutGrid; label: string; path: string }[] = [
+    { icon: LayoutGrid, label: 'Explore', path: '/explore' },
+    { icon: MessageCircle, label: 'Chats', path: '/chats' },
+    { icon: ShoppingBag, label: 'Shop', path: '/shop' },
+    { icon: Plus, label: 'Create', path: '/create' },
+    { icon: User, label: 'Profile', path: '/profile' },
   ];
   const bottomItems = [
-    { icon: Trophy, labelKey: 'nav.achievements' as TranslationKey, path: '/achievements' },
-    { icon: CreditCard, labelKey: 'nav.pricing' as TranslationKey, path: '/pricing' },
-    { icon: Receipt, labelKey: 'nav.purchases' as TranslationKey, path: '/purchases' },
+    { icon: Trophy, label: 'Achievements', path: '/achievements' },
+    { icon: CreditCard, label: 'Pricing', path: '/pricing' },
+    { icon: Receipt, label: 'Purchases', path: '/purchases' },
   ];
 
   return (
     <aside
-      className="relative hidden md:flex w-72 lg:w-80 flex-col border-r border-white/[0.06] bg-black/30 backdrop-blur-3xl"
-      style={{
-        background: 'linear-gradient(180deg, rgba(10,10,20,0.6) 0%, rgba(5,5,9,0.4) 100%)',
-      }}
+      className="relative hidden md:flex w-72 lg:w-80 flex-col border-r border-white/[0.06] bg-[#0B0B0B] backdrop-blur-3xl"
     >
       {/* Logo + actions */}
       <div className="relative flex h-16 items-center justify-between border-b border-white/[0.06] px-5">
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-[#FF2D78] to-[#A855F7] opacity-60 blur" />
-            <Heart className="relative h-5 w-5 text-white" fill="currentColor" />
+          <div
+            className="flex h-7 w-7 items-center justify-center rounded-full"
+            style={{ background: 'linear-gradient(137.55deg, #D05BF8 16.35%, #FF18A0 83.31%)' }}
+          >
+            <Heart className="h-4 w-4 text-white" fill="currentColor" />
           </div>
-          <span className="font-display text-base font-semibold tracking-tight bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
-            {APP_NAME}
+          <span className="font-bold text-base tracking-tight text-white">
+            SoulMate
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -140,14 +140,14 @@ export function Sidebar() {
               key={item.path}
               onClick={() => router.push(item.path)}
               className={cn(
-                'relative flex-1 gap-1.5 text-xs h-8 rounded-xl flex items-center justify-center transition-all',
+                'relative flex-1 gap-1 text-xs h-8 rounded-full flex items-center justify-center transition-all',
                 active
-                  ? 'bg-gradient-to-r from-[#FF2D78]/20 to-[#A855F7]/20 text-white border border-[#FF2D78]/30 shadow-[0_0_12px_rgba(255,45,120,0.2)]'
+                  ? 'bg-gradient-to-r from-[#D05BF8]/20 to-[#FF18A0]/20 text-white border border-[#FF18A0]/30 shadow-[0_0_12px_rgba(255,24,160,0.25)]'
                   : 'text-white/60 hover:text-white hover:bg-white/[0.06] border border-transparent',
               )}
             >
               <item.icon className="h-3.5 w-3.5" />
-              <span>{t(item.labelKey)}</span>
+              <span className="hidden lg:inline">{item.label}</span>
             </button>
           );
         })}

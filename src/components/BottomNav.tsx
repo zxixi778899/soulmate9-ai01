@@ -11,28 +11,27 @@ import type { TranslationKey } from '@/lib/i18n/types';
 
 interface NavItem {
   href: string;
-  labelKey: TranslationKey;
+  label: string;
   icon: React.ElementType;
 }
 
 const navItems: NavItem[] = [
-  { href: '/gallery', labelKey: 'nav.explore', icon: Heart },
-  { href: '/create', labelKey: 'nav.create', icon: Plus },
-  { href: '/messages', labelKey: 'nav.messages', icon: MessageCircle },
-  { href: '/shop', labelKey: 'nav.shop', icon: ShoppingBag },
-  { href: '/profile', labelKey: 'nav.profile', icon: User },
+  { href: '/explore', label: 'Explore', icon: Heart },
+  { href: '/chats', label: 'Chats', icon: MessageCircle },
+  { href: '/shop', label: 'Shop', icon: ShoppingBag },
+  { href: '/create', label: 'Create', icon: Plus },
+  { href: '/profile', label: 'Profile', icon: User },
 ];
 
 const publicNavItems: NavItem[] = [
-  { href: '/', labelKey: 'landing.soulmateAwaits', icon: Home },
-  { href: '/login', labelKey: 'hero.signIn', icon: LogIn },
-  { href: '/register', labelKey: 'auth.signUp', icon: Sparkles },
+  { href: '/', label: 'Home', icon: Home },
+  { href: '/login', label: 'Sign In', icon: LogIn },
+  { href: '/register', label: 'Sign Up', icon: Sparkles },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const { t } = useTranslation();
 
   if (pathname?.startsWith('/admin')) return null;
   // Hide bottom nav in chat detail (IM full-screen style)
@@ -43,10 +42,10 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-2xl pb-[env(safe-area-inset-bottom)]"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-3xl pb-[env(safe-area-inset-bottom)]"
       style={{
-        background: 'rgba(7, 7, 15, 0.9)',
-        borderTop: '1px solid rgba(255, 45, 120, 0.15)',
+        background: 'rgba(11, 11, 11, 0.95)',
+        borderTop: '1px solid rgba(255, 24, 160, 0.18)',
       }}
     >
       <div className="mx-auto flex max-w-lg items-center justify-center gap-1 px-2 py-1.5">
@@ -61,16 +60,16 @@ export default function BottomNav() {
               className={cn(
                 'flex flex-col items-center gap-0.5 px-4 py-1.5 text-xs transition-all duration-200 min-w-[60px] relative',
                 active
-                  ? 'text-[#FF2D78]'
+                  ? 'text-[#FF18A0]'
                   : 'text-white/35 hover:text-white/60',
               )}
               style={active ? {
-                textShadow: '0 0 12px rgba(255, 45, 120, 0.5)',
+                textShadow: '0 0 12px rgba(255, 24, 160, 0.55)',
               } : {}}
             >
-              <Icon className={cn('h-5 w-5 transition-all', active && 'fill-[#FF2D78]/15 scale-110')} />
+              <Icon className={cn('h-5 w-5 transition-all', active && 'fill-[#FF18A0]/15 scale-110')} />
               <span className="text-[10px] leading-tight font-medium">
-                {t(item.labelKey)}
+                {item.label}
               </span>
             </Link>
           );

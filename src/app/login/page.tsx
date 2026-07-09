@@ -32,7 +32,7 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      window.location.href = "/gallery";
+      window.location.href = "/explore";
     } catch {
       setError(t('common.error'));
       setLoading(false);

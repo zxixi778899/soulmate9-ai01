@@ -65,17 +65,17 @@ export default function OnboardingPage() {
       // Mark onboarding complete in localStorage
       localStorage.setItem('soulmate_onboarding_complete', 'true');
       toast.success('Welcome aboard! ');
-      router.push('/gallery');
+      router.push('/explore');
     } catch {
       // Still proceed even if API fails
-      router.push('/gallery');
+      router.push('/explore');
     }
     setCompleting(false);
   };
 
   const handleSkip = () => {
     localStorage.setItem('soulmate_onboarding_complete', 'true');
-    router.push('/gallery');
+    router.push('/explore');
   };
 
   return (

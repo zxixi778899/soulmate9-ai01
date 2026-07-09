@@ -528,7 +528,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       <div className="flex h-full items-center justify-center px-6">
         <div className="text-center">
           <p className="text-[#8B8BA3]">{t('chat.companionNotFound') || 'Companion not found'}</p>
-          <Button variant="outline" className="mt-4" onClick={() => router.push('/messages')}>
+          <Button variant="outline" className="mt-4" onClick={() => router.push('/chats')}>
             Go back
           </Button>
         </div>
@@ -544,7 +544,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         levelInfo={levelInfo}
         intimacy={intimacy}
         isTyping={isTyping}
-        onBack={() => router.push('/messages')}
+        onBack={() => router.push('/chats')}
         onSelfie={generateSelfie}
         isGenerating={isGenerating}
         onMemories={() => setShowMemories(true)}
@@ -915,73 +915,6 @@ function ChatAppBar(props: {
           onClick={onMemories}
           className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all"
           aria-label="memories"
-        >
-          <Brain className="h-5 w-5" />
-        </button>
-      </div>
-    </header>
-  );
-}
-        <button
-          onClick={onBack}
-          className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-[#F0F0F5] hover:bg-white/[0.06] active:scale-95 active:bg-white/[0.10] transition-all"
-          aria-label="Back"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-
-        <div className="relative shrink-0">
-          <Avatar className="h-10 w-10 ring-1 ring-white/[0.08]">
-            {girlfriend.avatar_url ? (
-              <AvatarImage src={girlfriend.avatar_url} alt={girlfriend.name} className="object-cover" />
-            ) : (
-              <AvatarFallback className="bg-gradient-to-br from-[#FF2D78]/30 to-[#C026D3]/20 text-[#FF6BA6] text-sm font-semibold">
-                {girlfriend.name.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            )}
-          </Avatar>
-          <span
-            className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-[#07070F] transition-colors ${
-              isTyping ? 'bg-[#FF6BA6] animate-pulse' : 'bg-emerald-400'
-            }`}
-            aria-hidden
-          />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <h2 className="text-[15px] font-semibold text-[#F0F0F5] truncate">{girlfriend.name}</h2>
-            <span
-              className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0"
-              style={{ backgroundColor: levelInfo.color + '22', color: levelInfo.color }}
-            >
-              Lv.{intimacy.level}
-            </span>
-          </div>
-          <div className="text-[11px] mt-0.5 truncate">
-            {isTyping ? (
-              <span className="text-[#FF6BA6] font-medium animate-pulse">typing</span>
-            ) : (
-              <span className="text-[#8B8BA3]">
-                {levelInfo.title}  <span className="font-mono tabular-nums">{Math.round(intimacy.score)}pts</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        <button
-          onClick={onSelfie}
-          disabled={isGenerating}
-          className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-[#F0F0F5] bg-white/[0.04] border border-white/[0.08] hover:border-[#FF2D78]/30 hover:bg-[#FF2D78]/8 active:scale-95 disabled:opacity-50 transition-all"
-          title="Generate selfie"
-        >
-          {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
-          <span>Selfie</span>
-        </button>
-        <button
-          onClick={onMemories}
-          className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-[#8B8BA3] hover:text-[#FF6BA6] hover:bg-white/[0.06] active:scale-95 transition-all"
-          aria-label="Memories"
         >
           <Brain className="h-5 w-5" />
         </button>

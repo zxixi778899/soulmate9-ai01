@@ -1,0 +1,32 @@
+'use client';
+import { useState } from 'react';
+import GirlfriendCard from '@/components/GirlfriendCard';
+import DetailModal from '@/components/DetailModal';
+
+const girls = [
+  {
+    id: '1',
+    name: 'Vespera',
+    avatar: '/avatars/violet.jpg',
+    tagline: '深夜里最懂你欲望的秘密恋人',
+    tags: ['神秘', '女王'],
+    intimacy: 87,
+    rarity: 'SSR' as const,
+  },
+];
+
+export default function Discover() {
+  const [selected, setSelected] = useState<any>(null);
+
+  return (
+    <div className="p-8">
+      <h1 className="text-4xl font-bold mb-8">OOXX 女友选择</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {girls.map(g => (
+          <GirlfriendCard key={g.id} girl={g} onSelect={setSelected} />
+        ))}
+      </div>
+      {selected && <DetailModal girl={selected} onClose={() => setSelected(null)} />}
+    </div>
+  );
+}

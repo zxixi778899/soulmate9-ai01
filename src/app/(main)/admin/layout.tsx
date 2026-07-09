@@ -49,13 +49,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .then(r => r.json())
       .then(data => {
         if (!data.isAdmin) {
-          router.push('/gallery');
+          router.push('/explore');
         } else {
           setIsAdmin(true);
         }
       })
       .catch(() => {
-        router.push('/gallery');
+        router.push('/explore');
       });
   }, [user, session, router]);
 
@@ -113,7 +113,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               variant="ghost"
               size="sm"
               className="w-full justify-start text-xs text-[#64748B] gap-2 hover:bg-[#F1F5F9]"
-              onClick={() => router.push('/gallery')}
+              onClick={() => router.push('/explore')}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
               返回前台

@@ -43,7 +43,7 @@ export default function RegisterPage() {
           });
         }
       }
-      window.location.href = "/gallery";
+      window.location.href = "/explore";
     } catch {
       setError(t('common.error'));
       setLoading(false);

@@ -88,7 +88,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
     setAddingFriend(true);
     const gf = await addGirlfriendToCollection();
     if (gf) {
-      router.push('/gallery');
+      router.push('/explore');
     } else {
       setAddingFriend(false);
     }

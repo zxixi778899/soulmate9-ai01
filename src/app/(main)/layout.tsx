@@ -63,17 +63,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const isChatDetail = pathname?.startsWith('/chat/');
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[#050509]">
-      {/* Ambient nebula backdrop — shared across all main pages */}
+    <div className="relative flex h-screen overflow-hidden bg-[#0F0E0F] text-[#FAF7FF]" style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}>
+      {/* Ambient nebula backdrop — GoLove AI style */}
       {!isAdmin && (
         <div
           className="pointer-events-none fixed inset-0 z-0"
           aria-hidden
           style={{
             background: `
-              radial-gradient(ellipse 60% 40% at 20% 10%, rgba(255, 45, 120, 0.10) 0%, transparent 55%),
-              radial-gradient(ellipse 50% 35% at 90% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 55%),
-              radial-gradient(ellipse 40% 30% at 50% 100%, rgba(59, 130, 246, 0.05) 0%, transparent 60%)
+              radial-gradient(ellipse 60% 40% at 20% 10%, rgba(208, 91, 248, 0.08) 0%, transparent 55%),
+              radial-gradient(ellipse 50% 35% at 90% 80%, rgba(255, 24, 160, 0.06) 0%, transparent 55%),
+              linear-gradient(180deg, #0F0E0F 0%, #04020C 100%)
             `,
           }}
         />

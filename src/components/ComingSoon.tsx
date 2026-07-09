@@ -20,7 +20,7 @@ export default function ComingSoon({
   title,
   description,
   eta,
-  backHref = '/gallery',
+  backHref = '/explore',
 }: ComingSoonProps) {
   return (
     <div className="flex min-h-[60vh] w-full flex-col items-center justify-center gap-6 px-6 py-12 text-center">
