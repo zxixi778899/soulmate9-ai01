@@ -8,30 +8,16 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { APP_NAME, INTIMACY_LEVELS } from '@/lib/constants';
 import { authedFetch } from '@/lib/supabase';
-import { Heart, MessageCircle, ShoppingBag, User, LogOut, Plus, Sparkles, LayoutGrid, Shield, CreditCard, Bell, Receipt, Trophy } from 'lucide-react';
+import { Heart, MessageCircle, ShoppingBag, User, LogOut, Plus, Sparkles, LayoutGrid, CreditCard, Bell, Receipt, Trophy, BellRing } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/lib/i18n/context';
 import type { TranslationKey } from '@/lib/i18n/types';
 import { logger } from '@/lib/logger';
+import { cn } from '@/lib/utils';
 
-type Girlfriend = {
-  id: string;
-  name: string;
-  avatar_url: string | null;
-  personality: string | null;
-};
-
-type IntimacyScore = {
-  girlfriend_id: string;
-  score: number;
-  level: number;
-};
-
-type LastMessage = {
-  girlfriend_id: string;
-  content: string;
-  created_at: string;
-};
+type Girlfriend = { id: string; name: string; avatar_url: string | null; personality: string | null };
+type IntimacyScore = { girlfriend_id: string; score: number; level: number };
+type LastMessage = { girlfriend_id: string; content: string; created_at: string };
 
 export function Sidebar() {
   const { user, signOut } = useAuth();
@@ -41,290 +27,261 @@ export function Sidebar() {
   const [girlfriends, setGirlfriends] = useState<Girlfriend[]>([]);
   const [intimacyScores, setIntimacyScores] = useState<Record<string, IntimacyScore>>({});
   const [lastMessages, setLastMessages] = useState<Record<string, LastMessage>>({});
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
 
-  const loadNotifications = useCallback(async () => {
-    try {
-      const res = await authedFetch('/api/notifications');
-      const data = await res.json();
-      setUnreadNotifs(data.unreadCount || 0);
-    } catch { /* silent */ }
-  }, []);
-
-  const loadGirlfriends = useCallback(async () => {
-    try {
-      const res = await authedFetch('/api/girlfriends');
-      const data = await res.json();
-      setGirlfriends(data.girlfriends || []);
-
-      // Load intimacy scores
-      if (data.girlfriends?.length) {
-        const scoresRes = await authedFetch('/api/intimacy');
-        const scoresData = await scoresRes.json();
-        const scoresMap: Record<string, IntimacyScore> = {};
-        (scoresData.scores || []).forEach((s: IntimacyScore) => {
-          scoresMap[s.girlfriend_id] = s;
-        });
-        setIntimacyScores(scoresMap);
-
-        // Load last messages
-        const msgRes = await authedFetch('/api/chat/last-messages');
-        const msgData = await msgRes.json();
-        const msgMap: Record<string, LastMessage> = {};
-        (msgData.messages || []).forEach((m: LastMessage) => {
-          msgMap[m.girlfriend_id] = m;
-        });
-        setLastMessages(msgMap);
-
-        // Check proactive messages
-        await authedFetch('/api/proactive/check', { method: 'POST' });
-      }
-    } catch (err) {
-      logger.error('Failed to load girlfriends:', { data: err });
-    }
+  useEffect(() => {
+    authedFetch('/api/notifications')
+      .then((r) => r.json())
+      .then((d) => setUnreadNotifs(d.unreadCount || 0))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    loadGirlfriends();
-    loadNotifications();
-  }, [loadGirlfriends, loadNotifications]);
+    (async () => {
+      try {
+        const res = await authedFetch('/api/girlfriends');
+        const data = await res.json();
+        setGirlfriends(data.girlfriends || []);
+        if (data.girlfriends?.length) {
+          const [scoresRes, msgRes] = await Promise.all([
+            authedFetch('/api/intimacy'),
+            authedFetch('/api/chat/last-messages'),
+          ]);
+          const scoresData = await scoresRes.json();
+          const scoresMap: Record<string, IntimacyScore> = {};
+          (scoresData.scores || []).forEach((s: IntimacyScore) => {
+            scoresMap[s.girlfriend_id] = s;
+          });
+          setIntimacyScores(scoresMap);
 
-  const getIntimacyInfo = (score: number): typeof INTIMACY_LEVELS[number] => {
-    let level: typeof INTIMACY_LEVELS[number] = INTIMACY_LEVELS[0];
-    for (const l of INTIMACY_LEVELS) {
-      if (score >= l.min_score) level = l;
-    }
+          const msgData = await msgRes.json();
+          const msgMap: Record<string, LastMessage> = {};
+          (msgData.messages || []).forEach((m: LastMessage) => {
+            msgMap[m.girlfriend_id] = m;
+          });
+          setLastMessages(msgMap);
+        }
+      } catch (err) {
+        logger.error('Failed to load sidebar data', { data: err });
+      }
+    })();
+  }, [pathname]);
+
+  const getIntimacyInfo = (score: number) => {
+    let level = INTIMACY_LEVELS[0];
+    for (const l of INTIMACY_LEVELS) if (score >= l.min_score) level = l;
     return level;
   };
-
   const getInitials = (name: string) => name.charAt(0).toUpperCase();
 
-  const isActive = (path: string) => pathname === path;
-
   const navItems = [
-    { icon: LayoutGrid, labelKey: 'nav.gallery', path: '/gallery' },
-    { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages' },
-    { icon: ShoppingBag, labelKey: 'nav.shop', path: '/shop' },
-    { icon: User, labelKey: 'nav.profile', path: '/profile' },
+    { icon: LayoutGrid, labelKey: 'nav.gallery' as TranslationKey, path: '/gallery' },
+    { icon: MessageCircle, labelKey: 'nav.messages' as TranslationKey, path: '/messages' },
+    { icon: ShoppingBag, labelKey: 'nav.shop' as TranslationKey, path: '/shop' },
+    { icon: User, labelKey: 'nav.profile' as TranslationKey, path: '/profile' },
   ];
-
-  const bottomNavItems = [
-    { icon: Trophy, labelKey: 'nav.achievements', path: '/achievements' },
-    { icon: CreditCard, labelKey: 'nav.pricing', path: '/pricing' },
-    { icon: Receipt, labelKey: 'nav.purchases', path: '/purchases' },
+  const bottomItems = [
+    { icon: Trophy, labelKey: 'nav.achievements' as TranslationKey, path: '/achievements' },
+    { icon: CreditCard, labelKey: 'nav.pricing' as TranslationKey, path: '/pricing' },
+    { icon: Receipt, labelKey: 'nav.purchases' as TranslationKey, path: '/purchases' },
   ];
 
   return (
-    <>
-      <aside className="hidden md:flex w-72 lg:w-80 flex-col border-r border-white/[0.08] bg-sidebar backdrop-blur-2xl">
-        {/* Header */}
-        <div className="flex h-16 items-center justify-between border-b border-white/[0.08] px-5">
-          <div className="flex items-center gap-1">
-            <Heart className="h-5 w-5 text-[#FF2D78]" fill="currentColor" />
-            <span className="text-base font-semibold tracking-tight">{APP_NAME}</span>
+    <aside
+      className="relative hidden md:flex w-72 lg:w-80 flex-col border-r border-white/[0.06] bg-black/30 backdrop-blur-3xl"
+      style={{
+        background: 'linear-gradient(180deg, rgba(10,10,20,0.6) 0%, rgba(5,5,9,0.4) 100%)',
+      }}
+    >
+      {/* Logo + actions */}
+      <div className="relative flex h-16 items-center justify-between border-b border-white/[0.06] px-5">
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-[#FF2D78] to-[#A855F7] opacity-60 blur" />
+            <Heart className="relative h-5 w-5 text-white" fill="currentColor" />
           </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={() => router.push('/profile')}
-            >
-              <Bell className="h-4 w-4" />
-              {unreadNotifs > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#FF2D78] text-[9px] font-bold text-white">
-                  {unreadNotifs > 9 ? '9+' : unreadNotifs}
-                </span>
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={signOut}
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+          <span className="font-display text-base font-semibold tracking-tight bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
+            {APP_NAME}
+          </span>
         </div>
-
-        {/* Language Switcher */}
-        <div className="border-t border-white/[0.08] py-2">
-          <LanguageSwitcher variant="sidebar" />
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => router.push('/profile')}
+            className="relative h-9 w-9 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.08] transition-all"
+            aria-label="notifications"
+          >
+            <Bell className="h-4 w-4" />
+            {unreadNotifs > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-br from-[#FF2D78] to-[#A855F7] text-[9px] font-bold text-white shadow-[0_0_8px_rgba(255,45,120,0.5)]">
+                {unreadNotifs > 9 ? '9+' : unreadNotifs}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={signOut}
+            className="h-9 w-9 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.08] transition-all"
+            aria-label="sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
+      </div>
 
-        {/* Navigation */}
-        <div className="flex items-center gap-1 border-b border-white/[0.08] px-3 py-2">
-          {navItems.map((item) => (
-            <Button
+      <div className="border-b border-white/[0.06] py-2 px-3">
+        <LanguageSwitcher variant="sidebar" />
+      </div>
+
+      {/* Top nav */}
+      <div className="flex items-center gap-1 border-b border-white/[0.06] p-2">
+        {navItems.map((item) => {
+          const active = pathname === item.path;
+          return (
+            <button
               key={item.path}
-              variant={isActive(item.path) ? 'default' : 'ghost'}
-              size="sm"
-              className={`flex-1 gap-1.5 text-xs h-8 ${
-                isActive(item.path) ? 'shadow-[0_0_12px_rgba(255,45,120,0.3)]' : 'text-muted-foreground'
-              }`}
               onClick={() => router.push(item.path)}
+              className={cn(
+                'relative flex-1 gap-1.5 text-xs h-8 rounded-xl flex items-center justify-center transition-all',
+                active
+                  ? 'bg-gradient-to-r from-[#FF2D78]/20 to-[#A855F7]/20 text-white border border-[#FF2D78]/30 shadow-[0_0_12px_rgba(255,45,120,0.2)]'
+                  : 'text-white/60 hover:text-white hover:bg-white/[0.06] border border-transparent',
+              )}
             >
               <item.icon className="h-3.5 w-3.5" />
-              {t(item.labelKey as TranslationKey)}
-            </Button>
-          ))}
-        </div>
+              <span>{t(item.labelKey)}</span>
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Conversation List */}
-        <div className="flex items-center justify-between px-5 py-3">
-          <span className="text-xs font-medium text-[#FF6BA6] uppercase tracking-wider">
-            Companions
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={() => router.push('/create')}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
+      {/* Companions list */}
+      <div className="flex items-center justify-between px-5 py-3">
+        <span className="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">
+          Companions
+        </span>
+        <button
+          onClick={() => router.push('/create')}
+          className="h-7 w-7 rounded-full border border-white/10 bg-white/[0.06] flex items-center justify-center text-white/70 hover:text-white hover:bg-gradient-to-br hover:from-[#FF2D78]/30 hover:to-[#A855F7]/30 transition-all"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
 
-        <ScrollArea className="flex-1">
-          <div className="space-y-0.5 px-2 pb-4">
-            {girlfriends.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-                <Sparkles className="h-8 w-8 text-muted-foreground/50" />
-                <div>
-                  <p className="text-sm font-medium text-foreground/80">No companions yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Create your first AI companion
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => router.push('/create')}
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  Create Companion
-                </Button>
+      <ScrollArea className="flex-1">
+        <div className="space-y-1.5 px-3 pb-4">
+          {girlfriends.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 px-2 py-12 text-center">
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#FF2D78]/20 to-[#A855F7]/20 flex items-center justify-center">
+                <Sparkles className="h-6 w-6 text-white/60" />
               </div>
-            ) : (
-              girlfriends.map((gf) => {
-                const intimacy = intimacyScores[gf.id];
-                const score = intimacy?.score ?? 0;
-                const levelInfo = getIntimacyInfo(score);
-                const lastMsg = lastMessages[gf.id];
-                const isChatActive = pathname === `/chat/${gf.id}`;
+              <div>
+                <p className="text-sm font-medium text-white/80">还没有伴侣</p>
+                <p className="text-xs text-white/40 mt-1">创建你的第一个 AI 女友</p>
+              </div>
+              <button
+                onClick={() => router.push('/create')}
+                className="mt-2 h-9 px-4 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#A855F7] text-xs font-medium text-white shadow-[0_4px_16px_rgba(255,45,120,0.3)] hover:scale-105 transition-all"
+              >
+                <Plus className="h-3.5 w-3.5 inline mr-1" />
+                立即创建
+              </button>
+            </div>
+          ) : (
+            girlfriends.map((gf) => {
+              const intimacy = intimacyScores[gf.id];
+              const score = intimacy?.score ?? 0;
+              const levelInfo = getIntimacyInfo(score);
+              const lastMsg = lastMessages[gf.id];
+              const isChatActive = pathname === `/chat/${gf.id}`;
 
-                return (
-                  <button
-                    key={gf.id}
-                    onClick={() => router.push(`/chat/${gf.id}`)}
-                    className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all duration-200 ${
-                      isChatActive
-                        ? 'bg-[#FF2D78]/15 text-foreground ring-1 ring-[#FF2D78]/30'
-                        : 'hover:bg-white/[0.06] text-foreground/80'
-                    }`}
-                  >
-                    <Avatar className="h-10 w-10 shrink-0 border border-white/[0.12]">
+              return (
+                <button
+                  key={gf.id}
+                  onClick={() => router.push(`/chat/${gf.id}`)}
+                  className={cn(
+                    'group relative w-full flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all',
+                    isChatActive
+                      ? 'bg-gradient-to-r from-[#FF2D78]/15 to-[#A855F7]/15 border border-[#FF2D78]/30 shadow-[0_4px_16px_rgba(255,45,120,0.15)]'
+                      : 'hover:bg-white/[0.04] border border-transparent hover:border-white/[0.06]',
+                  )}
+                >
+                  <div className="relative shrink-0">
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#FF2D78]/30 to-[#A855F7]/30 blur opacity-50" />
+                    <Avatar className="relative h-10 w-10 border border-white/[0.12]">
                       {gf.avatar_url ? (
                         <AvatarImage src={gf.avatar_url} alt={gf.name} />
                       ) : (
-                        <AvatarFallback className="bg-[#FF2D78]/10 text-[#FF2D78] text-xs">
+                        <AvatarFallback className="bg-gradient-to-br from-[#FF2D78] to-[#A855F7] text-white text-xs font-bold">
                           {getInitials(gf.name)}
                         </AvatarFallback>
                       )}
                     </Avatar>
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-[#050509]"
+                      style={{ backgroundColor: levelInfo.color }}
+                    />
+                  </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium truncate">{gf.name}</span>
-                        {lastMsg && (
-                          <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
-                            {formatTime(lastMsg.created_at)}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {lastMsg?.content || 'Start a conversation...'}
-                      </p>
-                      {/* Intimacy bar */}
-                      <div className="flex items-center gap-1.5 mt-1.5">
-                        <div className="flex-1 h-1 rounded-full bg-border/60 overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: `${Math.min(score, 100)}%`,
-                              backgroundColor: levelInfo.color,
-                            }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-medium shrink-0" style={{ color: levelInfo.color }}>
-                          Lv.{intimacy?.level ?? 1}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-sm font-semibold text-white truncate">
+                        {gf.name}
+                      </span>
+                      {lastMsg && (
+                        <span className="text-[10px] text-white/40 shrink-0">
+                          {new Date(lastMsg.created_at).toLocaleTimeString('zh-CN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </span>
-                      </div>
+                      )}
                     </div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </ScrollArea>
+                    {lastMsg && (
+                      <p className="text-xs text-white/50 truncate mt-0.5">{lastMsg.content}</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </ScrollArea>
 
-        {/* Bottom Nav */}
-        <div className="flex items-center gap-1 border-t border-white/[0.08] px-3 py-2">
-          {bottomNavItems.map((item) => (
-            <Button
+      {/* Bottom nav */}
+      <div className="flex items-center gap-1 border-t border-white/[0.06] p-2">
+        {bottomItems.map((item) => {
+          const active = pathname === item.path;
+          return (
+            <button
               key={item.path}
-              variant={isActive(item.path) ? 'default' : 'ghost'}
-              size="sm"
-              className={`flex-1 gap-1.5 text-xs h-8 ${
-                isActive(item.path) ? 'shadow-[0_0_12px_rgba(255,45,120,0.3)]' : 'text-muted-foreground'
-              }`}
               onClick={() => router.push(item.path)}
+              className={cn(
+                'flex-1 h-9 rounded-xl flex items-center justify-center transition-all',
+                active
+                  ? 'bg-gradient-to-r from-[#FF2D78]/20 to-[#A855F7]/20 border border-[#FF2D78]/30'
+                  : 'text-white/50 hover:text-white hover:bg-white/[0.06] border border-transparent',
+              )}
             >
-              <item.icon className="h-3.5 w-3.5" />
-              {t(item.labelKey as TranslationKey)}
-            </Button>
-          ))}
-        </div>
+              <item.icon className="h-4 w-4" />
+            </button>
+          );
+        })}
+      </div>
 
-        {/* User info */}
-        <div className="border-t border-border/40 p-4">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                {user?.email?.charAt(0).toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium truncate">{user?.email}</p>
-              <p className="text-[10px] text-muted-foreground">Free Plan</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={() => router.push('/profile')}
-            >
-              <User className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+      {/* User card */}
+      <div className="flex items-center gap-3 border-t border-white/[0.06] p-3">
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#FF2D78] to-[#A855F7] opacity-60 blur" />
+          <Avatar className="relative h-9 w-9 border border-white/[0.12]">
+            <AvatarFallback className="bg-gradient-to-br from-[#FF2D78] to-[#A855F7] text-white text-xs font-bold">
+              {user?.email?.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
         </div>
-      </aside>
-    </>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-white truncate">{user?.email}</p>
+          <p className="text-[10px] text-white/40">Free Plan</p>
+        </div>
+      </div>
+    </aside>
   );
-}
-
-function formatTime(dateStr: string) {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const days = Math.floor(diff / 86400000);
-
-  if (days === 0) {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  }
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }

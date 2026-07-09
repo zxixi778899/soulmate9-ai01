@@ -140,24 +140,32 @@ export default function ShopPage() {
   const tierColor = (tier: string) => tier === 'premium' ? 'text-purple-400' : 'text-gray-400';
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="relative flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-white/[0.06] px-4 sm:px-6 py-4">
+      <div
+        className="sticky top-0 z-10 border-b border-white/[0.06] px-4 sm:px-6 py-4 backdrop-blur-3xl"
+        style={{ background: 'linear-gradient(180deg, rgba(5,5,9,0.85) 0%, rgba(10,10,20,0.4) 100%)' }}
+      >
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-xl md:text-2xl font-bold italic gradient-text">Boutique</h1>
-            <p className="text-sm text-[#8B8BA3]">Gifts, boosts & surprises for your companion</p>
+            <h1 className="font-display text-xl md:text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-[#FFB3CD] to-[#FF6BA6] bg-clip-text text-transparent">
+              Boutique
+            </h1>
+            <p className="text-sm text-white/50">Gifts, boosts & surprises</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-sm bg-white/[0.04] rounded-lg px-3 py-1.5 border border-white/[0.06]">
+            <div className="flex items-center gap-1.5 text-sm rounded-full px-3 py-1.5 border border-amber-500/30 bg-amber-500/10 backdrop-blur-xl">
               <Coins className="h-4 w-4 text-amber-400" />
-              <span className="font-semibold">{credits?.credits_remaining ?? '...'}</span>
-              <span className="text-[10px] text-[#8B8BA3]">credits</span>
+              <span className="font-semibold text-white">{credits?.credits_remaining ?? '...'}</span>
+              <span className="text-[10px] text-amber-200/60">credits</span>
             </div>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs border-amber-500/20 text-amber-400 hover:bg-amber-500/10" onClick={() => router.push('/pricing')}>
+            <button
+              onClick={() => router.push('/pricing')}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-amber-300 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all"
+            >
               <Coins className="h-3.5 w-3.5" />
               Get Tokens
-            </Button>
+            </button>
           </div>
         </div>
       </div>
@@ -165,12 +173,14 @@ export default function ShopPage() {
       {/* Shop Grid */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
         <Tabs defaultValue="all" className="w-full">
-          <TabsList className="mb-6 overflow-x-auto w-full justify-start sm:justify-center">
-            <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
-            <TabsTrigger value="gifts" className="text-xs">Gifts</TabsTrigger>
-            <TabsTrigger value="outfits" className="text-xs"><Shirt className="h-3 w-3 mr-1" />Outfits</TabsTrigger>
-            <TabsTrigger value="boosts" className="text-xs">Boosts</TabsTrigger>
-            <TabsTrigger value="limited" className="text-xs">Limited</TabsTrigger>
+          <TabsList className="mb-6 overflow-x-auto w-full justify-start sm:justify-center bg-white/[0.04] border border-white/[0.08] backdrop-blur-2xl rounded-full p-1">
+            <TabsTrigger value="all" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">All</TabsTrigger>
+            <TabsTrigger value="gifts" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">Gifts</TabsTrigger>
+            <TabsTrigger value="outfits" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">
+              <Shirt className="h-3 w-3 mr-1" />Outfits
+            </TabsTrigger>
+            <TabsTrigger value="boosts" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">Boosts</TabsTrigger>
+            <TabsTrigger value="limited" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">Limited</TabsTrigger>
           </TabsList>
 
           {['all', 'gifts', 'outfits', 'boosts', 'limited'].map((tab) => (
@@ -179,7 +189,7 @@ export default function ShopPage() {
                 {ALL_ITEMS
                   .filter(i => tab === 'all' || getCategory(i) === tab)
                   .map((item) => (
-                    <Card key={item.id} className="border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.08] transition-colors overflow-hidden">
+                    <Card key={item.id} className="group relative overflow-hidden border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.01] backdrop-blur-2xl hover:border-[#FF2D78]/30 hover:shadow-[0_8px_32px_rgba(255,45,120,0.15)] transition-all">
                       <CardHeader className="p-0">
                         <div className="aspect-[4/3] bg-gradient-to-br from-accent/30 to-accent/10 flex items-center justify-center">
                           <span className="text-5xl">{item.emoji}</span>

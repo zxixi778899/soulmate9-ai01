@@ -197,83 +197,90 @@ export default function GalleryPage() {
   return (
     <div className="flex h-full flex-col overflow-y-auto pb-20">
       {/* Header */}
-      <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0E0E1A]/80 px-4 sm:px-8 py-5 backdrop-blur-xl space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-3xl md:text-4xl font-bold italic bg-gradient-to-r from-white via-[#FFB3CD] to-[#FF6BA6] bg-clip-text text-transparent">{t('gallery.title')}</h1>
-            <p className="mt-0.5 text-sm text-[#8B8BA3]">
-              {t('gallery.companionCount', { count: girlfriends.length })}
-              {search && ` · ${filteredGirlfriends.length} matched`}
-            </p>
-          </div>
-          <Button onClick={() => router.push('/create')} variant="glow" className="gap-2">
-            <Plus className="h-4 w-4" />
-            {t('gallery.createNew')}
-          </Button>
-        </div>
+      <div className="sticky top-0 z-20 border-b border-white/[0.06] backdrop-blur-3xl px-4 sm:px-8 py-5 space-y-4"
+  style={{ background: 'linear-gradient(180deg, rgba(5,5,9,0.85) 0%, rgba(10,10,20,0.6) 100%)' }}>
+  <div className="flex items-center justify-between">
+    <div>
+      <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
+        {t('gallery.title')}
+      </h1>
+      <p className="mt-1 text-sm text-white/50">
+        {t('gallery.companionCount', { count: girlfriends.length })}
+        {search && ` · ${filteredGirlfriends.length} matched`}
+      </p>
+    </div>
+    <button
+      onClick={() => router.push('/create')}
+      className="group relative h-11 overflow-hidden rounded-full bg-gradient-to-r from-[#FF2D78] to-[#A855F7] px-5 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(255,45,120,0.4)] hover:shadow-[0_8px_24px_rgba(255,45,120,0.55)] transition-all hover:scale-105"
+    >
+      <span className="relative z-10 flex items-center gap-1.5">
+        <Plus className="h-4 w-4" />
+        {t('gallery.createNew')}
+      </span>
+    </button>
+  </div>
 
-        {/* Search + Filters */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
-            <Input
-              placeholder="Search by name, trait, tag..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 bg-white/[0.04] border-white/[0.08] text-sm placeholder:text-white/25"
-            />
-          </div>
+  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+    <div className="relative flex-1 max-w-md">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+      <Input
+        placeholder="Search by name, trait, tag..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="pl-9 h-10 rounded-full bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl text-sm placeholder:text-white/30 focus:border-[#FF2D78]/40 focus:bg-white/[0.06] transition-all"
+      />
+    </div>
 
-          <div className="flex items-center gap-2">
-            {/* Status filter pills */}
-            {['all', 'draft', 'pending', 'approved'].map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-full text-xs font-heading transition-all ${
-                  statusFilter === s
-                    ? 'bg-[#FF2D78]/15 text-[#FF2D78] ring-1 ring-[#FF2D78]/30'
-                    : 'bg-white/[0.04] text-white/40 hover:text-white/60 hover:bg-white/[0.06]'
-                }`}
-              >
-                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
-              </button>
-            ))}
-
-            {/* Sort toggle */}
-            <button
-              onClick={() => setSortOrder(sortOrder === 'newest' ? 'name' : 'newest')}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-heading bg-white/[0.04] text-white/40 hover:text-white/60 hover:bg-white/[0.06] transition-all"
-            >
-              <ArrowUpDown className="h-3 w-3" />
-              {sortOrder === 'newest' ? 'Newest' : 'A-Z'}
-            </button>
-          </div>
-        </div>
-      </div>
+    <div className="flex items-center gap-2">
+      {['all', 'draft', 'pending', 'approved'].map((s) => (
+        <button
+          key={s}
+          onClick={() => setStatusFilter(s)}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            statusFilter === s
+              ? 'bg-gradient-to-r from-[#FF2D78]/20 to-[#A855F7]/20 text-white border border-[#FF2D78]/30 shadow-[0_0_12px_rgba(255,45,120,0.2)]'
+              : 'bg-white/[0.04] border border-white/[0.06] text-white/50 hover:text-white hover:bg-white/[0.08]'
+          }`}
+        >
+          {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+        </button>
+      ))}
+      <button
+        onClick={() => setSortOrder(sortOrder === 'newest' ? 'name' : 'newest')}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-white/[0.04] border border-white/[0.06] text-white/50 hover:text-white hover:bg-white/[0.08] transition-all"
+      >
+        <ArrowUpDown className="h-3 w-3" />
+        {sortOrder === 'newest' ? 'Newest' : 'A-Z'}
+      </button>
+    </div>
+  </div>
+</div>
 
       {/* Featured Girlfriends */}
       {featured.length > 0 && (
         <div className="px-4 sm:px-8 pt-6 pb-2">
-          <div className="flex items-center gap-2 mb-3">
-            <Star className="h-4 w-4 text-amber-400" />
-            <span className="text-sm font-semibold text-[#F0F0F5]">Featured Companions</span>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500/30 to-orange-500/20 ring-1 ring-amber-500/30">
+              <Star className="h-3.5 w-3.5 text-amber-300" />
+            </div>
+            <span className="text-sm font-semibold text-white tracking-wide">Featured Companions</span>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             {featured.map((gf: any) => (
               <button
                 key={gf.id}
                 onClick={() => router.push(`/chat/${gf.base_girlfriend_id || gf.id}`)}
-                className="flex-shrink-0 w-36 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:border-accent/40 hover:bg-white/[0.08] transition-all overflow-hidden group"
+                className="group relative flex-shrink-0 w-36 rounded-2xl overflow-hidden border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.02] backdrop-blur-2xl hover:border-[#FF2D78]/30 hover:shadow-[0_8px_24px_rgba(255,45,120,0.2)] transition-all hover:-translate-y-1"
               >
-                <div className="aspect-[3/4] bg-gradient-to-b from-accent/20 to-accent/5 relative">
-                  <span className="absolute inset-0 flex items-center justify-center text-4xl">
+                <div className="aspect-[3/4] bg-gradient-to-br from-[#FF2D78]/30 via-[#A855F7]/30 to-[#3B82F6]/30 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.3),transparent_60%)]" />
+                  <span className="absolute inset-0 flex items-center justify-center font-display text-5xl font-bold text-white/90 group-hover:scale-110 transition-transform">
                     {gf.name.charAt(0)}
                   </span>
                 </div>
-                <div className="p-2.5 text-left">
-                  <p className="text-xs font-semibold text-[#F0F0F5] truncate">{gf.name}</p>
-                  <p className="text-[10px] text-[#8B8BA3] truncate mt-0.5">{gf.subtitle}</p>
+                <div className="p-3 text-left">
+                  <p className="text-sm font-semibold text-white truncate">{gf.name}</p>
+                  <p className="text-[10px] text-white/50 truncate mt-0.5">{gf.subtitle}</p>
                 </div>
               </button>
             ))}
