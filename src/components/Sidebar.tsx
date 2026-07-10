@@ -67,8 +67,9 @@ export function Sidebar() {
   }, [pathname]);
 
   const getIntimacyInfo = (score: number) => {
-    let level = INTIMACY_LEVELS[0];
-    for (const l of INTIMACY_LEVELS) if (score >= l.min_score) level = l;
+    const levels = INTIMACY_LEVELS as readonly { level: number; min_score: number; title: string; color: string }[];
+    let level = levels[0];
+    for (const l of levels) if (score >= l.min_score) level = l;
     return level;
   };
   const getInitials = (name: string) => name.charAt(0).toUpperCase();
