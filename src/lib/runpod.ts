@@ -86,6 +86,12 @@ export function buildFluxWorkflow(opts: {
   /** Worker-local filename registered via RunPod `images` payload, or path for LoadImage */
   input_image?: string;
   denoising_strength?: number;
+  /** Checkpoint filename as seen by Comfy on the worker / network volume */
+  ckpt_name?: string;
+  /** LoRA filename under models/loras (network volume supported if mounted) */
+  lora_name?: string | null;
+  lora_strength_model?: number;
+  lora_strength_clip?: number;
 }): Record<string, unknown> {
   const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 32);
   const width = opts.width ?? 768;
@@ -94,130 +100,143 @@ export function buildFluxWorkflow(opts: {
   const guidance = opts.guidance ?? 3.5;
   const sampler_name = opts.sampler_name || 'euler';
   const scheduler = opts.scheduler || 'simple';
+  const ckpt = opts.ckpt_name || 'flux1-dev-fp8.safetensors';
+  const useLora = !!(opts.lora_name && String(opts.lora_name).trim());
 
-  // Shared nodes: checkpoint + CLIP encoders
+  // model/clip source: checkpoint only, or checkpoint -> LoraLoader
+  const modelRef: [string, number] = useLora ? ['14', 0] : ['4', 0];
+  const clipRef: [string, number] = useLora ? ['14', 1] : ['4', 1];
+  const vaeRef: [string, number] = ['4', 2];
+
   const checkpointNode = {
-    "class_type": "CheckpointLoaderSimple",
-    "inputs": {
-      "ckpt_name": "flux1-dev-fp8.safetensors"
-    }
+    class_type: 'CheckpointLoaderSimple',
+    inputs: { ckpt_name: ckpt },
   };
+
+  const loraNode = useLora
+    ? {
+        class_type: 'LoraLoader',
+        inputs: {
+          lora_name: String(opts.lora_name).trim(),
+          strength_model: opts.lora_strength_model ?? 0.8,
+          strength_clip: opts.lora_strength_clip ?? 0.8,
+          model: ['4', 0],
+          clip: ['4', 1],
+        },
+      }
+    : null;
+
   const positivePromptNode = {
-    "class_type": "CLIPTextEncode",
-    "inputs": {
-      "text": opts.prompt,
-      "clip": ["4", 1]
-    }
+    class_type: 'CLIPTextEncode',
+    inputs: {
+      text: opts.prompt,
+      clip: clipRef,
+    },
   };
   const negativePromptNode = {
-    "class_type": "CLIPTextEncode",
-    "inputs": {
-      "text": opts.negativePrompt ?? 'blurry, low quality, deformed, distorted, ugly, bad anatomy, watermark, text, signature, logo, nsfw, lowres, bad proportions, stiff, unnatural, plastic, artificial, dead eyes, blank expression, gloomy, depressing',
-      "clip": ["4", 1]
-    }
+    class_type: 'CLIPTextEncode',
+    inputs: {
+      text:
+        opts.negativePrompt ??
+        'blurry, low quality, deformed, distorted, ugly, bad anatomy, watermark, text, signature, logo, lowres, bad proportions, stiff, unnatural, plastic, artificial, dead eyes, blank expression',
+      clip: clipRef,
+    },
   };
   const decodeNode = {
-    "class_type": "VAEDecode",
-    "inputs": {
-      "samples": ["8", 0],
-      "vae": ["4", 2]
-    }
+    class_type: 'VAEDecode',
+    inputs: {
+      samples: ['8', 0],
+      vae: vaeRef,
+    },
   };
   const saveNode = {
-    "class_type": "SaveImage",
-    "inputs": {
-      "filename_prefix": "soulmate",
-      "images": ["9", 0]
-    }
+    class_type: 'SaveImage',
+    inputs: {
+      filename_prefix: 'soulmate',
+      images: ['9', 0],
+    },
   };
 
   // img2img path: LoadImage -> ImageScale -> VAEEncode -> KSampler (with denoise)
   if (opts.input_image) {
     const denoise = opts.denoising_strength ?? 0.65;
 
-    const loadImageNode = {
-      "class_type": "LoadImage",
-      "inputs": {
-        "image": opts.input_image
-      }
+    const graph: Record<string, unknown> = {
+      '4': checkpointNode,
+      '5': positivePromptNode,
+      '6': negativePromptNode,
+      '8': {
+        class_type: 'KSampler',
+        inputs: {
+          seed,
+          steps,
+          cfg: guidance,
+          sampler_name,
+          scheduler,
+          denoise,
+          model: modelRef,
+          positive: ['5', 0],
+          negative: ['6', 0],
+          latent_image: ['13', 0],
+        },
+      },
+      '9': decodeNode,
+      '10': saveNode,
+      '11': {
+        class_type: 'LoadImage',
+        inputs: { image: opts.input_image },
+      },
+      '12': {
+        class_type: 'ImageScale',
+        inputs: {
+          image: ['11', 0],
+          upscale_method: 'lanczos',
+          width,
+          height,
+          crop: 'center',
+        },
+      },
+      '13': {
+        class_type: 'VAEEncode',
+        inputs: {
+          pixels: ['12', 0],
+          vae: vaeRef,
+        },
+      },
     };
-    const imageScaleNode = {
-      "class_type": "ImageScale",
-      "inputs": {
-        "image": ["11", 0],
-        "upscale_method": "lanczos",
-        "width": width,
-        "height": height,
-        "crop": "center"
-      }
-    };
-    const vaeEncodeNode = {
-      "class_type": "VAEEncode",
-      "inputs": {
-        "pixels": ["12", 0],
-        "vae": ["4", 2]
-      }
-    };
-    const samplerNode = {
-      "class_type": "KSampler",
-      "inputs": {
-        "seed": seed,
-        "steps": steps,
-        "cfg": guidance,
-        "sampler_name": sampler_name,
-        "scheduler": scheduler,
-        "denoise": denoise,
-        "model": ["4", 0],
-        "positive": ["5", 0],
-        "negative": ["6", 0],
-        "latent_image": ["13", 0]
-      }
-    };
-
-    return {
-      "4": checkpointNode,
-      "5": positivePromptNode,
-      "6": negativePromptNode,
-      "8": samplerNode,
-      "9": decodeNode,
-      "10": saveNode,
-      "11": loadImageNode,
-      "12": imageScaleNode,
-      "13": vaeEncodeNode,
-    };
+    if (loraNode) graph['14'] = loraNode;
+    return graph;
   }
 
-  // txt2img path (default): EmptyLatentImage -> KSampler (full denoise)
-  return {
-    "4": checkpointNode,
-    "5": positivePromptNode,
-    "6": negativePromptNode,
-    "7": {
-      "class_type": "EmptyLatentImage",
-      "inputs": {
-        "width": width,
-        "height": height,
-        "batch_size": 1
-      }
+  // txt2img path (default)
+  const graph: Record<string, unknown> = {
+    '4': checkpointNode,
+    '5': positivePromptNode,
+    '6': negativePromptNode,
+    '7': {
+      class_type: 'EmptyLatentImage',
+      inputs: { width, height, batch_size: 1 },
     },
-    "8": {
-      "class_type": "KSampler",
-      "inputs": {
-        "seed": seed,
-        "steps": steps,
-        "cfg": guidance,
-        "sampler_name": sampler_name,
-        "scheduler": scheduler,
-        "denoise": 1,
-        "model": ["4", 0],
-        "positive": ["5", 0],
-        "negative": ["6", 0],
-        "latent_image": ["7", 0]
-      }
+    '8': {
+      class_type: 'KSampler',
+      inputs: {
+        seed,
+        steps,
+        cfg: guidance,
+        sampler_name,
+        scheduler,
+        denoise: 1,
+        model: modelRef,
+        positive: ['5', 0],
+        negative: ['6', 0],
+        latent_image: ['7', 0],
+      },
     },
-    "9": decodeNode,
-    "10": saveNode,
+    '9': decodeNode,
+    '10': saveNode,
   };
+  if (loraNode) graph['14'] = loraNode;
+  return graph;
 }
 
 // 
@@ -236,6 +255,12 @@ export interface RunPodGenerateOptions {
   scheduler?: string;
   input_image?: string;      // For img2img (character consistency)
   denoising_strength?: number; // 0-1, lower = closer to input
+  ckpt_name?: string;
+  lora_name?: string | null;
+  lora_strength_model?: number;
+  lora_strength_clip?: number;
+  /** Override default RUNPOD_ENDPOINT_ID for this call */
+  endpoint_id?: string;
 }
 
 export interface RunPodGenerateResult {
@@ -293,7 +318,9 @@ class RunPodClient {
    */
   async generate(options: RunPodGenerateOptions, pollIntervalMs = 3000): Promise<RunPodGenerateResult> {
     this.refreshConfig();
-    if (!this.isConfigured) {
+    const endpointId = options.endpoint_id || this.endpointId;
+    const baseUrl = endpointId ? `https://api.runpod.ai/v2/${endpointId}` : this.baseUrl;
+    if (!this.apiKey || !endpointId) {
       throw new Error('RunPod is not configured. Set RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID.');
     }
 
@@ -336,6 +363,10 @@ class RunPodClient {
           ? options.input_image
           : undefined),
       denoising_strength: options.denoising_strength,
+      ckpt_name: options.ckpt_name,
+      lora_name: options.lora_name,
+      lora_strength_model: options.lora_strength_model,
+      lora_strength_clip: options.lora_strength_clip,
     });
 
     // Step 1: Submit job with workflow (+ optional reference image blob)
@@ -355,9 +386,9 @@ class RunPodClient {
       },
     };
     const bodyStr = JSON.stringify(requestBody);
-    logger.debug('[runpod] submit', { data: { endpoint: this.baseUrl, workflow_keys: Object.keys(workflow) } });
+    logger.debug('[runpod] submit', { data: { endpoint: baseUrl, workflow_keys: Object.keys(workflow) } });
 
-    const submitRes = await fetch(`${this.baseUrl}/run`, {
+    const submitRes = await fetch(`${baseUrl}/run`, {
       method: 'POST',
       headers: this.headers,
       body: bodyStr,
@@ -379,7 +410,7 @@ class RunPodClient {
     // from the client instead of blocking a single request for the whole duration.
     const maxAttempts = Math.floor(80000 / pollIntervalMs) || 1; // ~80s budget
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const statusRes = await fetch(`${this.baseUrl}/status/${id}`, {
+      const statusRes = await fetch(`${baseUrl}/status/${id}`, {
         headers: this.headers,
         signal: AbortSignal.timeout(10000),
       });
