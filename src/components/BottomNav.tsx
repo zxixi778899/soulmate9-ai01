@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { cn } from '@/lib/utils';
 import { Heart, Plus, MessageCircle, ShoppingBag, User, Home, LogIn, Sparkles } from 'lucide-react';
 
