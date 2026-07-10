@@ -8,7 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { APP_NAME, INTIMACY_LEVELS } from '@/lib/constants';
 import { authedFetch } from '@/lib/supabase';
-import { Heart, MessageCircle, ShoppingBag, User, LogOut, Plus, Sparkles, LayoutGrid, CreditCard, Bell, Receipt, Trophy, BellRing } from 'lucide-react';
+import { Heart, MessageCircle, ShoppingBag, User, LogOut, Sparkles, LayoutGrid, CreditCard, Bell, Trophy, ImageIcon } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/lib/i18n/context';
 import { logger } from '@/lib/logger';
@@ -76,15 +76,15 @@ export function Sidebar() {
 
   const navItems: { icon: typeof LayoutGrid; label: string; path: string }[] = [
     { icon: LayoutGrid, label: 'Explore', path: '/explore' },
-    { icon: MessageCircle, label: 'Chats', path: '/chats' },
-    { icon: ShoppingBag, label: 'Shop', path: '/shop' },
-    { icon: Plus, label: 'Create', path: '/create' },
-    { icon: User, label: 'Profile', path: '/profile' },
+    { icon: Sparkles,   label: 'Summon',  path: '/summon' },
+    { icon: ImageIcon,  label: 'Studio',  path: '/studio' },
+    { icon: Trophy,     label: 'Quest',   path: '/quest' },
+    { icon: User,       label: 'Profile', path: '/profile' },
   ];
   const bottomItems = [
-    { icon: Trophy, label: 'Achievements', path: '/achievements' },
-    { icon: CreditCard, label: 'Pricing', path: '/pricing' },
-    { icon: Receipt, label: 'Purchases', path: '/purchases' },
+    { icon: MessageCircle, label: 'Chats',    path: '/chats' },
+    { icon: ShoppingBag,   label: 'Shop',     path: '/shop' },
+    { icon: CreditCard,   label: 'Pricing',  path: '/pricing' },
   ];
 
   return (

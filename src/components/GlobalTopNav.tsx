@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { Heart, Home, Menu, X, LayoutGrid, MessageCircle, ShoppingBag, Plus, User, LogOut, CreditCard } from 'lucide-react';
+import { Heart, Home, Menu, X, LayoutGrid, User, LogOut, CreditCard, Sparkles, Trophy, ImageIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -24,9 +24,9 @@ export function GlobalTopNav() {
   const links = isAuthApp
     ? [
         { href: '/explore', label: 'Explore', icon: LayoutGrid },
-        { href: '/chats', label: 'Chats', icon: MessageCircle },
-        { href: '/shop', label: 'Shop', icon: ShoppingBag },
-        { href: '/create', label: 'Create', icon: Plus },
+        { href: '/summon',  label: 'Summon',  icon: Sparkles },
+        { href: '/studio',  label: 'Studio',  icon: ImageIcon },
+        { href: '/quest',   label: 'Quest',   icon: Trophy },
         { href: '/profile', label: 'Profile', icon: User },
       ]
     : [

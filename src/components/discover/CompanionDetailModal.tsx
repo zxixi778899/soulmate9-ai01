@@ -10,13 +10,13 @@ import { useState, useRef } from 'react';
 import { motion, useMotionValue, useTransform } from 'motion/react';
 import { X, Heart, Sparkles, Lock, Volume2, MessageCircle, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Girl } from './GirlfriendCard';
+import type { DemoGirl } from '@/lib/demo-data';
 
 interface Props {
-  girl: Girl;
+  girl: DemoGirl;
   open: boolean;
   onClose: () => void;
-  onSelect?: (girl: Girl) => void;
+  onSelect?: (girl: DemoGirl) => void;
 }
 
 const PERSONALITY_DIMENSIONS = [
