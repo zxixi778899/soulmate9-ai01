@@ -4,7 +4,7 @@ import { AuthProvider } from '@/components/AuthProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { I18nProvider } from '@/lib/i18n/context';
 import BottomNav from '@/components/BottomNav';
-import { GlobalTopNav } from '@/components/GlobalTopNav';
+import GlobalTopNav from '@/components/GlobalTopNav';
 import { PostHogProvider } from '@/components/PostHogProvider';
 import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
 import { Toaster } from '@/components/ui/sonner';
