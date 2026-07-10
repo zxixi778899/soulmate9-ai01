@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { getOutfitById, resolveOutfitMeta, OUTFIT_CATALOG } from '@/lib/outfit-catalog';
+import {
+  equipOutfitOnGirlfriend,
+  unequipOutfitOnGirlfriend,
+} from '@/lib/wardrobe-equip';
 
 /**
  * GET /api/wardrobe
- * Returns the user's purchased outfits, grouped or flat, with girlfriend names
+ * Returns wardrobe items + catalog fallbacks. Optional ?girlfriend_id=
  */
 export async function GET(req: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(req);
@@ -16,27 +21,79 @@ export async function GET(req: NextRequest) {
 
   let query = client
     .from('wardrobe')
-    .select('*, outfit:outfit_id(*)')
+    .select('*')
     .eq('user_id', user.id);
 
   if (girlfriendId) {
     query = query.eq('girlfriend_id', girlfriendId);
   }
 
-  const { data: items, error } = await query.order('purchased_at', { ascending: false });
-
+  const { data: rows, error } = await query.order('purchased_at', { ascending: false });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ items: items || [] });
+  // Enrich with catalog meta + girlfriend names
+  const gfIds = [...new Set((rows || []).map((r) => r.girlfriend_id).filter(Boolean))];
+  let gfMap: Record<string, { id: string; name: string; portrait_url?: string | null }> = {};
+  if (gfIds.length) {
+    const { data: gfs } = await client
+      .from('girlfriends')
+      .select('id, name, portrait_url, avatar_url, equipped_outfit_id')
+      .eq('user_id', user.id)
+      .in('id', gfIds);
+    for (const g of gfs || []) {
+      gfMap[g.id] = {
+        id: g.id,
+        name: g.name,
+        portrait_url: g.portrait_url || g.avatar_url,
+      };
+    }
+  }
+
+  const items = (rows || []).map((row) => {
+    const outfitMeta = resolveOutfitMeta(String(row.outfit_id), null);
+    const gifted = row.gifted === true || !!row.girlfriend_id;
+    return {
+      ...row,
+      gifted,
+      outfit: outfitMeta
+        ? {
+            id: outfitMeta.id,
+            name: outfitMeta.name,
+            description: outfitMeta.description,
+            tier: outfitMeta.tier,
+            category: outfitMeta.category,
+            price_cents: outfitMeta.price_cents,
+            intimacy_boost: outfitMeta.intimacy_boost,
+            preview_url: outfitMeta.preview_url,
+            wear_prompt: outfitMeta.wear_prompt,
+            emoji: outfitMeta.emoji,
+          }
+        : {
+            id: row.outfit_id,
+            name: String(row.outfit_id),
+            description: '',
+            tier: 'free',
+            category: 'everyday',
+            price_cents: 0,
+            intimacy_boost: 0,
+            preview_url: null,
+          },
+      girlfriend: row.girlfriend_id ? gfMap[row.girlfriend_id] : undefined,
+    };
+  });
+
+  return NextResponse.json({
+    items,
+    catalog: OUTFIT_CATALOG,
+  });
 }
 
 /**
  * PATCH /api/wardrobe
- * Gift or toggle equip/unequip an outfit for a girlfriend.
- * Once gifted (equipped to a girlfriend for the first time), the outfit is PERMANENTLY
- * bound to that girlfriend and cannot be transferred to another.
+ * Gift / equip / unequip (legacy UI)
+ * Prefer POST /api/wardrobe/equip for full "wear on body" flow.
  */
 export async function PATCH(req: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(req);
@@ -45,20 +102,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  if (!body) {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
-  const { id, girlfriend_id, is_equipped } = body;
-
-  if (!id) {
+  if (!body?.id) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 });
   }
 
-  // Fetch current wardrobe item
   const { data: item, error: fetchError } = await client
     .from('wardrobe')
     .select('*')
-    .eq('id', id)
+    .eq('id', body.id)
     .eq('user_id', user.id)
     .single();
 
@@ -66,65 +117,41 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Item not found' }, { status: 404 });
   }
 
-  // --- LOGIC: One-time gift model ---
-  if (item.gifted) {
-    // Item is already gifted to a specific girlfriend
-    // Only allow: toggle equip/unequip for that same girlfriend
-    if (girlfriend_id && girlfriend_id !== item.girlfriend_id) {
-      return NextResponse.json(
-        { error: 'This outfit has already been gifted to another companion and cannot be transferred.' },
-        { status: 403 }
-      );
-    }
-
-    // Toggle equip/unequip on the same girlfriend
-    const { data, error: updateError } = await client
-      .from('wardrobe')
-      .update({ is_equipped: !!is_equipped })
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-    return NextResponse.json({ item: data });
+  const girlfriendId = body.girlfriend_id || item.girlfriend_id;
+  if (!girlfriendId) {
+    return NextResponse.json({ error: 'girlfriend_id is required' }, { status: 400 });
   }
 
-  // Item is NOT yet gifted  gifting it for the first time
-  if (is_equipped) {
-    if (!girlfriend_id) {
-      return NextResponse.json({ error: 'girlfriend_id is required when gifting' }, { status: 400 });
-    }
-
-    // Unequip any other gifted outfit for the same girlfriend (limit = 1 equipped outfit per girl)
-    await client
-      .from('wardrobe')
-      .update({ is_equipped: false })
-      .eq('user_id', user.id)
-      .eq('girlfriend_id', girlfriend_id)
-      .eq('is_equipped', true);
-
-    // Gift this outfit permanently, then equip
-    const { data, error: giftError } = await client
-      .from('wardrobe')
-      .update({
-        girlfriend_id,
-        gifted: true,
-        is_equipped: true,
-      })
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .select()
-      .single();
-
-    if (giftError) {
-      return NextResponse.json({ error: giftError.message }, { status: 500 });
-    }
-    return NextResponse.json({ item: data });
+  // Unequip
+  if (body.is_equipped === false) {
+    const result = await unequipOutfitOnGirlfriend({
+      client,
+      userId: user.id,
+      girlfriendId,
+      restoreBasePortrait: true,
+    });
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    return NextResponse.json({ item: result.wardrobe_item || item, girlfriend: result.girlfriend });
   }
 
-  // Not gifted + not equipping = no-op
-  return NextResponse.json({ item });
+  // Equip / gift
+  const result = await equipOutfitOnGirlfriend({
+    client,
+    userId: user.id,
+    girlfriendId,
+    outfitId: String(item.outfit_id),
+    wardrobeItemId: item.id,
+    regeneratePortrait: !!body.regenerate,
+  });
+
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    item: result.wardrobe_item,
+    girlfriend: result.girlfriend,
+    regenerated: result.regenerated,
+    portrait_url: result.portrait_url,
+  });
 }

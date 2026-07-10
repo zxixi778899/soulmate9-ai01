@@ -1,317 +1,457 @@
 'use client';
-import { useTranslation } from '@/lib/i18n/context';
 
-import { authedFetch } from '@/lib/supabase';
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { authedFetch } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { ArrowLeft, Heart, ShoppingBag, Check, Shirt, Loader2, Gift, X } from 'lucide-react';
+  ArrowLeft, Check, Shirt, Loader2, Sparkles, ShoppingBag, User, Wand2,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import type { OutfitCatalogItem } from '@/lib/outfit-catalog';
 
 interface Girlfriend {
   id: string;
   name: string;
-  avatar_url?: string;
+  portrait_url?: string | null;
+  avatar_url?: string | null;
+  image_url?: string | null;
+  equipped_outfit_id?: string | null;
+  equipped_outfit_name?: string | null;
+  appearance_style?: string | null;
+  base_portrait_url?: string | null;
 }
 
-interface WardrobeItem {
-  id: string;
-  girlfriend_id: string;
-  outfit_id: string;
-  is_equipped: boolean;
-  gifted: boolean;
-  outfit: {
-    id: string;
-    name: string;
-    description: string;
-    tier: string;
-    category: string;
-    price_cents: number;
-    intimacy_boost: number;
-  };
-  girlfriend?: {
-    name: string;
-  };
-}
+type CatalogRow = OutfitCatalogItem & { owned?: boolean; equipped?: boolean };
 
 export default function WardrobePage() {
-  const { t } = useTranslation();
   const router = useRouter();
-  const [items, setItems] = useState<WardrobeItem[]>([]);
   const [girlfriends, setGirlfriends] = useState<Girlfriend[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<CatalogRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionId, setActionId] = useState<string | null>(null);
-  const [selectedGirlfriend, setSelectedGirlfriend] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const selected = useMemo(
+    () => girlfriends.find((g) => g.id === selectedId) || null,
+    [girlfriends, selectedId],
+  );
+
+  const portraitOf = (g: Girlfriend) =>
+    g.image_url || g.portrait_url || g.avatar_url || '';
+
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const [wardrobeRes, girlsRes] = await Promise.all([
-        authedFetch('/api/wardrobe'),
-        authedFetch('/api/girlfriends'),
-      ]);
-      const wardrobeData = await wardrobeRes.json();
+      const girlsRes = await authedFetch('/api/girlfriends');
       const girlsData = await girlsRes.json();
-      setItems(wardrobeData.items || []);
-      setGirlfriends(girlsData.girlfriends || []);
+      const list = (girlsData.girlfriends || []) as Girlfriend[];
+      setGirlfriends(list);
+      const sid = selectedId && list.some((g) => g.id === selectedId)
+        ? selectedId
+        : list[0]?.id || null;
+      setSelectedId(sid);
+
+      if (sid) {
+        const eqRes = await authedFetch(`/api/wardrobe/equip?girlfriend_id=${sid}`);
+        const eqData = await eqRes.json();
+        setCatalog(eqData.catalog || []);
+        // sync equipped fields onto selected girl
+        setGirlfriends((prev) =>
+          prev.map((g) =>
+            g.id === sid
+              ? {
+                  ...g,
+                  equipped_outfit_id: eqData.equipped_outfit_id || g.equipped_outfit_id,
+                }
+              : g,
+          ),
+        );
+      } else {
+        const eqRes = await authedFetch('/api/wardrobe/equip');
+        const eqData = await eqRes.json();
+        setCatalog(eqData.catalog || []);
+      }
     } catch {
-      toast.error('Failed to load data');
+      toast.error('加载衣柜失败');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedId]);
 
   useEffect(() => {
-    fetchData();
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleGift = async (id: string, girlfriendId: string) => {
-    if (!girlfriendId) {
-      toast.error('Please select a companion first');
+  const selectGirl = async (id: string) => {
+    setSelectedId(id);
+    try {
+      const eqRes = await authedFetch(`/api/wardrobe/equip?girlfriend_id=${id}`);
+      const eqData = await eqRes.json();
+      setCatalog(eqData.catalog || []);
+      setGirlfriends((prev) =>
+        prev.map((g) =>
+          g.id === id
+            ? { ...g, equipped_outfit_id: eqData.equipped_outfit_id }
+            : g,
+        ),
+      );
+    } catch {
+      toast.error('加载服装失败');
+    }
+  };
+
+  const equip = async (outfitId: string, regenerate: boolean) => {
+    if (!selectedId) {
+      toast.error('请先选择一位女友');
       return;
     }
-    setActionId(id);
+    setBusyId(outfitId + (regenerate ? ':gen' : ''));
     try {
-      const res = await authedFetch('/api/wardrobe', {
-        method: 'PATCH',
+      const res = await authedFetch('/api/wardrobe/equip', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, girlfriend_id: girlfriendId, is_equipped: true }),
+        body: JSON.stringify({
+          girlfriend_id: selectedId,
+          outfit_id: outfitId,
+          regenerate,
+        }),
       });
-      if (res.ok) {
-        await fetchData();
-        toast.success('Outfit gifted to your companion!');
-      } else {
-        const d = await res.json();
-        toast.error(d.error || 'Failed to gift');
-      }
-    } catch {
-      toast.error('Network error');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '换装失败');
+
+      toast.success(
+        regenerate
+          ? data.regenerated
+            ? '已换装并生成新形象'
+            : '已换装（肖像生成未完成，聊天中已生效服装描述）'
+          : `已换上 ${data.outfit?.name || '服装'}`,
+      );
+
+      // Update local girl portrait / outfit
+      setGirlfriends((prev) =>
+        prev.map((g) => {
+          if (g.id !== selectedId) return g;
+          return {
+            ...g,
+            equipped_outfit_id: data.outfit?.id || outfitId,
+            equipped_outfit_name: data.outfit?.name,
+            appearance_style: data.girlfriend?.appearance_style || g.appearance_style,
+            portrait_url: data.portrait_url || data.girlfriend?.portrait_url || g.portrait_url,
+            avatar_url: data.portrait_url || data.girlfriend?.avatar_url || g.avatar_url,
+            image_url: data.portrait_url || g.image_url,
+          };
+        }),
+      );
+      setCatalog((prev) =>
+        prev.map((o) => ({
+          ...o,
+          equipped: o.id === outfitId,
+          owned: o.owned || o.id === outfitId || o.tier === 'free',
+        })),
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '换装失败');
     } finally {
-      setActionId(null);
+      setBusyId(null);
     }
   };
 
-  const handleToggleEquip = async (id: string, currentlyEquipped: boolean, girlfriendId: string) => {
-    setActionId(id);
+  const unequip = async () => {
+    if (!selectedId) return;
+    setBusyId('unequip');
     try {
-      const res = await authedFetch('/api/wardrobe', {
-        method: 'PATCH',
+      const res = await authedFetch('/api/wardrobe/equip', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, girlfriend_id: girlfriendId, is_equipped: !currentlyEquipped }),
+        body: JSON.stringify({
+          girlfriend_id: selectedId,
+          action: 'unequip',
+          restore_portrait: true,
+        }),
       });
-      if (res.ok) {
-        await fetchData();
-        toast.success(currentlyEquipped ? 'Outfit unequipped' : 'Outfit equipped');
-      } else {
-        const d = await res.json();
-        toast.error(d.error || 'Failed to update');
-      }
-    } catch {
-      toast.error('Network error');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '脱下失败');
+      toast.success('已脱下服装');
+      setGirlfriends((prev) =>
+        prev.map((g) =>
+          g.id === selectedId
+            ? {
+                ...g,
+                equipped_outfit_id: null,
+                equipped_outfit_name: null,
+                portrait_url: data.girlfriend?.portrait_url || g.base_portrait_url || g.portrait_url,
+                avatar_url: data.girlfriend?.avatar_url || g.avatar_url,
+              }
+            : g,
+        ),
+      );
+      setCatalog((prev) => prev.map((o) => ({ ...o, equipped: false })));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '脱下失败');
     } finally {
-      setActionId(null);
+      setBusyId(null);
     }
   };
-
-  // Group by status
-  const ungifted = items.filter(i => !i.gifted);
-  const gifted = items.filter(i => i.gifted);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b border-white/[0.06] px-6 py-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#08040e]">
+      {/* Header */}
+      <div className="border-b border-white/[0.08] px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push('/shop')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-white/70"
+            onClick={() => router.push('/shop')}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-sm font-semibold">My Wardrobe</h1>
-            <p className="text-xs text-[#8B8BA3] mt-0.5">
-              {loading ? '' : `${gifted.filter(i => i.is_equipped).length} equipped  ${gifted.length} gifted  ${ungifted.length} unworn`}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-sm font-bold text-white">换装衣柜</h1>
+            <p className="text-[11px] text-white/45">
+              选择女友 → 点「穿上」改聊天形象 · 「生成形象」把衣服画到身上
             </p>
           </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1 text-xs"
+            onClick={() => router.push('/shop')}
+          >
+            <ShoppingBag className="h-3.5 w-3.5" />
+            商城
+          </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="max-w-4xl mx-auto">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        {/* Girl list */}
+        <aside className="border-b border-white/[0.08] lg:w-56 lg:border-b-0 lg:border-r lg:overflow-y-auto">
+          <div className="p-3 text-[10px] font-bold tracking-wider text-white/40 uppercase">
+            我的女友
+          </div>
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {[1,2,3,4,5,6].map(i => (
-                <Skeleton key={i} className="h-52 rounded-xl" />
+            <div className="space-y-2 px-3 pb-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-14 rounded-xl bg-white/5" />
               ))}
             </div>
-          ) : items.length === 0 ? (
-            <div className="text-center py-24">
-              <div className="w-16 h-16 rounded-full bg-accent/30 flex items-center justify-center mx-auto mb-4">
-                <Heart className="h-8 w-8 text-[#8B8BA3]/40" />
-              </div>
-              <h3 className="text-sm font-medium text-foreground/80">Your wardrobe is empty</h3>
-              <p className="text-xs text-[#8B8BA3] mt-1">Visit the shop to buy outfits and gifts for your companion</p>
-              <Button className="mt-4 gap-1.5" size="sm" onClick={() => router.push('/shop')}>
-                <ShoppingBag className="h-3.5 w-3.5" />
-                Browse Shop
+          ) : girlfriends.length === 0 ? (
+            <div className="px-4 py-8 text-center text-xs text-white/40">
+              <User className="mx-auto mb-2 h-8 w-8 opacity-40" />
+              还没有女友
+              <Button size="sm" className="mt-3 w-full" onClick={() => router.push('/create')}>
+                去创建
               </Button>
             </div>
           ) : (
-            <>
-              {/* Ungifted items  gift them to a girl */}
-              {ungifted.length > 0 && (
-                <div className="mb-8">
-                  <h2 className="text-xs font-semibold text-[#8B8BA3] uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <Gift className="h-3.5 w-3.5" />
-                    Unworn  gift to a companion
+            <div className="flex gap-2 overflow-x-auto px-3 pb-3 lg:flex-col lg:overflow-x-visible">
+              {girlfriends.map((g) => {
+                const active = g.id === selectedId;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => selectGirl(g.id)}
+                    className={cn(
+                      'flex min-w-[140px] items-center gap-2 rounded-xl border p-2 text-left transition-all lg:min-w-0',
+                      active
+                        ? 'border-[#ff2e88]/60 bg-[#ff2e88]/10'
+                        : 'border-white/[0.06] bg-white/[0.03] hover:border-white/20',
+                    )}
+                  >
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-white/5">
+                      {portraitOf(g) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={portraitOf(g)} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-white/30">
+                          <User className="h-4 w-4" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-semibold text-white">{g.name}</div>
+                      <div className="truncate text-[10px] text-white/40">
+                        {g.equipped_outfit_name || g.equipped_outfit_id || '未换装'}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </aside>
+
+        {/* Main: preview + outfits */}
+        <main className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          {!selected ? (
+            <div className="flex h-64 flex-col items-center justify-center text-sm text-white/40">
+              选择左侧女友开始换装
+            </div>
+          ) : (
+            <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[280px_1fr]">
+              {/* Preview */}
+              <div className="space-y-3">
+                <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                  {portraitOf(selected) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={portraitOf(selected)}
+                      alt={selected.name}
+                      className="h-full w-full object-cover object-top"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-white/30">
+                      <Shirt className="h-12 w-12" />
+                    </div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-3">
+                    <div className="text-base font-bold text-white">{selected.name}</div>
+                    <div className="text-[11px] text-white/60">
+                      {selected.equipped_outfit_name ||
+                        selected.appearance_style ||
+                        '当前未装备特殊服装'}
+                    </div>
+                  </div>
+                </div>
+                {selected.equipped_outfit_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    disabled={busyId === 'unequip'}
+                    onClick={unequip}
+                  >
+                    {busyId === 'unequip' ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      '脱下并恢复原肖像'
+                    )}
+                  </Button>
+                )}
+                <p className="text-[10px] leading-relaxed text-white/40">
+                  <b className="text-white/60">穿上</b>：立刻写入角色设定，聊天里她会按这套衣服说话/描述。
+                  <br />
+                  <b className="text-white/60">生成形象</b>：用 FLUX 参考当前脸，生成穿着该服装的新肖像（需 RunPod）。
+                </p>
+              </div>
+
+              {/* Outfit grid */}
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-white/50">
+                    服装库
                   </h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {ungifted.map((item) => (
-                      <Card key={item.id} className="border-white/[0.06] border-dashed">
-                        <CardHeader className="p-0">
-                          <div className="aspect-square flex items-center justify-center bg-accent/20">
-                            <Shirt className="h-10 w-10 text-[#8B8BA3]/30" />
-                          </div>
-                        </CardHeader>
-                        <CardContent className="p-4 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <CardTitle className="text-sm truncate">{item.outfit?.name || 'Unknown'}</CardTitle>
-                              <p className="text-[10px] text-[#8B8BA3] truncate mt-0.5">
-                                {item.outfit?.description || ''}
-                              </p>
-                            </div>
-                            <Badge variant={item.outfit?.tier === 'premium' ? 'default' : 'secondary'} className="shrink-0 text-[10px] px-1.5">
-                              {item.outfit?.tier || 'free'}
-                            </Badge>
-                          </div>
-
-                          {item.outfit?.intimacy_boost ? (
-                            <p className="text-[10px] text-primary/70">+{item.outfit.intimacy_boost} intimacy per msg</p>
-                          ) : null}
-
-                          {girlfriends.length > 0 ? (
-                            <div className="flex gap-1.5">
-                              <Select
-                                value={selectedGirlfriend[item.id] || ''}
-                                onValueChange={(v) => setSelectedGirlfriend(prev => ({ ...prev, [item.id]: v }))}
+                  <span className="text-[10px] text-white/35">{catalog.length} 套</span>
+                </div>
+                {loading ? (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <Skeleton key={i} className="h-40 rounded-xl bg-white/5" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {catalog.map((o) => {
+                      const equipped = o.equipped || selected.equipped_outfit_id === o.id;
+                      const canWear = o.owned !== false;
+                      const wearing = busyId === o.id;
+                      const generating = busyId === o.id + ':gen';
+                      return (
+                        <div
+                          key={o.id}
+                          className={cn(
+                            'rounded-xl border p-3 transition-all',
+                            equipped
+                              ? 'border-[#ff2e88]/70 bg-[#ff2e88]/10 shadow-[0_0_20px_rgba(255,46,136,0.2)]'
+                              : 'border-white/[0.08] bg-white/[0.03]',
+                          )}
+                        >
+                          <div className="mb-2 flex items-start justify-between gap-1">
+                            <div className="text-2xl">{o.emoji || '👗'}</div>
+                            <div className="flex flex-col items-end gap-1">
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] border-white/15 text-white/60"
                               >
-                                <SelectTrigger className="h-8 text-xs flex-1 min-w-0">
-                                  <SelectValue placeholder="Choose companion" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {girlfriends.map(g => (
-                                    <SelectItem key={g.id} value={g.id} className="text-xs">
-                                      {g.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Button
-                                size="sm"
-                                className="h-8 gap-1 text-xs shrink-0"
-                                onClick={() => handleGift(item.id, selectedGirlfriend[item.id] || '')}
-                                disabled={actionId === item.id || !selectedGirlfriend[item.id]}
-                              >
-                                {actionId === item.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Gift className="h-3 w-3" />
-                                )}
-                                Gift
-                              </Button>
+                                {o.tier}
+                              </Badge>
+                              {equipped && (
+                                <Badge className="bg-[#ff2e88] text-[9px]">穿着中</Badge>
+                              )}
                             </div>
-                          ) : (
-                            <p className="text-[10px] text-[#8B8BA3] text-center py-1">
-                              Create a companion first
+                          </div>
+                          <div className="text-xs font-semibold text-white leading-tight">
+                            {o.name}
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-[10px] text-white/45">
+                            {o.description}
+                          </p>
+                          {o.intimacy_boost > 0 && (
+                            <p className="mt-1 text-[10px] text-pink-300/70">
+                              +{o.intimacy_boost} 亲密加成
                             </p>
                           )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Gifted items  toggle equip/unequip */}
-              {gifted.length > 0 && (
-                <div>
-                  <h2 className="text-xs font-semibold text-[#8B8BA3] uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <Shirt className="h-3.5 w-3.5" />
-                    Gifted outfits
-                  </h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {gifted.map((item) => (
-                      <Card
-                        key={item.id}
-                        className={`border-2 transition-all ${
-                          item.is_equipped ? 'border-primary shadow-md' : 'border-white/[0.06]'
-                        }`}
-                      >
-                        <CardHeader className="p-0">
-                          <div className={`aspect-square flex items-center justify-center transition-colors ${
-                            item.is_equipped
-                              ? 'bg-gradient-to-br from-primary/20 to-primary/5'
-                              : 'bg-accent/20'
-                          }`}>
-                            <Shirt className={`h-10 w-10 ${
-                              item.is_equipped ? 'text-primary' : 'text-[#8B8BA3]/30'
-                            }`} />
+                          <div className="mt-2 flex flex-col gap-1.5">
+                            <Button
+                              size="sm"
+                              className={cn(
+                                'h-8 w-full gap-1 text-[11px]',
+                                equipped
+                                  ? 'bg-emerald-600 hover:bg-emerald-500'
+                                  : 'bg-gradient-to-r from-[#ff2e88] to-[#c026d3]',
+                              )}
+                              disabled={!canWear || wearing || generating || equipped}
+                              onClick={() => equip(o.id, false)}
+                            >
+                              {wearing ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : equipped ? (
+                                <Check className="h-3 w-3" />
+                              ) : (
+                                <Shirt className="h-3 w-3" />
+                              )}
+                              {equipped ? '已穿上' : canWear ? '穿上' : '未拥有'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-full gap-1 border-white/15 text-[11px] text-white/80"
+                              disabled={!canWear || wearing || generating}
+                              onClick={() => equip(o.id, true)}
+                            >
+                              {generating ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Wand2 className="h-3 w-3" />
+                              )}
+                              生成形象
+                            </Button>
                           </div>
-                        </CardHeader>
-                        <CardContent className="p-4 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <CardTitle className="text-sm truncate">{item.outfit?.name || 'Unknown'}</CardTitle>
-                              <p className="text-[10px] text-[#8B8BA3] truncate mt-0.5">
-                                {item.outfit?.description || ''}
-                              </p>
-                            </div>
-                            <Badge variant={item.outfit?.tier === 'premium' ? 'default' : 'secondary'} className="shrink-0 text-[10px] px-1.5">
-                              {item.outfit?.tier || 'free'}
-                            </Badge>
-                          </div>
-
-                          <p className="text-[10px] text-[#8B8BA3] flex items-center gap-1">
-                            <Heart className="h-3 w-3" />
-                            Gifted to <span className="font-medium text-foreground/70">{item.girlfriend?.name || 'a companion'}</span>
-                          </p>
-
-                          {item.outfit?.intimacy_boost ? (
-                            <p className="text-[10px] text-primary/70">+{item.outfit.intimacy_boost} intimacy per message</p>
-                          ) : null}
-
-                          <Button
-                            variant={item.is_equipped ? 'default' : 'outline'}
-                            size="sm"
-                            className="w-full gap-1.5 text-xs h-8"
-                            onClick={() => handleToggleEquip(item.id, item.is_equipped, item.girlfriend_id)}
-                            disabled={actionId === item.id}
-                          >
-                            {actionId === item.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : item.is_equipped ? (
-                              <Check className="h-3 w-3" />
-                            ) : (
-                              <Shirt className="h-3 w-3" />
-                            )}
-                            {item.is_equipped ? 'Equipped' : 'Wear'}
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          {!canWear && (
+                            <button
+                              type="button"
+                              className="mt-1.5 w-full text-center text-[10px] text-[#ff6ba6] underline"
+                              onClick={() => router.push('/shop')}
+                            >
+                              去商城购买
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              )}
-            </>
+                )}
+              </div>
+            </div>
           )}
-        </div>
+        </main>
       </div>
     </div>
   );

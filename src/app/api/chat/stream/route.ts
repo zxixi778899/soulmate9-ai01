@@ -148,6 +148,35 @@ function buildCharacterPrompt(
     sections.push('', `=== APPEARANCE ===`, ...appearanceParts);
   }
 
+  // Currently equipped outfit (wardrobe system) — must be reflected in RP descriptions
+  const cardOutfit =
+    card.outfit && typeof card.outfit === 'object'
+      ? (card.outfit as Record<string, unknown>)
+      : null;
+  const cardAppearance =
+    card.appearance && typeof card.appearance === 'object'
+      ? (card.appearance as Record<string, unknown>)
+      : null;
+  const outfitName =
+    gf.equipped_outfit_name ||
+    (cardOutfit?.name as string) ||
+    (cardAppearance?.outfit as string) ||
+    null;
+  const outfitWear =
+    (cardOutfit?.wear_prompt as string) ||
+    (cardAppearance?.clothing as string) ||
+    null;
+  if (outfitName || outfitWear || gf.equipped_outfit_id) {
+    sections.push(
+      '',
+      `=== CURRENT OUTFIT (WARDROBE) ===`,
+      outfitName ? `You are currently wearing: ${outfitName}.` : '',
+      outfitWear ? `Clothing detail: ${outfitWear}.` : '',
+      gf.equipped_outfit_id ? `Outfit id: ${gf.equipped_outfit_id}.` : '',
+      `Stay consistent with this outfit in action descriptions (*adjusts my skirt*, *smooths the fabric*, etc.). Do not suddenly change clothes unless the user asks you to change.`,
+    );
+  }
+
   sections.push('',
     `=== INTIMACY GUIDE ===`,
     intimacyGuide,
