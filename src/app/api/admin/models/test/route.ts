@@ -22,8 +22,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    let {
+    const {
       id,
+      prompt = 'Reply with exactly: OK',
+    } = body as Record<string, unknown>;
+    let {
       provider,
       model_id,
       api_base_url,
@@ -32,7 +35,6 @@ export async function POST(request: NextRequest) {
       max_tokens = 64,
       cost_per_1k_input = 0,
       cost_per_1k_output = 0,
-      prompt = 'Reply with exactly: OK',
     } = body as Record<string, unknown>;
 
     // Load from DB if id given

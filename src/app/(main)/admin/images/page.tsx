@@ -496,7 +496,7 @@ export default function AdminImagesPage() {
     });
 
     try {
-      let concept = state.positivePrompt || buildAutoPrompt(selectedItem);
+      const concept = state.positivePrompt || buildAutoPrompt(selectedItem);
       let girlfriendData: Record<string, unknown> | null = null;
       let outfitData: Record<string, unknown> | null = null;
       let propData: Record<string, unknown> | null = null;
