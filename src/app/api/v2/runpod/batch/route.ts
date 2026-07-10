@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
         send('log', {
           type: 'error',
           message:
-            'RunPod 未配置：请在环境变量设置 RUNPOD_API_KEY + RUNPOD_ENDPOINT_ID',
+            'RunPod 未配置：请在环境变量设置 RUNPOD_API_KEY + RUNPOD_ENDPOINT_ID（Comfy 出图端点，不要填 vLLM）',
         });
         send('done', {
           completed: 0,
@@ -222,9 +222,10 @@ export async function POST(req: NextRequest) {
         return;
       }
 
+      const endpointHint = (process.env.RUNPOD_ENDPOINT_ID || '').slice(0, 8);
       send('log', {
         type: 'info',
-        message: `准备生成 ${characters.length} 张${forceAll ? '（强制）' : '（仅缺图）'}…`,
+        message: `准备生成 ${characters.length} 张${forceAll ? '（强制）' : '（仅缺图）'} · endpoint ${endpointHint || '?'}…`,
       });
       send('start', { total: characters.length });
 

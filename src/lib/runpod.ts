@@ -398,7 +398,16 @@ class RunPodClient {
      * Some want `workflow`; a few simple FLUX APIs want text `prompt` string.
      */
     const strategies: Array<{ name: string; input: Record<string, unknown> }> = [
-      // 1) ComfyUI API style (most common fix for "prompt is required")
+      // 1) Dual keys — covers both "workflow required" and "prompt is required" Comfy workers
+      {
+        name: 'workflow_and_prompt_graph',
+        input: {
+          workflow,
+          prompt: workflow, // MUST be node graph object, not text
+          ...imagesPayload,
+        },
+      },
+      // 2) ComfyUI /prompt API field only
       {
         name: 'comfy_prompt_graph',
         input: {
@@ -406,16 +415,7 @@ class RunPodClient {
           ...imagesPayload,
         },
       },
-      // 2) Official-ish dual keys
-      {
-        name: 'workflow_and_prompt_graph',
-        input: {
-          workflow,
-          prompt: workflow,
-          ...imagesPayload,
-        },
-      },
-      // 3) workflow only
+      // 3) workflow only (verified IN_PROGRESS on soulmate Comfy endpoint)
       {
         name: 'workflow_only',
         input: {
@@ -423,7 +423,7 @@ class RunPodClient {
           ...imagesPayload,
         },
       },
-      // 4) Simple text FLUX / A1111-style handlers
+      // 4) Simple text FLUX / A1111-style handlers (prompt = string)
       {
         name: 'text_prompt',
         input: {
