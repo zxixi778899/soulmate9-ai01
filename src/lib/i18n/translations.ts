@@ -648,7 +648,7 @@ const translations: Record<string, Record<string, string>> = {
   },
 };
 
-export function getTranslation(key: string, locale: keyof Translations, params?: Record<string, string | number>): string {
+export function getTranslation(key: string, locale: string, params?: Record<string, string | number>): string {
   let value = (translations[locale] as any)?.[key] ?? (translations.en as any)?.[key] ?? key;
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
