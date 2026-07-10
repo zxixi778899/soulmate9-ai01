@@ -1,46 +1,48 @@
 /**
- * Girlfriend card image prompt preset
- * - Reads girlfriend traits (race / hair / eyes / body / style / personality / tags)
- * - Fixed sensual body tags: large breasts, big hips/butt, sexy, alluring
- * - Framing: 3/4 body shot (head to mid-thigh)
+ * Girlfriend card image prompt preset — optimized for FLUX.1
+ *
+ * FLUX notes:
+ * - Prefers clear natural-language captions (not SD1.5 tag spam)
+ * - Heavy negative prompts often cause black / washed frames → keep empty or minimal
+ * - Avoid "soft / bokeh / shallow DOF" in positive (reads as blur)
  */
 import {
   sanitizeBlurKeywords,
   joinParts,
-  COMMON_NEGATIVE_TAIL,
   type AssembledPrompt,
   type PresetContext,
 } from './shared';
 
-/** Photoreal quality prefix */
+/** Photoreal quality — sharp, bright, FLUX-friendly */
 export const GIRLFRIEND_QUALITY_PREFIX =
-  'RAW photo, masterpiece, best quality, ultra-high resolution, 4K, 8K UHD, ' +
-  'highly detailed, ultra photorealistic, photorealism, hyperrealistic, dslr, ' +
-  'sharp focus, tack sharp, crisp details, detailed eyes, detailed face, ' +
-  'detailed skin texture, natural skin pores, professional photography, ' +
-  'shot on Canon EOS R5, 85mm f/1.4 lens, soft cinematic lighting';
+  'RAW photo, masterpiece, best quality, ultra photorealistic, 8k uhd, ' +
+  'highly detailed face and eyes, detailed skin texture, natural skin pores, ' +
+  'sharp focus, crisp details, professional photography, ' +
+  'shot on Canon EOS R5, 50mm lens, bright clear lighting, well-lit subject';
 
 /**
  * Fixed sensual / figure tokens — always applied for girlfriend cards.
- * 固定：大胸、大屁股、性感、妩媚
  */
 export const GIRLFRIEND_BODY_FIXED =
-  'large breasts, full bust, voluptuous cleavage, wide hips, big round butt, ' +
-  'thick thighs, hourglass figure, sexy body, seductive allure, alluring and bewitching, ' +
-  'feminine charm, sultry elegance, glamorous sex appeal';
+  'large breasts, full bust, wide hips, big round butt, thick thighs, ' +
+  'hourglass figure, sexy body, seductive allure, feminine charm';
 
 /** Framing: 3/4 body (not cropped headshot, not full feet) */
 export const GIRLFRIEND_FRAMING =
-  'three-quarter body shot, 3/4 body view, head to mid-thighs, ' +
-  'upper body and hips clearly visible, standing pose, looking at viewer';
+  'three-quarter body portrait, head to mid-thighs, ' +
+  'upper body and hips clearly visible, standing pose, looking at viewer, ' +
+  'centered composition, clean background';
 
+/**
+ * FLUX: keep negatives short or empty.
+ * Long SD-style negatives (blur/bokeh/dof spam) frequently yield black images.
+ */
 export const GIRLFRIEND_NEGATIVE =
-  'cartoon, anime, illustration, cgi, 3d render, painting, sketch, ' +
-  'deformed, bad anatomy, bad hands, extra fingers, mutated hands, malformed limbs, ' +
-  'fused fingers, missing fingers, too many fingers, ugly face, asymmetric face, ' +
-  'cross-eyed, flat chest, skinny hips, child, underage, loli, ' +
-  'full body feet, cropped head, extreme close-up face only, ' +
-  COMMON_NEGATIVE_TAIL;
+  'blurry, low quality, worst quality, deformed, bad anatomy, extra fingers, ' +
+  'child, underage, watermark, text, logo, cartoon, anime';
+
+/** Prefer empty negative for pure FLUX workers that ignore/break on CFG negatives */
+export const GIRLFRIEND_NEGATIVE_FLUX = '';
 
 export interface GirlfriendSubject {
   name?: string;
@@ -56,7 +58,6 @@ export interface GirlfriendSubject {
   occupation?: string;
 }
 
-/** Normalize tags to string array */
 function normalizeTags(tags?: string[] | string): string[] {
   if (!tags) return [];
   if (Array.isArray(tags)) return tags.map(String).filter(Boolean);
@@ -68,31 +69,35 @@ function normalizeTags(tags?: string[] | string): string[] {
 
 /**
  * Build trait clause from girlfriend features (reads card fields).
+ * Written as a readable sentence for FLUX.
  */
 export function buildSubjectClause(s: GirlfriendSubject): string {
   const name = s.name?.trim() || 'a stunningly beautiful young woman';
   const parts: string[] = [
-    `three-quarter body portrait of ${name}`,
-    'gorgeous young adult woman, 21-28 years old',
+    `photorealistic three-quarter portrait of ${name}`,
+    'gorgeous young adult woman age 23-28',
   ];
 
   if (s.race) parts.push(`${s.race} ethnicity`);
   if (s.hair || s.hairColor) {
     parts.push(
-      `with beautiful ${[s.hairColor, s.hair].filter(Boolean).join(' ')} hair`,
+      `beautiful ${[s.hairColor, s.hair].filter(Boolean).join(' ')} hair`.trim(),
     );
   }
-  if (s.eyes) parts.push(`gorgeous ${s.eyes} eyes`);
-  if (s.body) parts.push(`${s.body} build`);
+  if (s.eyes) parts.push(`${s.eyes} eyes`);
+  if (s.body) parts.push(`${s.body} figure`);
   if (s.style) parts.push(`wearing ${s.style}`);
-  if (s.occupation) parts.push(`${s.occupation}`);
+  if (s.occupation) parts.push(String(s.occupation));
   if (s.personality) {
-    const p = String(s.personality).slice(0, 120);
-    parts.push(`${p} vibe`);
+    const p = String(s.personality).slice(0, 100);
+    parts.push(`${p} expression`);
   }
-  if (s.appearance) parts.push(sanitizeBlurKeywords(s.appearance));
+  if (s.appearance) {
+    const a = sanitizeBlurKeywords(s.appearance);
+    if (a) parts.push(a);
+  }
 
-  const tags = normalizeTags(s.tags).slice(0, 6);
+  const tags = normalizeTags(s.tags).slice(0, 5);
   if (tags.length) parts.push(tags.join(', '));
 
   return parts.join(', ');
@@ -115,38 +120,24 @@ export function subjectFromGirlfriendRow(
 
   return {
     name: String(row.name || card.title || ''),
-    race:
-      (row.appearance_race as string) ||
-      cardApp.race ||
-      undefined,
+    race: (row.appearance_race as string) || cardApp.race || undefined,
     hair:
       (row.appearance_hair as string) ||
       cardApp.hair_style ||
       cardApp.hair ||
       undefined,
     hairColor:
-      (row.appearance_hair_color as string) ||
-      cardApp.hair_color ||
-      undefined,
-    eyes:
-      (row.appearance_eyes as string) || cardApp.eyes || undefined,
-    body:
-      (row.appearance_body as string) || cardApp.body || undefined,
-    style:
-      (row.appearance_style as string) || cardApp.style || undefined,
+      (row.appearance_hair_color as string) || cardApp.hair_color || undefined,
+    eyes: (row.appearance_eyes as string) || cardApp.eyes || undefined,
+    body: (row.appearance_body as string) || cardApp.body || undefined,
+    style: (row.appearance_style as string) || cardApp.style || undefined,
     personality:
-      (row.personality as string) ||
-      (card.personality as string) ||
-      undefined,
+      (row.personality as string) || (card.personality as string) || undefined,
     tags: (row.tags as string[] | string) || (card.tags as string[]) || undefined,
     appearance:
-      (row.appearance as string) ||
-      (row.image_prompt as string) ||
-      undefined,
+      (row.appearance as string) || (row.image_prompt as string) || undefined,
     occupation:
-      (card.occupation as string) ||
-      (card.role_label as string) ||
-      undefined,
+      (card.occupation as string) || (card.role_label as string) || undefined,
   };
 }
 
@@ -156,31 +147,43 @@ export function subjectFromGirlfriendRow(
 export function assembleGirlfriendPrompt(
   ctx: PresetContext,
   subject: GirlfriendSubject,
+  opts?: { useEmptyNegative?: boolean },
 ): AssembledPrompt {
   const subjectClause = buildSubjectClause(subject);
   const cleanedRaw = sanitizeBlurKeywords(ctx.rawPrompt || '');
 
-  // Avoid duplicating raw if it already mirrors subject
   const extra =
     cleanedRaw &&
     !subjectClause.toLowerCase().includes(cleanedRaw.toLowerCase().slice(0, 40))
       ? cleanedRaw
       : '';
 
-  const positive = joinParts([
+  // FLUX works better with slightly shorter, clearer prompts
+  let positive = joinParts([
     GIRLFRIEND_QUALITY_PREFIX,
     subjectClause,
     GIRLFRIEND_BODY_FIXED,
     GIRLFRIEND_FRAMING,
     extra,
-    'seductive expression, soft parted lips, bedroom eyes, looking at viewer',
+    'seductive expression, soft parted lips, looking at viewer, vibrant colors, high contrast clear image',
   ]);
 
-  return { positive, negative: GIRLFRIEND_NEGATIVE };
+  // Soft cap ~900 chars — very long prompts can degrade FLUX
+  if (positive.length > 900) {
+    positive = positive.slice(0, 900);
+    const lastComma = positive.lastIndexOf(',');
+    if (lastComma > 700) positive = positive.slice(0, lastComma);
+  }
+
+  const negative =
+    opts?.useEmptyNegative === false ? GIRLFRIEND_NEGATIVE : GIRLFRIEND_NEGATIVE_FLUX;
+
+  return { positive, negative };
 }
 
 /**
  * Convenience: build prompt directly from a girlfriend list/DB row.
+ * Defaults to empty negative for FLUX stability.
  */
 export function assembleGirlfriendFromRow(
   row: Record<string, unknown>,
@@ -189,5 +192,6 @@ export function assembleGirlfriendFromRow(
   return assembleGirlfriendPrompt(
     { rawPrompt },
     subjectFromGirlfriendRow(row),
+    { useEmptyNegative: true },
   );
 }

@@ -93,35 +93,58 @@ export function buildFluxWorkflow(opts: {
   lora_strength_model?: number;
   lora_strength_clip?: number;
 }): Record<string, unknown> {
+  // FLUX defaults: lower CFG + empty/minimal negative avoids black frames
   const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 32);
   const width = opts.width ?? 832;
   const height = opts.height ?? 1216;
-  const steps = opts.steps ?? 28;
-  const guidance = opts.guidance ?? 3.5;
+  const steps = Math.max(opts.steps ?? 28, 20);
+  // FLUX.1-dev: cfg 1.0–3.5; higher often darkens/destroys image
+  const guidance = Math.min(Math.max(opts.guidance ?? 1.0, 1.0), 3.5);
   const sampler_name = opts.sampler_name || 'euler';
   const scheduler = opts.scheduler || 'simple';
   const ckpt = opts.ckpt_name || 'flux1-dev-fp8.safetensors';
   const useLora = !!(opts.lora_name && String(opts.lora_name).trim());
 
-  const promptText = String(opts.prompt || '').trim();
+  let promptText = String(opts.prompt || '').trim();
   if (!promptText) {
     throw new Error('buildFluxWorkflow: empty prompt');
   }
+  // Strip accidental blur cues that still sneak into prompts
+  promptText = promptText
+    .replace(/\b(soft focus|shallow depth of field|creamy bokeh|bokeh|defocused|blurry|dreamy blur)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/,\s*,/g, ',')
+    .trim();
 
+  // FLUX: empty negative is safest. Long SD negatives → black / muddy images.
+  const rawNeg = String(opts.negativePrompt ?? '').trim();
   const negText =
-    opts.negativePrompt ??
-    'blurry, low quality, deformed, distorted, ugly, bad anatomy, watermark, text, signature, logo, lowres, bad proportions, child, underage';
+    rawNeg.length > 0 && rawNeg.length < 200
+      ? rawNeg
+      : '';
 
-  // Node IDs aligned with generate-from-meta (proven on soulmate FLUX fp8 workers)
-  // 1 Checkpoint → 2/3 CLIP encode → 4 latent → 5 KSampler → 6 VAEDecode → 7 Save
-  // Optional LoRA as node 14 between checkpoint and encode.
+  // Node IDs: 1 Checkpoint → 2 pos CLIP → 3 neg CLIP → 4 latent → 5 KSampler → 6 VAE → 7 Save
+  // Optional LoRA node 14
   const modelRef: [string, number] = useLora ? ['14', 0] : ['1', 0];
   const clipRef: [string, number] = useLora ? ['14', 1] : ['1', 1];
   const vaeRef: [string, number] = ['1', 2];
 
+  const loraNode = useLora
+    ? {
+        class_type: 'LoraLoader',
+        inputs: {
+          lora_name: String(opts.lora_name).trim(),
+          strength_model: opts.lora_strength_model ?? 0.8,
+          strength_clip: opts.lora_strength_clip ?? 0.8,
+          model: ['1', 0],
+          clip: ['1', 1],
+        },
+      }
+    : null;
+
   // img2img path
   if (opts.input_image) {
-    const denoise = opts.denoising_strength ?? 0.65;
+    const denoise = opts.denoising_strength ?? 0.55;
     const graph: Record<string, unknown> = {
       '1': {
         class_type: 'CheckpointLoaderSimple',
@@ -177,22 +200,11 @@ export function buildFluxWorkflow(opts: {
         inputs: { pixels: ['12', 0], vae: vaeRef },
       },
     };
-    if (useLora) {
-      graph['14'] = {
-        class_type: 'LoraLoader',
-        inputs: {
-          lora_name: String(opts.lora_name).trim(),
-          strength_model: opts.lora_strength_model ?? 0.8,
-          strength_clip: opts.lora_strength_clip ?? 0.8,
-          model: ['1', 0],
-          clip: ['1', 1],
-        },
-      };
-    }
+    if (loraNode) graph['14'] = loraNode;
     return graph;
   }
 
-  // txt2img (default) — same structure as admin generate-from-meta
+  // txt2img (default) — FLUX-safe empty negative + cfg≈1
   const graph: Record<string, unknown> = {
     '1': {
       class_type: 'CheckpointLoaderSimple',
@@ -234,18 +246,7 @@ export function buildFluxWorkflow(opts: {
       inputs: { filename_prefix: 'soulmate', images: ['6', 0] },
     },
   };
-  if (useLora) {
-    graph['14'] = {
-      class_type: 'LoraLoader',
-      inputs: {
-        lora_name: String(opts.lora_name).trim(),
-        strength_model: opts.lora_strength_model ?? 0.8,
-        strength_clip: opts.lora_strength_clip ?? 0.8,
-        model: ['1', 0],
-        clip: ['1', 1],
-      },
-    };
-  }
+  if (loraNode) graph['14'] = loraNode;
   return graph;
 }
 

@@ -27,11 +27,12 @@ const FLUX_GEN_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
 //         
 // FLUX 
 
-const QUALITY_DIRECTION = "ultra photorealistic, shot on Canon EOS R5 with 85mm f/1.4 lens, shallow depth of field, creamy bokeh, magazine cover quality, 8K UHD, visible natural skin texture, natural skin pores and subtle imperfections, no plastic smoothing, no AI artifacts, hyperrealistic photograph, natural film grain";
+// FLUX-friendly: avoid soft/bokeh/shallow DOF (causes muddy or black frames with heavy negatives)
+const QUALITY_DIRECTION = "ultra photorealistic, shot on Canon EOS R5 50mm, sharp focus, crisp details, magazine cover quality, 8K UHD, natural skin texture, natural skin pores, no plastic skin, hyperrealistic photograph, bright clear lighting";
 
-const BEAUTY_DIRECTION = "stunningly beautiful gorgeous young woman, sexy attractive alluring, perfect figure, flawless glowing skin, magazine model quality, Instagram influencer aesthetic, captivating natural beauty, warm radiant complexion";
+const BEAUTY_DIRECTION = "stunningly beautiful gorgeous young woman, sexy attractive alluring, perfect figure, flawless glowing skin, magazine model quality, captivating natural beauty, warm radiant complexion";
 
-const MOOD_DIRECTION = "warm vibrant colors, bright and inviting atmosphere, intimate genuine moment, girlfriend-next-door vibe, approachable beauty, natural genuine emotion, alive and dynamic, soft warm tones, romantic tender quality";
+const MOOD_DIRECTION = "warm vibrant colors, bright and inviting atmosphere, intimate genuine moment, girlfriend-next-door vibe, approachable beauty, natural genuine emotion, alive and dynamic, well-lit, romantic tender quality";
 
 const EXPRESSION_POOL = [
   // 
@@ -391,7 +392,8 @@ function buildSimplePrompt(gf: Record<string, unknown>): string {
   return fullPrompt;
 }
 
-const NEGATIVE_PROMPT = `blurry, blur, blurred, soft focus, out of focus, defocused, hazy, dreamy haze, smudged, motion blur, depth of field, shallow depth of field, bokeh, gaussian blur, lens blur, oof, low quality, worst quality, lowres, pixelated, deformed, bad anatomy, bad hands, extra fingers, ugly, watermark, text, jpeg artifacts, compression artifacts, grainy, noisy, cartoon, anime, illustration, cgi, 3d render, painting, sketch, low resolution, downscaled, jpg, jpeg`;
+// FLUX: empty or minimal negative. Long SD negatives often produce pure black frames.
+const NEGATIVE_PROMPT = ``;
 
 //  Blur-inducing keyword sanitizer 
 // LLM  appearance/scene  FLUX 
@@ -456,9 +458,16 @@ interface GenParams {
 function buildWorkflow(prompt: string, negativePrompt: string, params: GenParams) {
   const seed = params.seed > 0 ? params.seed : Math.floor(Math.random() * 2147483647);
   const fluxPrompt = buildFluxPrompt(prompt);
-  const negPrompt = negativePrompt || NEGATIVE_PROMPT;
+  // Prefer empty negative for FLUX (caller may still pass a short one)
+  const negPrompt =
+    negativePrompt && negativePrompt.trim().length > 0 && negativePrompt.length < 200
+      ? negativePrompt.trim()
+      : NEGATIVE_PROMPT;
 
-  logger.debug('RunPod: built workflow', { fluxLen: fluxPrompt.length, seed, steps: params.steps, cfg: params.cfg });
+  // FLUX cfg 1.0–3.5; clamp high values that darken/blacken outputs
+  const cfg = Math.min(Math.max(params.cfg || 1.0, 1.0), 3.5);
+
+  logger.debug('RunPod: built workflow', { fluxLen: fluxPrompt.length, seed, steps: params.steps, cfg });
 
   return {
     // 1. Load FLUX fp8 checkpoint (includes MODEL + CLIP + VAE)
@@ -476,7 +485,7 @@ function buildWorkflow(prompt: string, negativePrompt: string, params: GenParams
         clip: ['1', 1],  // CLIP output from checkpoint
       },
     },
-    // 3. Encode negative prompt
+    // 3. Encode negative (empty string is intentional for FLUX)
     '3': {
       class_type: 'CLIPTextEncode',
       inputs: {
@@ -493,13 +502,13 @@ function buildWorkflow(prompt: string, negativePrompt: string, params: GenParams
         batch_size: 1,
       },
     },
-    // 5. KSampler  FLUX fp8 optimal settings
+    // 5. KSampler — FLUX-safe cfg
     '5': {
       class_type: 'KSampler',
       inputs: {
         seed,
         steps: params.steps || 28,
-        cfg: params.cfg || 3.5,
+        cfg,
         sampler_name: params.sampler || 'euler',
         scheduler: params.scheduler || 'simple',
         denoise: 1.0,
@@ -621,7 +630,7 @@ export async function POST(req: NextRequest) {
   // Image module defaults (scene by type)
   let sceneDefaults = {
     steps: 28,
-    cfg: 3.5,
+    cfg: 1.0, // FLUX-safe default (was 3.5 — high CFG + long negative → black frames)
     width: 832,
     height: 1216,
     count: 4,

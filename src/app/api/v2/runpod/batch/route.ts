@@ -47,21 +47,19 @@ function buildBatchPrompt(char: Record<string, unknown>): { positive: string; ne
   if (!positive || positive.length < 20) {
     const personality = String(char.personality || 'warm, alluring').slice(0, 120);
     positive = [
-      'RAW photo, masterpiece, best quality, ultra photorealistic, 8k',
+      'RAW photo, masterpiece, best quality, ultra photorealistic, 8k, sharp focus',
       `three-quarter body portrait of ${name}`,
       'gorgeous young adult woman, 21-28 years old',
       personality,
       'large breasts, wide hips, hourglass figure, sexy alluring',
-      'looking at viewer, soft cinematic lighting, detailed skin, detailed face',
+      'looking at viewer, bright clear lighting, detailed skin, detailed face, vibrant colors',
     ].join(', ');
   }
 
-  if (!negative) {
-    negative =
-      'blurry, deformed, bad anatomy, child, underage, watermark, text, logo, cartoon, anime';
-  }
+  // FLUX: empty negative by default (long negatives → black images)
+  if (negative.length > 180) negative = '';
 
-  return { positive, negative };
+  return { positive, negative: negative || '' };
 }
 
 async function generateAndUpload(
@@ -84,13 +82,14 @@ async function generateAndUpload(
     promptHead: positive.slice(0, 80),
   });
 
+  // FLUX: cfg 1.0 + empty negative (avoids black/blurry frames)
   const result = await runpodClient.generate({
     prompt: positive,
-    negative_prompt: negative,
+    negative_prompt: negative || '',
     width: Number(params.width) || 832,
     height: Number(params.height) || 1216,
     num_inference_steps: Number(params.steps) || 28,
-    guidance_scale: Number(params.cfg_scale ?? params.cfg) || 3.5,
+    guidance_scale: Math.min(Number(params.cfg_scale ?? params.cfg) || 1.0, 3.5),
     seed:
       params.seed != null && Number(params.seed) > 0
         ? Number(params.seed)
