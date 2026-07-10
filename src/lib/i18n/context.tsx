@@ -1,19 +1,19 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Locale, TranslationKey } from './types';
+import { Locale } from './types';
 import { getTranslation, detectBrowserLocale } from './translations';
 
 interface I18nContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const I18nContext = createContext<I18nContextType>({
   locale: 'en',
   setLocale: () => {},
-  t: (key: TranslationKey, _params?: Record<string, string | number>) => key,
+  t: (key: string, _params?: Record<string, string | number>) => key,
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -40,7 +40,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const t = (key: TranslationKey, params?: Record<string, string | number>): string => {
+  const t = (key: string, params?: Record<string, string | number>): string => {
     return getTranslation(key, locale, params);
   };
 
