@@ -144,8 +144,8 @@ export default function HomePage() {
                 <GirlfriendCard
                   girl={girl}
                   size="normal"
-                  onClickGirl={i === 0 ? () => setFeaturedOpen(true) : undefined}
-                  onSelectGirl={() => router.push('/chats')}
+                  onClick={i === 0 ? () => setFeaturedOpen(true) : undefined}
+                  onSelect={() => router.push('/chats')}
                   className="w-full max-w-none"
                 />
               </motion.div>
