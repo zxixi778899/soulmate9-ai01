@@ -1,30 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Send, Mic, Sparkles, Plus } from 'lucide-react';
 import { CHAT_ENVS, CHAT_MOODS, CHAT_POSES } from './types';
 import { cn } from '@/lib/utils';
-
-/** Rotating seductive placeholders when input is empty */
-const PLACEHOLDER_POOL = [
-  '今晚想对她说什么…',
-  '告诉她你有多想她…',
-  '描述一个只有你们知道的场景…',
-  '问她现在穿着什么…',
-  '说一句让她心跳加速的话…',
-  '邀请她进入你的幻想…',
-  '小声告诉她一个秘密…',
-  '「过来…」',
-];
-
-const QUICK_PRESETS = [
-  { emoji: '🔥', label: '想你', fill: 'I can\'t stop thinking about you right now…' },
-  { emoji: '😈', label: '坏一点', fill: 'Be a little bad for me tonight…' },
-  { emoji: '💋', label: '亲我', fill: '*pulls you closer* Kiss me.' },
-  { emoji: '🛏️', label: '过来', fill: 'Come here. Closer.' },
-  { emoji: '📸', label: '看我', fill: 'Show me how you look right now…' },
-  { emoji: '🌙', label: '晚安', fill: 'Goodnight baby… dream of me.' },
-];
+import { useTranslation } from '@/lib/i18n/context';
 
 export function ChatInputBar(props: {
   input: string;
@@ -50,16 +30,42 @@ export function ChatInputBar(props: {
     selectedPose, setSelectedPose,
     selectedEnvironment, setSelectedEnvironment,
   } = props;
+  const { t } = useTranslation();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const hasText = input.trim().length > 0;
   const [phIdx, setPhIdx] = useState(0);
 
-  // Rotate placeholder when empty
+  const placeholderPool = useMemo(
+    () => [
+      t('chat.ph1'),
+      t('chat.ph2'),
+      t('chat.ph3'),
+      t('chat.ph4'),
+      t('chat.ph5'),
+      t('chat.ph6'),
+      t('chat.ph7'),
+      t('chat.ph8'),
+    ],
+    [t],
+  );
+
+  const quickPresets = useMemo(
+    () => [
+      { emoji: '🔥', label: t('chat.presetMiss'), fill: "I can't stop thinking about you right now…" },
+      { emoji: '😈', label: t('chat.presetBad'), fill: 'Be a little bad for me tonight…' },
+      { emoji: '💋', label: t('chat.presetKiss'), fill: '*pulls you closer* Kiss me.' },
+      { emoji: '🛏️', label: t('chat.presetCloser'), fill: 'Come here. Closer.' },
+      { emoji: '📸', label: t('chat.presetShow'), fill: 'Show me how you look right now…' },
+      { emoji: '🌙', label: t('chat.presetNight'), fill: 'Goodnight baby… dream of me.' },
+    ],
+    [t],
+  );
+
   useEffect(() => {
     if (hasText) return;
-    const t = setInterval(() => setPhIdx((i) => (i + 1) % PLACEHOLDER_POOL.length), 3500);
-    return () => clearInterval(t);
-  }, [hasText]);
+    const timer = setInterval(() => setPhIdx((i) => (i + 1) % placeholderPool.length), 3500);
+    return () => clearInterval(timer);
+  }, [hasText, placeholderPool.length]);
 
   useEffect(() => {
     const el = taRef.current;
@@ -68,14 +74,13 @@ export function ChatInputBar(props: {
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   }, [input]);
 
-  const livePlaceholder = placeholder || PLACEHOLDER_POOL[phIdx];
+  const livePlaceholder = placeholder || placeholderPool[phIdx % placeholderPool.length];
 
   return (
     <div className="sticky bottom-0 z-20 border-t border-[#ff2e88]/15 bg-[#0a0610]/70 backdrop-blur-2xl">
-      {/* Quick fill chips — always visible for interactivity */}
       {!hasText && (
         <div className="max-w-3xl mx-auto px-2 sm:px-4 pt-2 flex gap-1.5 overflow-x-auto scrollbar-hide">
-          {QUICK_PRESETS.map((p) => (
+          {quickPresets.map((p) => (
             <button
               key={p.label}
               type="button"
@@ -92,7 +97,6 @@ export function ChatInputBar(props: {
         </div>
       )}
 
-      {/* Mood / pose / env */}
       {showPresets && (
         <div className="max-w-3xl mx-auto px-3 sm:px-4 pt-2 pb-1.5 space-y-1.5">
           {[
@@ -162,15 +166,15 @@ export function ChatInputBar(props: {
               onClick={onSend}
               disabled={isSending}
               className="glass-btn h-11 w-11 shrink-0 !rounded-full flex items-center justify-center disabled:opacity-60"
-              aria-label="Send"
+              aria-label={t('chat.send')}
             >
               {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
           ) : (
             <button
               className="h-11 w-11 shrink-0 rounded-full glass text-[#ff6ba6]/50 flex items-center justify-center"
-              aria-label="Voice (coming soon)"
-              title="Voice (coming soon)"
+              aria-label="Voice"
+              title="Voice"
             >
               <Mic className="h-4 w-4" />
             </button>

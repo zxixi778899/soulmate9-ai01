@@ -20,16 +20,19 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');
 
   useEffect(() => {
+    // Never force Chinese on admin path for front locale storage —
+    // admin layout sets zh-CN on document separately.
     const stored = localStorage.getItem('soulmate_locale') as Locale | null;
     let targetLocale: Locale;
-    if (stored) {
+    if (stored === 'en' || stored === 'zh') {
       targetLocale = stored;
     } else {
       const detected = detectBrowserLocale();
-      targetLocale = detected as Locale;
+      targetLocale = detected === 'zh' ? 'zh' : 'en';
     }
     setLocaleState(targetLocale);
-    document.documentElement.lang = targetLocale.split('-')[0];
+    // Nordic / EU browsers (sv, no, da, fi, de, …) → en UI, lang=en
+    document.documentElement.lang = targetLocale === 'zh' ? 'zh-CN' : 'en';
   }, []);
 
   const setLocale = (newLocale: Locale) => {

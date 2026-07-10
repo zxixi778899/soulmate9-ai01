@@ -84,7 +84,7 @@ const GIFTS = [
 // (helpers moved to @/lib/chat-utils)
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { id } = use(params);
   const { user } = useAuth();
   const router = useRouter();
@@ -371,6 +371,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           mood: selectedMood,
           pose: selectedPose,
           environment: selectedEnvironment,
+          locale,
         }),
       });
 

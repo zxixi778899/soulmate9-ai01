@@ -70,6 +70,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [role, setRole] = useState<string>('admin');
   const [denyReason, setDenyReason] = useState<string | null>(null);
 
+  // Admin UI is always Simplified Chinese (independent of site EN/ZH switch)
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = 'zh-CN';
+    }
+  }, []);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) {

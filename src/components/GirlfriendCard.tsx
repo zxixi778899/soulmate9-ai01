@@ -2,6 +2,7 @@
 
 import { motion, useMotionValue, useTransform } from 'motion/react';
 import { useRef } from 'react';
+import { useTranslation } from '@/lib/i18n/context';
 
 interface Girl {
   id: string;
@@ -14,6 +15,7 @@ interface Girl {
 }
 
 export default function GirlfriendCard({ girl, onSelect }: { girl: Girl; onSelect: (girl: Girl) => void }) {
+  const { t } = useTranslation();
   const cardRef = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -68,7 +70,7 @@ export default function GirlfriendCard({ girl, onSelect }: { girl: Girl; onSelec
         </div>
         <div className="pt-2">
           <div className="flex justify-between text-xs mb-1 text-zinc-400">
-            <span>亲密度</span>
+            <span>{t('chat.intimacy')}</span>
             <span className="text-rose-400 font-medium">{girl.intimacy}%</span>
           </div>
           <div className="h-1.5 bg-zinc-900 rounded-full overflow-hidden">

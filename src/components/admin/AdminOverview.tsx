@@ -45,7 +45,7 @@ export default function AdminOverview() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight text-white">Dashboard</h1>
-          <p className="mt-1 text-sm text-white/50">实时平台数据 · Last updated just now</p>
+          <p className="mt-1 text-sm text-white/50">实时平台数据 · 刚刚更新</p>
         </div>
         <div className="flex h-9 items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 backdrop-blur-xl">
           <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />

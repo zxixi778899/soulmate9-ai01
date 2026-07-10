@@ -18,7 +18,7 @@ import {
   Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { GIRLS, RARITY_COLORS, type DemoGirl } from '@/lib/demo-data';
+import { GIRLS, RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
 import { fetchCompanionCatalog } from '@/lib/companions';
 import { openCompanionChat } from '@/lib/ensure-companion';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
@@ -29,63 +29,7 @@ import {
 import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/LockedPortrait';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
-
-const MODULES = [
-  {
-    href: '/explore',
-    title: '卡池',
-    en: 'CARD POOL',
-    desc: '抽选禁忌角色 · 稀有度掉落',
-    tip: '今日 UP 池开启',
-    icon: Crown,
-    tone: 'from-[#ff2e88] to-[#c026d3]',
-  },
-  {
-    href: '/chats',
-    title: '密语',
-    en: 'MESSAGES',
-    desc: '私聊养成 · 记录永久保留',
-    tip: '亲密值实时成长',
-    icon: MessageCircle,
-    tone: 'from-[#25D366] to-[#128C7E]',
-  },
-  {
-    href: '/create',
-    title: '捏脸',
-    en: 'CREATE',
-    desc: '种族体型五官服饰全定制',
-    tip: '3 步生成专属她',
-    icon: Wand2,
-    tone: 'from-[#a855f7] to-[#ff2e88]',
-  },
-  {
-    href: '/shop',
-    title: '橱窗',
-    en: 'ARMORY',
-    desc: '皮肤 · 道具 · 点券充值',
-    tip: '首充双倍进行中',
-    icon: ShoppingBag,
-    tone: 'from-[#ffd700] to-[#f59e0b]',
-  },
-  {
-    href: '/quest',
-    title: '任务',
-    en: 'QUEST',
-    desc: '每日欲望 · 完成领奖',
-    tip: '4 项待领取',
-    icon: Zap,
-    tone: 'from-[#fbbf24] to-[#ff6ba6]',
-  },
-  {
-    href: '/profile',
-    title: '我的',
-    en: 'PROFILE',
-    desc: '账号 · 背包 · 成就',
-    tip: '查看你的收藏',
-    icon: Users,
-    tone: 'from-[#60a5fa] to-[#a855f7]',
-  },
-];
+import { useTranslation } from '@/lib/i18n/context';
 
 const FOOTER_LINKS = {
   telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL || 'https://t.me/soulmateai_support',
@@ -96,6 +40,66 @@ const FOOTER_LINKS = {
 
 export default function HomePage() {
   const router = useRouter();
+  const { t, locale } = useTranslation();
+  const modules = useMemo(
+    () => [
+      {
+        href: '/explore',
+        title: t('home.modulePool'),
+        en: 'CARD POOL',
+        desc: t('home.modulePoolDesc'),
+        tip: t('home.modulePoolTip'),
+        icon: Crown,
+        tone: 'from-[#ff2e88] to-[#c026d3]',
+      },
+      {
+        href: '/chats',
+        title: t('home.moduleChat'),
+        en: 'MESSAGES',
+        desc: t('home.moduleChatDesc'),
+        tip: t('home.moduleChatTip'),
+        icon: MessageCircle,
+        tone: 'from-[#25D366] to-[#128C7E]',
+      },
+      {
+        href: '/create',
+        title: t('home.moduleCreate'),
+        en: 'CREATE',
+        desc: t('home.moduleCreateDesc'),
+        tip: t('home.moduleCreateTip'),
+        icon: Wand2,
+        tone: 'from-[#a855f7] to-[#ff2e88]',
+      },
+      {
+        href: '/shop',
+        title: t('home.moduleShop'),
+        en: 'ARMORY',
+        desc: t('home.moduleShopDesc'),
+        tip: t('home.moduleShopTip'),
+        icon: ShoppingBag,
+        tone: 'from-[#ffd700] to-[#f59e0b]',
+      },
+      {
+        href: '/quest',
+        title: t('home.moduleQuest'),
+        en: 'QUEST',
+        desc: t('home.moduleQuestDesc'),
+        tip: t('home.moduleQuestTip'),
+        icon: Zap,
+        tone: 'from-[#fbbf24] to-[#ff6ba6]',
+      },
+      {
+        href: '/profile',
+        title: t('home.moduleProfile'),
+        en: 'PROFILE',
+        desc: t('home.moduleProfileDesc'),
+        tip: t('home.moduleProfileTip'),
+        icon: Users,
+        tone: 'from-[#60a5fa] to-[#a855f7]',
+      },
+    ],
+    [t],
+  );
   const [catalog, setCatalog] = useState<DemoGirl[]>(GIRLS);
   const [focus, setFocus] = useState(0);
   const [detail, setDetail] = useState<DemoGirl | null>(null);
@@ -150,20 +154,20 @@ export default function HomePage() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          toast.error((data as { error?: string }).error || '解锁失败，请登录或充值代币');
+          toast.error((data as { error?: string }).error || t('home.unlockFail'));
           setDetail(girl);
           return;
         }
         toast.success(
           (data as { already?: boolean; tokens_spent?: number }).already
-            ? '已解锁'
-            : `解锁成功${(data as { tokens_spent?: number }).tokens_spent ? ` · -${(data as { tokens_spent?: number }).tokens_spent} 代币` : ''}`,
+            ? t('home.unlocked')
+            : `${t('home.unlockOk')}${(data as { tokens_spent?: number }).tokens_spent ? ` · -${(data as { tokens_spent?: number }).tokens_spent}t` : ''}`,
         );
         girl = { ...girl, locked: false, is_unlocked: true };
       }
       const ok = await openCompanionChat(girl, router);
       if (!ok) {
-        toast.error('无法开启对话，请先登录或稍后重试');
+        toast.error(t('home.chatFail'));
         router.push('/login');
       }
     } finally {
@@ -195,13 +199,13 @@ export default function HomePage() {
                 <Flame className="h-3 w-3" /> 18+ LOBBY
               </GameChip>
               <span className="text-[11px] text-white/35 hidden sm:inline">
-                {catalog.length}+ 角色在线 · 主视觉选角
+                {t('home.onlineRoles', { count: catalog.length })}
               </span>
             </div>
             <h1 className="mt-1.5 text-xl sm:text-3xl font-black tracking-tight">
-              选择你的
+              {t('home.chooseYour')}
               <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
-                {' '}执念
+                {' '}{t('home.obsession')}
               </span>
             </h1>
           </div>
@@ -211,7 +215,7 @@ export default function HomePage() {
             className="glass h-9 px-3 rounded-full text-xs flex items-center gap-1.5 text-[#ffb3cd] shrink-0"
           >
             <Share2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">分享</span>
+            <span className="hidden sm:inline">{t('home.share')}</span>
           </button>
         </div>
 
@@ -228,7 +232,7 @@ export default function HomePage() {
                 type="button"
                 onClick={prev}
                 className="absolute left-2 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full glass-strong flex items-center justify-center shadow-lg"
-                aria-label="上一位"
+                aria-label={t('home.prev')}
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -236,7 +240,7 @@ export default function HomePage() {
                 type="button"
                 onClick={next}
                 className="absolute right-2 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full glass-strong flex items-center justify-center shadow-lg"
-                aria-label="下一位"
+                aria-label={t('home.next')}
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -325,7 +329,7 @@ export default function HomePage() {
                       <div className="min-w-0">
                         <div className="text-lg sm:text-xl font-black truncate seduce-glow">{featured.name}</div>
                         <div className="text-[10px] text-white/50 truncate">
-                          {featured.relationship} · {featured.age}岁 · 点击看档案
+                          {relationshipLabel(featured.relationship, t)} · {featured.age}{t('home.yearsOld')} {t('home.tapProfile')}
                         </div>
                       </div>
                       <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0 shadow-[0_0_10px_#34d399]" />
@@ -340,23 +344,23 @@ export default function HomePage() {
               <div className="flex-1 rounded-xl sm:rounded-2xl bg-black/25 border border-white/[0.07] p-4 sm:p-5 flex flex-col">
                 <div className="text-[10px] tracking-[0.25em] text-[#ff6ba6] font-bold">FEATURED</div>
                 <h2 className="mt-1 text-2xl sm:text-3xl font-black seduce-glow leading-none">{featured.name}</h2>
-                <p className="mt-2 text-sm text-white/55 line-clamp-3 leading-relaxed">{featured.tagline}</p>
+                <p className="mt-2 text-sm text-white/55 line-clamp-3 leading-relaxed">{girlTagline(featured, locale)}</p>
 
                 <div className="mt-4 space-y-2.5">
-                  <Meter label="欲望值" value={featured.desire ?? featured.intimacy} color="#ff2e88" />
-                  <Meter label="开发值" value={featured.development ?? Math.floor(featured.intimacy * 0.85)} color="#a855f7" />
-                  <Meter label="变态值" value={featured.kink ?? Math.floor(featured.intimacy * 0.7)} color="#f59e0b" />
+                  <Meter label={t('home.meterDesire')} value={featured.desire ?? featured.intimacy} color="#ff2e88" />
+                  <Meter label={t('home.meterDev')} value={featured.development ?? Math.floor(featured.intimacy * 0.85)} color="#a855f7" />
+                  <Meter label={t('home.meterKink')} value={featured.kink ?? Math.floor(featured.intimacy * 0.7)} color="#f59e0b" />
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                  <InfoCell label="年龄" value={`${featured.age}`} />
-                  <InfoCell label="稀有度" value={featured.rarity} accent={rc.color} />
-                  <InfoCell label="关系" value={featured.relationship || '女友'} />
+                  <InfoCell label={t('home.age')} value={`${featured.age}`} />
+                  <InfoCell label={t('home.rarity')} value={featured.rarity} accent={rc.color} />
+                  <InfoCell label={t('home.relation')} value={relationshipLabel(featured.relationship, t)} />
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {featured.tags.slice(0, 6).map((t) => (
-                    <span key={t} className="glass px-2 py-0.5 rounded-full text-[10px] text-[#ffc0d8]">#{t}</span>
+                  {featured.tags.slice(0, 6).map((tag) => (
+                    <span key={tag} className="glass px-2 py-0.5 rounded-full text-[10px] text-[#ffc0d8]">#{tag}</span>
                   ))}
                 </div>
 
@@ -364,15 +368,15 @@ export default function HomePage() {
                   <GamePrimaryButton className="flex-1 h-12" disabled={bonding} onClick={() => void enterBond()}>
                     {featured.locked ? <Lock className="h-4 w-4" /> : <Heart className="h-4 w-4 fill-current" />}
                     {bonding
-                      ? '进入中…'
+                      ? t('home.entering')
                       : featured.locked
-                        ? `解锁${featured.unlock_price_tokens ? ` · ${featured.unlock_price_tokens}t` : ''}`
-                        : '进入私密'}
+                        ? `${t('home.unlock')}${featured.unlock_price_tokens ? ` · ${featured.unlock_price_tokens}t` : ''}`
+                        : t('home.enterPrivate')}
                   </GamePrimaryButton>
                   <button type="button" onClick={() => setDetail(featured)} className="glass h-12 px-4 rounded-full text-sm font-semibold shrink-0">
-                    档案
+                    {t('home.profile')}
                   </button>
-                  <button type="button" onClick={() => setShareOpen(true)} className="glass h-12 w-12 rounded-full flex items-center justify-center shrink-0" aria-label="分享">
+                  <button type="button" onClick={() => setShareOpen(true)} className="glass h-12 w-12 rounded-full flex items-center justify-center shrink-0" aria-label={t('home.share')}>
                     <Share2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -381,7 +385,7 @@ export default function HomePage() {
               {/* Avatar select — under right panel */}
               <div className="glass-strong rounded-xl sm:rounded-2xl p-2.5 sm:p-3">
                 <div className="flex items-center justify-between mb-2 px-0.5">
-                  <span className="text-[10px] font-bold tracking-wider text-white/45 uppercase">切换角色</span>
+                  <span className="text-[10px] font-bold tracking-wider text-white/45 uppercase">{t('home.switchRole')}</span>
                   <span className="text-[10px] text-white/30">{focus + 1}/{roster.length}</span>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
@@ -415,11 +419,11 @@ export default function HomePage() {
           <div className="flex items-end justify-between mb-3">
             <div>
               <div className="game-chip mb-1">HUB · 2 ROWS</div>
-              <h3 className="text-lg font-bold">养成模块</h3>
+              <h3 className="text-lg font-bold">{t('home.modulesTitle')}</h3>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {MODULES.map((m) => {
+            {modules.map((m) => {
               const Icon = m.icon;
               return (
                 <button
@@ -454,8 +458,8 @@ export default function HomePage() {
             badgeClass="text-[#ffd700]"
             icon={<Coins className="h-5 w-5 text-black" />}
             iconBg="from-[#ffd700] to-[#f59e0b]"
-            title="充值活动 · 首充双倍点券"
-            desc="限时返利 · 限定皮肤礼包"
+            title={t('home.promoTopup')}
+            desc={t('home.promoTopupDesc')}
             glow="from-amber-500/20"
           />
           <PromoCard
@@ -464,8 +468,8 @@ export default function HomePage() {
             badgeClass="text-[#ff6ba6]"
             icon={<Trophy className="h-5 w-5 text-white" />}
             iconBg="from-[#ff2e88] to-[#c026d3]"
-            title="成就有礼 · 任务领奖"
-            desc="亲密里程碑 · 代币装扮掉落"
+            title={t('home.promoQuest')}
+            desc={t('home.promoQuestDesc')}
             glow="from-[#ff2e88]/20"
           />
         </section>
@@ -477,15 +481,15 @@ export default function HomePage() {
               <div className="game-chip mb-1">
                 <Flame className="h-3 w-3" /> HOT · 3×4
               </div>
-              <h3 className="text-lg font-bold">热门女友</h3>
-              <p className="text-[11px] text-white/40 mt-0.5">本周 Top 12 · 点击进入私密</p>
+              <h3 className="text-lg font-bold">{t('home.hotTitle')}</h3>
+              <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
             </div>
             <button
               type="button"
               onClick={() => router.push('/explore')}
               className="glass-btn !h-10 !px-4 text-xs flex items-center gap-1 shrink-0"
             >
-              更多女友 <ChevR className="h-3.5 w-3.5" />
+              {t('home.moreGirls')} <ChevR className="h-3.5 w-3.5" />
             </button>
           </div>
           {/* Always 4 columns → 3 rows for 12 cards */}
@@ -519,7 +523,7 @@ export default function HomePage() {
                   <div className="absolute bottom-0 left-0 right-0 p-2 z-[2]">
                     <div className="text-xs sm:text-sm font-bold truncate">{g.name}</div>
                     <div className="text-[9px] sm:text-[10px] text-white/50 truncate">
-                      {g.relationship} · {g.rarity}
+                      {relationshipLabel(g.relationship, t)} · {g.rarity}
                     </div>
                   </div>
                 </div>
@@ -532,15 +536,15 @@ export default function HomePage() {
         <section className="glass-strong rounded-2xl p-3.5 sm:p-4">
           <div className="flex items-center gap-2 mb-2.5">
             <Zap className="h-4 w-4 text-[#ffd700]" />
-            <span className="font-semibold text-sm">今日欲望任务</span>
-            <span className="text-[10px] text-white/35 ml-auto">完成领奖励</span>
+            <span className="font-semibold text-sm">{t('home.moduleQuest')}</span>
+            <span className="text-[10px] text-white/35 ml-auto">{t('home.moduleQuestTip')}</span>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             {[
-              { l: '登录领取', d: true, r: '+5 亲密', href: '/' },
-              { l: '发第一条密语', d: false, r: '+10 欲望', href: '/chats' },
-              { l: '索要自拍', d: false, r: '+15 解锁', href: '/chats' },
-              { l: '赠送玫瑰', d: false, r: '+20 羁绊', href: '/shop' },
+              { l: t('auth.login'), d: true, r: '+5', href: '/' },
+              { l: t('home.moduleChat'), d: false, r: '+10', href: '/chats' },
+              { l: t('chat.sayHello'), d: false, r: '+15', href: '/chats' },
+              { l: t('shop.gifts'), d: false, r: '+20', href: '/shop' },
             ].map((q) => (
               <button
                 key={q.l}
@@ -576,8 +580,7 @@ export default function HomePage() {
                 </span>
               </div>
               <p className="text-[12px] text-white/40 leading-relaxed max-w-xs">
-                AI 女友养成 · 高 NSFW · 私密对话与亲密成长。
-                18+ only. Play responsibly.
+                {t('landing.heroSubtitle')}
               </p>
             </div>
 
@@ -592,7 +595,7 @@ export default function HomePage() {
                     className="flex items-center gap-2 text-[#ffb3cd] hover:text-white transition-colors"
                   >
                     <Send className="h-4 w-4" />
-                    Telegram 客服
+                    Telegram
                     <ExternalLink className="h-3 w-3 opacity-50" />
                   </a>
                 </li>
@@ -601,7 +604,7 @@ export default function HomePage() {
                     href={`mailto:${FOOTER_LINKS.email}`}
                     className="flex items-center gap-2 text-white/50 hover:text-white transition-colors text-[13px]"
                   >
-                    📧 {FOOTER_LINKS.email}
+                    {FOOTER_LINKS.email}
                   </a>
                 </li>
               </ul>
@@ -618,7 +621,7 @@ export default function HomePage() {
                     className="flex items-center gap-2 text-[#ffb3cd] hover:text-white transition-colors"
                   >
                     <span className="font-black text-base leading-none">𝕏</span>
-                    X 官方主页
+                    X / Twitter
                     <ExternalLink className="h-3 w-3 opacity-50" />
                   </a>
                 </li>
@@ -630,15 +633,15 @@ export default function HomePage() {
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"
                     >
-                      Discord 社区
+                      Discord
                       <ExternalLink className="h-3 w-3 opacity-50" />
                     </a>
                   </li>
                 ) : null}
                 <li className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-[11px] text-white/35">
-                  <button type="button" onClick={() => router.push('/terms')} className="hover:text-white">服务条款</button>
-                  <button type="button" onClick={() => router.push('/privacy')} className="hover:text-white">隐私政策</button>
-                  <button type="button" onClick={() => router.push('/pricing')} className="hover:text-white">会员</button>
+                  <button type="button" onClick={() => router.push('/terms')} className="hover:text-white">{t('footer.terms')}</button>
+                  <button type="button" onClick={() => router.push('/privacy')} className="hover:text-white">{t('footer.privacy')}</button>
+                  <button type="button" onClick={() => router.push('/pricing')} className="hover:text-white">{t('nav.pricing')}</button>
                 </li>
               </ul>
             </div>
@@ -673,7 +676,7 @@ export default function HomePage() {
           name: featured.name,
           age: featured.age,
           tags: featured.tags,
-          short_description: `${featured.relationship} · 欲望${featured.desire} · ${featured.tagline}`,
+          short_description: `${relationshipLabel(featured.relationship, t)} · ${girlTagline(featured, locale)}`,
           personality: featured.personality,
           portrait_url: featured.portrait,
         }}

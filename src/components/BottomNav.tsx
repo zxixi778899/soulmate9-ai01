@@ -3,42 +3,36 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
+import { useTranslation } from '@/lib/i18n/context';
 import { cn } from '@/lib/utils';
 import {
   Heart, MessageCircle, User, Home, LogIn, Wand2, ShoppingBag, Sparkles,
 } from 'lucide-react';
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ElementType;
-}
-
-const navItems: NavItem[] = [
-  { href: '/', label: '选角', icon: Home },
-  { href: '/explore', label: '卡池', icon: Heart },
-  { href: '/chats', label: '密语', icon: MessageCircle },
-  { href: '/shop', label: '橱窗', icon: ShoppingBag },
-  { href: '/profile', label: '我的', icon: User },
-];
-
-const publicNavItems: NavItem[] = [
-  { href: '/', label: '选角', icon: Home },
-  { href: '/explore', label: '卡池', icon: Heart },
-  { href: '/login', label: '登录', icon: LogIn },
-  { href: '/register', label: '加入', icon: Sparkles },
-];
-
 export default function BottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   if (pathname?.startsWith('/admin')) return null;
   if (pathname?.startsWith('/chat/')) return null;
   if (pathname?.startsWith('/create')) return null;
 
   const isLoggedIn = !!user;
-  const items = isLoggedIn ? navItems : publicNavItems;
+  const items = isLoggedIn
+    ? [
+        { href: '/', label: t('home.selectCast'), icon: Home },
+        { href: '/explore', label: t('home.pool'), icon: Heart },
+        { href: '/chats', label: t('home.messages'), icon: MessageCircle },
+        { href: '/shop', label: t('home.shop'), icon: ShoppingBag },
+        { href: '/profile', label: t('home.me'), icon: User },
+      ]
+    : [
+        { href: '/', label: t('home.selectCast'), icon: Home },
+        { href: '/explore', label: t('home.pool'), icon: Heart },
+        { href: '/login', label: t('home.login'), icon: LogIn },
+        { href: '/register', label: t('home.join'), icon: Sparkles },
+      ];
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 game-bottom-nav pb-[env(safe-area-inset-bottom)]">
@@ -77,7 +71,7 @@ export default function BottomNav() {
         <Link
           href="/create"
           className="absolute -top-6 right-4 h-12 w-12 rounded-2xl glass-btn !rounded-2xl flex items-center justify-center border-2 border-[#0a0612] active:scale-95"
-          aria-label="捏脸创建"
+          aria-label={t('home.createAria')}
         >
           <Wand2 className="h-5 w-5" />
         </Link>

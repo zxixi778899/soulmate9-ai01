@@ -1,7 +1,9 @@
 /**
  * RunPod resources + Comfy console defaults for Soulmate9.
  * Network volume LoRAs/models are listed as filenames Comfy sees after mount.
+ * LoRA 清单单源：data/lora-catalog.json → catalogToLoraAssets()
  */
+import { catalogToLoraAssets, LORA_CATALOG } from './lora-catalog';
 
 export type WorkflowKind = 'girlfriend' | 'outfit' | 'prop' | 'custom';
 
@@ -29,6 +31,13 @@ export type LoraAsset = {
   filename: string;
   default_strength: number;
   tags?: string[];
+  category?: string;
+  nsfw?: boolean;
+  usage?: string;
+  trigger_words?: string[];
+  page_url?: string;
+  search_keywords?: string;
+  workflows?: string[];
 };
 
 export type WorkflowPreset = {
@@ -69,27 +78,45 @@ export type ComfyConsoleConfig = {
   checkpoints: ModelAsset[];
   loras: LoraAsset[];
   workflows: WorkflowPreset[];
+  /** 叠用建议 + 一键配方（只读展示，来自 catalog） */
+  lora_stacking_tips?: string[];
+  lora_recipes?: Array<{
+    id: string;
+    label: string;
+    workflow_id: string;
+    lora_id: string;
+    lora_strength: number;
+    append_triggers?: boolean;
+    positive_extra?: string;
+  }>;
+  lora_catalog_version?: number;
 };
 
 export const COMFY_CONFIG_KEY = 'comfy_console';
 
 export function createDefaultComfyConfig(): ComfyConsoleConfig {
+  const loras = catalogToLoraAssets();
+
   return {
-    version: 1,
+    version: 2,
     updated_at: new Date().toISOString(),
+    lora_catalog_version: LORA_CATALOG.version,
+    lora_stacking_tips: LORA_CATALOG.stacking_tips || [],
+    lora_recipes: LORA_CATALOG.apply_recipes || [],
     network_volume: {
-      name: 'soulmate-models-ca2',
-      region: 'US-CA-2',
+      name: LORA_CATALOG.target_volume || 'soulmate-models-ca2',
+      region: LORA_CATALOG.region || 'US-CA-2',
       mount_hint: '/runpod-volume 或 ComfyUI/models（以你镜像为准）',
       checkpoints_dir: 'models/checkpoints',
       loras_dir: 'models/loras',
       setup_notes: [
         '1. 网络卷 soulmate-models-ca2 挂到 ComfyUI Serverless 模板的 Network Volume',
         '2. 目录结构：models/checkpoints/*.safetensors 与 models/loras/*.safetensors',
-        '3. 用 model-downloader Pod（同区域 US-CA-2）把文件下载到网络卷',
-        '4. LoRA 文件名必须与 Comfy 列表一致（仅文件名，不要绝对路径）',
+        '3. fp8 已有则跳过；LoRA 用 scripts/runpod/download-loras.sh 一键准备',
+        '4. LoRA 文件名必须与后台清单 filename 一致（仅文件名，不要绝对路径）',
         '5. Serverless 端点（ComfyUI / soulmate-portrait）都要挂同一网络卷',
         '6. 冷启动后首次读卷可能稍慢，属正常',
+        '7. 详细清单与用法见后台「LoRA 清单」Tab 与 scripts/runpod/README-LORA.md',
       ],
     },
     endpoints: [
@@ -118,7 +145,7 @@ export function createDefaultComfyConfig(): ComfyConsoleConfig {
     checkpoints: [
       {
         id: 'flux-fp8',
-        label: 'FLUX.1 dev fp8',
+        label: 'FLUX.1 dev fp8（已有）',
         filename: 'flux1-dev-fp8.safetensors',
         type: 'checkpoint',
       },
@@ -129,44 +156,16 @@ export function createDefaultComfyConfig(): ComfyConsoleConfig {
         type: 'checkpoint',
       },
     ],
-    loras: [
-      {
-        id: 'none',
-        label: '（不使用 LoRA）',
-        filename: '',
-        default_strength: 0,
-      },
-      {
-        id: 'style-soft',
-        label: '示例：柔光人像 LoRA（请换成你卷上的真实文件名）',
-        filename: 'portrait_soft_v1.safetensors',
-        default_strength: 0.75,
-        tags: ['girlfriend', 'portrait'],
-      },
-      {
-        id: 'outfit-silk',
-        label: '示例：丝质服装 LoRA',
-        filename: 'outfit_silk_v1.safetensors',
-        default_strength: 0.8,
-        tags: ['outfit'],
-      },
-      {
-        id: 'prop-glow',
-        label: '示例：特效道具 LoRA',
-        filename: 'prop_glow_v1.safetensors',
-        default_strength: 0.7,
-        tags: ['prop'],
-      },
-    ],
+    loras,
     workflows: [
       {
         id: 'wf-girlfriend',
         name: '人物肖像 · 3/4 全身',
         kind: 'girlfriend',
-        description: '性感女友卡：3/4 构图 + 固定体态词，可挂人像 LoRA',
+        description: '性感女友卡：3/4 构图 + 固定体态词，可挂身材/动作/服装 LoRA',
         defaults: {
           ckpt_id: 'flux-fp8',
-          lora_id: 'style-soft',
+          lora_id: 'body-curvy-flux',
           lora_strength: 0.75,
           width: 832,
           height: 1216,
@@ -175,7 +174,7 @@ export function createDefaultComfyConfig(): ComfyConsoleConfig {
           denoise: 1,
           endpoint_key: 'portrait-v9',
           positive:
-            'three-quarter body portrait of a stunningly beautiful young woman, large breasts, wide hips, big round butt, sexy alluring, looking at viewer, ultra photorealistic, 8k, soft cinematic lighting',
+            'three-quarter body portrait of a stunningly beautiful young adult woman, curvy body, hourglass figure, large breasts, wide hips, sexy alluring, looking at viewer, ultra photorealistic, 8k, soft cinematic lighting',
           negative:
             'blurry, deformed, bad anatomy, child, underage, watermark, text, logo, flat chest',
         },
@@ -184,11 +183,11 @@ export function createDefaultComfyConfig(): ComfyConsoleConfig {
         id: 'wf-outfit',
         name: '服装道具 · 无模特',
         kind: 'outfit',
-        description: '游戏服装/ cos 道具，无真人，ghost mannequin',
+        description: '游戏服装 / cos 道具，无真人，ghost mannequin',
         defaults: {
           ckpt_id: 'flux-fp8',
-          lora_id: 'outfit-silk',
-          lora_strength: 0.8,
+          lora_id: 'outfit-ghost-mannequin',
+          lora_strength: 0.7,
           width: 1024,
           height: 1024,
           steps: 24,
@@ -207,8 +206,8 @@ export function createDefaultComfyConfig(): ComfyConsoleConfig {
         description: 'RPG 特效道具 icon / VFX',
         defaults: {
           ckpt_id: 'flux-fp8',
-          lora_id: 'prop-glow',
-          lora_strength: 0.7,
+          lora_id: 'prop-magical',
+          lora_strength: 0.75,
           width: 1024,
           height: 1024,
           steps: 22,
@@ -223,10 +222,11 @@ export function createDefaultComfyConfig(): ComfyConsoleConfig {
         id: 'wf-tryon',
         name: '换装 · 女友图 img2img',
         kind: 'girlfriend',
-        description: '参考图保持脸，提示词换衣服（denoise 0.5–0.6）',
+        description: '参考图保持脸，提示词换衣服（denoise 0.5–0.6）；推荐服装 LoRA',
         defaults: {
           ckpt_id: 'flux-fp8',
-          lora_id: null,
+          lora_id: 'outfit-lingerie',
+          lora_strength: 0.65,
           width: 832,
           height: 1216,
           steps: 26,
@@ -234,7 +234,7 @@ export function createDefaultComfyConfig(): ComfyConsoleConfig {
           denoise: 0.55,
           endpoint_key: 'portrait-v9',
           positive:
-            'same young woman as reference, identity preserved, wearing elegant outfit, three-quarter body, photorealistic 8k',
+            'same young adult woman as reference, identity preserved, wearing elegant outfit, three-quarter body, photorealistic 8k',
           negative: 'different person, face change, deformed, child, watermark',
         },
       },

@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * Comfy 操作台 — 参考 ComfyUI 的手动出图控制台
- * 工作流 / 模型 / LoRA / 生成 / 图库删除
+ * Comfy 操作台 — 工作流 / 模型 / LoRA 清单一键调用 / 生成 / 图库
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
@@ -16,20 +15,32 @@ import {
 } from '@/components/ui/select';
 import {
   Loader2, Play, Trash2, RefreshCw, HardDrive, Workflow, ImageIcon,
-  Settings2, BookOpen, Save, RotateCcw,
+  Settings2, BookOpen, Save, RotateCcw, Sparkles, Layers, ExternalLink,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 type Any = Record<string, any>;
 
+const CAT_LABEL: Record<string, string> = {
+  body: '身材',
+  action: '人物动作 NSFW',
+  outfit: '服装',
+  prop: '道具',
+  detail: '细节质感',
+};
+
+const CAT_ORDER = ['body', 'action', 'outfit', 'prop', 'detail'];
+
 export default function AdminComfyConsolePage() {
-  const [tab, setTab] = useState<'generate' | 'library' | 'workflows' | 'infra'>('generate');
+  const [tab, setTab] = useState<'generate' | 'loras' | 'library' | 'workflows' | 'infra'>('generate');
   const [config, setConfig] = useState<Any | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [assets, setAssets] = useState<Any[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
+  const [loraFilter, setLoraFilter] = useState<string>('all');
 
   // Generate form
   const [workflowId, setWorkflowId] = useState('wf-girlfriend');
@@ -56,7 +67,6 @@ export default function AdminComfyConsolePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '加载失败');
       setConfig(data.config);
-      // seed form from first workflow
       const wf = data.config?.workflows?.find((w: Any) => w.id === 'wf-girlfriend')
         || data.config?.workflows?.[0];
       if (wf) applyWorkflow(wf, data.config);
@@ -104,14 +114,75 @@ export default function AdminComfyConsolePage() {
     setDenoise(wf.defaults?.denoise ?? 0.55);
     setPrompt(wf.defaults?.positive || '');
     setNegative(wf.defaults?.negative || '');
-    // keep endpoint from config
     void c;
+  }
+
+  /** 一键调用：选中 LoRA + 强度 + 触发词写入提示词 */
+  function applyLora(lora: Any, opts?: { appendTriggers?: boolean; goGenerate?: boolean }) {
+    if (!lora || lora.id === 'none') {
+      setLoraId('none');
+      setLoraStrength(0);
+      toast.message('已关闭 LoRA');
+      return;
+    }
+    setLoraId(lora.id);
+    setLoraStrength(lora.default_strength ?? 0.75);
+    const triggers = (lora.trigger_words || []).slice(0, 4).join(', ');
+    if (opts?.appendTriggers !== false && triggers) {
+      setPrompt((p) => {
+        if (!p.trim()) return triggers;
+        if (p.includes(triggers.split(',')[0]?.trim() || '___')) return p;
+        return `${triggers}, ${p}`;
+      });
+    }
+    toast.success(`已调用：${lora.label?.replace(/^\[[^\]]+\]\s*/, '') || lora.id}`);
+    if (opts?.goGenerate !== false) setTab('generate');
+  }
+
+  /** 快捷配方 */
+  function applyRecipe(recipe: Any) {
+    const wf = workflows.find((w) => w.id === recipe.workflow_id);
+    if (wf) applyWorkflow(wf);
+    const lora = loras.find((l) => l.id === recipe.lora_id);
+    if (lora) {
+      setLoraId(lora.id);
+      setLoraStrength(recipe.lora_strength ?? lora.default_strength ?? 0.75);
+      const triggers =
+        recipe.append_triggers !== false
+          ? (lora.trigger_words || []).slice(0, 4).join(', ')
+          : '';
+      const extra = recipe.positive_extra || '';
+      const base = wf?.defaults?.positive || prompt;
+      const parts = [triggers, extra, base].filter(Boolean);
+      setPrompt(parts.join(', '));
+    }
+    toast.success(`已应用配方：${recipe.label}`);
+    setTab('generate');
   }
 
   const workflows: Any[] = config?.workflows || [];
   const endpoints: Any[] = config?.endpoints || [];
   const checkpoints: Any[] = config?.checkpoints || [];
   const loras: Any[] = config?.loras || [];
+  const recipes: Any[] = config?.lora_recipes || [];
+  const stackingTips: string[] = config?.lora_stacking_tips || [];
+
+  const selectedLora = useMemo(
+    () => loras.find((l) => l.id === loraId),
+    [loras, loraId],
+  );
+
+  const lorasByCat = useMemo(() => {
+    const map: Record<string, Any[]> = {};
+    for (const l of loras) {
+      if (!l.id || l.id === 'none') continue;
+      const cat = l.category || 'other';
+      if (loraFilter !== 'all' && cat !== loraFilter) continue;
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(l);
+    }
+    return map;
+  }, [loras, loraFilter]);
 
   const selectedEndpoint = useMemo(
     () => endpoints.find((e) => e.id === endpointKey),
@@ -227,7 +298,10 @@ export default function AdminComfyConsolePage() {
             Comfy 出图操作台
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            工作流 · Checkpoint / LoRA（网络卷）· 手动参数 · 图库存删
+            工作流 · LoRA 清单一键调用 · Checkpoint（网络卷）· 图库存删
+            {config.lora_catalog_version != null && (
+              <span className="ml-2 text-violet-400/80">catalog v{config.lora_catalog_version}</span>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
@@ -240,13 +314,14 @@ export default function AdminComfyConsolePage() {
       <div className="mb-4 flex flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-900/50 p-1 w-fit">
         {[
           { id: 'generate', label: '生成', icon: Play },
+          { id: 'loras', label: 'LoRA 清单', icon: Layers },
           { id: 'library', label: '图库', icon: ImageIcon },
           { id: 'workflows', label: '工作流', icon: Workflow },
           { id: 'infra', label: '网络卷/端点', icon: HardDrive },
         ].map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id as 'generate' | 'library' | 'workflows' | 'infra')}
+            onClick={() => setTab(t.id as typeof tab)}
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 rounded-md text-sm',
               tab === t.id ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white',
@@ -261,7 +336,6 @@ export default function AdminComfyConsolePage() {
       {/* GENERATE */}
       {tab === 'generate' && (
         <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-4">
-          {/* Left controls — Comfy-like panel */}
           <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-violet-300">
               <Settings2 className="h-4 w-4" /> 节点参数
@@ -279,9 +353,7 @@ export default function AdminComfyConsolePage() {
                 <SelectTrigger className="mt-1 bg-slate-950 border-slate-700"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {workflows.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name}
-                    </SelectItem>
+                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -332,9 +404,16 @@ export default function AdminComfyConsolePage() {
               </div>
               <div>
                 <Label className="text-[11px] text-slate-400">LoRA（网络卷）</Label>
-                <Select value={loraId || 'none'} onValueChange={setLoraId}>
+                <Select
+                  value={loraId || 'none'}
+                  onValueChange={(id) => {
+                    setLoraId(id);
+                    const l = loras.find((x) => x.id === id);
+                    if (l?.default_strength != null) setLoraStrength(l.default_strength);
+                  }}
+                >
                   <SelectTrigger className="mt-1 bg-slate-950 border-slate-700"><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-72">
                     {loras.map((l) => (
                       <SelectItem key={l.id} value={l.id || 'none'}>{l.label}</SelectItem>
                     ))}
@@ -344,16 +423,54 @@ export default function AdminComfyConsolePage() {
             </div>
 
             {loraId && loraId !== 'none' && (
-              <div>
-                <Label className="text-[11px] text-slate-400">
-                  LoRA 强度 {loraStrength.toFixed(2)}
-                </Label>
-                <input
-                  type="range" min={0} max={1.5} step={0.05}
-                  value={loraStrength}
-                  onChange={(e) => setLoraStrength(Number(e.target.value))}
-                  className="w-full accent-violet-500"
-                />
+              <div className="rounded-lg border border-violet-900/40 bg-violet-950/20 p-2 space-y-2">
+                <div>
+                  <Label className="text-[11px] text-slate-400">
+                    LoRA 强度 {loraStrength.toFixed(2)}
+                    {selectedLora?.default_strength != null && (
+                      <span className="ml-1 text-slate-500">
+                        （推荐 {selectedLora.default_strength}）
+                      </span>
+                    )}
+                  </Label>
+                  <input
+                    type="range" min={0} max={1.5} step={0.05}
+                    value={loraStrength}
+                    onChange={(e) => setLoraStrength(Number(e.target.value))}
+                    className="w-full accent-violet-500"
+                  />
+                </div>
+                {selectedLora?.usage && (
+                  <p className="text-[10px] text-slate-400 leading-relaxed">{selectedLora.usage}</p>
+                )}
+                {selectedLora?.filename && (
+                  <p className="text-[10px] font-mono text-cyan-400/80">{selectedLora.filename}</p>
+                )}
+                {(selectedLora?.trigger_words?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedLora!.trigger_words!.map((t: string) => (
+                      <button
+                        key={t}
+                        type="button"
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-violet-200 hover:bg-violet-800"
+                        onClick={() => {
+                          setPrompt((p) => (p.includes(t) ? p : p ? `${t}, ${p}` : t));
+                          toast.message(`已插入：${t}`);
+                        }}
+                      >
+                        + {t}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[10px] border-slate-700 w-full"
+                  onClick={() => setTab('loras')}
+                >
+                  打开完整 LoRA 清单
+                </Button>
               </div>
             )}
 
@@ -430,7 +547,6 @@ export default function AdminComfyConsolePage() {
             </Button>
           </div>
 
-          {/* Right preview */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 min-h-[420px]">
             <div className="mb-3 text-sm font-semibold text-slate-300">输出预览</div>
             {generating && (
@@ -440,8 +556,11 @@ export default function AdminComfyConsolePage() {
               </div>
             )}
             {!generating && lastResult.length === 0 && (
-              <div className="flex h-64 items-center justify-center text-slate-500 text-sm">
-                左侧填参数后点生成
+              <div className="flex h-64 flex-col items-center justify-center text-slate-500 text-sm gap-2">
+                <span>左侧填参数后点生成</span>
+                <Button size="sm" variant="outline" className="border-slate-700" onClick={() => setTab('loras')}>
+                  或从 LoRA 清单一键调用
+                </Button>
               </div>
             )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -472,6 +591,169 @@ export default function AdminComfyConsolePage() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* LORA CATALOG */}
+      {tab === 'loras' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold flex items-center gap-2 text-violet-300">
+                  <Sparkles className="h-4 w-4" />
+                  LoRA 功能与用法
+                </h2>
+                <p className="mt-1 text-xs text-slate-400 max-w-2xl">
+                  面向人物动作（NSFW）、服装、道具、身材。底座仅 FLUX（与 fp8 配套）。
+                  文件放在网络卷 <code className="text-cyan-400">models/loras/</code>，
+                  文件名须与下方 <code className="text-cyan-400">filename</code> 一致。
+                  一键下载：<code className="text-violet-300">scripts/runpod/download-loras.sh</code>
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() => setLoraFilter('all')}
+                  className={cn(
+                    'px-2.5 py-1 rounded text-[11px]',
+                    loraFilter === 'all' ? 'bg-violet-600' : 'bg-slate-800 text-slate-400',
+                  )}
+                >
+                  全部
+                </button>
+                {CAT_ORDER.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setLoraFilter(c)}
+                    className={cn(
+                      'px-2.5 py-1 rounded text-[11px]',
+                      loraFilter === c ? 'bg-violet-600' : 'bg-slate-800 text-slate-400',
+                    )}
+                  >
+                    {CAT_LABEL[c] || c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {stackingTips.length > 0 && (
+              <ul className="mt-3 grid sm:grid-cols-2 gap-1.5 text-[11px] text-slate-400">
+                {stackingTips.map((t, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span className="text-violet-400 shrink-0">•</span>
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Recipes */}
+          {recipes.length > 0 && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+              <h3 className="text-sm font-semibold text-amber-200/90 flex items-center gap-2 mb-3">
+                <Zap className="h-4 w-4" /> 快捷配方（一键填工作流 + LoRA + 提示词）
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {recipes.map((r) => (
+                  <Button
+                    key={r.id}
+                    size="sm"
+                    className="bg-amber-700/80 hover:bg-amber-600 h-8 text-xs"
+                    onClick={() => applyRecipe(r)}
+                  >
+                    {r.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Grouped list */}
+          {CAT_ORDER.filter((c) => lorasByCat[c]?.length).map((cat) => (
+            <div key={cat} className="space-y-2">
+              <h3 className="text-sm font-semibold text-slate-200 border-b border-slate-800 pb-1">
+                {CAT_LABEL[cat] || cat}
+                <span className="ml-2 text-[10px] font-normal text-slate-500">
+                  {lorasByCat[cat].length} 个
+                </span>
+              </h3>
+              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {lorasByCat[cat].map((l) => (
+                  <div
+                    key={l.id}
+                    className={cn(
+                      'rounded-xl border p-3 space-y-2 bg-slate-900/50',
+                      loraId === l.id ? 'border-violet-500' : 'border-slate-800',
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-medium text-sm text-white">
+                          {String(l.label || '').replace(/^\[[^\]]+\]\s*/, '')}
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {l.nsfw && (
+                            <Badge className="text-[9px] bg-rose-900/60 text-rose-100">NSFW</Badge>
+                          )}
+                          <Badge variant="outline" className="text-[9px] border-slate-600">
+                            强度 {l.default_strength}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="h-8 bg-violet-600 shrink-0"
+                        onClick={() => applyLora(l)}
+                      >
+                        一键调用
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">{l.usage}</p>
+                    <p className="text-[10px] font-mono text-cyan-400/70 break-all">{l.filename}</p>
+                    {(l.trigger_words?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {l.trigger_words.map((t: string) => (
+                          <span
+                            key={t}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] border-slate-700 flex-1"
+                        onClick={() => applyLora(l, { appendTriggers: true })}
+                      >
+                        调用并跳转生成
+                      </Button>
+                      {l.page_url && (
+                        <a
+                          href={l.page_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-center h-7 px-2 rounded border border-slate-700 text-[10px] text-slate-400 hover:text-white"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {Object.keys(lorasByCat).length === 0 && (
+            <div className="text-center text-slate-500 text-sm py-12">该分类暂无 LoRA</div>
+          )}
         </div>
       )}
 
@@ -536,7 +818,7 @@ export default function AdminComfyConsolePage() {
         </div>
       )}
 
-      {/* WORKFLOWS list */}
+      {/* WORKFLOWS */}
       {tab === 'workflows' && (
         <div className="grid md:grid-cols-2 gap-3">
           {workflows.map((w) => (
@@ -590,6 +872,14 @@ export default function AdminComfyConsolePage() {
                 <div className="text-slate-500">Checkpoint</div>
                 <div className="font-mono text-cyan-300">{config.network_volume?.checkpoints_dir}</div>
               </div>
+            </div>
+            <div className="mt-4 rounded-lg bg-black/40 p-3 text-xs text-slate-300 space-y-1">
+              <div className="font-semibold text-slate-200">一键下载（RunPod model-downloader）</div>
+              <pre className="font-mono text-[11px] text-cyan-300/90 whitespace-pre-wrap">{`chmod +x download-loras.sh
+./download-loras.sh
+# 编辑 lora-urls.txt 后:
+./download-loras.sh --from-file /runpod-volume/models/loras/lora-urls.txt`}</pre>
+              <p className="text-slate-500">详见 scripts/runpod/README-LORA.md</p>
             </div>
           </div>
 

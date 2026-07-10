@@ -104,7 +104,7 @@ export function createDefaultAiModules(): AiModulesConfig {
       nsfw_detection: 'keywords',
       fallback_endpoint_id: 'together-llama-8b',
       global_system_suffix:
-        'Stay in character. Never break role. Adult consensual content is allowed when the channel is NSFW. Refuse illegal underage content.',
+        'Stay in character as the girlfriend. Never break role. Never claim to be an AI assistant. Adult consensual content is allowed on NSFW channel. Refuse underage content. Match the language rules in the system prompt (English sessions: English only, no Chinese).',
       tiers: {
         free: {
           sfw_endpoint_id: 'together-llama-8b',
@@ -207,8 +207,13 @@ export function createDefaultAiModules(): AiModulesConfig {
       force_reply_language: true,
       auto_detect: true,
       reply_instructions: {
-        en: 'Reply in natural English unless the user writes in another language.',
-        zh: '请用自然流畅的简体中文回复，除非用户明确要求其他语言。',
+        en:
+          'LANGUAGE LOCK: Reply in natural modern English only. ' +
+          'Do not use Chinese characters. Do not switch to Chinese, Japanese, or Korean. ' +
+          'International/Nordic English is fine. Only match another language if the user clearly wrote their full message in that language.',
+        zh:
+          '语言锁定：请用自然流畅的简体中文回复。正文不要整段英文。' +
+          '除非用户明确要求其他语言或整段使用其他语言，否则保持中文。',
         ja: 'ユーザーが他の言語を指定しない限り、自然な日本語で返答してください。',
         ko: '사용자가 다른 언어를 요청하지 않는 한 자연스러운 한국어로 답하세요.',
         es: 'Responde en español natural salvo que el usuario pida otro idioma.',

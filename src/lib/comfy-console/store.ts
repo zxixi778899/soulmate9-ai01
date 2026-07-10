@@ -16,13 +16,18 @@ function filePath() {
 let cache: { cfg: ComfyConsoleConfig; at: number } | null = null;
 
 function mergeDeep(base: ComfyConsoleConfig, patch: Partial<ComfyConsoleConfig>): ComfyConsoleConfig {
+  // LoRA 清单以 data/lora-catalog.json（createDefault）为单源，始终刷新；
+  // 端点 ID / 工作流等用户改动保留。
   return {
     ...base,
     ...patch,
     network_volume: { ...base.network_volume, ...(patch.network_volume || {}) },
     endpoints: patch.endpoints || base.endpoints,
     checkpoints: patch.checkpoints || base.checkpoints,
-    loras: patch.loras || base.loras,
+    loras: base.loras,
+    lora_stacking_tips: base.lora_stacking_tips,
+    lora_recipes: base.lora_recipes,
+    lora_catalog_version: base.lora_catalog_version,
     workflows: patch.workflows || base.workflows,
   };
 }
@@ -64,7 +69,16 @@ export async function saveComfyConfig(
   cfg: ComfyConsoleConfig,
   supabase?: { from: (t: string) => any },
 ): Promise<{ source: 'db' | 'file' }> {
-  const next = { ...cfg, updated_at: new Date().toISOString() };
+  // 保存时仍强制同步最新 LoRA 清单（避免客户端旧缓存覆盖 catalog）
+  const fresh = createDefaultComfyConfig();
+  const next: ComfyConsoleConfig = {
+    ...cfg,
+    updated_at: new Date().toISOString(),
+    loras: fresh.loras,
+    lora_stacking_tips: fresh.lora_stacking_tips,
+    lora_recipes: fresh.lora_recipes,
+    lora_catalog_version: fresh.lora_catalog_version,
+  };
   if (supabase) {
     try {
       const { error } = await supabase.from('site_settings').upsert(

@@ -7,6 +7,7 @@ import {
   type ComfyConsoleConfig,
 } from '@/lib/comfy-console/store';
 import { createDefaultComfyConfig } from '@/lib/comfy-console/defaults';
+import { LORA_CATALOG, groupLorasByCategory } from '@/lib/comfy-console/lora-catalog';
 import { runpodClient } from '@/lib/runpod';
 import { uploadFile, deleteFile, resolveImageUrl, extractKeyFromUrl } from '@/lib/storage';
 import { logger } from '@/lib/logger';
@@ -19,7 +20,7 @@ const GEN_LIMIT = { maxRequests: 40, windowMs: 60 * 60 * 1000 };
 
 /**
  * GET /api/admin/comfy
- *   ?view=config | assets | help
+ *   ?view=config | assets | help | loras
  */
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
@@ -27,6 +28,25 @@ export async function GET(req: NextRequest) {
 
   const view = new URL(req.url).searchParams.get('view') || 'config';
   const cfg = await loadComfyConfig(admin.supabase);
+
+  if (view === 'loras') {
+    return NextResponse.json({
+      catalog: {
+        version: LORA_CATALOG.version,
+        base_model: LORA_CATALOG.base_model,
+        target_volume: LORA_CATALOG.target_volume,
+        region: LORA_CATALOG.region,
+        notes: LORA_CATALOG.notes,
+        categories: LORA_CATALOG.categories,
+        stacking_tips: LORA_CATALOG.stacking_tips,
+        apply_recipes: LORA_CATALOG.apply_recipes || [],
+      },
+      by_category: groupLorasByCategory(),
+      loras: cfg.loras,
+      download_script: 'scripts/runpod/download-loras.sh',
+      download_readme: 'scripts/runpod/README-LORA.md',
+    });
+  }
 
   if (view === 'help') {
     return NextResponse.json({
@@ -37,6 +57,8 @@ export async function GET(req: NextRequest) {
         endpoints: cfg.endpoints,
       },
       lora_howto: cfg.network_volume.setup_notes,
+      lora_catalog_version: LORA_CATALOG.version,
+      stacking_tips: LORA_CATALOG.stacking_tips,
     });
   }
 
