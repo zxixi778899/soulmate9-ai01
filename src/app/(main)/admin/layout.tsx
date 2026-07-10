@@ -61,43 +61,107 @@ const navGroups: NavGroup[] = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, session } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [role, setRole] = useState<string>('admin');
+  const [denyReason, setDenyReason] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) {
-      router.push('/login');
+      router.push('/login?next=/admin');
       return;
     }
     const token = session?.access_token || '';
+    if (!token) {
+      setIsAdmin(false);
+      setDenyReason('登录会话无效，请重新登录后再试。');
+      return;
+    }
 
     fetch('/api/admin/check-role', {
-      headers: token ? { 'x-session': token } : {},
+      headers: { 'x-session': token },
     })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.isAdmin) {
-          router.push('/');
-        } else {
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        return { ok: r.ok, status: r.status, data };
+      })
+      .then(({ ok, status, data }) => {
+        if (data?.isAdmin) {
           setIsAdmin(true);
           setRole(data.role || 'admin');
+          setDenyReason(null);
+          return;
+        }
+        setIsAdmin(false);
+        if (status === 401 || data?.reason === 'unauthorized') {
+          setDenyReason('未登录或会话过期。请重新登录。');
+        } else if (data?.profileError) {
+          setDenyReason(
+            `无法读取 profiles 表：${data.profileError}。请检查 COZE_SUPABASE_SERVICE_ROLE_KEY 与数据库连接。`,
+          );
+        } else if (!data?.hasProfile) {
+          setDenyReason(
+            '未找到用户档案（profiles）。请先在站内完成一次登录/注册，或在 Supabase 为你的 user_id 插入 profiles 行。',
+          );
+        } else {
+          setDenyReason(
+            `当前账号无管理员权限（role=${data?.role || 'user'}）。` +
+              (data?.whitelistConfigured
+                ? ' 邮箱不在 ALLOWED_ADMIN_EMAILS 白名单中。'
+                : ' 请在 Supabase 将 profiles.role 设为 admin，或在 Vercel 配置 ALLOWED_ADMIN_EMAILS=你的邮箱。'),
+          );
         }
       })
       .catch(() => {
-        router.push('/');
+        setIsAdmin(false);
+        setDenyReason('权限校验请求失败，请稍后重试或检查网络。');
       });
-  }, [user, session, router]);
+  }, [user, session, router, authLoading]);
 
-  if (!user || isAdmin === null) {
+  if (authLoading || (user && isAdmin === null && !denyReason)) {
     return (
       <div className="admin-layout flex h-screen items-center justify-center bg-[#F5F7FA]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-[#2563EB]" />
           <p className="text-xs text-[#64748B]">验证管理员权限…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || isAdmin === false) {
+    return (
+      <div className="admin-layout flex min-h-screen items-center justify-center bg-[#F5F7FA] p-6">
+        <div className="max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm text-center">
+          <h1 className="text-lg font-bold text-[#1E293B]">无法进入后台</h1>
+          <p className="mt-3 text-sm text-[#64748B] leading-relaxed">
+            {denyReason || '请先登录管理员账号。'}
+          </p>
+          <div className="mt-5 flex flex-col sm:flex-row gap-2 justify-center">
+            <Button onClick={() => router.push('/login?next=/admin')} className="bg-[#2563EB]">
+              去登录
+            </Button>
+            <Button variant="outline" onClick={() => router.push('/')}>
+              返回首页
+            </Button>
+          </div>
+          <p className="mt-4 text-[11px] text-left text-[#94A3B8] bg-slate-50 rounded-lg p-3">
+            <b className="text-[#64748B]">快速开通管理员：</b>
+            <br />
+            1) Vercel 环境变量增加
+            <code className="mx-1 text-[10px]">ALLOWED_ADMIN_EMAILS=你的邮箱</code>
+            后 Redeploy
+            <br />
+            2) 或在 Supabase SQL 执行：
+            <code className="block mt-1 text-[10px] break-all">
+              UPDATE profiles SET role = &apos;admin&apos; WHERE email = &apos;你的邮箱&apos;;
+            </code>
+            （若无 email 列则用 user_id）
+          </p>
         </div>
       </div>
     );
