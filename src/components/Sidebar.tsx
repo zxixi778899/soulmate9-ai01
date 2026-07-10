@@ -8,7 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { APP_NAME, INTIMACY_LEVELS } from '@/lib/constants';
 import { authedFetch } from '@/lib/supabase';
-import { Heart, MessageCircle, ShoppingBag, User, LogOut, Sparkles, LayoutGrid, CreditCard, Bell, Trophy, ImageIcon } from 'lucide-react';
+import { Heart, MessageCircle, ShoppingBag, User, LogOut, Plus, Sparkles, LayoutGrid, CreditCard, Bell, Trophy, ImageIcon } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/lib/i18n/context';
 import { logger } from '@/lib/logger';
