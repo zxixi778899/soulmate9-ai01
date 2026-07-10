@@ -11,7 +11,6 @@ import { authedFetch } from '@/lib/supabase';
 import { Heart, MessageCircle, ShoppingBag, User, LogOut, Plus, Sparkles, LayoutGrid, CreditCard, Bell, Receipt, Trophy, BellRing } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/lib/i18n/context';
-import type { TranslationKey } from '@/lib/i18n/types';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 
