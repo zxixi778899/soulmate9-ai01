@@ -739,19 +739,34 @@ export default function AdminImagesPage() {
     setBatchRunning(true);
     setLogExpanded(true);
     setLogs([]);
-    addLog('info', '开始批量补全缺失图片...');
+    addLog('info', '开始批量补全缺失图片（仅 portrait + avatar 都为空的女友）…');
     try {
       const res = await authedFetch('/api/v2/runpod/batch', {
         method: 'POST',
-        body: JSON.stringify({ params: DEFAULT_GEN_STATE.genParams }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          limit: 12,
+          params: {
+            ...DEFAULT_GEN_STATE.genParams,
+            width: 832,
+            height: 1216,
+            steps: 28,
+            cfg_scale: 3.5,
+          },
+        }),
       });
-      if (!res.ok) throw new Error(`批量任务失败 (${res.status})`);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`批量任务失败 (${res.status}) ${errText.slice(0, 200)}`);
+      }
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error('无响应流');
       const decoder = new TextDecoder();
       let buffer = '';
       let currentEvent = '';
+      let completed = 0;
+      let failed = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -760,11 +775,12 @@ export default function AdminImagesPage() {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
         for (const line of lines) {
-          if (line.startsWith('event: ')) currentEvent = line.slice(7).trim();
-          else if (line.startsWith('data: ')) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              if (currentEvent === 'log') {
+              if (currentEvent === 'log' && data.message) {
                 addLog(
                   data.type === 'error'
                     ? 'error'
@@ -773,14 +789,36 @@ export default function AdminImagesPage() {
                       : 'info',
                   data.message,
                 );
-              } else if (currentEvent === 'done') {
+              } else if (currentEvent === 'start') {
+                addLog('info', `队列共 ${data.total ?? 0} 项`);
+              } else if (currentEvent === 'progress') {
                 addLog(
-                  'success',
-                  `完成：成功 ${data.completed ?? 0}，失败 ${data.failed ?? 0}`,
+                  'info',
+                  `进度 ${Number(data.index) + 1}/${data.total}：${data.name || ''}…`,
                 );
+              } else if (currentEvent === 'complete') {
+                completed += 1;
+                addLog('success', `✓ ${data.name || '完成'}`);
+              } else if (currentEvent === 'error') {
+                failed += 1;
+                addLog(
+                  'error',
+                  `✗ ${data.name || '失败'}：${data.error || data.message || '未知错误'}`,
+                );
+              } else if (currentEvent === 'done') {
+                const c = data.completed ?? completed;
+                const f = data.failed ?? failed;
+                addLog('success', `完成：成功 ${c}，失败 ${f}`);
+                if (c === 0 && f === 0) {
+                  toast.message('没有需要补图的记录（或队列为空）');
+                } else if (f > 0) {
+                  toast.error(`批量结束：成功 ${c}，失败 ${f}`);
+                } else {
+                  toast.success(`批量完成：成功 ${c} 张`);
+                }
               }
             } catch {
-              /* ignore */
+              /* ignore parse errors */
             }
           }
         }
