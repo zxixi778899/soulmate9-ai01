@@ -1,8 +1,6 @@
-@import "https://fonts.googleapis.cn/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap";
-@import "https://fonts.googleapis.cn/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;0,900;1,600;1,700;1,800&display=swap";
-@import "https://fonts.googleapis.cn/css2?family=Sora:wght@300;400;500;600;700;800&display=swap";
-@import "https://fonts.googleapis.cn/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap";
-@import "https://fonts.googleapis.cn/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap";
+/* Single combined font request — fewer CSS round-trips, better LCP.
+   Was 5 separate @imports (Poppins / Playfair / Sora / Space Grotesk / Noto SC). */
+@import "https://fonts.googleapis.cn/css2?family=Noto+Sans+SC:wght@400;500;700&family=Poppins:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap";
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -75,10 +73,10 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-full: 9999px;
-  --font-sans: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
-  --font-display: 'Playfair Display', 'Noto Sans SC', serif;
-  --font-heading: 'Sora', 'Noto Sans SC', sans-serif;
-  --font-mono: 'Space Grotesk', ui-monospace, monospace;
+  --font-sans: 'Poppins', 'Noto Sans SC', system-ui, sans-serif;
+  --font-display: 'Sora', 'Poppins', 'Noto Sans SC', system-ui, sans-serif;
+  --font-heading: 'Sora', 'Noto Sans SC', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
   /* Pink glow shadows */
   --shadow-card: 0 2px 12px rgba(255,45,120,0.08);
   --shadow-float: 0 10px 30px rgba(255,45,120,0.12);
@@ -140,6 +138,19 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  /* Smoother scrolling on touch devices */
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
@@ -1141,4 +1152,292 @@ html {
 .admin-layout input::placeholder,
 .admin-layout textarea::placeholder {
   color: #94A3B8 !important;
+}
+
+/* ===== Game Hub UI — AI girlfriend cultivation theme ===== */
+.game-shell {
+  position: relative;
+  min-height: 100%;
+  color: #f5f0ff;
+}
+
+.game-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(165deg, rgba(22, 14, 32, 0.92) 0%, rgba(8, 6, 16, 0.88) 100%);
+  backdrop-filter: blur(20px);
+  border-radius: 1.25rem;
+  box-shadow: 0 0 0 1px rgba(255, 45, 120, 0.04), 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.game-panel-glow {
+  box-shadow:
+    0 0 0 1px rgba(255, 45, 120, 0.18),
+    0 0 40px rgba(255, 45, 120, 0.12),
+    0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+.game-btn-primary {
+  background: linear-gradient(135deg, #ff2d78 0%, #c026d3 55%, #7c3aed 100%);
+  color: white;
+  font-weight: 600;
+  border-radius: 9999px;
+  box-shadow: 0 8px 28px rgba(255, 45, 120, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.game-btn-primary:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 12px 36px rgba(255, 45, 120, 0.5);
+}
+.game-btn-primary:active {
+  transform: scale(0.98);
+}
+
+.game-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 45, 120, 0.35);
+  background: rgba(255, 45, 120, 0.12);
+  color: #ff6ba6;
+}
+
+.game-scanline {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.015) 2px,
+    rgba(255, 255, 255, 0.015) 4px
+  );
+  border-radius: inherit;
+  mix-blend-mode: overlay;
+}
+
+.game-rarity-ssr { --rarity: #ffd700; --rarity-glow: rgba(255, 215, 0, 0.45); }
+.game-rarity-sr  { --rarity: #ff2e88; --rarity-glow: rgba(255, 46, 136, 0.45); }
+.game-rarity-r   { --rarity: #00e5ff; --rarity-glow: rgba(0, 229, 255, 0.4); }
+.game-rarity-n   { --rarity: #9ca3af; --rarity-glow: rgba(156, 163, 175, 0.3); }
+
+.game-card-frame {
+  position: relative;
+  border-radius: 1.25rem;
+  border: 2px solid color-mix(in srgb, var(--rarity, #ff2e88) 55%, transparent);
+  box-shadow: 0 0 28px var(--rarity-glow, transparent);
+  overflow: hidden;
+  background: #0a0a12;
+}
+
+.game-card-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--rarity, #ff2e88) 25%, transparent), transparent 45%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.game-hex-grid {
+  background-image:
+    linear-gradient(rgba(255, 45, 120, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 45, 120, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@keyframes game-pulse-ring {
+  0% { transform: scale(0.92); opacity: 0.7; }
+  70% { transform: scale(1.25); opacity: 0; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+.game-pulse-ring {
+  animation: game-pulse-ring 2.2s ease-out infinite;
+}
+
+@keyframes game-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.game-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  background-size: 200% 100%;
+  animation: game-shimmer 2.5s linear infinite;
+}
+
+.wa-row:active { background: rgba(255, 255, 255, 0.05); }
+.wa-online {
+  box-shadow: 0 0 0 2px #0b0b0f, 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.skin-shelf {
+  background:
+    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(255, 45, 120, 0.12), transparent 60%),
+    linear-gradient(180deg, #120a18 0%, #08060e 100%);
+}
+
+.creator-preview {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 45, 120, 0.2), transparent 55%),
+    linear-gradient(180deg, #1a1024 0%, #08060f 100%);
+  border: 1px solid rgba(255, 45, 120, 0.2);
+}
+
+/* Hide language switcher squeeze on tiny bottoms — keep nav roomy */
+.game-bottom-nav {
+  border-top: 1px solid rgba(255, 24, 160, 0.22);
+  background: rgba(6, 4, 12, 0.94);
+  backdrop-filter: blur(24px);
+}
+
+/* ===== High-NSFW glass aesthetic (v2) ===== */
+.glass {
+  background: rgba(18, 8, 22, 0.45);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 120, 180, 0.18);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.glass-strong {
+  background: linear-gradient(
+    145deg,
+    rgba(40, 12, 32, 0.72) 0%,
+    rgba(12, 6, 20, 0.55) 50%,
+    rgba(30, 8, 28, 0.65) 100%
+  );
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid rgba(255, 80, 150, 0.28);
+  box-shadow:
+    0 12px 48px rgba(255, 45, 120, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    inset 0 1px 0 rgba(255, 200, 220, 0.12);
+}
+
+.glass-btn {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 45, 120, 0.35) 0%,
+    rgba(192, 38, 211, 0.28) 50%,
+    rgba(255, 45, 120, 0.2) 100%
+  );
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 140, 190, 0.45);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 9999px;
+  box-shadow:
+    0 8px 28px rgba(255, 45, 120, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.18s ease, box-shadow 0.2s ease, border-color 0.2s;
+}
+.glass-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.22) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.55s ease;
+}
+.glass-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  border-color: rgba(255, 180, 210, 0.7);
+  box-shadow: 0 14px 40px rgba(255, 45, 120, 0.45), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.glass-btn:hover::before { transform: translateX(120%); }
+.glass-btn:active { transform: scale(0.98); }
+
+.glass-input {
+  background: rgba(12, 6, 18, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 100, 160, 0.22);
+  color: #fce7f3;
+  border-radius: 1.25rem;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.glass-input:focus {
+  outline: none;
+  border-color: rgba(255, 80, 150, 0.55);
+  box-shadow: 0 0 0 3px rgba(255, 45, 120, 0.18), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.glass-input::placeholder { color: rgba(255, 180, 200, 0.35); }
+
+.seduce-glow {
+  text-shadow: 0 0 24px rgba(255, 80, 150, 0.45);
+}
+
+.desire-bar {
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.desire-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff2d78, #ff6ba6, #fbbf24);
+  box-shadow: 0 0 12px rgba(255, 45, 120, 0.7);
+}
+
+@keyframes float-heart {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  15% { opacity: 0.8; }
+  100% { transform: translateY(-80px) scale(0.6); opacity: 0; }
+}
+.float-heart {
+  animation: float-heart 2.8s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes stage-breathe {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.015); filter: brightness(1.08); }
+}
+.stage-breathe { animation: stage-breathe 5s ease-in-out infinite; }
+
+.select-ring {
+  box-shadow:
+    0 0 0 2px rgba(255, 45, 120, 0.5),
+    0 0 40px rgba(255, 45, 120, 0.35),
+    0 0 80px rgba(192, 38, 211, 0.2);
+}
+
+/* Override game panel to glass */
+.game-panel {
+  background: linear-gradient(165deg, rgba(28, 10, 28, 0.62) 0%, rgba(8, 4, 14, 0.55) 100%) !important;
+  backdrop-filter: blur(28px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(160%) !important;
+  border: 1px solid rgba(255, 100, 160, 0.16) !important;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07) !important;
+}
+.game-btn-primary {
+  background: linear-gradient(135deg, rgba(255,45,120,0.55), rgba(192,38,211,0.45), rgba(124,58,237,0.4)) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255,160,200,0.4) !important;
+  box-shadow: 0 8px 28px rgba(255,45,120,0.35), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+}
+.game-chip {
+  background: rgba(255, 45, 120, 0.14) !important;
+  backdrop-filter: blur(12px);
+  border-color: rgba(255, 100, 160, 0.35) !important;
+}
+.game-bottom-nav {
+  background: rgba(8, 4, 14, 0.72) !important;
+  backdrop-filter: blur(28px) saturate(160%) !important;
+  border-top: 1px solid rgba(255, 80, 150, 0.22) !important;
 }

@@ -15,6 +15,13 @@ interface GirlfriendRow {
   avatar_url: string | null;
   personality: string | null;
   character_card: unknown;
+  rarity?: string | null;
+  access_status?: string | null;
+  unlock_price_tokens?: number | null;
+  base_intimacy?: number | null;
+  base_desire?: number | null;
+  base_development?: number | null;
+  base_kink?: number | null;
 }
 
 export const dynamic = 'force-dynamic';
@@ -26,14 +33,17 @@ export const dynamic = 'force-dynamic';
 const fetchPublicGirlfriends = unstable_cache(
   async (tag: string | null, limit: number) => {
     const params: unknown[] = [];
-    let where = `is_public = true AND review_status = 'approved'`;
+    // closed companions are hidden from public catalog; locked still listed (blurred on FE)
+    let where = `is_public = true AND review_status = 'approved' AND COALESCE(access_status, 'open') <> 'closed'`;
     if (tag) {
       params.push(`{${tag}}`);
       where += ` AND $${params.length} = ANY(tags)`;
     }
 
     const sql = `
-      SELECT id, name, age, slug, tags, short_description, portrait_url, avatar_url, personality, character_card
+      SELECT id, name, age, slug, tags, short_description, portrait_url, avatar_url, personality, character_card,
+             rarity, access_status, unlock_price_tokens,
+             base_intimacy, base_desire, base_development, base_kink
         FROM girlfriends
        WHERE ${where}
        ORDER BY created_at DESC

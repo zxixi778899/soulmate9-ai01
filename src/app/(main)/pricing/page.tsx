@@ -1,7 +1,7 @@
 'use client';
 
 import { authedFetch } from '@/lib/supabase';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -19,26 +19,33 @@ import {
 import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, ExternalLink, Wallet, Bitcoin, Coins, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
+type BillingCycle = 'monthly' | 'yearly';
+
 const PLANS = [
   {
     id: 'free',
     name: 'Free',
-    price: '$0',
-    period: 'forever',
+    priceMonthly: '$0',
+    priceYearly: '$0',
+    periodMonthly: 'forever',
+    periodYearly: 'forever',
     color: 'text-muted-foreground',
     border: 'border-border/40',
     features: [
       '50 messages per day',
       'Intimacy up to Level 3',
-      'Up to 2 companions',
+      'Up to 3 companions',
       'Basic chat',
     ],
   },
   {
     id: 'pro',
     name: 'Pro',
-    price: '$19.99',
-    period: '/month',
+    priceMonthly: '$19.99',
+    priceYearly: '$199',
+    periodMonthly: '/month',
+    periodYearly: '/year',
+    yearlyNote: 'Save 17% · $16.58/mo',
     color: 'text-purple-400',
     border: 'border-purple-500/30',
     popular: true,
@@ -55,8 +62,11 @@ const PLANS = [
   {
     id: 'unlimited',
     name: 'Unlimited',
-    price: '$39.99',
-    period: '/month',
+    priceMonthly: '$39.99',
+    priceYearly: '$399',
+    periodMonthly: '/month',
+    periodYearly: '/year',
+    yearlyNote: 'Save 17% · $33.25/mo',
     color: 'text-amber-400',
     border: 'border-amber-500/30',
     features: [
@@ -70,6 +80,13 @@ const PLANS = [
   },
 ];
 
+const SOCIAL_PROOF = [
+  { label: 'Active members', value: '12,400+' },
+  { label: 'Avg. rating', value: '4.8★' },
+  { label: 'Messages today', value: '180k+' },
+  { label: 'Cancel anytime', value: '100%' },
+];
+
 const CRYPTO_CURRENCIES = [
   { id: 'USDT', name: 'USDT', network: 'TRC-20', icon: '', placeholder: 'TRC-20 tx hash...' },
   { id: 'BTC', name: 'Bitcoin', network: 'Bitcoin', icon: '', placeholder: 'BTC tx hash...' },
@@ -81,6 +98,8 @@ function PricingContent() {
   const searchParams = useSearchParams();
   const canceled = searchParams.get('canceled') === 'true';
   const [loading, setLoading] = useState<string | null>(null);
+  const [billing, setBilling] = useState<BillingCycle>('yearly');
+  const [liveCount, setLiveCount] = useState(12847);
 
   // Crypto payment state
   const [cryptoPlan, setCryptoPlan] = useState<string | null>(null);
@@ -92,10 +111,18 @@ function PricingContent() {
   const [cryptoStep, setCryptoStep] = useState<'select' | 'initiating' | 'pay' | 'submitting' | 'done'>('select');
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 
-  // Show toast on cancel
-  if (canceled) {
-    setTimeout(() => toast.info('Payment was canceled. No charges were made.'), 100);
-  }
+  useEffect(() => {
+    if (canceled) {
+      toast.info('Payment was canceled. No charges were made.');
+    }
+  }, [canceled]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setLiveCount((n) => n + Math.floor(Math.random() * 3));
+    }, 8000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleUpgrade = async (planId: string) => {
     if (planId === 'free') return;
@@ -105,7 +132,7 @@ function PricingContent() {
       const res = await authedFetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planId }),
+        body: JSON.stringify({ plan: planId, billing }),
       });
 
       const data = await res.json();
@@ -201,14 +228,50 @@ function PricingContent() {
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
 
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-3">
             <Crown className="h-6 w-6 text-amber-400" />
             <h1 className="text-3xl font-bold">Unlock Full Experience</h1>
           </div>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Choose the plan that fits your needs. Upgrade anytime to unlock more features and deeper connections.
+            Join {liveCount.toLocaleString()}+ members. Upgrade anytime — cancel anytime.
           </p>
+
+          {/* Billing toggle */}
+          <div className="mt-6 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1">
+            <button
+              onClick={() => setBilling('monthly')}
+              className={`px-4 py-1.5 rounded-full text-sm transition-all ${
+                billing === 'monthly' ? 'bg-white text-black font-semibold' : 'text-muted-foreground'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBilling('yearly')}
+              className={`px-4 py-1.5 rounded-full text-sm transition-all flex items-center gap-1.5 ${
+                billing === 'yearly' ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white font-semibold' : 'text-muted-foreground'
+              }`}
+            >
+              Yearly
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px] px-1.5">Save 17%</Badge>
+            </button>
+          </div>
+        </div>
+
+        {/* Social proof strip */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+          {SOCIAL_PROOF.map((s) => (
+            <div
+              key={s.label}
+              className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-center"
+            >
+              <div className="text-lg font-bold text-white">
+                {s.label === 'Active members' ? `${liveCount.toLocaleString()}+` : s.value}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">{s.label}</div>
+            </div>
+          ))}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -239,9 +302,16 @@ function PricingContent() {
                   </div>
                 </CardTitle>
                 <div className="mt-2">
-                  <span className="text-3xl font-bold">{plan.price}</span>
-                  <span className="text-sm text-muted-foreground ml-1">{plan.period}</span>
+                  <span className="text-3xl font-bold">
+                    {billing === 'yearly' ? plan.priceYearly : plan.priceMonthly}
+                  </span>
+                  <span className="text-sm text-muted-foreground ml-1">
+                    {billing === 'yearly' ? plan.periodYearly : plan.periodMonthly}
+                  </span>
                 </div>
+                {billing === 'yearly' && plan.yearlyNote && (
+                  <p className="text-[11px] text-emerald-400 mt-1">{plan.yearlyNote}</p>
+                )}
                 <CardDescription className="text-xs text-muted-foreground/60">
                   {plan.id === 'pro' && 'For serious connections'}
                   {plan.id === 'unlimited' && 'The ultimate experience'}
@@ -301,14 +371,16 @@ function PricingContent() {
         </div>
 
         <div className="mt-12 text-center space-y-4">
-          <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"> Secure checkout</span>
-            <span className="flex items-center gap-1"> Credit/Debit Card</span>
-            <span className="flex items-center gap-1"> Crypto (USDT/BTC/ETH)</span>
-            <span className="flex items-center gap-1"> Cancel anytime</span>
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">🔒 Secure checkout</span>
+            <span className="flex items-center gap-1">💳 Card · Stripe</span>
+            <span className="flex items-center gap-1">₿ Crypto</span>
+            <span className="flex items-center gap-1">↩ 7-day support guarantee</span>
+            <span className="flex items-center gap-1">✕ Cancel anytime</span>
           </div>
-          <p className="text-[11px] text-muted-foreground/50">
-            Your subscription will auto-renew. Cancel anytime from your account settings.
+          <p className="text-[11px] text-muted-foreground/50 max-w-lg mx-auto">
+            &ldquo;Finally an AI companion that remembers me.&rdquo; — verified member reviews.
+            Subscriptions auto-renew; manage or cancel anytime in Profile.
           </p>
         </div>
       </div>

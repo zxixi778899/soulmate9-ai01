@@ -8,16 +8,24 @@ const intimacyBodySchema = z.object({
 });
 
 export const GET = withAuth(async (req, { user, client }) => {
-  const { data: scores, error } = await client
+  const girlfriendId = req.nextUrl.searchParams.get('girlfriend_id');
+
+  let query = client
     .from('intimacy_scores')
     .select('*')
     .eq('user_id', user.id);
+
+  if (girlfriendId) {
+    query = query.eq('girlfriend_id', girlfriendId).limit(1);
+  }
+
+  const { data: scores, error } = await query;
 
   if (error) {
     return NextResponse.json({ scores: [] });
   }
 
-  return NextResponse.json({ scores });
+  return NextResponse.json({ scores: scores || [] });
 });
 
 export const POST = withAuthBody(

@@ -24,8 +24,7 @@ const REDACT_KEYS = new Set([
   'stripe_secret_key',
 ]);
 
-const LEVELS = ['debug', 'info', 'warn', 'error'] as const;
-type Level = (typeof LEVELS)[number];
+type Level = 'debug' | 'info' | 'warn' | 'error';
 
 const LEVEL_PRIORITY: Record<Level, number> = {
   debug: 0,

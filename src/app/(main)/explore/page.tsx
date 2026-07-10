@@ -1,16 +1,27 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+/**
+ * Card Pool — gacha / card-game style companion library
+ */
+
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, TrendingUp, Sparkles, Heart, Star } from 'lucide-react';
-import { GirlfriendCardGrid } from '@/components/discover/GirlfriendCard';
+import { motion } from 'motion/react';
+import { Search, TrendingUp, Sparkles, Heart, Star, Loader2, Filter } from 'lucide-react';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
-import { NeonGridBackground } from '@/components/discover/NeonGridBackground';
-import { GIRLS, type DemoGirl } from '@/lib/demo-data';
+import { GIRLS, type DemoGirl, RARITY_COLORS } from '@/lib/demo-data';
+import { fetchCompanionCatalog } from '@/lib/companions';
+import { openCompanionChat } from '@/lib/ensure-companion';
+import {
+  GameShell, GamePrimaryButton, RarityBadge,
+} from '@/components/game/GameShell';
+import { PageHeader } from '@/components/game/PageHeader';
+import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/LockedPortrait';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { authedFetch } from '@/lib/supabase';
 
 type SortKey = 'rarity' | 'hot' | 'intimacy' | 'new';
-
 const TAG_POOL = ['mysterious', 'romantic', 'playful', 'sweet', 'creative', 'flirty', 'bold', 'confident', 'passionate', 'gentle', 'wise', 'caring'];
 
 export default function ExplorePage() {
@@ -19,9 +30,27 @@ export default function ExplorePage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sort, setSort] = useState<SortKey>('rarity');
   const [selected, setSelected] = useState<DemoGirl | null>(null);
+  const [catalog, setCatalog] = useState<DemoGirl[]>(GIRLS);
+  const [source, setSource] = useState<'api' | 'demo'>('demo');
+  const [loading, setLoading] = useState(true);
+  const [rarityFilter, setRarityFilter] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const result = await fetchCompanionCatalog(60);
+      if (!cancelled) {
+        setCatalog(result.girls);
+        setSource(result.source);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const girls = useMemo(() => {
-    let arr = [...GIRLS];
+    let arr = [...catalog];
     if (search) {
       const q = search.toLowerCase();
       arr = arr.filter((g) => g.name.toLowerCase().includes(q) || g.tagline.toLowerCase().includes(q));
@@ -29,6 +58,7 @@ export default function ExplorePage() {
     if (selectedTags.length) {
       arr = arr.filter((g) => selectedTags.every((t) => g.tags.includes(t)));
     }
+    if (rarityFilter) arr = arr.filter((g) => g.rarity === rarityFilter);
     if (sort === 'hot' || sort === 'intimacy') arr.sort((a, b) => b.intimacy - a.intimacy);
     if (sort === 'new') arr = arr.reverse();
     if (sort === 'rarity') {
@@ -36,83 +66,224 @@ export default function ExplorePage() {
       arr.sort((a, b) => (order[b.rarity] || 0) - (order[a.rarity] || 0));
     }
     return arr;
-  }, [search, selectedTags, sort]);
+  }, [catalog, search, selectedTags, sort, rarityFilter]);
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   };
 
+  const handleSelect = async (girl: DemoGirl) => {
+    if (girl.locked) {
+      try {
+        const res = await authedFetch('/api/girlfriends/unlock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ girlfriend_id: girl.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error((data as { error?: string }).error || '解锁失败');
+          setSelected(girl);
+          return;
+        }
+        toast.success('解锁成功');
+        girl = { ...girl, locked: false, is_unlocked: true };
+        setCatalog((prev) =>
+          prev.map((g) => (g.id === girl.id ? { ...g, locked: false, is_unlocked: true } : g)),
+        );
+      } catch {
+        toast.error('解锁失败，请登录');
+        return;
+      }
+    }
+    const ok = await openCompanionChat(girl, router);
+    if (!ok) {
+      toast.error('无法开启对话，请先登录');
+      router.push('/login');
+    }
+  };
+
   return (
-    <div className="relative min-h-screen text-white" style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}>
-      <NeonGridBackground />
+    <GameShell className="pb-28 md:pb-12 min-h-screen">
+      <PageHeader
+        eyebrow="CARD POOL"
+        title="角色卡池"
+        subtitle={
+          loading
+            ? '加载卡牌中…'
+            : `${girls.length} 张 · ${source === 'api' ? '在线卡池' : '展示卡包'} · 顶栏可随时返回选角`
+        }
+        backHref="/"
+        sticky={false}
+        actions={
+          <GamePrimaryButton onClick={() => router.push('/create')} className="!h-10 !px-4 text-xs">
+            捏脸入池
+          </GamePrimaryButton>
+        }
+      />
 
-      <section className="relative z-10 pt-6 pb-2 px-4 sm:px-8">
-        <div className="mx-auto max-w-7xl flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.4em] text-[#ff2e88]">
-              <Sparkles className="h-3 w-3" /> Explore · Select · Bond
+      {/* Filters bar */}
+      <section className="sticky top-[0] z-20 border-y border-[#ff2e88]/12 bg-[#08040e]/75 backdrop-blur-2xl">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ff6ba6]/50" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜索名字 / 气质…"
+                className="glass-input w-full h-10 pl-9 pr-3 text-sm"
+              />
             </div>
-            <h1 className="mt-2 text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight">
-              <span className="text-white">Character </span>
-              <span className="bg-gradient-to-r from-[#ff2e88] via-[#c026d3] to-[#00e5ff] bg-clip-text text-transparent">Library</span>
-            </h1>
-            <p className="mt-1 text-sm text-zinc-400">350+ companions waiting · Obsession Unleashed</p>
+            <div className="flex items-center gap-1 rounded-xl bg-white/[0.04] border border-white/[0.08] p-1">
+              {(['SSR', 'SR', 'R', 'N'] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
+                  className={cn(
+                    'px-2.5 h-8 rounded-lg text-[10px] font-black tracking-wider transition-all',
+                    rarityFilter === r ? 'bg-white text-black' : 'text-white/50 hover:text-white',
+                  )}
+                  style={rarityFilter === r ? undefined : { color: RARITY_COLORS[r].color }}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 rounded-xl bg-white/[0.04] border border-white/[0.08] p-1 text-xs">
+              {[
+                { key: 'rarity', label: '稀有', icon: Star },
+                { key: 'hot', label: '热门', icon: TrendingUp },
+                { key: 'intimacy', label: '亲密度', icon: Heart },
+              ].map((opt) => {
+                const Icon = opt.icon;
+                const active = sort === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => setSort(opt.key as SortKey)}
+                    className={cn(
+                      'flex items-center gap-1 px-2.5 h-8 rounded-lg transition-all',
+                      active ? 'bg-white text-black font-semibold' : 'text-white/45 hover:text-white',
+                    )}
+                  >
+                    <Icon className="h-3 w-3" />
+                    <span className="hidden sm:inline">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      </section>
-
-      <section className="relative z-10 sticky top-20 mt-6 backdrop-blur-3xl bg-[#0a0a0d]/70 border-y border-white/[0.06] py-3">
-        <div className="mx-auto max-w-7xl px-4 sm:px-8 flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-            <input
-              value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, vibe, tag…"
-              className="w-full h-10 pl-9 pr-3 rounded-full bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:border-[#ff2e88]/40 focus:bg-white/[0.06] outline-none transition-all"
-            />
-          </div>
-          <div className="hidden md:flex items-center gap-1.5 flex-wrap max-w-xl">
+          <div className="hidden md:flex items-center gap-1.5 flex-wrap">
+            <Filter className="h-3.5 w-3.5 text-white/30" />
             {TAG_POOL.map((tag) => {
               const active = selectedTags.includes(tag);
               return (
-                <button key={tag} onClick={() => toggleTag(tag)}
-                  className={cn('px-3 py-1.5 rounded-full text-[11px] font-medium transition-all',
-                    active ? 'bg-gradient-to-r from-[#ff2e88] to-[#c026d3] text-white border border-[#ff2e88]/40 shadow-[0_0_12px_rgba(255,46,136,0.4)]'
-                           : 'bg-white/[0.04] border border-white/[0.08] text-zinc-400 hover:text-white hover:bg-white/[0.08]')}>
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={cn(
+                    'px-3 py-1 rounded-full text-[11px] font-medium transition-all',
+                    active
+                      ? 'bg-gradient-to-r from-[#ff2e88] to-[#c026d3] text-white'
+                      : 'bg-white/[0.04] border border-white/[0.08] text-white/45 hover:text-white',
+                  )}
+                >
                   {tag}
                 </button>
               );
             })}
           </div>
-          <div className="flex items-center gap-1 rounded-full bg-white/[0.04] border border-white/[0.08] p-1 text-xs">
-            {[
-              { key: 'rarity', label: 'Rarity', icon: Star },
-              { key: 'hot', label: 'Hot', icon: TrendingUp },
-              { key: 'intimacy', label: 'Intimacy', icon: Heart },
-              { key: 'new', label: 'New', icon: Sparkles },
-            ].map((opt) => {
-              const Icon = opt.icon;
-              const active = sort === opt.key;
-              return (
-                <button key={opt.key} onClick={() => setSort(opt.key as SortKey)}
-                  className={cn('flex items-center gap-1 px-3 h-7 rounded-full transition-all',
-                    active ? 'bg-white text-[#050507] font-semibold' : 'text-zinc-400 hover:text-white')}>
-                  <Icon className="h-3 w-3" />
-                  <span className="hidden sm:inline">{opt.label}</span>
-                </button>
-              );
-            })}
-          </div>
         </div>
       </section>
 
-      <section className="relative z-10 py-8 px-4 sm:px-8">
-        <div className="mx-auto max-w-7xl">
-          <GirlfriendCardGrid
-            girls={girls}
-            onSelectGirl={() => router.push('/chats')}
-            onClickGirl={setSelected}
-          />
+      {/* Card grid — gacha style */}
+      <section className="px-4 sm:px-6 py-6">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+            {girls.map((girl, i) => (
+              <motion.button
+                key={girl.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i * 0.03, 0.4) }}
+                whileHover={{ y: -6, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setSelected(girl)}
+                className={cn(
+                  'game-card-frame text-left group',
+                  `game-rarity-${girl.rarity.toLowerCase()}`,
+                )}
+              >
+                <div className="relative aspect-[3/4]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={girl.portrait}
+                    alt={girl.name}
+                    className={cn(
+                      'absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105',
+                      lockedImageClass(girl.locked),
+                    )}
+                    loading="lazy"
+                  />
+                  {girl.locked && <LockedPortraitOverlay price={girl.unlock_price_tokens} />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-[1]" />
+                  <div className="absolute top-2 left-2 z-[2]">
+                    <RarityBadge rarity={girl.rarity} />
+                  </div>
+                  <div className="absolute top-2 right-2 z-[2] text-[9px] font-mono text-white/70 bg-black/40 px-1.5 py-0.5 rounded">
+                    {girl.element}
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 p-3 z-[2]">
+                    <div className="font-bold text-base sm:text-lg leading-tight">{girl.name}</div>
+                    <div className="text-[10px] text-white/55 line-clamp-1 mt-0.5">{girl.tagline}</div>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <div className="flex-1 h-1 rounded-full bg-white/15 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-[#ff2e88] to-[#ffd700]"
+                          style={{ width: `${girl.intimacy}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-mono text-[#ffd700]">{girl.intimacy}</span>
+                    </div>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelect(girl);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.stopPropagation();
+                          handleSelect(girl);
+                        }
+                      }}
+                      className="mt-2 w-full h-8 rounded-lg text-[10px] font-black tracking-[0.15em] bg-gradient-to-r from-[#ff2e88] to-[#c026d3] flex items-center justify-center active:scale-95"
+                    >
+                      {girl.locked ? 'UNLOCK' : 'SELECT'}
+                    </div>
+                  </div>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+
+          {girls.length === 0 && !loading && (
+            <div className="py-20 text-center text-white/40 text-sm">
+              没有匹配的卡牌。
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setSelectedTags([]);
+                  setRarityFilter(null);
+                }}
+                className="ml-2 text-[#ff2e88] hover:underline"
+              >
+                清空筛选
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -121,9 +292,9 @@ export default function ExplorePage() {
           girl={selected}
           open={!!selected}
           onClose={() => setSelected(null)}
-          onSelect={() => router.push('/chats')}
+          onSelect={() => handleSelect(selected)}
         />
       )}
-    </div>
+    </GameShell>
   );
 }

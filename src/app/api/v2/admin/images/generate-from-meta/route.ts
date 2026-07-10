@@ -605,27 +605,60 @@ export async function POST(req: NextRequest) {
 
   const type = (body.type as string) || 'girlfriend';
   const negativePrompt = (body.negativePrompt as string) || '';
-  const count = Math.min((body.count as number) || 4, 6);
   const girlfriendId = body.girlfriendId as string;
   const metadata = body.metadata as Record<string, string> | undefined;
 
+  // Image module defaults (scene by type)
+  let sceneDefaults = {
+    steps: 28,
+    cfg: 3.5,
+    width: 832,
+    height: 1216,
+    count: 4,
+    defaultNegative: '',
+  };
+  try {
+    const { loadAiModules, resolveImageCall } = await import('@/lib/ai-modules');
+    const modules = await loadAiModules(guard.supabase);
+    const sceneKey =
+      type === 'outfit'
+        ? 'outfit_prop'
+        : type === 'shop_item'
+          ? 'shop_item'
+          : 'girlfriend_portrait';
+    const img = resolveImageCall(modules, { scene: sceneKey as any, tier: 'admin' });
+    sceneDefaults = {
+      steps: img.config.steps,
+      cfg: img.config.cfg,
+      width: img.config.width,
+      height: img.config.height,
+      count: img.config.count,
+      defaultNegative: img.defaultNegative,
+    };
+  } catch {
+    /* keep hardcoded defaults */
+  }
+
+  const count = Math.min((body.count as number) || sceneDefaults.count || 4, 6);
+
   const params = {
-    steps: (body.steps as number) || 28,
-    cfg: (body.cfg as number) || (body.cfg_scale as number) || 3.5,
+    steps: (body.steps as number) || sceneDefaults.steps,
+    cfg: (body.cfg as number) || (body.cfg_scale as number) || sceneDefaults.cfg,
     seed: (body.seed as number) || 0,
-    width: (body.width as number) || 832,
-    height: (body.height as number) || 1216,
+    width: (body.width as number) || sceneDefaults.width,
+    height: (body.height as number) || sceneDefaults.height,
     sampler: (body.sampler as string) || 'euler',
     scheduler: (body.scheduler as string) || 'simple',
   };
 
   let rawPrompt = '';
+  let finalNegativePrompt = negativePrompt || sceneDefaults.defaultNegative || '';
+  let girlfriendRow: Record<string, unknown> | null = null;
 
-  // If girlfriendId is provided, fetch girlfriend data and build personalized prompt
-  if (girlfriendId) {
+  // If girlfriendId is provided, fetch traits for personalized prompt
+  if (girlfriendId && type === 'girlfriend') {
     try {
       logger.info('generate-from-meta: fetching girlfriend data', { girlfriendId });
-      //  requireAdmin  service_role supabase 
       const { data, error } = await guard.supabase
         .from('girlfriends')
         .select('*')
@@ -634,48 +667,64 @@ export async function POST(req: NextRequest) {
 
       if (error) {
         logger.error('generate-from-meta: database query error', { girlfriendId, error });
-      }
-      if (!data) {
+      } else if (data) {
+        girlfriendRow = data as Record<string, unknown>;
+      } else {
         logger.warn('generate-from-meta: girlfriend not found', { girlfriendId });
-      }
-      if (!error && data) {
-        rawPrompt = buildSimplePrompt(data as Record<string, unknown>);
-        logger.info('generate-from-meta: built prompt from girlfriend', { girlfriendId, promptLen: rawPrompt.length });
       }
     } catch (err) {
       logger.error('generate-from-meta: failed to fetch girlfriend', { girlfriendId, err });
     }
-  } else {
-    logger.info('generate-from-meta: no girlfriendId, using custom prompt or metadata');
   }
 
-  // Fallback to custom prompt or metadata
-  if (!rawPrompt) {
-    rawPrompt = (body.customPrompt as string) || (metadata?.appearance) || (body.concept as string) || '';
-  }
+  // Custom / metadata appearance (editor content from admin UI)
+  const customOrMeta =
+    (body.customPrompt as string) ||
+    (metadata?.appearance as string) ||
+    (body.concept as string) ||
+    '';
 
-  //   
-  // / / ghost mannequin
-  let finalNegativePrompt = negativePrompt;
-  //  LLM  appearance 
-  rawPrompt = sanitizeBlurKeywords(rawPrompt);
+  // Apply type-specific prompt DSL
+  const { assemblePrompt, assembleGirlfriendFromRow } = await import('@/lib/prompt');
 
-  if (type === 'outfit') {
-    const { assemblePrompt } = await import('@/lib/prompt');
+  if (type === 'girlfriend') {
+    if (girlfriendRow) {
+      // Traits from DB + fixed body (大胸/大屁股/性感/妩媚) + 3/4 framing
+      const assembled = assembleGirlfriendFromRow(girlfriendRow, customOrMeta);
+      rawPrompt = assembled.positive;
+      finalNegativePrompt = negativePrompt
+        ? `${negativePrompt}, ${assembled.negative}`
+        : assembled.negative;
+    } else {
+      const assembled = assemblePrompt('girlfriend', {
+        rawPrompt: sanitizeBlurKeywords(customOrMeta),
+        extraNegative: negativePrompt || undefined,
+      });
+      rawPrompt = assembled.positive;
+      finalNegativePrompt = assembled.negative;
+    }
+    logger.info('generate-from-meta: girlfriend DSL applied', {
+      girlfriendId,
+      promptLen: rawPrompt.length,
+    });
+  } else if (type === 'outfit') {
+    // No model · sexy cos · game wardrobe prop
     const assembled = assemblePrompt('outfit', {
-      rawPrompt,
-      extraNegative: finalNegativePrompt,
+      rawPrompt: sanitizeBlurKeywords(customOrMeta),
+      extraNegative: negativePrompt || undefined,
     });
     rawPrompt = assembled.positive;
     finalNegativePrompt = assembled.negative;
   } else if (type === 'shop_item') {
-    const { assemblePrompt } = await import('@/lib/prompt');
+    // Special-effects game prop
     const assembled = assemblePrompt('shop_item', {
-      rawPrompt,
-      extraNegative: finalNegativePrompt,
+      rawPrompt: sanitizeBlurKeywords(customOrMeta),
+      extraNegative: negativePrompt || undefined,
     });
     rawPrompt = assembled.positive;
     finalNegativePrompt = assembled.negative;
+  } else {
+    rawPrompt = sanitizeBlurKeywords(customOrMeta);
   }
 
   logger.info('generate-from-meta: prompt assembled', { type, rawPromptLen: rawPrompt.length });

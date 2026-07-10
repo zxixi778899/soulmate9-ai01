@@ -1,3 +1,5 @@
-import { relations } from "drizzle-orm/relations";
-import {  } from "./schema";
-
+/**
+ * Drizzle relations placeholder.
+ * Table relations can be added here when needed for relational queries.
+ */
+export {};

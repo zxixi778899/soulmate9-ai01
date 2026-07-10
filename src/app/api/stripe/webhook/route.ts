@@ -69,54 +69,142 @@ export async function POST(req: NextRequest) {
       subscription_details?: { current_period_end?: number };
     };
     const userId = session.metadata?.user_id || session.client_reference_id;
-    const plan = session.metadata?.plan || 'pro';
+    const metaType = session.metadata?.type || 'subscription';
 
     if (!userId) {
       logger.error('stripe-webhook: No user_id in Stripe session metadata', { sessionId: session.id });
       return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
     }
 
-    const tierMap: Record<string, string> = { pro: 'pro', unlimited: 'unlimited' };
-    const tier = tierMap[plan] || 'pro';
+    // ── One-time token / credit pack purchase ──────────────────────
+    if (metaType === 'tokens') {
+      const tokenCount = Number(session.metadata?.token_count || 0);
+      if (tokenCount > 0) {
+        // Prefer user_tokens balance; also bump profiles.credits_remaining for legacy UI
+        const { data: existing } = await supabaseAdmin
+          .from('user_tokens')
+          .select('balance_tokens')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-    await supabaseAdmin
-      .from('profiles')
-      .update({ membership_tier: tier, updated_at: new Date().toISOString() })
-      .eq('user_id', userId);
+        if (existing) {
+          await supabaseAdmin
+            .from('user_tokens')
+            .update({
+              balance_tokens: Number(existing.balance_tokens || 0) + tokenCount,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', userId);
+        } else {
+          await supabaseAdmin.from('user_tokens').insert({
+            user_id: userId,
+            balance_tokens: tokenCount,
+            updated_at: new Date().toISOString(),
+          });
+        }
 
-    await supabaseAdmin
-      .from('subscriptions')
-      .upsert({
-        user_id: userId,
-        stripe_subscription_id: session.subscription,
-        stripe_customer_id: session.customer,
-        plan_id: plan,
-        status: 'active',
-        current_period_end: session.subscription_details?.current_period_end
-          ? new Date(session.subscription_details.current_period_end * 1000).toISOString()
-          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'stripe_subscription_id' });
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('credits_remaining')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-    await supabaseAdmin
-      .from('purchase_history')
-      .insert({
-        user_id: userId,
-        item_type: 'subscription',
-        stripe_payment_intent_id: session.payment_intent,
+        await supabaseAdmin
+          .from('profiles')
+          .update({
+            credits_remaining: Number(profile?.credits_remaining || 0) + tokenCount,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId);
+
+        try {
+          await supabaseAdmin.from('token_transactions').insert({
+            user_id: userId,
+            amount: tokenCount,
+            type: 'purchase',
+            description: `Stripe pack ${session.metadata?.package_id || ''}`,
+            metadata: { session_id: session.id, package_id: session.metadata?.package_id },
+          });
+        } catch {
+          // table may not exist in older schemas — non-fatal
+        }
+
+        await supabaseAdmin.from('purchase_history').insert({
+          user_id: userId,
+          item_type: 'tokens',
+          stripe_payment_intent_id: session.payment_intent,
+          amount_cents: session.amount_total || 0,
+          status: 'completed',
+          metadata: {
+            package_id: session.metadata?.package_id,
+            token_count: tokenCount,
+            session_id: session.id,
+          },
+        });
+
+        logger.info('stripe-webhook: tokens credited', { userId, tokenCount, sessionId: session.id });
+        capture(userId, AnalyticsEvents.SUBSCRIPTION_STARTED, {
+          plan: 'tokens',
+          token_count: tokenCount,
+          amount_cents: session.amount_total || 0,
+          stripe_session_id: session.id,
+          route: 'stripe-webhook',
+        });
+      }
+    } else {
+      // ── Subscription (monthly or yearly) ─────────────────────────
+      const plan = session.metadata?.plan || 'pro';
+      const billing = session.metadata?.billing || 'monthly';
+      const tierMap: Record<string, string> = {
+        pro: 'pro',
+        pro_yearly: 'pro',
+        unlimited: 'unlimited',
+        unlimited_yearly: 'unlimited',
+        premium: 'pro',
+      };
+      const tier = tierMap[plan] || 'pro';
+      const periodDays = billing === 'yearly' || plan.endsWith('_yearly') ? 365 : 30;
+
+      await supabaseAdmin
+        .from('profiles')
+        .update({ membership_tier: tier, updated_at: new Date().toISOString() })
+        .eq('user_id', userId);
+
+      await supabaseAdmin
+        .from('subscriptions')
+        .upsert({
+          user_id: userId,
+          stripe_subscription_id: session.subscription,
+          stripe_customer_id: session.customer,
+          plan_id: plan,
+          status: 'active',
+          current_period_end: session.subscription_details?.current_period_end
+            ? new Date(session.subscription_details.current_period_end * 1000).toISOString()
+            : new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'stripe_subscription_id' });
+
+      await supabaseAdmin
+        .from('purchase_history')
+        .insert({
+          user_id: userId,
+          item_type: 'subscription',
+          stripe_payment_intent_id: session.payment_intent,
+          amount_cents: session.amount_total || 0,
+          status: 'completed',
+          metadata: { plan, billing, session_id: session.id },
+        });
+
+      logger.info('stripe-webhook: user upgraded', { userId, tier, plan, billing, sessionId: session.id });
+      capture(userId, AnalyticsEvents.SUBSCRIPTION_STARTED, {
+        plan,
+        tier,
+        billing,
         amount_cents: session.amount_total || 0,
-        status: 'completed',
-        metadata: { plan, session_id: session.id },
+        stripe_session_id: session.id,
+        route: 'stripe-webhook',
       });
-
-    logger.info('stripe-webhook: user upgraded', { userId, tier, sessionId: session.id });
-    capture(userId, AnalyticsEvents.SUBSCRIPTION_STARTED, {
-      plan,
-      tier,
-      amount_cents: session.amount_total || 0,
-      stripe_session_id: session.id,
-      route: 'stripe-webhook',
-    });
+    }
   }
 
   // ── invoice.payment_failed ────────────────────────────────────────

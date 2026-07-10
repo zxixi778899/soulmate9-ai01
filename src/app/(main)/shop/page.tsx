@@ -1,18 +1,28 @@
 'use client';
-import { useTranslation } from '@/lib/i18n/context';
 
+/**
+ * Armory / Skin Shop — Honor-of-Kings style skins & items
+ */
+
+import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShoppingBag, Heart, Sparkles, Lock, Star, Gift, Coins, X, Shirt } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Coins, Heart, Sparkles, Lock, Star, Shirt, Gift, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import {
+  GameShell, GameSectionTitle, GamePrimaryButton, GamePanel,
+} from '@/components/game/GameShell';
+import { PageHeader } from '@/components/game/PageHeader';
+import { cn } from '@/lib/utils';
 
 type ShopItem = {
   id: string;
@@ -24,48 +34,36 @@ type ShopItem = {
   effect_value?: Record<string, string | number>;
   tier: string;
   is_limited?: boolean;
+  skin?: string;
 };
 
-type Girlfriend = {
+type Girlfriend = { id: string; name: string };
+type CreditsInfo = { credits_remaining: number; membership_tier: string };
+type TokenPackage = {
   id: string;
   name: string;
+  token_count: number;
+  bonus_tokens?: number;
+  price_cents: number;
 };
 
-type CreditsInfo = {
-  credits_remaining: number;
-  membership_tier: string;
-  plans: { id: string; name: string; amount: number; price: string; price_cents: number }[];
-};
-
-const SHOP_ITEMS: ShopItem[] = [
-  { id: 'rose-bouquet', name: 'Rose Bouquet', emoji: '', description: 'A dozen red roses that will warm her heart', price_cents: 150, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 15 }, tier: 'free' },
-  { id: 'chocolate-box', name: 'Chocolate Box', emoji: '', description: 'Luxury chocolates for a sweet surprise', price_cents: 300, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 30 }, tier: 'free' },
-  { id: 'teddy-bear', name: 'Teddy Bear', emoji: '', description: 'A giant teddy bear for cuddles', price_cents: 500, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 50 }, tier: 'free' },
-  { id: 'perfume-bottle', name: 'Designer Perfume', emoji: '', description: 'A designer scent she will adore', price_cents: 800, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 80 }, tier: 'premium' },
-  { id: 'lingerie-set', name: 'Silk Lingerie Set', emoji: '', description: 'Delicate lingerie for intimate moments', price_cents: 1200, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 150 }, tier: 'premium' },
-  { id: 'double-intimacy', name: 'Double Intimacy Boost', emoji: '', description: 'Double intimacy gains for 24 hours', price_cents: 600, item_type: 'cap_unlock', effect_value: { effect_type: 'double_intimacy', duration_hours: 24 }, tier: 'free' },
-  { id: 'unlimited-msg', name: 'Unlimited Messages', emoji: '', description: 'No message limits for 48 hours', price_cents: 1000, item_type: 'cap_unlock', effect_value: { effect_type: 'unlimited_messages', duration_hours: 48 }, tier: 'premium' },
-  { id: 'valentine-special', name: "Valentine's Special Box", emoji: '', description: 'Exclusive box with 300 intimacy boost', price_cents: 2000, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 300 }, tier: 'premium', is_limited: true },
+const SKINS: ShopItem[] = [
+  { id: 'classic-dress', name: '经典裙装', emoji: '👗', description: '日常约会默认皮肤', price_cents: 200, item_type: 'outfit', effect_value: { intimacy_boost: 5 }, tier: 'free', skin: 'from-rose-400 to-pink-600' },
+  { id: 'beach-bikini', name: '夏日泳装', emoji: '👙', description: '限定海滩皮肤', price_cents: 800, item_type: 'outfit', effect_value: { intimacy_boost: 25 }, tier: 'premium', skin: 'from-cyan-400 to-blue-600' },
+  { id: 'evening-gown', name: '晚宴礼服', emoji: '✨', description: '红毯传说级皮肤', price_cents: 1500, item_type: 'outfit', effect_value: { intimacy_boost: 50 }, tier: 'premium', skin: 'from-amber-300 to-rose-600' },
+  { id: 'silk-lingerie', name: '丝绸私语', emoji: '💫', description: '亲密度传说皮肤', price_cents: 3000, item_type: 'outfit', effect_value: { intimacy_boost: 100 }, tier: 'premium', is_limited: true, skin: 'from-fuchsia-500 to-purple-800' },
+  { id: 'nurse-costume', name: '白衣天使', emoji: '💉', description: '角色扮演皮肤', price_cents: 2000, item_type: 'outfit', effect_value: { intimacy_boost: 80 }, tier: 'premium', skin: 'from-white to-rose-400' },
+  { id: 'maid-costume', name: '法式女仆', emoji: '🎀', description: '经典幻想皮肤', price_cents: 2500, item_type: 'outfit', effect_value: { intimacy_boost: 90 }, tier: 'premium', skin: 'from-zinc-200 to-zinc-800' },
 ];
 
-const OUTFITS: ShopItem[] = [
-  { id: 'classic-dress', name: 'Classic Dress', emoji: '', description: 'Elegant everyday dress for casual dates', price_cents: 200, item_type: 'outfit', effect_value: { intimacy_boost: 5 }, tier: 'free' },
-  { id: 'beach-bikini', name: 'Beach Bikini', emoji: '', description: 'Stunning bikini for beach dates', price_cents: 800, item_type: 'outfit', effect_value: { intimacy_boost: 25 }, tier: 'premium' },
-  { id: 'yoga-set', name: 'Yoga Activewear', emoji: '', description: 'Form-fitting activewear for gym dates', price_cents: 600, item_type: 'outfit', effect_value: { intimacy_boost: 20 }, tier: 'premium' },
-  { id: 'evening-gown', name: 'Evening Gown', emoji: '', description: 'Red carpet gown for special nights', price_cents: 1500, item_type: 'outfit', effect_value: { intimacy_boost: 50 }, tier: 'premium' },
-  { id: 'silk-lingerie', name: 'Silk Lingerie', emoji: '', description: 'Delicate silk for intimate moments', price_cents: 3000, item_type: 'outfit', effect_value: { intimacy_boost: 100 }, tier: 'premium' },
-  { id: 'nurse-costume', name: 'Nurse Costume', emoji: '', description: 'Playful nurse fantasy roleplay', price_cents: 2000, item_type: 'outfit', effect_value: { intimacy_boost: 80 }, tier: 'premium' },
-  { id: 'maid-costume', name: 'French Maid', emoji: '', description: 'Classic French maid, timeless fantasy', price_cents: 2500, item_type: 'outfit', effect_value: { intimacy_boost: 90 }, tier: 'premium' },
+const GIFTS: ShopItem[] = [
+  { id: 'rose-bouquet', name: '红玫瑰', emoji: '🌹', description: '温暖她的心', price_cents: 150, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 15 }, tier: 'free' },
+  { id: 'chocolate-box', name: '巧克力礼盒', emoji: '🍫', description: '甜蜜惊喜', price_cents: 300, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 30 }, tier: 'free' },
+  { id: 'teddy-bear', name: '巨型玩偶', emoji: '🧸', description: '拥抱时刻', price_cents: 500, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 50 }, tier: 'free' },
+  { id: 'perfume-bottle', name: '设计师香水', emoji: '🧴', description: '高级感礼物', price_cents: 800, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 80 }, tier: 'premium' },
+  { id: 'double-intimacy', name: '双倍亲密度', emoji: '⚡', description: '24 小时增益', price_cents: 600, item_type: 'cap_unlock', effect_value: { effect_type: 'double_intimacy', duration_hours: 24 }, tier: 'free' },
+  { id: 'unlimited-msg', name: '无限消息卡', emoji: '💬', description: '48 小时无限聊', price_cents: 1000, item_type: 'cap_unlock', effect_value: { effect_type: 'unlimited_messages', duration_hours: 48 }, tier: 'premium' },
 ];
-
-const ALL_ITEMS = [...SHOP_ITEMS, ...OUTFITS];
-
-const getCategory = (item: ShopItem): string => {
-  if (item.item_type === 'outfit') return 'outfits';
-  if (item.item_type === 'cap_unlock') return 'boosts';
-  if (item.is_limited) return 'limited';
-  return 'gifts';
-};
 
 export default function ShopPage() {
   const { t } = useTranslation();
@@ -75,35 +73,49 @@ export default function ShopPage() {
   const [buying, setBuying] = useState<ShopItem | null>(null);
   const [selectedGF, setSelectedGF] = useState('');
   const [purchasing, setPurchasing] = useState(false);
-
-  const loadCredits = async () => {
-    try {
-      const res = await authedFetch('/api/shop/credits');
-      if (res.ok) {
-        const data = await res.json();
-        setCredits(data);
-      }
-    } catch (err) {
-      logger.error('Failed to load credits:', { data: err });
-    }
-  };
-
-  const loadGirlfriends = async () => {
-    try {
-      const res = await authedFetch('/api/girlfriends');
-      if (res.ok) {
-        const data = await res.json();
-        setGirlfriends(data.girlfriends || []);
-      }
-    } catch (err) {
-      logger.error('Failed to load girlfriends:', { data: err });
-    }
-  };
+  const [tokenPackages, setTokenPackages] = useState<TokenPackage[]>([]);
+  const [tokenBalance, setTokenBalance] = useState(0);
+  const [buyingTokens, setBuyingTokens] = useState<string | null>(null);
+  const [tab, setTab] = useState<'skins' | 'gifts' | 'tokens'>('skins');
 
   useEffect(() => {
-    loadCredits();
-    loadGirlfriends();
+    authedFetch('/api/shop/credits').then((r) => r.json()).then(setCredits).catch(() => {});
+    authedFetch('/api/girlfriends').then((r) => r.json()).then((d) => setGirlfriends(d.girlfriends || [])).catch(() => {});
+    authedFetch('/api/v2/shop/tokens')
+      .then((r) => r.json())
+      .then((d) => {
+        setTokenPackages(d.packages || []);
+        setTokenBalance(Number(d.user_balance) || 0);
+      })
+      .catch(() => {});
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      toast.success('代币购买成功！');
+      window.history.replaceState({}, '', '/shop');
+    }
   }, []);
+
+  const buyTokenPack = async (packageId: string) => {
+    setBuyingTokens(packageId);
+    try {
+      const res = await authedFetch('/api/v2/shop/tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package_id: packageId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        toast.error(data.error || 'Checkout failed');
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      toast.error('网络错误');
+    } finally {
+      setBuyingTokens(null);
+    }
+  };
 
   const handleBuy = async () => {
     if (!buying || !selectedGF) return;
@@ -116,187 +128,238 @@ export default function ShopPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(`${buying.emoji} ${buying.name} purchased!`, {
-          description: `Gifted to your companion. ${data.remaining_credits} credits remaining.`,
-        });
+        toast.success(`${buying.emoji} ${buying.name} 已装备！`);
         setBuying(null);
         setSelectedGF('');
-        loadCredits();
+        const c = await authedFetch('/api/shop/credits').then((r) => r.json());
+        setCredits(c);
       } else if (res.status === 402) {
-        toast.error('Insufficient credits', {
-          description: 'You need more credits to purchase this item.',
-          action: { label: 'Get Credits', onClick: () => router.push('/pricing') },
+        toast.error('代币不足', {
+          action: { label: '充值', onClick: () => setTab('tokens') },
         });
       } else {
-        toast.error(data.error || 'Purchase failed');
+        toast.error(data.error || '购买失败');
       }
-    } catch (err) {
-      toast.error('Network error. Please try again.');
+    } catch {
+      toast.error('网络错误');
     }
     setPurchasing(false);
   };
 
-  const formatPrice = (cents: number) => `${(cents / 100).toFixed(2)}K credits`;
-  const tierColor = (tier: string) => tier === 'premium' ? 'text-purple-400' : 'text-gray-400';
+  const balance = tokenBalance || credits?.credits_remaining || 0;
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <div
-        className="sticky top-0 z-10 border-b border-white/[0.06] px-4 sm:px-6 py-4 backdrop-blur-3xl"
-        style={{ background: 'linear-gradient(180deg, rgba(5,5,9,0.85) 0%, rgba(10,10,20,0.4) 100%)' }}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-xl md:text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-[#FFB3CD] to-[#FF6BA6] bg-clip-text text-transparent">
-              Boutique
-            </h1>
-            <p className="text-sm text-white/50">Gifts, boosts & surprises</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-sm rounded-full px-3 py-1.5 border border-amber-500/30 bg-amber-500/10 backdrop-blur-xl">
+    <GameShell className="skin-shelf min-h-full pb-28 md:pb-12">
+      <PageHeader
+        eyebrow="ARMORY"
+        title="皮肤橱窗"
+        subtitle="王者级货架 · 顶栏可返回选角或跳转密语"
+        backHref="/"
+        sticky={false}
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="glass flex items-center gap-1.5 rounded-full px-3 h-10">
               <Coins className="h-4 w-4 text-amber-400" />
-              <span className="font-semibold text-white">{credits?.credits_remaining ?? '...'}</span>
-              <span className="text-[10px] text-amber-200/60">credits</span>
+              <span className="font-bold text-white tabular-nums text-sm">{balance}</span>
             </div>
             <button
+              type="button"
               onClick={() => router.push('/pricing')}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-amber-300 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all"
+              className="glass-btn !h-10 !px-3 text-xs hidden sm:inline-flex"
             >
-              <Coins className="h-3.5 w-3.5" />
-              Get Tokens
+              VIP
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Shop Grid */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="mb-6 overflow-x-auto w-full justify-start sm:justify-center bg-white/[0.04] border border-white/[0.08] backdrop-blur-2xl rounded-full p-1">
-            <TabsTrigger value="all" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">All</TabsTrigger>
-            <TabsTrigger value="gifts" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">Gifts</TabsTrigger>
-            <TabsTrigger value="outfits" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">
-              <Shirt className="h-3 w-3 mr-1" />Outfits
-            </TabsTrigger>
-            <TabsTrigger value="boosts" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">Boosts</TabsTrigger>
-            <TabsTrigger value="limited" className="text-xs rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#FF2D78] data-[state=active]:to-[#A855F7] data-[state=active]:text-white">Limited</TabsTrigger>
-          </TabsList>
-
-          {['all', 'gifts', 'outfits', 'boosts', 'limited'].map((tab) => (
-            <TabsContent key={tab} value={tab}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {ALL_ITEMS
-                  .filter(i => tab === 'all' || getCategory(i) === tab)
-                  .map((item) => (
-                    <Card key={item.id} className="group relative overflow-hidden border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.01] backdrop-blur-2xl hover:border-[#FF2D78]/30 hover:shadow-[0_8px_32px_rgba(255,45,120,0.15)] transition-all">
-                      <CardHeader className="p-0">
-                        <div className="aspect-[4/3] bg-gradient-to-br from-accent/30 to-accent/10 flex items-center justify-center">
-                          <span className="text-5xl">{item.emoji}</span>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-4 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-sm font-semibold">{item.name}</CardTitle>
-                          {item.is_limited && (
-                            <Badge variant="secondary" className="shrink-0 text-[10px]">
-                              <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                              Limited
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-[#8B8BA3] line-clamp-2">{item.description}</p>
-                        {item.item_type === 'intimacy_boost' && item.effect_value?.intimacy_boost && (
-                          <div className="flex items-center gap-1">
-                            <Heart className="h-3 w-3 text-pink-500" />
-                            <span className="text-xs text-pink-500 font-medium">+{item.effect_value.intimacy_boost} intimacy</span>
-                          </div>
-                        )}
-                        {item.item_type === 'cap_unlock' && (
-                          <div className="flex items-center gap-1">
-                            <Star className="h-3 w-3 text-amber-500" />
-                            <span className="text-xs text-amber-500 font-medium">{item.effect_value?.duration_hours}h boost</span>
-                          </div>
-                        )}
-                      </CardContent>
-                      <CardFooter className="p-4 pt-0">
-                        <Button
-                          className="w-full gap-1.5 h-9 text-xs"
-                          size="sm"
-                          onClick={() => { setBuying(item); setSelectedGF(''); }}
-                        >
-                          {item.tier === 'premium' && <Lock className="h-3 w-3" />}
-                          {formatPrice(item.price_cents)}
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-              </div>
-              {ALL_ITEMS.filter(i => tab === 'all' || getCategory(i) === tab).length === 0 && (
-                <div className="text-center py-20">
-                  <ShoppingBag className="h-10 w-10 text-[#8B8BA3]/30 mx-auto mb-3" />
-                  <p className="text-sm text-[#8B8BA3]">No items in this category yet</p>
-                </div>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-3 flex gap-2">
+        {([
+          { id: 'skins', label: '皮肤', icon: Shirt },
+          { id: 'gifts', label: '道具', icon: Gift },
+          { id: 'tokens', label: '点券', icon: Coins },
+        ] as const).map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'flex items-center gap-1.5 h-9 px-4 rounded-full text-sm font-medium transition-all',
+                tab === t.id
+                  ? 'glass-btn !h-9 !px-4'
+                  : 'glass text-white/50',
               )}
-            </TabsContent>
-          ))}
-        </Tabs>
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Purchase Dialog */}
-      <Dialog open={!!buying} onOpenChange={(open) => !open && setBuying(null)}>
-        <DialogContent className="sm:max-w-sm">
+      <div className="mx-auto max-w-6xl px-4 sm:px-8 py-6">
+        {tab === 'tokens' && (
+          <section>
+            <GameSectionTitle title="充值点券" subtitle="Stripe 安全支付 · 即时到账" eyebrow="TOP UP" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {(tokenPackages.length
+                ? tokenPackages
+                : [
+                    { id: 'tokens-100', name: '入门包', token_count: 100, bonus_tokens: 0, price_cents: 499 },
+                    { id: 'tokens-500', name: '热门包', token_count: 500, bonus_tokens: 50, price_cents: 1999 },
+                    { id: 'tokens-1000', name: '至尊包', token_count: 1000, bonus_tokens: 200, price_cents: 3499 },
+                  ]
+              ).map((pkg, i) => {
+                const total = Number(pkg.token_count) + Number(pkg.bonus_tokens || 0);
+                return (
+                  <GamePanel key={pkg.id} glow={i === 1} className="p-5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-lg">{pkg.name}</span>
+                      {i === 1 && (
+                        <span className="text-[10px] font-black bg-[#ff2e88] px-2 py-0.5 rounded">HOT</span>
+                      )}
+                    </div>
+                    <div className="mt-3 text-3xl font-black text-[#ffd700]">{total}</div>
+                    <div className="text-xs text-white/40">tokens {pkg.bonus_tokens ? `· +${pkg.bonus_tokens} 赠送` : ''}</div>
+                    <div className="mt-4 flex items-center justify-between">
+                      <span className="text-xl font-bold">${(pkg.price_cents / 100).toFixed(2)}</span>
+                      <GamePrimaryButton
+                        className="h-10 px-5"
+                        disabled={buyingTokens === pkg.id}
+                        onClick={() => buyTokenPack(pkg.id)}
+                      >
+                        {buyingTokens === pkg.id ? '…' : '购买'}
+                      </GamePrimaryButton>
+                    </div>
+                  </GamePanel>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {tab === 'skins' && (
+          <section>
+            <GameSectionTitle
+              eyebrow="SKINS"
+              title="传说皮肤"
+              subtitle="王者级货架 · 选中后装备给她"
+            />
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {SKINS.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setBuying(item)}
+                  className="group relative rounded-2xl overflow-hidden border border-white/10 text-left active:scale-[0.98] transition-transform"
+                >
+                  <div className={cn('aspect-[4/5] bg-gradient-to-br relative', item.skin)}>
+                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+                    <div className="absolute inset-0 flex items-center justify-center text-6xl drop-shadow-lg">
+                      {item.emoji}
+                    </div>
+                    {item.is_limited && (
+                      <span className="absolute top-2 left-2 text-[9px] font-black tracking-wider bg-black/60 text-[#ffd700] px-2 py-0.5 rounded">
+                        LIMITED
+                      </span>
+                    )}
+                    {item.tier === 'premium' && (
+                      <Lock className="absolute top-2 right-2 h-4 w-4 text-white/70" />
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
+                      <div className="font-bold text-sm">{item.name}</div>
+                      <div className="text-[11px] text-white/55 line-clamp-1">{item.description}</div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="flex items-center gap-1 text-amber-300 text-xs font-bold">
+                          <Coins className="h-3.5 w-3.5" />
+                          {item.price_cents}
+                        </span>
+                        <span className="text-[10px] text-[#ff6ba6]">
+                          +{item.effect_value?.intimacy_boost} 亲密度
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tab === 'gifts' && (
+          <section>
+            <GameSectionTitle eyebrow="ITEMS" title="道具与增益" subtitle="送礼 · 双倍 · 限时卡" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {GIFTS.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setBuying(item)}
+                  className="game-panel p-4 text-left hover:border-[#ff2e88]/40 transition-all active:scale-[0.98]"
+                >
+                  <div className="text-4xl mb-2">{item.emoji}</div>
+                  <div className="font-semibold text-sm">{item.name}</div>
+                  <div className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{item.description}</div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-amber-300 text-xs font-bold flex items-center gap-1">
+                      <Coins className="h-3.5 w-3.5" /> {item.price_cents}
+                    </span>
+                    {item.item_type === 'intimacy_boost' ? (
+                      <span className="text-[10px] text-[#ff6ba6] flex items-center gap-0.5">
+                        <Heart className="h-3 w-3" /> +{item.effect_value?.intimacy_boost}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
+                        <Zap className="h-3 w-3" /> {item.effect_value?.duration_hours}h
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      <Dialog open={!!buying} onOpenChange={(o) => !o && setBuying(null)}>
+        <DialogContent className="bg-[#120a18] border-white/10 text-white sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg">
-              <span>{buying?.emoji}</span>
-              Buy {buying?.name}
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-2xl">{buying?.emoji}</span>
+              {buying?.name}
             </DialogTitle>
-            <DialogDescription className="text-sm text-[#8B8BA3]">
-              Choose which companion to gift this item to.
+            <DialogDescription className="text-white/50">
+              {buying?.description} · 消耗 {buying?.price_cents} 代币
             </DialogDescription>
           </DialogHeader>
-
-          <div className="py-4 space-y-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-[#8B8BA3]">Price</span>
-              <span className="font-semibold">{buying ? formatPrice(buying.price_cents) : ''}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-[#8B8BA3]">Balance</span>
-              <span className="font-semibold text-amber-400">{credits?.credits_remaining ?? 0} credits</span>
-            </div>
+          <div className="space-y-3 py-2">
+            <label className="text-xs text-white/40">装备给</label>
             <Select value={selectedGF} onValueChange={setSelectedGF}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a companion..." />
+              <SelectTrigger className="bg-white/5 border-white/10">
+                <SelectValue placeholder="选择女友" />
               </SelectTrigger>
               <SelectContent>
-                {girlfriends.map((gf) => (
-                  <SelectItem key={gf.id} value={gf.id}>{gf.name}</SelectItem>
+                {girlfriends.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {girlfriends.length === 0 && (
-              <p className="text-xs text-[#8B8BA3] text-center">
-                No companions yet.{' '}
-                <button onClick={() => router.push('/create')} className="text-primary underline">Create one</button>
-              </p>
+            {!girlfriends.length && (
+              <p className="text-xs text-amber-400">还没有女友，先去卡池或捏脸创建吧。</p>
             )}
           </div>
-
-          <DialogFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setBuying(null)} className="flex-1">
-              Cancel
-            </Button>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setBuying(null)}>取消</Button>
             <Button
-              onClick={handleBuy}
               disabled={!selectedGF || purchasing}
-              className="flex-1 gap-1.5"
+              onClick={handleBuy}
+              className="bg-gradient-to-r from-[#ffd700] to-[#ff2e88] text-black font-bold"
             >
-              {purchasing ? 'Buying...' : `${buying?.emoji} Purchase`}
+              {purchasing ? '…' : '确认购买'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </GameShell>
   );
 }

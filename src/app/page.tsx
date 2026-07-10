@@ -1,252 +1,750 @@
 'use client';
 
 /**
- * OoXX HOME — Game Lobby
- * 5 main modules + 12 character cards + 3 summon banner + daily quests
+ * Home lobby
+ * - Tall full-body portrait (main visual) + VFX
+ * - Avatar strip under right info panel
+ * - Modules: 2 rows × 3 cols (fuller cards)
+ * - Hot 12: 3 rows × 4 cols
+ * - Site footer: Telegram / X / etc.
  */
 
-import { useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
-  Sparkles, Trophy, Image as ImageIcon, Crown, Star, Flame,
-  ChevronRight, Heart, Lock, Wand2,
+  MessageCircle, ShoppingBag, Wand2, Crown, ChevronLeft, ChevronRight,
+  Heart, Flame, Lock, Zap, Star, Users, Share2,
+  Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink,
 } from 'lucide-react';
-import { GIRLS, RARITY_COLORS } from '@/lib/demo-data';
-import { GirlfriendCard } from '@/components/discover/GirlfriendCard';
-import { NeonGridBackground } from '@/components/discover/NeonGridBackground';
+import { toast } from 'sonner';
+import { GIRLS, RARITY_COLORS, type DemoGirl } from '@/lib/demo-data';
+import { fetchCompanionCatalog } from '@/lib/companions';
+import { openCompanionChat } from '@/lib/ensure-companion';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
+import { ShareCard } from '@/components/ShareCard';
+import {
+  GameShell, GameChip, GamePrimaryButton, RarityBadge,
+} from '@/components/game/GameShell';
+import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/LockedPortrait';
 import { cn } from '@/lib/utils';
+import { authedFetch } from '@/lib/supabase';
 
-const PILLARS = [
-  { key: 'explore', title: 'Explore',  desc: 'Discover companions', icon: Crown,    gradient: 'from-[#ff2e88] to-[#c026d3]', tag: 'Character Library' },
-  { key: 'summon',  title: 'Summon',   desc: 'Pull from gacha',     icon: Sparkles, gradient: 'from-[#ffd700] to-[#ff2e88]', tag: 'Eternal Bloom' },
-  { key: 'studio',  title: 'Studio',   desc: 'Generate content',    icon: ImageIcon, gradient: 'from-[#00e5ff] to-[#3b82f6]', tag: 'Creator Tools' },
-  { key: 'quest',   title: 'Quest',    desc: 'Earn rewards',         icon: Trophy,   gradient: 'from-[#a855f7] to-[#ff2e88]', tag: 'Adventure' },
-  { key: 'profile', title: 'Profile',  desc: 'Your collection',     icon: Star,     gradient: 'from-[#10b981] to-[#3b82f6]', tag: 'Account' },
+const MODULES = [
+  {
+    href: '/explore',
+    title: '卡池',
+    en: 'CARD POOL',
+    desc: '抽选禁忌角色 · 稀有度掉落',
+    tip: '今日 UP 池开启',
+    icon: Crown,
+    tone: 'from-[#ff2e88] to-[#c026d3]',
+  },
+  {
+    href: '/chats',
+    title: '密语',
+    en: 'MESSAGES',
+    desc: '私聊养成 · 记录永久保留',
+    tip: '亲密值实时成长',
+    icon: MessageCircle,
+    tone: 'from-[#25D366] to-[#128C7E]',
+  },
+  {
+    href: '/create',
+    title: '捏脸',
+    en: 'CREATE',
+    desc: '种族体型五官服饰全定制',
+    tip: '3 步生成专属她',
+    icon: Wand2,
+    tone: 'from-[#a855f7] to-[#ff2e88]',
+  },
+  {
+    href: '/shop',
+    title: '橱窗',
+    en: 'ARMORY',
+    desc: '皮肤 · 道具 · 点券充值',
+    tip: '首充双倍进行中',
+    icon: ShoppingBag,
+    tone: 'from-[#ffd700] to-[#f59e0b]',
+  },
+  {
+    href: '/quest',
+    title: '任务',
+    en: 'QUEST',
+    desc: '每日欲望 · 完成领奖',
+    tip: '4 项待领取',
+    icon: Zap,
+    tone: 'from-[#fbbf24] to-[#ff6ba6]',
+  },
+  {
+    href: '/profile',
+    title: '我的',
+    en: 'PROFILE',
+    desc: '账号 · 背包 · 成就',
+    tip: '查看你的收藏',
+    icon: Users,
+    tone: 'from-[#60a5fa] to-[#a855f7]',
+  },
 ];
 
-const DAILY = [
-  { label: 'Daily Login',        done: true,  reward: '+5' },
-  { label: 'First Chat Today',   done: true,  reward: '+10' },
-  { label: 'Send a Photo',       done: false, reward: '+3' },
-  { label: 'Complete 1 Quest',   done: false, reward: '+15' },
-];
+const FOOTER_LINKS = {
+  telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL || 'https://t.me/soulmateai_support',
+  x: process.env.NEXT_PUBLIC_X_URL || 'https://x.com/soulmateai',
+  discord: process.env.NEXT_PUBLIC_DISCORD_URL || '',
+  email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@soulmateai.shop',
+};
 
 export default function HomePage() {
   const router = useRouter();
-  const [featuredOpen, setFeaturedOpen] = useState(false);
-  const featured = GIRLS[0];
-  const showcase = GIRLS.slice(0, 4);
+  const [catalog, setCatalog] = useState<DemoGirl[]>(GIRLS);
+  const [focus, setFocus] = useState(0);
+  const [detail, setDetail] = useState<DemoGirl | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [bonding, setBonding] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCompanionCatalog(24).then((r) => {
+      if (!cancelled && r.girls.length) setCatalog(r.girls);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const roster = catalog.slice(0, 10);
+  const featured = roster[focus] || catalog[0] || GIRLS[0];
   const rc = RARITY_COLORS[featured.rarity];
 
+  const hotList = useMemo(
+    () =>
+      [...catalog]
+        .sort((a, b) => (b.hot_score ?? b.intimacy) - (a.hot_score ?? a.intimacy))
+        .slice(0, 12),
+    [catalog],
+  );
+
+  useEffect(() => {
+    if (catalog.length < 2 || paused) return;
+    const t = setInterval(() => setFocus((i) => (i + 1) % Math.min(catalog.length, 10)), 5500);
+    return () => clearInterval(t);
+  }, [catalog.length, paused]);
+
+  const prev = useCallback(() => {
+    setPaused(true);
+    setFocus((i) => (i - 1 + roster.length) % roster.length);
+  }, [roster.length]);
+
+  const next = useCallback(() => {
+    setPaused(true);
+    setFocus((i) => (i + 1) % roster.length);
+  }, [roster.length]);
+
+  const enterBond = async (girl: DemoGirl = featured) => {
+    setBonding(true);
+    try {
+      if (girl.locked) {
+        const res = await authedFetch('/api/girlfriends/unlock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ girlfriend_id: girl.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error((data as { error?: string }).error || '解锁失败，请登录或充值代币');
+          setDetail(girl);
+          return;
+        }
+        toast.success(
+          (data as { already?: boolean; tokens_spent?: number }).already
+            ? '已解锁'
+            : `解锁成功${(data as { tokens_spent?: number }).tokens_spent ? ` · -${(data as { tokens_spent?: number }).tokens_spent} 代币` : ''}`,
+        );
+        girl = { ...girl, locked: false, is_unlocked: true };
+      }
+      const ok = await openCompanionChat(girl, router);
+      if (!ok) {
+        toast.error('无法开启对话，请先登录或稍后重试');
+        router.push('/login');
+      }
+    } finally {
+      setBonding(false);
+    }
+  };
+
   return (
-    <div className="relative min-h-screen text-white" style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}>
-      <NeonGridBackground />
+    <GameShell className="pb-28 md:pb-8 min-h-screen" hex={false}>
+      {/* Ambient keyed to featured rarity */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div
+          className="absolute inset-0 transition-all duration-700"
+          style={{
+            background: `radial-gradient(ellipse 80% 60% at 30% 35%, ${rc.glow}, transparent 70%)`,
+            opacity: 0.55,
+          }}
+        />
+        <div className="absolute top-1/4 left-[15%] h-64 w-64 rounded-full bg-[#ff2e88]/15 blur-[90px] animate-pulse" />
+        <div className="absolute bottom-1/4 right-[10%] h-72 w-72 rounded-full bg-[#7c3aed]/20 blur-[100px]" />
+      </div>
 
-      <section className="relative z-10 pt-12 pb-10 px-4 sm:px-8">
-        <div className="mx-auto max-w-7xl text-center">
-          <motion.div
-            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#ff2e88]/30 bg-[#ff2e88]/10 backdrop-blur-xl"
-          >
-            <Flame className="h-3 w-3 text-[#ff2e88]" />
-            <span className="text-[10px] uppercase tracking-[0.3em] text-[#ff2e88]">Banner Active</span>
-            <span className="text-[10px] uppercase tracking-wider text-white">Eternal Bloom</span>
-          </motion.div>
-
-          <h1 className="mt-5 text-5xl sm:text-7xl font-bold tracking-tight leading-[0.95]">
-            <span className="text-white">Choose Your </span>
-            <span className="bg-gradient-to-r from-[#ff2e88] via-[#c026d3] to-[#00e5ff] bg-clip-text text-transparent">Obsession</span>
-          </h1>
-          <p className="mt-3 text-base sm:text-lg text-zinc-400 max-w-xl mx-auto">
-            350+ AI companions · Obsession Unleashed · Desire Unfiltered
-          </p>
-
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <button onClick={() => router.push('/explore')}
-              className="group relative h-14 overflow-hidden rounded-full px-8 text-base font-semibold text-white transition-all hover:scale-[1.03] hover:shadow-[0_0_32px_rgba(255,46,136,0.55)]"
-              style={{ background: 'linear-gradient(137.55deg, #D05BF8 16.35%, #FF18A0 83.31%)' }}>
-              <span className="relative z-10 flex items-center gap-2">
-                <Crown className="h-4 w-4" /> Enter the Library
-                <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-8 pt-3 sm:pt-4 space-y-5 sm:space-y-6">
+        {/* Top */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <GameChip>
+                <Flame className="h-3 w-3" /> 18+ LOBBY
+              </GameChip>
+              <span className="text-[11px] text-white/35 hidden sm:inline">
+                {catalog.length}+ 角色在线 · 主视觉选角
               </span>
-            </button>
-            <button onClick={() => router.push('/summon')}
-              className="h-14 px-7 rounded-full border border-[#ffd700]/40 bg-white/[0.04] text-white text-base font-medium hover:bg-[#ffd700]/10 transition-all flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-[#ffd700]" />
-              Try Summon Free
-            </button>
+            </div>
+            <h1 className="mt-1.5 text-xl sm:text-3xl font-black tracking-tight">
+              选择你的
+              <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
+                {' '}执念
+              </span>
+            </h1>
           </div>
-
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-xs text-white/50">
-            <div><span className="text-white font-bold text-lg">350+</span> Companions</div>
-            <div className="w-px h-3 bg-white/10" />
-            <div><span className="text-white font-bold text-lg">12</span> SSR Available</div>
-            <div className="w-px h-3 bg-white/10" />
-            <div><span className="text-white font-bold text-lg">24/7</span> Online</div>
-            <div className="w-px h-3 bg-white/10" />
-            <div><span className="text-white font-bold text-lg">∞</span> Memory</div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            className="glass h-9 px-3 rounded-full text-xs flex items-center gap-1.5 text-[#ffb3cd] shrink-0"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">分享</span>
+          </button>
         </div>
-      </section>
 
-      <section className="relative z-10 py-8 px-4 sm:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex items-end justify-between mb-5">
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                <span className="bg-gradient-to-r from-[#ff2e88] to-[#00e5ff] bg-clip-text text-transparent">5 Modules</span>
-                <span className="text-white ml-2">to explore</span>
-              </h2>
-              <p className="text-xs text-zinc-500 mt-1">All your gameplay loops in one place</p>
+        {/* ═══════════ HERO: tall portrait + right panel ═══════════ */}
+        <section
+          className="glass-strong rounded-2xl sm:rounded-3xl p-2.5 sm:p-3 lg:p-4"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
+            {/* LEFT — tall full-body stage */}
+            <div className="lg:col-span-6 xl:col-span-5 relative">
+              <button
+                type="button"
+                onClick={prev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full glass-strong flex items-center justify-center shadow-lg"
+                aria-label="上一位"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full glass-strong flex items-center justify-center shadow-lg"
+                aria-label="下一位"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={featured.id}
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.01 }}
+                  transition={{ duration: 0.4 }}
+                  className={cn(
+                    'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer stage-breathe',
+                    /* Tall full-body stage */
+                    'aspect-[3/4.65] min-h-[560px] sm:min-h-[620px] lg:min-h-[680px] max-h-[82vh]',
+                    `game-rarity-${featured.rarity.toLowerCase()}`,
+                  )}
+                  style={{
+                    boxShadow: `0 0 0 2px ${rc.color}66, 0 0 48px ${rc.glow}, 0 0 100px ${rc.glow}, 0 28px 80px rgba(0,0,0,0.55)`,
+                  }}
+                  onClick={() => setDetail(featured)}
+                >
+                  {/* Pulsing outer aura */}
+                  <div
+                    className="pointer-events-none absolute -inset-3 rounded-[1.5rem] blur-2xl opacity-60 animate-pulse"
+                    style={{ background: `radial-gradient(circle, ${rc.color}55, transparent 70%)` }}
+                  />
+
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={featured.portrait}
+                    alt={featured.name}
+                    className={cn(
+                      'absolute inset-0 h-full w-full object-cover object-top transition-[filter] duration-500',
+                      lockedImageClass(featured.locked),
+                    )}
+                    draggable={false}
+                  />
+                  {featured.locked && (
+                    <LockedPortraitOverlay price={featured.unlock_price_tokens} />
+                  )}
+
+                  {/* Soft vignette — keep full body readable */}
+                  <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/50 via-transparent to-black/20" />
+                  <div
+                    className="absolute inset-0 z-[1] mix-blend-soft-light opacity-45"
+                    style={{
+                      background: `linear-gradient(160deg, ${rc.color}40 0%, transparent 50%, #ff2e8830 100%)`,
+                    }}
+                  />
+
+                  {/* Floating particles */}
+                  <div className="pointer-events-none absolute inset-0 z-[2] overflow-hidden">
+                    {[...Array(10)].map((_, i) => (
+                      <span
+                        key={i}
+                        className="absolute text-sm opacity-80"
+                        style={{
+                          left: `${8 + i * 9}%`,
+                          bottom: `${6 + (i % 5) * 14}%`,
+                          animation: `float-heart ${2.2 + (i % 4) * 0.55}s ease-out infinite`,
+                          animationDelay: `${i * 0.28}s`,
+                          filter: 'drop-shadow(0 0 6px rgba(255,100,160,0.8))',
+                        }}
+                      >
+                        {i % 3 === 0 ? '✨' : i % 3 === 1 ? '💕' : '✦'}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Light sweep */}
+                  <div className="pointer-events-none absolute inset-0 z-[2] overflow-hidden">
+                    <div className="absolute inset-y-0 -left-1/3 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent game-shimmer" />
+                  </div>
+
+                  <div className="absolute top-3 left-3 z-[3] flex flex-col gap-1.5">
+                    <RarityBadge rarity={featured.rarity} />
+                    <span className="glass px-2 py-0.5 rounded-md text-[9px] font-bold text-[#ffb3cd] w-fit">
+                      MAIN VISUAL
+                    </span>
+                  </div>
+
+                  {/* Minimal name — thin strip only */}
+                  <div className="absolute bottom-3 left-3 right-3 z-[3]">
+                    <div className="glass-strong px-3 py-2 rounded-xl flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-lg sm:text-xl font-black truncate seduce-glow">{featured.name}</div>
+                        <div className="text-[10px] text-white/50 truncate">
+                          {featured.relationship} · {featured.age}岁 · 点击看档案
+                        </div>
+                      </div>
+                      <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0 shadow-[0_0_10px_#34d399]" />
+                    </div>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {/* RIGHT — stats + actions + avatar strip */}
+            <div className="lg:col-span-6 xl:col-span-7 flex flex-col gap-3 min-h-0">
+              <div className="flex-1 rounded-xl sm:rounded-2xl bg-black/25 border border-white/[0.07] p-4 sm:p-5 flex flex-col">
+                <div className="text-[10px] tracking-[0.25em] text-[#ff6ba6] font-bold">FEATURED</div>
+                <h2 className="mt-1 text-2xl sm:text-3xl font-black seduce-glow leading-none">{featured.name}</h2>
+                <p className="mt-2 text-sm text-white/55 line-clamp-3 leading-relaxed">{featured.tagline}</p>
+
+                <div className="mt-4 space-y-2.5">
+                  <Meter label="欲望值" value={featured.desire ?? featured.intimacy} color="#ff2e88" />
+                  <Meter label="开发值" value={featured.development ?? Math.floor(featured.intimacy * 0.85)} color="#a855f7" />
+                  <Meter label="变态值" value={featured.kink ?? Math.floor(featured.intimacy * 0.7)} color="#f59e0b" />
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <InfoCell label="年龄" value={`${featured.age}`} />
+                  <InfoCell label="稀有度" value={featured.rarity} accent={rc.color} />
+                  <InfoCell label="关系" value={featured.relationship || '女友'} />
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {featured.tags.slice(0, 6).map((t) => (
+                    <span key={t} className="glass px-2 py-0.5 rounded-full text-[10px] text-[#ffc0d8]">#{t}</span>
+                  ))}
+                </div>
+
+                <div className="mt-4 flex gap-2">
+                  <GamePrimaryButton className="flex-1 h-12" disabled={bonding} onClick={() => void enterBond()}>
+                    {featured.locked ? <Lock className="h-4 w-4" /> : <Heart className="h-4 w-4 fill-current" />}
+                    {bonding
+                      ? '进入中…'
+                      : featured.locked
+                        ? `解锁${featured.unlock_price_tokens ? ` · ${featured.unlock_price_tokens}t` : ''}`
+                        : '进入私密'}
+                  </GamePrimaryButton>
+                  <button type="button" onClick={() => setDetail(featured)} className="glass h-12 px-4 rounded-full text-sm font-semibold shrink-0">
+                    档案
+                  </button>
+                  <button type="button" onClick={() => setShareOpen(true)} className="glass h-12 w-12 rounded-full flex items-center justify-center shrink-0" aria-label="分享">
+                    <Share2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Avatar select — under right panel */}
+              <div className="glass-strong rounded-xl sm:rounded-2xl p-2.5 sm:p-3">
+                <div className="flex items-center justify-between mb-2 px-0.5">
+                  <span className="text-[10px] font-bold tracking-wider text-white/45 uppercase">切换角色</span>
+                  <span className="text-[10px] text-white/30">{focus + 1}/{roster.length}</span>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
+                  {roster.map((g, i) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => { setPaused(true); setFocus(i); }}
+                      className={cn(
+                        'relative shrink-0 rounded-xl overflow-hidden transition-all',
+                        i === focus
+                          ? 'h-16 w-14 sm:h-[72px] sm:w-16 ring-2 ring-[#ff2e88] shadow-[0_0_16px_rgba(255,46,136,0.45)]'
+                          : 'h-14 w-12 sm:h-16 sm:w-14 opacity-55 ring-1 ring-white/10 hover:opacity-90',
+                      )}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={g.avatar || g.portrait} alt={g.name} className="h-full w-full object-cover" />
+                      {i === focus && (
+                        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-[#ff2e88] to-[#ffd700]" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {PILLARS.map((p, i) => {
-              const Icon = p.icon;
+        </section>
+
+        {/* ═══════════ Modules: 2 rows × 3 cols ═══════════ */}
+        <section>
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <div className="game-chip mb-1">HUB · 2 ROWS</div>
+              <h3 className="text-lg font-bold">养成模块</h3>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {MODULES.map((m) => {
+              const Icon = m.icon;
               return (
-                <motion.button key={p.key} onClick={() => router.push(`/${p.key}`)}
-                  initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }} whileHover={{ y: -4 }}
-                  className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0e0e12]/60 backdrop-blur-2xl p-4 text-left transition-all hover:border-white/[0.18]">
-                  <div className={cn('h-12 w-12 rounded-xl bg-gradient-to-br flex items-center justify-center mb-3', p.gradient)}>
-                    <Icon className="h-6 w-6 text-white" />
+                <button
+                  key={m.href}
+                  type="button"
+                  onClick={() => router.push(m.href)}
+                  className="glass-strong rounded-2xl p-4 text-left group active:scale-[0.98] hover:border-[#ff2e88]/35 transition-all flex gap-3.5 items-start min-h-[108px]"
+                >
+                  <div className={cn('h-12 w-12 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0 shadow-lg', m.tone)}>
+                    <Icon className="h-5 w-5 text-white" />
                   </div>
-                  <div className="font-semibold text-sm">{p.title}</div>
-                  <div className="text-[10px] text-zinc-500 mt-0.5 line-clamp-1">{p.desc}</div>
-                  <div className="mt-2 text-[9px] uppercase tracking-wider text-zinc-600">{p.tag}</div>
-                </motion.button>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[9px] font-bold tracking-[0.2em] text-white/35">{m.en}</div>
+                    <div className="text-base font-bold group-hover:text-[#ff6ba6] transition-colors mt-0.5">{m.title}</div>
+                    <div className="text-[12px] text-white/50 mt-1 leading-snug">{m.desc}</div>
+                    <div className="mt-2 text-[10px] text-[#ffb3cd]/70 flex items-center gap-1">
+                      <span className="inline-block h-1 w-1 rounded-full bg-[#ff6ba6]" /> {m.tip}
+                      <ChevR className="h-3 w-3 ml-auto opacity-50 group-hover:opacity-100" />
+                    </div>
+                  </div>
+                </button>
               );
             })}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="relative z-10 py-10 px-4 sm:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex items-end justify-between mb-5">
+        {/* Promo */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <PromoCard
+            onClick={() => router.push('/shop')}
+            badge="RECHARGE"
+            badgeClass="text-[#ffd700]"
+            icon={<Coins className="h-5 w-5 text-black" />}
+            iconBg="from-[#ffd700] to-[#f59e0b]"
+            title="充值活动 · 首充双倍点券"
+            desc="限时返利 · 限定皮肤礼包"
+            glow="from-amber-500/20"
+          />
+          <PromoCard
+            onClick={() => router.push('/achievements')}
+            badge="ACHIEVEMENT"
+            badgeClass="text-[#ff6ba6]"
+            icon={<Trophy className="h-5 w-5 text-white" />}
+            iconBg="from-[#ff2e88] to-[#c026d3]"
+            title="成就有礼 · 任务领奖"
+            desc="亲密里程碑 · 代币装扮掉落"
+            glow="from-[#ff2e88]/20"
+          />
+        </section>
+
+        {/* ═══════════ Hot 12: 3 rows × 4 cols ═══════════ */}
+        <section>
+          <div className="flex items-center justify-between gap-3 mb-3">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                <span className="text-white">Featured </span>
-                <span className="bg-gradient-to-r from-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">Companions</span>
-              </h2>
-              <p className="text-xs text-zinc-500 mt-1">Hover for 3D tilt · click for details</p>
+              <div className="game-chip mb-1">
+                <Flame className="h-3 w-3" /> HOT · 3×4
+              </div>
+              <h3 className="text-lg font-bold">热门女友</h3>
+              <p className="text-[11px] text-white/40 mt-0.5">本周 Top 12 · 点击进入私密</p>
             </div>
-            <button onClick={() => router.push('/explore')}
-              className="hidden sm:inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-white px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08]">
-              View All <ChevronRight className="h-3 w-3" />
+            <button
+              type="button"
+              onClick={() => router.push('/explore')}
+              className="glass-btn !h-10 !px-4 text-xs flex items-center gap-1 shrink-0"
+            >
+              更多女友 <ChevR className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            {showcase.map((girl, i) => (
-              <motion.div key={girl.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
-                <GirlfriendCard
-                  girl={girl}
-                  size="normal"
-                  onClick={i === 0 ? () => setFeaturedOpen(true) : undefined}
-                  onSelect={() => router.push('/chats')}
-                  className="w-full max-w-none"
-                />
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="relative z-10 py-10 px-4 sm:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="relative overflow-hidden rounded-3xl border-2 p-6 sm:p-10 flex flex-col sm:flex-row items-center gap-6"
-            style={{
-              background: 'linear-gradient(135deg, rgba(255,46,136,0.18), rgba(0,229,255,0.06))',
-              boxShadow: '0 0 60px rgba(255,46,136,0.2)',
-              borderColor: '#ff2e88',
-            }}>
-            <div className="flex-1">
-              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#ffd700]/15 border border-[#ffd700]/40 text-[10px] uppercase tracking-wider text-[#ffd700]">
-                <Sparkles className="h-3 w-3" /> Limited Banner
-              </div>
-              <h3 className="mt-3 text-3xl sm:text-4xl font-bold">
-                <span className="bg-gradient-to-r from-[#ffd700] to-[#ff2e88] bg-clip-text text-transparent">Eternal Bloom</span>
-              </h3>
-              <p className="mt-1 text-sm text-zinc-300">SSR rate up · Pity at 80 · Free single every day</p>
-              <div className="mt-4 flex gap-2">
-                <button onClick={() => router.push('/summon')}
-                  className="h-11 px-6 rounded-full text-sm font-bold text-[#050507]"
-                  style={{ background: 'linear-gradient(135deg, #ffd700, #ff2e88)' }}>
-                  Summon Now
-                </button>
-                <button onClick={() => router.push('/quest')}
-                  className="h-11 px-5 rounded-full border border-white/[0.18] bg-white/[0.06] text-sm font-medium text-white hover:bg-white/[0.1] transition-all">
-                  View Pity
-                </button>
-              </div>
-            </div>
-            <div className="hidden sm:flex shrink-0 w-56 h-44 rounded-2xl overflow-hidden border-2"
-              style={{ borderColor: rc.color, boxShadow: `0 0 36px ${rc.glow}` }}>
-              <img src={featured.portrait} alt={featured.name} className="w-full h-full object-cover" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative z-10 py-10 px-4 sm:px-8">
-        <div className="mx-auto max-w-3xl">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-[#ffd700]" />
-              <span className="bg-gradient-to-r from-[#ffd700] to-[#ff2e88] bg-clip-text text-transparent">Today&apos;s Quests</span>
-            </h2>
-            <button onClick={() => router.push('/quest')} className="text-xs text-zinc-400 hover:text-white">
-              All <ChevronRight className="h-3 w-3 inline" />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {DAILY.map((b) => (
-              <div key={b.label}
-                className={cn('rounded-2xl border p-4 text-center transition-all',
-                  b.done ? 'border-emerald-500/30 bg-emerald-500/[0.06]' : 'border-white/[0.08] bg-white/[0.04]')}>
-                <div className={cn('h-7 w-7 mx-auto rounded-full flex items-center justify-center',
-                  b.done ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/[0.08] text-zinc-500')}>
-                  {b.done ? '✓' : <Lock className="h-3.5 w-3.5" />}
+          {/* Always 4 columns → 3 rows for 12 cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+            {hotList.map((g, i) => (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => void enterBond(g)}
+                className={cn(
+                  'relative rounded-xl sm:rounded-2xl overflow-hidden text-left active:scale-[0.98] transition-transform ring-1 ring-white/10 hover:ring-[#ff2e88]/45 hover:shadow-[0_0_24px_rgba(255,46,136,0.25)]',
+                  `game-rarity-${g.rarity.toLowerCase()}`,
+                )}
+              >
+                <div className="relative aspect-[3/4]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={g.portrait}
+                    alt={g.name}
+                    className={cn(
+                      'absolute inset-0 h-full w-full object-cover object-top',
+                      lockedImageClass(g.locked),
+                    )}
+                    loading="lazy"
+                  />
+                  {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-md" />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent z-[1]" />
+                  <span className="absolute top-1.5 left-1.5 z-[2] text-[9px] font-black px-1.5 py-0.5 rounded bg-black/55 text-[#ffd700]">
+                    #{i + 1}
+                  </span>
+                  <div className="absolute bottom-0 left-0 right-0 p-2 z-[2]">
+                    <div className="text-xs sm:text-sm font-bold truncate">{g.name}</div>
+                    <div className="text-[9px] sm:text-[10px] text-white/50 truncate">
+                      {g.relationship} · {g.rarity}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs font-semibold mt-1.5">{b.label}</div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">{b.reward} tokens</div>
-              </div>
+              </button>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="relative z-10 py-16 px-4 sm:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold">
-            <span className="text-white">Ready to </span>
-            <span className="bg-gradient-to-r from-[#ff2e88] via-[#c026d3] to-[#00e5ff] bg-clip-text text-transparent">Begin?</span>
-          </h2>
-          <p className="mt-3 text-sm text-zinc-400">3 free messages daily · No credit card · 18+ only</p>
-          <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-            <button onClick={() => router.push('/register')}
-              className="h-12 px-8 rounded-full font-semibold text-white"
-              style={{ background: 'linear-gradient(135deg, #ff2e88, #c026d3)', boxShadow: '0 0 28px rgba(255,46,136,0.4)' }}>
-              Start Free
-            </button>
-            <button onClick={() => router.push('/explore')}
-              className="h-12 px-7 rounded-full border border-white/15 bg-white/[0.04] text-white font-medium hover:bg-white/[0.08] transition-all">
-              Browse Companions
-            </button>
+        {/* Daily */}
+        <section className="glass-strong rounded-2xl p-3.5 sm:p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <Zap className="h-4 w-4 text-[#ffd700]" />
+            <span className="font-semibold text-sm">今日欲望任务</span>
+            <span className="text-[10px] text-white/35 ml-auto">完成领奖励</span>
           </div>
-        </div>
-      </section>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            {[
+              { l: '登录领取', d: true, r: '+5 亲密', href: '/' },
+              { l: '发第一条密语', d: false, r: '+10 欲望', href: '/chats' },
+              { l: '索要自拍', d: false, r: '+15 解锁', href: '/chats' },
+              { l: '赠送玫瑰', d: false, r: '+20 羁绊', href: '/shop' },
+            ].map((q) => (
+              <button
+                key={q.l}
+                type="button"
+                onClick={() => router.push(q.href)}
+                className={cn(
+                  'rounded-xl px-3 py-2.5 text-left border text-[11px] transition-all active:scale-[0.98]',
+                  q.d
+                    ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+                    : 'border-[#ff2e88]/25 bg-[#ff2e88]/08 text-[#ffb3cd] hover:bg-[#ff2e88]/14',
+                )}
+              >
+                <div className="font-medium flex items-center gap-1">
+                  {q.d ? <Star className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                  {q.l}
+                </div>
+                <div className="opacity-70 mt-0.5">{q.r}</div>
+              </button>
+            ))}
+          </div>
+        </section>
 
-      {featuredOpen && (
+        {/* ═══════════ Footer ═══════════ */}
+        <footer className="glass-strong rounded-2xl px-4 sm:px-6 py-6 sm:py-8 mt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="glass-btn !rounded-full h-8 w-8 flex items-center justify-center !p-0">
+                  <Flame className="h-3.5 w-3.5" />
+                </div>
+                <span className="font-black bg-gradient-to-r from-[#ff6ba6] to-[#c026d3] bg-clip-text text-transparent">
+                  SoulMate
+                </span>
+              </div>
+              <p className="text-[12px] text-white/40 leading-relaxed max-w-xs">
+                AI 女友养成 · 高 NSFW · 私密对话与亲密成长。
+                18+ only. Play responsibly.
+              </p>
+            </div>
+
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.2em] text-white/35 mb-2">SUPPORT</div>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <a
+                    href={FOOTER_LINKS.telegram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-[#ffb3cd] hover:text-white transition-colors"
+                  >
+                    <Send className="h-4 w-4" />
+                    Telegram 客服
+                    <ExternalLink className="h-3 w-3 opacity-50" />
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={`mailto:${FOOTER_LINKS.email}`}
+                    className="flex items-center gap-2 text-white/50 hover:text-white transition-colors text-[13px]"
+                  >
+                    📧 {FOOTER_LINKS.email}
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.2em] text-white/35 mb-2">SOCIAL</div>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <a
+                    href={FOOTER_LINKS.x}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-[#ffb3cd] hover:text-white transition-colors"
+                  >
+                    <span className="font-black text-base leading-none">𝕏</span>
+                    X 官方主页
+                    <ExternalLink className="h-3 w-3 opacity-50" />
+                  </a>
+                </li>
+                {FOOTER_LINKS.discord ? (
+                  <li>
+                    <a
+                      href={FOOTER_LINKS.discord}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"
+                    >
+                      Discord 社区
+                      <ExternalLink className="h-3 w-3 opacity-50" />
+                    </a>
+                  </li>
+                ) : null}
+                <li className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-[11px] text-white/35">
+                  <button type="button" onClick={() => router.push('/terms')} className="hover:text-white">服务条款</button>
+                  <button type="button" onClick={() => router.push('/privacy')} className="hover:text-white">隐私政策</button>
+                  <button type="button" onClick={() => router.push('/pricing')} className="hover:text-white">会员</button>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-white/30">
+            <span>© {new Date().getFullYear()} SoulMate AI. All rights reserved. 18+</span>
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Systems online
+            </span>
+          </div>
+        </footer>
+      </div>
+
+      {detail && (
         <CompanionDetailModal
-          girl={featured}
-          open={featuredOpen}
-          onClose={() => setFeaturedOpen(false)}
-          onSelect={() => router.push('/chats')}
+          girl={detail}
+          open={!!detail}
+          onClose={() => setDetail(null)}
+          onSelect={() => {
+            setDetail(null);
+            void enterBond(detail);
+          }}
         />
       )}
+
+      <ShareCard
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        girlfriend={{
+          name: featured.name,
+          age: featured.age,
+          tags: featured.tags,
+          short_description: `${featured.relationship} · 欲望${featured.desire} · ${featured.tagline}`,
+          personality: featured.personality,
+          portrait_url: featured.portrait,
+        }}
+      />
+
+    </GameShell>
+  );
+}
+
+function PromoCard({
+  onClick,
+  badge,
+  badgeClass,
+  icon,
+  iconBg,
+  title,
+  desc,
+  glow,
+}: {
+  onClick: () => void;
+  badge: string;
+  badgeClass: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  title: string;
+  desc: string;
+  glow: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative glass-strong rounded-2xl p-3.5 text-left overflow-hidden group active:scale-[0.99]"
+    >
+      <div className={cn('absolute inset-0 bg-gradient-to-r to-transparent opacity-90', glow)} />
+      <div className="relative flex items-center gap-3">
+        <div className={cn('h-11 w-11 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0', iconBg)}>
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className={cn('text-[9px] font-bold tracking-wider', badgeClass)}>{badge}</div>
+          <div className="font-bold text-sm truncate">{title}</div>
+          <div className="text-[10px] text-white/40 truncate">{desc}</div>
+        </div>
+        <ChevR className="h-4 w-4 text-white/35 group-hover:text-white shrink-0" />
+      </div>
+    </button>
+  );
+}
+
+function Meter({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <div className="flex justify-between text-[10px] mb-0.5">
+        <span className="text-white/45">{label}</span>
+        <span className="font-mono font-bold tabular-nums" style={{ color }}>{value}</span>
+      </div>
+      <div className="desire-bar">
+        <i style={{ width: `${Math.min(100, value)}%`, background: `linear-gradient(90deg, ${color}, #ffb3cd)` }} />
+      </div>
+    </div>
+  );
+}
+
+function InfoCell({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div className="glass rounded-lg px-2 py-2 text-center">
+      <div className="text-[9px] text-white/40">{label}</div>
+      <div className="text-sm font-bold truncate mt-0.5" style={accent ? { color: accent } : undefined}>
+        {value}
+      </div>
     </div>
   );
 }

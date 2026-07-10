@@ -9,7 +9,8 @@ export function getStripe(): Stripe {
       throw new Error('Stripe secret key not configured');
     }
     stripeInstance = new Stripe(key, {
-      apiVersion: '2024-12-18.acacia' as any,
+      // Pin API version; cast needed when installed stripe types lag pin string
+      apiVersion: '2024-12-18.acacia' as Stripe.LatestApiVersion,
     });
   }
   return stripeInstance;

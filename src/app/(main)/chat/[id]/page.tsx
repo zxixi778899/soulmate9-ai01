@@ -1,7 +1,6 @@
 'use client';
 import { useTranslation } from '@/lib/i18n/context';
-import { formatBubbleTime, dateGroupLabel, dayKey } from '@/lib/chat-utils';
-import { ChatMarkdown } from '@/components/chat/ChatMarkdown';
+import { dateGroupLabel, dayKey } from '@/lib/chat-utils';
 import { motion } from 'motion/react';
 
 import { authedFetch } from '@/lib/supabase';
@@ -48,35 +47,14 @@ import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 import { useMembership } from '@/hooks/useMembership';
 import { toast } from 'sonner';
+import { ChatAppBar } from '@/components/chat/ChatAppBar';
+import { ChatStream } from '@/components/chat/ChatStream';
+import { ChatInputBar } from '@/components/chat/ChatInputBar';
+import { AttachmentsSheet } from '@/components/chat/AttachmentsSheet';
+import type { ChatMessage as Message, ChatGirlfriend as Girlfriend, IntimacyData } from '@/components/chat/types';
+import { CHAT_MOODS as MOODS, CHAT_POSES as POSES, CHAT_ENVS as ENVS } from '@/components/chat/types';
+import { loadChatCache, saveChatCache, mergeMessages, deriveMood } from '@/lib/chat-cache';
 
-type Message = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  created_at: string;
-  is_proactive?: boolean;
-  media_url?: string | null;
-  status?: 'sending' | 'sent' | 'read' | 'failed';
-};
-
-type Girlfriend = {
-  id: string;
-  name: string;
-  avatar_url: string | null;
-  personality: string | null;
-  appearance_race?: string;
-  appearance_hair?: string;
-  appearance_hair_color?: string;
-  appearance_eyes?: string;
-  appearance_body?: string;
-  appearance_style?: string;
-};
-
-type IntimacyData = {
-  score: number;
-  level: number;
-  daily_score_gained: number;
-};
 
 type OutfitItem = {
   id: string;
@@ -102,10 +80,6 @@ const GIFTS = [
   { id: 'necklace', name: 'Silver Necklace', emoji: '\uD83D\uDCFF', boost: 8, desc: 'Elegant and memorable' },
   { id: 'ring', name: 'Promise Ring', emoji: '\uD83D\uDC8D', boost: 15, desc: 'A deep commitment' },
 ] as const;
-
-const MOODS = ['romantic', 'playful', 'sweet', 'passionate', 'cozy', 'cheerful'];
-const POSES = ['sitting', 'standing', 'lying_down', 'walking', 'dancing', 'close_up'];
-const ENVS = ['bedroom', 'beach', 'garden', 'city', 'cozy_room', 'outdoor'];
 
 // (helpers moved to @/lib/chat-utils)
 
@@ -170,31 +144,79 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
   const loadData = async () => {
     setIsLoading(true);
+    // Instant paint from local cache so history never "vanishes" on re-enter
+    const cached = loadChatCache(id);
+    if (cached?.messages?.length) {
+      setMessages(cached.messages as Message[]);
+      if (cached.intimacy) {
+        setIntimacy({
+          score: cached.intimacy.score,
+          level: cached.intimacy.level,
+          daily_score_gained: cached.intimacy.daily_score_gained || 0,
+        });
+      }
+    }
     try {
       const [gfRes, msgRes, intRes] = await Promise.all([
-        authedFetch('/api/girlfriends'),
+        authedFetch(`/api/girlfriends?id=${encodeURIComponent(id)}`),
         authedFetch(`/api/chat/${id}`),
-        authedFetch('/api/intimacy'),
+        authedFetch(`/api/intimacy?girlfriend_id=${encodeURIComponent(id)}`),
       ]);
 
       const gfData = await gfRes.json();
       const msgData = await msgRes.json();
       const intData = await intRes.json();
 
-      const gf = (gfData.girlfriends || []).find((g: Girlfriend) => g.id === id);
-      setGirlfriend(gf);
-      setMessages(msgData.messages || []);
+      let gf =
+        (gfData.girlfriends || []).find((g: Girlfriend) => g.id === id) ||
+        gfData.girlfriends?.[0] ||
+        null;
 
-      const intScore = (intData.scores || []).find((s: { girlfriend_id: string; score: number; level: number; daily_score_gained?: number }) => s.girlfriend_id === id);
-      if (intScore) {
-        setIntimacy({
-          score: intScore.score,
-          level: intScore.level,
-          daily_score_gained: intScore.daily_score_gained || 0,
-        });
+      // Fallback: list all if id filter unsupported / empty
+      if (!gf) {
+        const all = await authedFetch('/api/girlfriends').then((r) => r.json()).catch(() => ({}));
+        gf = (all.girlfriends || []).find((g: Girlfriend) => g.id === id) || null;
       }
+      setGirlfriend(gf);
+
+      const serverMsgs = (msgData.messages || []) as Message[];
+      const localMsgs = (cached?.messages || []) as Message[];
+      const merged = mergeMessages(serverMsgs, localMsgs) as Message[];
+      setMessages(merged);
+      if (typeof msgData.hasMore === 'boolean') setHasMore(msgData.hasMore);
+
+      const intScore = (intData.scores || []).find(
+        (s: { girlfriend_id: string; score: number; level: number; daily_score_gained?: number }) =>
+          s.girlfriend_id === id,
+      ) || intData.scores?.[0];
+      const nextInt = intScore
+        ? {
+            score: intScore.score,
+            level: intScore.level,
+            daily_score_gained: intScore.daily_score_gained || 0,
+          }
+        : cached?.intimacy
+          ? {
+              score: cached.intimacy.score,
+              level: cached.intimacy.level,
+              daily_score_gained: cached.intimacy.daily_score_gained || 0,
+            }
+          : null;
+      if (nextInt) setIntimacy(nextInt);
+
+      const last = merged[merged.length - 1];
+      const mood = deriveMood(last?.content, nextInt?.score || 0);
+      saveChatCache(id, {
+        messages: merged,
+        intimacy: nextInt || undefined,
+        mood: mood.label,
+      });
     } catch (err) {
       logger.error('Failed to load chat:', { data: err });
+      // Keep cache if network fails
+      if (cached?.messages?.length) {
+        setMessages(cached.messages as Message[]);
+      }
     }
     setIsLoading(false);
   };
@@ -232,15 +254,18 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showMemories]);
 
-  // Proactive polling
+  // Proactive check — only while the tab is visible; 90s cadence (was 60s always-on)
   useEffect(() => {
-    const interval = setInterval(async () => {
+    let cancelled = false;
+    const tick = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
         const res = await authedFetch('/api/proactive/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ girlfriend_id: id }),
         });
+        if (!res.ok || cancelled) return;
         const data = await res.json();
         if (data.message) {
           setMessages(prev => [...prev, {
@@ -251,9 +276,18 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             is_proactive: true,
           } as Message]);
         }
-      } catch {}
-    }, 60000);
-    return () => clearInterval(interval);
+      } catch { /* ignore transient network errors */ }
+    };
+    const interval = setInterval(tick, 90_000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void tick();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [id]);
 
   // Auto scroll to bottom on new messages (if user near bottom)
@@ -401,14 +435,48 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         body: JSON.stringify({ girlfriend_id: id, message_type: 'normal' }),
       });
       const intData = await intRes.json();
+      let nextIntimacy = intimacy;
       if (intData.score !== undefined) {
-        setIntimacy(prev => ({
-          ...prev,
+        nextIntimacy = {
           score: intData.score,
           level: intData.level,
-          daily_score_gained: (prev.daily_score_gained || 0) + (intData.gained || 0),
-        }));
+          daily_score_gained: (intimacy.daily_score_gained || 0) + (intData.gained || 0),
+        };
+        setIntimacy(nextIntimacy);
       }
+
+      // Persist conversation + intimacy so re-enter always restores history
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        const mood = deriveMood(last?.content, nextIntimacy.score);
+        saveChatCache(id, {
+          messages: prev.map((m) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            created_at: m.created_at,
+            is_proactive: m.is_proactive,
+            media_url: m.media_url,
+            status: m.status,
+          })),
+          intimacy: nextIntimacy,
+          mood: mood.label,
+        });
+        return prev;
+      });
+
+      // Soft re-sync from server (real IDs) without clearing UI
+      void authedFetch(`/api/chat/${id}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.messages?.length) {
+            setMessages((prev) => mergeMessages(data.messages, prev) as Message[]);
+            saveChatCache(id, { messages: data.messages });
+          }
+        })
+        .catch(() => {});
+
+      void membership.refresh();
 
       // Check achievements (fire and forget)
       authedFetch('/api/v2/user/achievements').then(r => r.json()).then(data => {
@@ -565,7 +633,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         scrollRef={scrollRef}
         onScroll={handleScroll}
         girlfriend={girlfriend}
-        user={user}
         rows={renderRows}
         isTyping={isTyping}
         hasMore={hasMore}
@@ -586,38 +653,58 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         </button>
       )}
 
-      {/* Usage warning banner for free users at 80% daily limit */}
-      {!usageBannerDismissed && membership.tier === 'free' && membership.todayMessagesCount >= 40 && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 12 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="mx-3 sm:mx-6 mb-1 flex items-center gap-3 rounded-2xl bg-white/[0.06] backdrop-blur-xl border border-white/[0.10] px-4 py-2.5 shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-[#F0F0F5]/90 leading-snug">
-              {t('chat.usageWarning')
-                .replace('{count}', String(membership.todayMessagesCount))
-                .replace('{limit}', '50')}
-            </p>
+      {/* Free-tier quota: always-on slim bar; urgent banner at ≥80% */}
+      {membership.tier === 'free' && !membership.loading && (
+        <div className="mx-3 sm:mx-6 mb-1 space-y-1">
+          <div className="flex items-center gap-2 px-1">
+            <div className="flex-1 h-1 rounded-full bg-white/[0.08] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${Math.min(100, (membership.todayMessagesCount / 50) * 100)}%`,
+                  background:
+                    membership.todayMessagesCount >= 40
+                      ? 'linear-gradient(90deg, #F59E0B, #EF4444)'
+                      : 'linear-gradient(90deg, #FF2D78, #C026D3)',
+                }}
+              />
+            </div>
+            <span className="text-[10px] tabular-nums text-[#8B8BA3] shrink-0">
+              {membership.todayMessagesCount}/50
+            </span>
           </div>
-          <Button
-            size="sm"
-            onClick={() => router.push('/shop')}
-            className="shrink-0 h-7 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] text-white text-[11px] font-semibold px-3 shadow-[0_2px_10px_rgba(255,45,120,0.35)] hover:opacity-90 active:scale-95 transition-all border-0"
-          >
-            <Crown className="h-3 w-3 mr-1" />
-            Upgrade
-          </Button>
-          <button
-            onClick={() => setUsageBannerDismissed(true)}
-            className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-[#8B8BA3] hover:text-[#F0F0F5] hover:bg-white/[0.08] active:scale-95 transition-all"
-            aria-label="Dismiss"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </motion.div>
+          {!usageBannerDismissed && membership.todayMessagesCount >= 40 && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="flex items-center gap-3 rounded-2xl bg-white/[0.06] backdrop-blur-xl border border-white/[0.10] px-4 py-2.5 shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-[#F0F0F5]/90 leading-snug">
+                  {t('chat.usageWarning')
+                    .replace('{count}', String(membership.todayMessagesCount))
+                    .replace('{limit}', '50')}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => router.push('/pricing')}
+                className="shrink-0 h-7 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] text-white text-[11px] font-semibold px-3 shadow-[0_2px_10px_rgba(255,45,120,0.35)] hover:opacity-90 active:scale-95 transition-all border-0"
+              >
+                <Crown className="h-3 w-3 mr-1" />
+                Upgrade
+              </Button>
+              <button
+                onClick={() => setUsageBannerDismissed(true)}
+                className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-[#8B8BA3] hover:text-[#F0F0F5] hover:bg-white/[0.08] active:scale-95 transition-all"
+                aria-label="Dismiss"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </motion.div>
+          )}
+        </div>
       )}
 
       <ChatInputBar
@@ -626,7 +713,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         onSend={() => sendMessage()}
         onKeyDown={handleKeyDown}
         isSending={isSending}
-        placeholder={`Message ${girlfriend.name}`}
         onOpenAttachments={() => setShowAttachments(true)}
         showPresets={showPresets}
         togglePresets={() => setShowPresets(s => !s)}
@@ -637,29 +723,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         selectedEnvironment={selectedEnvironment}
         setSelectedEnvironment={setSelectedEnvironment}
       />
-
-      {/* Quick Reply Suggestions */}
-      {!isSending && !isTyping && (
-        <div className="flex gap-2 overflow-x-auto px-4 pb-2 scrollbar-hide">
-          {[
-            { emoji: '❤️', text: 'I miss you', msg: 'I miss you so much right now...' },
-            { emoji: '😘', text: 'You\'re beautiful', msg: 'You look so beautiful today' },
-            { emoji: '💭', text: 'Tell me a story', msg: 'Tell me a story about us' },
-            { emoji: '🤗', text: 'Hug me', msg: '*hugs you tightly*' },
-            { emoji: '🌙', text: 'Goodnight', msg: 'Goodnight babe, sweet dreams 💕' },
-            { emoji: '🔥', text: 'What are you wearing?', msg: 'What are you wearing right now?' },
-          ].map((suggestion) => (
-            <button
-              key={suggestion.text}
-              onClick={() => sendMessage(suggestion.msg)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-white/[0.04] border border-white/[0.08] text-[#8B8BA3] hover:text-white hover:bg-white/[0.08] hover:border-[#FF2D78]/30 active:scale-95 transition-all"
-            >
-              <span>{suggestion.emoji}</span>
-              {suggestion.text}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Attachment Sheet */}
       <AttachmentsSheet
@@ -823,496 +886,3 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   );
 }
 
-/* ============================================================= */
-/*           Sub-components (rendered as placeholders below)     */
-/* ============================================================= */
-
-// Placeholder implementations  will be replaced via edit_file in next steps.
-type LevelInfo = typeof INTIMACY_LEVELS[number];
-
-function ChatAppBar(props: {
-  girlfriend: Girlfriend;
-  levelInfo: LevelInfo;
-  intimacy: IntimacyData;
-  isTyping: boolean;
-  onBack: () => void;
-  onSelfie: () => void;
-  isGenerating: boolean;
-  onMemories: () => void;
-}) {
-  const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories } = props;
-  return (
-    <header
-      className="sticky top-0 z-30 border-b border-white/[0.06] backdrop-blur-3xl"
-      style={{ background: 'linear-gradient(180deg, rgba(5,5,9,0.85) 0%, rgba(10,10,20,0.4) 100%)' }}
-    >
-      <div className="flex items-center gap-2 px-3 sm:px-4 py-3">
-        <button
-          onClick={onBack}
-          className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/[0.06] transition-all active:scale-95"
-          aria-label="back"
-        >
-          <ChevronDown className="h-5 w-5 rotate-90" />
-        </button>
-        <div className="relative shrink-0">
-          <div
-            className="absolute inset-0 rounded-full blur-md opacity-60"
-            style={{ background: levelInfo.color }}
-          />
-          <Avatar className="relative h-10 w-10 ring-2 ring-white/[0.1]">
-            {girlfriend.avatar_url ? (
-              <AvatarImage src={girlfriend.avatar_url} alt={girlfriend.name} className="object-cover" />
-            ) : (
-              <AvatarFallback
-                className="text-white font-semibold text-sm"
-                style={{ background: `linear-gradient(135deg, ${levelInfo.color}, #A855F7)` }}
-              >
-                {girlfriend.name.charAt(0)}
-              </AvatarFallback>
-            )}
-          </Avatar>
-          <span
-            className={`absolute bottom-0 right-0 h-3 w-3 rounded-full ring-2 ring-[#050509] transition-all ${
-              isTyping ? 'bg-[#FF6BA6] animate-pulse shadow-[0_0_8px_rgba(255,107,166,0.8)]' : 'bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.6)]'
-            }`}
-          />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="font-display text-base font-semibold text-white truncate">{girlfriend.name}</h2>
-            <span
-              className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 backdrop-blur-xl"
-              style={{
-                background: `${levelInfo.color}22`,
-                color: levelInfo.color,
-                border: `1px solid ${levelInfo.color}40`,
-              }}
-            >
-              Lv.{intimacy.level}
-            </span>
-          </div>
-          <div className="text-[11px] mt-0.5 truncate">
-            {isTyping ? (
-              <span className="text-[#FF6BA6] font-medium animate-pulse">typing</span>
-            ) : (
-              <span className="text-white/50">
-                {levelInfo.title} · <span className="font-mono tabular-nums">{Math.round(intimacy.score)}pts</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        <button
-          onClick={onSelfie}
-          disabled={isGenerating}
-          className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-medium text-white bg-white/[0.06] border border-white/[0.1] backdrop-blur-xl hover:border-[#FF2D78]/40 hover:bg-gradient-to-r hover:from-[#FF2D78]/20 hover:to-[#A855F7]/20 active:scale-95 disabled:opacity-50 transition-all"
-        >
-          <ImageIcon className="h-3.5 w-3.5" />
-          <span>Selfie</span>
-        </button>
-        <button
-          onClick={onMemories}
-          className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all"
-          aria-label="memories"
-        >
-          <Brain className="h-5 w-5" />
-        </button>
-      </div>
-    </header>
-  );
-}
-
-function ChatStream(props: {
-  scrollRef: React.RefObject<HTMLDivElement | null>;
-  onScroll: () => void;
-  girlfriend: Girlfriend;
-  user: ReturnType<typeof useAuth>['user'];
-  rows: ReadonlyArray<
-    | { type: 'date'; key: string; label: string }
-    | { type: 'msg'; key: string; msg: Message; showAvatar: boolean; merged: boolean }
-  >;
-  isTyping: boolean;
-  hasMore: boolean;
-  loadingMore: boolean;
-  onLoadHistory: () => void;
-  levelColor: string;
-  onOpenImage: (url: string) => void;
-  bottomRef: React.RefObject<HTMLDivElement | null>;
-}) {
-  const {
-    scrollRef, onScroll, girlfriend, rows, isTyping,
-    hasMore, loadingMore, onLoadHistory, levelColor, onOpenImage, bottomRef,
-  } = props;
-
-  return (
-    <div
-      ref={scrollRef}
-      onScroll={onScroll}
-      className="relative flex-1 overflow-y-auto px-3 sm:px-6 pt-3 pb-2"
-    >
-      {/* portrait halo */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="absolute left-1/2 top-[28%] -translate-x-1/2 -translate-y-1/2 w-[560px] h-[640px] opacity-[0.05]"
-          style={{
-            background: `radial-gradient(ellipse at 50% 40%, ${levelColor} 0%, transparent 60%)`,
-            filter: 'blur(48px)',
-          }}
-        />
-      </div>
-
-      <div className="relative max-w-3xl mx-auto">
-        {hasMore && rows.length > 0 && (
-          <div className="flex justify-center py-1">
-            <button
-              onClick={onLoadHistory}
-              disabled={loadingMore}
-              className="inline-flex items-center gap-1.5 text-[11px] text-[#8B8BA3] hover:text-[#F0F0F5] h-7 px-3 rounded-full bg-white/[0.04] backdrop-blur-md border border-white/[0.06] active:scale-95 transition-all"
-            >
-              {loadingMore ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronUp className="h-3 w-3" />}
-              Load earlier messages
-            </button>
-          </div>
-        )}
-
-        {rows.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="h-14 w-14 rounded-full bg-gradient-to-br from-[#FF2D78]/20 to-[#C026D3]/10 ring-1 ring-[#FF2D78]/20 flex items-center justify-center mb-4">
-              <Heart className="h-6 w-6 text-[#FF6BA6]" />
-            </div>
-            <p className="font-display text-base text-[#F0F0F5]">Say hi to {girlfriend.name}</p>
-            <p className="text-xs text-[#8B8BA3] mt-1.5 max-w-xs">
-              Send your first message and start building your story together.
-            </p>
-          </div>
-        )}
-
-        <div className="flex flex-col">
-          {rows.map((row) => {
-            if (row.type === 'date') {
-              return (
-                <div key={row.key} className="flex justify-center my-3">
-                  <span className="text-[10px] font-medium tracking-wider uppercase text-[#8B8BA3] bg-white/[0.04] backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/[0.04]">
-                    {row.label}
-                  </span>
-                </div>
-              );
-            }
-            const { msg, showAvatar, merged } = row;
-            const isUser = msg.role === 'user';
-            const isAssistant = !isUser;
-            const isOutfit = msg.id.startsWith('outfit-');
-            const isSending = msg.status === 'sending';
-            const isFailed = msg.status === 'failed';
-
-            return (
-              <motion.div
-                key={row.key}
-                initial={{ opacity: 0, y: 8, x: isUser ? 12 : -12 }}
-                animate={{ opacity: 1, y: 0, x: 0 }}
-                transition={{ duration: 0.3, ease: 'easeOut' }}
-                className={`flex gap-2 items-end ${isUser ? 'flex-row-reverse' : ''} ${merged ? 'mt-0.5' : 'mt-3'}`}
-              >
-                {isAssistant && (
-                  <div className="w-8 shrink-0">
-                    {showAvatar ? (
-                      <Avatar className="h-8 w-8 ring-1 ring-white/[0.05]">
-                        {girlfriend.avatar_url ? (
-                          <AvatarImage src={girlfriend.avatar_url} alt={girlfriend.name} className="object-cover" />
-                        ) : (
-                          <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">
-                            {girlfriend.name.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
-                    ) : null}
-                  </div>
-                )}
-
-                <div className={`max-w-[78%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                  <div
-                    className={`relative px-3.5 py-2 text-[14px] leading-relaxed shadow-sm break-words ${
-                      isUser
-                        ? `bg-gradient-to-br from-[#FF2D78] to-[#C026D3] text-white rounded-2xl ${merged ? 'rounded-tr-2xl' : 'rounded-tr-md'} shadow-[0_4px_14px_rgba(255,45,120,0.25)] ${isSending ? 'opacity-70' : ''} ${isFailed ? 'from-[#7a1a35] to-[#5c1827]' : ''}`
-                        : msg.is_proactive
-                        ? `bg-white/[0.06] backdrop-blur-md border border-white/[0.08] border-l-2 border-l-[#FF2D78] text-[#F0F0F5] rounded-2xl ${merged ? 'rounded-tl-2xl' : 'rounded-tl-md'}`
-                        : isOutfit
-                        ? `bg-[#FF2D78]/8 backdrop-blur-md border border-[#FF2D78]/15 text-[#F0F0F5] italic rounded-2xl ${merged ? 'rounded-tl-2xl' : 'rounded-tl-md'}`
-                        : `bg-white/[0.06] backdrop-blur-md border border-white/[0.08] text-[#F0F0F5] rounded-2xl ${merged ? 'rounded-tl-2xl' : 'rounded-tl-md'}`
-                    }`}
-                  >
-                    {msg.content && isUser && (
-                      <span className="whitespace-pre-wrap">{msg.content}</span>
-                    )}
-                    {msg.content && !isUser && (
-                      <ChatMarkdown content={msg.content} />
-                    )}
-                    {!msg.content && isAssistant && (
-                      <span className="inline-flex gap-1 py-0.5">
-                        <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" />
-                        <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                        <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
-                      </span>
-                    )}
-                    {msg.media_url && (
-                      <button
-                        onClick={() => onOpenImage(msg.media_url!)}
-                        className="block mt-2 rounded-xl overflow-hidden border border-white/[0.08] max-w-full active:scale-[0.98] transition-transform"
-                      >
-                        <img
-                          src={msg.media_url}
-                          alt="Image"
-                          className="w-full h-auto max-h-[280px] object-cover"
-                          loading="lazy"
-                        />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className={`flex items-center gap-1.5 mt-0.5 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
-                    <span className="text-[10px] text-[#8B8BA3] font-mono tabular-nums">
-                      {formatBubbleTime(msg.created_at)}
-                    </span>
-                    {isUser && msg.status === 'sending' && (
-                      <Loader2 className="h-3 w-3 animate-spin text-[#8B8BA3]" />
-                    )}
-                    {isUser && msg.status === 'sent' && (
-                      <Check className="h-3 w-3 text-[#8B8BA3]" />
-                    )}
-                    {isUser && msg.status === 'read' && (
-                      <CheckCheck className="h-3 w-3 text-[#FF6BA6]" />
-                    )}
-                    {isUser && msg.status === 'failed' && (
-                      <span className="text-[10px] text-red-400 font-medium">Failed</span>
-                    )}
-                    {msg.is_proactive && (
-                      <span className="text-[10px] text-[#FF6BA6]/70 flex items-center gap-0.5">
-                        <Sparkles className="h-2.5 w-2.5" />
-                        proactive
-                      </span>
-                    )}
-                    {isOutfit && (
-                      <span className="text-[10px] text-[#FF6BA6]/70 flex items-center gap-0.5">
-                        <Shirt className="h-2.5 w-2.5" />
-                        new outfit
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-
-          {isTyping && (
-            <div className="flex gap-2 items-end mt-3">
-              <div className="w-8 shrink-0">
-                <Avatar className="h-8 w-8 ring-1 ring-white/[0.05]">
-                  {girlfriend.avatar_url ? (
-                    <AvatarImage src={girlfriend.avatar_url} alt={girlfriend.name} className="object-cover" />
-                  ) : (
-                    <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">
-                      {girlfriend.name.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  )}
-                </Avatar>
-              </div>
-              <div className="px-3.5 py-2.5 bg-white/[0.06] backdrop-blur-md border border-white/[0.08] rounded-2xl rounded-tl-md">
-                <span className="inline-flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-[#FF6BA6] rounded-full animate-bounce" />
-                  <span className="w-1.5 h-1.5 bg-[#FF6BA6] rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                  <span className="w-1.5 h-1.5 bg-[#FF6BA6] rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div ref={bottomRef} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChatInputBar(props: {
-  input: string;
-  setInput: (v: string) => void;
-  onSend: () => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  isSending: boolean;
-  placeholder: string;
-  onOpenAttachments: () => void;
-  showPresets: boolean;
-  togglePresets: () => void;
-  selectedMood: string | null;
-  setSelectedMood: (v: string | null) => void;
-  selectedPose: string | null;
-  setSelectedPose: (v: string | null) => void;
-  selectedEnvironment: string | null;
-  setSelectedEnvironment: (v: string | null) => void;
-}) {
-  const {
-    input, setInput, onSend, onKeyDown, isSending, placeholder,
-    onOpenAttachments, showPresets, togglePresets,
-    selectedMood, setSelectedMood,
-    selectedPose, setSelectedPose,
-    selectedEnvironment, setSelectedEnvironment,
-  } = props;
-  const taRef = useRef<HTMLTextAreaElement>(null);
-  const hasText = input.trim().length > 0;
-
-  // Auto-resize textarea
-  useEffect(() => {
-    const el = taRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-  }, [input]);
-
-  return (
-    <div className="sticky bottom-0 z-20 backdrop-blur-2xl bg-[#07070F]/80 border-t border-white/[0.06]">
-      {/* Presets row (collapsible) */}
-      {showPresets && (
-        <div className="max-w-3xl mx-auto px-3 sm:px-4 pt-2 pb-1.5 space-y-1.5">
-          {[
-            { label: 'MOOD', items: MOODS, selected: selectedMood, set: setSelectedMood },
-            { label: 'POSE', items: POSES, selected: selectedPose, set: setSelectedPose },
-            { label: 'ENV', items: ENVS, selected: selectedEnvironment, set: setSelectedEnvironment },
-          ].map(({ label, items, selected, set }) => (
-            <div key={label} className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[9px] font-bold text-[#8B8BA3] uppercase tracking-wider mr-0.5 w-9 shrink-0">
-                {label}
-              </span>
-              {items.map(it => (
-                <button
-                  key={it}
-                  onClick={() => set(selected === it ? null : it)}
-                  className={`text-[11px] px-2.5 py-0.5 rounded-full border transition-all active:scale-95 ${
-                    selected === it
-                      ? 'bg-[#FF2D78]/20 border-[#FF2D78]/50 text-[#FF6BA6] shadow-[0_0_10px_rgba(255,45,120,0.2)]'
-                      : 'bg-white/[0.03] border-white/[0.06] text-[#8B8BA3] hover:border-white/[0.12]'
-                  }`}
-                >
-                  {it.replace('_', ' ')}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="max-w-3xl mx-auto px-2 sm:px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
-        <div className="flex items-end gap-1.5">
-          {/* + attachment button */}
-          <button
-            onClick={onOpenAttachments}
-            className="h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-[#8B8BA3] hover:text-[#FF6BA6] hover:bg-white/[0.06] active:scale-95 active:bg-white/[0.10] transition-all"
-            aria-label="More"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
-
-          {/* presets toggle */}
-          <button
-            onClick={togglePresets}
-            className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center hover:bg-white/[0.06] active:scale-95 transition-all ${
-              showPresets ? 'text-[#FF6BA6] bg-white/[0.04]' : 'text-[#8B8BA3]'
-            }`}
-            aria-label="Presets"
-            title="Mood / Pose / Env"
-          >
-            <Sparkles className="h-[18px] w-[18px]" />
-          </button>
-
-          {/* input */}
-          <div className="flex-1 min-w-0">
-            <textarea
-              ref={taRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder={placeholder}
-              rows={1}
-              className="w-full resize-none rounded-2xl bg-white/[0.06] border border-white/[0.10] px-4 py-2.5 text-base md:text-sm text-[#F0F0F5] placeholder:text-[#8B8BA3]/60 focus:border-[#FF2D78]/40 focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-[#FF2D78]/20 transition-all leading-snug min-h-[40px] max-h-[120px]"
-            />
-          </div>
-
-          {/* dynamic mic/send */}
-          {hasText ? (
-            <button
-              onClick={onSend}
-              disabled={isSending}
-              className="h-10 w-10 shrink-0 rounded-full bg-gradient-to-br from-[#FF2D78] to-[#C026D3] text-white flex items-center justify-center shadow-[0_4px_18px_rgba(255,45,120,0.45)] active:scale-95 disabled:opacity-60 transition-all"
-              aria-label="Send"
-            >
-              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </button>
-          ) : (
-            <button
-              className="h-10 w-10 shrink-0 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#8B8BA3] hover:text-[#FF6BA6] hover:border-[#FF6BA6]/30 flex items-center justify-center active:scale-95 transition-all"
-              aria-label="Voice (coming soon)"
-              title="Voice (coming soon)"
-            >
-              <Mic className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AttachmentsSheet(props: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onGift: () => void;
-  onWardrobe: () => void;
-  onSelfie: () => void;
-  onMemories: () => void;
-  onPresets: () => void;
-  isGenerating: boolean;
-}) {
-  const { open, onOpenChange, onGift, onWardrobe, onSelfie, onMemories, onPresets, isGenerating } = props;
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className="rounded-t-3xl bg-[#0E0E1A]/95 backdrop-blur-2xl border-t border-white/[0.10] max-h-[60vh]"
-      >
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg text-center">Add to chat</SheetTitle>
-        </SheetHeader>
-        <div className="grid grid-cols-4 gap-3 mt-4 pb-4">
-          {[
-            { icon: <Gift className="h-6 w-6" />, label: 'Gift', onClick: onGift, color: '#FF2D78' },
-            { icon: <Shirt className="h-6 w-6" />, label: 'Outfit', onClick: onWardrobe, color: '#C026D3' },
-            {
-              icon: isGenerating ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageIcon className="h-6 w-6" />,
-              label: 'Selfie', onClick: onSelfie, color: '#FF6BA6',
-            },
-            { icon: <Brain className="h-6 w-6" />, label: 'Memories', onClick: onMemories, color: '#FF2D78' },
-            { icon: <Sparkles className="h-6 w-6" />, label: 'Presets', onClick: onPresets, color: '#C026D3' },
-          ].map((it) => (
-            <button
-              key={it.label}
-              onClick={it.onClick}
-              disabled={it.label === 'Selfie' && isGenerating}
-              className="flex flex-col items-center gap-1.5 active:scale-95 disabled:opacity-50 transition-all"
-            >
-              <span
-                className="h-14 w-14 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/[0.10]"
-                style={{
-                  background: `linear-gradient(135deg, ${it.color}22, ${it.color}10)`,
-                  color: it.color,
-                }}
-              >
-                {it.icon}
-              </span>
-              <span className="text-[11px] font-medium text-[#F0F0F5]">{it.label}</span>
-            </button>
-          ))}
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}

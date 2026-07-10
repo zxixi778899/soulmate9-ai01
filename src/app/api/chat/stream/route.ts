@@ -6,6 +6,12 @@ import { generateText, streamTextSmart } from '@/lib/llm-service';
 import { logModelUsage, estimateTokens, estimateCost } from '@/lib/model-usage';
 import { checkAchievements } from '@/lib/achievement-checker';
 import { logger } from '@/lib/logger';
+import {
+  loadAiModules,
+  resolveChatCall,
+  invokeChatAsSseStream,
+  type MembershipTier,
+} from '@/lib/ai-modules';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -283,7 +289,7 @@ export async function POST(request: NextRequest) {
   // Rate limiting: 60 requests/minute per user
   const { data: profile } = await client
     .from('profiles')
-    .select('membership_tier, credits_remaining, newbie_expires_at')
+    .select('membership_tier, credits_remaining, newbie_expires_at, preferred_locale, locale, subscription_tier, plan')
     .eq('user_id', user.id)
     .single();
 
@@ -324,10 +330,30 @@ export async function POST(request: NextRequest) {
 
   // Build presets object
   const presets = { mood, pose, environment };
-  // Use the LLM Router to analyze intent and get optimal model
+
+  // AI modules config (chat / language routing)
+  const aiModules = await loadAiModules(client);
+  const profileAny = profile as Record<string, unknown> | null;
+  const membershipRaw = String(
+    profileAny?.membership_tier || profileAny?.subscription_tier || profileAny?.plan || 'free',
+  ).toLowerCase();
+  let membershipTier: MembershipTier = 'free';
+  if (membershipRaw.includes('unlimit') || membershipRaw === 'admin') membershipTier = 'unlimited';
+  else if (membershipRaw.includes('pro') || membershipRaw.includes('plus') || membershipRaw.includes('premium'))
+    membershipTier = 'pro';
+
+  // Legacy router kept for task logging / image intent
   const routing = analyzeAndRoute(message, {
-    userTier: profile?.membership_tier as 'free' | 'pro' | 'admin' | undefined,
+    userTier: membershipTier === 'unlimited' ? 'admin' : membershipTier === 'pro' ? 'pro' : 'free',
   });
+
+  // Pre-resolve needs intimacy; fetch DB first with provisional context limit
+  const provisionalCtx = Math.max(
+    aiModules.chat.tiers.free.context_messages,
+    aiModules.chat.tiers.pro.context_messages,
+    aiModules.chat.tiers.unlimited.context_messages,
+    20,
+  );
 
   // Run independent DB queries in parallel
   const [girlfriendResult, intimacyResult, recentMessagesResult, memoriesResult] = await Promise.all([
@@ -349,7 +375,7 @@ export async function POST(request: NextRequest) {
       .eq('girlfriend_id', girlfriend_id)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(20),
+      .limit(provisionalCtx),
     client
       .from('memories')
       .select('content, type')
@@ -370,7 +396,42 @@ export async function POST(request: NextRequest) {
     intimacyLevel = intimacyResult.data.level;
   }
 
-  const recentMessages = recentMessagesResult.data;
+  const chatResolved = resolveChatCall(aiModules, {
+    tier: membershipTier,
+    intimacyLevel,
+    message: String(message),
+    locale:
+      (profileAny?.preferred_locale as string) ||
+      (profileAny?.locale as string) ||
+      aiModules.language.default_locale,
+  });
+
+  // Apply configured daily limit from modules (override hard-coded free limit when present)
+  const tierRoute = aiModules.chat.tiers[
+    membershipTier === 'unlimited' ? 'unlimited' : membershipTier === 'pro' ? 'pro' : 'free'
+  ];
+  if (tierRoute.daily_message_limit != null && !isNewbieTrial) {
+    const today = new Date().toISOString().split('T')[0];
+    const { count } = await client
+      .from('chat_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('role', 'user')
+      .gte('created_at', today);
+    if (count && count >= tierRoute.daily_message_limit) {
+      return NextResponse.json(
+        {
+          error: `You've reached your daily message limit (${tierRoute.daily_message_limit}). Upgrade for more chats!`,
+        },
+        { status: 403 },
+      );
+    }
+  }
+
+  let recentMessages = recentMessagesResult.data || [];
+  if (recentMessages.length > chatResolved.contextMessages) {
+    recentMessages = recentMessages.slice(0, chatResolved.contextMessages);
+  }
   const memories = memoriesResult.data;
 
   // Run emotion detection and lore context in parallel (both depend on message + gf)
@@ -379,8 +440,10 @@ export async function POST(request: NextRequest) {
     getLoreContext(client, user.id, girlfriend_id, message),
   ]);
 
-  // Build system prompt from character card
-  const systemPrompt = buildCharacterPrompt(gf, intimacyLevel, detectedEmotion, memories || [], loreContext, presets);
+  // Build system prompt from character card + language / module suffix
+  const systemPrompt =
+    buildCharacterPrompt(gf, intimacyLevel, detectedEmotion, memories || [], loreContext, presets) +
+    (chatResolved.systemLanguageSuffix ? `\n\n${chatResolved.systemLanguageSuffix}` : '');
 
   //  Prompt M11 
   // 1) 4000 chars 1000 token
@@ -441,12 +504,37 @@ export async function POST(request: NextRequest) {
       let providerName = 'vllm';
 
       try {
-        // Use the unified streamText which tries RunPod vLLM → Together AI
-        const { response, provider, model: modelId } = await streamTextSmart({
-          messages: llmMessages,
-          temperature: routing.temperature,
-          maxTokens: 2048,
-        });
+        // Resolve via AI modules: Free→Together 8B, Pro NSFW→RunPod Lumimaid, etc.
+        let response: Response;
+        let provider: string = chatResolved.endpoint.provider;
+        let modelId: string = chatResolved.endpoint.model_id;
+
+        try {
+          const invoked = await invokeChatAsSseStream({
+            endpoint: chatResolved.endpoint,
+            messages: llmMessages,
+            temperature: chatResolved.temperature,
+            maxTokens: chatResolved.maxTokens,
+            userId: user.id,
+            girlfriendId: girlfriend_id,
+            taskType: chatResolved.channel === 'nsfw' ? 'nsfw_chat' : routing.taskType || 'chat',
+          });
+          response = invoked.response;
+          provider = invoked.provider;
+          modelId = invoked.model;
+        } catch (primaryErr) {
+          logger.warn('chat/stream: module invoke failed, fallback streamTextSmart', {
+            err: primaryErr instanceof Error ? primaryErr.message : String(primaryErr),
+          });
+          const fallback = await streamTextSmart({
+            messages: llmMessages,
+            temperature: chatResolved.temperature,
+            maxTokens: chatResolved.maxTokens,
+          });
+          response = fallback.response;
+          provider = fallback.provider;
+          modelId = fallback.model;
+        }
 
         providerName = provider;
 

@@ -16,8 +16,15 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabaseClient();
 
   if (view === 'usage') {
-    // Usage dashboard data: last 24h stats per model
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Usage dashboard: period = 24h | 7d | 30d
+    const period = searchParams.get('period') || '24h';
+    const periodMs =
+      period === '30d'
+        ? 30 * 24 * 60 * 60 * 1000
+        : period === '7d'
+          ? 7 * 24 * 60 * 60 * 1000
+          : 24 * 60 * 60 * 1000;
+    const since = new Date(Date.now() - periodMs).toISOString();
 
     let usageStats: unknown = null;
     let usageErr: unknown = 'not attempted';
@@ -119,11 +126,12 @@ export async function GET(request: NextRequest) {
         stats,
         hourly: Object.values(hourly).sort((a, b) => a.hour.localeCompare(b.hour)),
         totals,
-        period: '24h',
+        period,
+        since,
       });
     }
 
-    return NextResponse.json({ stats: usageStats });
+    return NextResponse.json({ stats: usageStats, period, since });
   }
 
   // Default: return model configs

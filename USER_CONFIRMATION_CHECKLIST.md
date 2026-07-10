@@ -23,6 +23,9 @@
 | `STRIPE_WEBHOOK_SECRET` | Stripe Webhook签名密钥 | 必需 | Stripe Dashboard → Webhooks |
 | `STRIPE_PRO_PRICE_ID` | Pro订阅价格ID | 必需 | Stripe Dashboard → Products |
 | `STRIPE_UNLIMITED_PRICE_ID` | Unlimited订阅价格ID | 必需 | 同上 |
+| `STRIPE_PRO_YEARLY_PRICE_ID` | Pro 年付 Price ID | **正式上线再填** | 见 `docs/LAUNCH_STRIPE_REMINDER.md` |
+| `STRIPE_UNLIMITED_YEARLY_PRICE_ID` | Unlimited 年付 Price ID | **正式上线再填** | 同上 |
+| `STRIPE_TOKENS_*_PRICE_ID` | 代币包 100/500/1000 | **正式上线再填** | 同上 |
 | `RUNPOD_API_KEY` | RunPod API Key (GPU图片生成) | 必需 | RunPod Dashboard → Settings |
 | `RUNPOD_ENDPOINT_ID` | RunPod Endpoint ID | 必需 | RunPod Dashboard → Endpoints |
 | `UPSTASH_REDIS_REST_URL` | Redis速率限制 | 可选 | Upstash → Database |

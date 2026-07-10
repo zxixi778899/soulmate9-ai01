@@ -34,54 +34,44 @@ export async function POST(req: NextRequest) {
   }
 
   let table: string;
+  let clearFields: Record<string, null>;
+
   switch (type) {
-    case 'girlfriend':
+    case 'girlfriend': {
       table = 'girlfriends';
+      // Clear both display fields so list hasImage becomes false
+      if (field === 'avatar_url') {
+        clearFields = { avatar_url: null };
+      } else if (field === 'portrait_url') {
+        clearFields = { portrait_url: null };
+      } else {
+        clearFields = { avatar_url: null, portrait_url: null };
+      }
       break;
+    }
     case 'outfit':
       table = 'outfits';
+      clearFields = { preview_url: null };
       break;
     case 'shop_item':
       table = 'shop_items';
+      clearFields = { image_url: null };
       break;
     default:
       return NextResponse.json({ error: `Invalid type: ${type}` }, { status: 400 });
   }
 
-  // Determine which field to clear based on type
-  let imageField: string;
-  switch (type) {
-    case 'girlfriend':
-      imageField = 'avatar_url';
-      break;
-    case 'outfit':
-      imageField = 'preview_url';
-      break;
-    case 'shop_item':
-      imageField = 'image_url';
-      break;
-    default:
-      return NextResponse.json({ error: `Invalid type: ${type}` }, { status: 400 });
-  }
-
-  // If imageUrl provided, delete the file from storage first
+  // Best-effort storage delete
   if (imageUrl) {
     try {
       const key = extractKeyFromUrl(imageUrl);
-      if (key) {
-        await deleteFile(key);
-      }
+      if (key) await deleteFile(key);
     } catch (e) {
-      logger.warn('admin/images/delete: failed to delete file from storage', { err: String(e) });
-      // Continue even if storage deletion fails
+      logger.warn('admin/images/delete: storage delete failed', { err: String(e) });
     }
   }
 
-  // Clear the image URL field (not delete the entire record)
-  const { error } = await client
-    .from(table)
-    .update({ [imageField]: null })
-    .eq('id', id);
+  const { error } = await client.from(table).update(clearFields).eq('id', id);
 
   if (error) {
     logger.error('admin/images/delete: db error', { table, id, error });

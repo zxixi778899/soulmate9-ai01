@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,24 @@ const ALLOWED_PATCH_FIELDS = new Set<string>([
   'occupation',
   'hobbies',
   'outfit_id',
+  // Catalog game fields
+  'rarity',
+  'access_status',
+  'unlock_price_tokens',
+  'base_intimacy',
+  'base_desire',
+  'base_development',
+  'base_kink',
 ]);
+
+const RARITIES = new Set(['N', 'R', 'SR', 'SSR']);
+const ACCESS_STATUSES = new Set(['open', 'locked', 'closed']);
+
+function clampStat(v: unknown, fallback = 0): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
 
 //  age 18+ M17
 function validateAge(age: unknown): { ok: true; age: number } | { ok: false; error: string } {
@@ -154,27 +172,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: ageCheck.error }, { status: 400 });
     }
 
+    const rarity = RARITIES.has(String(body.rarity || '').toUpperCase())
+      ? String(body.rarity).toUpperCase()
+      : 'R';
+    const accessStatus = ACCESS_STATUSES.has(String(body.access_status || ''))
+      ? String(body.access_status)
+      : 'open';
+
     const { data, error: insertErr } = await supabase
       .from('girlfriends')
       .insert({
         user_id: user.id,
         name: body.name,
         age: ageCheck.age,
-        slug: body.slug || String(body.name || 'girlfriend').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `girlfriend-${Date.now()}`,
+        slug: makeGirlfriendSlug(body.name, body.slug),
         personality: body.personality || '',
         tags: body.tags || [],
         short_description: body.short_description || '',
         backstory: body.backstory || '',
         portrait_url: body.portrait_url || null,
         avatar_url: body.avatar_url || null,
-        appearance_hair: body.appearance_hair || '',
-        appearance_hair_color: body.appearance_hair_color || '',
-        appearance_eyes: body.appearance_eyes || '',
-        appearance_body: body.appearance_body || '',
-        appearance_style: body.appearance_style || '',
+        appearance_hair: body.appearance_hair || body.appearance?.hair || '',
+        appearance_hair_color: body.appearance_hair_color || body.appearance?.hair_color || '',
+        appearance_eyes: body.appearance_eyes || body.appearance?.eyes || '',
+        appearance_body: body.appearance_body || body.appearance?.body || '',
+        appearance_style: body.appearance_style || body.appearance?.style || '',
         is_public: body.is_public !== undefined ? body.is_public : false,
         review_status: body.review_status || 'approved',
         age_verified: true,
+        rarity,
+        access_status: accessStatus,
+        unlock_price_tokens: Math.max(0, Number(body.unlock_price_tokens) || 0),
+        base_intimacy: clampStat(body.base_intimacy, 10),
+        base_desire: clampStat(body.base_desire, 20),
+        base_development: clampStat(body.base_development, 15),
+        base_kink: clampStat(body.base_kink, 10),
       })
       .select()
       .single();
@@ -208,7 +240,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    //  user_id M15 
+    // Flatten nested appearance if client sent object
+    if (rawUpdates.appearance && typeof rawUpdates.appearance === 'object') {
+      const app = rawUpdates.appearance as Record<string, string>;
+      if (app.hair != null) rawUpdates.appearance_hair = app.hair;
+      if (app.hair_color != null) rawUpdates.appearance_hair_color = app.hair_color;
+      if (app.eyes != null) rawUpdates.appearance_eyes = app.eyes;
+      if (app.body != null) rawUpdates.appearance_body = app.body;
+      if (app.style != null) rawUpdates.appearance_style = app.style;
+    }
+
     const updates: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(rawUpdates)) {
       if (ALLOWED_PATCH_FIELDS.has(key)) {
@@ -216,13 +257,32 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // age  18+ 
     if ('age' in updates) {
       const ageCheck = validateAge(updates.age);
       if (!ageCheck.ok) {
         return NextResponse.json({ error: ageCheck.error }, { status: 400 });
       }
       updates.age = ageCheck.age;
+    }
+
+    if ('rarity' in updates) {
+      const r = String(updates.rarity || '').toUpperCase();
+      if (!RARITIES.has(r)) {
+        return NextResponse.json({ error: 'rarity must be N|R|SR|SSR' }, { status: 400 });
+      }
+      updates.rarity = r;
+    }
+    if ('access_status' in updates) {
+      const a = String(updates.access_status || '');
+      if (!ACCESS_STATUSES.has(a)) {
+        return NextResponse.json({ error: 'access_status must be open|locked|closed' }, { status: 400 });
+      }
+    }
+    for (const k of ['base_intimacy', 'base_desire', 'base_development', 'base_kink'] as const) {
+      if (k in updates) updates[k] = clampStat(updates[k], 0);
+    }
+    if ('unlock_price_tokens' in updates) {
+      updates.unlock_price_tokens = Math.max(0, Number(updates.unlock_price_tokens) || 0);
     }
 
     if (Object.keys(updates).length === 0) {
@@ -439,10 +499,7 @@ Generate EXACTLY ${count} characters. Use ONLY English.`;
     const rawName = String(profile.name || `Girl-${Date.now()}`).trim();
     const safeName = rawName.length > 0 ? rawName : `Girl-${Date.now()}`;
 
-    // Generate slug with fallback - ensure it's never empty
-    let slugBase = safeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    if (!slugBase) slugBase = `girl-${Math.random().toString(36).slice(2, 8)}`;
-    const slug = `${slugBase}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const slug = makeGirlfriendSlug(safeName);
 
     // Ensure age is valid
     const safeAge = Number(profile.age) >= 18 && Number(profile.age) <= 99 ? Number(profile.age) : 22;

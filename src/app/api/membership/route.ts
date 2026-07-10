@@ -7,38 +7,40 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Get profile
-  const { data: profile } = await client
-    .from('profiles')
-    .select('membership_tier, credits_remaining')
-    .eq('user_id', user.id)
-    .single();
-
-  const tier = profile?.membership_tier || 'free';
-
-  // Get today's message count
   const today = new Date().toISOString().split('T')[0];
-  const { count: todayMessages } = await client
-    .from('chat_messages')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('role', 'user')
-    .gte('created_at', today);
 
-  // Get total girlfriends count
-  const { count: totalGirlfriends } = await client
-    .from('girlfriends')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id);
+  // Parallelize independent reads — was 4 sequential round-trips.
+  const [profileResult, todayMessagesResult, totalGirlfriendsResult, topIntimacyResult] =
+    await Promise.all([
+      client
+        .from('profiles')
+        .select('membership_tier, credits_remaining')
+        .eq('user_id', user.id)
+        .single(),
+      client
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('role', 'user')
+        .gte('created_at', today),
+      client
+        .from('girlfriends')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+      client
+        .from('intimacy_scores')
+        .select('score')
+        .eq('user_id', user.id)
+        .order('score', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
-  // Get highest intimacy score
-  const { data: topIntimacy } = await client
-    .from('intimacy_scores')
-    .select('score')
-    .eq('user_id', user.id)
-    .order('score', { ascending: false })
-    .limit(1)
-    .single();
+  const profile = profileResult.data;
+  const todayMessages = todayMessagesResult.count;
+  const totalGirlfriends = totalGirlfriendsResult.count;
+  const topIntimacy = topIntimacyResult.data;
+  const tier = profile?.membership_tier || 'free';
 
   const plans = {
     free: {

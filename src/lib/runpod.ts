@@ -33,6 +33,46 @@ function getRunPodConfig(): { apiKey: string; endpointId: string; baseUrl: strin
 // Using CheckpointLoaderSimple (single unified checkpoint file)
 // 
 
+/**
+ * Fetch / decode a portrait URL or data-URL into base64 for RunPod img2img.
+ * Returns a worker-local filename + raw base64 (no data: prefix).
+ */
+export async function resolveInputImageBase64(
+  input: string,
+): Promise<{ name: string; base64: string } | null> {
+  if (!input) return null;
+
+  // Already a data URL
+  if (input.startsWith('data:image/')) {
+    const match = input.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!match) return null;
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+    return { name: `ref_input.${ext}`, base64: match[2] };
+  }
+
+  // Raw base64 blob (no prefix) — assume PNG
+  if (/^[A-Za-z0-9+/=\s]+$/.test(input.slice(0, 80)) && input.length > 200 && !input.startsWith('http')) {
+    return { name: 'ref_input.png', base64: input.replace(/\s/g, '') };
+  }
+
+  // Remote URL — download
+  if (input.startsWith('http://') || input.startsWith('https://')) {
+    const res = await fetch(input, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) throw new Error(`Failed to fetch reference image: ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const ct = res.headers.get('content-type') || 'image/png';
+    const ext = ct.includes('jpeg') || ct.includes('jpg') ? 'jpg' : ct.includes('webp') ? 'webp' : 'png';
+    return { name: `ref_input.${ext}`, base64: buf.toString('base64') };
+  }
+
+  // Treat as worker-local filename already
+  if (/\.(png|jpe?g|webp)$/i.test(input) && !input.includes('://')) {
+    return null; // pass through as filename only (no blob)
+  }
+
+  return null;
+}
+
 export function buildFluxWorkflow(opts: {
   prompt: string;
   negativePrompt?: string;
@@ -43,6 +83,7 @@ export function buildFluxWorkflow(opts: {
   seed?: number;
   sampler_name?: string;
   scheduler?: string;
+  /** Worker-local filename registered via RunPod `images` payload, or path for LoadImage */
   input_image?: string;
   denoising_strength?: number;
 }): Record<string, unknown> {
@@ -256,6 +297,25 @@ class RunPodClient {
       throw new Error('RunPod is not configured. Set RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID.');
     }
 
+    // Resolve reference image to a base64 payload + worker-local filename.
+    // ComfyUI LoadImage expects a file on the worker; most RunPod serverless
+    // templates accept `images: [{ name, image }]` alongside the workflow.
+    let inputImageName: string | undefined;
+    let inputImageB64: string | undefined;
+    if (options.input_image) {
+      try {
+        const resolved = await resolveInputImageBase64(options.input_image);
+        if (resolved) {
+          inputImageName = resolved.name;
+          inputImageB64 = resolved.base64;
+        }
+      } catch (err) {
+        logger.warn('[runpod] failed to resolve input_image, falling back to txt2img', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     // Build a ComfyUI-compatible workflow with the given prompt
     const workflow = buildFluxWorkflow({
       prompt: options.prompt,
@@ -267,14 +327,31 @@ class RunPodClient {
       seed: options.seed,
       sampler_name: options.scheduler === 'karras' ? 'dpmpp_2m' : 'euler',
       scheduler: options.scheduler ?? 'karras',
-      input_image: options.input_image,
+      // Prefer resolved worker filename; if caller already passed a bare filename, keep it.
+      input_image:
+        inputImageName ||
+        (options.input_image &&
+        !options.input_image.startsWith('http') &&
+        !options.input_image.startsWith('data:')
+          ? options.input_image
+          : undefined),
       denoising_strength: options.denoising_strength,
     });
 
-    // Step 1: Submit job with workflow
-    const requestBody = {
+    // Step 1: Submit job with workflow (+ optional reference image blob)
+    const requestBody: Record<string, unknown> = {
       input: {
         workflow,
+        ...(inputImageName && inputImageB64
+          ? {
+              images: [
+                {
+                  name: inputImageName,
+                  image: inputImageB64,
+                },
+              ],
+            }
+          : {}),
       },
     };
     const bodyStr = JSON.stringify(requestBody);

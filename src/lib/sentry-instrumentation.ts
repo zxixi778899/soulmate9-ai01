@@ -32,8 +32,7 @@ if (dsn) {
       ],
     });
   } catch (err) {
-    // @sentry/nextjs  init  - 
-    // eslint-disable-next-line no-console
+    // @sentry/nextjs optional — skip if package missing
     console.warn('[sentry-instrumentation] init skipped:', (err as Error).message);
   }
 }

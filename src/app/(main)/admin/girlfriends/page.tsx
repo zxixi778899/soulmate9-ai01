@@ -30,6 +30,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 
+type AccessStatus = 'open' | 'locked' | 'closed';
+type RarityTier = 'N' | 'R' | 'SR' | 'SSR';
+
 type GirlfriendData = {
   id: string;
   name: string;
@@ -48,11 +51,23 @@ type GirlfriendData = {
     body: string;
     style: string;
   } | null;
+  appearance_hair?: string;
+  appearance_hair_color?: string;
+  appearance_eyes?: string;
+  appearance_body?: string;
+  appearance_style?: string;
   role?: string;
   is_public: boolean;
   review_status: string;
   created_at: string;
   user_id?: string;
+  rarity?: RarityTier;
+  access_status?: AccessStatus;
+  unlock_price_tokens?: number;
+  base_intimacy?: number;
+  base_desire?: number;
+  base_development?: number;
+  base_kink?: number;
 };
 
 const defaultForm = {
@@ -72,6 +87,19 @@ const defaultForm = {
   style: '',
   is_public: false,
   review_status: 'draft',
+  rarity: 'R' as RarityTier,
+  access_status: 'open' as AccessStatus,
+  unlock_price_tokens: 0,
+  base_intimacy: 10,
+  base_desire: 20,
+  base_development: 15,
+  base_kink: 10,
+};
+
+const ACCESS_LABELS: Record<AccessStatus, string> = {
+  open: '开放',
+  locked: '锁定',
+  closed: '关闭',
 };
 
 const statusTabs = ['all', 'draft', 'pending', 'approved', 'rejected'];
@@ -183,19 +211,26 @@ export default function AdminGirlfriendsPage() {
       name: gf.name,
       age: gf.age,
       slug: gf.slug,
-      personality: gf.personality,
+      personality: gf.personality || '',
       tags: (gf.tags || []).join(', '),
-      short_description: gf.short_description,
-      backstory: gf.backstory,
+      short_description: gf.short_description || '',
+      backstory: gf.backstory || '',
       portrait_url: gf.portrait_url || '',
       avatar_url: gf.avatar_url || '',
-      hair: gf.appearance?.hair || '',
-      hair_color: gf.appearance?.hair_color || '',
-      eyes: gf.appearance?.eyes || '',
-      body: gf.appearance?.body || '',
-      style: gf.appearance?.style || '',
+      hair: gf.appearance?.hair || gf.appearance_hair || '',
+      hair_color: gf.appearance?.hair_color || gf.appearance_hair_color || '',
+      eyes: gf.appearance?.eyes || gf.appearance_eyes || '',
+      body: gf.appearance?.body || gf.appearance_body || '',
+      style: gf.appearance?.style || gf.appearance_style || '',
       is_public: gf.is_public,
       review_status: gf.review_status,
+      rarity: (gf.rarity as RarityTier) || 'R',
+      access_status: (gf.access_status as AccessStatus) || 'open',
+      unlock_price_tokens: gf.unlock_price_tokens ?? 0,
+      base_intimacy: gf.base_intimacy ?? 10,
+      base_desire: gf.base_desire ?? 20,
+      base_development: gf.base_development ?? 15,
+      base_kink: gf.base_kink ?? 10,
     });
     setEditingId(gf.id);
     setDialogOpen(true);
@@ -256,6 +291,11 @@ export default function AdminGirlfriendsPage() {
         backstory: form.backstory,
         portrait_url: form.portrait_url || null,
         avatar_url: form.avatar_url || null,
+        appearance_hair: form.hair,
+        appearance_hair_color: form.hair_color,
+        appearance_eyes: form.eyes,
+        appearance_body: form.body,
+        appearance_style: form.style,
         appearance: {
           hair: form.hair,
           hair_color: form.hair_color,
@@ -265,6 +305,13 @@ export default function AdminGirlfriendsPage() {
         },
         is_public: form.is_public,
         review_status: form.review_status,
+        rarity: form.rarity,
+        access_status: form.access_status,
+        unlock_price_tokens: form.unlock_price_tokens,
+        base_intimacy: form.base_intimacy,
+        base_desire: form.base_desire,
+        base_development: form.base_development,
+        base_kink: form.base_kink,
       };
       if (isEdit) body.id = editingId;
 
@@ -458,15 +505,15 @@ export default function AdminGirlfriendsPage() {
                         className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
                       />
                     </th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
-                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3"></th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">头像</th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">名称</th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">稀有度</th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">状态</th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">基础值</th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">审核</th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">公开</th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">创建</th>
+                    <th className="text-left text-xs font-medium text-[#8B8BA3] px-4 py-3">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -497,22 +544,33 @@ export default function AdminGirlfriendsPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium">{gf.name}</td>
-                      <td className="px-4 py-3 text-sm text-[#8B8BA3]">{gf.role || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-[#8B8BA3]">{gf.age}</td>
+                      <td className="px-4 py-3 text-sm font-medium">
+                        <div>{gf.name}</div>
+                        <div className="text-[10px] text-[#8B8BA3]">{gf.age}岁 · {(gf.tags || []).slice(0, 2).join(', ')}</div>
+                      </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {(gf.tags || []).slice(0, 3).map((tag, i) => (
-                            <Badge key={i} variant="outline" className="text-[9px]">
-                              {tag}
-                            </Badge>
-                          ))}
-                          {(gf.tags || []).length > 3 && (
-                            <span className="text-[9px] text-[#8B8BA3]">
-                              +{gf.tags.length - 3}
-                            </span>
-                          )}
-                        </div>
+                        <Badge variant="outline" className="text-[10px] font-bold">
+                          {gf.rarity || 'R'}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          className={`text-[10px] ${
+                            (gf.access_status || 'open') === 'open'
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : (gf.access_status || '') === 'locked'
+                                ? 'bg-amber-500/15 text-amber-400'
+                                : 'bg-zinc-500/20 text-zinc-400'
+                          }`}
+                        >
+                          {ACCESS_LABELS[(gf.access_status as AccessStatus) || 'open']}
+                          {(gf.access_status === 'locked' && (gf.unlock_price_tokens || 0) > 0)
+                            ? ` · ${gf.unlock_price_tokens}t`
+                            : ''}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-[10px] text-[#8B8BA3] whitespace-nowrap">
+                        欲{gf.base_desire ?? '—'} · 开{gf.base_development ?? '—'} · 变{gf.base_kink ?? '—'}
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={getStatusBadge(gf.review_status)} className="text-[10px] capitalize">
@@ -561,9 +619,9 @@ export default function AdminGirlfriendsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? '' : ''}</DialogTitle>
+            <DialogTitle>{editingId ? '编辑女友' : '新建女友'}</DialogTitle>
             <DialogDescription>
-              {editingId ? '' : ' AI '}
+              配置基础资料、稀有度、访问状态与初始数值
             </DialogDescription>
           </DialogHeader>
 
@@ -571,49 +629,124 @@ export default function AdminGirlfriendsPage() {
             {/* Basic Info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="gf-name"></Label>
-                <Input id="gf-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="" />
+                <Label htmlFor="gf-name">名称</Label>
+                <Input id="gf-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Astrid" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gf-age"></Label>
+                <Label htmlFor="gf-age">年龄 (18+)</Label>
                 <Input id="gf-age" type="number" value={form.age} onChange={(e) => setForm({ ...form, age: parseInt(e.target.value) || 18 })} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="gf-slug"></Label>
-                <Input id="gf-slug" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder="" />
+                <Label htmlFor="gf-slug">Slug</Label>
+                <Input id="gf-slug" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder="auto" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gf-tags"></Label>
+                <Label htmlFor="gf-tags">标签</Label>
                 <Input id="gf-tags" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="cute, gentle, smart" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="gf-personality"></Label>
-              <Input id="gf-personality" value={form.personality} onChange={(e) => setForm({ ...form, personality: e.target.value })} placeholder="" />
+              <Label htmlFor="gf-personality">性格</Label>
+              <Input id="gf-personality" value={form.personality} onChange={(e) => setForm({ ...form, personality: e.target.value })} placeholder="自信、独立…" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="gf-short-desc"></Label>
-              <Input id="gf-short-desc" value={form.short_description} onChange={(e) => setForm({ ...form, short_description: e.target.value })} placeholder="" />
+              <Label htmlFor="gf-short-desc">简介</Label>
+              <Input id="gf-short-desc" value={form.short_description} onChange={(e) => setForm({ ...form, short_description: e.target.value })} placeholder="一句话描述" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="gf-backstory"></Label>
-              <Textarea id="gf-backstory" value={form.backstory} onChange={(e) => setForm({ ...form, backstory: e.target.value })} placeholder="..." />
+              <Label htmlFor="gf-backstory">背景故事</Label>
+              <Textarea id="gf-backstory" value={form.backstory} onChange={(e) => setForm({ ...form, backstory: e.target.value })} placeholder="背景…" />
+            </div>
+
+            {/* Access / Rarity / Base stats */}
+            <div className="border-t border-border/20 pt-4 space-y-4">
+              <p className="text-xs font-semibold text-[#8B8BA3] uppercase tracking-wider">开放状态 · 稀有度 · 基础值</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2">
+                  <Label>访问状态</Label>
+                  <Select
+                    value={form.access_status}
+                    onValueChange={(v) => setForm({ ...form, access_status: v as AccessStatus })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">开放 — 直接可用</SelectItem>
+                      <SelectItem value="locked">锁定 — 模糊图+购买解锁</SelectItem>
+                      <SelectItem value="closed">关闭 — 前端隐藏</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>稀有度</Label>
+                  <Select
+                    value={form.rarity}
+                    onValueChange={(v) => setForm({ ...form, rarity: v as RarityTier })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(['N', 'R', 'SR', 'SSR'] as RarityTier[]).map((r) => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>解锁代币价</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.unlock_price_tokens}
+                    onChange={(e) => setForm({ ...form, unlock_price_tokens: parseInt(e.target.value) || 0 })}
+                    disabled={form.access_status !== 'locked'}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px]">基础亲密</Label>
+                  <Input type="number" min={0} max={100} value={form.base_intimacy}
+                    onChange={(e) => setForm({ ...form, base_intimacy: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">欲望值</Label>
+                  <Input type="number" min={0} max={100} value={form.base_desire}
+                    onChange={(e) => setForm({ ...form, base_desire: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">开发值</Label>
+                  <Input type="number" min={0} max={100} value={form.base_development}
+                    onChange={(e) => setForm({ ...form, base_development: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">变态值</Label>
+                  <Input type="number" min={0} max={100} value={form.base_kink}
+                    onChange={(e) => setForm({ ...form, base_kink: parseInt(e.target.value) || 0 })} />
+                </div>
+              </div>
+              {form.access_status === 'locked' && (
+                <p className="text-[11px] text-amber-400/90">
+                  锁定：前端仍展示资料与信息，图片模糊并显示锁；用户购买/抽取后解锁清晰图与聊天。
+                </p>
+              )}
+              {form.access_status === 'closed' && (
+                <p className="text-[11px] text-zinc-400">关闭：公开目录不展示该角色。</p>
+              )}
             </div>
 
             {/* Images */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="gf-portrait"> URL</Label>
+                <Label htmlFor="gf-portrait">肖像 URL</Label>
                 <Input id="gf-portrait" value={form.portrait_url} onChange={(e) => setForm({ ...form, portrait_url: e.target.value })} placeholder="https://..." />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gf-avatar"> URL</Label>
+                <Label htmlFor="gf-avatar">头像 URL</Label>
                 <Input id="gf-avatar" value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} placeholder="https://..." />
               </div>
             </div>

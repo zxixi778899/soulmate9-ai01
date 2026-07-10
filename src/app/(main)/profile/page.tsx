@@ -1,21 +1,28 @@
 'use client';
-import { useTranslation } from '@/lib/i18n/context';
 
+/**
+ * Player profile / settings — game account hub
+ */
+
+import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
-  Heart, Crown, MessageCircle, Users, Activity, LogOut, Star,
-  ShoppingBag, Shirt, Zap, Settings, Package, CreditCard, Gem,
-  Sparkles, Loader2, Check, User as UserIcon, Trophy
+  Heart, Crown, MessageCircle, LogOut, Star, ShoppingBag, Shirt,
+  Settings, Package, CreditCard, Sparkles, Loader2, Check, Trophy,
+  Bell, ExternalLink, Users, Activity,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Bell, XCircle, CheckCircle, Info, ExternalLink } from 'lucide-react';
+import {
+  GameShell, GamePanel, GamePrimaryButton, GameSectionTitle,
+} from '@/components/game/GameShell';
+import { PageHeader } from '@/components/game/PageHeader';
+import { cn } from '@/lib/utils';
 
 interface UserStats {
   girlfriendCount: number;
@@ -39,18 +46,15 @@ interface AssetItem {
   name: string;
   icon: string;
   tier: string;
-  category?: string;
   equipped: boolean;
-  expires_at?: string;
-  girlfriend_id?: string;
 }
 
 type Tab = 'dashboard' | 'assets' | 'settings';
 
-const TIER_META: Record<string, { label: string; color: string; icon: any }> = {
-  free: { label: 'Free', color: 'text-[#8B8BA3]', icon: Heart },
-  pro: { label: 'Pro', color: 'text-purple-400', icon: Crown },
-  unlimited: { label: 'Unlimited', color: 'text-amber-400', icon: Star },
+const TIER_META: Record<string, { label: string; color: string }> = {
+  free: { label: 'Free', color: 'text-white/50' },
+  pro: { label: 'Pro', color: 'text-purple-400' },
+  unlimited: { label: 'Unlimited', color: 'text-amber-400' },
 };
 
 export default function ProfilePage() {
@@ -66,530 +70,268 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState(user?.user_metadata?.display_name || '');
   const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [notifLoading, setNotifLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([
-      authedFetch('/api/membership').then(r => r.json()),
-      authedFetch('/api/wardrobe').then(r => r.json()).catch(() => ({ items: [] })),
-    ]).then(([memData, wardrobeData]) => {
-      if (memData.usage) {
-        setStats({
-          girlfriendCount: memData.usage.total_girlfriends || 0,
-          messagesToday: memData.usage.messages_sent_today || 0,
-          avgIntimacy: memData.usage.highest_intimacy || 0,
-        });
-      }
-      setMembershipTier(memData.tier || 'free');
-      setCredits(memData.credits_remaining || 0);
-
-      // Map wardrobe assets
-      const items: AssetItem[] = [
-        ...((wardrobeData.items || []) as any[]).map((w: any) => ({
-          id: w.id,
-          type: 'outfit' as const,
-          name: w.outfit?.name || w.outfit_name || 'Outfit',
-          icon: w.outfit?.emoji || w.outfit_emoji || '',
-          tier: w.outfit?.tier || w.tier || 'free',
-          equipped: w.is_equipped || false,
-          girlfriend_id: w.girlfriend_id,
-        })),
-      ];
-      setAssets(items);
-    }).catch(() => {}).finally(() => setLoading(false));
-
-    // Load notifications
-    loadNotifications();
+      authedFetch('/api/membership').then((r) => r.json()),
+      authedFetch('/api/wardrobe').then((r) => r.json()).catch(() => ({ items: [] })),
+      authedFetch('/api/notifications').then((r) => r.json()).catch(() => ({ notifications: [] })),
+    ])
+      .then(([memData, wardrobeData, notifData]) => {
+        if (memData.usage) {
+          setStats({
+            girlfriendCount: memData.usage.total_girlfriends || 0,
+            messagesToday: memData.usage.messages_sent_today || 0,
+            avgIntimacy: memData.usage.highest_intimacy || 0,
+          });
+        }
+        setMembershipTier(memData.tier || 'free');
+        setCredits(memData.credits_remaining || 0);
+        setAssets(
+          ((wardrobeData.items || []) as Array<Record<string, unknown>>).map((w) => ({
+            id: String(w.id),
+            type: 'outfit',
+            name: String((w.outfit as { name?: string })?.name || w.outfit_name || 'Outfit'),
+            icon: String((w.outfit as { emoji?: string })?.emoji || '👗'),
+            tier: String((w.outfit as { tier?: string })?.tier || 'free'),
+            equipped: Boolean(w.is_equipped),
+          })),
+        );
+        setNotifications(notifData.notifications || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const loadNotifications = async () => {
-    setNotifLoading(true);
-    try {
-      const res = await authedFetch('/api/notifications');
-      const data = await res.json();
-      if (data.notifications) setNotifications(data.notifications);
-    } catch {} finally {
-      setNotifLoading(false);
-    }
-  };
-
-  const markAsRead = async (id: string) => {
-    try {
-      await authedFetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
-    } catch {}
-  };
-
-  const handleSaveName = async () => {
-    if (!displayName.trim()) return;
+  const saveProfile = async () => {
     setSaving(true);
     try {
       const res = await authedFetch('/api/membership', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: displayName.trim() }),
+        body: JSON.stringify({ display_name: displayName }),
       });
-      if (res.ok) toast.success('Display name updated');
-      else toast.error('Failed to update');
-    } catch { toast.error('Failed to update'); }
-    finally { setSaving(false); }
+      if (res.ok) toast.success('已保存');
+      else toast.error('保存失败');
+    } catch {
+      toast.error('网络错误');
+    }
+    setSaving(false);
   };
 
-  const currentTier = TIER_META[membershipTier] || TIER_META.free;
+  const tier = TIER_META[membershipTier] || TIER_META.free;
 
-  const tabs: { key: Tab; label: string; icon: any }[] = [
-    { key: 'dashboard', label: 'Dashboard', icon: Activity },
-    { key: 'assets', label: 'Assets', icon: Package },
-    { key: 'settings', label: 'Settings', icon: Settings },
-  ];
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#FF2D78]" />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <div className="border-b border-white/[0.06] px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="font-display text-lg md:text-xl font-bold italic">Profile</h1>
-            <p className="text-xs text-[#8B8BA3]">Manage your account, membership &amp; assets</p>
-          </div>
-        </div>
-      </div>
+    <GameShell className="pb-28 md:pb-12 min-h-full">
+      <PageHeader
+        eyebrow="PLAYER"
+        title="我的账号"
+        subtitle="背包 · 设置 · 顶栏随时跳转其他模块"
+        backHref="/"
+        sticky={false}
+        actions={
+          <GamePrimaryButton className="!h-10 !px-4 text-xs" onClick={() => router.push('/pricing')}>
+            <Crown className="h-3.5 w-3.5" /> 升级
+          </GamePrimaryButton>
+        }
+      />
 
-      {/* Tab bar */}
-      <div className="flex border-b border-white/[0.05] bg-white/[0.03]">
-        {tabs.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium transition-colors ${
-              activeTab === tab.key
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-[#8B8BA3] hover:text-white'
-            }`}
-          >
-            <tab.icon className="h-3.5 w-3.5" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="max-w-2xl mx-auto space-y-6">
-          {/* User info card - always shown */}
-          <Card className="border-white/[0.06]">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16 border-2 border-primary/20">
-                  <AvatarFallback className="bg-[#FF2D78]/10 text-[#FF2D78] text-lg">
-                    {user?.email?.charAt(0).toUpperCase() || 'U'}
+      {/* Player card banner */}
+      <section className="relative px-4 sm:px-6 pt-4 overflow-hidden">
+        <div className="relative mx-auto max-w-3xl">
+          <GamePanel glow className="p-5 sm:p-6">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-[#ff2e88]/40 blur-md game-pulse-ring" />
+                <Avatar className="relative h-20 w-20 ring-2 ring-[#ff2e88]/50">
+                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarFallback className="bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] text-xl font-bold">
+                    {(displayName || user?.email || '?').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-semibold">{user?.email}</h2>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                      membershipTier === 'pro' ? 'bg-purple-500/10 text-purple-400' :
-                      membershipTier === 'unlimited' ? 'bg-amber-500/10 text-amber-400' :
-                      'bg-white/[0.04] text-[#8B8BA3]'
-                    }`}>
-                      <currentTier.icon className="h-3 w-3" />
-                      {currentTier.label}
-                    </span>
-                    <span className="text-xs text-[#8B8BA3]">
-                      {credits > 0 && `${credits} credits`}
-                    </span>
-                    <span className="text-xs text-[#8B8BA3]">
-                      Joined {new Date(user?.created_at || '').toLocaleDateString()}
-                    </span>
-                  </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl font-black truncate">
+                  {displayName || user?.email?.split('@')[0] || 'Traveler'}
+                </h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={cn('text-sm font-semibold flex items-center gap-1', tier.color)}>
+                    <Crown className="h-3.5 w-3.5" /> {tier.label}
+                  </span>
+                  <span className="text-xs text-amber-300 flex items-center gap-1">
+                    · {credits} 代币
+                  </span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Tab content */}
-          {activeTab === 'dashboard' && (
-            <>
-              {/* Stats */}
-              <Card className="border-white/[0.06]">
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-primary" />
-                    Dashboard
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="grid grid-cols-3 gap-3">
-                      {[1,2,3].map(i => (
-                        <div key={i} className="h-20 rounded-lg bg-white/[0.04] animate-pulse" />
-                      ))}
-                    </div>
-                  ) : stats ? (
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="p-3 rounded-lg bg-[#FF2D78]/5 border border-[#FF2D78]/10 text-center">
-                        <Users className="h-4 w-4 mx-auto text-primary mb-1" />
-                        <p className="text-lg font-bold">{stats.girlfriendCount}</p>
-                        <p className="text-[10px] text-[#8B8BA3]">Girlfriends</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-[#FF2D78]/5 border border-[#FF2D78]/10 text-center">
-                        <MessageCircle className="h-4 w-4 mx-auto text-primary mb-1" />
-                        <p className="text-lg font-bold">{stats.messagesToday}</p>
-                        <p className="text-[10px] text-[#8B8BA3]">Msgs Today</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-[#FF2D78]/5 border border-[#FF2D78]/10 text-center">
-                        <Heart className="h-4 w-4 mx-auto text-primary mb-1" />
-                        <p className="text-lg font-bold">{stats.avgIntimacy.toFixed(1)}</p>
-                        <p className="text-[10px] text-[#8B8BA3]">Avg Intimacy</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-[#8B8BA3] text-center py-4">Unable to load stats</p>
-                  )}
-                </CardContent>
-              </Card>
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {[
+                { icon: Users, label: '女友', value: stats?.girlfriendCount ?? 0 },
+                { icon: MessageCircle, label: '今日密语', value: stats?.messagesToday ?? 0 },
+                { icon: Heart, label: '最高亲密', value: stats?.avgIntimacy ?? 0 },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-3 text-center">
+                  <s.icon className="h-4 w-4 mx-auto text-[#ff6ba6] mb-1" />
+                  <div className="text-lg font-bold tabular-nums">{s.value}</div>
+                  <div className="text-[10px] text-white/40">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </GamePanel>
+        </div>
+      </section>
 
-              {/* Membership plans */}
-              <Card className="border-white/[0.06]">
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Crown className="h-4 w-4 text-amber-500" />
-                    Membership
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className={`p-4 rounded-lg border text-center ${
-                      membershipTier === 'free' ? 'border-[#FF2D78]/30 bg-[#FF2D78]/5' : 'border-white/[0.06] bg-white/[0.04]'
-                    }`}>
-                      <p className="text-xs text-[#8B8BA3]">Free</p>
-                      <p className="text-lg font-bold">$0</p>
-                      <p className="text-[10px] text-[#8B8BA3] mt-1">50 msgs/day</p>
-                      <Button variant={membershipTier === 'free' ? 'outline' : 'ghost'} size="sm" className="w-full mt-3 h-8 text-xs" disabled={membershipTier === 'free'}>
-                        {membershipTier === 'free' ? 'Current' : 'Downgrade'}
-                      </Button>
-                    </div>
-                    <div className={`p-4 rounded-lg border text-center ${
-                      membershipTier === 'pro' ? 'border-[#FF2D78]/30 bg-[#FF2D78]/5' : 'border-white/[0.06] bg-white/[0.04]'
-                    }`}>
-                      <p className="text-xs font-medium text-purple-400">Pro</p>
-                      <p className="text-lg font-bold">$19.99</p>
-                      <p className="text-[10px] text-[#8B8BA3] mt-1">Unlimited msgs</p>
-                      <Button
-                        size="sm"
-                        className={`w-full mt-3 h-8 text-xs ${
-                          membershipTier === 'pro' ? '' : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'
-                        }`}
-                        variant={membershipTier === 'pro' ? 'outline' : 'default'}
-                        disabled={membershipTier === 'pro'}
-                        onClick={() => membershipTier !== 'pro' && router.push('/pricing')}
-                      >
-                        {membershipTier === 'pro' ? 'Current' : 'Upgrade'}
-                      </Button>
-                    </div>
-                    <div className={`p-4 rounded-lg border text-center ${
-                      membershipTier === 'unlimited' ? 'border-amber-500/30 bg-amber-500/5' : 'border-white/[0.06] bg-white/[0.04]'
-                    }`}>
-                      <p className="text-xs text-amber-400">Unlimited</p>
-                      <p className="text-lg font-bold">$39.99</p>
-                      <p className="text-[10px] text-[#8B8BA3] mt-1">Everything</p>
-                      <Button
-                        size="sm"
-                        className="w-full mt-3 h-8 text-xs"
-                        variant={membershipTier === 'unlimited' ? 'outline' : 'ghost'}
-                        disabled={membershipTier === 'unlimited'}
-                        onClick={() => membershipTier !== 'unlimited' && router.push('/pricing')}
-                      >
-                        {membershipTier === 'unlimited' ? 'Current' : 'Upgrade'}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Prize Progress - Awards Tracker */}
-              <Card className="border-white/[0.06] bg-gradient-to-br from-amber-500/[0.03] to-amber-500/[0.01]">
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Trophy className="h-4 w-4 text-amber-400" />
-                    Prize Progress
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* Prize tiers */}
-                  <div className="space-y-2">
-                    {[
-                      { tier: 'Gold', reward: 'iPhone 16 Pro Max', target: '$5,000', icon: '📱', color: 'from-amber-400 to-yellow-500', bg: 'bg-amber-500/5 border-amber-500/20' },
-                      { tier: 'Silver', reward: 'AirPods Pro 2', target: '$2,500', icon: '🎧', color: 'from-slate-300 to-slate-400', bg: 'bg-slate-400/5 border-slate-400/20' },
-                      { tier: 'Bronze', reward: '$100 App Store Gift', target: '$500', icon: '🎁', color: 'from-amber-600 to-amber-700', bg: 'bg-amber-600/5 border-amber-600/20' },
-                    ].map((prize) => {
-                      const percent = Math.min(100, Math.round((0 / parseFloat(prize.target.replace('$','').replace(',',''))) * 100));
-                      return (
-                        <div key={prize.tier} className={`p-3 rounded-xl border ${prize.bg}`}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg">{prize.icon}</span>
-                              <div>
-                                <p className="text-xs font-semibold text-[#F0F0F5]">{prize.reward}</p>
-                                <p className="text-[10px] text-[#8B8BA3]">{prize.tier} Tier · Spend {prize.target}</p>
-                              </div>
-                            </div>
-                            <span className="text-[10px] text-[#8B8BA3]">0%</span>
-                          </div>
-                          <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                            <div className={`h-full bg-gradient-to-r ${prize.color} rounded-full`} style={{ width: '2%' }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-xs gap-1.5 border-amber-500/20 text-amber-400 hover:bg-amber-500/10"
-                    onClick={() => router.push('/achievements')}
-                  >
-                    <Trophy className="h-3.5 w-3.5" />
-                    View All Achievements
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Notifications */}
-              <Card className="border-white/[0.06]">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-primary" />
-                    Notifications
-                    {notifications.filter(n => !n.is_read).length > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#FF2D78] text-white">
-                        {notifications.filter(n => !n.is_read).length} new
-                      </span>
-                    )}
-                  </CardTitle>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs text-[#8B8BA3]" onClick={loadNotifications}>
-                    Refresh
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {notifLoading ? (
-                    <div className="space-y-2">
-                      {[1,2,3].map(i => <div key={i} className="h-14 rounded-lg bg-white/[0.04] animate-pulse" />)}
-                    </div>
-                  ) : notifications.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Bell className="h-6 w-6 mx-auto text-[#8B8BA3]/50 mb-2" />
-                      <p className="text-xs text-[#8B8BA3]">No notifications yet</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                      {notifications.map(n => (
-                        <div
-                          key={n.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                            n.is_read ? 'bg-white/[0.03]' : 'bg-[#FF2D78]/5 border border-[#FF2D78]/10'
-                          }`}
-                          onClick={() => { markAsRead(n.id); if (n.link_url) window.open(n.link_url, '_blank'); }}
-                        >
-                          <div className="mt-0.5">
-                            {n.type === 'payment' ? <CheckCircle className="h-4 w-4 text-green-400" /> :
-                             n.type === 'warning' ? <XCircle className="h-4 w-4 text-destructive" /> :
-                             <Info className="h-4 w-4 text-blue-400" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs font-medium ${n.is_read ? 'text-[#8B8BA3]' : 'text-white'}`}>
-                              {n.title}
-                            </p>
-                            <p className="text-[11px] text-[#8B8BA3] mt-0.5 line-clamp-2">{n.message}</p>
-                            <p className="text-[9px] text-[#8B8BA3]/50 mt-1">
-                              {new Date(n.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          {n.link_url && (
-                            <ExternalLink className="h-3 w-3 text-[#8B8BA3]/50 flex-shrink-0 mt-1" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          )}
-
-          {/* Assets Tab */}
-          {activeTab === 'assets' && (
-            <Card className="border-white/[0.06]">
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Package className="h-4 w-4 text-primary" />
-                  Asset Pack
-                  <span className="text-[10px] text-[#8B8BA3] ml-auto">{assets.length} items</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    {[1,2,3,4,5,6].map(i => (
-                      <div key={i} className="h-24 rounded-lg bg-white/[0.04] animate-pulse" />
-                    ))}
-                  </div>
-                ) : assets.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 mx-auto mb-3">
-                      <ShoppingBag className="h-6 w-6 text-primary" />
-                    </div>
-                    <p className="text-sm font-medium">No items yet</p>
-                    <p className="text-xs text-[#8B8BA3] mt-1">Purchase outfits, boosters &amp; more from the Shop</p>
-                    <Button size="sm" className="mt-4" onClick={() => router.push('/shop')}>
-                      <ShoppingBag className="h-3.5 w-3.5 mr-1" /> Browse Shop
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    {/* Credits */}
-                    <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-amber-500/5 border border-amber-500/10">
-                      <div className="flex items-center gap-2">
-                        <Gem className="h-4 w-4 text-amber-400" />
-                        <span className="text-xs font-medium">Credits</span>
-                      </div>
-                      <span className="text-sm font-bold text-amber-400">{credits.toLocaleString()}</span>
-                    </div>
-
-                    {/* Outfits */}
-                    {assets.filter(a => a.type === 'outfit').length > 0 && (
-                      <>
-                        <h3 className="text-xs font-semibold text-[#8B8BA3] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <Shirt className="h-3.5 w-3.5" /> Outfits
-                        </h3>
-                        <div className="grid grid-cols-3 gap-3 mb-6">
-                          {assets.filter(a => a.type === 'outfit').map(item => (
-                            <div key={item.id} className="p-3 rounded-lg border border-white/[0.06] bg-white/[0.04] text-center">
-                              <span className="text-2xl">{item.icon}</span>
-                              <p className="text-[10px] font-medium mt-1 truncate">{item.name}</p>
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
-                                item.tier === 'free' ? 'bg-white/[0.04] text-[#8B8BA3]' :
-                                item.tier === 'premium' ? 'bg-purple-500/10 text-purple-400' :
-                                'bg-amber-500/10 text-amber-400'
-                              }`}>
-                                {item.tier}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-
-                    {/* Active Items */}
-                    {assets.filter(a => a.type !== 'outfit').length > 0 && (
-                      <>
-                        <h3 className="text-xs font-semibold text-[#8B8BA3] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <Zap className="h-3.5 w-3.5" /> Active Boosters
-                        </h3>
-                        <div className="grid grid-cols-2 gap-3">
-                          {assets.filter(a => a.type !== 'outfit').map(item => (
-                            <div key={item.id} className="p-3 rounded-lg border border-purple-500/20 bg-purple-500/5 text-center">
-                              <span className="text-2xl">{item.icon}</span>
-                              <p className="text-[10px] font-medium mt-1">{item.name}</p>
-                              {item.expires_at && (
-                                <p className="text-[9px] text-[#8B8BA3] mt-0.5">
-                                  Expires: {new Date(item.expires_at).toLocaleDateString()}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Settings Tab */}
-          {activeTab === 'settings' && (
-            <>
-              <Card className="border-white/[0.06]">
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <UserIcon className="h-4 w-4 text-primary" />
-                    Profile Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs text-[#8B8BA3]">Display Name</label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={displayName}
-                        onChange={e => setDisplayName(e.target.value)}
-                        placeholder="Enter your display name"
-                        className="flex-1 h-9 text-sm"
-                      />
-                      <Button
-                        size="sm"
-                        className="h-9"
-                        onClick={handleSaveName}
-                        disabled={saving || !displayName.trim()}
-                      >
-                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                        Save
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs text-[#8B8BA3]">Email</label>
-                    <Input value={user?.email || ''} disabled className="h-9 text-sm text-[#8B8BA3]" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs text-[#8B8BA3]">Member Since</label>
-                    <Input value={new Date(user?.created_at || '').toLocaleDateString()} disabled className="h-9 text-sm text-[#8B8BA3]" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-white/[0.06]">
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <CreditCard className="h-4 w-4" />
-                    Billing
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button variant="outline" className="w-full justify-start gap-3 h-10 text-sm" onClick={() => router.push('/pricing')}>
-                    <Crown className="h-4 w-4 text-amber-500" />
-                    Manage Subscription
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-3 h-10 text-sm" onClick={() => router.push('/shop')}>
-                    <ShoppingBag className="h-4 w-4 text-primary" />
-                    Buy Credits
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="border-white/[0.06]">
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <LogOut className="h-4 w-4 text-destructive" />
-                    Account
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Button variant="ghost" className="w-full justify-start gap-3 h-10 text-sm text-destructive hover:text-destructive" onClick={signOut}>
-                    <LogOut className="h-4 w-4" />
-                    Sign Out
-                  </Button>
-                </CardContent>
-              </Card>
-            </>
-          )}
+      {/* Tabs */}
+      <div className="mx-auto max-w-3xl px-4 sm:px-8 mt-5">
+        <div className="flex gap-1 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
+          {([
+            { id: 'dashboard', label: '主页', icon: Activity },
+            { id: 'assets', label: '背包', icon: Package },
+            { id: 'settings', label: '设置', icon: Settings },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 h-10 rounded-xl text-sm font-medium transition-all',
+                activeTab === tab.id
+                  ? 'bg-gradient-to-r from-[#FF2D78]/90 to-[#8b5cf6]/90 text-white'
+                  : 'text-white/45 hover:text-white',
+              )}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
-    </div>
+
+      <div className="mx-auto max-w-3xl px-4 sm:px-8 py-6 space-y-4">
+        {activeTab === 'dashboard' && (
+          <>
+            <GameSectionTitle title="快捷入口" eyebrow="HUB" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { href: '/chats', icon: MessageCircle, label: '密语' },
+                { href: '/explore', icon: Sparkles, label: '卡池' },
+                { href: '/shop', icon: ShoppingBag, label: '商城' },
+                { href: '/quest', icon: Trophy, label: '任务' },
+                { href: '/wardrobe', icon: Shirt, label: '衣柜' },
+                { href: '/achievements', icon: Star, label: '成就' },
+                { href: '/purchases', icon: CreditCard, label: '订单' },
+                { href: '/pricing', icon: Crown, label: '会员' },
+                { href: '/admin', icon: Settings, label: '管理后台' },
+              ].map((l) => (
+                <button
+                  key={l.href}
+                  onClick={() => router.push(l.href)}
+                  className="game-panel p-4 flex flex-col items-center gap-2 hover:border-[#FF2D78]/40 transition-all active:scale-95"
+                >
+                  <l.icon className="h-5 w-5 text-[#ff6ba6]" />
+                  <span className="text-xs font-medium">{l.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {notifications.length > 0 && (
+              <>
+                <GameSectionTitle title="通知" eyebrow="MAIL" />
+                <div className="space-y-2">
+                  {notifications.slice(0, 5).map((n) => (
+                    <GamePanel key={n.id} className="p-3 flex gap-3 items-start">
+                      <Bell className="h-4 w-4 text-[#ff6ba6] shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium">{n.title}</div>
+                        <div className="text-xs text-white/40 line-clamp-2">{n.message}</div>
+                      </div>
+                      {n.link_url && (
+                        <button onClick={() => router.push(n.link_url!)}>
+                          <ExternalLink className="h-4 w-4 text-white/30" />
+                        </button>
+                      )}
+                    </GamePanel>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {activeTab === 'assets' && (
+          <>
+            <GameSectionTitle title="我的皮肤与道具" subtitle={`${assets.length} 件`} eyebrow="INVENTORY" />
+            {assets.length === 0 ? (
+              <GamePanel className="p-10 text-center text-white/40 text-sm">
+                背包空空 · 去商城挑选皮肤吧
+                <div className="mt-4">
+                  <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/shop')}>
+                    打开商城
+                  </GamePrimaryButton>
+                </div>
+              </GamePanel>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {assets.map((a) => (
+                  <GamePanel key={a.id} className="p-3">
+                    <div className="text-2xl mb-1">{a.icon}</div>
+                    <div className="text-sm font-medium truncate">{a.name}</div>
+                    <div className="text-[10px] text-white/40 mt-0.5 flex items-center gap-1">
+                      {a.tier}
+                      {a.equipped && (
+                        <span className="text-emerald-400 flex items-center gap-0.5">
+                          <Check className="h-3 w-3" /> 已装备
+                        </span>
+                      )}
+                    </div>
+                  </GamePanel>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'settings' && (
+          <>
+            <GameSectionTitle title="账号设置" eyebrow="SETTINGS" />
+            <GamePanel className="p-5 space-y-4">
+              <div>
+                <label className="text-xs text-white/40 mb-1.5 block">显示名称</label>
+                <Input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="bg-white/5 border-white/10"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-white/40 mb-1.5 block">邮箱</label>
+                <Input value={user?.email || ''} disabled className="bg-white/5 border-white/10 opacity-60" />
+              </div>
+              <GamePrimaryButton className="w-full h-11" disabled={saving} onClick={saveProfile}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                保存
+              </GamePrimaryButton>
+            </GamePanel>
+
+            <GamePanel className="p-4">
+              <button
+                onClick={() => signOut()}
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm font-medium"
+              >
+                <LogOut className="h-4 w-4" /> 退出登录
+              </button>
+            </GamePanel>
+          </>
+        )}
+      </div>
+    </GameShell>
   );
 }

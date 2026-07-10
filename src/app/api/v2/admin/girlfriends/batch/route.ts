@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -185,9 +186,7 @@ function pickN<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-function slugify(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Math.random().toString(36).slice(2, 8);
-}
+// slug generation lives in @/lib/girlfriend-slug
 
 //  Generate a unique girlfriend 
 function generateGirlfriend(userId: string) {
@@ -237,6 +236,7 @@ function generateGirlfriend(userId: string) {
   return {
     user_id: userId,
     name: fullName,
+    slug: makeGirlfriendSlug(fullName),
     personality: personality,
     backstory: fullBackstory,
     appearance_race: race,

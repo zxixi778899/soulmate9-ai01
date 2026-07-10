@@ -16,7 +16,7 @@ import {
 import {
   Loader2, Plus, Save, Trash2, Power, PowerOff, Cpu, Activity,
   DollarSign, Clock, Zap, AlertTriangle, TrendingUp, BarChart3,
-  Settings, RefreshCw,
+  Settings, RefreshCw, Play, Calculator, Key,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
@@ -102,11 +102,25 @@ export default function AdminModelsPage() {
   const [hourlyData, setHourlyData] = useState<HourlyData[]>([]);
   const [totals, setTotals] = useState<UsageTotals | null>(null);
   const [dashLoading, setDashLoading] = useState(false);
+  const [usagePeriod, setUsagePeriod] = useState<'24h' | '7d' | '30d'>('24h');
 
   // Dialog state
   const [editDialog, setEditDialog] = useState(false);
   const [editModel, setEditModel] = useState<Partial<ModelConfig>>({});
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    latency_ms?: number;
+    sample?: string;
+    error?: string | null;
+    cost_usd?: number;
+  } | null>(null);
+
+  // Cost calculator
+  const [calcIn, setCalcIn] = useState(500);
+  const [calcOut, setCalcOut] = useState(300);
+  const [calcCalls, setCalcCalls] = useState(1000);
 
   const fetchConfigs = useCallback(async () => {
     setLoading(true);
@@ -125,18 +139,18 @@ export default function AdminModelsPage() {
   const fetchDashboard = useCallback(async () => {
     setDashLoading(true);
     try {
-      const res = await authedFetch('/api/admin/models?view=usage');
+      const res = await authedFetch(`/api/admin/models?view=usage&period=${usagePeriod}`);
       const data = await res.json();
       setUsageStats(data.stats || []);
       setHourlyData(data.hourly || []);
       setTotals(data.totals || null);
     } catch (err) {
       logger.error(String(err));
-      toast.error('Failed to load usage data');
+      toast.error('加载用量失败');
     } finally {
       setDashLoading(false);
     }
-  }, []);
+  }, [usagePeriod]);
 
   useEffect(() => { fetchConfigs(); }, [fetchConfigs]);
   useEffect(() => {
@@ -193,12 +207,57 @@ export default function AdminModelsPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"?`)) return;
+    if (!confirm(`删除「${name}」？`)) return;
     try {
       await authedFetch(`/api/admin/models?id=${id}`, { method: 'DELETE' });
       setConfigs(prev => prev.filter(c => c.id !== id));
-      toast.success('Model deleted');
-    } catch { toast.error('Delete failed'); }
+      toast.success('已删除模型');
+    } catch { toast.error('删除失败'); }
+  };
+
+  const handleTest = async (config?: Partial<ModelConfig>) => {
+    const target = config || editModel;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await authedFetch('/api/admin/models/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: target.id,
+          provider: target.provider,
+          model_id: target.model_id,
+          api_base_url: target.api_base_url,
+          api_key_env: target.api_key_env,
+          temperature: target.temperature,
+          max_tokens: Math.min(target.max_tokens || 64, 128),
+          cost_per_1k_input: target.cost_per_1k_input,
+          cost_per_1k_output: target.cost_per_1k_output,
+          prompt: 'Reply with exactly one word: OK',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '测试失败');
+      setTestResult(data);
+      if (data.success) toast.success(`连通成功 · ${data.latency_ms}ms`);
+      else toast.error(data.error || '调用失败');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '测试失败';
+      setTestResult({ success: false, error: msg });
+      toast.error(msg);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const estCost = (c: ModelConfig) => {
+    const perCall =
+      (calcIn / 1000) * (c.cost_per_1k_input || 0) +
+      (calcOut / 1000) * (c.cost_per_1k_output || 0);
+    return {
+      perCall,
+      total: perCall * calcCalls,
+    };
   };
 
   if (loading) {
@@ -250,13 +309,23 @@ export default function AdminModelsPage() {
           </div>
           {tab === 'models' && (
             <Button onClick={openAdd} size="sm" className="gap-1.5 bg-[#FF2D78] hover:bg-[#e0266b]">
-              <Plus className="h-4 w-4" /> Add Model
+              <Plus className="h-4 w-4" /> 添加模型
             </Button>
           )}
           {tab === 'dashboard' && (
-            <Button variant="outline" size="sm" onClick={fetchDashboard} className="gap-1.5">
-              <RefreshCw className="h-3.5 w-3.5" /> Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select value={usagePeriod} onValueChange={(v) => setUsagePeriod(v as '24h' | '7d' | '30d')}>
+                <SelectTrigger className="w-[100px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="24h">近 24h</SelectItem>
+                  <SelectItem value="7d">近 7 天</SelectItem>
+                  <SelectItem value="30d">近 30 天</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={fetchDashboard} className="gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" /> 刷新
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -264,6 +333,11 @@ export default function AdminModelsPage() {
       {/* ═══ MODELS TAB ═══ */}
       {tab === 'models' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {configs.length === 0 && (
+            <div className="col-span-full rounded-xl border border-dashed border-white/10 p-12 text-center text-sm text-[#8B8BA3]">
+              暂无模型配置，点击「添加模型」开始配置 API
+            </div>
+          )}
           {configs.map((config) => (
             <Card
               key={config.id}
@@ -287,18 +361,25 @@ export default function AdminModelsPage() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
+                      onClick={() => handleTest(config)}
+                      className="p-1.5 rounded-md text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+                      title="测试 API"
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                    </button>
+                    <button
                       onClick={() => toggleActive(config)}
                       className={`p-1.5 rounded-md transition-colors ${
                         config.is_active ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-500 hover:bg-gray-500/10'
                       }`}
-                      title={config.is_active ? 'Disable' : 'Enable'}
+                      title={config.is_active ? '禁用' : '启用'}
                     >
                       {config.is_active ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
                     </button>
-                    <button onClick={() => openEdit(config)} className="p-1.5 rounded-md text-[#8B8BA3] hover:text-white hover:bg-white/[0.06] transition-colors">
+                    <button onClick={() => { setTestResult(null); openEdit(config); }} className="p-1.5 rounded-md text-[#8B8BA3] hover:text-white hover:bg-white/[0.06] transition-colors" title="编辑">
                       <Settings className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => handleDelete(config.id, config.display_name)} className="p-1.5 rounded-md text-[#8B8BA3] hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                    <button onClick={() => handleDelete(config.id, config.display_name)} className="p-1.5 rounded-md text-[#8B8BA3] hover:text-red-400 hover:bg-red-500/10 transition-colors" title="删除">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -306,32 +387,42 @@ export default function AdminModelsPage() {
 
                 {/* Name + model ID */}
                 <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{config.display_name}</h3>
-                <p className="text-[11px] text-[#8B8BA3] font-mono truncate mb-3">{config.model_id}</p>
+                <p className="text-[11px] text-[#8B8BA3] font-mono truncate mb-1">{config.model_id}</p>
+                {config.api_base_url && (
+                  <p className="text-[10px] text-cyan-400/80 font-mono truncate mb-1" title={config.api_base_url}>
+                    API: {config.api_base_url}
+                  </p>
+                )}
+                {config.api_key_env && (
+                  <p className="text-[10px] text-amber-400/80 flex items-center gap-1 mb-2">
+                    <Key className="h-3 w-3" /> {config.api_key_env}
+                  </p>
+                )}
 
                 {/* Config grid */}
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
                   <div className="flex justify-between">
-                    <span className="text-[#8B8BA3]">Temp</span>
+                    <span className="text-[#8B8BA3]">温度</span>
                     <span className="text-white/80">{config.temperature}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#8B8BA3]">Max Tokens</span>
+                    <span className="text-[#8B8BA3]">最大 Tokens</span>
                     <span className="text-white/80">{config.max_tokens}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#8B8BA3]">Input $/1K</span>
+                    <span className="text-[#8B8BA3]">输入 $/1K</span>
                     <span className="text-white/80">${config.cost_per_1k_input}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#8B8BA3]">Output $/1K</span>
+                    <span className="text-[#8B8BA3]">输出 $/1K</span>
                     <span className="text-white/80">${config.cost_per_1k_output}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#8B8BA3]">Priority</span>
+                    <span className="text-[#8B8BA3]">优先级</span>
                     <span className="text-white/80">{config.priority}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#8B8BA3]">Min Tier</span>
+                    <span className="text-[#8B8BA3]">最低套餐</span>
                     <span className="text-white/80 capitalize">{config.min_tier}</span>
                   </div>
                 </div>
@@ -356,15 +447,68 @@ export default function AdminModelsPage() {
 
       {tab === 'dashboard' && !dashLoading && (
         <div className="space-y-6">
+          {/* Cost calculator */}
+          <Card className="border-white/[0.06] bg-white/[0.03]">
+            <CardContent className="p-5">
+              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <Calculator className="h-4 w-4 text-emerald-400" />
+                成本估算器（按当前模型单价）
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div>
+                  <Label className="text-[11px] text-[#8B8BA3]">输入 tokens/次</Label>
+                  <Input type="number" className="mt-1 h-9" value={calcIn} onChange={(e) => setCalcIn(Number(e.target.value) || 0)} />
+                </div>
+                <div>
+                  <Label className="text-[11px] text-[#8B8BA3]">输出 tokens/次</Label>
+                  <Input type="number" className="mt-1 h-9" value={calcOut} onChange={(e) => setCalcOut(Number(e.target.value) || 0)} />
+                </div>
+                <div>
+                  <Label className="text-[11px] text-[#8B8BA3]">调用次数</Label>
+                  <Input type="number" className="mt-1 h-9" value={calcCalls} onChange={(e) => setCalcCalls(Number(e.target.value) || 0)} />
+                </div>
+                <div className="flex items-end text-xs text-[#8B8BA3] pb-2">
+                  估算 = (in×单价 + out×单价) × 次数
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] text-[#8B8BA3]">
+                      <th className="text-left py-2 px-2">模型</th>
+                      <th className="text-right py-2 px-2">单次成本</th>
+                      <th className="text-right py-2 px-2">合计 ({calcCalls} 次)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {configs.filter((c) => c.is_active).map((c) => {
+                      const e = estCost(c);
+                      return (
+                        <tr key={c.id} className="border-b border-white/[0.03]">
+                          <td className="py-2 px-2 text-white">{c.display_name}</td>
+                          <td className="py-2 px-2 text-right text-emerald-400 font-mono">${e.perCall.toFixed(6)}</td>
+                          <td className="py-2 px-2 text-right text-emerald-300 font-mono">${e.total.toFixed(4)}</td>
+                        </tr>
+                      );
+                    })}
+                    {configs.filter((c) => c.is_active).length === 0 && (
+                      <tr><td colSpan={3} className="py-4 text-center text-[#8B8BA3]">暂无启用模型</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Totals */}
           {totals && (
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
-                { label: 'Total Calls (24h)', value: totals.total_calls.toLocaleString(), icon: Activity, color: 'text-blue-400' },
-                { label: 'Total Cost', value: `$${totals.total_cost_usd.toFixed(2)}`, icon: DollarSign, color: 'text-emerald-400' },
-                { label: 'Total Tokens', value: (totals.total_tokens / 1000).toFixed(0) + 'K', icon: Zap, color: 'text-amber-400' },
-                { label: 'Avg Latency', value: `${totals.avg_latency_ms}ms`, icon: Clock, color: 'text-violet-400' },
-                { label: 'Success Rate', value: `${totals.avg_success_rate}%`, icon: TrendingUp, color: 'text-cyan-400' },
+                { label: `调用次数 (${usagePeriod})`, value: totals.total_calls.toLocaleString(), icon: Activity, color: 'text-blue-400' },
+                { label: '总成本', value: `$${totals.total_cost_usd.toFixed(4)}`, icon: DollarSign, color: 'text-emerald-400' },
+                { label: '总 Tokens', value: (totals.total_tokens / 1000).toFixed(0) + 'K', icon: Zap, color: 'text-amber-400' },
+                { label: '平均延迟', value: `${totals.avg_latency_ms}ms`, icon: Clock, color: 'text-violet-400' },
+                { label: '成功率', value: `${totals.avg_success_rate}%`, icon: TrendingUp, color: 'text-cyan-400' },
               ].map((stat) => (
                 <Card key={stat.label} className="border-white/[0.06] bg-white/[0.03]">
                   <CardContent className="p-4">
@@ -384,19 +528,19 @@ export default function AdminModelsPage() {
             <CardContent className="p-5">
               <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-[#FF2D78]" />
-                Per-Model Usage (Last 24h)
+                分模型用量（{usagePeriod}）
               </h3>
               {usageStats.length === 0 ? (
                 <div className="text-center py-12">
                   <AlertTriangle className="h-8 w-8 text-[#8B8BA3] mx-auto mb-2" />
-                  <p className="text-sm text-[#8B8BA3]">No usage data yet. Logs will appear once models are called.</p>
+                  <p className="text-sm text-[#8B8BA3]">暂无用量日志。模型被调用后会出现在这里。</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/[0.06]">
-                        {['Model', 'Provider', 'Calls', 'Success', 'Tokens (In/Out)', 'Cost', 'Latency', 'Tasks'].map(h => (
+                        {['模型', '提供商', '调用', '成功', 'Tokens 入/出', '成本', '延迟', '任务'].map(h => (
                           <th key={h} className="text-left py-2 px-3 text-[11px] font-medium text-[#8B8BA3] uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -622,17 +766,17 @@ export default function AdminModelsPage() {
       )}
 
       {/* ═══ ADD/EDIT DIALOG ═══ */}
-      <Dialog open={editDialog} onOpenChange={setEditDialog}>
+      <Dialog open={editDialog} onOpenChange={(o) => { setEditDialog(o); if (!o) setTestResult(null); }}>
         <DialogContent className="sm:max-w-lg bg-[#0E0E1A] border-white/[0.08] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">
-              {editModel.id ? 'Edit Model' : 'Add Model'}
+              {editModel.id ? '编辑模型' : '添加模型'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-xs text-[#8B8BA3]">Provider *</Label>
+                <Label className="text-xs text-[#8B8BA3]">提供商 *</Label>
                 <Select value={editModel.provider || ''} onValueChange={v => setEditModel(p => ({ ...p, provider: v }))}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -641,7 +785,7 @@ export default function AdminModelsPage() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs text-[#8B8BA3]">Task Type *</Label>
+                <Label className="text-xs text-[#8B8BA3]">任务类型 *</Label>
                 <Select value={editModel.task_type || ''} onValueChange={v => setEditModel(p => ({ ...p, task_type: v }))}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -651,47 +795,47 @@ export default function AdminModelsPage() {
               </div>
             </div>
             <div>
-              <Label className="text-xs text-[#8B8BA3]">Model ID *</Label>
-              <Input className="mt-1 font-mono text-sm" placeholder="e.g. doubao-seed-2-0-pro-260215"
+              <Label className="text-xs text-[#8B8BA3]">模型 ID *</Label>
+              <Input className="mt-1 font-mono text-sm" placeholder="e.g. meta-llama/Llama-3.3-70B-Instruct-Turbo"
                 value={editModel.model_id || ''} onChange={e => setEditModel(p => ({ ...p, model_id: e.target.value }))} />
             </div>
             <div>
-              <Label className="text-xs text-[#8B8BA3]">Display Name *</Label>
-              <Input className="mt-1" placeholder="e.g. Doubao Pro 2.0"
+              <Label className="text-xs text-[#8B8BA3]">显示名称 *</Label>
+              <Input className="mt-1" placeholder="e.g. Llama 70B Chat"
                 value={editModel.display_name || ''} onChange={e => setEditModel(p => ({ ...p, display_name: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-xs text-[#8B8BA3]">Temperature</Label>
+                <Label className="text-xs text-[#8B8BA3]">温度 Temperature</Label>
                 <Input type="number" step="0.05" min="0" max="2" className="mt-1"
                   value={editModel.temperature ?? 0.85} onChange={e => setEditModel(p => ({ ...p, temperature: parseFloat(e.target.value) }))} />
               </div>
               <div>
-                <Label className="text-xs text-[#8B8BA3]">Max Tokens</Label>
+                <Label className="text-xs text-[#8B8BA3]">最大 Tokens</Label>
                 <Input type="number" className="mt-1"
                   value={editModel.max_tokens ?? 2048} onChange={e => setEditModel(p => ({ ...p, max_tokens: parseInt(e.target.value) }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-xs text-[#8B8BA3]">Cost Input ($/1K tokens)</Label>
+                <Label className="text-xs text-[#8B8BA3]">输入成本 ($/1K tokens)</Label>
                 <Input type="number" step="0.0001" className="mt-1"
                   value={editModel.cost_per_1k_input ?? 0} onChange={e => setEditModel(p => ({ ...p, cost_per_1k_input: parseFloat(e.target.value) }))} />
               </div>
               <div>
-                <Label className="text-xs text-[#8B8BA3]">Cost Output ($/1K tokens)</Label>
+                <Label className="text-xs text-[#8B8BA3]">输出成本 ($/1K tokens)</Label>
                 <Input type="number" step="0.0001" className="mt-1"
                   value={editModel.cost_per_1k_output ?? 0} onChange={e => setEditModel(p => ({ ...p, cost_per_1k_output: parseFloat(e.target.value) }))} />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label className="text-xs text-[#8B8BA3]">Priority</Label>
+                <Label className="text-xs text-[#8B8BA3]">优先级</Label>
                 <Input type="number" className="mt-1"
                   value={editModel.priority ?? 0} onChange={e => setEditModel(p => ({ ...p, priority: parseInt(e.target.value) }))} />
               </div>
               <div>
-                <Label className="text-xs text-[#8B8BA3]">Min Tier</Label>
+                <Label className="text-xs text-[#8B8BA3]">最低套餐</Label>
                 <Select value={editModel.min_tier || 'free'} onValueChange={v => setEditModel(p => ({ ...p, min_tier: v }))}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -710,26 +854,55 @@ export default function AdminModelsPage() {
                   <input type="checkbox" checked={editModel.is_active !== false}
                     onChange={e => setEditModel(p => ({ ...p, is_active: e.target.checked }))}
                     className="rounded accent-[#FF2D78]" />
-                  <span className="text-xs text-[#8B8BA3]">Active</span>
+                  <span className="text-xs text-[#8B8BA3]">启用</span>
                 </label>
               </div>
             </div>
             <div>
-              <Label className="text-xs text-[#8B8BA3]">API Base URL (optional)</Label>
-              <Input className="mt-1 font-mono text-sm" placeholder="Override default API base URL"
+              <Label className="text-xs text-[#8B8BA3]">API Base URL</Label>
+              <Input className="mt-1 font-mono text-sm" placeholder="https://api.together.xyz/v1 或 RunPod 端点"
                 value={editModel.api_base_url || ''} onChange={e => setEditModel(p => ({ ...p, api_base_url: e.target.value }))} />
             </div>
             <div>
-              <Label className="text-xs text-[#8B8BA3]">Notes</Label>
-              <Input className="mt-1" placeholder="Description or notes"
+              <Label className="text-xs text-[#8B8BA3]">API Key 环境变量名</Label>
+              <Input className="mt-1 font-mono text-sm" placeholder="TOGETHER_API_KEY / RUNPOD_VLLM_API_KEY"
+                value={editModel.api_key_env || ''} onChange={e => setEditModel(p => ({ ...p, api_key_env: e.target.value }))} />
+              <p className="mt-1 text-[10px] text-[#64748B]">密钥只存环境变量名，不写库；测试时从服务器 env 读取</p>
+            </div>
+            <div>
+              <Label className="text-xs text-[#8B8BA3]">备注</Label>
+              <Input className="mt-1" placeholder="用途说明、限流注意等"
                 value={editModel.notes || ''} onChange={e => setEditModel(p => ({ ...p, notes: e.target.value }))} />
             </div>
+
+            {testResult && (
+              <div className={`rounded-lg border p-3 text-xs ${testResult.success ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-red-500/30 bg-red-500/10 text-red-300'}`}>
+                {testResult.success ? (
+                  <>
+                    <p className="font-medium">连通成功 · {testResult.latency_ms}ms · 约 ${Number(testResult.cost_usd || 0).toFixed(6)}</p>
+                    {testResult.sample && <p className="mt-1 font-mono opacity-80 line-clamp-3">回复: {testResult.sample}</p>}
+                  </>
+                ) : (
+                  <p>失败: {testResult.error}</p>
+                )}
+              </div>
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialog(false)}>Cancel</Button>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={testing || !editModel.provider || !editModel.model_id}
+              onClick={() => handleTest()}
+              className="gap-1.5"
+            >
+              {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              测试 API
+            </Button>
+            <Button variant="outline" onClick={() => setEditDialog(false)}>取消</Button>
             <Button onClick={handleSave} disabled={saving} className="gap-2 bg-[#FF2D78] hover:bg-[#e0266b]">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {editModel.id ? 'Update' : 'Add Model'}
+              {editModel.id ? '保存' : '添加'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { runpodClient } from '@/lib/runpod';
-import { uploadDataUrl } from '@/lib/storage';
+import { resolveImageUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 
@@ -39,76 +39,6 @@ const ENV_TAGS: Record<string, string> = {
   cozy_room: 'warm cozy indoor space, comfortable furniture, soft lighting, homey atmosphere, warm inviting glow',
   outdoor: 'natural outdoor setting, open sky, scenic landscape, fresh air ambiance, bright warm sunlight',
 };
-
-/**
- * Fallback: generate image using RunPod directly (no Coze SDK)
- */
-async function generateWithRunPod(
-  prompt: string,
-  negativePrompt: string,
-  referenceImage?: string,
-): Promise<string> {
-  const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || '';
-  const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID || '';
-  const RUNPOD_BASE_URL = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}`;
-
-  const seed = Math.floor(Math.random() * 2147483647);
-  const workflow: Record<string, any> = {
-    '1': {
-      class_type: 'KSampler',
-      inputs: {
-        seed,
-        steps: 28,
-        cfg: 3.5,
-        sampler_name: 'euler',
-        scheduler: 'simple',
-        denoise: referenceImage ? 0.65 : 1,
-        model: ['2', 0],
-        positive: ['3', 0],
-        negative: ['4', 0],
-        latent_image: ['5', 0],
-      },
-    },
-    '2': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'flux1-dev-fp8.safetensors' } },
-    '3': { class_type: 'CLIPTextEncode', inputs: { text: prompt, clip: ['2', 1] } },
-    '4': { class_type: 'CLIPTextEncode', inputs: { text: negativePrompt, clip: ['2', 1] } },
-    '5': { class_type: 'EmptyLatentImage', inputs: { width: 768, height: 1024, batch_size: 1 } },
-    '6': { class_type: 'VAEDecode', inputs: { samples: ['1', 0], vae: ['2', 2] } },
-    '7': { class_type: 'SaveImage', inputs: { filename_prefix: 'soulmate', images: ['6', 0] } },
-  };
-
-  const submitRes = await fetch(`${RUNPOD_BASE_URL}/run`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${RUNPOD_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: { workflow } }),
-  });
-  if (!submitRes.ok) throw new Error(`RunPod submit failed: ${await submitRes.text()}`);
-  const { id: jobId } = await submitRes.json();
-  if (!jobId) throw new Error('No RunPod job ID');
-
-  for (let i = 0; i < 200; i++) {
-    await new Promise(r => setTimeout(r, 4000));
-    const statusRes = await fetch(`${RUNPOD_BASE_URL}/status/${jobId}`, {
-      headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
-    });
-    if (!statusRes.ok) continue;
-    const status = await statusRes.json();
-    if (status.status === 'COMPLETED') {
-      const images = status.output?.images || [];
-      if (!images.length) throw new Error('No images in output');
-      return images[0].data || images[0];
-    }
-    if (status.status === 'FAILED') throw new Error(`RunPod error: ${status.error || 'unknown'}`);
-  }
-  throw new Error('RunPod timeout');
-}
-
-async function uploadToStorage(base64Data: string): Promise<string> {
-  const dataUrl = `data:image/png;base64,${base64Data}`;
-  //  OSS key key image_url  URL
-  const key = await uploadDataUrl(dataUrl, 'chat_photos/photo');
-  return key;
-}
 
 export async function POST(request: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(request);
@@ -162,54 +92,56 @@ export async function POST(request: NextRequest) {
   const negativePrompt = 'nsfw, nude, explicit, cartoon, anime, illustration, painting, 3d render, low quality, blurry, distorted, bad anatomy, extra limbs, ugly, deformed, watermark, text, signature, logo, stiff, unnatural, plastic, artificial, dead eyes, blank expression, gloomy, depressing, dark shadows';
 
   try {
-    let imageUrl: string | null = null;
+    if (!runpodClient.isConfigured) {
+      return NextResponse.json(
+        { error: 'Image generation is not configured' },
+        { status: 503 },
+      );
+    }
 
-    // If RunPod is configured, use it with character consistency
-    if (runpodClient.isConfigured && gf.portrait_url) {
+    // Resolve signed URL so RunPod can download the portrait for img2img
+    let referenceImage: string | undefined;
+    if (gf.portrait_url) {
       try {
-        // Use img2img with girlfriend's portrait for character consistency
-        const [generatedUrl] = await runpodClient.generateAndUpload(
-          {
-            prompt,
-            negative_prompt: negativePrompt,
-            input_image: gf.portrait_url,
-            denoising_strength: 0.65, // Keep character identity while allowing new pose/env
-            width: 768,
-            height: 1024,
-            num_images: 1,
-            num_inference_steps: 28,
-            guidance_scale: 7.0,
-          },
-        );
-        if (generatedUrl) imageUrl = generatedUrl;
-      } catch (err) {
-        logger.warn('[Chat Generate Image] RunPod failed, falling back to direct RunPod:', { err });
+        referenceImage = (await resolveImageUrl(gf.portrait_url)) || gf.portrait_url;
+      } catch {
+        referenceImage = gf.portrait_url;
       }
     }
 
-    // Fallback: use direct RunPod API
-    if (!imageUrl) {
-      const base64 = await generateWithRunPod(prompt, negativePrompt, gf.portrait_url || undefined);
-      imageUrl = await uploadToStorage(base64);
-    }
+    // Always go through runpodClient — it builds LoadImage→VAEEncode img2img
+    // when input_image is set, and attaches the base64 blob for the worker.
+    const [generatedUrl] = await runpodClient.generateAndUpload(
+      {
+        prompt,
+        negative_prompt: negativePrompt,
+        input_image: referenceImage,
+        denoising_strength: referenceImage ? 0.62 : 1,
+        width: 768,
+        height: 1024,
+        num_images: 1,
+        num_inference_steps: 28,
+        guidance_scale: 3.5,
+      },
+      `chat_photos/${girlfriend_id}`,
+    );
 
-    if (!imageUrl) throw new Error('Failed to generate image');
+    if (!generatedUrl) throw new Error('Failed to generate image');
 
     const message = `${gf.name} sends you a photo  [${[mood, pose, environment].filter(Boolean).join(', ')}]`;
 
-    // Save as chat message
     await client.from('chat_messages').insert({
       user_id: user.id,
       girlfriend_id,
       role: 'assistant',
       content: message,
-      media_url: imageUrl,
+      media_url: generatedUrl,
     });
 
-    return NextResponse.json({ imageUrl, message });
+    return NextResponse.json({ imageUrl: generatedUrl, image_url: generatedUrl, message });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
     logger.error('[Chat Generate Image] Error:', { data: errMsg });
     return NextResponse.json({ error: errMsg }, { status: 500 });
-   }
+  }
 }

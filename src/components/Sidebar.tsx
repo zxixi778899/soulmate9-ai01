@@ -75,16 +75,17 @@ export function Sidebar() {
   const getInitials = (name: string) => name.charAt(0).toUpperCase();
 
   const navItems: { icon: typeof LayoutGrid; label: string; path: string }[] = [
-    { icon: LayoutGrid, label: 'Explore', path: '/explore' },
-    { icon: Sparkles,   label: 'Summon',  path: '/summon' },
-    { icon: ImageIcon,  label: 'Studio',  path: '/studio' },
-    { icon: Trophy,     label: 'Quest',   path: '/quest' },
-    { icon: User,       label: 'Profile', path: '/profile' },
+    { icon: LayoutGrid, label: '大厅', path: '/' },
+    { icon: Sparkles,   label: '卡池', path: '/explore' },
+    { icon: MessageCircle, label: '密语', path: '/chats' },
+    { icon: Plus,       label: '捏脸', path: '/create' },
+    { icon: ShoppingBag, label: '商城', path: '/shop' },
+    { icon: User,       label: '我的', path: '/profile' },
   ];
   const bottomItems = [
-    { icon: MessageCircle, label: 'Chats',    path: '/chats' },
-    { icon: ShoppingBag,   label: 'Shop',     path: '/shop' },
-    { icon: CreditCard,   label: 'Pricing',  path: '/pricing' },
+    { icon: Trophy,     label: '任务', path: '/quest' },
+    { icon: ImageIcon,  label: '工坊', path: '/studio' },
+    { icon: CreditCard, label: '会员', path: '/pricing' },
   ];
 
   return (

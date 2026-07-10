@@ -49,7 +49,7 @@ export function getSupabaseClient(token?: string): SupabaseClient {
     key = serviceRoleKey ?? anonKey;
   }
 
-  const globalOptions: Record<string, any> = {};
+  const globalOptions: { headers?: Record<string, string> } = {};
   if (token) {
     globalOptions.headers = { Authorization: `Bearer ${token}` };
   }

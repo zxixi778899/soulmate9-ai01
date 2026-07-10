@@ -135,9 +135,11 @@ export default function AdminDashboard() {
                 { label: '用户管理', href: '/admin/users', icon: Users },
                 { label: '审核管理', href: '/admin/review', icon: CheckSquare },
                 { label: '女友管理', href: '/admin/girlfriends', icon: Heart },
+                { label: '推荐角色', href: '/admin/featured', icon: Crown },
+                { label: '代币套餐', href: '/admin/tokens', icon: DollarSign },
                 { label: '图片管理', href: '/admin/images', icon: Image },
                 { label: '商城管理', href: '/admin/shop', icon: ShoppingBag },
-                { label: 'AI 模型', href: '/admin/models', icon: Activity },
+                { label: '站点设置', href: '/admin/settings', icon: Activity },
               ].map((action) => (
                 <button
                   key={action.label}

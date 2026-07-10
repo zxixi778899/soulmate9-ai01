@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { parseCharacterCard } from '@/lib/sillytavern/png-parser';
+import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
 
 export const runtime = 'nodejs';
 
@@ -40,13 +41,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: userMsg }, { status: 400 });
     }
 
-    // Map to girlfriend fields
-    const baseSlug = card.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    const uniqueSuffix = Date.now().toString(36);
-    const slug = `${baseSlug}-${uniqueSuffix}`;
+    // Always non-empty unique slug (DB NOT NULL on girlfriends.slug)
+    const slug = makeGirlfriendSlug(card.name);
 
     // Create the girlfriend in the database
     const { data: gf, error: insertError } = await supabase

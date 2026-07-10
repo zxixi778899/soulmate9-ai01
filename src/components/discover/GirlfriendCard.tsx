@@ -6,10 +6,10 @@
  */
 
 import { motion, useMotionValue, useTransform } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Heart, Sparkles, Flame, Wind, Droplet, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { type DemoGirl, RARITY_COLORS, ELEMENT_COLORS } from '@/lib/demo-data';
+import { type DemoGirl, ELEMENT_COLORS } from '@/lib/demo-data';
 
 const ELEMENT_ICON = {
   fire: Flame, water: Droplet, wind: Wind, light: Sun, dark: Moon,
@@ -34,6 +34,16 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const [hovered, setHovered] = useState(false);
+  // 3D tilt is desktop-only — fine pointer + hover. Touch devices skip
+  // expensive motion transforms for smoother explore-grid scrolling.
+  const [enableTilt, setEnableTilt] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const apply = () => setEnableTilt(mq.matches);
+    apply();
+    mq.addEventListener?.('change', apply);
+    return () => mq.removeEventListener?.('change', apply);
+  }, []);
   const rotateX = useTransform(y, [-150, 150], [10, -10]);
   const rotateY = useTransform(x, [-150, 150], [-10, 10]);
   const lightX = useTransform(x, [-150, 150], [0, 100]);
@@ -44,6 +54,7 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
   const wClass = size === 'large' ? 'w-80' : 'w-72';
 
   const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!enableTilt) return;
     const r = e.currentTarget.getBoundingClientRect();
     x.set(e.clientX - r.left - r.width / 2);
     y.set(e.clientY - r.top - r.height / 2);
@@ -61,11 +72,15 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
         wClass,
         className,
       )}
-      style={{ rotateX, rotateY, transformStyle: 'preserve-3d', transformPerspective: 1000 }}
+      style={
+        enableTilt
+          ? { rotateX, rotateY, transformStyle: 'preserve-3d', transformPerspective: 1000 }
+          : undefined
+      }
       onMouseMove={onMouseMove}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={onMouseLeave}
-      whileHover={{ scale: 1.02 }}
+      whileHover={enableTilt ? { scale: 1.02 } : undefined}
       whileTap={{ scale: 0.985 }}
       transition={{ type: 'spring', stiffness: 280, damping: 22 }}
       onClick={() => onClick?.(girl)}

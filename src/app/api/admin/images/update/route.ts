@@ -47,17 +47,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Invalid type: ${type}` }, { status: 400 });
   }
 
-  const updateField = field || 'portrait_url';
+  // Girlfriend: keep portrait + avatar in sync for list/chat thumbnails
+  const payload: Record<string, unknown> =
+    type === 'girlfriend'
+      ? {
+          portrait_url: imageUrl,
+          avatar_url: imageUrl,
+          ...(body.title ? { name: body.title } : {}),
+          ...(Array.isArray(body.tags) ? { tags: body.tags } : {}),
+          ...(typeof body.description === 'string' ? { short_description: body.description } : {}),
+        }
+      : { [field || (type === 'outfit' ? 'preview_url' : 'image_url')]: imageUrl };
 
-  const { error } = await client
-    .from(table)
-    .update({ [updateField]: imageUrl })
-    .eq('id', id);
+  const { error } = await client.from(table).update(payload).eq('id', id);
 
   if (error) {
     logger.error('admin/images/update: db error', { table, id, error });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, url: imageUrl });
 }

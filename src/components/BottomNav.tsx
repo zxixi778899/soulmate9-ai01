@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { cn } from '@/lib/utils';
-import { Heart, Plus, MessageCircle, ShoppingBag, User, Home, LogIn, Sparkles } from 'lucide-react';
+import {
+  Heart, MessageCircle, User, Home, LogIn, Wand2, ShoppingBag, Sparkles,
+} from 'lucide-react';
 
 interface NavItem {
   href: string;
@@ -14,17 +15,18 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/explore', label: 'Explore', icon: Heart },
-  { href: '/chats', label: 'Chats', icon: MessageCircle },
-  { href: '/shop', label: 'Shop', icon: ShoppingBag },
-  { href: '/create', label: 'Create', icon: Plus },
-  { href: '/profile', label: 'Profile', icon: User },
+  { href: '/', label: '选角', icon: Home },
+  { href: '/explore', label: '卡池', icon: Heart },
+  { href: '/chats', label: '密语', icon: MessageCircle },
+  { href: '/shop', label: '橱窗', icon: ShoppingBag },
+  { href: '/profile', label: '我的', icon: User },
 ];
 
 const publicNavItems: NavItem[] = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/login', label: 'Sign In', icon: LogIn },
-  { href: '/register', label: 'Sign Up', icon: Sparkles },
+  { href: '/', label: '选角', icon: Home },
+  { href: '/explore', label: '卡池', icon: Heart },
+  { href: '/login', label: '登录', icon: LogIn },
+  { href: '/register', label: '加入', icon: Sparkles },
 ];
 
 export default function BottomNav() {
@@ -32,23 +34,20 @@ export default function BottomNav() {
   const { user } = useAuth();
 
   if (pathname?.startsWith('/admin')) return null;
-  // Hide bottom nav in chat detail (IM full-screen style)
   if (pathname?.startsWith('/chat/')) return null;
+  if (pathname?.startsWith('/create')) return null;
 
   const isLoggedIn = !!user;
   const items = isLoggedIn ? navItems : publicNavItems;
 
   return (
-    <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-3xl pb-[env(safe-area-inset-bottom)]"
-      style={{
-        background: 'rgba(11, 11, 11, 0.95)',
-        borderTop: '1px solid rgba(255, 24, 160, 0.18)',
-      }}
-    >
-      <div className="mx-auto flex max-w-lg items-center justify-center gap-1 px-2 py-1.5">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 game-bottom-nav pb-[env(safe-area-inset-bottom)]">
+      <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">
         {items.map((item) => {
-          const active = pathname === item.href || pathname?.startsWith(item.href + '/');
+          const active =
+            item.href === '/'
+              ? pathname === '/'
+              : pathname === item.href || pathname?.startsWith(item.href + '/');
           const Icon = item.icon;
 
           return (
@@ -56,26 +55,33 @@ export default function BottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-4 py-1.5 text-xs transition-all duration-200 min-w-[60px] relative',
-                active
-                  ? 'text-[#FF18A0]'
-                  : 'text-white/35 hover:text-white/60',
+                'flex flex-col items-center justify-center gap-0.5 min-w-[56px] py-1.5 px-2 rounded-xl transition-all',
+                active ? 'text-[#FF6BA6]' : 'text-white/30 hover:text-white/55',
               )}
-              style={active ? {
-                textShadow: '0 0 12px rgba(255, 24, 160, 0.55)',
-              } : {}}
             >
-              <Icon className={cn('h-5 w-5 transition-all', active && 'fill-[#FF18A0]/15 scale-110')} />
-              <span className="text-[10px] leading-tight font-medium">
-                {item.label}
+              <span
+                className={cn(
+                  'relative flex h-8 w-8 items-center justify-center rounded-xl transition-all',
+                  active && 'glass-btn !rounded-xl !h-8 !w-8 !p-0 shadow-[0_0_16px_rgba(255,45,120,0.4)]',
+                )}
+              >
+                <Icon className={cn('h-[18px] w-[18px]', active && 'scale-110')} />
               </span>
+              <span className="text-[10px] font-medium leading-none">{item.label}</span>
             </Link>
           );
         })}
-        <div className="flex items-center justify-center px-1">
-          <LanguageSwitcher variant="compact" />
-        </div>
       </div>
+
+      {isLoggedIn && (
+        <Link
+          href="/create"
+          className="absolute -top-6 right-4 h-12 w-12 rounded-2xl glass-btn !rounded-2xl flex items-center justify-center border-2 border-[#0a0612] active:scale-95"
+          aria-label="捏脸创建"
+        >
+          <Wand2 className="h-5 w-5" />
+        </Link>
+      )}
     </nav>
   );
 }

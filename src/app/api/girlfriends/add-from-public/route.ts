@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
 
 export async function POST(request: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(request);
@@ -48,7 +49,8 @@ export async function POST(request: NextRequest) {
     short_description: publicGf.short_description || '',
     portrait_url: publicGf.portrait_url || null,
     avatar_url: publicGf.avatar_url || null,
-    slug: publicGf.slug,
+    // Keep public slug when present so re-add ownership check works; never insert null
+    slug: publicGf.slug || makeGirlfriendSlug(publicGf.name),
     appearance_hair: publicGf.appearance_hair || null,
     appearance_hair_color: publicGf.appearance_hair_color || null,
     appearance_eyes: publicGf.appearance_eyes || null,

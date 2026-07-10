@@ -1,7 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Loader2, Plus, Trash2, RefreshCw, Sparkles, Check, X, ChevronDown, ChevronUp, SlidersHorizontal, ImageIcon, User, Shirt, Package, Upload, Search } from 'lucide-react';
+import {
+  Loader2, Plus, Trash2, RefreshCw, Sparkles, Check, X, ChevronDown, ChevronUp,
+  ChevronLeft, ChevronRight, SlidersHorizontal, ImageIcon, User, Shirt, Package,
+  Upload, Search, Wand2, Save, Eraser,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -12,37 +16,42 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import { assembleFromItem } from '@/lib/prompt';
+import { GIRLFRIEND_NEGATIVE } from '@/lib/prompt/girlfriend';
+import { OUTFIT_NEGATIVE } from '@/lib/prompt/outfit';
+import { SHOP_ITEM_NEGATIVE } from '@/lib/prompt/shop_item';
 
-//  Types 
+// ── Types ──────────────────────────────────────────────────────────────────
+
+type ItemCategory = 'girlfriend' | 'outfit' | 'shop_item';
+
 interface ImageItem {
   id: string;
   name: string;
-  title?: string;
   imageUrl: string | null;
   hasImage: boolean;
-  category?: string;
-  tier?: string;
-  itemCategory: string;
+  itemCategory: ItemCategory;
   field: string;
-  slug?: string;
-  isPublic?: boolean;
-  reviewStatus?: string;
+  category?: string | null;
+  tier?: string | null;
+  slug?: string | null;
   personality?: string;
   appearance?: string;
-  appearance_race?: string;
-  appearance_hair?: string;
-  appearance_hair_color?: string;
-  appearance_eyes?: string;
-  appearance_body?: string;
-  appearance_style?: string;
-  character_card?: Record<string, unknown>;
+  appearance_race?: string | null;
+  appearance_hair?: string | null;
+  appearance_hair_color?: string | null;
+  appearance_eyes?: string | null;
+  appearance_body?: string | null;
+  appearance_style?: string | null;
+  character_card?: Record<string, unknown> | null;
   tags?: string[] | string;
-  createdAt?: string;
-  // 
   description?: string;
-  // 
-  item_type?: string;
-  intimacy_boost?: number;
+  item_type?: string | null;
+  intimacy_boost?: number | null;
+  image_prompt?: string | null;
+  backstory?: string | null;
+  short_description?: string | null;
+  created_at?: string | null;
 }
 
 interface PromptPreset {
@@ -52,23 +61,23 @@ interface PromptPreset {
   negativePrompt: string;
 }
 
-// Per-girlfriend independent generation state
-interface GirlfriendGenState {
-  // Prompt
+interface GenState {
   positivePrompt: string;
   negativePrompt: string;
   activePreset: string | null;
-  // Metadata
-  generatedMeta: any | null;
+  generatedMeta: {
+    title?: string;
+    description?: string;
+    tags?: string[];
+    appearance?: string;
+  } | null;
   editTitle: string;
   editDescription: string;
   editTags: string;
   editAppearance: string;
-  // Images
-  generatedImages: {url: string; alt: string}[];
+  generatedImages: { url: string; alt: string }[];
   selectedImages: Set<number>;
   genProgress: string;
-  // Parameters
   genParams: {
     steps: number;
     cfg: number;
@@ -78,15 +87,39 @@ interface GirlfriendGenState {
     sampler: string;
     scheduler: string;
   };
-  // Status
   metaGenerating: boolean;
   generating: boolean;
   useConsistency: boolean;
 }
 
-const DEFAULT_GEN_STATE: GirlfriendGenState = {
+interface Stats {
+  totalGirlfriends: number;
+  withPortrait: number;
+  totalOutfits: number;
+  withPreview: number;
+  totalShopItems: number;
+  shopItemsWithImage: number;
+}
+
+interface Pagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+interface LogEntry {
+  time: string;
+  message: string;
+  type: 'info' | 'success' | 'error' | 'progress';
+}
+
+const DEFAULT_NEGATIVE =
+  'worst quality, low quality, blurry, out of focus, deformed, disfigured, mutated, bad anatomy, bad hands, extra fingers, missing fingers, ugly, watermark, signature, text, logo, plastic skin, waxy skin';
+
+const DEFAULT_GEN_STATE: GenState = {
   positivePrompt: '',
-  negativePrompt: 'worst quality, low quality, blurry, out of focus, soft focus, motion blur, depth of field, bokeh, deformed, disfigured, mutated, bad anatomy, bad hands, extra fingers, missing fingers, ugly, watermark, signature, text, logo, dark lighting, harsh shadows, oversaturated, undersaturated, grainy, noisy, jpeg artifacts, compression artifacts, lowres, pixelated, plastic skin, waxy skin, looking away, expressionless',
+  negativePrompt: DEFAULT_NEGATIVE,
   activePreset: null,
   generatedMeta: null,
   editTitle: '',
@@ -110,33 +143,16 @@ const DEFAULT_GEN_STATE: GirlfriendGenState = {
   useConsistency: true,
 };
 
-interface Stats {
-  totalGirlfriends: number;
-  withPortrait: number;
-  totalOutfits: number;
-  withPreview: number;
-  totalShopItems: number;
-  shopItemsWithImage: number;
-}
+const TAB_META: Record<
+  ItemCategory,
+  { label: string; icon: typeof User; empty: string }
+> = {
+  girlfriend: { label: '女友', icon: User, empty: '暂无女友' },
+  outfit: { label: '道具/服装', icon: Shirt, empty: '暂无道具' },
+  shop_item: { label: '商城', icon: Package, empty: '暂无商城商品' },
+};
 
-interface LogEntry {
-  time: string;
-  message: string;
-  type: 'info' | 'success' | 'error' | 'progress';
-}
-
-//  Helpers 
-function authedFetch(url: string, options?: RequestInit) {
-  const token = getSessionToken();
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...options?.headers,
-      ...(token ? { 'x-session': token } : {}),
-      'Content-Type': 'application/json',
-    },
-  });
-}
+// ── Auth helpers ───────────────────────────────────────────────────────────
 
 function getSessionToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -145,116 +161,170 @@ function getSessionToken(): string | null {
       try {
         const data = JSON.parse(localStorage.getItem(key) || '{}');
         return data.access_token || null;
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
   }
   return null;
 }
 
-//  Main Page 
+function authedFetch(url: string, options?: RequestInit) {
+  const token = getSessionToken();
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...options?.headers,
+      ...(token ? { 'x-session': token } : {}),
+      ...(options?.body instanceof FormData
+        ? {}
+        : { 'Content-Type': 'application/json' }),
+    },
+  });
+}
+
+// ── Auto-fill prompt from entity traits (shared DSL) ───────────────────────
+
+function defaultNegativeFor(type: ItemCategory): string {
+  if (type === 'girlfriend') return GIRLFRIEND_NEGATIVE;
+  if (type === 'outfit') return OUTFIT_NEGATIVE;
+  return SHOP_ITEM_NEGATIVE;
+}
+
+function buildAutoPrompt(item: ImageItem): string {
+  const assembled = assembleFromItem(
+    item.itemCategory,
+    item as unknown as Record<string, unknown>,
+    item.image_prompt ? String(item.image_prompt) : '',
+  );
+  return assembled.positive;
+}
+
+function buildAutoNegative(item: ImageItem): string {
+  return defaultNegativeFor(item.itemCategory);
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────
+
 export default function AdminImagesPage() {
-  const [activeTab, setActiveTab] = useState<'girlfriend' | 'outfit' | 'shop_item'>('girlfriend');
+  const [activeTab, setActiveTab] = useState<ItemCategory>('girlfriend');
+  const [items, setItems] = useState<ImageItem[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [girlfriends, setGirlfriends] = useState<ImageItem[]>([]);
-  const [outfits, setOutfits] = useState<ImageItem[]>([]);
-  const [shopItems, setShopItems] = useState<ImageItem[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    pageSize: 12,
+    total: 0,
+    totalPages: 1,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Selection
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'with_image' | 'without_image'>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'created_at'>('created_at');
+
   const [selectedItem, setSelectedItem] = useState<ImageItem | null>(null);
-
-  // Prompt (global presets only)
   const [presets, setPresets] = useState<PromptPreset[]>([]);
+  const [genStates, setGenStates] = useState<Record<string, GenState>>({});
 
-  // Per-girlfriend independent generation state
-  const [genStates, setGenStates] = useState<Record<string, GirlfriendGenState>>({});
-
-  // Helper to get state for current selected item
-  const currentGenState = useMemo(() => {
-    if (!selectedItem) return DEFAULT_GEN_STATE;
-    return genStates[selectedItem.id] || DEFAULT_GEN_STATE;
-  }, [selectedItem, genStates]);
-
-  // Helper to update state for a specific girlfriend
-  const updateGenState = useCallback((id: string, updates: Partial<GirlfriendGenState>) => {
-    setGenStates(prev => ({
-      ...prev,
-      [id]: { ...prev[id] || DEFAULT_GEN_STATE, ...updates },
-    }));
-  }, []);
-
-  // Batch
   const [batchRunning, setBatchRunning] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  // New preset modal
   const [showAddPreset, setShowAddPreset] = useState(false);
   const [newPresetLabel, setNewPresetLabel] = useState('');
   const [newPresetPositive, setNewPresetPositive] = useState('');
   const [newPresetNegative, setNewPresetNegative] = useState('');
 
-  // Collapsible sections
   const [promptExpanded, setPromptExpanded] = useState(true);
-  const [logExpanded, setLogExpanded] = useState(true);
+  const [paramsExpanded, setParamsExpanded] = useState(false);
+  const [logExpanded, setLogExpanded] = useState(false);
 
-  //  Filters & Search 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'with_image' | 'without_image'>('all');
-  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('name');
-
-  //  Delete confirmation 
   const [deleteTarget, setDeleteTarget] = useState<ImageItem | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  // Upload
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<ImageItem | null>(null);
   const [uploading, setUploading] = useState(false);
-
-  // Params expanded
-  const [paramsExpanded, setParamsExpanded] = useState(false);
-
-  // Saving
   const [saving, setSaving] = useState(false);
 
-  //  Load data 
+  const currentGenState = useMemo(() => {
+    if (!selectedItem) return DEFAULT_GEN_STATE;
+    return genStates[selectedItem.id] || DEFAULT_GEN_STATE;
+  }, [selectedItem, genStates]);
+
+  const updateGenState = useCallback((id: string, updates: Partial<GenState>) => {
+    setGenStates((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] || DEFAULT_GEN_STATE), ...updates },
+    }));
+  }, []);
+
+  const addLog = useCallback((type: LogEntry['type'], message: string) => {
+    setLogs((prev) => [
+      ...prev.slice(-80),
+      { time: new Date().toLocaleTimeString(), message, type },
+    ]);
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPagination((p) => (p.page === 1 ? p : { ...p, page: 1 }));
+  }, [activeTab, debouncedSearch, filterStatus, sortBy]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const qs = new URLSearchParams({
+        type: activeTab,
+        page: String(pagination.page),
+        pageSize: String(pagination.pageSize),
+        status: filterStatus,
+        sort: sortBy,
+        stats: '1',
+      });
+      if (debouncedSearch) qs.set('search', debouncedSearch);
+
       const [listRes, presetsRes] = await Promise.all([
-        authedFetch('/api/admin/images/list'),
+        authedFetch(`/api/admin/images/list?${qs.toString()}`),
         authedFetch('/api/admin/prompts'),
       ]);
 
-      if (!listRes.ok) throw new Error('Failed to load image list');
-      const listData = await listRes.json();
-      setGirlfriends(listData.girlfriends || []);
-      setOutfits(listData.outfits || []);
-      setShopItems(listData.shopItems || []);
+      if (!listRes.ok) {
+        const err = await listRes.json().catch(() => ({}));
+        throw new Error(err.error || '加载图片列表失败');
+      }
 
-      // Compute stats
-      setStats({
-        totalGirlfriends: listData.girlfriends?.length || 0,
-        withPortrait: listData.girlfriends?.filter((g: ImageItem) => g.hasImage).length || 0,
-        totalOutfits: listData.outfits?.length || 0,
-        withPreview: listData.outfits?.filter((o: ImageItem) => o.hasImage).length || 0,
-        totalShopItems: listData.shopItems?.length || 0,
-        shopItemsWithImage: listData.shopItems?.filter((s: ImageItem) => s.hasImage).length || 0,
-      });
+      const listData = await listRes.json();
+      setItems((listData.items || []) as ImageItem[]);
+      if (listData.pagination) {
+        setPagination((prev) => ({
+          ...prev,
+          page: listData.pagination.page,
+          pageSize: listData.pagination.pageSize,
+          total: listData.pagination.total,
+          totalPages: listData.pagination.totalPages,
+        }));
+      }
+      if (listData.stats) setStats(listData.stats);
 
       if (presetsRes.ok) {
         const presetsData = await presetsRes.json();
         setPresets(presetsData.presets || []);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      setError(err instanceof Error ? err.message : '加载失败');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTab, pagination.page, pagination.pageSize, filterStatus, sortBy, debouncedSearch]);
 
   useEffect(() => {
     loadData();
@@ -264,45 +334,55 @@ export default function AdminImagesPage() {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  //  Delete item 
+  // When selecting an item, auto-fill type-specific prompt + negative
+  useEffect(() => {
+    if (!selectedItem) return;
+    const state = genStates[selectedItem.id];
+    if (!state || !state.positivePrompt) {
+      updateGenState(selectedItem.id, {
+        positivePrompt: buildAutoPrompt(selectedItem),
+        negativePrompt: buildAutoNegative(selectedItem),
+        editTitle: selectedItem.name,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItem?.id]);
+
+  // ── Delete ───────────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      // Determine the image URL field based on type
-      let imageUrlField = '';
-      if (deleteTarget.itemCategory === 'girlfriend') {
-        imageUrlField = deleteTarget.imageUrl || '';
-      } else if (deleteTarget.itemCategory === 'outfit') {
-        imageUrlField = deleteTarget.imageUrl || '';
-      } else if (deleteTarget.itemCategory === 'shop_item') {
-        imageUrlField = deleteTarget.imageUrl || '';
-      }
-
       const res = await authedFetch('/api/admin/images/delete', {
         method: 'POST',
         body: JSON.stringify({
           type: deleteTarget.itemCategory,
           id: deleteTarget.id,
-          imageUrl: imageUrlField,
+          imageUrl: deleteTarget.imageUrl || undefined,
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Delete failed');
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || '删除失败');
       }
-      addLog('success', `Deleted image for ${deleteTarget.name}`);
+      toast.success(`已删除 ${deleteTarget.name} 的图片`);
+      addLog('success', `删除图片：${deleteTarget.name}`);
       setDeleteTarget(null);
-      if (selectedItem?.id === deleteTarget.id) setSelectedItem(null);
+      if (selectedItem?.id === deleteTarget.id) {
+        setSelectedItem((prev) =>
+          prev ? { ...prev, imageUrl: null, hasImage: false } : prev,
+        );
+      }
       loadData();
     } catch (err) {
-      addLog('error', `Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      toast.error(err instanceof Error ? err.message : '删除失败');
+      addLog('error', `删除失败：${err instanceof Error ? err.message : '未知错误'}`);
     } finally {
       setDeleting(false);
     }
   };
 
-  //  Upload image 
+  // ── Upload ───────────────────────────────────────────────────────────────
   const handleUploadClick = (item: ImageItem) => {
     setUploadTarget(item);
     fileInputRef.current?.click();
@@ -311,7 +391,6 @@ export default function AdminImagesPage() {
   const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadTarget) return;
-
     setUploading(true);
     try {
       const formData = new FormData();
@@ -326,78 +405,39 @@ export default function AdminImagesPage() {
         headers: token ? { 'x-session': token } : {},
         body: formData,
       });
-      const contentType = res.headers.get('content-type');
       if (!res.ok) {
-        let errMsg = 'Upload failed';
-        if (contentType?.includes('application/json')) {
-          const err = await res.json();
-          errMsg = err.error || errMsg;
-        }
-        throw new Error(errMsg);
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || '上传失败');
       }
-
-      addLog('success', `Uploaded image for ${uploadTarget.name}`);
+      const data = await res.json();
+      toast.success(`已上传 ${uploadTarget.name} 的图片`);
+      addLog('success', `上传成功：${uploadTarget.name}`);
+      if (selectedItem?.id === uploadTarget.id) {
+        setSelectedItem((prev) =>
+          prev ? { ...prev, imageUrl: data.url, hasImage: true } : prev,
+        );
+      }
       setUploadTarget(null);
       loadData();
     } catch (err) {
-      addLog('error', `Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      toast.error(err instanceof Error ? err.message : '上传失败');
+      addLog('error', `上传失败：${err instanceof Error ? err.message : '未知错误'}`);
     } finally {
       setUploading(false);
-      // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  //  Get current items with filters 
-  const filteredItems = useMemo(() => {
-    const items = activeTab === 'girlfriend' ? girlfriends
-      : activeTab === 'outfit' ? outfits : shopItems;
-    
-    let filtered = items;
-    
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(item => 
-        item.name.toLowerCase().includes(query) ||
-        item.title?.toLowerCase().includes(query) ||
-        (Array.isArray(item.tags) && item.tags.some((tag: string) => tag.toLowerCase().includes(query)))
-      );
-    }
-    
-    // Apply status filter
-    if (filterStatus === 'with_image') {
-      filtered = filtered.filter(item => item.hasImage);
-    } else if (filterStatus === 'without_image') {
-      filtered = filtered.filter(item => !item.hasImage);
-    }
-    
-    // Apply sort
-    return filtered.sort((a, b) => {
-      if (sortBy === 'created_at') {
-        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return bTime - aTime;
-      }
-      return a.name.localeCompare(b.name);
-    });
-  }, [activeTab, girlfriends, outfits, shopItems, searchQuery, filterStatus, sortBy]);
-
-  const currentItems = filteredItems;
-
-  const currentLabel = activeTab === 'girlfriend' ? '' : activeTab === 'outfit' ? '' : '';
-
-  //  Apply preset 
+  // ── Presets ──────────────────────────────────────────────────────────────
   const applyPreset = (preset: PromptPreset) => {
     if (!selectedItem) return;
     updateGenState(selectedItem.id, {
       positivePrompt: preset.positivePrompt,
-      negativePrompt: preset.negativePrompt,
+      negativePrompt: preset.negativePrompt || DEFAULT_NEGATIVE,
       activePreset: preset.id,
     });
   };
 
-  //  Add/Delete Preset 
   const addPreset = async () => {
     if (!newPresetLabel || !newPresetPositive) return;
     const res = await authedFetch('/api/admin/prompts', {
@@ -415,6 +455,9 @@ export default function AdminImagesPage() {
       setNewPresetLabel('');
       setNewPresetPositive('');
       setNewPresetNegative('');
+      toast.success('预设已保存');
+    } else {
+      toast.error('保存预设失败');
     }
   };
 
@@ -425,48 +468,45 @@ export default function AdminImagesPage() {
     }
   };
 
-  //  Step 1: Generate Metadata (via LLM) 
-  // Auto-generate metadata when selecting a card (girlfriend only)
-  useEffect(() => {
-    if (selectedItem?.itemCategory === 'girlfriend') {
-      const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
-      if (!state.metaGenerating && !state.generatedMeta) {
-        const timer = setTimeout(() => generateMetaData(true), 500);
-        return () => clearTimeout(timer);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedItem?.id, selectedItem?.itemCategory]);
+  // ── Auto-fill / AI meta ──────────────────────────────────────────────────
+  const autoFillPrompt = () => {
+    if (!selectedItem) return;
+    updateGenState(selectedItem.id, {
+      positivePrompt: buildAutoPrompt(selectedItem),
+      negativePrompt: buildAutoNegative(selectedItem),
+      activePreset: null,
+      genProgress:
+        selectedItem.itemCategory === 'girlfriend'
+          ? '已填充：女友特征 + 固定性感体态 + 3/4 全身'
+          : selectedItem.itemCategory === 'outfit'
+            ? '已填充：无模特 · 性感 cos 游戏服装道具'
+            : '已填充：特效游戏道具风格',
+    });
+    toast.success('提示词已自动填充');
+  };
 
-  const generateMetaData = async (isAuto = false) => {
+  const generateMetaData = async () => {
     if (!selectedItem) return;
     const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
     if (state.metaGenerating) return;
-    
+
     updateGenState(selectedItem.id, {
       metaGenerating: true,
-      generatedMeta: null,
-      generatedImages: [],
-      selectedImages: new Set(),
-      genProgress: isAuto ? 'Auto-generating metadata from traits...' : 'Generating metadata via AI...',
+      genProgress: 'AI 正在根据属性生成元数据与提示词...',
     });
 
     try {
-      // Build a rich concept from item's own traits  /
-      let concept = state.positivePrompt;
+      let concept = state.positivePrompt || buildAutoPrompt(selectedItem);
       let girlfriendData: Record<string, unknown> | null = null;
       let outfitData: Record<string, unknown> | null = null;
       let propData: Record<string, unknown> | null = null;
 
-      if (!concept && selectedItem.itemCategory === 'girlfriend') {
-        const traits = [selectedItem.name];
-        if (selectedItem.personality) traits.push(`personality: ${selectedItem.personality}`);
-        const tagList = Array.isArray(selectedItem.tags) ? selectedItem.tags : (typeof selectedItem.tags === 'string' ? selectedItem.tags.split(',').map(t => t.trim()) : []);
-        if (tagList.length) traits.push(`tags: ${tagList.slice(0, 3).join(', ')}`);
-        if (selectedItem.appearance) traits.push(`appearance: ${selectedItem.appearance}`);
-        concept = traits.join(' | ');
-        
-        // Pass FULL girlfriend data for personalized metadata generation
+      if (selectedItem.itemCategory === 'girlfriend') {
+        const tagList = Array.isArray(selectedItem.tags)
+          ? selectedItem.tags
+          : typeof selectedItem.tags === 'string'
+            ? selectedItem.tags.split(',').map((t) => t.trim())
+            : [];
         girlfriendData = {
           name: selectedItem.name,
           personality: selectedItem.personality,
@@ -480,28 +520,14 @@ export default function AdminImagesPage() {
           appearance_style: selectedItem.appearance_style,
           character_card: selectedItem.character_card,
         };
-      } else if (!concept && selectedItem.itemCategory === 'outfit') {
-        // 
-        const traits = [selectedItem.name];
-        if (selectedItem.category) traits.push(`category: ${selectedItem.category}`);
-        if (selectedItem.tier) traits.push(`tier: ${selectedItem.tier}`);
-        if (selectedItem.description) traits.push(`description: ${selectedItem.description}`);
-        concept = traits.join(' | ');
-
+      } else if (selectedItem.itemCategory === 'outfit') {
         outfitData = {
           name: selectedItem.name,
           description: selectedItem.description,
           category: selectedItem.category,
           tier: selectedItem.tier,
         };
-      } else if (!concept && selectedItem.itemCategory === 'shop_item') {
-        // 
-        const traits = [selectedItem.name];
-        if (selectedItem.item_type) traits.push(`type: ${selectedItem.item_type}`);
-        if (selectedItem.category) traits.push(`category: ${selectedItem.category}`);
-        if (selectedItem.description) traits.push(`description: ${selectedItem.description}`);
-        concept = traits.join(' | ');
-
+      } else {
         propData = {
           name: selectedItem.name,
           description: selectedItem.description,
@@ -510,7 +536,7 @@ export default function AdminImagesPage() {
           intimacy_boost: selectedItem.intimacy_boost,
         };
       }
-      concept = concept || selectedItem.name;
+
       const res = await authedFetch('/api/v2/admin/images/generate-meta', {
         method: 'POST',
         body: JSON.stringify({
@@ -524,59 +550,81 @@ export default function AdminImagesPage() {
 
       if (!res.ok) {
         const err = await res.text();
-        throw new Error(`Metadata generation failed (${res.status}): ${err}`);
+        throw new Error(`元数据生成失败 (${res.status}): ${err}`);
       }
 
       const data = await res.json();
+      if (!data.metadata) throw new Error('未返回元数据');
 
-      if (data.metadata) {
-        updateGenState(selectedItem.id, {
-          generatedMeta: data.metadata,
-          editTitle: data.metadata.title || selectedItem.name,
-          editDescription: data.metadata.description || '',
-          editTags: data.metadata.tags?.join(', ') || '',
-          editAppearance: data.metadata.appearance || '',
-          genProgress: ' Metadata generated! Review and edit below, then click "".',
-          metaGenerating: false,
-        });
-      } else {
-        throw new Error('No metadata returned');
-      }
-    } catch (err) {
+      const appearance = data.metadata.appearance || concept;
       updateGenState(selectedItem.id, {
-        genProgress: ` Error: ${err instanceof Error ? err.message : 'Unknown'}`,
+        generatedMeta: data.metadata,
+        editTitle: data.metadata.title || selectedItem.name,
+        editDescription: data.metadata.description || '',
+        editTags: Array.isArray(data.metadata.tags)
+          ? data.metadata.tags.join(', ')
+          : '',
+        editAppearance: appearance,
+        positivePrompt: appearance,
+        genProgress: '元数据已生成，可编辑后点击「生成图片」',
         metaGenerating: false,
       });
+      toast.success('提示词/元数据已生成');
+    } catch (err) {
+      updateGenState(selectedItem.id, {
+        genProgress: `错误：${err instanceof Error ? err.message : '未知'}`,
+        metaGenerating: false,
+      });
+      toast.error(err instanceof Error ? err.message : '生成失败');
     }
   };
 
-  //  Step 2: Generate Images (from confirmed metadata) 
+  // ── Generate images ──────────────────────────────────────────────────────
   const generateFromMeta = async (deleteExisting = false) => {
     if (!selectedItem) return;
     const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
     if (state.generating) return;
-    
+
+    const prompt = state.editAppearance || state.positivePrompt;
+    if (!prompt?.trim()) {
+      toast.error('请先填写或自动填充提示词');
+      return;
+    }
+
     updateGenState(selectedItem.id, {
       generating: true,
       generatedImages: [],
       selectedImages: new Set(),
-      genProgress: 'Starting generation...',
+      genProgress: '正在生成图片，请稍候...',
     });
+    addLog('progress', `开始生成：${selectedItem.name}`);
 
     try {
-      // Start generation (returns immediately with task ID)
       const res = await authedFetch('/api/v2/admin/images/generate-from-meta', {
         method: 'POST',
         body: JSON.stringify({
           type: selectedItem.itemCategory,
-          metadata: state.generatedMeta ? {
-            title: state.editTitle,
-            description: state.editDescription,
-            tags: (state.editTags || '').split(',').map((t: string) => t.trim()).filter(Boolean),
-            appearance: state.editAppearance,
-          } : undefined,
+          metadata: state.generatedMeta
+            ? {
+                title: state.editTitle,
+                description: state.editDescription,
+                tags: (state.editTags || '')
+                  .split(',')
+                  .map((t) => t.trim())
+                  .filter(Boolean),
+                appearance: state.editAppearance || state.positivePrompt,
+              }
+            : {
+                title: selectedItem.name,
+                description: selectedItem.description || '',
+                tags: [],
+                appearance: state.positivePrompt,
+              },
           customPrompt: !state.generatedMeta ? state.positivePrompt : undefined,
-          referenceImage: state.useConsistency && selectedItem.imageUrl ? selectedItem.imageUrl : undefined,
+          referenceImage:
+            state.useConsistency && selectedItem.imageUrl
+              ? selectedItem.imageUrl
+              : undefined,
           existingId: selectedItem.id,
           existingField: selectedItem.field,
           deleteExisting,
@@ -589,134 +637,118 @@ export default function AdminImagesPage() {
           seed: state.genParams.seed,
           sampler: state.genParams.sampler,
           scheduler: state.genParams.scheduler,
-          girlfriendId: selectedItem.itemCategory === 'girlfriend' ? selectedItem.id : undefined,
+          girlfriendId:
+            selectedItem.itemCategory === 'girlfriend' ? selectedItem.id : undefined,
         }),
       });
 
       if (!res.ok) {
         const err = await res.text();
-        throw new Error(`Generation failed (${res.status}): ${err}`);
+        throw new Error(`生成失败 (${res.status}): ${err}`);
       }
 
       const data = await res.json();
+      if (!data.success) throw new Error(data.error || '生成失败');
 
-      if (!data.success) {
-        throw new Error(data.error || 'Generation failed');
-      }
-
-      // Update with results
       const images = (data.images || []).map((r: { url: string; alt: string }) => ({
         url: r.url,
         alt: r.alt,
       }));
       updateGenState(selectedItem.id, {
         generatedImages: images,
-        genProgress: ` ${images.length} images generated`,
+        genProgress: `已生成 ${images.length} 张图片，请选择一张确认`,
         generating: false,
       });
+      addLog('success', `${selectedItem.name} 生成 ${images.length} 张`);
+      toast.success(`生成完成：${images.length} 张`);
     } catch (err) {
       updateGenState(selectedItem.id, {
-        genProgress: ` Error: ${err instanceof Error ? err.message : 'Unknown'}`,
+        genProgress: `错误：${err instanceof Error ? err.message : '未知'}`,
         generating: false,
       });
+      addLog('error', err instanceof Error ? err.message : '生成失败');
+      toast.error(err instanceof Error ? err.message : '生成失败');
     }
   };
 
-  //  Manual mode: optimize prompt + generate 
-  const generateFromCustomPrompt = () => {
-    if (!selectedItem) return;
-    updateGenState(selectedItem.id, { generatedMeta: null }); // skip metadata step
-    generateFromMeta(false);
-  };
-
-  //  Regenerate (delete old + generate new) 
-  const handleRegenerate = () => {
-    if (!selectedItem) return;
-    const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
-    if (state.generatedMeta) {
-      generateFromMeta(true);
-    } else {
-      // No metadata yet  generate metadata first if concept, else manual
-      if (state.positivePrompt) {
-        generateFromCustomPrompt();
-      } else {
-        generateMetaData();
-      }
-    }
-  };
-
-  //  Confirm selected image 
   const confirmImage = async () => {
     if (!selectedItem) return;
     const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
-    if (state.selectedImages.size === 0) return;
+    if (state.selectedImages.size === 0) {
+      toast.error('请先选择一张生成结果');
+      return;
+    }
     setSaving(true);
-
     const idx = Array.from(state.selectedImages)[0];
     const selectedImg = state.generatedImages[idx];
-    const imageUrl = selectedImg?.url || '';
-    if (!imageUrl) { setSaving(false); return; }
+    if (!selectedImg?.url) {
+      setSaving(false);
+      return;
+    }
 
     try {
-      // Build update payload
-      const updatePayload: Record<string, unknown> = {
-        type: selectedItem.itemCategory,
-        id: selectedItem.id,
-        imageUrl,
-        field: selectedItem.field,
-      };
-
-      // Include metadata if available and edited
-      if (state.generatedMeta) {
-        updatePayload.title = state.editTitle || selectedItem.name;
-        updatePayload.description = state.editDescription || '';
-        updatePayload.tags = (state.editTags || '').split(',').map((t: string) => t.trim()).filter(Boolean);
-      }
-
       const res = await authedFetch('/api/admin/images/update', {
         method: 'POST',
-        body: JSON.stringify(updatePayload),
+        body: JSON.stringify({
+          type: selectedItem.itemCategory,
+          id: selectedItem.id,
+          imageUrl: selectedImg.url,
+          field: selectedItem.field,
+          title: state.editTitle || selectedItem.name,
+          description: state.editDescription || '',
+          tags: (state.editTags || '')
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean),
+        }),
       });
+      if (!res.ok) throw new Error('保存失败');
 
-      if (!res.ok) throw new Error('Failed to save');
-
-      addLog('success', ` ${selectedItem.name || selectedItem.id} image updated`);
+      toast.success('图片已应用到记录');
+      addLog('success', `已保存：${selectedItem.name}`);
       updateGenState(selectedItem.id, {
         generatedImages: [],
         selectedImages: new Set(),
-        generatedMeta: null,
       });
-      // Refresh list
+      setSelectedItem((prev) =>
+        prev ? { ...prev, imageUrl: selectedImg.url, hasImage: true } : prev,
+      );
       loadData();
-      // Update selected item
-      setSelectedItem((prev) => prev ? { ...prev, imageUrl, hasImage: true } : prev);
     } catch (err) {
-      addLog('error', ` Failed to save: ${err instanceof Error ? err.message : 'Unknown'}`);
+      toast.error(err instanceof Error ? err.message : '保存失败');
+      addLog('error', `保存失败：${err instanceof Error ? err.message : '未知'}`);
     } finally {
       setSaving(false);
     }
   };
 
-  //  Batch generate all 
+  const toggleSelect = (idx: number) => {
+    if (!selectedItem) return;
+    const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
+    const next = new Set(state.selectedImages);
+    if (next.has(idx)) next.delete(idx);
+    else {
+      next.clear();
+      next.add(idx);
+    }
+    updateGenState(selectedItem.id, { selectedImages: next });
+  };
+
   const batchGenerate = async () => {
     if (batchRunning) return;
     setBatchRunning(true);
+    setLogExpanded(true);
     setLogs([]);
-
-    addLog('info', ' Scanning for missing images...');
-
+    addLog('info', '开始批量补全缺失图片...');
     try {
-      // Use default params for batch (or could aggregate from all girlfriends)
-      const defaultParams = DEFAULT_GEN_STATE.genParams;
       const res = await authedFetch('/api/v2/runpod/batch', {
         method: 'POST',
-        body: JSON.stringify({ params: defaultParams }),
+        body: JSON.stringify({ params: DEFAULT_GEN_STATE.genParams }),
       });
-      if (!res.ok) throw new Error(`Batch failed (${res.status})`);
+      if (!res.ok) throw new Error(`批量任务失败 (${res.status})`);
 
       const reader = res.body?.getReader();
-      if (!reader) throw new Error('No response stream');
-
+      if (!reader) throw new Error('无响应流');
       const decoder = new TextDecoder();
       let buffer = '';
       let currentEvent = '';
@@ -724,257 +756,324 @@ export default function AdminImagesPage() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-
         for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith('data: ')) {
+          if (line.startsWith('event: ')) currentEvent = line.slice(7).trim();
+          else if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-
               if (currentEvent === 'log') {
-                if (data.type === 'info') addLog('info', data.message);
-                else if (data.type === 'success') addLog('success', data.message);
-                else if (data.type === 'error') addLog('error', ` ${data.message}`);
-                else if (data.type === 'progress') addLog('progress', data.message);
-                else if (data.type === 'done') addLog('success', data.message);
-                else addLog('info', data.message);
-              } else if (currentEvent === 'error') {
-                addLog('error', ` ${data.error || data.message || 'Unknown error'}`);
+                addLog(
+                  data.type === 'error'
+                    ? 'error'
+                    : data.type === 'success'
+                      ? 'success'
+                      : 'info',
+                  data.message,
+                );
               } else if (currentEvent === 'done') {
-                addLog('success', ` All done! ${data.completed} succeeded, ${data.failed} failed.`);
-              } else if (currentEvent === 'complete') {
-                addLog('success', ` ${data.name || data.id} generated`);
+                addLog(
+                  'success',
+                  `完成：成功 ${data.completed ?? 0}，失败 ${data.failed ?? 0}`,
+                );
               }
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           }
         }
       }
-
-      // Refresh data after batch completes
       loadData();
     } catch (err) {
-      addLog('error', ` Batch error: ${err instanceof Error ? err.message : 'Unknown'}`);
+      addLog('error', err instanceof Error ? err.message : '批量失败');
+      toast.error(err instanceof Error ? err.message : '批量失败');
     } finally {
       setBatchRunning(false);
     }
   };
 
-  //  Regenerate single item 
-  const regenerateItem = async (item: ImageItem) => {
-    setSelectedItem(item);
-    updateGenState(item.id, {
-      positivePrompt: '',
-      negativePrompt: DEFAULT_GEN_STATE.negativePrompt,
-      generatedImages: [],
-      selectedImages: new Set(),
-      generatedMeta: null,
-      activePreset: null,
-    });
+  // ── Render ───────────────────────────────────────────────────────────────
 
-    // Auto-generate metadata first
-    setTimeout(() => generateMetaData(), 300);
-  };
-
-  //  Replace image 
-  const replaceImage = (item: ImageItem) => {
-    setSelectedItem(item);
-    updateGenState(item.id, {
-      positivePrompt: '',
-      negativePrompt: DEFAULT_GEN_STATE.negativePrompt,
-      generatedImages: [],
-      selectedImages: new Set(),
-      generatedMeta: null,
-      activePreset: null,
-    });
-
-    // Scroll to generation panel
-    setTimeout(() => {
-      document.getElementById('gen-panel')?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
-
-  //  Log helper 
-  const addLog = (type: LogEntry['type'], message: string) => {
-    setLogs((prev) => [...prev, { time: new Date().toLocaleTimeString(), message, type }]);
-  };
-
-  //  Toggle image selection 
-  const toggleSelect = (idx: number) => {
-    if (!selectedItem) return;
-    const state = genStates[selectedItem.id] || DEFAULT_GEN_STATE;
-    const next = new Set(state.selectedImages);
-    if (next.has(idx)) next.delete(idx);
-    else next.add(idx);
-    updateGenState(selectedItem.id, { selectedImages: next });
-  };
-
-  //  Render 
-  if (loading) {
+  if (loading && items.length === 0) {
     return (
       <div className="flex h-96 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-[#2563EB]" />
-        <span className="ml-3 text-gray-500">Loading image resources...</span>
+        <span className="ml-3 text-gray-500">加载图片资源...</span>
       </div>
     );
   }
 
-  if (error) {
+  if (error && items.length === 0) {
     return (
       <div className="flex h-96 items-center justify-center">
         <div className="rounded-lg bg-red-50 p-6 text-center">
-          <p className="text-red-600 font-medium">Failed to load</p>
+          <p className="font-medium text-red-600">加载失败</p>
           <p className="mt-1 text-sm text-red-500">{error}</p>
-          <button onClick={loadData} className="mt-3 rounded-md bg-[#2563EB] px-4 py-2 text-sm text-white hover:bg-blue-700">
-            Retry
+          <button
+            onClick={loadData}
+            className="mt-3 rounded-md bg-[#2563EB] px-4 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            重试
           </button>
         </div>
       </div>
     );
   }
 
+  const missingCount =
+    (stats?.totalGirlfriends ?? 0) -
+    (stats?.withPortrait ?? 0) +
+    (stats?.totalOutfits ?? 0) -
+    (stats?.withPreview ?? 0) +
+    (stats?.totalShopItems ?? 0) -
+    (stats?.shopItemsWithImage ?? 0);
+
   return (
-    <div className="min-h-screen bg-[#F5F7FA] p-6" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/*  Header  */}
-      <div className="mb-6 flex items-center justify-between">
+    <div className="min-h-screen bg-[#F5F7FA] p-4 md:p-6" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
+
+      {/* Header */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1E293B]"></h1>
-          <p className="mt-1 text-sm text-[#64748B]"></p>
+          <h1 className="text-2xl font-bold text-[#1E293B]">图片管理</h1>
+          <p className="mt-1 text-sm text-[#64748B]">
+            女友 / 道具 / 商城：AI 绘图、上传、删除、提示词编辑与自动填充
+          </p>
         </div>
-        <button
-          onClick={batchGenerate}
-          disabled={batchRunning}
-          className="flex items-center gap-2 rounded-lg bg-[#2563EB] px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {batchRunning ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> ...</>
-          ) : (
-            <><Sparkles className="h-4 w-4" /> </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#64748B] hover:bg-gray-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            刷新
+          </button>
+          <button
+            onClick={batchGenerate}
+            disabled={batchRunning}
+            className="flex items-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+          >
+            {batchRunning ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> 批量生成中...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" /> 批量补全缺图
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/*  Stats Cards  */}
-      <div className="mb-6 grid grid-cols-4 gap-4">
+      {/* Stats */}
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
           icon={<User className="h-5 w-5" />}
-          label=""
+          label="女友"
           value={stats?.totalGirlfriends ?? 0}
-          sub={` ${stats?.withPortrait ?? 0} `}
+          sub={`已有图 ${stats?.withPortrait ?? 0}`}
           color="blue"
         />
         <StatCard
           icon={<Shirt className="h-5 w-5" />}
-          label=""
+          label="道具/服装"
           value={stats?.totalOutfits ?? 0}
-          sub={` ${stats?.withPreview ?? 0} `}
+          sub={`已有图 ${stats?.withPreview ?? 0}`}
           color="emerald"
         />
         <StatCard
           icon={<Package className="h-5 w-5" />}
-          label=""
+          label="商城"
           value={stats?.totalShopItems ?? 0}
-          sub={` ${stats?.shopItemsWithImage ?? 0} `}
+          sub={`已有图 ${stats?.shopItemsWithImage ?? 0}`}
           color="amber"
         />
         <StatCard
           icon={<ImageIcon className="h-5 w-5" />}
-          label=""
-          value={(stats?.totalGirlfriends ?? 0) - (stats?.withPortrait ?? 0) +
-                   (stats?.totalOutfits ?? 0) - (stats?.withPreview ?? 0) +
-                   (stats?.totalShopItems ?? 0) - (stats?.shopItemsWithImage ?? 0)}
-          sub=""
+          label="待补图"
+          value={Math.max(0, missingCount)}
+          sub="三类合计"
           color="rose"
         />
       </div>
 
-      {/*  Generation Parameters (standalone)  */}
-      <div className="rounded-xl bg-white shadow-sm border border-gray-100">
+      {/* Gen params (global for selected) */}
+      <div className="mb-5 rounded-xl border border-gray-100 bg-white shadow-sm">
         <button
           onClick={() => setParamsExpanded(!paramsExpanded)}
           className="flex w-full items-center justify-between px-5 py-3.5 text-sm font-medium text-[#1E293B] hover:bg-gray-50/50"
         >
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-[#64748B]" />
-            <span>{selectedItem ? `  ${selectedItem.name}` : ''}</span>
+            <span>
+              生成参数
+              {selectedItem ? ` · ${selectedItem.name}` : ' · 请先选择条目'}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-[#64748B]">
-              {currentGenState.genParams.steps}  CFG {currentGenState.genParams.cfg}  {currentGenState.genParams.width}{currentGenState.genParams.height}
+              Steps {currentGenState.genParams.steps} · CFG {currentGenState.genParams.cfg} ·{' '}
+              {currentGenState.genParams.width}×{currentGenState.genParams.height}
             </span>
-            {paramsExpanded ? <ChevronUp className="h-4 w-4 text-[#64748B]" /> : <ChevronDown className="h-4 w-4 text-[#64748B]" />}
+            {paramsExpanded ? (
+              <ChevronUp className="h-4 w-4 text-[#64748B]" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-[#64748B]" />
+            )}
           </div>
         </button>
         {paramsExpanded && (
           <div className="border-t border-gray-100 px-5 pb-5 pt-4">
-            <div className="grid grid-cols-5 gap-4">
-              {/* Steps */}
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
               <div>
-                <label className="flex items-center justify-between text-xs text-[#64748B] mb-1">
+                <label className="mb-1 flex items-center justify-between text-xs text-[#64748B]">
                   <span>Steps</span>
-                  <span className="font-mono font-semibold text-[#1E293B]">{currentGenState.genParams.steps}</span>
+                  <span className="font-mono font-semibold text-[#1E293B]">
+                    {currentGenState.genParams.steps}
+                  </span>
                 </label>
-                <input type="range" min={10} max={50} step={1} value={currentGenState.genParams.steps}
-                  onChange={(e) => selectedItem && updateGenState(selectedItem.id, { genParams: { ...currentGenState.genParams, steps: Number(e.target.value) } })}
-                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-gray-200 accent-[#2563EB]" />
+                <input
+                  type="range"
+                  min={10}
+                  max={50}
+                  step={1}
+                  value={currentGenState.genParams.steps}
+                  disabled={!selectedItem}
+                  onChange={(e) =>
+                    selectedItem &&
+                    updateGenState(selectedItem.id, {
+                      genParams: {
+                        ...currentGenState.genParams,
+                        steps: Number(e.target.value),
+                      },
+                    })
+                  }
+                  className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-[#2563EB]"
+                />
               </div>
-              {/* CFG */}
               <div>
-                <label className="flex items-center justify-between text-xs text-[#64748B] mb-1">
+                <label className="mb-1 flex items-center justify-between text-xs text-[#64748B]">
                   <span>CFG</span>
-                  <span className="font-mono font-semibold text-[#1E293B]">{currentGenState.genParams.cfg}</span>
+                  <span className="font-mono font-semibold text-[#1E293B]">
+                    {currentGenState.genParams.cfg}
+                  </span>
                 </label>
-                <input type="range" min={1.5} max={7} step={0.5} value={currentGenState.genParams.cfg}
-                  onChange={(e) => selectedItem && updateGenState(selectedItem.id, { genParams: { ...currentGenState.genParams, cfg: Number(e.target.value) } })}
-                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-gray-200 accent-[#2563EB]" />
+                <input
+                  type="range"
+                  min={1.5}
+                  max={7}
+                  step={0.5}
+                  value={currentGenState.genParams.cfg}
+                  disabled={!selectedItem}
+                  onChange={(e) =>
+                    selectedItem &&
+                    updateGenState(selectedItem.id, {
+                      genParams: {
+                        ...currentGenState.genParams,
+                        cfg: Number(e.target.value),
+                      },
+                    })
+                  }
+                  className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-[#2563EB]"
+                />
               </div>
-              {/* Seed */}
               <div>
-                <label className="text-xs text-[#64748B] mb-1 block">Seed-1 </label>
-                <input type="number" value={currentGenState.genParams.seed}
-                  onChange={(e) => selectedItem && updateGenState(selectedItem.id, { genParams: { ...currentGenState.genParams, seed: Number(e.target.value) } })}
-                  className="w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#2563EB]" />
+                <label className="mb-1 block text-xs text-[#64748B]">Seed（-1 随机）</label>
+                <input
+                  type="number"
+                  value={currentGenState.genParams.seed}
+                  disabled={!selectedItem}
+                  onChange={(e) =>
+                    selectedItem &&
+                    updateGenState(selectedItem.id, {
+                      genParams: {
+                        ...currentGenState.genParams,
+                        seed: Number(e.target.value),
+                      },
+                    })
+                  }
+                  className="w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
+                />
               </div>
-              {/* Size */}
               <div>
-                <label className="text-xs text-[#64748B] mb-1 block"></label>
-                <select value={`${currentGenState.genParams.width}x${currentGenState.genParams.height}`}
-                  onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); selectedItem && updateGenState(selectedItem.id, { genParams: { ...currentGenState.genParams, width: w, height: h } }); }}
-                  className="w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#2563EB]">
-                  <option value="512x768"> 512768</option>
-                  <option value="768x1024"> 7681024</option>
-                  <option value="1024x1280"> 10241280</option>
-                  <option value="1024x1024"> 10241024</option>
-                  <option value="1024x768"> 1024768</option>
-                  <option value="768x512"> 768512</option>
+                <label className="mb-1 block text-xs text-[#64748B]">尺寸</label>
+                <select
+                  value={`${currentGenState.genParams.width}x${currentGenState.genParams.height}`}
+                  disabled={!selectedItem}
+                  onChange={(e) => {
+                    const [w, h] = e.target.value.split('x').map(Number);
+                    selectedItem &&
+                      updateGenState(selectedItem.id, {
+                        genParams: {
+                          ...currentGenState.genParams,
+                          width: w,
+                          height: h,
+                        },
+                      });
+                  }}
+                  className="w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
+                >
+                  <option value="512x768">竖版 512×768</option>
+                  <option value="768x1024">竖版 768×1024</option>
+                  <option value="832x1216">竖版 832×1216</option>
+                  <option value="1024x1280">竖版 1024×1280</option>
+                  <option value="1024x1024">方图 1024×1024</option>
+                  <option value="1024x768">横版 1024×768</option>
                 </select>
               </div>
-              {/* Sampler */}
               <div>
-                <label className="text-xs text-[#64748B] mb-1 block">Sampler / Scheduler</label>
+                <label className="mb-1 block text-xs text-[#64748B]">Sampler / Scheduler</label>
                 <div className="flex gap-1.5">
-                  <select value={currentGenState.genParams.sampler}
-                    onChange={(e) => selectedItem && updateGenState(selectedItem.id, { genParams: { ...currentGenState.genParams, sampler: e.target.value } })}
-                    className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#2563EB]">
-                    <option value="dpmpp_2m">DPM++ 2M</option>
-                    <option value="dpmpp_3m">DPM++ 3M</option>
+                  <select
+                    value={currentGenState.genParams.sampler}
+                    disabled={!selectedItem}
+                    onChange={(e) =>
+                      selectedItem &&
+                      updateGenState(selectedItem.id, {
+                        genParams: {
+                          ...currentGenState.genParams,
+                          sampler: e.target.value,
+                        },
+                      })
+                    }
+                    className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs"
+                  >
                     <option value="euler">Euler</option>
                     <option value="euler_ancestral">Euler Anc.</option>
+                    <option value="dpmpp_2m">DPM++ 2M</option>
+                    <option value="dpmpp_3m">DPM++ 3M</option>
                     <option value="dpmpp_sde">DPM++ SDE</option>
                     <option value="ddim">DDIM</option>
                   </select>
-                  <select value={currentGenState.genParams.scheduler}
-                    onChange={(e) => selectedItem && updateGenState(selectedItem.id, { genParams: { ...currentGenState.genParams, scheduler: e.target.value } })}
-                    className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#2563EB]">
+                  <select
+                    value={currentGenState.genParams.scheduler}
+                    disabled={!selectedItem}
+                    onChange={(e) =>
+                      selectedItem &&
+                      updateGenState(selectedItem.id, {
+                        genParams: {
+                          ...currentGenState.genParams,
+                          scheduler: e.target.value,
+                        },
+                      })
+                    }
+                    className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs"
+                  >
+                    <option value="simple">Simple</option>
                     <option value="karras">Karras</option>
                     <option value="normal">Normal</option>
                     <option value="exponential">Exp.</option>
                     <option value="sgm_uniform">SGM Uni.</option>
-                    <option value="simple">Simple</option>
                   </select>
                 </div>
               </div>
@@ -983,199 +1082,290 @@ export default function AdminImagesPage() {
         )}
       </div>
 
-      {/*  Main Content  */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/*  Left: Resource Library  */}
+        {/* Left: library */}
         <div className="xl:col-span-2">
-          <div className="rounded-xl bg-white shadow-sm border border-gray-100">
+          <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
             {/* Tabs */}
-            <div className="flex border-b border-gray-100">
-              {[
-                { key: 'girlfriend' as const, label: '', count: girlfriends.length, icon: <User className="h-4 w-4" /> },
-                { key: 'outfit' as const, label: '', count: outfits.length, icon: <Shirt className="h-4 w-4" /> },
-                { key: 'shop_item' as const, label: '', count: shopItems.length, icon: <Package className="h-4 w-4" /> },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => { setActiveTab(tab.key); setSelectedItem(null); }}
-                  className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-colors ${
-                    activeTab === tab.key
-                      ? 'border-b-2 border-[#2563EB] text-[#2563EB]'
-                      : 'text-[#64748B] hover:text-[#1E293B] border-b-2 border-transparent'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.label}
-                  <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{tab.count}</span>
-                </button>
-              ))}
-              <div className="ml-auto flex items-center pr-2">
-                <button
-                  onClick={loadData}
-                  className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-[#64748B] hover:bg-gray-100 hover:text-[#1E293B] transition-colors"
-                  title=""
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  <span></span>
-                </button>
-              </div>
+            <div className="flex flex-wrap border-b border-gray-100">
+              {(Object.keys(TAB_META) as ItemCategory[]).map((key) => {
+                const meta = TAB_META[key];
+                const Icon = meta.icon;
+                const count =
+                  key === 'girlfriend'
+                    ? stats?.totalGirlfriends
+                    : key === 'outfit'
+                      ? stats?.totalOutfits
+                      : stats?.totalShopItems;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setActiveTab(key);
+                      setSelectedItem(null);
+                      setPagination((p) => ({ ...p, page: 1 }));
+                    }}
+                    className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium transition-colors ${
+                      activeTab === key
+                        ? 'border-b-2 border-[#2563EB] text-[#2563EB]'
+                        : 'border-b-2 border-transparent text-[#64748B] hover:text-[#1E293B]'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {meta.label}
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                      {count ?? '—'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Filters & Search */}
-            <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3">
-              {/* Search */}
-              <div className="relative flex-1 max-w-md">
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 px-4 py-3">
+              <div className="relative min-w-[180px] flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder={`${currentLabel}...`}
+                  placeholder={`搜索${TAB_META[activeTab].label}名称...`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-10 pr-4 text-sm focus:border-[#2563EB] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
                 />
               </div>
-
-              {/* Status Filter */}
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value as 'all' | 'with_image' | 'without_image')}
-                className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
+                onChange={(e) =>
+                  setFilterStatus(e.target.value as 'all' | 'with_image' | 'without_image')
+                }
+                className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
               >
-                <option value="all"></option>
-                <option value="with_image"></option>
-                <option value="without_image"></option>
+                <option value="all">全部状态</option>
+                <option value="with_image">已有图片</option>
+                <option value="without_image">缺少图片</option>
               </select>
-
-              {/* Sort */}
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as 'name' | 'created_at')}
-                className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
+                className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
               >
-                <option value="name"></option>
-                <option value="created_at"></option>
+                <option value="created_at">最新创建</option>
+                <option value="name">名称排序</option>
               </select>
-
-              {/* Count */}
               <div className="ml-auto text-sm text-gray-500">
-                 {currentItems.length} / {activeTab === 'girlfriend' ? girlfriends.length : activeTab === 'outfit' ? outfits.length : shopItems.length}
+                共 {pagination.total} 条 · 第 {pagination.page}/{pagination.totalPages} 页
+                {loading && (
+                  <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin text-gray-400" />
+                )}
               </div>
             </div>
 
             {/* Grid */}
             <div className="p-4">
-              {currentItems.length === 0 ? (
-                <div className="flex h-32 items-center justify-center text-sm text-[#64748B]">
-                   {currentLabel}
+              {items.length === 0 ? (
+                <div className="flex h-40 flex-col items-center justify-center text-sm text-[#64748B]">
+                  <ImageIcon className="mb-2 h-8 w-8 text-gray-300" />
+                  {TAB_META[activeTab].empty}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                  {currentItems.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setSelectedItem(item)}
-                      className={`group relative overflow-hidden rounded-lg border-2 transition-all ${
-                        selectedItem?.id === item.id
-                          ? 'border-[#2563EB] ring-2 ring-blue-200'
-                          : 'border-gray-100 hover:border-gray-300'
-                      }`}
-                    >
-                      {/* Image or placeholder */}
-                      <div className="aspect-[3/4] w-full bg-gray-50">
-                        {item.hasImage && item.imageUrl ? (
-                          <img
-                            src={item.imageUrl}
-                            alt={item.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <div className="text-center">
-                              <ImageIcon className="mx-auto h-8 w-8 text-gray-300" />
-                              <span className="mt-1 block text-xs text-gray-400">No image</span>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                  {items.map((item) => {
+                    const busy =
+                      genStates[item.id]?.generating || genStates[item.id]?.metaGenerating;
+                    return (
+                      <div
+                        key={item.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedItem(item)}
+                        onKeyDown={(e) => e.key === 'Enter' && setSelectedItem(item)}
+                        className={`group relative overflow-hidden rounded-lg border-2 text-left transition-all ${
+                          selectedItem?.id === item.id
+                            ? 'border-[#2563EB] ring-2 ring-blue-200'
+                            : 'border-gray-100 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="aspect-[3/4] w-full bg-gray-50">
+                          {item.hasImage && item.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center">
+                              <div className="text-center">
+                                <ImageIcon className="mx-auto h-8 w-8 text-gray-300" />
+                                <span className="mt-1 block text-xs text-gray-400">无图</span>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Overlay status badge */}
-                      <div className={`absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        item.hasImage
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {item.hasImage ? <Check className="h-2.5 w-2.5" /> : <RefreshCw className="h-2.5 w-2.5" />}
-                      </div>
-
-                      {/* Action buttons - always visible */}
-                      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-3 pb-2">
-                        {/* Delete button */}
-                        <div
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(item); }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-md text-red-500 transition-all hover:bg-red-500 hover:text-white hover:scale-105 cursor-pointer"
-                          title=""
-                        >
-                          <Trash2 className="h-4 w-4" />
+                          )}
                         </div>
 
-                        {/* Upload button */}
                         <div
-                          onClick={(e) => { e.stopPropagation(); handleUploadClick(item); }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-md text-[#2563EB] transition-all hover:bg-[#2563EB] hover:text-white hover:scale-105 cursor-pointer"
-                          title=""
+                          className={`absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            item.hasImage
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}
                         >
-                          <Upload className="h-4 w-4" />
+                          {item.hasImage ? '有图' : '缺图'}
                         </div>
 
-                        {/* Select indicator */}
-                        {selectedItem?.id === item.id && (
-                          <div className="absolute inset-0 rounded-lg ring-2 ring-[#2563EB] ring-offset-1 pointer-events-none" />
-                        )}
-
-                        {/* Generation status indicator */}
-                        {(genStates[item.id]?.generating || genStates[item.id]?.metaGenerating) && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
-                            <Loader2 className="h-5 w-5 text-white animate-spin" />
+                        {busy && (
+                          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/30">
+                            <Loader2 className="h-6 w-6 animate-spin text-white" />
                           </div>
                         )}
-                        {genStates[item.id]?.generatedImages.length > 0 && !genStates[item.id]?.generating && (
-                          <div className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#10B981]">
-                            <Check className="h-2.5 w-2.5 text-white" />
-                          </div>
-                        )}
-                      </div>
 
-                      {/* Name */}
-                      <div className="px-2 py-1.5 text-left">
-                        <p className="truncate text-xs font-medium text-[#1E293B]">{item.name}</p>
-                        {item.category && (
-                          <p className="truncate text-[10px] text-[#64748B]">{item.category}</p>
-                        )}
-                        {genStates[item.id]?.generating && (
-                          <p className="truncate text-[10px] text-[#2563EB] font-medium">...</p>
-                        )}
-                        {genStates[item.id]?.genProgress && !genStates[item.id]?.generating && (
-                          <p className="truncate text-[10px] text-[#64748B]">{genStates[item.id].genProgress.slice(0, 30)}</p>
-                        )}
+                        <div className="absolute inset-x-0 bottom-10 flex justify-center gap-2 px-2 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            type="button"
+                            title="删除图片"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteTarget(item);
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-red-500 shadow-md hover:bg-red-500 hover:text-white"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            title="上传图片"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUploadClick(item);
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#2563EB] shadow-md hover:bg-[#2563EB] hover:text-white"
+                          >
+                            <Upload className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            title="选中并绘图"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedItem(item);
+                              document
+                                .getElementById('gen-panel')
+                                ?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-emerald-600 shadow-md hover:bg-emerald-500 hover:text-white"
+                          >
+                            <Sparkles className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="px-2 py-1.5">
+                          <p className="truncate text-xs font-medium text-[#1E293B]">{item.name}</p>
+                          {item.category && (
+                            <p className="truncate text-[10px] text-[#64748B]">{item.category}</p>
+                          )}
+                        </div>
                       </div>
-                    </button>
-                  ))}
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="mt-5 flex items-center justify-center gap-2">
+                  <button
+                    disabled={pagination.page <= 1 || loading}
+                    onClick={() =>
+                      setPagination((p) => ({ ...p, page: Math.max(1, p.page - 1) }))
+                    }
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="px-3 text-sm text-gray-600">
+                    {pagination.page} / {pagination.totalPages}
+                  </span>
+                  <button
+                    disabled={pagination.page >= pagination.totalPages || loading}
+                    onClick={() =>
+                      setPagination((p) => ({
+                        ...p,
+                        page: Math.min(p.totalPages, p.page + 1),
+                      }))
+                    }
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                  <select
+                    value={pagination.pageSize}
+                    onChange={(e) =>
+                      setPagination((p) => ({
+                        ...p,
+                        page: 1,
+                        pageSize: Number(e.target.value),
+                      }))
+                    }
+                    className="ml-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs"
+                  >
+                    <option value={12}>12 / 页</option>
+                    <option value={24}>24 / 页</option>
+                    <option value={36}>36 / 页</option>
+                  </select>
                 </div>
               )}
             </div>
           </div>
+
+          {/* Logs */}
+          <div className="mt-4 rounded-xl border border-gray-100 bg-white shadow-sm">
+            <button
+              onClick={() => setLogExpanded(!logExpanded)}
+              className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
+            >
+              <span>操作日志</span>
+              {logExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {logExpanded && (
+              <div className="max-h-40 overflow-y-auto border-t border-gray-100 px-4 py-2 font-mono text-xs">
+                {logs.length === 0 ? (
+                  <p className="py-4 text-center text-gray-400">暂无日志</p>
+                ) : (
+                  logs.map((log, i) => (
+                    <div
+                      key={i}
+                      className={`py-0.5 ${
+                        log.type === 'error'
+                          ? 'text-red-600'
+                          : log.type === 'success'
+                            ? 'text-emerald-600'
+                            : 'text-gray-600'
+                      }`}
+                    >
+                      <span className="text-gray-400">[{log.time}]</span> {log.message}
+                    </div>
+                  ))
+                )}
+                <div ref={logEndRef} />
+              </div>
+            )}
+          </div>
         </div>
 
-        {/*  Right: Detail + Generation Panel  */}
-        <div className="space-y-4">
+        {/* Right: detail + gen */}
+        <div className="space-y-4" id="gen-panel">
           {selectedItem ? (
             <>
-              {/* Item Detail */}
-              <div className="rounded-xl bg-white shadow-sm border border-gray-100 p-4" id="gen-panel">
+              <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
                 <div className="mb-3 flex items-center gap-3">
-                  <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-gray-50">
+                  <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-gray-50">
                     {selectedItem.imageUrl ? (
-                      <img src={selectedItem.imageUrl} alt={selectedItem.name} className="h-full w-full object-cover" />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={selectedItem.imageUrl}
+                        alt={selectedItem.name}
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <div className="flex h-full items-center justify-center">
                         <ImageIcon className="h-5 w-5 text-gray-300" />
@@ -1183,48 +1373,80 @@ export default function AdminImagesPage() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold text-[#1E293B] truncate">{selectedItem.name}</h3>
+                    <h3 className="truncate font-semibold text-[#1E293B]">{selectedItem.name}</h3>
                     <p className="text-xs text-[#64748B]">
-                      {currentLabel}  {selectedItem.hasImage ? '' : ''}
-                      {selectedItem.category && `  ${selectedItem.category}`}
+                      {TAB_META[selectedItem.itemCategory].label}
+                      {selectedItem.hasImage ? ' · 已有图片' : ' · 缺少图片'}
+                      {selectedItem.category ? ` · ${selectedItem.category}` : ''}
                     </p>
+                    {selectedItem.appearance && (
+                      <p className="mt-0.5 line-clamp-2 text-[11px] text-gray-400">
+                        {selectedItem.appearance}
+                      </p>
+                    )}
                   </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => regenerateItem(selectedItem)}
-                      className="rounded-md bg-gray-100 p-2 text-gray-500 hover:bg-gray-200"
-                      title=""
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </button>
-                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleUploadClick(selectedItem)}
+                    disabled={uploading}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-[#2563EB] hover:bg-blue-50"
+                  >
+                    {uploading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    上传
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(selectedItem)}
+                    disabled={!selectedItem.hasImage}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-40"
+                  >
+                    <Eraser className="h-3.5 w-3.5" />
+                    删图
+                  </button>
+                  <button
+                    onClick={autoFillPrompt}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-violet-600 hover:bg-violet-50"
+                  >
+                    <Wand2 className="h-3.5 w-3.5" />
+                    自动填充
+                  </button>
                 </div>
               </div>
 
-              {/* Prompt Editor */}
-              <div className="rounded-xl bg-white shadow-sm border border-gray-100">
+              {/* Prompt editor */}
+              <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
                 <button
                   onClick={() => setPromptExpanded(!promptExpanded)}
                   className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-[#1E293B]"
                 >
-                  
-                  {promptExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  <span>提示词编辑</span>
+                  {promptExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </button>
 
                 {promptExpanded && (
-                  <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
-                    {/* Presets */}
+                  <div className="space-y-3 border-t border-gray-100 px-4 pb-4 pt-3">
                     <div>
                       <div className="mb-1.5 flex items-center justify-between">
-                        <span className="text-xs font-medium text-[#64748B]"></span>
+                        <span className="text-xs font-medium text-[#64748B]">预设</span>
                         <button
                           onClick={() => setShowAddPreset(true)}
                           className="flex items-center gap-1 text-xs text-[#2563EB] hover:text-blue-700"
                         >
-                          <Plus className="h-3 w-3" /> 
+                          <Plus className="h-3 w-3" /> 新建
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
+                        {presets.length === 0 && (
+                          <span className="text-xs text-gray-400">暂无预设</span>
+                        )}
                         {presets.map((p) => (
                           <div key={p.id} className="group relative">
                             <button
@@ -1248,79 +1470,166 @@ export default function AdminImagesPage() {
                       </div>
                     </div>
 
-                    {/* Positive */}
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-[#64748B]"></label>
+                      <label className="mb-1 block text-xs font-medium text-[#64748B]">
+                        正向提示词
+                      </label>
                       <textarea
                         value={currentGenState.positivePrompt}
-                        onChange={(e) => selectedItem && updateGenState(selectedItem.id, { positivePrompt: e.target.value, activePreset: null })}
-                        placeholder="Describe the image you want to generate..."
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 resize-y min-h-[60px]"
-                        rows={3}
+                        onChange={(e) =>
+                          selectedItem &&
+                          updateGenState(selectedItem.id, {
+                            positivePrompt: e.target.value,
+                            activePreset: null,
+                          })
+                        }
+                        placeholder="描述你想生成的画面..."
+                        className="min-h-[80px] w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30"
+                        rows={4}
                       />
                     </div>
 
-                    {/* Negative */}
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-[#64748B]"></label>
+                      <label className="mb-1 block text-xs font-medium text-[#64748B]">
+                        负向提示词
+                      </label>
                       <textarea
                         value={currentGenState.negativePrompt}
-                        onChange={(e) => selectedItem && updateGenState(selectedItem.id, { negativePrompt: e.target.value })}
-                        placeholder="Things to avoid..."
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 resize-y min-h-[40px]"
+                        onChange={(e) =>
+                          selectedItem &&
+                          updateGenState(selectedItem.id, {
+                            negativePrompt: e.target.value,
+                          })
+                        }
+                        placeholder="不希望出现的内容..."
+                        className="min-h-[48px] w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30"
                         rows={2}
                       />
                     </div>
 
-                    {/* Consistency toggle */}
-                    {selectedItem?.hasImage && (
-                      <label className="flex items-center gap-2 rounded-lg bg-[#F8FAFC] border border-gray-100 px-3 py-2">
+                    {selectedItem.hasImage && (
+                      <label className="flex items-center gap-2 rounded-lg border border-gray-100 bg-[#F8FAFC] px-3 py-2">
                         <input
                           type="checkbox"
                           checked={currentGenState.useConsistency}
-                          onChange={(e) => selectedItem && updateGenState(selectedItem.id, { useConsistency: e.target.checked })}
-                          className="h-4 w-4 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+                          onChange={(e) =>
+                            selectedItem &&
+                            updateGenState(selectedItem.id, {
+                              useConsistency: e.target.checked,
+                            })
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-[#2563EB]"
                         />
                         <div className="flex-1">
-                          <span className="text-sm font-medium text-[#1E293B]"></span>
-                          <p className="text-xs text-[#64748B]"></p>
+                          <span className="text-sm font-medium text-[#1E293B]">
+                            参考现有图保持一致性
+                          </span>
+                          <p className="text-xs text-[#64748B]">img2img 风格，尽量保留脸型/体态</p>
                         </div>
                       </label>
                     )}
 
-                    {/* Generate buttons row */}
-                    <div className="flex gap-2">
-                      {/* Step 1: Generate Metadata (only if no metadata yet) */}
-                      {!currentGenState.generatedMeta && (
-                        <button
-                          onClick={() => generateMetaData()}
-                          disabled={currentGenState.metaGenerating || !currentGenState.positivePrompt}
-                          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#2563EB] bg-white px-4 py-2.5 text-sm font-medium text-[#2563EB] hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {currentGenState.metaGenerating ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> ...</>
-                          ) : (
-                            <><Sparkles className="h-4 w-4" /> </>
-                          )}
-                        </button>
-                      )}
+                    {/* Metadata fields after AI fill */}
+                    {currentGenState.generatedMeta && (
+                      <div className="space-y-2 rounded-lg border border-gray-100 bg-[#F8FAFC] p-3">
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                            AI 元数据（可编辑）
+                          </h5>
+                          <button
+                            onClick={generateMetaData}
+                            disabled={currentGenState.metaGenerating}
+                            className="flex items-center gap-1 text-xs text-[#2563EB]"
+                          >
+                            <RefreshCw
+                              className={`h-3 w-3 ${
+                                currentGenState.metaGenerating ? 'animate-spin' : ''
+                              }`}
+                            />
+                            重生成
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={currentGenState.editTitle}
+                          onChange={(e) =>
+                            selectedItem &&
+                            updateGenState(selectedItem.id, { editTitle: e.target.value })
+                          }
+                          placeholder="标题"
+                          className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm"
+                        />
+                        <textarea
+                          value={currentGenState.editDescription}
+                          onChange={(e) =>
+                            selectedItem &&
+                            updateGenState(selectedItem.id, {
+                              editDescription: e.target.value,
+                            })
+                          }
+                          placeholder="描述"
+                          rows={2}
+                          className="w-full resize-y rounded-md border border-gray-200 px-3 py-1.5 text-sm"
+                        />
+                        <input
+                          type="text"
+                          value={currentGenState.editTags}
+                          onChange={(e) =>
+                            selectedItem &&
+                            updateGenState(selectedItem.id, { editTags: e.target.value })
+                          }
+                          placeholder="标签，逗号分隔"
+                          className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm"
+                        />
+                        <textarea
+                          value={currentGenState.editAppearance}
+                          onChange={(e) =>
+                            selectedItem &&
+                            updateGenState(selectedItem.id, {
+                              editAppearance: e.target.value,
+                              positivePrompt: e.target.value,
+                            })
+                          }
+                          placeholder="外观/绘图描述（将用于生成）"
+                          rows={3}
+                          className="w-full resize-y rounded-md border border-gray-200 px-3 py-1.5 text-sm"
+                        />
+                      </div>
+                    )}
 
-                      {/* Step 2: Generate Images */}
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={generateMetaData}
+                        disabled={currentGenState.metaGenerating}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#2563EB] bg-white px-4 py-2.5 text-sm font-medium text-[#2563EB] hover:bg-blue-50 disabled:opacity-50"
+                      >
+                        {currentGenState.metaGenerating ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" /> AI 生成提示词中...
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="h-4 w-4" /> AI 优化提示词
+                          </>
+                        )}
+                      </button>
                       <button
                         onClick={() => generateFromMeta(false)}
-                        disabled={currentGenState.generating || (!currentGenState.generatedMeta && !currentGenState.positivePrompt)}
-                        className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${
-                          currentGenState.generatedMeta
-                            ? 'flex-1 bg-[#2563EB] hover:bg-blue-700'
-                            : 'flex-1 bg-[#10B981] hover:bg-emerald-600'
-                        }`}
+                        disabled={
+                          currentGenState.generating ||
+                          (!currentGenState.positivePrompt.trim() &&
+                            !currentGenState.editAppearance.trim())
+                        }
+                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
                       >
                         {currentGenState.generating ? (
-                          <><Loader2 className="h-4 w-4 animate-spin" /> ...</>
-                        ) : currentGenState.generatedMeta ? (
-                          <><Sparkles className="h-4 w-4" /> </>
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" /> 绘图中...
+                          </>
                         ) : (
-                          <><Sparkles className="h-4 w-4" /> </>
+                          <>
+                            <Sparkles className="h-4 w-4" /> 生成图片
+                          </>
                         )}
                       </button>
                     </div>
@@ -1332,10 +1641,12 @@ export default function AdminImagesPage() {
                 )}
               </div>
 
-              {/* Generated Results */}
+              {/* Results */}
               {currentGenState.generatedImages.length > 0 && (
-                <div className="rounded-xl bg-white shadow-sm border border-gray-100 p-4">
-                  <h4 className="mb-3 text-sm font-semibold text-[#1E293B]"></h4>
+                <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+                  <h4 className="mb-3 text-sm font-semibold text-[#1E293B]">
+                    生成结果（点选一张后确认）
+                  </h4>
                   <div className="grid grid-cols-2 gap-2">
                     {currentGenState.generatedImages.map((img, idx) => (
                       <button
@@ -1347,7 +1658,12 @@ export default function AdminImagesPage() {
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <img src={img.url} alt={img.alt || `Generated ${idx + 1}`} className="aspect-[3/4] w-full object-cover" />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.url}
+                          alt={img.alt || `生成 ${idx + 1}`}
+                          className="aspect-[3/4] w-full object-cover"
+                        />
                         {currentGenState.selectedImages.has(idx) && (
                           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                             <Check className="h-8 w-8 text-white drop-shadow-lg" />
@@ -1356,206 +1672,109 @@ export default function AdminImagesPage() {
                       </button>
                     ))}
                   </div>
-
-                  {/*  Metadata Editor (shown after Step 1) */}
-                  {currentGenState.generatedMeta && (
-                    <div className="mt-3 space-y-2 rounded-lg bg-[#F8FAFC] border border-gray-100 p-3">
-                      <div className="flex items-center justify-between">
-                        <h5 className="text-xs font-semibold text-[#64748B] uppercase tracking-wider"></h5>
-                        <button
-                          onClick={() => generateMetaData()}
-                          disabled={currentGenState.metaGenerating}
-                          className="flex items-center gap-1 text-xs text-[#2563EB] hover:text-blue-700"
-                        >
-                          <RefreshCw className={`h-3 w-3 ${currentGenState.metaGenerating ? 'animate-spin' : ''}`} />
-                          
-                        </button>
-                      </div>
-                      <div>
-                        <label className="block text-xs text-[#64748B] mb-1">/</label>
-                        <input
-                          type="text"
-                          value={currentGenState.editTitle}
-                          onChange={(e) => selectedItem && updateGenState(selectedItem.id, { editTitle: e.target.value })}
-                          className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-[#1E293B] bg-white focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-[#64748B] mb-1">/</label>
-                        <textarea
-                          value={currentGenState.editDescription}
-                          onChange={(e) => selectedItem && updateGenState(selectedItem.id, { editDescription: e.target.value })}
-                          rows={2}
-                          className="w-full resize-y rounded-md border border-gray-200 px-3 py-1.5 text-sm text-[#1E293B] bg-white focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-[#64748B] mb-1"></label>
-                        <input
-                          type="text"
-                          value={currentGenState.editTags}
-                          onChange={(e) => selectedItem && updateGenState(selectedItem.id, { editTags: e.target.value })}
-                          placeholder="e.g. cute, blonde, casual"
-                          className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-[#1E293B] bg-white focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-[#64748B] mb-1"></label>
-                        <textarea
-                          value={currentGenState.editAppearance}
-                          onChange={(e) => selectedItem && updateGenState(selectedItem.id, { editAppearance: e.target.value })}
-                          rows={2}
-                          className="w-full resize-y rounded-md border border-gray-200 px-3 py-1.5 text-sm text-[#1E293B] bg-white focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
-                          placeholder="Visual description for image generation  will be auto-optimized"
-                        />
-                      </div>
-                    </div>
-                  )}
-
                   <div className="mt-3 flex gap-2">
                     <button
                       onClick={confirmImage}
                       disabled={currentGenState.selectedImages.size === 0 || saving}
-                      className="flex-1 rounded-lg bg-[#10B981] px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#10B981] px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
                     >
-                      {saving ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : ' '}
+                      {saving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" /> 确认应用
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={() => generateFromMeta(true)}
                       disabled={currentGenState.generating}
                       className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-gray-200"
+                      title="重新生成"
                     >
-                      <RefreshCw className={`h-4 w-4 ${currentGenState.generating ? 'animate-spin' : ''}`} />
+                      <RefreshCw
+                        className={`h-4 w-4 ${currentGenState.generating ? 'animate-spin' : ''}`}
+                      />
                     </button>
                   </div>
                 </div>
               )}
             </>
           ) : (
-            <div className="flex h-48 items-center justify-center rounded-xl bg-white shadow-sm border border-gray-100">
+            <div className="flex h-64 items-center justify-center rounded-xl border border-gray-100 bg-white shadow-sm">
               <div className="text-center text-sm text-[#64748B]">
-                <ImageIcon className="mx-auto mb-2 h-8 w-8 text-gray-300" />
-                <p></p>
+                <ImageIcon className="mx-auto mb-2 h-10 w-10 text-gray-300" />
+                <p className="font-medium text-gray-600">选择左侧条目开始管理</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  支持 AI 绘图 · 上传 · 删除 · 提示词自动填充
+                </p>
               </div>
-            </div>
-          )}
-
-          {/*  Generation Log  */}
-          {logs.length > 0 && (
-            <div className="rounded-xl bg-white shadow-sm border border-gray-100">
-              <button
-                onClick={() => setLogExpanded(!logExpanded)}
-                className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-[#1E293B]"
-              >
-                
-                {logExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-
-              {logExpanded && (
-                <div className="max-h-48 overflow-y-auto border-t border-gray-100 px-4 py-2">
-                  {logs.map((log, idx) => (
-                    <div key={idx} className="py-1 text-xs">
-                      <span className="text-[#94A3B8]">[{log.time}]</span>{' '}
-                      <span className={
-                        log.type === 'success' ? 'text-[#10B981]'
-                        : log.type === 'error' ? 'text-[#EF4444]'
-                        : log.type === 'progress' ? 'text-[#2563EB]'
-                        : 'text-[#64748B]'
-                      }>{log.message}</span>
-                    </div>
-                  ))}
-                  <div ref={logEndRef} />
-                </div>
-              )}
             </div>
           )}
         </div>
       </div>
 
-      {/*  Add Preset Modal  */}
-      {showAddPreset && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-lg">
-            <h3 className="mb-4 text-lg font-semibold text-[#1E293B]"></h3>
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-[#64748B]"></label>
-                <input
-                  value={newPresetLabel}
-                  onChange={(e) => setNewPresetLabel(e.target.value)}
-                  placeholder=": "
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-[#64748B]"></label>
-                <textarea
-                  value={newPresetPositive}
-                  onChange={(e) => setNewPresetPositive(e.target.value)}
-                  placeholder="Describe the image style..."
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 resize-y"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-[#64748B]"></label>
-                <textarea
-                  value={newPresetNegative}
-                  onChange={(e) => setNewPresetNegative(e.target.value)}
-                  placeholder="Things to avoid..."
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 resize-y"
-                  rows={2}
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setShowAddPreset(false)}
-                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-gray-200"
-              >
-                
-              </button>
-              <button
-                onClick={addPreset}
-                disabled={!newPresetLabel || !newPresetPositive}
-                className="rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/*  Hidden file input for upload  */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        className="hidden"
-        onChange={handleFileSelected}
-      />
-
-      {/*  Delete Confirmation Dialog  */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => {
-        if (!open && !deleting) setDeleteTarget(null);
-      }}>
+      {/* Delete dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle></AlertDialogTitle>
+            <AlertDialogTitle>删除图片？</AlertDialogTitle>
             <AlertDialogDescription>
-               <strong>{deleteTarget?.name}</strong> 
-              {deleteTarget?.hasImage && ' '}
+              将清除「{deleteTarget?.name}」的图片字段
+              {deleteTarget?.itemCategory === 'girlfriend' ? '（portrait / avatar）' : ''}
+              ，不会删除角色/商品记录本身。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}></AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
             <button
               onClick={handleDelete}
               disabled={deleting}
-              className="inline-flex items-center justify-center rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
-              {deleting ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> ...</> : ''}
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : '确认删除'}
+            </button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Add preset dialog */}
+      <AlertDialog open={showAddPreset} onOpenChange={setShowAddPreset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>新建提示词预设</AlertDialogTitle>
+            <AlertDialogDescription>保存常用正向/负向提示词，方便一键套用。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 py-2">
+            <input
+              value={newPresetLabel}
+              onChange={(e) => setNewPresetLabel(e.target.value)}
+              placeholder="预设名称"
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+            />
+            <textarea
+              value={newPresetPositive}
+              onChange={(e) => setNewPresetPositive(e.target.value)}
+              placeholder="正向提示词"
+              rows={3}
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+            />
+            <textarea
+              value={newPresetNegative}
+              onChange={(e) => setNewPresetNegative(e.target.value)}
+              placeholder="负向提示词（可选）"
+              rows={2}
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <button
+              onClick={addPreset}
+              disabled={!newPresetLabel || !newPresetPositive}
+              className="inline-flex items-center justify-center rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              保存
             </button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1564,7 +1783,6 @@ export default function AdminImagesPage() {
   );
 }
 
-//  StatCard Component 
 function StatCard({
   icon,
   label,
@@ -1578,25 +1796,22 @@ function StatCard({
   sub: string;
   color: 'blue' | 'emerald' | 'amber' | 'rose';
 }) {
-  const colorMap = {
-    blue: 'text-[#2563EB] bg-blue-50',
-    emerald: 'text-[#10B981] bg-emerald-50',
-    amber: 'text-[#F59E0B] bg-amber-50',
-    rose: 'text-[#EF4444] bg-red-50',
+  const colors = {
+    blue: 'bg-blue-50 text-blue-600',
+    emerald: 'bg-emerald-50 text-emerald-600',
+    amber: 'bg-amber-50 text-amber-600',
+    rose: 'bg-rose-50 text-rose-600',
   };
-
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-gray-100">
+    <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
       <div className="flex items-center gap-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${colorMap[color]}`}>
-          {icon}
-        </div>
+        <div className={`rounded-lg p-2 ${colors[color]}`}>{icon}</div>
         <div>
           <p className="text-xs text-[#64748B]">{label}</p>
-          <p className="text-2xl font-bold text-[#1E293B]">{value}</p>
+          <p className="text-xl font-bold text-[#1E293B]">{value}</p>
+          <p className="text-[11px] text-gray-400">{sub}</p>
         </div>
       </div>
-      <p className="mt-1 text-[11px] text-[#94A3B8]">{sub}</p>
     </div>
   );
 }

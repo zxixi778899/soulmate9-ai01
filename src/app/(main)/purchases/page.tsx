@@ -117,7 +117,10 @@ export default function PurchasesPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <Badge className="mb-2 bg-primary/20 text-primary hover:bg-primary/30">
-                    {membership.membership_tier?.charAt(0).toUpperCase() + membership.membership_tier?.slice(1) || 'Free'}
+                    {(() => {
+                      const t = membership.membership_tier || membership.tier || 'free';
+                      return t.charAt(0).toUpperCase() + t.slice(1);
+                    })()}
                   </Badge>
                   <p className="text-sm text-muted-foreground mt-1">
                     {membership.credits_remaining} credits remaining

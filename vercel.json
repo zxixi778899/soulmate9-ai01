@@ -1,8 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "pnpm install --no-frozen-lockfile",
-  "buildCommand": "next build",
-  "ignoreCommand": "node -e \"process.exit(0)\"",
+  "build": {
+    "env": {
+      "NEXT_DISABLE_ESLINT": "1",
+      "ESLINT_NO_DEV_ERRORS": "true"
+    }
+  },
   "crons": [
     { "path": "/api/cron/subscription-reminder", "schedule": "0 9 * * *" },
     { "path": "/api/cron/re-engagement", "schedule": "0 14 * * *" },

@@ -1,12 +1,19 @@
 'use client';
-import { useTranslation } from '@/lib/i18n/context';
 
+/**
+ * Messages list — name + dynamic mood
+ */
+
+import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Loader2, MessageCircle, Plus, Search, X } from 'lucide-react';
+import { GameShell } from '@/components/game/GameShell';
+import { PageHeader } from '@/components/game/PageHeader';
+import { deriveMood, loadChatCache } from '@/lib/chat-cache';
+import { cn } from '@/lib/utils';
 
 type Girlfriend = {
   id: string;
@@ -20,6 +27,7 @@ type LastMessage = {
   created_at: string;
   role?: 'user' | 'assistant';
 };
+type IntimacyRow = { girlfriend_id: string; score: number; level: number };
 
 function formatRelative(dateStr: string): string {
   const date = new Date(dateStr);
@@ -29,13 +37,13 @@ function formatRelative(dateStr: string): string {
   const startOfYesterday = startOfToday - 86400000;
   const ts = date.getTime();
   if (ts >= startOfToday) {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   }
-  if (ts >= startOfYesterday) return 'Yesterday';
+  if (ts >= startOfYesterday) return '昨天';
   if (diff < 7 * 86400000) {
-    return date.toLocaleDateString('en-US', { weekday: 'short' });
+    return date.toLocaleDateString([], { weekday: 'short' });
   }
-  return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+  return date.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
 }
 
 export default function MessagesPage() {
@@ -43,21 +51,52 @@ export default function MessagesPage() {
   const router = useRouter();
   const [girlfriends, setGirlfriends] = useState<Girlfriend[]>([]);
   const [lastMessages, setLastMessages] = useState<Record<string, LastMessage>>({});
+  const [intimacyMap, setIntimacyMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [tick, setTick] = useState(0);
+
+  // Subtle mood re-roll animation every 20s
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 20000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     Promise.all([
-      authedFetch('/api/girlfriends').then(r => r.json()),
-      authedFetch('/api/chat/last-messages').then(r => r.json()),
+      authedFetch('/api/girlfriends').then((r) => r.json()),
+      authedFetch('/api/chat/last-messages').then((r) => r.json()),
+      authedFetch('/api/intimacy').then((r) => r.json()).catch(() => ({ scores: [] })),
     ])
-      .then(([gfData, msgData]) => {
+      .then(([gfData, msgData, intData]) => {
         setGirlfriends(gfData.girlfriends || []);
         const msgMap: Record<string, LastMessage> = {};
         (msgData.messages || []).forEach((m: LastMessage) => {
           msgMap[m.girlfriend_id] = m;
         });
+        // Overlay last message from local chat cache if newer
+        (gfData.girlfriends || []).forEach((g: Girlfriend) => {
+          const cache = loadChatCache(g.id);
+          const last = cache?.messages?.[cache.messages.length - 1];
+          if (last) {
+            const existing = msgMap[g.id];
+            if (!existing || new Date(last.created_at) > new Date(existing.created_at)) {
+              msgMap[g.id] = {
+                girlfriend_id: g.id,
+                content: last.content,
+                created_at: last.created_at,
+                role: last.role,
+              };
+            }
+          }
+        });
         setLastMessages(msgMap);
+
+        const iMap: Record<string, number> = {};
+        (intData.scores || []).forEach((s: IntimacyRow) => {
+          iMap[s.girlfriend_id] = s.score;
+        });
+        setIntimacyMap(iMap);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -70,135 +109,115 @@ export default function MessagesPage() {
         const bMsg = lastMessages[b.id]?.created_at || '';
         return bMsg.localeCompare(aMsg);
       })
-      .filter(gf => !query || gf.name.toLowerCase().includes(query.toLowerCase()));
+      .filter((gf) => !query || gf.name.toLowerCase().includes(query.toLowerCase()));
   }, [girlfriends, lastMessages, query]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-gradient-to-b from-transparent via-transparent to-[#FF2D78]/0.02">
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-20 backdrop-blur-2xl bg-[#07070F]/80 border-b border-white/[0.06]">
-        <div className="flex items-center justify-between px-4 pt-5 pb-2">
-          <h1 className="font-display text-2xl font-bold tracking-tight gradient-text">
-            {t('messages.friends') || 'Messages'}
-          </h1>
-          <Button
-            size="icon"
-            className="h-9 w-9 rounded-full bg-gradient-to-br from-[#FF2D78] to-[#C026D3] shadow-[0_0_20px_rgba(255,45,120,0.35)] hover:shadow-[0_0_28px_rgba(255,45,120,0.55)] active:scale-95"
+    <GameShell hex={false} className="flex h-full flex-col overflow-hidden">
+      <PageHeader
+        eyebrow="MESSAGES"
+        title={t('messages.friends') || '密语列表'}
+        subtitle="名字 · 动态心情 · 对话记录会保留"
+        backHref="/"
+        sticky={false}
+        actions={
+          <button
+            type="button"
             onClick={() => router.push('/create')}
-            title={t('messages.create') || 'Create'}
+            className="glass-btn !h-10 !w-10 !rounded-full !p-0 flex items-center justify-center"
           >
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
+            <Plus className="h-5 w-5" />
+          </button>
+        }
+      />
 
-        {/* Search */}
-        <div className="px-4 pb-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8B8BA3]" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search conversations..."
-              className="w-full h-10 rounded-full bg-white/[0.05] backdrop-blur-xl border border-white/[0.08] pl-10 pr-9 text-sm text-[#F0F0F5] placeholder:text-[#8B8BA3]/70 focus:border-[#FF2D78]/40 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-[#FF2D78]/20 transition-all"
-            />
-            {query && (
-              <button
-                onClick={() => setQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full bg-white/[0.10] hover:bg-white/[0.15] flex items-center justify-center transition-colors"
-                aria-label="Clear"
-              >
-                <X className="h-3 w-3 text-[#8B8BA3]" />
-              </button>
-            )}
-          </div>
+      <div className="px-4 sm:px-6 py-3 max-w-6xl mx-auto w-full">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ff6ba6]/50" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索名字…"
+            className="glass-input w-full h-11 pl-10 pr-9 text-sm"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full glass flex items-center justify-center"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full px-2 sm:px-4 pb-6">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" />
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="h-7 w-7 animate-spin text-[#ff6ba6]" />
           </div>
         ) : sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-6 gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#FF2D78]/20 to-[#C026D3]/10 ring-1 ring-[#FF2D78]/20">
-              <MessageCircle className="h-7 w-7 text-[#FF6BA6]" />
+          <div className="glass-strong rounded-3xl mx-2 p-10 flex flex-col items-center gap-4">
+            <MessageCircle className="h-8 w-8 text-[#ff6ba6]" />
+            <p className="text-sm text-white/50">还没有对话 · 去卡池或捏脸开始</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => router.push('/explore')} className="glass h-10 px-4 rounded-full text-sm">卡池</button>
+              <button type="button" onClick={() => router.push('/create')} className="glass-btn !h-10 !px-4 text-sm">捏脸</button>
             </div>
-            <div className="text-center max-w-xs">
-              <h2 className="font-display text-xl font-semibold text-[#F0F0F5]">
-                {query ? 'No matches' : (t('messages.empty') || 'No conversations yet')}
-              </h2>
-              <p className="text-xs text-[#8B8BA3] mt-1.5">
-                {query
-                  ? `No one matches "${query}"`
-                  : t('messages.emptyDesc') || 'Add a companion from Explore or create your own.'}
-              </p>
-            </div>
-            {!query && (
-              <div className="flex gap-3 mt-2">
-                <Button size="sm" variant="outline" onClick={() => router.push('/')}>
-                  {t('messages.explore') || 'Explore'}
-                </Button>
-                <Button
-                  size="sm"
-                  className="bg-gradient-to-br from-[#FF2D78] to-[#C026D3]"
-                  onClick={() => router.push('/create')}
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  {t('messages.create') || 'Create'}
-                </Button>
-              </div>
-            )}
           </div>
         ) : (
-          <ul className="divide-y divide-white/[0.04]">
-            {sorted.map((gf, idx) => {
+          <ul className="glass-strong rounded-2xl overflow-hidden divide-y divide-white/[0.05]">
+            {sorted.map((gf) => {
               const lastMsg = lastMessages[gf.id];
+              const score = intimacyMap[gf.id] || loadChatCache(gf.id)?.intimacy?.score || 0;
+              // tick forces occasional mood label variety for empty chats
+              const mood = deriveMood(
+                lastMsg?.content || (tick % 2 === 0 ? gf.personality || '' : ''),
+                score,
+              );
               const preview = lastMsg?.content
                 ? lastMsg.role === 'user'
-                  ? `You: ${lastMsg.content}`
+                  ? `你: ${lastMsg.content}`
                   : lastMsg.content
-                : 'Tap to start a conversation';
+                : '还没有消息 · 点进来聊聊';
+
               return (
-                <li
-                  key={gf.id}
-                  className="h5-reveal"
-                  style={{ transitionDelay: `${Math.min(idx * 35, 320)}ms` }}
-                >
+                <li key={gf.id}>
                   <button
+                    type="button"
                     onClick={() => router.push(`/chat/${gf.id}`)}
-                    className="group flex w-full items-center gap-3 px-4 py-3 text-left active:bg-white/[0.05] hover:bg-white/[0.03] transition-colors"
+                    className="wa-row flex w-full items-center gap-3 px-3 sm:px-4 py-3.5 text-left hover:bg-white/[0.04]"
                   >
                     <div className="relative shrink-0">
-                      <Avatar className="h-14 w-14 ring-1 ring-white/[0.08]">
+                      <Avatar className="h-[56px] w-[56px] ring-1 ring-[#ff2e88]/25">
                         {gf.avatar_url ? (
                           <AvatarImage src={gf.avatar_url} alt={gf.name} className="object-cover" />
                         ) : (
-                          <AvatarFallback className="bg-gradient-to-br from-[#FF2D78]/30 to-[#C026D3]/20 text-[#FF6BA6] text-base font-semibold">
-                            {gf.name?.charAt(0).toUpperCase() || '?'}
+                          <AvatarFallback className="bg-gradient-to-br from-[#ff2e88]/40 to-[#c026d3]/30 text-[#ff6ba6] font-bold">
+                            {gf.name?.charAt(0) || '?'}
                           </AvatarFallback>
                         )}
                       </Avatar>
-                      {/* online dot */}
-                      <span
-                        className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-[#07070F]"
-                        aria-hidden
-                      />
+                      <span className="absolute -bottom-0.5 -right-0.5 text-sm drop-shadow" title={mood.label}>
+                        {mood.emoji}
+                      </span>
                     </div>
-
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="text-[15px] font-semibold text-[#F0F0F5] truncate group-active:text-[#FF6BA6]">
-                          {gf.name}
-                        </span>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[15px] font-semibold text-white truncate">{gf.name}</span>
                         {lastMsg && (
-                          <span className="text-[11px] font-mono tabular-nums text-[#8B8BA3] shrink-0">
+                          <span className="text-[11px] tabular-nums text-white/35 shrink-0">
                             {formatRelative(lastMsg.created_at)}
                           </span>
                         )}
                       </div>
-                      <p className="text-[13px] text-[#8B8BA3] truncate mt-0.5">{preview}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={cn('text-[11px] font-medium shrink-0', mood.tone)}>
+                          {mood.emoji} {mood.label}
+                        </span>
+                        <span className="text-[12px] text-white/35 truncate">· {preview}</span>
+                      </div>
                     </div>
                   </button>
                 </li>
@@ -207,6 +226,6 @@ export default function MessagesPage() {
           </ul>
         )}
       </div>
-    </div>
+    </GameShell>
   );
 }

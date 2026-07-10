@@ -4,13 +4,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { authedFetch } from '@/lib/supabase';
 
 /**
- * 
+ * Membership tier used across UI + checkout flows.
+ * Canonical names: free / pro / unlimited / admin
  */
 export type MembershipTier = 'free' | 'pro' | 'unlimited' | 'admin';
 
 /**
- * 
- * hook  UI 
+ * Soft limits surfaced in UI. Hard enforcement lives on the server
+ * (chat/stream, generate-image, etc.).
  */
 export const MEMBERSHIP_LIMITS = {
   free: {
@@ -48,24 +49,28 @@ export interface MembershipState {
   creditsRemaining: number;
   todayMessagesCount: number;
   loading: boolean;
-  /** UI  */
   canSendMessage: boolean;
-  /** free  */
   remainingFreeMessages: number;
-  /**  */
-  capabilities: typeof MEMBERSHIP_LIMITS[MembershipTier];
-  /**  */
+  capabilities: (typeof MEMBERSHIP_LIMITS)[MembershipTier];
   refresh: () => Promise<void>;
 }
 
+const VALID_TIERS = new Set<MembershipTier>(['free', 'pro', 'unlimited', 'admin']);
+
+function normalizeTier(raw: unknown): MembershipTier {
+  // API historically mixed "premium" / "pro" — normalize both to pro.
+  if (raw === 'premium') return 'pro';
+  if (typeof raw === 'string' && VALID_TIERS.has(raw as MembershipTier)) {
+    return raw as MembershipTier;
+  }
+  return 'free';
+}
+
 /**
- * useMembership   hook
+ * Client membership + daily usage hook.
  *
- * 
- *   const { canSendMessage, remainingFreeMessages, capabilities } = useMembership();
- *   <Button disabled={!canSendMessage}>Send</Button>
- *
- *  free  403
+ * Reads `/api/membership` which returns:
+ *   { tier, credits_remaining, usage: { messages_sent_today, ... } }
  */
 export function useMembership(): MembershipState {
   const [tier, setTier] = useState<MembershipTier>('free');
@@ -81,11 +86,18 @@ export function useMembership(): MembershipState {
         return;
       }
       const data = await res.json();
-      setTier((data.membership_tier as MembershipTier) || 'free');
+      // Prefer `tier` (current API). Fall back to legacy field names so older
+      // responses / proxies don't silently zero out usage banners.
+      setTier(normalizeTier(data.tier ?? data.membership_tier));
       setCreditsRemaining(Number(data.credits_remaining) || 0);
-      setTodayCount(Number(data.today_messages_count) || 0);
+      const sentToday =
+        data.usage?.messages_sent_today ??
+        data.today_messages_count ??
+        data.messages_sent_today ??
+        0;
+      setTodayCount(Number(sentToday) || 0);
     } catch {
-      // ignore
+      // keep last known state
     } finally {
       setLoading(false);
     }
@@ -99,9 +111,10 @@ export function useMembership(): MembershipState {
   const remainingFreeMessages = Number.isFinite(capabilities.dailyMessageLimit)
     ? Math.max(0, capabilities.dailyMessageLimit - todayCount)
     : Number.POSITIVE_INFINITY;
-  const canSendMessage = !loading && (
-    !Number.isFinite(capabilities.dailyMessageLimit) || todayCount < capabilities.dailyMessageLimit
-  );
+  const canSendMessage =
+    !loading &&
+    (!Number.isFinite(capabilities.dailyMessageLimit) ||
+      todayCount < capabilities.dailyMessageLimit);
 
   return {
     tier,

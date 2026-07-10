@@ -8,7 +8,6 @@ import {
   integer,
   jsonb,
   text,
-  numeric,
   date,
   index,
   uuid,

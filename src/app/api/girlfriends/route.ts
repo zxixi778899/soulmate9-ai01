@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { ensureImageKey, resolveImageUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
 
 const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
 
@@ -13,12 +14,17 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const filter = searchParams.get('filter'); // 'draft' | 'all'
+  const id = searchParams.get('id'); // optional single-record fetch
 
   let query = client
     .from('girlfriends')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
+
+  if (id) {
+    query = query.eq('id', id).limit(1);
+  }
 
   if (filter === 'draft') {
     query = query.in('review_status', ['draft', 'pending', 'rejected']);
@@ -82,6 +88,7 @@ export async function POST(request: NextRequest) {
   const insertData: Record<string, unknown> = {
     user_id: user.id,
     name,
+    slug: makeGirlfriendSlug(name),
     age: age || 22,
     personality: personality || '',
     backstory: backstory || '',
@@ -183,7 +190,7 @@ export async function PATCH(request: NextRequest) {
     if (review_status === 'approved') {
       patchData.is_public = true;
       if (!updates.slug) {
-        patchData.slug = reqName?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || (updates.slug || `gf-${Date.now()}`);
+        patchData.slug = makeGirlfriendSlug(reqName);
       }
     }
   }

@@ -51,11 +51,8 @@ function extractTextChunks(chunks: Chunk[]): ExtractedEntry[] {
   const entries: ExtractedEntry[] = [];
   for (const chunk of chunks) {
     if (chunk.type === 'tEXt' || chunk.type === 'zTXt' || chunk.type === 'iTXt') {
-      let data: Buffer;
       let keywordEnd: number;
       let compressionFlag = 0;
-      let languageTag = '';
-      let translatedKeyword = '';
 
       if (chunk.type === 'tEXt') {
         keywordEnd = chunk.data.indexOf(0);
@@ -85,11 +82,10 @@ function extractTextChunks(chunks: Chunk[]): ExtractedEntry[] {
         const langStart = keywordEnd + 3;
         const langEnd = chunk.data.indexOf(0, langStart);
         if (langEnd === -1) continue;
-        languageTag = chunk.data.toString('latin1', langStart, langEnd);
+        // languageTag / translatedKeyword skipped — not used for card parse
         const tKeyStart = langEnd + 1;
         const tKeyEnd = chunk.data.indexOf(0, tKeyStart);
         if (tKeyEnd === -1) continue;
-        translatedKeyword = chunk.data.toString('utf8', tKeyStart, tKeyEnd);
         const textBuf = chunk.data.subarray(tKeyEnd + 1);
         const value = compressionFlag === 0
           ? textBuf.toString('utf8')
@@ -116,7 +112,7 @@ export interface CharacterCardV2 {
     creator_notes?: string;
     creator?: string;
     character_version?: string;
-    extensions?: Record<string, any>;
+    extensions?: Record<string, unknown>;
     alternate_greetings?: string[];
   };
 }

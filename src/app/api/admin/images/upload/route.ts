@@ -49,19 +49,20 @@ export async function POST(req: NextRequest) {
     }
 
     let table: string;
-    let updateField: string;
+    let payload: Record<string, string>;
     switch (type) {
       case 'girlfriend':
         table = 'girlfriends';
-        updateField = field || 'avatar_url';
+        // Keep portrait + avatar aligned
+        payload = { portrait_url: '', avatar_url: '' };
         break;
       case 'outfit':
         table = 'outfits';
-        updateField = field || 'preview_url';
+        payload = { [field || 'preview_url']: '' };
         break;
       case 'shop_item':
         table = 'shop_items';
-        updateField = field || 'image_url';
+        payload = { [field || 'image_url']: '' };
         break;
       default:
         return NextResponse.json({ error: `Invalid type: ${type}` }, { status: 400 });
@@ -72,10 +73,17 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const result = await uploadFile(buffer, file.name, file.type, folder);
 
+    if (type === 'girlfriend') {
+      payload = { portrait_url: result.url, avatar_url: result.url };
+    } else {
+      const key = Object.keys(payload)[0];
+      payload = { [key]: result.url };
+    }
+
     // Update the record in database
     const { error: dbError } = await client
       .from(table)
-      .update({ [updateField]: result.url })
+      .update(payload)
       .eq('id', id);
 
     if (dbError) {

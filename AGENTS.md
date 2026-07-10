@@ -7,6 +7,14 @@ AI 女友独立站（欧美市场 · 高 NSFW · 精神陪伴）
 - **支付**：Stripe
 - **部署**：Vercel
 
+## 正式上线提醒（用户约定）
+用户要求：**以下 3 组 Stripe 价格变量开发期可留空，正式上线时主动提示补齐**。
+详见 `docs/LAUNCH_STRIPE_REMINDER.md`：
+1. `STRIPE_PRO_YEARLY_PRICE_ID`
+2. `STRIPE_UNLIMITED_YEARLY_PRICE_ID`
+3. `STRIPE_TOKENS_100_PRICE_ID` / `STRIPE_TOKENS_500_PRICE_ID` / `STRIPE_TOKENS_1000_PRICE_ID`  
+（同时切换 Live 的 `sk_` / `pk_` / `whsec_`。）
+
 ## 目录结构
 
 ```
