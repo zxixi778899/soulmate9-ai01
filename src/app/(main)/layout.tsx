@@ -20,28 +20,36 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (mounted && !isLoading && !user) {
-      router.push('/login');
-    }
-  }, [mounted, isLoading, user, router]);
+  // Public routes inside (main) that must work without login
+  const isPublicMainRoute =
+    pathname === '/pricing' ||
+    pathname?.startsWith('/pricing/') ||
+    pathname === '/payment/success';
 
   useEffect(() => {
-    if (mounted && !isLoading && user && pathname !== '/onboarding') {
+    if (mounted && !isLoading && !user && !isPublicMainRoute) {
+      const next = pathname && pathname !== '/' ? `?next=${encodeURIComponent(pathname)}` : '';
+      router.push(`/login${next}`);
+    }
+  }, [mounted, isLoading, user, router, pathname, isPublicMainRoute]);
+
+  useEffect(() => {
+    if (mounted && !isLoading && user && pathname !== '/onboarding' && !isAdmin) {
       const onboardingDone = localStorage.getItem('soulmate_onboarding_complete');
       if (!onboardingDone) {
         router.push('/onboarding');
       }
     }
-  }, [mounted, isLoading, user, pathname, router]);
+  }, [mounted, isLoading, user, pathname, router, isAdmin]);
 
   if (pathname === '/onboarding' && user) {
     return <>{children}</>;
   }
 
+  // Always show a shell while hydrating / auth loads — never blank body
   if (!mounted || isLoading) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050509]">
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#08040e]">
         <div
           className="pointer-events-none fixed inset-0"
           aria-hidden
@@ -55,19 +63,38 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         />
         <div className="relative flex flex-col items-center gap-4 glass-strong rounded-3xl px-10 py-8">
           <Loader2 className="h-10 w-10 animate-spin text-[#FF6BA6]" />
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50 seduce-glow">Loading desire…</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-white/50">Loading…</p>
         </div>
       </div>
     );
   }
 
-  if (!user) return null;
+  // Unauthenticated: keep loading shell while redirect runs (avoid empty white/black page)
+  if (!user && !isPublicMainRoute) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#08040e]">
+        <div className="relative flex flex-col items-center gap-4 glass-strong rounded-3xl px-10 py-8">
+          <Loader2 className="h-10 w-10 animate-spin text-[#FF6BA6]" />
+          <p className="text-xs uppercase tracking-[0.3em] text-white/50">Redirecting to login…</p>
+        </div>
+      </div>
+    );
+  }
 
   const isChatDetail = pathname?.startsWith('/chat/');
   const isCreate = pathname?.startsWith('/create');
 
+  // Chat / create: full-height fixed shell. Other pages: scrollable mobile canvas.
+  const lockViewport = isChatDetail || isCreate || isAdmin;
+
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[#08040e] text-[#FAF7FF]">
+    <div
+      className={`relative flex bg-[#08040e] text-[#FAF7FF] ${
+        lockViewport
+          ? 'h-[100dvh] max-h-[100dvh] overflow-hidden'
+          : 'min-h-[100dvh]'
+      }`}
+    >
       {!isAdmin && (
         <div
           className="pointer-events-none fixed inset-0 z-0"
@@ -83,13 +110,21 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         />
       )}
 
-      {/* Full-bleed content — no sidebar */}
       <main
-        className={`relative z-10 flex-1 overflow-hidden w-full ${
-          !isAdmin && !isChatDetail && !isCreate
-            ? 'pb-[calc(env(safe-area-inset-bottom)+76px)] md:pb-0'
-            : ''
-        }`}
+        className={
+          lockViewport
+            ? 'relative z-10 flex-1 overflow-hidden w-full min-h-0'
+            : `relative z-10 flex-1 w-full overflow-x-hidden ${
+                !isAdmin
+                  ? 'pb-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:pb-6'
+                  : ''
+              }`
+        }
+        style={
+          lockViewport
+            ? undefined
+            : { WebkitOverflowScrolling: 'touch' }
+        }
       >
         {children}
       </main>

@@ -51,16 +51,16 @@ export function PageHeader({
     <header
       className={cn(
         sticky && 'sticky top-0 z-30',
-        'border-b border-[#ff2e88]/12 bg-[#08040e]/70 backdrop-blur-2xl',
+        'border-b border-[#ff2e88]/12 bg-[#08040e]/80 backdrop-blur-2xl',
         className,
       )}
     >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3 flex items-center gap-3">
+      <div className="mx-auto max-w-6xl px-3 sm:px-6 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={handleBack}
-          className="glass h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white active:scale-95 transition-all"
-          aria-label="返回"
+          className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white active:scale-95 transition-all touch-manipulation"
+          aria-label="Back"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -70,12 +70,12 @@ export function PageHeader({
               {eyebrow}
             </div>
           )}
-          <h1 className="text-lg sm:text-xl font-black truncate seduce-glow">{title}</h1>
+          <h1 className="text-base sm:text-xl font-black truncate seduce-glow leading-tight">{title}</h1>
           {subtitle && (
-            <p className="text-[11px] sm:text-xs text-white/40 truncate mt-0.5">{subtitle}</p>
+            <p className="text-[11px] sm:text-xs text-white/40 line-clamp-2 sm:truncate mt-0.5">{subtitle}</p>
           )}
         </div>
-        {actions && <div className="shrink-0 flex items-center gap-2">{actions}</div>}
+        {actions && <div className="shrink-0 flex items-center gap-1.5 sm:gap-2">{actions}</div>}
       </div>
     </header>
   );

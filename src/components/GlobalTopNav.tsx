@@ -2,47 +2,50 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Menu, X, User, LogOut, Crown, Flame, ArrowLeft,
   Heart, MessageCircle, ShoppingBag, Wand2, Home,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
+import { useTranslation } from '@/lib/i18n/context';
 import { cn } from '@/lib/utils';
 
-const NAV = [
-  { href: '/', label: '选角', icon: Home },
-  { href: '/explore', label: '卡池', icon: Heart },
-  { href: '/chats', label: '密语', icon: MessageCircle },
-  { href: '/shop', label: '橱窗', icon: ShoppingBag },
-  { href: '/create', label: '捏脸', icon: Wand2 },
-  { href: '/profile', label: '我的', icon: User },
-] as const;
-
 /**
- * Site-wide top navigation — always available (except admin).
- * Includes back control on non-home routes for better UX.
+ * Site-wide top navigation — always available (except admin / chat room).
  */
 export default function GlobalTopNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useTranslation();
 
-  // Admin: hide. Chat room: hide (has ChatAppBar back) — all other pages keep top nav.
   if (pathname?.startsWith('/admin') || pathname?.startsWith('/chat/')) return null;
 
   const isHome = pathname === '/';
-  const isChatRoom = false;
 
-  // Guests: home + explore + pricing
-  const guestLinks = [
-    { href: '/', label: '选角', icon: Home },
-    { href: '/explore', label: '卡池', icon: Heart },
+  const navLoggedIn = [
+    { href: '/', label: t('home.selectCast'), icon: Home },
+    { href: '/explore', label: t('home.pool'), icon: Heart },
+    { href: '/chats', label: t('home.messages'), icon: MessageCircle },
+    { href: '/shop', label: t('home.shop'), icon: ShoppingBag },
+    { href: '/create', label: t('home.create'), icon: Wand2 },
+    { href: '/profile', label: t('home.me'), icon: User },
+  ];
+
+  const navGuest = [
+    { href: '/', label: t('home.selectCast'), icon: Home },
+    { href: '/explore', label: t('home.pool'), icon: Heart },
     { href: '/pricing', label: 'VIP', icon: Crown },
-  ] as const;
+  ];
 
-  const displayLinks = user ? NAV : guestLinks;
+  const displayLinks = user ? navLoggedIn : navGuest;
+
+  // Close sheet on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const goBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -53,25 +56,27 @@ export default function GlobalTopNav() {
   };
 
   return (
-    <nav className="sticky top-0 z-[60] border-b border-[#ff2e88]/15 bg-[#08040e]/75 backdrop-blur-2xl">
-      <div className="max-w-6xl mx-auto px-3 sm:px-5 py-2 flex items-center gap-2 sm:gap-3">
-        {/* Back — always on non-home */}
+    <nav
+      className="sticky top-0 z-[60] border-b border-[#ff2e88]/15 bg-[#08040e]/80 backdrop-blur-2xl"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      <div className="max-w-6xl mx-auto px-3 sm:px-5 h-12 sm:h-14 flex items-center gap-2 sm:gap-3">
         {!isHome && (
           <button
             type="button"
             onClick={goBack}
-            className="glass h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white active:scale-95"
-            aria-label="返回上一页"
+            className="glass h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] active:scale-95 touch-manipulation"
+            aria-label={t('general.back')}
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
         )}
 
-        <Link href="/" className="flex items-center gap-2 group shrink-0">
-          <div className="glass-btn !rounded-full h-9 w-9 flex items-center justify-center !p-0">
+        <Link href="/" className="flex items-center gap-2 group shrink-0 min-w-0">
+          <div className="glass-btn !rounded-full h-9 w-9 flex items-center justify-center !p-0 shrink-0">
             <Flame className="h-4 w-4" />
           </div>
-          <div className="leading-tight hidden xs:block sm:block">
+          <div className="leading-tight hidden min-[380px]:block">
             <div className="text-sm sm:text-base font-black tracking-tight bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
               SoulMate
             </div>
@@ -106,50 +111,49 @@ export default function GlobalTopNav() {
 
         <div className="flex-1 md:hidden" />
 
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {user ? (
             <>
               <Link
                 href="/pricing"
-                className="hidden sm:inline-flex glass-btn !h-9 !px-3 text-xs items-center gap-1"
+                className="glass h-10 px-2.5 sm:px-3 rounded-full text-xs flex items-center gap-1 text-[#ffd700] touch-manipulation"
               >
-                <Crown className="h-3.5 w-3.5" /> VIP
+                <Crown className="h-3.5 w-3.5" />
+                <span className="hidden min-[360px]:inline">VIP</span>
               </Link>
-              {!isChatRoom && (
-                <Link
-                  href="/profile"
-                  className={cn(
-                    'h-9 w-9 rounded-full flex items-center justify-center',
-                    pathname?.startsWith('/profile')
-                      ? 'glass-btn !rounded-full !p-0'
-                      : 'glass text-[#ffb3cd]',
-                  )}
-                >
-                  <User className="h-4 w-4" />
-                </Link>
-              )}
-              <button
-                onClick={() => void signOut()}
-                className="hidden sm:flex text-white/30 hover:text-white p-1.5"
-                aria-label="退出"
+              <Link
+                href="/profile"
+                className={cn(
+                  'h-10 w-10 rounded-full flex items-center justify-center touch-manipulation',
+                  pathname?.startsWith('/profile')
+                    ? 'glass-btn !rounded-full !p-0'
+                    : 'glass text-[#ffb3cd]',
+                )}
+                aria-label={t('home.me')}
               >
-                <LogOut className="h-4 w-4" />
-              </button>
+                <User className="h-4 w-4" />
+              </Link>
             </>
           ) : (
             <>
-              <Link href="/login" className="text-xs text-white/50 hover:text-white px-2 hidden sm:inline">
-                登录
+              <Link
+                href="/login"
+                className="text-xs text-white/55 hover:text-white px-2 py-2 hidden min-[360px]:inline touch-manipulation"
+              >
+                {t('home.login')}
               </Link>
-              <Link href="/register" className="glass-btn !h-9 !px-3.5 text-xs">
-                进入
+              <Link
+                href="/register"
+                className="glass-btn !h-10 !px-3.5 text-xs touch-manipulation"
+              >
+                {t('home.join')}
               </Link>
             </>
           )}
           <button
             onClick={() => setMobileOpen((v) => !v)}
-            className="md:hidden glass h-9 w-9 rounded-full flex items-center justify-center text-white/80"
-            aria-label="菜单"
+            className="md:hidden glass h-10 w-10 rounded-full flex items-center justify-center text-white/80 touch-manipulation"
+            aria-label="Menu"
             aria-expanded={mobileOpen}
           >
             {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -157,9 +161,9 @@ export default function GlobalTopNav() {
         </div>
       </div>
 
-      {/* Mobile sheet nav */}
+      {/* Mobile sheet */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-[#ff2e88]/12 px-3 pb-3 pt-2">
+        <div className="md:hidden border-t border-[#ff2e88]/12 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="glass-strong rounded-2xl p-2 grid grid-cols-3 gap-1">
             {displayLinks.map((link) => {
               const Icon = link.icon;
@@ -173,10 +177,10 @@ export default function GlobalTopNav() {
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    'flex flex-col items-center gap-1 py-3 rounded-xl text-xs font-medium transition-all',
+                    'flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-xs font-medium transition-all touch-manipulation active:scale-95',
                     active
-                      ? 'bg-[#ff2e88]/20 text-[#ff6ba6]'
-                      : 'text-white/55 hover:bg-white/[0.05] hover:text-white',
+                      ? 'bg-[#ff2e88]/22 text-[#ff6ba6]'
+                      : 'text-white/55 active:bg-white/[0.06]',
                   )}
                 >
                   <Icon className="h-5 w-5" />
@@ -187,10 +191,14 @@ export default function GlobalTopNav() {
           </div>
           {user && (
             <button
-              onClick={() => { setMobileOpen(false); void signOut(); }}
-              className="mt-2 w-full py-2.5 text-xs text-red-400/80 text-center"
+              onClick={() => {
+                setMobileOpen(false);
+                void signOut();
+              }}
+              className="mt-2 w-full py-3 text-xs text-red-400/90 text-center flex items-center justify-center gap-1.5 touch-manipulation"
             >
-              退出登录
+              <LogOut className="h-3.5 w-3.5" />
+              {t('auth.logout') || 'Sign out'}
             </button>
           )}
         </div>

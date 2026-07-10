@@ -1294,6 +1294,54 @@ html {
   border-top: 1px solid rgba(255, 24, 160, 0.22);
   background: rgba(6, 4, 12, 0.94);
   backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* ===== Mobile UX base ===== */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* iOS: prevent zoom on focus only when font < 16px — we use 16px inputs on mobile */
+.touch-manipulation {
+  touch-action: manipulation;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile: quieter effects for battery / GPU */
+@media (max-width: 767px) {
+  .stage-breathe {
+    animation: none !important;
+  }
+  .float-heart {
+    animation-duration: 3.5s;
+  }
+  /* Slightly lighter glass blur on small screens */
+  .glass,
+  .glass-strong {
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+  }
+  .game-bottom-nav {
+    /* Extra shadow so content doesn't collide with dock */
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@supports (height: 100dvh) {
+  .min-h-dvh-safe {
+    min-height: 100dvh;
+  }
 }
 
 /* ===== High-NSFW glass aesthetic (v2) ===== */
@@ -1437,7 +1485,8 @@ html {
   border-color: rgba(255, 100, 160, 0.35) !important;
 }
 .game-bottom-nav {
-  background: rgba(8, 4, 14, 0.72) !important;
+  background: rgba(8, 4, 14, 0.88) !important;
   backdrop-filter: blur(28px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(160%) !important;
   border-top: 1px solid rgba(255, 80, 150, 0.22) !important;
 }

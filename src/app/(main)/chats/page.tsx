@@ -113,46 +113,47 @@ export default function MessagesPage() {
   }, [girlfriends, lastMessages, query]);
 
   return (
-    <GameShell hex={false} className="flex h-full flex-col overflow-hidden">
+    <GameShell hex={false} className="min-h-[100dvh] flex flex-col">
       <PageHeader
         eyebrow="MESSAGES"
         title={t('messages.friends') || '密语列表'}
-        subtitle="名字 · 动态心情 · 对话记录会保留"
+        subtitle={t('messages.yourConversations') || '对话记录会保留'}
         backHref="/"
         sticky={false}
         actions={
           <button
             type="button"
             onClick={() => router.push('/create')}
-            className="glass-btn !h-10 !w-10 !rounded-full !p-0 flex items-center justify-center"
+            className="glass-btn !h-11 !w-11 !rounded-full !p-0 flex items-center justify-center touch-manipulation"
+            aria-label={t('home.create')}
           >
             <Plus className="h-5 w-5" />
           </button>
         }
       />
 
-      <div className="px-4 sm:px-6 py-3 max-w-6xl mx-auto w-full">
+      <div className="px-3 sm:px-6 py-2.5 max-w-6xl mx-auto w-full">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ff6ba6]/50" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索名字…"
-            className="glass-input w-full h-11 pl-10 pr-9 text-sm"
+            placeholder={t('common.search') || 'Search…'}
+            className="glass-input w-full h-11 pl-10 pr-9 text-[16px] sm:text-sm"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full glass flex items-center justify-center"
+              className="absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full glass flex items-center justify-center touch-manipulation"
             >
-              <X className="h-3 w-3" />
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full px-2 sm:px-4 pb-6">
+      <div className="flex-1 max-w-6xl mx-auto w-full px-2 sm:px-4 pb-6">
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin text-[#ff6ba6]" />
@@ -187,10 +188,10 @@ export default function MessagesPage() {
                   <button
                     type="button"
                     onClick={() => router.push(`/chat/${gf.id}`)}
-                    className="wa-row flex w-full items-center gap-3 px-3 sm:px-4 py-3.5 text-left hover:bg-white/[0.04]"
+                    className="wa-row flex w-full items-center gap-3 px-3 sm:px-4 py-3.5 text-left active:bg-white/[0.06] touch-manipulation min-h-[72px]"
                   >
                     <div className="relative shrink-0">
-                      <Avatar className="h-[56px] w-[56px] ring-1 ring-[#ff2e88]/25">
+                      <Avatar className="h-14 w-14 ring-1 ring-[#ff2e88]/25">
                         {gf.avatar_url ? (
                           <AvatarImage src={gf.avatar_url} alt={gf.name} className="object-cover" />
                         ) : (

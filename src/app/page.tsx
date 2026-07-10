@@ -176,33 +176,33 @@ export default function HomePage() {
   };
 
   return (
-    <GameShell className="pb-28 md:pb-8 min-h-screen" hex={false}>
-      {/* Ambient keyed to featured rarity */}
+    <GameShell className="pb-4 md:pb-8 min-h-[100dvh]" hex={false}>
+      {/* Ambient keyed to featured rarity — softer on mobile for perf */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
         <div
           className="absolute inset-0 transition-all duration-700"
           style={{
             background: `radial-gradient(ellipse 80% 60% at 30% 35%, ${rc.glow}, transparent 70%)`,
-            opacity: 0.55,
+            opacity: 0.45,
           }}
         />
-        <div className="absolute top-1/4 left-[15%] h-64 w-64 rounded-full bg-[#ff2e88]/15 blur-[90px] animate-pulse" />
-        <div className="absolute bottom-1/4 right-[10%] h-72 w-72 rounded-full bg-[#7c3aed]/20 blur-[100px]" />
+        <div className="absolute top-1/4 left-[15%] h-48 w-48 sm:h-64 sm:w-64 rounded-full bg-[#ff2e88]/12 blur-[80px] animate-pulse" />
+        <div className="hidden sm:block absolute bottom-1/4 right-[10%] h-72 w-72 rounded-full bg-[#7c3aed]/20 blur-[100px]" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-8 pt-3 sm:pt-4 space-y-5 sm:space-y-6">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-8 pt-2 sm:pt-4 space-y-4 sm:space-y-6">
         {/* Top */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <GameChip>
-                <Flame className="h-3 w-3" /> 18+ LOBBY
+                <Flame className="h-3 w-3" /> 18+
               </GameChip>
-              <span className="text-[11px] text-white/35 hidden sm:inline">
+              <span className="text-[10px] sm:text-[11px] text-white/35 truncate">
                 {t('home.onlineRoles', { count: catalog.length })}
               </span>
             </div>
-            <h1 className="mt-1.5 text-xl sm:text-3xl font-black tracking-tight">
+            <h1 className="mt-1 text-lg sm:text-3xl font-black tracking-tight leading-tight">
               {t('home.chooseYour')}
               <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
                 {' '}{t('home.obsession')}
@@ -212,9 +212,10 @@ export default function HomePage() {
           <button
             type="button"
             onClick={() => setShareOpen(true)}
-            className="glass h-9 px-3 rounded-full text-xs flex items-center gap-1.5 text-[#ffb3cd] shrink-0"
+            className="glass h-10 w-10 sm:w-auto sm:px-3 rounded-full text-xs flex items-center justify-center gap-1.5 text-[#ffb3cd] shrink-0 touch-manipulation active:scale-95"
+            aria-label={t('home.share')}
           >
-            <Share2 className="h-3.5 w-3.5" />
+            <Share2 className="h-4 w-4" />
             <span className="hidden sm:inline">{t('home.share')}</span>
           </button>
         </div>
@@ -231,7 +232,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={prev}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full glass-strong flex items-center justify-center shadow-lg"
+                className="absolute left-1.5 sm:left-2 top-1/2 -translate-y-1/2 z-30 h-10 w-10 sm:h-11 sm:w-11 rounded-full glass-strong flex items-center justify-center shadow-lg touch-manipulation active:scale-95"
                 aria-label={t('home.prev')}
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -239,7 +240,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={next}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full glass-strong flex items-center justify-center shadow-lg"
+                className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 z-30 h-10 w-10 sm:h-11 sm:w-11 rounded-full glass-strong flex items-center justify-center shadow-lg touch-manipulation active:scale-95"
                 aria-label={t('home.next')}
               >
                 <ChevronRight className="h-5 w-5" />
@@ -251,11 +252,12 @@ export default function HomePage() {
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 1.01 }}
-                  transition={{ duration: 0.4 }}
+                  transition={{ duration: 0.35 }}
                   className={cn(
-                    'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer stage-breathe',
-                    /* Tall full-body stage */
-                    'aspect-[3/4.65] min-h-[560px] sm:min-h-[620px] lg:min-h-[680px] max-h-[82vh]',
+                    'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation',
+                    /* Mobile: viewport-fit height (no 560px min). Desktop: tall stage. */
+                    'aspect-[3/4] max-h-[min(58dvh,480px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
+                    'sm:stage-breathe',
                     `game-rarity-${featured.rarity.toLowerCase()}`,
                   )}
                   style={{
@@ -365,18 +367,20 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-4 flex gap-2">
-                  <GamePrimaryButton className="flex-1 h-12" disabled={bonding} onClick={() => void enterBond()}>
-                    {featured.locked ? <Lock className="h-4 w-4" /> : <Heart className="h-4 w-4 fill-current" />}
-                    {bonding
-                      ? t('home.entering')
-                      : featured.locked
-                        ? `${t('home.unlock')}${featured.unlock_price_tokens ? ` · ${featured.unlock_price_tokens}t` : ''}`
-                        : t('home.enterPrivate')}
+                  <GamePrimaryButton className="flex-1 h-12 min-h-[48px] text-sm touch-manipulation" disabled={bonding} onClick={() => void enterBond()}>
+                    {featured.locked ? <Lock className="h-4 w-4 shrink-0" /> : <Heart className="h-4 w-4 fill-current shrink-0" />}
+                    <span className="truncate">
+                      {bonding
+                        ? t('home.entering')
+                        : featured.locked
+                          ? `${t('home.unlock')}${featured.unlock_price_tokens ? ` · ${featured.unlock_price_tokens}t` : ''}`
+                          : t('home.enterPrivate')}
+                    </span>
                   </GamePrimaryButton>
-                  <button type="button" onClick={() => setDetail(featured)} className="glass h-12 px-4 rounded-full text-sm font-semibold shrink-0">
+                  <button type="button" onClick={() => setDetail(featured)} className="glass h-12 min-h-[48px] px-3 sm:px-4 rounded-full text-sm font-semibold shrink-0 touch-manipulation active:scale-95">
                     {t('home.profile')}
                   </button>
-                  <button type="button" onClick={() => setShareOpen(true)} className="glass h-12 w-12 rounded-full flex items-center justify-center shrink-0" aria-label={t('home.share')}>
+                  <button type="button" onClick={() => setShareOpen(true)} className="glass h-12 w-12 min-h-[48px] rounded-full flex items-center justify-center shrink-0 touch-manipulation active:scale-95" aria-label={t('home.share')}>
                     <Share2 className="h-4 w-4" />
                   </button>
                 </div>

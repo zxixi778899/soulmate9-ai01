@@ -104,45 +104,45 @@ export default function ExplorePage() {
   };
 
   return (
-    <GameShell className="pb-28 md:pb-12 min-h-screen">
+    <GameShell className="pb-6 md:pb-12 min-h-[100dvh]">
       <PageHeader
         eyebrow="CARD POOL"
         title="角色卡池"
         subtitle={
           loading
             ? '加载卡牌中…'
-            : `${girls.length} 张 · ${source === 'api' ? '在线卡池' : '展示卡包'} · 顶栏可随时返回选角`
+            : `${girls.length} 张 · ${source === 'api' ? '在线卡池' : '展示卡包'}`
         }
         backHref="/"
         sticky={false}
         actions={
-          <GamePrimaryButton onClick={() => router.push('/create')} className="!h-10 !px-4 text-xs">
-            捏脸入池
+          <GamePrimaryButton onClick={() => router.push('/create')} className="!h-10 !px-3 sm:!px-4 text-xs touch-manipulation">
+            捏脸
           </GamePrimaryButton>
         }
       />
 
       {/* Filters bar */}
-      <section className="sticky top-[0] z-20 border-y border-[#ff2e88]/12 bg-[#08040e]/75 backdrop-blur-2xl">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3 space-y-3">
+      <section className="sticky top-0 z-20 border-y border-[#ff2e88]/12 bg-[#08040e]/85 backdrop-blur-2xl">
+        <div className="mx-auto max-w-6xl px-3 sm:px-6 py-2.5 sm:py-3 space-y-2.5">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative flex-1 min-w-[180px]">
+            <div className="relative flex-1 min-w-[min(100%,140px)]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ff6ba6]/50" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索名字 / 气质…"
-                className="glass-input w-full h-10 pl-9 pr-3 text-sm"
+                placeholder="搜索名字…"
+                className="glass-input w-full h-11 pl-9 pr-3 text-[16px] sm:text-sm"
               />
             </div>
-            <div className="flex items-center gap-1 rounded-xl bg-white/[0.04] border border-white/[0.08] p-1">
+            <div className="flex items-center gap-0.5 sm:gap-1 rounded-xl bg-white/[0.04] border border-white/[0.08] p-1 overflow-x-auto scrollbar-hide max-w-full">
               {(['SSR', 'SR', 'R', 'N'] as const).map((r) => (
                 <button
                   key={r}
                   onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
                   className={cn(
-                    'px-2.5 h-8 rounded-lg text-[10px] font-black tracking-wider transition-all',
-                    rarityFilter === r ? 'bg-white text-black' : 'text-white/50 hover:text-white',
+                    'px-2.5 h-9 min-w-[2.5rem] rounded-lg text-[10px] font-black tracking-wider transition-all touch-manipulation active:scale-95',
+                    rarityFilter === r ? 'bg-white text-black' : 'text-white/50',
                   )}
                   style={rarityFilter === r ? undefined : { color: RARITY_COLORS[r].color }}
                 >

@@ -606,7 +606,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">
+    <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
       {/* === PLACEHOLDER: AppBar / Messages / Input / Sheets === */}
       <ChatAppBar
         girlfriend={girlfriend}

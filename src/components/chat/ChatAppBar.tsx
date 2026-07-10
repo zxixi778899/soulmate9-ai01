@@ -20,12 +20,15 @@ export function ChatAppBar(props: {
 }) {
   const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories } = props;
   return (
-    <header className="sticky top-0 z-30 border-b border-[#ff2e88]/15 bg-[#08040e]/80 backdrop-blur-2xl">
-      <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5">
+    <header
+      className="sticky top-0 z-30 border-b border-[#ff2e88]/15 bg-[#08040e]/88 backdrop-blur-2xl"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5">
         <button
           onClick={onBack}
-          className="glass h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white transition-all active:scale-95"
-          aria-label="返回列表"
+          className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white transition-all active:scale-95 touch-manipulation"
+          aria-label="Back"
         >
           <ChevronDown className="h-5 w-5 rotate-90" />
         </button>
@@ -84,23 +87,24 @@ export function ChatAppBar(props: {
         <button
           onClick={onSelfie}
           disabled={isGenerating}
-          className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-medium text-white bg-white/[0.06] border border-white/[0.1] backdrop-blur-xl hover:border-[#FF2D78]/40 hover:bg-gradient-to-r hover:from-[#FF2D78]/20 hover:to-[#A855F7]/20 active:scale-95 disabled:opacity-50 transition-all"
+          className="inline-flex items-center justify-center gap-1 h-11 w-11 sm:w-auto sm:px-3.5 rounded-full text-xs font-medium text-white glass active:scale-95 disabled:opacity-50 transition-all touch-manipulation"
+          aria-label="Selfie"
         >
-          <ImageIcon className="h-3.5 w-3.5" />
-          <span>Selfie</span>
+          <ImageIcon className="h-4 w-4" />
+          <span className="hidden sm:inline">Selfie</span>
         </button>
         <button
           onClick={onMemories}
-          className="glass h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white active:scale-95 transition-all"
+          className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white active:scale-95 transition-all touch-manipulation"
           aria-label="memories"
         >
           <Brain className="h-5 w-5" />
         </button>
         <Link
           href="/"
-          className="glass h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white"
-          aria-label="回选角大厅"
-          title="回大厅"
+          className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white touch-manipulation active:scale-95"
+          aria-label="Home"
+          title="Home"
         >
           <Home className="h-4 w-4" />
         </Link>

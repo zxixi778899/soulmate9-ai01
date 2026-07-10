@@ -149,7 +149,7 @@ export default function ShopPage() {
   const balance = tokenBalance || credits?.credits_remaining || 0;
 
   return (
-    <GameShell className="skin-shelf min-h-full pb-28 md:pb-12">
+    <GameShell className="skin-shelf min-h-[100dvh] pb-6 md:pb-12">
       <PageHeader
         eyebrow="ARMORY"
         title="皮肤橱窗"

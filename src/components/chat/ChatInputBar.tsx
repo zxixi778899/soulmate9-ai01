@@ -77,9 +77,9 @@ export function ChatInputBar(props: {
   const livePlaceholder = placeholder || placeholderPool[phIdx % placeholderPool.length];
 
   return (
-    <div className="sticky bottom-0 z-20 border-t border-[#ff2e88]/15 bg-[#0a0610]/70 backdrop-blur-2xl">
+    <div className="sticky bottom-0 z-20 border-t border-[#ff2e88]/15 bg-[#0a0610]/88 backdrop-blur-2xl">
       {!hasText && (
-        <div className="max-w-3xl mx-auto px-2 sm:px-4 pt-2 flex gap-1.5 overflow-x-auto scrollbar-hide">
+        <div className="max-w-3xl mx-auto px-2 sm:px-4 pt-2 flex gap-1.5 overflow-x-auto scrollbar-hide overscroll-x-contain">
           {quickPresets.map((p) => (
             <button
               key={p.label}
@@ -88,7 +88,7 @@ export function ChatInputBar(props: {
                 setInput(p.fill);
                 requestAnimationFrame(() => taRef.current?.focus());
               }}
-              className="glass shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[11px] text-[#ffb3cd] hover:border-[#ff2e88]/50 active:scale-95 transition-all"
+              className="glass shrink-0 flex items-center gap-1 px-3 h-9 rounded-full text-[11px] text-[#ffb3cd] active:scale-95 transition-all touch-manipulation"
             >
               <span>{p.emoji}</span>
               {p.label}
@@ -127,11 +127,14 @@ export function ChatInputBar(props: {
         </div>
       )}
 
-      <div className="max-w-3xl mx-auto px-2 sm:px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
-        <div className="flex items-end gap-1.5">
+      <div
+        className="max-w-3xl mx-auto px-2 sm:px-4 pt-1.5"
+        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+      >
+        <div className="flex items-end gap-1 sm:gap-1.5">
           <button
             onClick={onOpenAttachments}
-            className="h-11 w-11 shrink-0 rounded-full glass flex items-center justify-center text-[#ff6ba6] hover:text-white active:scale-95 transition-all"
+            className="h-11 w-11 shrink-0 rounded-full glass flex items-center justify-center text-[#ff6ba6] active:scale-95 transition-all touch-manipulation"
             aria-label="More"
           >
             <Plus className="h-5 w-5" />
@@ -140,7 +143,7 @@ export function ChatInputBar(props: {
           <button
             onClick={togglePresets}
             className={cn(
-              'h-11 w-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all',
+              'h-11 w-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all touch-manipulation',
               showPresets ? 'glass-btn !rounded-full text-white' : 'glass text-[#ff6ba6]',
             )}
             aria-label="Presets"
@@ -157,7 +160,8 @@ export function ChatInputBar(props: {
               onKeyDown={onKeyDown}
               placeholder={livePlaceholder}
               rows={1}
-              className="glass-input w-full resize-none px-4 py-2.5 text-base md:text-sm leading-snug min-h-[44px] max-h-[120px]"
+              enterKeyHint="send"
+              className="glass-input w-full resize-none px-3.5 sm:px-4 py-2.5 text-[16px] sm:text-sm leading-snug min-h-[44px] max-h-[120px]"
             />
           </div>
 
@@ -165,7 +169,7 @@ export function ChatInputBar(props: {
             <button
               onClick={onSend}
               disabled={isSending}
-              className="glass-btn h-11 w-11 shrink-0 !rounded-full flex items-center justify-center disabled:opacity-60"
+              className="glass-btn h-11 w-11 shrink-0 !rounded-full flex items-center justify-center disabled:opacity-60 touch-manipulation"
               aria-label={t('chat.send')}
             >
               {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -175,6 +179,7 @@ export function ChatInputBar(props: {
               className="h-11 w-11 shrink-0 rounded-full glass text-[#ff6ba6]/50 flex items-center justify-center"
               aria-label="Voice"
               title="Voice"
+              type="button"
             >
               <Mic className="h-4 w-4" />
             </button>
