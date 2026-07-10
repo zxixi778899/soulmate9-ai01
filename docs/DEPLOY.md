@@ -119,26 +119,26 @@ COZE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
 COZE_WORKLOAD_IDENTITY_API_KEY=pat_xxx
 ```
 
-### Coze SDK 必需
+### 图片存储（Supabase Storage，不用 Coze）
 
 ```env
-COZE_INTEGRATION_BASE_URL=https://integration.coze.cn
-COZE_INTEGRATION_MODEL_BASE_URL=https://integration.coze.cn
-COZE_BUCKET_ENDPOINT_URL=https://yyy.r2.cloudflarestorage.com
-COZE_BUCKET_NAME=soulmate9-media
-OSS_ENDPOINT=https://yyy.r2.cloudflarestorage.com
-OSS_ACCESS_KEY_ID=xxx
-OSS_ACCESS_KEY_SECRET=xxx
-OSS_BUCKET=soulmate9-media
+# 与数据库相同的 Supabase 项目即可（变量名历史遗留叫 COZE_SUPABASE_*）
+COZE_SUPABASE_URL=https://xxx.supabase.co
+COZE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+SUPABASE_STORAGE_BUCKET=portraits
 ```
 
-### LLM 主路由（Coze）
+在 Supabase Dashboard → Storage 创建 **public** bucket `portraits`（代码也会尝试自动创建）。
+
+### LLM（Coze 已弃用）
 
 ```env
-COZE_BOT_ID=xxx
-COZE_DEFAULT_MODEL=doubao-seed-2-0-pro-250715
-COZE_LITE_MODEL=doubao-seed-2-0-lite-250715
-COZE_MINI_MODEL=doubao-seed-2-0-mini-250715
+# 主：RunPod vLLM
+RUNPOD_VLLM_URL=https://api.runpod.ai/v2/...
+RUNPOD_VLLM_API_KEY=rpa_...
+# 备：Together
+TOGETHER_API_KEY=...
+# Coze Bot / 模型路由：不要再配
 ```
 
 ### LLM 兜底（Claude，可选）
