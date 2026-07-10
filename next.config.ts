@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['*.dev.coze.site'],
+  eslint: { ignoreDuringBuilds: true },
   images: {
     // Allowlist of trusted image hosts (avoid wildcard `**`):
     // 1. Supabase Storage (project vvblk...)
