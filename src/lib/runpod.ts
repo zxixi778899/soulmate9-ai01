@@ -94,8 +94,8 @@ export function buildFluxWorkflow(opts: {
   lora_strength_clip?: number;
 }): Record<string, unknown> {
   const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 32);
-  const width = opts.width ?? 768;
-  const height = opts.height ?? 1024;
+  const width = opts.width ?? 832;
+  const height = opts.height ?? 1216;
   const steps = opts.steps ?? 28;
   const guidance = opts.guidance ?? 3.5;
   const sampler_name = opts.sampler_name || 'euler';
@@ -103,74 +103,39 @@ export function buildFluxWorkflow(opts: {
   const ckpt = opts.ckpt_name || 'flux1-dev-fp8.safetensors';
   const useLora = !!(opts.lora_name && String(opts.lora_name).trim());
 
-  // model/clip source: checkpoint only, or checkpoint -> LoraLoader
-  const modelRef: [string, number] = useLora ? ['14', 0] : ['4', 0];
-  const clipRef: [string, number] = useLora ? ['14', 1] : ['4', 1];
-  const vaeRef: [string, number] = ['4', 2];
-
-  const checkpointNode = {
-    class_type: 'CheckpointLoaderSimple',
-    inputs: { ckpt_name: ckpt },
-  };
-
-  const loraNode = useLora
-    ? {
-        class_type: 'LoraLoader',
-        inputs: {
-          lora_name: String(opts.lora_name).trim(),
-          strength_model: opts.lora_strength_model ?? 0.8,
-          strength_clip: opts.lora_strength_clip ?? 0.8,
-          model: ['4', 0],
-          clip: ['4', 1],
-        },
-      }
-    : null;
-
   const promptText = String(opts.prompt || '').trim();
   if (!promptText) {
     throw new Error('buildFluxWorkflow: empty prompt');
   }
 
-  const positivePromptNode = {
-    class_type: 'CLIPTextEncode',
-    inputs: {
-      text: promptText,
-      clip: clipRef,
-    },
-  };
-  const negativePromptNode = {
-    class_type: 'CLIPTextEncode',
-    inputs: {
-      text:
-        opts.negativePrompt ??
-        'blurry, low quality, deformed, distorted, ugly, bad anatomy, watermark, text, signature, logo, lowres, bad proportions, stiff, unnatural, plastic, artificial, dead eyes, blank expression',
-      clip: clipRef,
-    },
-  };
-  const decodeNode = {
-    class_type: 'VAEDecode',
-    inputs: {
-      samples: ['8', 0],
-      vae: vaeRef,
-    },
-  };
-  const saveNode = {
-    class_type: 'SaveImage',
-    inputs: {
-      filename_prefix: 'soulmate',
-      images: ['9', 0],
-    },
-  };
+  const negText =
+    opts.negativePrompt ??
+    'blurry, low quality, deformed, distorted, ugly, bad anatomy, watermark, text, signature, logo, lowres, bad proportions, child, underage';
 
-  // img2img path: LoadImage -> ImageScale -> VAEEncode -> KSampler (with denoise)
+  // Node IDs aligned with generate-from-meta (proven on soulmate FLUX fp8 workers)
+  // 1 Checkpoint → 2/3 CLIP encode → 4 latent → 5 KSampler → 6 VAEDecode → 7 Save
+  // Optional LoRA as node 14 between checkpoint and encode.
+  const modelRef: [string, number] = useLora ? ['14', 0] : ['1', 0];
+  const clipRef: [string, number] = useLora ? ['14', 1] : ['1', 1];
+  const vaeRef: [string, number] = ['1', 2];
+
+  // img2img path
   if (opts.input_image) {
     const denoise = opts.denoising_strength ?? 0.65;
-
     const graph: Record<string, unknown> = {
-      '4': checkpointNode,
-      '5': positivePromptNode,
-      '6': negativePromptNode,
-      '8': {
+      '1': {
+        class_type: 'CheckpointLoaderSimple',
+        inputs: { ckpt_name: ckpt },
+      },
+      '2': {
+        class_type: 'CLIPTextEncode',
+        inputs: { text: promptText, clip: clipRef },
+      },
+      '3': {
+        class_type: 'CLIPTextEncode',
+        inputs: { text: negText, clip: clipRef },
+      },
+      '5': {
         class_type: 'KSampler',
         inputs: {
           seed,
@@ -180,13 +145,19 @@ export function buildFluxWorkflow(opts: {
           scheduler,
           denoise,
           model: modelRef,
-          positive: ['5', 0],
-          negative: ['6', 0],
+          positive: ['2', 0],
+          negative: ['3', 0],
           latent_image: ['13', 0],
         },
       },
-      '9': decodeNode,
-      '10': saveNode,
+      '6': {
+        class_type: 'VAEDecode',
+        inputs: { samples: ['5', 0], vae: vaeRef },
+      },
+      '7': {
+        class_type: 'SaveImage',
+        inputs: { filename_prefix: 'soulmate', images: ['6', 0] },
+      },
       '11': {
         class_type: 'LoadImage',
         inputs: { image: opts.input_image },
@@ -203,26 +174,43 @@ export function buildFluxWorkflow(opts: {
       },
       '13': {
         class_type: 'VAEEncode',
-        inputs: {
-          pixels: ['12', 0],
-          vae: vaeRef,
-        },
+        inputs: { pixels: ['12', 0], vae: vaeRef },
       },
     };
-    if (loraNode) graph['14'] = loraNode;
+    if (useLora) {
+      graph['14'] = {
+        class_type: 'LoraLoader',
+        inputs: {
+          lora_name: String(opts.lora_name).trim(),
+          strength_model: opts.lora_strength_model ?? 0.8,
+          strength_clip: opts.lora_strength_clip ?? 0.8,
+          model: ['1', 0],
+          clip: ['1', 1],
+        },
+      };
+    }
     return graph;
   }
 
-  // txt2img path (default)
+  // txt2img (default) — same structure as admin generate-from-meta
   const graph: Record<string, unknown> = {
-    '4': checkpointNode,
-    '5': positivePromptNode,
-    '6': negativePromptNode,
-    '7': {
+    '1': {
+      class_type: 'CheckpointLoaderSimple',
+      inputs: { ckpt_name: ckpt },
+    },
+    '2': {
+      class_type: 'CLIPTextEncode',
+      inputs: { text: promptText, clip: clipRef },
+    },
+    '3': {
+      class_type: 'CLIPTextEncode',
+      inputs: { text: negText, clip: clipRef },
+    },
+    '4': {
       class_type: 'EmptyLatentImage',
       inputs: { width, height, batch_size: 1 },
     },
-    '8': {
+    '5': {
       class_type: 'KSampler',
       inputs: {
         seed,
@@ -230,17 +218,34 @@ export function buildFluxWorkflow(opts: {
         cfg: guidance,
         sampler_name,
         scheduler,
-        denoise: 1,
+        denoise: 1.0,
         model: modelRef,
-        positive: ['5', 0],
-        negative: ['6', 0],
-        latent_image: ['7', 0],
+        positive: ['2', 0],
+        negative: ['3', 0],
+        latent_image: ['4', 0],
       },
     },
-    '9': decodeNode,
-    '10': saveNode,
+    '6': {
+      class_type: 'VAEDecode',
+      inputs: { samples: ['5', 0], vae: vaeRef },
+    },
+    '7': {
+      class_type: 'SaveImage',
+      inputs: { filename_prefix: 'soulmate', images: ['6', 0] },
+    },
   };
-  if (loraNode) graph['14'] = loraNode;
+  if (useLora) {
+    graph['14'] = {
+      class_type: 'LoraLoader',
+      inputs: {
+        lora_name: String(opts.lora_name).trim(),
+        strength_model: opts.lora_strength_model ?? 0.8,
+        strength_clip: opts.lora_strength_clip ?? 0.8,
+        model: ['1', 0],
+        clip: ['1', 1],
+      },
+    };
+  }
   return graph;
 }
 
@@ -397,52 +402,37 @@ class RunPodClient {
      * `input.prompt` = node graph (object), NOT a missing text string.
      * Some want `workflow`; a few simple FLUX APIs want text `prompt` string.
      */
+    // Comfy-first payloads. Do NOT send text string as `prompt` for Comfy workers —
+    // they try to queue it as a workflow and return HTTP 400 Bad Request.
     const strategies: Array<{ name: string; input: Record<string, unknown> }> = [
-      // 1) Dual keys — covers both "workflow required" and "prompt is required" Comfy workers
       {
-        name: 'workflow_and_prompt_graph',
+        name: 'comfy_dual',
         input: {
+          // ComfyUI API field name is `prompt` (= node graph)
+          prompt: workflow,
           workflow,
-          prompt: workflow, // MUST be node graph object, not text
           ...imagesPayload,
         },
       },
-      // 2) ComfyUI /prompt API field only
       {
-        name: 'comfy_prompt_graph',
+        name: 'comfy_prompt',
         input: {
           prompt: workflow,
           ...imagesPayload,
         },
       },
-      // 3) workflow only (verified IN_PROGRESS on soulmate Comfy endpoint)
       {
-        name: 'workflow_only',
+        name: 'comfy_workflow',
         input: {
           workflow,
           ...imagesPayload,
         },
       },
-      // 4) Simple text FLUX / A1111-style handlers (prompt = string)
-      {
-        name: 'text_prompt',
-        input: {
-          prompt: promptText,
-          negative_prompt: options.negative_prompt || '',
-          width: options.width ?? 832,
-          height: options.height ?? 1216,
-          num_inference_steps: options.num_inference_steps ?? 28,
-          guidance_scale: options.guidance_scale ?? 3.5,
-          steps: options.num_inference_steps ?? 28,
-          cfg_scale: options.guidance_scale ?? 3.5,
-          seed: options.seed ?? -1,
-          ...imagesPayload,
-        },
-      },
     ];
 
-    const maxAttempts = Math.floor(80000 / pollIntervalMs) || 1;
-    let lastError = 'Unknown error';
+    // Short budget per strategy so batch can fall through quickly on hard fail
+    const maxAttempts = Math.floor(90000 / pollIntervalMs) || 1;
+    const errors: string[] = [];
 
     for (const strategy of strategies) {
       try {
@@ -462,14 +452,13 @@ class RunPodClient {
 
         if (!submitRes.ok) {
           const errText = await submitRes.text();
-          lastError = `submit ${strategy.name} HTTP ${submitRes.status}: ${errText.slice(0, 200)}`;
-          logger.warn('[runpod] submit failed, try next strategy', { lastError });
+          errors.push(`${strategy.name}: submit HTTP ${submitRes.status} ${errText.slice(0, 160)}`);
           continue;
         }
 
         const { id } = (await submitRes.json()) as { id: string };
         if (!id) {
-          lastError = `submit ${strategy.name}: no job id`;
+          errors.push(`${strategy.name}: no job id`);
           continue;
         }
 
@@ -477,6 +466,7 @@ class RunPodClient {
 
         let terminal: 'success' | 'fail' | 'timeout' = 'timeout';
         let successResult: RunPodGenerateResult | null = null;
+        let failMsg = '';
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           const statusRes = await fetch(`${baseUrl}/status/${id}`, {
@@ -485,8 +475,7 @@ class RunPodClient {
           });
 
           if (!statusRes.ok) {
-            const errText = await statusRes.text();
-            lastError = `status ${strategy.name} HTTP ${statusRes.status}: ${errText.slice(0, 200)}`;
+            failMsg = `status HTTP ${statusRes.status}`;
             terminal = 'fail';
             break;
           }
@@ -508,7 +497,7 @@ class RunPodClient {
               }
             }
             if (!images.length) {
-              lastError = `${strategy.name}: COMPLETED but no images`;
+              failMsg = 'COMPLETED but no images in output';
               terminal = 'fail';
               break;
             }
@@ -522,22 +511,15 @@ class RunPodClient {
           }
 
           if (status.status === 'FAILED') {
-            const errMsg =
+            failMsg =
               status.error ||
               status.output?.error ||
               status.output?.message ||
-              JSON.stringify(status.output || status).slice(0, 300);
-            lastError = `${strategy.name}: ${errMsg}`;
+              JSON.stringify(status.output || status).slice(0, 280);
             terminal = 'fail';
-            logger.warn('[runpod] job failed, try next strategy', {
-              id,
-              strategy: strategy.name,
-              errMsg,
-            });
             break;
           }
 
-          // IN_QUEUE / IN_PROGRESS
           await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
         }
 
@@ -551,18 +533,26 @@ class RunPodClient {
         }
 
         if (terminal === 'timeout') {
-          lastError = `${strategy.name}: timed out after ${maxAttempts * pollIntervalMs}ms (job ${id})`;
+          errors.push(
+            `${strategy.name}: timeout ${maxAttempts * pollIntervalMs}ms (job ${id}) — worker 可能冷启动过久或端点无可用 worker`,
+          );
+        } else {
+          errors.push(`${strategy.name}: ${failMsg || 'failed'}`);
         }
       } catch (e) {
-        lastError = e instanceof Error ? e.message : String(e);
-        logger.warn('[runpod] strategy exception, try next', {
-          strategy: strategy.name,
-          lastError,
-        });
+        errors.push(
+          `${strategy.name}: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     }
 
-    throw new Error(`RunPod generation failed: ${lastError}`);
+    const joined = errors.join(' | ') || 'Unknown error';
+    const hint =
+      endpointId.startsWith('h0p7dpiv')
+        ? ' [提示: 端点 h0p7dpiv* 在项目文档中标记为不可用，请把 Vercel RUNPOD_ENDPOINT_ID 改成可用的 Comfy 端点，例如本地 b6r5nhhrddf8dx]'
+        : ' [提示: 确认 RUNPOD_ENDPOINT_ID 是 Comfy/FLUX 出图端点，且 worker 上有 flux1-dev-fp8.safetensors]';
+
+    throw new Error(`RunPod generation failed: ${joined}${hint}`);
   }
 
   /**

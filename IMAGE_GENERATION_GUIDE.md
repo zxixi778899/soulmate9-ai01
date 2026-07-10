@@ -1,8 +1,20 @@
 # FLUX Image Generation Instructions
 
 ## ⚠️ RunPod FLUX 端点状态
-端点 h0p7dpivwthzul 目前不可用（14/14 任务失败）。需要在 RunPod 重新配置。
-当前已有 SVG 占位图在 `public/avatars/`。
+
+| 端点 ID | 状态 |
+|---------|------|
+| `h0p7dpivwthzul` | **不可用**（批量补图会 400 / prompt 失败）— **不要在 Vercel Production 使用** |
+| `b6r5nhhrddf8dx` | 本地 `.env.local` 在用的 Comfy 端点（优先） |
+
+**Vercel 必须设置：**
+
+```
+RUNPOD_API_KEY=rpa_...
+RUNPOD_ENDPOINT_ID=b6r5nhhrddf8dx   # 或你当前健康的 Comfy 端点，禁止用 h0p7dpiv*
+```
+
+改完后 **Redeploy Production**。后台批量日志会打印 `endpoint xxxxxxxx…` 便于核对。
 
 ## 需要生成的图片
 
