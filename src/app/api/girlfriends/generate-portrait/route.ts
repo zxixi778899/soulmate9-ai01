@@ -54,7 +54,7 @@ async function generateImage(prompt: string): Promise<string> {
   const submitRes = await fetch(`${RUNPOD_BASE_URL}/run`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${RUNPOD_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: { workflow } }),
+    body: JSON.stringify({ input: { workflow, prompt: workflow, positive_prompt: prompt } }),
   });
   if (!submitRes.ok) throw new Error(`RunPod submit failed: ${await submitRes.text()}`);
   const { id: jobId } = await submitRes.json();

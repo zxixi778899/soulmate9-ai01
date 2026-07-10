@@ -98,7 +98,9 @@ async function generateImage(
   sendLog?: (type: string, msg: string) => void
 ): Promise<string> {
   const workflow = buildWorkflow(prompt, negativePrompt, params);
-  const body = JSON.stringify({ input: { workflow } });
+  const body = JSON.stringify({
+    input: { workflow, prompt: workflow, positive_prompt: prompt },
+  });
 
   const submitRes = await fetch(`${BASE_URL}/run`, { method: 'POST', headers: HEADERS, body });
   if (!submitRes.ok) {

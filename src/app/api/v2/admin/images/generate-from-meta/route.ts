@@ -531,11 +531,19 @@ function buildWorkflow(prompt: string, negativePrompt: string, params: GenParams
 // Submit a job to RunPod and return the job ID
 async function submitJob(prompt: string, negativePrompt: string, params: GenParams): Promise<string> {
   const workflow = buildWorkflow(prompt, negativePrompt, params);
+  const textPrompt = buildFluxPrompt(prompt);
 
   const submitRes = await fetch(`${RUNPOD_BASE_URL}/run`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${RUNPOD_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: { workflow } }),
+    // Dual-key: some workers require `prompt` (Comfy graph), others `workflow`
+    body: JSON.stringify({
+      input: {
+        workflow,
+        prompt: workflow,
+        positive_prompt: textPrompt,
+      },
+    }),
   });
   if (!submitRes.ok) {
     const errText = await submitRes.text();

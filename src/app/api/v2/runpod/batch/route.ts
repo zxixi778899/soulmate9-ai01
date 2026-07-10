@@ -28,12 +28,48 @@ function isMissingPortrait(row: {
   return !p && !a;
 }
 
+/** Guaranteed non-empty FLUX portrait prompt (fallback if card assembly fails). */
+function buildBatchPrompt(char: Record<string, unknown>): { positive: string; negative: string } {
+  const name = String(char.name || 'a beautiful young woman');
+  let positive = '';
+  let negative = '';
+  try {
+    const assembled = assembleGirlfriendFromRow(char, String(char.image_prompt || ''));
+    positive = String(assembled.positive || '').trim();
+    negative = String(assembled.negative || '').trim();
+  } catch (e) {
+    logger.warn('[batch] assembleGirlfriendFromRow failed, using fallback', {
+      name,
+      err: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  if (!positive || positive.length < 20) {
+    const personality = String(char.personality || 'warm, alluring').slice(0, 120);
+    positive = [
+      'RAW photo, masterpiece, best quality, ultra photorealistic, 8k',
+      `three-quarter body portrait of ${name}`,
+      'gorgeous young adult woman, 21-28 years old',
+      personality,
+      'large breasts, wide hips, hourglass figure, sexy alluring',
+      'looking at viewer, soft cinematic lighting, detailed skin, detailed face',
+    ].join(', ');
+  }
+
+  if (!negative) {
+    negative =
+      'blurry, deformed, bad anatomy, child, underage, watermark, text, logo, cartoon, anime';
+  }
+
+  return { positive, negative };
+}
+
 async function generateAndUpload(
   char: Record<string, unknown>,
   params: Record<string, unknown>,
 ): Promise<{ name: string; imageUrl: string; id?: string }> {
   const name = String(char.name || 'Character');
-  const { positive, negative } = assembleGirlfriendFromRow(char, '');
+  const { positive, negative } = buildBatchPrompt(char);
 
   if (!runpodClient.isConfigured) {
     throw new Error(
@@ -45,6 +81,7 @@ async function generateAndUpload(
     name,
     id: char.id,
     promptLen: positive.length,
+    promptHead: positive.slice(0, 80),
   });
 
   const result = await runpodClient.generate({

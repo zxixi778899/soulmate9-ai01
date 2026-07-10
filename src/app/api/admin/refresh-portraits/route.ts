@@ -143,7 +143,7 @@ async function generateImage(prompt: string, seed: number): Promise<string> {
   const res = await fetch(`${RUNPOD_BASE_URL}/runsync`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${RUNPOD_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: { workflow } }),
+    body: JSON.stringify({ input: { workflow, prompt: workflow, positive_prompt: prompt } }),
   });
   if (!res.ok) throw new Error(`RunPod HTTP ${res.status}: ${await res.text()}`);
   const json: any = await res.json();

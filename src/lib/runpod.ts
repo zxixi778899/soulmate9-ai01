@@ -126,10 +126,15 @@ export function buildFluxWorkflow(opts: {
       }
     : null;
 
+  const promptText = String(opts.prompt || '').trim();
+  if (!promptText) {
+    throw new Error('buildFluxWorkflow: empty prompt');
+  }
+
   const positivePromptNode = {
     class_type: 'CLIPTextEncode',
     inputs: {
-      text: opts.prompt,
+      text: promptText,
       clip: clipRef,
     },
   };
@@ -343,9 +348,14 @@ class RunPodClient {
       }
     }
 
+    const promptText = String(options.prompt || '').trim();
+    if (!promptText) {
+      throw new Error('prompt is required (empty positive prompt)');
+    }
+
     // Build a ComfyUI-compatible workflow with the given prompt
     const workflow = buildFluxWorkflow({
-      prompt: options.prompt,
+      prompt: promptText,
       negativePrompt: options.negative_prompt,
       width: options.width,
       height: options.height,
@@ -369,10 +379,19 @@ class RunPodClient {
       lora_strength_clip: options.lora_strength_clip,
     });
 
-    // Step 1: Submit job with workflow (+ optional reference image blob)
+    // Step 1: Submit job.
+    // Different RunPod Comfy handlers disagree on the field name:
+    // - many official templates: input.workflow
+    // - ComfyUI API style / some workers: input.prompt (= node graph)
+    // - a few simple handlers also want a text string — we put graph under prompt
+    //   and mirror text under positive_prompt for debug/compat.
+    // Missing "prompt" key often yields worker error: "prompt is required".
     const requestBody: Record<string, unknown> = {
       input: {
         workflow,
+        prompt: workflow,
+        positive_prompt: promptText,
+        negative_prompt: options.negative_prompt || '',
         ...(inputImageName && inputImageB64
           ? {
               images: [
