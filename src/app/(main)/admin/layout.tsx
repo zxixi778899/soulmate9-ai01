@@ -61,7 +61,7 @@ const navGroups: NavGroup[] = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, session, loading: authLoading } = useAuth();
+  const { user, session, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
