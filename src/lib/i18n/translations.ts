@@ -1,6 +1,4 @@
-import type { Translations } from './types';
-
-const translations: Translations = {
+const translations: Record<string, Record<string, string>> = {
   en: {
     'admin.crypto': 'Crypto Payments',
     'admin.title': 'Admin Panel',
