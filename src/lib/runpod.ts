@@ -379,93 +379,190 @@ class RunPodClient {
       lora_strength_clip: options.lora_strength_clip,
     });
 
-    // Step 1: Submit job.
-    // Different RunPod Comfy handlers disagree on the field name:
-    // - many official templates: input.workflow
-    // - ComfyUI API style / some workers: input.prompt (= node graph)
-    // - a few simple handlers also want a text string — we put graph under prompt
-    //   and mirror text under positive_prompt for debug/compat.
-    // Missing "prompt" key often yields worker error: "prompt is required".
-    const requestBody: Record<string, unknown> = {
-      input: {
-        workflow,
-        prompt: workflow,
-        positive_prompt: promptText,
-        negative_prompt: options.negative_prompt || '',
-        ...(inputImageName && inputImageB64
-          ? {
-              images: [
-                {
-                  name: inputImageName,
-                  image: inputImageB64,
-                },
-              ],
-            }
-          : {}),
-      },
-    };
-    const bodyStr = JSON.stringify(requestBody);
-    logger.debug('[runpod] submit', { data: { endpoint: baseUrl, workflow_keys: Object.keys(workflow) } });
-
-    const submitRes = await fetch(`${baseUrl}/run`, {
-      method: 'POST',
-      headers: this.headers,
-      body: bodyStr,
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!submitRes.ok) {
-      const errText = await submitRes.text();
-      throw new Error(`RunPod async submit failed (${submitRes.status}): ${errText}`);
-    }
-
-    const { id } = await submitRes.json() as { id: string };
-    logger.debug('[runpod] job submitted', { data: { id } });
-
-    // Step 2: Poll until COMPLETED or FAILED.
-    // Keep this comfortably under typical serverless platform request timeouts
-    // (Vercel/Railway usually kill long-lived requests well before 6 minutes).
-    // If callers need longer generations they should move to job_id + async polling
-    // from the client instead of blocking a single request for the whole duration.
-    const maxAttempts = Math.floor(80000 / pollIntervalMs) || 1; // ~80s budget
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const statusRes = await fetch(`${baseUrl}/status/${id}`, {
-        headers: this.headers,
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (!statusRes.ok) {
-        const errText = await statusRes.text();
-        throw new Error(`RunPod status check failed (${statusRes.status}): ${errText}`);
-      }
-
-      const status = await statusRes.json() as RunPodJobStatus;
-
-      switch (status.status) {
-        case 'COMPLETED': {
-          const images: string[] = [];
-          if (status.output?.images) {
-            for (const img of status.output.images) {
-              images.push(img.data); // base64 data
-            }
+    const imagesPayload =
+      inputImageName && inputImageB64
+        ? {
+            images: [
+              {
+                name: inputImageName,
+                image: inputImageB64,
+              },
+            ],
           }
-          return {
-            images,
-            execution_time: status.execution_time,
-            job_id: id,
-          };
+        : {};
+
+    /**
+     * Payload strategies — RunPod Comfy / FLUX handlers are inconsistent.
+     * Worker error "prompt is required" usually means they expect ComfyUI API field
+     * `input.prompt` = node graph (object), NOT a missing text string.
+     * Some want `workflow`; a few simple FLUX APIs want text `prompt` string.
+     */
+    const strategies: Array<{ name: string; input: Record<string, unknown> }> = [
+      // 1) ComfyUI API style (most common fix for "prompt is required")
+      {
+        name: 'comfy_prompt_graph',
+        input: {
+          prompt: workflow,
+          ...imagesPayload,
+        },
+      },
+      // 2) Official-ish dual keys
+      {
+        name: 'workflow_and_prompt_graph',
+        input: {
+          workflow,
+          prompt: workflow,
+          ...imagesPayload,
+        },
+      },
+      // 3) workflow only
+      {
+        name: 'workflow_only',
+        input: {
+          workflow,
+          ...imagesPayload,
+        },
+      },
+      // 4) Simple text FLUX / A1111-style handlers
+      {
+        name: 'text_prompt',
+        input: {
+          prompt: promptText,
+          negative_prompt: options.negative_prompt || '',
+          width: options.width ?? 832,
+          height: options.height ?? 1216,
+          num_inference_steps: options.num_inference_steps ?? 28,
+          guidance_scale: options.guidance_scale ?? 3.5,
+          steps: options.num_inference_steps ?? 28,
+          cfg_scale: options.guidance_scale ?? 3.5,
+          seed: options.seed ?? -1,
+          ...imagesPayload,
+        },
+      },
+    ];
+
+    const maxAttempts = Math.floor(80000 / pollIntervalMs) || 1;
+    let lastError = 'Unknown error';
+
+    for (const strategy of strategies) {
+      try {
+        logger.info('[runpod] submit strategy', {
+          strategy: strategy.name,
+          endpoint: endpointId,
+          workflow_nodes: Object.keys(workflow).length,
+          prompt_len: promptText.length,
+        });
+
+        const submitRes = await fetch(`${baseUrl}/run`, {
+          method: 'POST',
+          headers: this.headers,
+          body: JSON.stringify({ input: strategy.input }),
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!submitRes.ok) {
+          const errText = await submitRes.text();
+          lastError = `submit ${strategy.name} HTTP ${submitRes.status}: ${errText.slice(0, 200)}`;
+          logger.warn('[runpod] submit failed, try next strategy', { lastError });
+          continue;
         }
-        case 'FAILED':
-          logger.error('[runpod] job failed', { data: { id, error: status.error, status } });
-          throw new Error(`RunPod generation failed: ${status.error || 'Unknown error'}`);
-        case 'IN_QUEUE':
-        case 'IN_PROGRESS':
+
+        const { id } = (await submitRes.json()) as { id: string };
+        if (!id) {
+          lastError = `submit ${strategy.name}: no job id`;
+          continue;
+        }
+
+        logger.debug('[runpod] job submitted', { id, strategy: strategy.name });
+
+        let terminal: 'success' | 'fail' | 'timeout' = 'timeout';
+        let successResult: RunPodGenerateResult | null = null;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          const statusRes = await fetch(`${baseUrl}/status/${id}`, {
+            headers: this.headers,
+            signal: AbortSignal.timeout(10000),
+          });
+
+          if (!statusRes.ok) {
+            const errText = await statusRes.text();
+            lastError = `status ${strategy.name} HTTP ${statusRes.status}: ${errText.slice(0, 200)}`;
+            terminal = 'fail';
+            break;
+          }
+
+          const status = (await statusRes.json()) as RunPodJobStatus & {
+            output?: {
+              images?: Array<RunPodImageOutput | string>;
+              error?: string;
+              message?: string;
+            };
+          };
+
+          if (status.status === 'COMPLETED') {
+            const images: string[] = [];
+            if (status.output?.images) {
+              for (const img of status.output.images) {
+                const raw = typeof img === 'string' ? img : img?.data;
+                if (raw) images.push(raw);
+              }
+            }
+            if (!images.length) {
+              lastError = `${strategy.name}: COMPLETED but no images`;
+              terminal = 'fail';
+              break;
+            }
+            successResult = {
+              images,
+              execution_time: status.execution_time,
+              job_id: id,
+            };
+            terminal = 'success';
+            break;
+          }
+
+          if (status.status === 'FAILED') {
+            const errMsg =
+              status.error ||
+              status.output?.error ||
+              status.output?.message ||
+              JSON.stringify(status.output || status).slice(0, 300);
+            lastError = `${strategy.name}: ${errMsg}`;
+            terminal = 'fail';
+            logger.warn('[runpod] job failed, try next strategy', {
+              id,
+              strategy: strategy.name,
+              errMsg,
+            });
+            break;
+          }
+
+          // IN_QUEUE / IN_PROGRESS
           await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-          break;
+        }
+
+        if (terminal === 'success' && successResult) {
+          logger.info('[runpod] success', {
+            strategy: strategy.name,
+            id,
+            count: successResult.images.length,
+          });
+          return successResult;
+        }
+
+        if (terminal === 'timeout') {
+          lastError = `${strategy.name}: timed out after ${maxAttempts * pollIntervalMs}ms (job ${id})`;
+        }
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : String(e);
+        logger.warn('[runpod] strategy exception, try next', {
+          strategy: strategy.name,
+          lastError,
+        });
       }
     }
 
-    throw new Error(`RunPod generation timed out after ${maxAttempts * pollIntervalMs}ms (job_id: still running remotely, consider async polling)`);
+    throw new Error(`RunPod generation failed: ${lastError}`);
   }
 
   /**

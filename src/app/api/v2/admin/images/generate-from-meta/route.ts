@@ -537,10 +537,12 @@ async function submitJob(prompt: string, negativePrompt: string, params: GenPara
     method: 'POST',
     headers: { Authorization: `Bearer ${RUNPOD_API_KEY}`, 'Content-Type': 'application/json' },
     // Dual-key: some workers require `prompt` (Comfy graph), others `workflow`
+    // ComfyUI API: top-level `prompt` must be the node graph (not a text string).
+    // Many RunPod workers fail with "prompt is required" if only `workflow` is sent.
     body: JSON.stringify({
       input: {
-        workflow,
         prompt: workflow,
+        workflow,
         positive_prompt: textPrompt,
       },
     }),
