@@ -2,8 +2,8 @@
 import { useTranslation } from '@/lib/i18n/context';
 import { dateGroupLabel, dayKey } from '@/lib/chat-utils';
 import { authedFetch } from '@/lib/supabase';
-import { useEffect, useState, useRef, use, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -72,27 +72,24 @@ type MemoryItem = {
 };
 
 const GIFTS = [
-  { id: 'rose', name: 'Red Rose', emoji: '\uD83C\uDF39', boost: 3, desc: 'A classic romantic gesture' },
-  { id: 'chocolate', name: 'Chocolate Box', emoji: '\uD83C\uDF6B', boost: 5, desc: 'Sweet and thoughtful' },
-  { id: 'necklace', name: 'Silver Necklace', emoji: '\uD83D\uDCFF', boost: 8, desc: 'Elegant and memorable' },
-  { id: 'ring', name: 'Promise Ring', emoji: '\uD83D\uDC8D', boost: 15, desc: 'A deep commitment' },
+  { id: 'rose', name: 'Rose', emoji: '🌹', boost: 3, cost: 1, desc: 'Classic romance' },
+  { id: 'lollipop', name: 'Lollipop', emoji: '🍭', boost: 4, cost: 2, desc: 'Playful sweet' },
+  { id: 'chocolate', name: 'Chocolate', emoji: '🍫', boost: 5, cost: 3, desc: 'Warm & thoughtful' },
+  { id: 'perfume', name: 'Perfume', emoji: '🧴', boost: 8, cost: 6, desc: 'Luxury scent' },
+  { id: 'necklace', name: 'Necklace', emoji: '📿', boost: 10, cost: 10, desc: 'Elegant gift' },
+  { id: 'teddy', name: 'Teddy', emoji: '🧸', boost: 12, cost: 12, desc: 'Hug-worthy' },
+  { id: 'ring', name: 'Promise Ring', emoji: '💍', boost: 15, cost: 18, desc: 'Deep commitment' },
+  { id: 'crown', name: 'Crown', emoji: '👑', boost: 25, cost: 30, desc: 'Live-room showstopper' },
+  { id: 'rocket', name: 'Rocket', emoji: '🚀', boost: 40, cost: 50, desc: 'Full combo effect' },
+  { id: 'castle', name: 'Castle', emoji: '🏰', boost: 60, cost: 80, desc: 'Ultimate live combo' },
 ] as const;
+
 
 // (helpers moved to @/lib/chat-utils)
 
-export default function ChatPage({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
-}) {
-  // Next 15 passes Promise; some runtimes may still pass a plain object.
-  // Always feed `use()` a thenable so it never throws "unsupported type".
-  const resolved = use(
-    params != null && typeof (params as { then?: unknown }).then === 'function'
-      ? (params as Promise<{ id: string }>)
-      : Promise.resolve(params as { id: string }),
-  );
-  const id = String(resolved?.id || '');
+export default function ChatPage() {
+  const routeParams = useParams<{ id?: string }>();
+  const id = String(routeParams?.id || '');
   const { t, locale } = useTranslation();
   const { user } = useAuth();
   const router = useRouter();
@@ -112,6 +109,8 @@ export default function ChatPage({
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiChannel, setAiChannel] = useState<'sfw' | 'nsfw' | null>(null);
+  const [aiModel, setAiModel] = useState<string | null>(null);
   const [loadingMemories, setLoadingMemories] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -119,6 +118,9 @@ export default function ChatPage({
 
   // UI panels
   const [showGiftDialog, setShowGiftDialog] = useState(false);
+  const [giftBurst, setGiftBurst] = useState<{ emoji: string; name: string; combo: number } | null>(null);
+  const [, setGiftCombo] = useState(0);
+  const giftComboTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showWardrobeDialog, setShowWardrobeDialog] = useState(false);
   const [showMemories, setShowMemories] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
@@ -334,20 +336,37 @@ export default function ChatPage({
           environment: selectedEnvironment,
         }),
       });
-      if (!res.ok) throw new Error('Failed to generate image');
-      const data = await res.json();
-      if (data.image_url) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg =
+          data?.code === 'daily_limit'
+            ? (data.error || 'Daily photo limit reached. Upgrade for more.')
+            : (data?.error || 'Failed to generate image');
+        throw new Error(msg);
+      }
+      if (data.image_url || data.imageUrl) {
         const newMsg: Message = {
           id: `selfie-${Date.now()}`,
           role: 'assistant',
-          content: "Here's a selfie for you ",
+          content: data.message || "Here's a selfie for you ",
           created_at: new Date().toISOString(),
-          media_url: data.image_url,
+          media_url: data.image_url || data.imageUrl,
         };
         setMessages(prev => [...prev, newMsg]);
       }
     } catch (err) {
       logger.error('Generate selfie error:', { data: err });
+      // surface friendly error in chat as system-ish assistant note
+      const text = err instanceof Error ? err.message : 'Failed to generate image';
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `selfie-err-${Date.now()}`,
+          role: 'assistant',
+          content: text,
+          created_at: new Date().toISOString(),
+        },
+      ]);
     }
     setIsGenerating(false);
   };
@@ -384,6 +403,10 @@ export default function ChatPage({
       });
 
       if (!res.ok) throw new Error('Failed to send message');
+      const ch = res.headers.get('X-AI-Channel');
+      const md = res.headers.get('X-AI-Model');
+      if (ch === 'sfw' || ch === 'nsfw') setAiChannel(ch);
+      if (md) setAiModel(md);
 
       // Mark user message as sent
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m));
@@ -506,8 +529,21 @@ export default function ChatPage({
   };
 
   const handleSendGift = (gift: typeof GIFTS[number]) => {
-    setShowGiftDialog(false);
     setShowAttachments(false);
+    setGiftCombo((c) => {
+      const next = c + 1;
+      setGiftBurst({ emoji: gift.emoji, name: gift.name, combo: next });
+      if (giftComboTimer.current) clearTimeout(giftComboTimer.current);
+      giftComboTimer.current = setTimeout(() => {
+        setGiftBurst(null);
+        setGiftCombo(0);
+      }, 2400);
+      toast.success(`${gift.emoji} x${next} ${gift.name}`, {
+        description: `+${gift.boost * next} intimacy combo`,
+      });
+      return next;
+    });
+    // Keep gallery open for rapid live-room combo taps
     void sendMessage(`*sends a gift: ${gift.emoji} ${gift.name}*`);
   };
 
@@ -534,21 +570,25 @@ export default function ChatPage({
   };
 
   const getLevelInfo = (score: number): typeof INTIMACY_LEVELS[number] => {
-    let level: typeof INTIMACY_LEVELS[number] = INTIMACY_LEVELS[0];
+    const fallback = INTIMACY_LEVELS[0] || { level: 1, title: 'Stranger', min_score: 0, color: '#ff2e88' };
+    let level: typeof INTIMACY_LEVELS[number] = fallback as typeof INTIMACY_LEVELS[number];
     for (const l of INTIMACY_LEVELS) {
       if (score >= l.min_score) level = l;
     }
-    return level;
+    return level || fallback;
   };
 
   function computeProgress(score: number, level: number): number {
-    if (level >= INTIMACY_LEVELS.length) return 100;
-    const curMin = (INTIMACY_LEVELS[level - 1] as any)?.min_score || 0;
-    const nextMin = (INTIMACY_LEVELS[level] as any)?.min_score || curMin + 100;
-    return Math.min(100, Math.round((score - curMin) / (nextMin - curMin) * 100)) || 0;
+    const safeScore = Number(score) || 0;
+    const safeLevel = Math.max(1, Math.min(Number(level) || 1, INTIMACY_LEVELS.length));
+    if (safeLevel >= INTIMACY_LEVELS.length) return 100;
+    const curMin = Number(INTIMACY_LEVELS[safeLevel - 1]?.min_score) || 0;
+    const nextMin = Number(INTIMACY_LEVELS[safeLevel]?.min_score) || curMin + 100;
+    const span = Math.max(1, nextMin - curMin);
+    return Math.min(100, Math.max(0, Math.round(((safeScore - curMin) / span) * 100)));
   }
 
-  const levelInfo = getLevelInfo(Number(intimacy.score) || 0);
+  const levelInfo = getLevelInfo(Number(intimacy?.score) || 0) || INTIMACY_LEVELS[0];
 
   // Group messages by day + consecutive-merge (for IM look)
   const renderRows = useMemo(() => {
@@ -559,8 +599,9 @@ export default function ChatPage({
     let lastDay = '';
     let lastRole: 'user' | 'assistant' | null = null;
     let lastTime = 0;
-    messages.forEach((m, i) => {
-      const dk = dayKey(m.created_at);
+    (Array.isArray(messages) ? messages : []).forEach((m, i) => {
+      if (!m || !m.id) return;
+      const dk = dayKey(m.created_at || new Date().toISOString());
       if (dk !== lastDay) {
         out.push({ type: 'date', key: `date-${dk}-${i}`, label: dateGroupLabel(m.created_at) });
         lastDay = dk;
@@ -582,7 +623,7 @@ export default function ChatPage({
     return (
       <div className="flex min-h-[50dvh] items-center justify-center bg-[#08040e] px-6">
         <div className="text-center">
-          <p className="text-white/50">Invalid chat</p>
+          <p className="text-white/40">Invalid chat</p>
           <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => router.push('/chats')}>
             Go back
           </Button>
@@ -603,7 +644,7 @@ export default function ChatPage({
     return (
       <div className="flex h-[100dvh] items-center justify-center bg-[#08040e] px-6">
         <div className="text-center">
-          <p className="text-white/50">{t('chat.companionNotFound') || 'Companion not found'}</p>
+          <p className="text-white/40">{t('chat.companionNotFound') || 'Companion not found'}</p>
           <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => router.push('/chats')}>
             Go back
           </Button>
@@ -614,7 +655,7 @@ export default function ChatPage({
 
   const usageText = String(t('chat.usageWarning') || '')
     .replace(/\{count\}/g, String(membership.todayMessagesCount ?? 0))
-    .replace(/\{limit\}/g, '50');
+    .replace(/\{limit\}/g, '40');
 
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#08040e] text-white">
@@ -673,6 +714,18 @@ export default function ChatPage({
       )}
 
       {/* Free-tier quota: always-on slim bar; urgent banner at ≥80% */}
+      
+      {aiChannel && (
+        <div className="px-3 py-1 text-[11px] text-[#94A3B8] flex items-center gap-2 border-b border-white/5">
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${
+            aiChannel === 'nsfw' ? 'bg-rose-500/15 text-rose-300' : 'bg-emerald-500/15 text-emerald-300'
+          }`}>
+            {aiChannel === 'nsfw' ? 'Intimate mode' : 'Soft mode'}
+          </span>
+          {aiModel && <span className="truncate opacity-70">{aiModel}</span>}
+        </div>
+      )}
+
       {membership.tier === 'free' && !membership.loading && (
         <div className="mx-3 sm:mx-6 mb-1 space-y-1">
           <div className="flex items-center gap-2 px-1">
@@ -680,19 +733,19 @@ export default function ChatPage({
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
-                  width: `${Math.min(100, (membership.todayMessagesCount / 50) * 100)}%`,
+                  width: `${Math.min(100, ((Number(membership.todayMessagesCount) || 0) / 40) * 100)}%`,
                   background:
-                    membership.todayMessagesCount >= 40
+                    (Number(membership.todayMessagesCount) || 0) >= 24
                       ? 'linear-gradient(90deg, #F59E0B, #EF4444)'
                       : 'linear-gradient(90deg, #FF2D78, #C026D3)',
                 }}
               />
             </div>
             <span className="text-[10px] tabular-nums text-[#8B8BA3] shrink-0">
-              {membership.todayMessagesCount}/50
+              {Number(membership.todayMessagesCount) || 0}/40
             </span>
           </div>
-          {!usageBannerDismissed && membership.todayMessagesCount >= 40 && (
+          {!usageBannerDismissed && (Number(membership.todayMessagesCount) || 0) >= 24 && (
             <div className="flex items-center gap-3 rounded-2xl glass px-4 py-2.5">
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-white/90 leading-snug">{usageText}</p>
@@ -755,7 +808,7 @@ export default function ChatPage({
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2 text-base font-display">
               <BrainCircuit className="h-4 w-4 text-[#FF2D78]" />
-              Memories with {girlfriend.name}
+              Memories with {girlfriend?.name || "her"}
             </SheetTitle>
           </SheetHeader>
           <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(100vh-8rem)] pb-8 pr-1">
@@ -792,31 +845,38 @@ export default function ChatPage({
         </SheetContent>
       </Sheet>
 
+      {giftBurst && (
+        <div className="pointer-events-none fixed inset-0 z-[120] flex items-end justify-center pb-36 sm:items-center sm:pb-0">
+          <div className="animate-bounce text-center">
+            <div className="text-7xl drop-shadow-[0_0_30px_rgba(255,45,120,0.7)]">{giftBurst.emoji}</div>
+            <div className="mt-3 text-sm font-bold tracking-wide text-white bg-gradient-to-r from-[#ff2e88] to-[#c026d3] px-4 py-1.5 rounded-full shadow-lg">
+              {giftBurst.name}{giftBurst.combo > 1 ? `  x${giftBurst.combo}` : ''}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Gift Dialog */}
       <Dialog open={showGiftDialog} onOpenChange={setShowGiftDialog}>
         <DialogContent className="glass-modal sm:max-w-md border-white/12 text-white">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl text-white">Send a Gift</DialogTitle>
+            <DialogTitle className="font-display text-xl text-white">Live Gifts</DialogTitle>
             <DialogDescription className="text-white/50">
-              Choose a gift to send to {girlfriend.name}. Gifts boost intimacy!
+              Pick a gift for {girlfriend?.name || "her"}. Live-room combo + intimacy boost.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2.5 py-2">
+          <div className="grid grid-cols-3 gap-2.5 py-2 max-h-[50vh] overflow-y-auto">
             {GIFTS.map((gift) => (
               <button
                 key={gift.id}
+                type="button"
                 onClick={() => handleSendGift(gift)}
-                className="flex items-center gap-4 p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06] hover:border-[#FF2D78]/30 transition-all text-left active:scale-[0.98]"
+                className="relative flex flex-col items-center gap-1 p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-[#FF2D78]/40 transition-all text-center active:scale-[0.97] touch-manipulation"
               >
-                <span className="text-3xl shrink-0">{gift.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-[#F0F0F5]">{gift.name}</div>
-                  <div className="text-xs text-[#8B8BA3] mt-0.5">{gift.desc}</div>
-                </div>
-                <div className="shrink-0 text-right">
-                  <div className="text-xs font-bold text-[#FF6BA6] tabular-nums">+{gift.boost}</div>
-                  <div className="text-[10px] text-[#8B8BA3]">intimacy</div>
-                </div>
+                <span className="text-3xl leading-none">{gift.emoji}</span>
+                <div className="text-[11px] font-semibold text-white truncate w-full">{gift.name}</div>
+                <div className="text-[10px] text-[#FF6BA6] font-bold">+{gift.boost}</div>
+                <div className="text-[9px] text-white/35">{gift.cost} coins</div>
               </button>
             ))}
           </div>
@@ -828,8 +888,8 @@ export default function ChatPage({
         <DialogContent className="glass-modal sm:max-w-lg border-white/12 text-white">
           <DialogHeader>
             <DialogTitle className="font-display text-xl text-white">{t('chat.wardrobe') || 'Wardrobe'}</DialogTitle>
-            <DialogDescription className="text-white/50">
-              Dress up {girlfriend.name} with a new outfit.
+            <DialogDescription className="text-white/40">
+              Dress up {girlfriend?.name || "her"} with a new outfit.
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2">
@@ -839,7 +899,7 @@ export default function ChatPage({
                 onClick={() => handleEquipOutfit(outfit.id)}
                 className={`relative flex flex-col items-center gap-1.5 p-4 rounded-2xl border transition-all active:scale-[0.97] ${
                   selectedOutfit === outfit.id
-                    ? 'border-[#FF2D78]/50 bg-[#FF2D78]/10 ring-1 ring-[#FF2D78]/20 shadow-[0_0_18px_rgba(255,45,120,0.18)]'
+                    ? 'border-[#FF2D78]/40 bg-[#FF2D78]/10 ring-1 ring-[#FF2D78]/20 shadow-[0_0_18px_rgba(255,45,120,0.18)]'
                     : 'border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.12]'
                 }`}
               >

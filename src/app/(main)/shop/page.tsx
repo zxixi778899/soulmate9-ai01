@@ -15,7 +15,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Coins, Heart, Sparkles, Lock, Star, Shirt, Gift, Zap } from 'lucide-react';
+import { Coins, Heart, Sparkles, Lock, Star, Shirt, Gift, Zap, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import {
@@ -76,7 +76,10 @@ export default function ShopPage() {
   const [tokenPackages, setTokenPackages] = useState<TokenPackage[]>([]);
   const [tokenBalance, setTokenBalance] = useState(0);
   const [buyingTokens, setBuyingTokens] = useState<string | null>(null);
-  const [tab, setTab] = useState<'skins' | 'gifts' | 'tokens'>('skins');
+  const [tab, setTab] = useState<'skins' | 'gifts' | 'tokens' | 'seats'>('skins');
+  const [seatPackages, setSeatPackages] = useState<Array<{ id: string; name: string; seats: number; price_cents: number }>>([]);
+  const [seatStatus, setSeatStatus] = useState<{ used: number; effectiveLimit: number; bonusSeats: number; remaining: number | null; canAdd: boolean } | null>(null);
+  const [buyingSeats, setBuyingSeats] = useState<string | null>(null);
 
   useEffect(() => {
     authedFetch('/api/shop/credits').then((r) => r.json()).then(setCredits).catch(() => {});
@@ -90,11 +93,29 @@ export default function ShopPage() {
       .catch(() => {});
 
     const params = new URLSearchParams(window.location.search);
+    const qTab = params.get('tab');
+    if (qTab === 'seats' || qTab === 'tokens' || qTab === 'gifts' || qTab === 'skins') {
+      setTab(qTab);
+    }
+    authedFetch('/api/v2/shop/seats')
+      .then((r) => r.json())
+      .then((d) => {
+        setSeatPackages(d.packages || []);
+        setSeatStatus(d.seats || null);
+      })
+      .catch(() => {});
+
     if (params.get('checkout') === 'success') {
-      toast.success('代币购买成功！');
-      window.history.replaceState({}, '', '/shop');
+      if (params.get('seats')) {
+        toast.success('Companion seats unlocked (permanent)');
+      } else {
+        toast.success('Purchase successful');
+      }
+      window.history.replaceState({}, '', '/shop' + (params.get('seats') ? '?tab=seats' : ''));
+      if (params.get('seats')) setTab('seats');
     }
   }, []);
+
 
   const buyTokenPack = async (packageId: string) => {
     setBuyingTokens(packageId);
@@ -117,7 +138,28 @@ export default function ShopPage() {
     }
   };
 
-  const handleBuy = async () => {
+    const buySeatPack = async (packageId: string) => {
+    setBuyingSeats(packageId);
+    try {
+      const res = await authedFetch('/api/v2/shop/seats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package_id: packageId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        toast.error(data.error || 'Checkout failed');
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      toast.error('Network error');
+    } finally {
+      setBuyingSeats(null);
+    }
+  };
+
+const handleBuy = async () => {
     if (!buying || !selectedGF) return;
     setPurchasing(true);
     try {
@@ -175,9 +217,10 @@ export default function ShopPage() {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-3 flex gap-2">
         {([
-          { id: 'skins', label: '皮肤', icon: Shirt },
-          { id: 'gifts', label: '道具', icon: Gift },
-          { id: 'tokens', label: '点券', icon: Coins },
+          { id: 'skins', label: 'Skins', icon: Shirt },
+          { id: 'gifts', label: 'Gifts', icon: Gift },
+          { id: 'tokens', label: 'Tokens', icon: Coins },
+          { id: 'seats', label: 'Seats', icon: Users },
         ] as const).map((t) => {
           const Icon = t.icon;
           return (
@@ -240,7 +283,59 @@ export default function ShopPage() {
           </section>
         )}
 
-        {tab === 'skins' && (
+        
+        {tab === 'seats' && (
+          <section>
+            <GameSectionTitle
+              title="Companion Seats"
+              subtitle="Permanent slots · Free 3 · Pro 15 · Unlimited ∞ · Tax at checkout"
+              eyebrow="FRIENDS"
+            />
+            {seatStatus && (
+              <div className="mb-4 glass rounded-2xl px-4 py-3 text-sm text-white/70">
+                Using {seatStatus.used}
+                {seatStatus.effectiveLimit < 0
+                  ? ' / ∞'
+                  : ` / ${seatStatus.effectiveLimit}`}
+                {seatStatus.bonusSeats > 0 ? ` · +${seatStatus.bonusSeats} purchased` : ''}
+                {seatStatus.remaining != null ? ` · ${seatStatus.remaining} free` : ''}
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {(seatPackages.length
+                ? seatPackages
+                : [
+                    { id: 'seats-1', name: '1 Companion Seat', seats: 1, price_cents: 490 },
+                    { id: 'seats-5', name: '5 Companion Seats', seats: 5, price_cents: 990 },
+                    { id: 'seats-20', name: '20 Companion Seats', seats: 20, price_cents: 1990 },
+                  ]
+              ).map((pkg, i) => (
+                <GamePanel key={pkg.id} glow={i === 1} className="p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-lg">{pkg.name}</span>
+                    {i === 1 && (
+                      <span className="text-[10px] font-black bg-[#ff2e88] px-2 py-0.5 rounded">BEST</span>
+                    )}
+                  </div>
+                  <div className="mt-3 text-3xl font-black text-[#ffd700]">+{pkg.seats}</div>
+                  <div className="text-xs text-white/40">permanent friend slots</div>
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-xl font-bold">${(pkg.price_cents / 100).toFixed(2)}</span>
+                    <GamePrimaryButton
+                      className="h-10 px-5"
+                      disabled={buyingSeats === pkg.id}
+                      onClick={() => buySeatPack(pkg.id)}
+                    >
+                      {buyingSeats === pkg.id ? '…' : 'Buy'}
+                    </GamePrimaryButton>
+                  </div>
+                </GamePanel>
+              ))}
+            </div>
+          </section>
+        )}
+
+{tab === 'skins' && (
           <section>
             <GameSectionTitle
               eyebrow="SKINS"

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { createBrowserClient, SOULMATE_BUILD_ID } from "@/lib/supabase";
 import { useTranslation } from "@/lib/i18n/context";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 

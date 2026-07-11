@@ -58,7 +58,7 @@ export function LanguageSwitcher({ variant = 'default' }: { variant?: 'default' 
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <span className="text-sm">{l.code === 'en' ? '' : l.code === 'zh' ? '' : l.code === 'ja' ? '' : l.code === 'ko' ? '' : l.code === 'es' ? '' : l.code === 'fr' ? '' : ''}</span>
+                  <span className="uppercase text-[10px] font-bold tracking-wide text-white/50 w-6">{l.code}</span>
                   <span>{l.nativeLabel}</span>
                 </button>
               ))}
@@ -95,13 +95,13 @@ export function LanguageSwitcher({ variant = 'default' }: { variant?: 'default' 
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                 }`}
               >
-                <span className="text-base">{l.code === 'en' ? '' : l.code === 'zh' ? '' : l.code === 'ja' ? '' : l.code === 'ko' ? '' : l.code === 'es' ? '' : l.code === 'fr' ? '' : ''}</span>
+                <span className="uppercase text-[10px] font-bold tracking-wide text-white/50 w-7">{l.code}</span>
                 <div className="flex flex-col">
                   <span>{l.nativeLabel}</span>
                   <span className="text-[10px] text-muted-foreground">{l.label}</span>
                 </div>
                 {locale === l.code && (
-                  <span className="ml-auto text-primary"></span>
+                  <span className="ml-auto text-primary text-xs">✓</span>
                 )}
               </button>
             ))}

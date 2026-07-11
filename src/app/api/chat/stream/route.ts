@@ -482,6 +482,14 @@ export async function POST(request: NextRequest) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
+      'X-AI-Channel': chatResolved.channel,
+      'X-AI-Model': chatResolved.endpoint.model_id,
+      'X-AI-Endpoint': chatResolved.endpoint.id,
+      'X-AI-Provider': chatResolved.endpoint.provider,
+      'X-AI-Allow-NSFW': chatResolved.allowNsfw ? '1' : '0',
+      ...(chatResolved.blockedReason
+        ? { 'X-AI-Blocked-Reason': chatResolved.blockedReason }
+        : {}),
     },
   });
 }

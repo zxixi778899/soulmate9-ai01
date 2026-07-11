@@ -9,7 +9,7 @@
  * - Site footer: Telegram / X / etc.
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   MessageCircle, ShoppingBag, Wand2, Crown, ChevronLeft, ChevronRight,
@@ -161,6 +161,42 @@ export default function HomePage() {
     setFocus((i) => (i + 1) % roster.length);
   }, [roster.length]);
 
+  // Mobile swipe on main visual: horizontal only, keep vertical scroll + tap-to-detail
+  const touchStart = useRef<{ x: number; y: number; active: boolean } | null>(null);
+  const swipeConsumed = useRef(false);
+  const SWIPE_MIN = 48;
+
+  const onPortraitTouchStart = useCallback((e: React.TouchEvent) => {
+    if (roster.length < 2) return;
+    const t0 = e.changedTouches[0];
+    if (!t0) return;
+    touchStart.current = { x: t0.clientX, y: t0.clientY, active: true };
+    swipeConsumed.current = false;
+  }, [roster.length]);
+
+  const onPortraitTouchEnd = useCallback((e: React.TouchEvent) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start?.active || roster.length < 2) return;
+    const t0 = e.changedTouches[0];
+    if (!t0) return;
+    const dx = t0.clientX - start.x;
+    const dy = t0.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_MIN) return;
+    if (Math.abs(dx) <= Math.abs(dy) * 1.2) return; // vertical scroll wins
+    swipeConsumed.current = true;
+    if (dx < 0) next();
+    else prev();
+  }, [next, prev, roster.length]);
+
+  const onPortraitClick = useCallback(() => {
+    if (swipeConsumed.current) {
+      swipeConsumed.current = false;
+      return;
+    }
+    if (featured) setDetail(featured);
+  }, [featured]);
+
   const enterBond = async (girl: DemoGirl = featured!) => {
     if (!girl) return;
     setBonding(true);
@@ -188,6 +224,16 @@ export default function HomePage() {
       if (!ok) {
         toast.error(t('home.chatFail'));
         router.push('/login');
+      }
+    } catch (err) {
+      const e = err as Error & { code?: string };
+      if (e.code === 'SEAT_LIMIT') {
+        toast.error('Friend seats full', {
+          description: 'Upgrade plan or buy permanent seats',
+          action: { label: 'Buy seats', onClick: () => router.push('/shop?tab=seats') },
+        });
+      } else {
+        toast.error(e.message || t('home.chatFail'));
       }
     } finally {
       setBonding(false);
@@ -251,13 +297,18 @@ export default function HomePage() {
 
         {/* ═══════════ HERO: tall portrait + right panel ═══════════ */}
         <section
-          className="glass-strong rounded-2xl sm:rounded-3xl p-2.5 sm:p-3 lg:p-4"
+          className="glass-strong rounded-2xl sm:rounded-3xl p-2.5 sm:p-3 lg:p-4 overflow-visible"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
             {/* LEFT — tall full-body stage */}
-            <div className="lg:col-span-6 xl:col-span-5 relative">
+            <div
+              className="lg:col-span-6 xl:col-span-5 relative touch-pan-y"
+              onTouchStart={onPortraitTouchStart}
+              onTouchEnd={onPortraitTouchEnd}
+              onTouchCancel={() => { touchStart.current = null; }}
+            >
               <button
                 type="button"
                 onClick={prev}
@@ -286,7 +337,7 @@ export default function HomePage() {
                 style={{
                   boxShadow: `0 0 0 1px ${rc.color}55, 0 16px 48px rgba(0,0,0,0.45)`,
                 }}
-                onClick={() => setDetail(featured)}
+                onClick={onPortraitClick}
               >
                 <CardMedia
                   src={featured.portrait || featured.avatar}
@@ -370,27 +421,31 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Avatar select — under right panel */}
-              <div className="glass-strong rounded-xl sm:rounded-2xl p-2.5 sm:p-3">
+              <div className="glass-strong rounded-xl sm:rounded-2xl p-2.5 sm:p-3 overflow-visible">
                 <div className="flex items-center justify-between mb-2 px-0.5">
                   <span className="text-[10px] font-bold tracking-wider text-white/45 uppercase">{t('home.switchRole')}</span>
-                  <span className="text-[10px] text-white/30">{focus + 1}/{roster.length}</span>
+                  <span className="text-[10px] text-white/30 tabular-nums">{focus + 1}/{roster.length}</span>
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
+                <div
+                  className="flex gap-2.5 overflow-x-auto overscroll-x-contain py-2 px-1 scrollbar-hide snap-x snap-mandatory touch-pan-x"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
                   {roster.map((g, i) => (
                     <button
                       key={g.id}
                       type="button"
                       onClick={() => { setPaused(true); setFocus(i); }}
                       className={cn(
-                        'relative shrink-0 rounded-xl overflow-hidden transition-all',
+                        'relative shrink-0 rounded-xl overflow-hidden transition-transform snap-start touch-manipulation',
                         i === focus
-                          ? 'h-16 w-14 sm:h-[72px] sm:w-16 ring-2 ring-[#ff2e88] shadow-[0_0_16px_rgba(255,46,136,0.45)]'
-                          : 'h-14 w-12 sm:h-16 sm:w-14 opacity-55 ring-1 ring-white/10 hover:opacity-90',
+                          ? 'h-[76px] w-[58px] sm:h-[84px] sm:w-[70px] ring-2 ring-[#ff2e88] shadow-[0_0_16px_rgba(255,46,136,0.45)] z-[1]'
+                          : 'h-[68px] w-[52px] sm:h-[76px] sm:w-[58px] opacity-70 ring-1 ring-white/10 hover:opacity-100',
                       )}
+                      aria-label={g.name}
+                      aria-pressed={i === focus}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={g.avatar || g.portrait} alt={g.name} className="h-full w-full object-cover" />
+                      <img src={g.avatar || g.portrait} alt="" className="h-full w-full object-cover object-top" draggable={false} />
                       {i === focus && (
                         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-[#ff2e88] to-[#ffd700]" />
                       )}
@@ -401,6 +456,7 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+
 
         {/* ═══════════ Modules: 2 rows × 3 cols ═══════════ */}
         <section>
@@ -646,6 +702,7 @@ export default function HomePage() {
 
       {detail && (
         <CompanionDetailModal
+          busy={bonding}
           girl={detail}
           open={!!detail}
           onClose={() => setDetail(null)}

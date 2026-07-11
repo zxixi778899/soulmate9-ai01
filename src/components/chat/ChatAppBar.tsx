@@ -14,7 +14,7 @@ function safeInitial(name?: string | null) {
 }
 
 export function ChatAppBar(props: {
-  girlfriend: ChatGirlfriend;
+  girlfriend: ChatGirlfriend | null;
   levelInfo: LevelInfo;
   intimacy: IntimacyData;
   isTyping: boolean;
@@ -46,7 +46,7 @@ export function ChatAppBar(props: {
         </button>
         <div className="relative shrink-0">
           <Avatar className="relative h-10 w-10 ring-2 ring-white/10">
-            {girlfriend.avatar_url ? (
+            {girlfriend?.avatar_url ? (
               <AvatarImage src={girlfriend.avatar_url} alt={name} className="object-cover" />
             ) : (
               <AvatarFallback

@@ -14,11 +14,19 @@ import {
 } from '@/components/ui/select';
 import {
   Loader2, Save, RefreshCw, RotateCcw, Play, Brain, MessageSquare,
-  ImageIcon, Languages, Database,
+  ImageIcon, Languages, Database, AlertTriangle, CheckCircle2, Plus, Trash2, Copy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type AnyConfig = Record<string, any>;
+
+const SCENE_LABELS: Record<string, string> = {
+  girlfriend_portrait: '女友肖像',
+  chat_selfie: '聊天自拍',
+  outfit_prop: '换装道具',
+  shop_item: '商城道具',
+  admin_batch: '管理批量',
+};
 
 export default function AdminAiModulesPage() {
   const [tab, setTab] = useState<'overview' | 'chat' | 'image' | 'language' | 'endpoints'>('overview');
@@ -29,6 +37,13 @@ export default function AdminAiModulesPage() {
   const [previewTier, setPreviewTier] = useState('pro');
   const [previewMsg, setPreviewMsg] = useState('kiss me hard');
   const [previewIntimacy, setPreviewIntimacy] = useState(4);
+  const [previewScene, setPreviewScene] = useState('chat_selfie');
+  const [env, setEnv] = useState<AnyConfig | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const markDirtyConfig = (next: AnyConfig) => {
+    setConfig(next);
+    setDirty(true);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -37,6 +52,8 @@ export default function AdminAiModulesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '加载失败');
       setConfig(data.config);
+      if (data.env) setEnv(data.env);
+      setDirty(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -58,6 +75,8 @@ export default function AdminAiModulesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '保存失败');
       setConfig(data.config);
+      if (data.env) setEnv(data.env);
+      setDirty(false);
       toast.success(`已保存（${data.source}）`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '保存失败');
@@ -111,12 +130,13 @@ export default function AdminAiModulesPage() {
         tier: previewTier,
         message: previewMsg,
         intimacy: String(previewIntimacy),
-        scene: 'chat_selfie',
+        scene: previewScene,
       });
       const res = await authedFetch(`/api/admin/ai-modules?${qs}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '预览失败');
       setPreview(data.preview);
+      if (data.env) setEnv(data.env);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '预览失败');
     }
@@ -161,14 +181,42 @@ export default function AdminAiModulesPage() {
           <Button variant="outline" size="sm" onClick={resetDefaults} disabled={saving} className="gap-1.5">
             <RotateCcw className="h-3.5 w-3.5" /> 恢复默认
           </Button>
-          <Button size="sm" onClick={save} disabled={saving} className="gap-1.5 bg-[#FF2D78] hover:bg-[#e0266b]">
+          <Button size="sm" onClick={save} disabled={saving || !dirty} className="gap-1.5 bg-[#FF2D78] hover:bg-[#e0266b]">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             保存方案
           </Button>
         </div>
       </div>
 
-      {/* Tabs */}
+      
+      {(env?.warnings?.length > 0) && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center gap-2 text-amber-200 text-sm font-medium">
+              <AlertTriangle className="h-4 w-4" />
+              环境健康
+            </div>
+            <ul className="text-xs text-amber-100/80 space-y-1 list-disc pl-5">
+              {env.warnings.map((w: string) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Badge className={env.imageReady ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}>
+                {env.imageReady ? '出图 RunPod 就绪' : '出图 RunPod 未配置'}
+              </Badge>
+              <Badge className={env.chatReady?.together ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}>
+                Together {env.chatReady?.together ? 'OK' : '缺失'}
+              </Badge>
+              <Badge className={env.chatReady?.runpod_vllm ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}>
+                vLLM {env.chatReady?.runpod_vllm ? 'OK' : '缺失'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+{/* Tabs */}
       <div className="flex flex-wrap gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1 w-fit">
         {[
           { id: 'overview', label: '总览预览', icon: Play },
@@ -237,7 +285,19 @@ export default function AdminAiModulesPage() {
                   <Input type="number" min={1} max={6} className="mt-1 h-9" value={previewIntimacy}
                     onChange={(e) => setPreviewIntimacy(Number(e.target.value) || 1)} />
                 </div>
-                <div className="flex items-end">
+                
+                <div>
+                  <Label className="text-xs text-[#8B8BA3]">出图场景</Label>
+                  <Select value={previewScene} onValueChange={setPreviewScene}>
+                    <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.keys(config.image.scenes || {}).map((s: string) => (
+                        <SelectItem key={s} value={s}>{SCENE_LABELS[s] || s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+<div className="flex items-end">
                   <Button size="sm" className="w-full h-9" onClick={runPreview}>预览</Button>
                 </div>
               </div>
@@ -264,7 +324,7 @@ export default function AdminAiModulesPage() {
                 <h3 className="font-semibold text-white">聊天总开关</h3>
                 <Switch
                   checked={!!config.chat.enabled}
-                  onCheckedChange={(v) => setConfig({ ...config, chat: { ...config.chat, enabled: v } })}
+                  onCheckedChange={(v) => markDirtyConfig({ ...config, chat: { ...config.chat, enabled: v } })}
                 />
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -272,7 +332,7 @@ export default function AdminAiModulesPage() {
                   <Label className="text-xs text-[#8B8BA3]">NSFW 最低亲密度</Label>
                   <Input type="number" min={1} max={6} className="mt-1"
                     value={config.chat.nsfw_min_intimacy}
-                    onChange={(e) => setConfig({
+                    onChange={(e) => markDirtyConfig({
                       ...config,
                       chat: { ...config.chat, nsfw_min_intimacy: Number(e.target.value) || 4 },
                     })}
@@ -282,7 +342,7 @@ export default function AdminAiModulesPage() {
                   <Label className="text-xs text-[#8B8BA3]">NSFW 检测</Label>
                   <Select
                     value={config.chat.nsfw_detection}
-                    onValueChange={(v) => setConfig({
+                    onValueChange={(v) => markDirtyConfig({
                       ...config,
                       chat: { ...config.chat, nsfw_detection: v },
                     })}
@@ -298,7 +358,7 @@ export default function AdminAiModulesPage() {
                   <Label className="text-xs text-[#8B8BA3]">降级端点</Label>
                   <Select
                     value={config.chat.fallback_endpoint_id}
-                    onValueChange={(v) => setConfig({
+                    onValueChange={(v) => markDirtyConfig({
                       ...config,
                       chat: { ...config.chat, fallback_endpoint_id: v },
                     })}
@@ -317,7 +377,7 @@ export default function AdminAiModulesPage() {
                 <Textarea
                   className="mt-1 min-h-[72px]"
                   value={config.chat.global_system_suffix || ''}
-                  onChange={(e) => setConfig({
+                  onChange={(e) => markDirtyConfig({
                     ...config,
                     chat: { ...config.chat, global_system_suffix: e.target.value },
                   })}
@@ -337,7 +397,7 @@ export default function AdminAiModulesPage() {
                       <Label className="text-xs text-[#8B8BA3]">SFW 模型</Label>
                       <Select
                         value={r.sfw_endpoint_id}
-                        onValueChange={(v) => setConfig({
+                        onValueChange={(v) => markDirtyConfig({
                           ...config,
                           chat: {
                             ...config.chat,
@@ -357,7 +417,7 @@ export default function AdminAiModulesPage() {
                       <Label className="text-xs text-[#8B8BA3]">NSFW 模型</Label>
                       <Select
                         value={r.nsfw_endpoint_id || '__none__'}
-                        onValueChange={(v) => setConfig({
+                        onValueChange={(v) => markDirtyConfig({
                           ...config,
                           chat: {
                             ...config.chat,
@@ -380,7 +440,7 @@ export default function AdminAiModulesPage() {
                     <div>
                       <Label className="text-xs text-[#8B8BA3]">max_tokens</Label>
                       <Input type="number" className="mt-1" value={r.max_tokens}
-                        onChange={(e) => setConfig({
+                        onChange={(e) => markDirtyConfig({
                           ...config,
                           chat: {
                             ...config.chat,
@@ -392,7 +452,7 @@ export default function AdminAiModulesPage() {
                     <div>
                       <Label className="text-xs text-[#8B8BA3]">上下文条数</Label>
                       <Input type="number" className="mt-1" value={r.context_messages}
-                        onChange={(e) => setConfig({
+                        onChange={(e) => markDirtyConfig({
                           ...config,
                           chat: {
                             ...config.chat,
@@ -405,7 +465,7 @@ export default function AdminAiModulesPage() {
                       <Label className="text-xs text-[#8B8BA3]">日消息上限（空=无限）</Label>
                       <Input type="number" className="mt-1" value={r.daily_message_limit ?? ''}
                         placeholder="无限"
-                        onChange={(e) => setConfig({
+                        onChange={(e) => markDirtyConfig({
                           ...config,
                           chat: {
                             ...config.chat,
@@ -423,7 +483,7 @@ export default function AdminAiModulesPage() {
                     <div className="flex items-end gap-2 pb-2">
                       <Switch
                         checked={!!r.allow_nsfw}
-                        onCheckedChange={(v) => setConfig({
+                        onCheckedChange={(v) => markDirtyConfig({
                           ...config,
                           chat: {
                             ...config.chat,
@@ -450,27 +510,47 @@ export default function AdminAiModulesPage() {
                 <h3 className="font-semibold text-white">出图总开关</h3>
                 <Switch
                   checked={!!config.image.enabled}
-                  onCheckedChange={(v) => setConfig({ ...config, image: { ...config.image, enabled: v } })}
+                  onCheckedChange={(v) => markDirtyConfig({ ...config, image: { ...config.image, enabled: v } })}
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs text-[#8B8BA3]">RunPod Endpoint 环境变量</Label>
                   <Input className="mt-1 font-mono text-sm" value={config.image.runpod_endpoint_env}
-                    onChange={(e) => setConfig({ ...config, image: { ...config.image, runpod_endpoint_env: e.target.value } })}
+                    onChange={(e) => markDirtyConfig({ ...config, image: { ...config.image, runpod_endpoint_env: e.target.value } })}
                   />
                 </div>
                 <div>
                   <Label className="text-xs text-[#8B8BA3]">API Key 环境变量</Label>
                   <Input className="mt-1 font-mono text-sm" value={config.image.runpod_api_key_env}
-                    onChange={(e) => setConfig({ ...config, image: { ...config.image, runpod_api_key_env: e.target.value } })}
+                    onChange={(e) => markDirtyConfig({ ...config, image: { ...config.image, runpod_api_key_env: e.target.value } })}
                   />
                 </div>
               </div>
-              <div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs text-[#8B8BA3]">Free 每日出图</Label>
+                  <Input type="number" className="mt-1" value={config.image.free_daily_images}
+                    onChange={(e) => { setDirty(true); markDirtyConfig({ ...config, image: { ...config.image, free_daily_images: Number(e.target.value) || 0 } }); }} />
+                </div>
+                <div>
+                  <Label className="text-xs text-[#8B8BA3]">Pro 每日出图（空=不限）</Label>
+                  <Input type="number" className="mt-1" value={config.image.pro_daily_images ?? ''}
+                    placeholder="unlimited"
+                    onChange={(e) => { setDirty(true); markDirtyConfig({ ...config, image: { ...config.image, pro_daily_images: e.target.value === '' ? null : Number(e.target.value) } }); }} />
+                </div>
+                <div>
+                  <Label className="text-xs text-[#8B8BA3]">Unlimited 每日（空=不限）</Label>
+                  <Input type="number" className="mt-1" value={config.image.unlimited_daily_images ?? ''}
+                    placeholder="unlimited"
+                    onChange={(e) => { setDirty(true); markDirtyConfig({ ...config, image: { ...config.image, unlimited_daily_images: e.target.value === '' ? null : Number(e.target.value) } }); }} />
+                </div>
+              </div>
+<div>
                 <Label className="text-xs text-[#8B8BA3]">默认 Negative</Label>
                 <Textarea className="mt-1 min-h-[60px]" value={config.image.default_negative}
-                  onChange={(e) => setConfig({ ...config, image: { ...config.image, default_negative: e.target.value } })}
+                  onChange={(e) => markDirtyConfig({ ...config, image: { ...config.image, default_negative: e.target.value } })}
                 />
               </div>
             </CardContent>
@@ -489,7 +569,7 @@ export default function AdminAiModulesPage() {
                         step={k === 'cfg' ? 0.1 : 1}
                         className="mt-1"
                         value={sc[k]}
-                        onChange={(e) => setConfig({
+                        onChange={(e) => markDirtyConfig({
                           ...config,
                           image: {
                             ...config.image,
@@ -507,7 +587,7 @@ export default function AdminAiModulesPage() {
                   <label className="flex items-center gap-2 text-xs text-[#8B8BA3]">
                     <Switch
                       checked={!!sc.use_consistency_default}
-                      onCheckedChange={(v) => setConfig({
+                      onCheckedChange={(v) => markDirtyConfig({
                         ...config,
                         image: {
                           ...config.image,
@@ -523,7 +603,7 @@ export default function AdminAiModulesPage() {
                   <label className="flex items-center gap-2 text-xs text-[#8B8BA3]">
                     <Switch
                       checked={!!sc.allow_llm_prompt_polish}
-                      onCheckedChange={(v) => setConfig({
+                      onCheckedChange={(v) => markDirtyConfig({
                         ...config,
                         image: {
                           ...config.image,
@@ -551,7 +631,7 @@ export default function AdminAiModulesPage() {
               <h3 className="font-semibold text-white">语言模块</h3>
               <Switch
                 checked={!!config.language.enabled}
-                onCheckedChange={(v) => setConfig({ ...config, language: { ...config.language, enabled: v } })}
+                onCheckedChange={(v) => markDirtyConfig({ ...config, language: { ...config.language, enabled: v } })}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -559,7 +639,7 @@ export default function AdminAiModulesPage() {
                 <Label className="text-xs text-[#8B8BA3]">默认语言</Label>
                 <Select
                   value={config.language.default_locale}
-                  onValueChange={(v) => setConfig({
+                  onValueChange={(v) => markDirtyConfig({
                     ...config,
                     language: { ...config.language, default_locale: v },
                   })}
@@ -576,7 +656,7 @@ export default function AdminAiModulesPage() {
                 <label className="flex items-center gap-2 text-xs text-[#8B8BA3]">
                   <Switch
                     checked={!!config.language.force_reply_language}
-                    onCheckedChange={(v) => setConfig({
+                    onCheckedChange={(v) => markDirtyConfig({
                       ...config,
                       language: { ...config.language, force_reply_language: v },
                     })}
@@ -586,7 +666,7 @@ export default function AdminAiModulesPage() {
                 <label className="flex items-center gap-2 text-xs text-[#8B8BA3]">
                   <Switch
                     checked={!!config.language.auto_detect}
-                    onCheckedChange={(v) => setConfig({
+                    onCheckedChange={(v) => markDirtyConfig({
                       ...config,
                       language: { ...config.language, auto_detect: v },
                     })}
@@ -603,7 +683,7 @@ export default function AdminAiModulesPage() {
                   <Textarea
                     className="min-h-[52px] text-sm"
                     value={String(text)}
-                    onChange={(e) => setConfig({
+                    onChange={(e) => markDirtyConfig({
                       ...config,
                       language: {
                         ...config.language,
@@ -623,6 +703,35 @@ export default function AdminAiModulesPage() {
 
       {/* Endpoints */}
       {tab === 'endpoints' && (
+        <div className="space-y-3">
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => {
+              const id = `custom-${Date.now().toString(36)}`;
+              setDirty(true);
+              markDirtyConfig({
+                ...config,
+                endpoints: [
+                  ...config.endpoints,
+                  {
+                    id,
+                    label: '新端点',
+                    provider: 'together',
+                    model_id: '',
+                    api_base_url: 'https://api.together.xyz/v1',
+                    api_key_env: 'TOGETHER_API_KEY',
+                    temperature: 0.85,
+                    max_tokens: 1024,
+                    cost_per_1k_input: 0,
+                    cost_per_1k_output: 0,
+                    nsfw_capable: false,
+                    notes: '',
+                  },
+                ],
+              });
+            }}>
+              <Plus className="h-3.5 w-3.5" /> 添加端点
+            </Button>
+          </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {(config.endpoints || []).map((ep: AnyConfig, idx: number) => (
             <Card key={ep.id} className="border-white/10 bg-white/[0.03]">
@@ -644,7 +753,7 @@ export default function AdminAiModulesPage() {
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];
                         endpoints[idx] = { ...ep, model_id: e.target.value };
-                        setConfig({ ...config, endpoints });
+                        markDirtyConfig({ ...config, endpoints });
                       }}
                     />
                   </div>
@@ -654,7 +763,7 @@ export default function AdminAiModulesPage() {
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];
                         endpoints[idx] = { ...ep, api_key_env: e.target.value };
-                        setConfig({ ...config, endpoints });
+                        markDirtyConfig({ ...config, endpoints });
                       }}
                     />
                   </div>
@@ -664,7 +773,7 @@ export default function AdminAiModulesPage() {
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];
                         endpoints[idx] = { ...ep, temperature: Number(e.target.value) };
-                        setConfig({ ...config, endpoints });
+                        markDirtyConfig({ ...config, endpoints });
                       }}
                     />
                   </div>
@@ -674,7 +783,7 @@ export default function AdminAiModulesPage() {
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];
                         endpoints[idx] = { ...ep, max_tokens: Number(e.target.value) };
-                        setConfig({ ...config, endpoints });
+                        markDirtyConfig({ ...config, endpoints });
                       }}
                     />
                   </div>
@@ -684,7 +793,7 @@ export default function AdminAiModulesPage() {
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];
                         endpoints[idx] = { ...ep, api_base_url: e.target.value || null };
-                        setConfig({ ...config, endpoints });
+                        markDirtyConfig({ ...config, endpoints });
                       }}
                     />
                   </div>
@@ -692,6 +801,7 @@ export default function AdminAiModulesPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
         </div>
       )}
     </div>

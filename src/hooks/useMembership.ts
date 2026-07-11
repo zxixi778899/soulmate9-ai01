@@ -15,7 +15,7 @@ export type MembershipTier = 'free' | 'pro' | 'unlimited' | 'admin';
  */
 export const MEMBERSHIP_LIMITS = {
   free: {
-    dailyMessageLimit: 50,
+    dailyMessageLimit: 40,
     maxIntimacyLevel: 3,
     maxGirlfriends: 3,
     canGenerateImages: false,
@@ -24,7 +24,7 @@ export const MEMBERSHIP_LIMITS = {
   pro: {
     dailyMessageLimit: Number.POSITIVE_INFINITY,
     maxIntimacyLevel: 5,
-    maxGirlfriends: 10,
+    maxGirlfriends: 15,
     canGenerateImages: true,
     canUsePremiumOutfits: true,
   },

@@ -30,6 +30,7 @@ export default function ExplorePage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sort, setSort] = useState<SortKey>('rarity');
   const [selected, setSelected] = useState<DemoGirl | null>(null);
+  const [selecting, setSelecting] = useState(false);
   const [catalog, setCatalog] = useState<DemoGirl[]>(GIRLS);
   const [source, setSource] = useState<'api' | 'demo'>('demo');
   const [loading, setLoading] = useState(true);
@@ -73,35 +74,53 @@ export default function ExplorePage() {
   };
 
   const handleSelect = async (girl: DemoGirl) => {
-    if (girl.locked) {
-      try {
-        const res = await authedFetch('/api/girlfriends/unlock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ girlfriend_id: girl.id }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          toast.error((data as { error?: string }).error || '解锁失败');
-          setSelected(girl);
+    setSelecting(true);
+    try {
+      if (girl.locked) {
+        try {
+          const res = await authedFetch('/api/girlfriends/unlock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ girlfriend_id: girl.id }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            toast.error((data as { error?: string }).error || 'Unlock failed');
+            setSelected(girl);
+            return;
+          }
+          toast.success('Unlocked');
+          girl = { ...girl, locked: false, is_unlocked: true };
+          setCatalog((prev) =>
+            prev.map((g) => (g.id === girl.id ? { ...g, locked: false, is_unlocked: true } : g)),
+          );
+        } catch {
+          toast.error('Unlock failed — please log in');
           return;
         }
-        toast.success('解锁成功');
-        girl = { ...girl, locked: false, is_unlocked: true };
-        setCatalog((prev) =>
-          prev.map((g) => (g.id === girl.id ? { ...g, locked: false, is_unlocked: true } : g)),
-        );
-      } catch {
-        toast.error('解锁失败，请登录');
-        return;
       }
-    }
-    const ok = await openCompanionChat(girl, router);
-    if (!ok) {
-      toast.error('无法开启对话，请先登录');
-      router.push('/login');
+      try {
+        const ok = await openCompanionChat(girl, router);
+        if (!ok) {
+          toast.error('Could not open chat — please log in');
+          router.push('/login');
+        }
+      } catch (err) {
+        const e = err as Error & { code?: string };
+        if (e.code === 'SEAT_LIMIT') {
+          toast.error('Friend seats full', {
+            description: 'Upgrade membership or buy permanent seats',
+            action: { label: 'Buy seats', onClick: () => router.push('/shop?tab=seats') },
+          });
+          return;
+        }
+        toast.error(e.message || 'Failed to add friend');
+      }
+    } finally {
+      setSelecting(false);
     }
   };
+
 
   return (
     <GameShell className="pb-6 md:pb-12 min-h-[100dvh]">
@@ -288,6 +307,7 @@ export default function ExplorePage() {
 
       {selected && (
         <CompanionDetailModal
+          busy={selecting}
           girl={selected}
           open={!!selected}
           onClose={() => setSelected(null)}

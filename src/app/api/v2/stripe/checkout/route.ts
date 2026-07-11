@@ -31,6 +31,9 @@ export async function POST(req: NextRequest) {
         success_url: `${appUrl}/profile?checkout=success`,
         cancel_url: `${appUrl}/pricing?checkout=canceled`,
         metadata: { type: 'subscription' },
+        automatic_tax: { enabled: true },
+        billing_address_collection: 'required',
+        tax_id_collection: { enabled: true },
       });
       return NextResponse.json({ url: session.url });
     }
@@ -57,6 +60,9 @@ export async function POST(req: NextRequest) {
         success_url: `${appUrl}/shop?checkout=success`,
         cancel_url: `${appUrl}/shop?checkout=canceled`,
         metadata: { type: 'tokens', package: package_id },
+        automatic_tax: { enabled: true },
+        billing_address_collection: 'required',
+        tax_id_collection: { enabled: true },
       });
       return NextResponse.json({ url: session.url });
     }

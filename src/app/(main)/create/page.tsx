@@ -18,17 +18,17 @@ import { PageHeader } from '@/components/game/PageHeader';
 import { cn } from '@/lib/utils';
 
 const VISUAL_STYLES = [
-  { id: 'realistic' as const, label: '写实', desc: '照片级皮肤与神态' },
-  { id: 'anime' as const, label: '二次元', desc: '动漫感大眼与线条' },
+  { id: 'realistic' as const, label: 'Realistic', desc: 'Photo-like skin & lighting' },
+  { id: 'anime' as const, label: 'Anime', desc: 'Big eyes & clean line art' },
 ];
 const ETHNICITIES = ['Caucasian', 'Asian', 'Latina', 'Ebony', 'Arab', 'Indian', 'Mixed', 'Slavic'];
 const GENDERS = ['Female', 'Femme', 'Androgynous'];
 const HAIR_STYLES = ['Straight', 'Wavy', 'Curly', 'Bob', 'Pixie Cut', 'Long Flowing', 'Ponytail', 'Twin Tails', 'Braided'];
 const HAIR_COLORS = [
-  { hex: '#000000', name: '黑' }, { hex: '#4a3728', name: '深棕' }, { hex: '#6b3a2a', name: '棕' },
-  { hex: '#d4a574', name: '金' }, { hex: '#f5d742', name: '铂金' }, { hex: '#e84393', name: '粉' },
-  { hex: '#d946ef', name: '玫红' }, { hex: '#8b5cf6', name: '紫' }, { hex: '#3b82f6', name: '蓝' },
-  { hex: '#ef4444', name: '红' }, { hex: '#ffffff', name: '白' },
+  { hex: '#000000', name: 'Black' }, { hex: '#4a3728', name: 'Dark brown' }, { hex: '#6b3a2a', name: 'Brown' },
+  { hex: '#d4a574', name: 'Blonde' }, { hex: '#f5d742', name: 'Gold' }, { hex: '#e84393', name: 'Pink' },
+  { hex: '#d946ef', name: 'Magenta' }, { hex: '#8b5cf6', name: 'Purple' }, { hex: '#3b82f6', name: 'Blue' },
+  { hex: '#ef4444', name: 'Red' }, { hex: '#ffffff', name: 'White' },
 ];
 const EYE_COLORS = ['Brown', 'Blue', 'Green', 'Hazel', 'Gray', 'Amber', 'Violet', 'Heterochromia'];
 const FACE_SHAPES = ['Oval', 'Heart', 'Round', 'Diamond', 'Soft Square'];
@@ -41,28 +41,28 @@ const PERSONALITY_TAGS = [
   'Nurturing', 'Bratty', 'Sensual', 'Cheerful', 'Confident', 'Mischievous',
 ];
 const VOICES = [
-  { id: 'soft', label: '软糯' }, { id: 'sultry', label: '低沉' }, { id: 'cheerful', label: '明亮' },
-  { id: 'mature', label: '成熟' }, { id: 'shy', label: '害羞' }, { id: 'confident', label: '自信' },
-  { id: 'playful', label: '戏谑' }, { id: 'asmr', label: 'ASMR' },
+  { id: 'soft', label: 'Soft' }, { id: 'sultry', label: 'Sultry' }, { id: 'cheerful', label: 'Cheerful' },
+  { id: 'mature', label: 'Mature' }, { id: 'shy', label: 'Shy' }, { id: 'confident', label: 'Confident' },
+  { id: 'playful', label: 'Playful' }, { id: 'asmr', label: 'ASMR' },
 ];
 const OCCUPATIONS = [
   'Student', 'Teacher', 'Nurse', 'Artist', 'Model', 'Streamer', 'Gamer',
   'Yoga Instructor', 'CEO', 'Bartender', 'Photographer', 'Athlete',
 ];
 const RELATIONSHIPS = [
-  { id: 'girlfriend', label: '女友', desc: '专属恋人' },
-  { id: 'wife', label: '妻子', desc: '深情羁绊' },
-  { id: 'stranger', label: '暧昧陌生人', desc: '刚刚相遇' },
-  { id: 'bestie', label: '闺蜜', desc: '灵魂挚友' },
-  { id: 'coworker', label: '同事', desc: '办公室暗流' },
-  { id: 'roommate', label: '室友', desc: '共处一室' },
-  { id: 'neighbor', label: '邻居', desc: '隔壁心动' },
-  { id: 'maid', label: '女仆', desc: '忠诚侍奉' },
-  { id: 'princess', label: '公主', desc: '皇室幻想' },
-  { id: 'rival', label: '宿敌', desc: '张力拉满' },
+  { id: 'girlfriend', label: 'Girlfriend', desc: 'Exclusive partner' },
+  { id: 'wife', label: 'Wife', desc: 'Deep bond' },
+  { id: 'stranger', label: 'Stranger', desc: 'Just met' },
+  { id: 'bestie', label: 'Bestie', desc: 'Close friend' },
+  { id: 'coworker', label: 'Coworker', desc: 'Office tension' },
+  { id: 'roommate', label: 'Roommate', desc: 'Shared home' },
+  { id: 'neighbor', label: 'Neighbor', desc: 'Next door spark' },
+  { id: 'maid', label: 'Maid', desc: 'Devoted service' },
+  { id: 'princess', label: 'Princess', desc: 'Royal fantasy' },
+  { id: 'rival', label: 'Rival', desc: 'Competitive pull' },
 ];
 
-const STEPS = ['捏脸外形', '性格声线', '身份关系'];
+const STEPS = ['Look', 'Personality', 'Identity'];
 
 function Pill({
   active, onClick, children, className,
@@ -217,10 +217,15 @@ export default function CreatePage() {
         }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || '创建失败');
+        const data = await res.json().catch(() => ({} as { error?: string; code?: string }));
+        if ((data as { code?: string }).code === 'SEAT_LIMIT') {
+          setError('Friend seats full — buy more seats in Shop or upgrade plan');
+          return;
+        }
+        setError(data.error || 'Create failed');
         return;
       }
+
       router.push('/chats');
     } catch (e) {
       logger.error(String(e));
@@ -235,11 +240,11 @@ export default function CreatePage() {
   ]);
 
   return (
-    <GameShell className="flex h-full flex-col overflow-hidden pb-20 md:pb-0">
+    <GameShell className="flex min-h-[100dvh] flex-col overflow-hidden pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
       <PageHeader
         eyebrow="CREATOR"
-        title="捏脸工坊"
-        subtitle="外形 · 性格 · 身份 · 顶栏可跳转其他页面"
+        title="Create Companion"
+        subtitle="Look · Personality · Identity"
         backHref="/"
         sticky={false}
         actions={
@@ -250,7 +255,7 @@ export default function CreatePage() {
               onClick={handleSubmit}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              完成
+              Finish
             </GamePrimaryButton>
           ) : undefined
         }
@@ -284,9 +289,9 @@ export default function CreatePage() {
         })}
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
         {/* Form */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-36 lg:pb-6">
           <div className="mx-auto max-w-2xl space-y-6">
             <AnimatePresence mode="wait">
               {step === 0 && (
@@ -531,7 +536,7 @@ export default function CreatePage() {
         </div>
 
         {/* Live preview panel */}
-        <aside className="lg:w-[340px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] p-4 sm:p-5 overflow-y-auto">
+        <aside className="lg:w-[340px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] p-4 sm:p-5 overflow-y-auto max-h-[38vh] lg:max-h-none">
           <div className="creator-preview rounded-2xl p-4 sticky top-4">
             <div className="text-[10px] tracking-[0.25em] text-white/40 font-bold mb-3">LIVE PREVIEW</div>
             <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-black/40 border border-white/10 mb-4">
@@ -576,30 +581,34 @@ export default function CreatePage() {
       </div>
 
       {/* Bottom nav steps */}
-      <div className="shrink-0 border-t border-white/[0.06] px-4 py-3 flex items-center justify-between bg-[#0a0612]/95 backdrop-blur-xl">
+      <div
+        className="shrink-0 sticky bottom-0 z-30 flex items-center justify-between gap-3 border-t border-white/10 bg-[#0a0612]/96 backdrop-blur-xl px-4 py-3"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+      >
         <button
+          type="button"
           disabled={step === 0}
           onClick={() => setStep((s) => Math.max(0, s - 1))}
-          className="h-10 px-4 rounded-full border border-white/10 text-sm disabled:opacity-30 flex items-center gap-1"
+          className="h-11 min-w-[5.5rem] px-4 rounded-full border border-white/10 text-sm disabled:opacity-30 flex items-center justify-center gap-1 touch-manipulation"
         >
-          <ArrowLeft className="h-4 w-4" /> 上一步
+          <ArrowLeft className="h-4 w-4" /> Back
         </button>
         {step < 2 ? (
           <GamePrimaryButton
-            className="h-10 px-6"
+            className="h-11 px-6 touch-manipulation"
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
-            下一步 <ArrowRight className="h-4 w-4" />
+            Next <ArrowRight className="h-4 w-4" />
           </GamePrimaryButton>
         ) : (
           <GamePrimaryButton
-            className="h-10 px-6"
+            className="h-11 px-6 touch-manipulation"
             disabled={!stepValid || saving}
             onClick={handleSubmit}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            开始养成
+            Create
           </GamePrimaryButton>
         )}
       </div>

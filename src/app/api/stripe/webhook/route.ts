@@ -4,6 +4,7 @@ import { getStripe } from '@/lib/stripe-server';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
+import { grantBonusSeats } from '@/lib/companion-seats';
 import { capture, AnalyticsEvents } from '@/lib/analytics';
 import { captureException } from '@/lib/sentry';
 
@@ -70,6 +71,31 @@ export async function POST(req: NextRequest) {
     };
     const userId = session.metadata?.user_id || session.client_reference_id;
     const metaType = session.metadata?.type || 'subscription';
+
+    if (metaType === 'companion_seats') {
+      if (!userId) {
+        logger.error('stripe-webhook: companion_seats missing user_id', { sessionId: session.id });
+        return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
+      }
+      const seatCount = Number(session.metadata?.seats || 0);
+      if (seatCount > 0) {
+        try {
+          const next = await grantBonusSeats(supabase, userId, seatCount);
+          logger.info('stripe-webhook: companion seats granted', {
+            userId,
+            seatCount,
+            next,
+            sessionId: session.id,
+            package_id: session.metadata?.package_id,
+          });
+        } catch (err) {
+          logger.error('stripe-webhook: seat grant failed', { err: String(err), userId });
+          throw err;
+        }
+      }
+      return NextResponse.json({ received: true, type: 'companion_seats' });
+    }
+
 
     if (!userId) {
       logger.error('stripe-webhook: No user_id in Stripe session metadata', { sessionId: session.id });

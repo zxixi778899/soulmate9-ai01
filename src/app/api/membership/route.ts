@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { getSeatStatus } from '@/lib/companion-seats';
 
 export async function GET(req: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(req);
@@ -42,39 +43,73 @@ export async function GET(req: NextRequest) {
   const topIntimacy = topIntimacyResult.data;
   const tier = profile?.membership_tier || 'free';
 
+  // Quotas aligned with MEMBERSHIP_TIERS (competitor-aligned).
   const plans = {
     free: {
       name: 'Free',
       price_cents: 0,
-      messages_per_day: 50,
+      messages_per_day: 40,
+      image_gen_per_day: 3,
+      tts_per_day: 3,
       max_intimacy_level: 3,
       max_girlfriends: 3,
-      features: ['50 messages/day', 'Intimacy up to Level 3 (Friend)', 'Up to 3 companions', 'Basic chat'],
+      features: [
+        '40 messages/day',
+        '3 AI images/day',
+        '3 voice messages/day',
+        'Intimacy up to Level 3 (Friend)',
+        'Up to 3 companions',
+        'Basic chat',
+      ],
     },
     pro: {
       name: 'Pro',
       price_cents: 1999,
-      messages_per_day: -1, // unlimited
+      messages_per_day: 300,
+      image_gen_per_day: 10,
+      tts_per_day: 40,
       max_intimacy_level: 6,
-      max_girlfriends: -1,
-      features: ['Unlimited messages', 'All intimacy levels (Soulmate)', 'Unlimited companions', 'NSFW content', 'Voice messages', 'Priority support'],
+      max_girlfriends: 15,
+      features: [
+        '300 messages/day',
+        'All intimacy levels (Soulmate)',
+        'Unlimited companions',
+        'NSFW content',
+        '10 AI images/day',
+        '40 voice messages/day',
+        'Priority support',
+      ],
     },
     unlimited: {
       name: 'Unlimited',
       price_cents: 3999,
       messages_per_day: -1,
+      image_gen_per_day: 50,
+      tts_per_day: 200,
       max_intimacy_level: 6,
       max_girlfriends: -1,
-      features: ['Unlimited messages', 'All intimacy levels (Soulmate)', 'Unlimited companions', 'Full NSFW + image generation', 'Voice messages', 'Priority support', 'Early access features'],
+      features: [
+        'Unlimited messages',
+        'All intimacy levels (Soulmate)',
+        'Unlimited companions',
+        'Full NSFW + image generation',
+        '50 AI images/day',
+        '200 voice messages/day',
+        'Priority support',
+        'Early access features',
+      ],
     },
   };
 
   const currentPlan = plans[tier as keyof typeof plans] || plans.free;
+  const seats = await getSeatStatus(client, user.id);
 
   return NextResponse.json({
     tier,
     credits_remaining: profile?.credits_remaining || 0,
     ...currentPlan,
+    max_girlfriends: seats.effectiveLimit,
+    seats,
     usage: {
       messages_sent_today: todayMessages || 0,
       total_girlfriends: totalGirlfriends || 0,

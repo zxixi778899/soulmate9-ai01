@@ -3,6 +3,8 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { ensureImageKey, resolveImageUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
+import { assertCanAddCompanion } from '@/lib/companion-seats';
+import { logger } from '@/lib/logger';
 
 const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
 
@@ -79,6 +81,18 @@ export async function POST(request: NextRequest) {
 
   if (!name) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+  }
+
+  const seatCheck = await assertCanAddCompanion(client, user.id);
+  if (!seatCheck.ok) {
+    return NextResponse.json(
+      {
+        error: seatCheck.error,
+        code: seatCheck.code,
+        seats: seatCheck.seats,
+      },
+      { status: 403 },
+    );
   }
 
   // base64 data URL  OSS key
@@ -223,6 +237,26 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 });
   }
 
+  // Reset intimacy so re-adding this companion starts from 0.
+  try {
+    await client
+      .from('intimacy_scores')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('girlfriend_id', id);
+  } catch (err) {
+    logger.warn('[girlfriends] intimacy delete failed', { err: String(err), id });
+    try {
+      await client
+        .from('intimacy_scores')
+        .update({ score: 0, level: 1 })
+        .eq('user_id', user.id)
+        .eq('girlfriend_id', id);
+    } catch (err2) {
+      logger.warn('[girlfriends] intimacy zero failed', { err: String(err2), id });
+    }
+  }
+
   const { error } = await client
     .from('girlfriends')
     .delete()
@@ -233,5 +267,5 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, intimacy_reset: true });
 }

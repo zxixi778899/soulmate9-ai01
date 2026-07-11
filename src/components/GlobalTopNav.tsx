@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { cn } from '@/lib/utils';
 
 /**
@@ -84,7 +85,7 @@ export default function GlobalTopNav() {
         </Link>
 
         {/* Desktop center nav */}
-        <div className="hidden md:flex flex-1 items-center justify-center gap-0.5">
+        <div className="hidden md:flex flex-1 items-center justify-center gap-0.5 min-w-0">
           {displayLinks.map((link) => {
             const active =
               link.href === '/'
@@ -111,7 +112,8 @@ export default function GlobalTopNav() {
 
         <div className="flex-1 md:hidden" />
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="ml-auto md:ml-0 flex items-center gap-1.5 shrink-0">
+          <LanguageSwitcher variant="compact" />
           {user ? (
             <>
               <Link

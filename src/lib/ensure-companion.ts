@@ -34,7 +34,7 @@ export async function ensureCompanionChatId(girl: {
     /* continue create */
   }
 
-  // 2) Create a private clone for this user
+  // 2) Create a private clone for this user (uses a friend seat)
   try {
     const res = await authedFetch('/api/girlfriends', {
       method: 'POST',
@@ -54,11 +54,22 @@ export async function ensureCompanionChatId(girl: {
         },
       }),
     });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.girlfriend?.id || data.id || null;
-  } catch {
-    return null;
+    const data = await res.json().catch(() => ({} as Record<string, unknown>));
+    if (!res.ok) {
+      const err = new Error(
+        (data as { error?: string }).error || 'Failed to add companion',
+      ) as Error & { code?: string; seats?: unknown };
+      err.code = (data as { code?: string }).code;
+      err.seats = (data as { seats?: unknown }).seats;
+      throw err;
+    }
+    return (
+      (data as { girlfriend?: { id?: string } }).girlfriend?.id ||
+      (data as { id?: string }).id ||
+      null
+    );
+  } catch (err) {
+    throw err;
   }
 }
 
@@ -66,14 +77,20 @@ export async function openCompanionChat(
   girl: DemoGirl & { relationship?: string },
   router: { push: (href: string) => void },
 ): Promise<boolean> {
-  const chatId = await ensureCompanionChatId(girl);
-  if (!chatId) return false;
   try {
-    sessionStorage.setItem(
-      'soulmate_selected_companion',
-      JSON.stringify({ id: chatId, name: girl.name, portrait: girl.portrait }),
-    );
-  } catch { /* ignore */ }
-  router.push(`/chat/${chatId}`);
-  return true;
+    const chatId = await ensureCompanionChatId(girl);
+    if (!chatId) return false;
+    try {
+      sessionStorage.setItem(
+        'soulmate_selected_companion',
+        JSON.stringify({ id: chatId, name: girl.name, portrait: girl.portrait }),
+      );
+    } catch {
+      /* ignore */
+    }
+    router.push(`/chat/${chatId}`);
+    return true;
+  } catch (err) {
+    throw err;
+  }
 }

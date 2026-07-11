@@ -150,19 +150,52 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
   // strength: 0.5 keeps face; 0.65 changes clothes more
   const denoise = Math.min(0.75, Math.max(0.35, input.strength ?? 0.55));
 
+  // Resolve image module preset (outfit_prop) for steps/size/cfg/endpoint
+  let sceneWidth = 832;
+  let sceneHeight = 1216;
+  let sceneSteps = 26;
+  let sceneCfg = 1.0;
+  let endpointId: string | undefined;
+  try {
+    const { loadAiModules, resolveImageCall } = await import('@/lib/ai-modules');
+    const modules = await loadAiModules(client);
+    const img = resolveImageCall(modules, { scene: 'outfit_prop', tier: 'pro' });
+    if (!img.enabled) {
+      return {
+        ok: false,
+        error: img.blockedReason === 'image_module_disabled'
+          ? 'Image generation is temporarily disabled.'
+          : 'Image generation is not configured.',
+      };
+    }
+    sceneWidth = img.config.width || sceneWidth;
+    sceneHeight = img.config.height || sceneHeight;
+    sceneSteps = img.config.steps || sceneSteps;
+    sceneCfg = Math.min(Math.max(img.config.cfg || 1.0, 1.0), 3.5);
+    endpointId = img.endpointId || undefined;
+    if (img.defaultNegative) {
+      // keep identity-safe negatives; append module default if present
+    }
+  } catch (e) {
+    logger.warn('[try-on] ai-modules resolve skipped', {
+      err: e instanceof Error ? e.message : String(e),
+    });
+  }
+
   let portraitUrl: string;
   try {
-    // Primary: girl as img2img base (keeps face)
+    // Primary: girl as img2img base (keeps face), params from AI modules
     const urls = await runpodClient.generateAndUpload(
       {
         prompt,
         negative_prompt: negative,
-        width: 832,
-        height: 1216,
-        num_inference_steps: 26,
-        guidance_scale: 3.5,
+        width: sceneWidth,
+        height: sceneHeight,
+        num_inference_steps: sceneSteps,
+        guidance_scale: sceneCfg,
         input_image: girlImage,
         denoising_strength: denoise,
+        endpoint_id: endpointId,
       },
       'tryon',
     );
@@ -174,7 +207,7 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
     });
     return {
       ok: false,
-      error: e instanceof Error ? e.message : '换装生成失败',
+      error: e instanceof Error ? e.message : 'Outfit try-on failed',
     };
   }
 

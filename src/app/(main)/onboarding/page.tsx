@@ -37,7 +37,7 @@ const STEPS = [
     icon: Shield,
     color: 'from-amber-500 to-orange-500',
     features: [
-      'Free plan: 50 messages/day, up to 2 companions',
+      'Free plan: 40 messages/day, up to 2 companions',
       'Upgrade to Pro for unlimited access',
       'Your conversations are private and encrypted',
     ],

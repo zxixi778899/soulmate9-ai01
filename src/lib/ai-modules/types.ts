@@ -64,6 +64,13 @@ export interface ImageSceneConfig {
   token_cost: number;
   use_consistency_default: boolean;
   allow_llm_prompt_polish: boolean;
+  ckpt_name?: string | null;
+  lora_name?: string | null;
+  lora_strength_model?: number;
+  lora_strength_clip?: number;
+  sampler_name?: string | null;
+  scheduler?: string | null;
+  daily_limit_override?: number | null;
 }
 
 export interface ImageModuleConfig {
@@ -82,6 +89,8 @@ export interface ImageModuleConfig {
   free_daily_images: number;
   pro_daily_images: number | null;
   unlimited_daily_images: number | null;
+  /** Optional per-scene endpoint env override (key = scene name). */
+  scene_endpoint_env?: Partial<Record<keyof ImageModuleConfig['scenes'], string>>;
 }
 
 export type AppLocale = 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr' | 'de' | 'pt' | 'ru';
@@ -140,4 +149,9 @@ export interface ResolvedImageCall {
   runpodApiKeyEnv: string;
   defaultNegative: string;
   tokenCost: number;
+  endpointId: string;
+  apiKeyPresent: boolean;
+  dailyLimit: number | null;
+  enabled: boolean;
+  blockedReason?: string;
 }

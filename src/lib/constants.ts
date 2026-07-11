@@ -8,41 +8,60 @@ export const APP_URL =
 export const SUPPORT_EMAIL = 'support@soulmateai.shop';
 export const PRIVACY_EMAIL = 'privacy@soulmateai.shop';
 
+/**
+ * Membership quotas (competitor-aligned + cost-aware).
+ * Free: trial taste · Pro: high daily chat cap · Unlimited: unlimited chat, capped GPU images/TTS.
+ * Prices tax-exclusive; customer pays tax at checkout.
+ */
 export const MEMBERSHIP_TIERS = {
   free: {
     name: 'Free',
     price_cents: 0,
-    messages_per_day: 50,
-    image_gen_per_day: 0,
-    tts_per_day: 0,
+    messages_per_day: 40,
+    image_gen_per_day: 3,
+    tts_per_day: 3,
     video_gen: false,
     memory_depth: 'shallow' as const,
-    max_girlfriends: 2,
+    max_girlfriends: 3,
     outfit_access: 'basic' as const,
   },
   pro: {
     name: 'Pro',
     price_cents: 1999,
-    messages_per_day: -1, // unlimited
-    image_gen_per_day: 30,
-    tts_per_day: 50,
+    messages_per_day: 300,
+    image_gen_per_day: 10,
+    tts_per_day: 40,
     video_gen: false,
     memory_depth: 'deep' as const,
-    max_girlfriends: 10,
+    max_girlfriends: 15,
     outfit_access: 'premium' as const,
   },
   unlimited: {
     name: 'Unlimited',
     price_cents: 3999,
     messages_per_day: -1,
-    image_gen_per_day: 100,
-    tts_per_day: -1,
+    image_gen_per_day: 50,
+    tts_per_day: 200,
     video_gen: true,
     memory_depth: 'infinite' as const,
     max_girlfriends: -1,
     outfit_access: 'all' as const,
   },
 } as const;
+
+
+/** Permanent companion seat packs (USD, tax-exclusive). Stack with tier base seats. */
+export const COMPANION_SEAT_PACKAGES = [
+  { id: 'seats-1', name: '1 Companion Seat', seats: 1, price_cents: 490, sort_order: 1 },
+  { id: 'seats-5', name: '5 Companion Seats', seats: 5, price_cents: 990, sort_order: 2 },
+  { id: 'seats-20', name: '20 Companion Seats', seats: 20, price_cents: 1990, sort_order: 3 },
+] as const;
+
+export function baseCompanionSeatLimit(tier: string): number {
+  if (tier === 'unlimited' || tier === 'admin') return -1;
+  if (tier === 'pro') return MEMBERSHIP_TIERS.pro.max_girlfriends;
+  return MEMBERSHIP_TIERS.free.max_girlfriends;
+}
 
 export const INTIMACY_LEVELS = [
   { level: 1, min_score: 0, title: 'Stranger', color: '#6b7280' },

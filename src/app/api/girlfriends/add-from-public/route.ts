@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
+import { assertCanAddCompanion } from '@/lib/companion-seats';
 
 export async function POST(request: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(request);
@@ -23,6 +24,14 @@ export async function POST(request: NextRequest) {
 
   if (existing) {
     return NextResponse.json({ girlfriend: existing, alreadyOwned: true });
+  }
+
+  const seatCheck = await assertCanAddCompanion(client, user.id);
+  if (!seatCheck.ok) {
+    return NextResponse.json(
+      { error: seatCheck.error, code: seatCheck.code, seats: seatCheck.seats },
+      { status: 403 },
+    );
   }
 
   // Fetch the public girlfriend data

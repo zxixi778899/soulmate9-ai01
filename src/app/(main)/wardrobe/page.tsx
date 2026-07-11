@@ -1,8 +1,6 @@
 'use client';
 
-/**
- * 简单换装：女友图 + 服装 = 新形象
- */
+/** Simple try-on: companion image + outfit = new look */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authedFetch } from '@/lib/supabase';
@@ -62,7 +60,7 @@ export default function WardrobePage() {
       if (!girlId && list[0]) setGirlId(list[0].id);
       if (!outfitId && cData.catalog?.[0]) setOutfitId(cData.catalog[0].id);
     } catch {
-      toast.error('加载失败，请先登录');
+      toast.error('Load failed — please log in');
     } finally {
       setLoading(false);
     }
@@ -75,15 +73,15 @@ export default function WardrobePage() {
 
   const runTryOn = async () => {
     if (!girlId) {
-      toast.error('请选择女友');
+      toast.error('Pick a companion first');
       return;
     }
     if (!outfitId && !customOutfitUrl.trim()) {
-      toast.error('请选择服装或填写服装图链接');
+      toast.error('Pick an outfit or paste an outfit image URL');
       return;
     }
     if (girl && !girlImg(girl)) {
-      toast.error('该女友还没有形象图，请先去生成/上传肖像');
+      toast.error('This companion has no portrait yet. Generate or upload one first.');
       return;
     }
 
@@ -101,10 +99,10 @@ export default function WardrobePage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '换装失败');
+      if (!res.ok) throw new Error(data.error || 'Try-on failed');
 
       setResultUrl(data.portrait_url || null);
-      toast.success('换装完成！');
+      toast.success('Outfit applied!');
 
       // refresh girl portrait in list
       setGirls((prev) =>
@@ -123,7 +121,7 @@ export default function WardrobePage() {
       );
       if (data.warning) toast.message(data.warning);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '换装失败');
+      toast.error(e instanceof Error ? e.message : 'Try-on failed');
     } finally {
       setRunning(false);
     }
@@ -133,7 +131,7 @@ export default function WardrobePage() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#08040e] text-white">
       <header className="border-b border-white/10 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
-          <Button
+          <Button type="button"
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-white/70"
@@ -142,21 +140,21 @@ export default function WardrobePage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold">一键换装</h1>
+            <h1 className="text-sm font-bold">Quick Try-On</h1>
             <p className="text-[11px] text-white/45">
-              工作流：<span className="text-[#ff6ba6]">女友图</span> +{' '}
-              <span className="text-cyan-300">服装</span> ={' '}
-              <span className="text-emerald-300">新形象</span>
+              Flow: <span className="text-[#ff6ba6]">Companion</span> +{' '}
+              <span className="text-cyan-300">Outfit</span> ={' '}
+              <span className="text-emerald-300">New look</span>
             </p>
           </div>
-          <Button
+          <Button type="button"
             size="sm"
             variant="outline"
             className="h-8 text-xs border-white/15"
             onClick={() => router.push('/shop')}
           >
             <ShoppingBag className="mr-1 h-3.5 w-3.5" />
-            商城
+            Shop
           </Button>
         </div>
       </header>
@@ -172,12 +170,12 @@ export default function WardrobePage() {
           <div className="mx-auto max-w-4xl space-y-6">
             {/* Formula strip */}
             <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs">
-              <span className="rounded-full bg-pink-500/20 px-3 py-1 text-pink-200">① 女友肖像</span>
+              <span className="rounded-full bg-pink-500/20 px-3 py-1 text-pink-200">1 · Companion</span>
               <span className="text-white/30">+</span>
-              <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-cyan-200">② 服装</span>
+              <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-cyan-200">② Outfit</span>
               <span className="text-white/30">→</span>
               <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-emerald-200">
-                ③ FLUX 换装图
+                3 · FLUX result
               </span>
             </div>
 
@@ -185,14 +183,14 @@ export default function WardrobePage() {
               {/* Girl */}
               <section className="rounded-2xl border border-white/10 bg-black/30 p-3">
                 <div className="mb-2 text-[10px] font-bold tracking-wider text-pink-300/80">
-                  ① 选女友
+                  1 · Pick companion
                 </div>
                 {girls.length === 0 ? (
                   <div className="flex aspect-[3/4] flex-col items-center justify-center text-xs text-white/40">
                     <User className="mb-2 h-8 w-8 opacity-40" />
-                    还没有女友
-                    <Button size="sm" className="mt-3" onClick={() => router.push('/create')}>
-                      去创建
+                    No companions yet
+                    <Button type="button" size="sm" className="mt-3" onClick={() => router.push('/create')}>
+                      Create
                     </Button>
                   </div>
                 ) : (
@@ -207,7 +205,7 @@ export default function WardrobePage() {
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-white/30">
-                          无肖像
+                          No portrait
                         </div>
                       )}
                     </div>
@@ -244,13 +242,14 @@ export default function WardrobePage() {
               {/* Outfit */}
               <section className="rounded-2xl border border-white/10 bg-black/30 p-3">
                 <div className="mb-2 text-[10px] font-bold tracking-wider text-cyan-300/80">
-                  ② 选服装
+                  2 · Pick outfit
+                  ② Outfit
                 </div>
                 <div className="relative mb-2 flex aspect-[3/4] flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.03] p-3 text-center">
                   <div className="text-4xl">{outfit?.emoji || '👗'}</div>
-                  <div className="mt-2 text-sm font-semibold">{outfit?.name || '自定义服装'}</div>
+                  <div className="mt-2 text-sm font-semibold">{outfit?.name || 'Custom outfit'}</div>
                   <p className="mt-1 line-clamp-3 text-[10px] text-white/45">
-                    {outfit?.description || '可在下方粘贴服装图片链接'}
+                    {outfit?.description || 'Paste an outfit image URL below'}
                   </p>
                   {outfit && (
                     <Badge className="mt-2 text-[9px]" variant="outline">
@@ -277,17 +276,17 @@ export default function WardrobePage() {
                       <span>{o.emoji || '👗'}</span>
                       <span className="min-w-0 flex-1 truncate">{o.name}</span>
                       {o.price_cents === 0 && (
-                        <span className="text-[9px] text-emerald-400">免费</span>
+                        <span className="text-[9px] text-emerald-400">Free</span>
                       )}
                     </button>
                   ))}
                 </div>
                 <div className="mt-2">
-                  <label className="text-[10px] text-white/40">可选：服装图 URL（更准）</label>
+                  <label className="text-[10px] text-white/40">Optional: outfit image URL</label>
                   <Input
                     value={customOutfitUrl}
                     onChange={(e) => setCustomOutfitUrl(e.target.value)}
-                    placeholder="https://... 服装预览图"
+                    placeholder="https://... outfit image"
                     className="mt-1 h-8 border-white/15 bg-black/40 text-xs"
                   />
                 </div>
@@ -296,14 +295,14 @@ export default function WardrobePage() {
               {/* Result */}
               <section className="rounded-2xl border border-white/10 bg-black/30 p-3">
                 <div className="mb-2 text-[10px] font-bold tracking-wider text-emerald-300/80">
-                  ③ 换装结果
+                  3 · Result
                 </div>
                 <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-white/5">
                   {running ? (
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-white/60">
                       <Loader2 className="h-8 w-8 animate-spin text-[#ff2e88]" />
-                      正在把衣服穿到她身上…
-                      <span className="text-[10px] text-white/35">约 30–90 秒</span>
+                      Dressing her up…
+                      <span className="text-[10px] text-white/35">~30–90s</span>
                     </div>
                   ) : resultUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -327,7 +326,7 @@ export default function WardrobePage() {
                 </div>
                 {resultUrl && (
                   <p className="mt-2 text-center text-[10px] text-emerald-300/80">
-                    已保存为该女友新肖像，聊天会按此服装描述
+                    ，Outfit
                   </p>
                 )}
               </section>
@@ -338,7 +337,7 @@ export default function WardrobePage() {
               <div className="mb-3 flex flex-wrap items-center gap-4">
                 <div className="min-w-[180px] flex-1">
                   <div className="mb-1 flex justify-between text-[10px] text-white/45">
-                    <span>换装强度（越低越像原脸，越高衣服变化大）</span>
+                    <span>Strength (lower = keep face, higher = more outfit change)</span>
                     <span className="font-mono text-white/70">{strength.toFixed(2)}</span>
                   </div>
                   <input
@@ -352,7 +351,7 @@ export default function WardrobePage() {
                   />
                 </div>
               </div>
-              <Button
+              <Button type="button"
                 className="h-12 w-full gap-2 bg-gradient-to-r from-[#ff2e88] to-[#c026d3] text-sm font-bold"
                 disabled={running || !girlId}
                 onClick={runTryOn}
@@ -360,20 +359,18 @@ export default function WardrobePage() {
                 {running ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    换装生成中…
+                    Generating…
                   </>
                 ) : (
                   <>
                     <Wand2 className="h-4 w-4" />
-                    一键换装（女友图 + 服装）
+                    Try on (companion + outfit)
                     <Sparkles className="h-4 w-4" />
                   </>
                 )}
               </Button>
               <p className="mt-2 text-center text-[10px] text-white/35">
-                技术：FLUX img2img · 以女友肖像为底 · 服装目录描述驱动穿着效果
-                {customOutfitUrl ? ' · 已附加服装图 URL 提示' : ''}
-              </p>
+                Powered by FLUX img2img · companion portrait base · outfit prompt                {customOutfitUrl ? ' · custom outfit URL attached' : ''}              </p>
             </div>
           </div>
         )}

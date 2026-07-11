@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
       unlimited: billing === 'yearly' ? 39900 : 3999,
     };
 
+    // Listed prices are tax-exclusive; Stripe Tax adds tax at checkout (customer pays).
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -77,7 +78,9 @@ export async function POST(req: NextRequest) {
                 recurring: { interval: billing === 'yearly' ? 'year' : 'month' },
                 product_data: {
                   name: `SoulMate ${plan === 'pro' ? 'Pro' : 'Unlimited'} (${billing})`,
+                  tax_code: 'txcd_10000000', // General - Electronically Supplied Services
                 },
+                tax_behavior: 'exclusive',
               },
               quantity: 1,
             },
@@ -93,6 +96,10 @@ export async function POST(req: NextRequest) {
       success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/pricing?canceled=true`,
       allow_promotion_codes: true,
+      automatic_tax: { enabled: true },
+      // Collect billing address so Stripe Tax can calculate jurisdiction correctly.
+      billing_address_collection: 'required',
+      tax_id_collection: { enabled: true },
     });
 
     return NextResponse.json({ url: session.url });

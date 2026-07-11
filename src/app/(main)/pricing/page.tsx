@@ -32,7 +32,9 @@ const PLANS = [
     color: 'text-muted-foreground',
     border: 'border-border/40',
     features: [
-      '50 messages per day',
+      '40 messages per day',
+      '3 image generations/day',
+      '3 voice messages/day',
       'Intimacy up to Level 3',
       'Up to 3 companions',
       'Basic chat',
@@ -50,12 +52,13 @@ const PLANS = [
     border: 'border-purple-500/30',
     popular: true,
     features: [
-      'Unlimited messages',
+      '300 messages per day',
       'All intimacy levels (Soulmate)',
       'Unlimited companions',
       'NSFW content',
       'Voice messages',
-      '30 image generations/day',
+      '10 image generations/day',
+      '40 voice messages/day',
       'Priority support',
     ],
   },
@@ -71,8 +74,9 @@ const PLANS = [
     border: 'border-amber-500/30',
     features: [
       'Everything in Pro',
-      '100 image generations/day',
-      'Unlimited voice messages',
+      'Unlimited messages',
+      '50 image generations/day',
+      '200 voice messages/day',
       'Video generation',
       'Infinite memory depth',
       'Early access to new features',
@@ -380,7 +384,7 @@ function PricingContent() {
           </div>
           <p className="text-[11px] text-muted-foreground/50 max-w-lg mx-auto">
             &ldquo;Finally an AI companion that remembers me.&rdquo; — verified member reviews.
-            Subscriptions auto-renew; manage or cancel anytime in Profile.
+            Subscriptions auto-renew; manage or cancel anytime in Profile. Prices exclude applicable taxes; tax is calculated at checkout and paid by the customer.
           </p>
         </div>
       </div>

@@ -17,7 +17,7 @@ function safeInitial(name?: string | null) {
 function ChatStreamInner(props: {
   scrollRef: React.RefObject<HTMLDivElement | null>;
   onScroll: () => void;
-  girlfriend: ChatGirlfriend;
+  girlfriend: ChatGirlfriend | null;
   rows: ReadonlyArray<StreamRow>;
   isTyping: boolean;
   hasMore: boolean;
@@ -33,8 +33,8 @@ function ChatStreamInner(props: {
   } = props;
 
   const portrait =
-    girlfriend.portrait_url || girlfriend.image_url || girlfriend.avatar_url || null;
-  const displayName = girlfriend.name?.trim() || 'Companion';
+    girlfriend?.portrait_url || girlfriend?.image_url || girlfriend?.avatar_url || null;
+  const displayName = girlfriend?.name?.trim() || 'Companion';
 
   return (
     <div
@@ -121,7 +121,7 @@ function ChatStreamInner(props: {
                   <div className="w-8 shrink-0">
                     {showAvatar ? (
                       <Avatar className="h-8 w-8 ring-1 ring-white/10">
-                        {girlfriend.avatar_url ? (
+                        {girlfriend?.avatar_url ? (
                           <AvatarImage src={girlfriend.avatar_url} alt={displayName} className="object-cover" />
                         ) : (
                           <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">
@@ -208,7 +208,7 @@ function ChatStreamInner(props: {
             <div className="flex gap-2 items-end mt-2.5">
               <div className="w-8 shrink-0">
                 <Avatar className="h-8 w-8 ring-1 ring-white/10">
-                  {girlfriend.avatar_url ? (
+                  {girlfriend?.avatar_url ? (
                     <AvatarImage src={girlfriend.avatar_url} alt={displayName} className="object-cover" />
                   ) : (
                     <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">

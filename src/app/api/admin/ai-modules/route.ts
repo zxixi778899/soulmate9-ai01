@@ -12,6 +12,58 @@ import {
 } from '@/lib/ai-modules';
 import { logger } from '@/lib/logger';
 
+
+function envPresent(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return !!(process.env[name] && String(process.env[name]).length > 0);
+}
+
+function buildEnvStatus(config: AiModulesConfig) {
+  const endpointEnvs = Array.from(
+    new Set(
+      config.endpoints
+        .map((e) => e.api_key_env)
+        .filter((x): x is string => !!x),
+    ),
+  );
+  const keys: Record<string, boolean> = {};
+  for (const k of endpointEnvs) keys[k] = envPresent(k);
+  keys[config.image.runpod_api_key_env] = envPresent(config.image.runpod_api_key_env);
+  keys[config.image.runpod_endpoint_env] = envPresent(config.image.runpod_endpoint_env);
+  keys.RUNPOD_API_KEY = envPresent('RUNPOD_API_KEY');
+  keys.RUNPOD_ENDPOINT_ID = envPresent('RUNPOD_ENDPOINT_ID');
+  keys.RUNPOD_VLLM_URL = envPresent('RUNPOD_VLLM_URL');
+  keys.RUNPOD_VLLM_API_KEY = envPresent('RUNPOD_VLLM_API_KEY');
+  keys.TOGETHER_API_KEY = envPresent('TOGETHER_API_KEY');
+
+  const chatReady = {
+    free_sfw: !!config.endpoints.find((e) => e.id === config.chat.tiers.free.sfw_endpoint_id),
+    pro_nsfw: !!(
+      config.chat.tiers.pro.allow_nsfw &&
+      config.endpoints.find((e) => e.id === config.chat.tiers.pro.nsfw_endpoint_id)
+    ),
+    together: keys.TOGETHER_API_KEY,
+    runpod_vllm: keys.RUNPOD_VLLM_URL && (keys.RUNPOD_VLLM_API_KEY || keys.RUNPOD_API_KEY),
+  };
+  const imageReady =
+    keys[config.image.runpod_api_key_env] || keys.RUNPOD_API_KEY
+      ? keys[config.image.runpod_endpoint_env] || keys.RUNPOD_ENDPOINT_ID
+      : false;
+
+  return {
+    keys,
+    chatReady,
+    imageReady: !!imageReady && config.image.enabled,
+    warnings: [
+      !keys.TOGETHER_API_KEY ? '缺少 TOGETHER_API_KEY：Free/Pro SFW 聊天可能失败' : null,
+      !(keys.RUNPOD_VLLM_URL && (keys.RUNPOD_VLLM_API_KEY || keys.RUNPOD_API_KEY))
+        ? '缺少 RUNPOD_VLLM_URL / API key：NSFW 自建 LLM 不可用'
+        : null,
+      !imageReady ? '缺少 RunPod 出图 Endpoint/Key：生图会 503' : null,
+    ].filter(Boolean),
+  };
+}
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -27,7 +79,7 @@ export async function GET(request: NextRequest) {
     const config = await loadAiModules(admin.supabase);
     const { searchParams } = new URL(request.url);
 
-    const payload: Record<string, unknown> = {
+        const payload: Record<string, unknown> = {
       config,
       scheme: {
         summary:
@@ -35,6 +87,7 @@ export async function GET(request: NextRequest) {
         channels: ['sfw', 'nsfw'],
         scenes: Object.keys(config.image.scenes),
       },
+      env: buildEnvStatus(config),
     };
 
     if (searchParams.get('preview') === '1') {
@@ -85,8 +138,18 @@ export async function PATCH(request: NextRequest) {
       next = mergeConfig(current, patch);
     }
 
-    // Validate endpoint refs
+    // Validate endpoint refs + NSFW capability
     const ids = new Set(next.endpoints.map((e) => e.id));
+    const byId = new Map(next.endpoints.map((e) => [e.id, e]));
+    if (!next.endpoints.length) {
+      return NextResponse.json({ error: 'endpoints cannot be empty' }, { status: 400 });
+    }
+    if (!ids.has(next.chat.fallback_endpoint_id)) {
+      return NextResponse.json(
+        { error: `chat.fallback_endpoint_id not found: ${next.chat.fallback_endpoint_id}` },
+        { status: 400 },
+      );
+    }
     for (const t of ['free', 'pro', 'unlimited'] as const) {
       const r = next.chat.tiers[t];
       if (!ids.has(r.sfw_endpoint_id)) {
@@ -95,9 +158,58 @@ export async function PATCH(request: NextRequest) {
           { status: 400 },
         );
       }
-      if (r.nsfw_endpoint_id && !ids.has(r.nsfw_endpoint_id)) {
+      if (r.nsfw_endpoint_id) {
+        if (!ids.has(r.nsfw_endpoint_id)) {
+          return NextResponse.json(
+            { error: `chat.tiers.${t}.nsfw_endpoint_id not found: ${r.nsfw_endpoint_id}` },
+            { status: 400 },
+          );
+        }
+        const nsfwEp = byId.get(r.nsfw_endpoint_id);
+        if (r.allow_nsfw && nsfwEp && !nsfwEp.nsfw_capable) {
+          return NextResponse.json(
+            {
+              error: `chat.tiers.${t}.nsfw_endpoint_id must be nsfw_capable: ${r.nsfw_endpoint_id}`,
+            },
+            { status: 400 },
+          );
+        }
+      }
+      if (r.allow_nsfw && !r.nsfw_endpoint_id) {
         return NextResponse.json(
-          { error: `chat.tiers.${t}.nsfw_endpoint_id not found: ${r.nsfw_endpoint_id}` },
+          { error: `chat.tiers.${t}: allow_nsfw=true requires nsfw_endpoint_id` },
+          { status: 400 },
+        );
+      }
+      if (r.max_tokens < 64 || r.max_tokens > 8192) {
+        return NextResponse.json(
+          { error: `chat.tiers.${t}.max_tokens out of range (64-8192)` },
+          { status: 400 },
+        );
+      }
+      if (r.context_messages < 2 || r.context_messages > 80) {
+        return NextResponse.json(
+          { error: `chat.tiers.${t}.context_messages out of range (2-80)` },
+          { status: 400 },
+        );
+      }
+    }
+    for (const [scene, sc] of Object.entries(next.image.scenes)) {
+      if (sc.width < 256 || sc.height < 256 || sc.width > 2048 || sc.height > 2048) {
+        return NextResponse.json(
+          { error: `image.scenes.${scene}: width/height must be 256-2048` },
+          { status: 400 },
+        );
+      }
+      if (sc.steps < 4 || sc.steps > 60) {
+        return NextResponse.json(
+          { error: `image.scenes.${scene}: steps must be 4-60` },
+          { status: 400 },
+        );
+      }
+      if (sc.cfg < 1 || sc.cfg > 3.5) {
+        return NextResponse.json(
+          { error: `image.scenes.${scene}: cfg must be 1.0-3.5 for FLUX` },
           { status: 400 },
         );
       }
@@ -106,7 +218,7 @@ export async function PATCH(request: NextRequest) {
     const { source } = await saveAiModules(next, admin.supabase);
     invalidateAiModulesCache();
 
-    return NextResponse.json({ success: true, source, config: next });
+    return NextResponse.json({ success: true, source, config: next, env: buildEnvStatus(next) });
   } catch (e) {
     logger.error('admin/ai-modules PATCH', { e });
     return NextResponse.json(

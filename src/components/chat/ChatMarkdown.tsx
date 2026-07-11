@@ -14,7 +14,12 @@ interface ChatMarkdownProps {
  * Falls back to plain text for messages without markdown syntax.
  */
 export function ChatMarkdown({ content, className = '' }: ChatMarkdownProps) {
-  const text = typeof content === 'string' ? content : content == null ? '' : String(content);
+  let text = '';
+  try {
+    text = typeof content === 'string' ? content : content == null ? '' : String(content);
+  } catch {
+    return null;
+  }
   if (!text) return null;
 
   // Fast check: if no markdown syntax, render as plain text
@@ -24,6 +29,7 @@ export function ChatMarkdown({ content, className = '' }: ChatMarkdownProps) {
     return <span className={className || undefined}>{text}</span>;
   }
 
+  try {
   return (
     <div className={`chat-markdown ${className}`}>
       <ReactMarkdown
@@ -84,4 +90,7 @@ export function ChatMarkdown({ content, className = '' }: ChatMarkdownProps) {
     </ReactMarkdown>
     </div>
   );
+  } catch {
+    return <span className={className || undefined}>{text}</span>;
+  }
 }

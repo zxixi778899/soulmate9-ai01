@@ -8,7 +8,7 @@
 
 import { useRef } from 'react';
 import { motion, useMotionValue, useTransform } from 'motion/react';
-import { X, Heart, Sparkles, Lock, Volume2, MessageCircle, Share2 } from 'lucide-react';
+import { X, Heart, Sparkles, Volume2, MessageCircle, Share2, UserPlus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DemoGirl } from '@/lib/demo-data';
 import { CardMedia } from '@/components/discover/CardMedia';
@@ -18,6 +18,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSelect?: (girl: DemoGirl) => void;
+  busy?: boolean;
+  primaryLabel?: string;
 }
 
 const PERSONALITY_DIMENSIONS = [
@@ -28,7 +30,7 @@ const PERSONALITY_DIMENSIONS = [
   { key: 'Mystery', value: 88 },
 ];
 
-export function CompanionDetailModal({ girl, open, onClose, onSelect }: Props) {
+export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = false, primaryLabel }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -180,36 +182,60 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect }: Props) {
 
             <div className="flex items-center gap-2">
               <button
+                type="button"
+                onClick={() => onSelect?.(girl)}
                 className="h-12 w-12 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white/80 hover:text-[#ff2e88] hover:border-[#ff2e88]/40 transition-all"
-                title="Favorite"
+                title="Add friend"
+                aria-label="Add friend"
               >
                 <Heart className="h-4 w-4" />
               </button>
               <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const url = typeof window !== 'undefined' ? window.location.origin + '/explore' : '';
+                    if (navigator.share) {
+                      await navigator.share({ title: girl.name, text: girl.tagline || girl.name, url });
+                    } else if (navigator.clipboard) {
+                      await navigator.clipboard.writeText(`${girl.name} — ${url}`);
+                    }
+                  } catch { /* user cancelled */ }
+                }}
                 className="h-12 w-12 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white/80 hover:text-white transition-all"
                 title="Share"
+                aria-label="Share"
               >
                 <Share2 className="h-4 w-4" />
               </button>
               <button
+                type="button"
+                onClick={() => onSelect?.(girl)}
                 className="h-12 w-12 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white/80 hover:text-white transition-all"
-                title="Unlock Scenes"
+                title="Chat now"
+                aria-label="Chat now"
               >
-                <Lock className="h-4 w-4" />
+                <MessageCircle className="h-4 w-4" />
               </button>
             </div>
 
             <button
+              type="button"
+              disabled={busy}
               onClick={() => onSelect?.(girl)}
-              className="w-full h-14 rounded-2xl text-sm font-bold tracking-[0.15em] text-white relative overflow-hidden group"
+              className="w-full h-14 rounded-2xl text-sm font-bold tracking-[0.15em] text-white relative overflow-hidden group disabled:opacity-60"
               style={{
                 background: 'linear-gradient(135deg, #ff2e88, #c026d3)',
                 boxShadow: '0 0 32px rgba(255, 46, 136, 0.5)',
               }}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
-                <MessageCircle className="h-4 w-4" />
-                BEGIN PRIVATE CONVERSATION
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <UserPlus className="h-4 w-4" />
+                )}
+                {primaryLabel || 'ADD FRIEND & CHAT'}
               </span>
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
             </button>

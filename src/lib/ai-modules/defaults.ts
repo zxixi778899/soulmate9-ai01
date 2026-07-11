@@ -119,7 +119,8 @@ export function createDefaultAiModules(): AiModulesConfig {
           nsfw_endpoint_id: 'runpod-lumimaid-8b',
           max_tokens: 1024,
           context_messages: 24,
-          daily_message_limit: 400,
+          // Competitor-aligned Pro chat cap (not marketing "unlimited")
+          daily_message_limit: 300,
           allow_nsfw: true,
         },
         unlimited: {
@@ -127,6 +128,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           nsfw_endpoint_id: 'runpod-noromaid-12b',
           max_tokens: 1536,
           context_messages: 40,
+          // Unlimited chat (null = no daily cap); images/TTS remain cost levers
           daily_message_limit: null,
           allow_nsfw: true,
         },
@@ -138,9 +140,10 @@ export function createDefaultAiModules(): AiModulesConfig {
       runpod_api_key_env: 'RUNPOD_API_KEY',
       // FLUX: empty/minimal negative preferred (long SD negatives → black frames)
       default_negative: '',
-      free_daily_images: 0,
-      pro_daily_images: 30,
-      unlimited_daily_images: null,
+      free_daily_images: 3,
+      // Images remain the main GPU cost lever; Free gets a small trial allowance.
+      pro_daily_images: 10,
+      unlimited_daily_images: 50,
       scenes: {
         girlfriend_portrait: {
           endpoint_id: 'flux-portrait',

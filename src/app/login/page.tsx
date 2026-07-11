@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { createBrowserClient, SOULMATE_BUILD_ID } from "@/lib/supabase";
 import { useTranslation } from "@/lib/i18n/context";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -41,6 +42,9 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 bg-[#07070F]">
+      <div className="fixed top-4 right-4 z-50 glass rounded-full px-1.5 py-1">
+        <LanguageSwitcher variant="compact" />
+      </div>
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="font-display text-3xl font-bold gradient-text mb-1">{t('hero.signIn')}</h1>

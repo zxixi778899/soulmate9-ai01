@@ -137,15 +137,63 @@ export function resolveImageCall(
   ctx: ResolveImageContext,
 ): ResolvedImageCall {
   const config = cfg || createDefaultAiModules();
-  const sceneCfg = config.image.scenes[ctx.scene] || config.image.scenes.girlfriend_portrait;
+  const sceneKey = ctx.scene in config.image.scenes ? ctx.scene : 'girlfriend_portrait';
+  const sceneCfg = config.image.scenes[sceneKey] || config.image.scenes.girlfriend_portrait;
+  const tier = normalizeTier(ctx.tier);
+
+  const runpodEndpointEnv =
+    config.image.scene_endpoint_env?.[sceneKey] ||
+    config.image.runpod_endpoint_env ||
+    'RUNPOD_ENDPOINT_ID';
+  const runpodApiKeyEnv = config.image.runpod_api_key_env || 'RUNPOD_API_KEY';
+  const endpointId = process.env[runpodEndpointEnv] || process.env.RUNPOD_ENDPOINT_ID || '';
+  const apiKeyPresent = !!(
+    process.env[runpodApiKeyEnv] ||
+    process.env.RUNPOD_API_KEY ||
+    process.env.RUNPOD_COMFYUI_API_KEY
+  );
+
+  const tierDaily =
+    tier === 'unlimited'
+      ? config.image.unlimited_daily_images
+      : tier === 'pro'
+        ? config.image.pro_daily_images
+        : config.image.free_daily_images;
+  const dailyLimit =
+    sceneCfg.daily_limit_override !== undefined && sceneCfg.daily_limit_override !== null
+      ? sceneCfg.daily_limit_override
+      : tierDaily;
+
+  let blockedReason: string | undefined;
+  if (!config.image.enabled) blockedReason = 'image_module_disabled';
+  else if (!apiKeyPresent || !endpointId) blockedReason = 'runpod_not_configured';
+
   return {
-    scene: ctx.scene,
+    scene: sceneKey,
     config: sceneCfg,
-    runpodEndpointEnv: config.image.runpod_endpoint_env,
-    runpodApiKeyEnv: config.image.runpod_api_key_env,
+    runpodEndpointEnv,
+    runpodApiKeyEnv,
     defaultNegative: config.image.default_negative,
     tokenCost: sceneCfg.token_cost,
+    endpointId,
+    apiKeyPresent,
+    dailyLimit,
+    enabled: config.image.enabled && !blockedReason,
+    blockedReason,
   };
+}
+
+/** Resolve daily image quota for a membership tier (null = unlimited). */
+export function resolveImageDailyLimit(
+  cfg: AiModulesConfig | null | undefined,
+  tier: MembershipTier,
+  scene?: keyof AiModulesConfig['image']['scenes'],
+): number | null {
+  const resolved = resolveImageCall(cfg, {
+    scene: scene || 'chat_selfie',
+    tier,
+  });
+  return resolved.dailyLimit;
 }
 
 export function getLanguageInstruction(

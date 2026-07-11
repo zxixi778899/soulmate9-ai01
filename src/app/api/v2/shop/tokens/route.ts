@@ -116,14 +116,17 @@ export async function POST(req: NextRequest) {
               currency: 'usd',
               unit_amount: priceCents,
               product_data: {
-                name: `${tokenPackage.name || 'Token Pack'} — ${totalTokens} tokens`,
+                name: `${tokenPackage.name || 'Token Pack'} - ${totalTokens} tokens`,
                 description: `${totalTokens} SoulMate tokens`,
+                tax_code: 'txcd_10000000',
               },
+              tax_behavior: 'exclusive',
             },
             quantity: 1,
           },
         ];
 
+    // Listed token prices are tax-exclusive; customer pays tax via Stripe Tax.
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
@@ -139,6 +142,9 @@ export async function POST(req: NextRequest) {
       },
       success_url: `${origin}/shop?checkout=success&tokens=${totalTokens}`,
       cancel_url: `${origin}/shop?checkout=canceled`,
+      automatic_tax: { enabled: true },
+      billing_address_collection: 'required',
+      tax_id_collection: { enabled: true },
     });
 
     return NextResponse.json({

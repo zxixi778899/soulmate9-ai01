@@ -7,7 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 const faqs = [
   {
     q: 'Is SoulMate AI really free to use?',
-    a: 'Yes! You can create one companion and chat up to 50 messages per day completely free. No credit card required. Upgrade to Pro when you want unlimited access.',
+    a: 'Yes! You can create one companion and chat up to 40 messages per day completely free. No credit card required. Upgrade to Pro when you want higher daily limits and NSFW access.',
   },
   {
     q: 'How realistic are the AI companions?',
@@ -23,7 +23,7 @@ const faqs = [
   },
   {
     q: 'What\'s the difference between Pro and Unlimited?',
-    a: 'Pro gives you 5 companions with unlimited messages and full features. Unlimited removes all limits — unlimited companions, 4K portraits, voice messages, and custom AI training for deeper personalities.',
+    a: 'Pro is for daily use: 300 messages/day, 10 AI images, and 40 voice messages with full intimacy + NSFW. Unlimited unlocks unlimited chat, 50 AI images/day, 200 voice messages/day, video, and deeper memory.',
   },
   {
     q: 'Do the companions send messages on their own?',

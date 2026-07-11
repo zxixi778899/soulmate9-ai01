@@ -6,14 +6,15 @@
 
 import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Loader2, MessageCircle, Plus, Search, X } from 'lucide-react';
+import { Loader2, MessageCircle, Plus, Search, X, Trash2 } from 'lucide-react';
 import { GameShell } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { deriveMood, loadChatCache } from '@/lib/chat-cache';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 type Girlfriend = {
   id: string;
@@ -54,6 +55,7 @@ export default function MessagesPage() {
   const [intimacyMap, setIntimacyMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
   // Subtle mood re-roll animation every 20s
@@ -101,6 +103,43 @@ export default function MessagesPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+
+  const deleteFriend = async (gf: Girlfriend, e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ok = window.confirm(
+      `Remove ${gf.name} from friends? Intimacy will reset to 0.`,
+    );
+    if (!ok) return;
+    setDeletingId(gf.id);
+    try {
+      const res = await authedFetch(`/api/girlfriends?id=${encodeURIComponent(gf.id)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error((data as { error?: string }).error || 'Delete failed');
+        return;
+      }
+      setGirlfriends((prev) => prev.filter((g) => g.id !== gf.id));
+      setLastMessages((prev) => {
+        const next = { ...prev };
+        delete next[gf.id];
+        return next;
+      });
+      setIntimacyMap((prev) => {
+        const next = { ...prev };
+        delete next[gf.id];
+        return next;
+      });
+      toast.success('Friend removed · intimacy reset');
+    } catch {
+      toast.error('Network error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const sorted = useMemo(() => {
     return [...girlfriends]
@@ -184,11 +223,11 @@ export default function MessagesPage() {
                 : '还没有消息 · 点进来聊聊';
 
               return (
-                <li key={gf.id}>
+                <li key={gf.id} className="relative group">
                   <button
                     type="button"
                     onClick={() => router.push(`/chat/${gf.id}`)}
-                    className="wa-row flex w-full items-center gap-3 px-3 sm:px-4 py-3.5 text-left active:bg-white/[0.06] touch-manipulation min-h-[72px]"
+                    className="wa-row flex w-full items-center gap-3 px-3 sm:px-4 py-3.5 pr-14 text-left active:bg-white/[0.06] touch-manipulation min-h-[72px]"
                   >
                     <div className="relative shrink-0">
                       <Avatar className="h-14 w-14 ring-1 ring-[#ff2e88]/25">
@@ -221,6 +260,20 @@ export default function MessagesPage() {
                       </div>
                     </div>
                   </button>
+                  <button
+                    type="button"
+                    aria-label="Delete friend"
+                    disabled={deletingId === gf.id}
+                    onClick={(e) => void deleteFriend(gf, e)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full glass flex items-center justify-center text-white/40 hover:text-rose-400 hover:bg-rose-500/10 touch-manipulation disabled:opacity-50"
+                  >
+                    {deletingId === gf.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </button>
+
                 </li>
               );
             })}

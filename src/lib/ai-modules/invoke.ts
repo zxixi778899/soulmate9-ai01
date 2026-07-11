@@ -148,26 +148,32 @@ export async function invokeChatAsSseStream(opts: InvokeChatOptions): Promise<{
           Connection: 'keep-alive',
           'X-Model-Provider': result.provider,
           'X-Model-Id': result.model,
+          'X-Model-Endpoint': opts.endpoint.id,
         },
       },
     );
     return { response, provider: result.provider, model: result.model, meta: result };
   } catch (err) {
-    // Last resort: try runpod default path via llm-service
+    logger.warn('[ai-modules/invoke] primary failed, falling back to llm-service', {
+      endpoint: opts.endpoint.id,
+      provider: opts.endpoint.provider,
+      err: err instanceof Error ? err.message : String(err),
+    });
     const { streamTextSmart } = await import('@/lib/llm-service');
     const fallback = await streamTextSmart({
       messages: opts.messages,
-      temperature: opts.temperature,
-      maxTokens: opts.maxTokens,
+      temperature: opts.temperature ?? opts.endpoint.temperature,
+      maxTokens: opts.maxTokens ?? opts.endpoint.max_tokens,
     });
     return {
       response: fallback.response,
       provider: fallback.provider,
-      model: fallback.model,
+      model: fallback.model || opts.endpoint.model_id,
       meta: null,
     };
   }
 }
+
 
 async function callRunPodVllm(
   ep: ModelEndpoint,
