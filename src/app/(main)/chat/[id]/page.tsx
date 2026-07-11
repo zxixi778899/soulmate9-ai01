@@ -689,7 +689,7 @@ export default function ChatPage() {
             />
           </div>
           <span className="text-[10px] font-mono tabular-nums text-white/40 shrink-0">
-            {Math.round(intimacy.score)}pts
+            {Math.round(intimacy.score)}pts · keep chatting to raise heat
           </span>
         </div>
       </div>
@@ -725,7 +725,7 @@ export default function ChatPage() {
           <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${
             aiChannel === 'nsfw' ? 'bg-rose-500/15 text-rose-300' : 'bg-emerald-500/15 text-emerald-300'
           }`}>
-            {aiChannel === 'nsfw' ? 'Intimate mode' : 'Soft mode'}
+            {aiChannel === 'nsfw' ? 'Intimate heat' : 'Soft heat'}
           </span>
           {aiModel && <span className="truncate opacity-70">{aiModel}</span>}
         </div>

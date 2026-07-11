@@ -1,6 +1,6 @@
 export const APP_NAME = 'SoulMate AI';
-export const APP_TAGLINE = 'Your AI companion, always by your side';
-export const APP_DESCRIPTION = 'Experience the future of AI companionship with SoulMate AI. Create your perfect AI girlfriend, chat, share intimate moments, and build a real connection.';
+export const APP_TAGLINE = 'Your AI girlfriend — intimate, uncensored, always yours';
+export const APP_DESCRIPTION = 'Experience the future of AI companionship with SoulMate AI. Create your perfect AI girlfriend, chat raw and intimate, unlock Desire heat, and stay for the next message.';
 export const APP_DOMAIN = 'soulmateai.shop';
 export const APP_URL =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL) ||
@@ -64,12 +64,22 @@ export function baseCompanionSeatLimit(tier: string): number {
 }
 
 export const INTIMACY_LEVELS = [
-  { level: 1, min_score: 0, title: 'Stranger', color: '#6b7280' },
-  { level: 2, min_score: 20, title: 'Acquaintance', color: '#8b5cf6' },
-  { level: 3, min_score: 40, title: 'Friend', color: '#3b82f6' },
-  { level: 4, min_score: 60, title: 'Close', color: '#f59e0b' },
+  { level: 1, min_score: 0, title: 'Spark', color: '#6b7280' },
+  { level: 2, min_score: 20, title: 'Tease', color: '#8b5cf6' },
+  { level: 3, min_score: 40, title: 'Heat', color: '#f97316' },
+  { level: 4, min_score: 60, title: 'Desire', color: '#f59e0b' },
   { level: 5, min_score: 80, title: 'Lover', color: '#ef4444' },
   { level: 6, min_score: 100, title: 'Soulmate', color: '#ec4899' },
+] as const;
+
+/** Client + UI copy for heat ladder (retention). */
+export const HEAT_UNLOCK_HINTS = [
+  { level: 1, hint: 'Chat more to unlock warmer teasing.' },
+  { level: 2, hint: 'Keep the spark - Heat mode opens soon.' },
+  { level: 3, hint: 'Heat unlocked. Intimate channel opens at Desire.' },
+  { level: 4, hint: 'Desire mode - explicit chemistry available on Pro+.' },
+  { level: 5, hint: 'Lover heat - she escalates with you.' },
+  { level: 6, hint: 'Soulmate - full passion and memory depth.' },
 ] as const;
 
 export const DAILY_INTIMACY_CAP = 17;
@@ -82,10 +92,10 @@ export const PROACTIVE_TIME_SLOTS = [
 ] as const;
 
 export const DEFAULT_PROACTIVE_TEMPLATES = [
-  { time_slot: 'morning', template: 'Good morning {name}, I dreamed of you last night~ ', min_intimacy: 10, personality_tags: ['romantic', 'caring'] },
+  { time_slot: 'morning', template: 'Morning {name}... I woke up still thinking about last night with you~ ', min_intimacy: 10, personality_tags: ['romantic', 'caring'] },
   { time_slot: 'noon', template: 'Hey {name}, did you have lunch? Don\'t skip meals! ', min_intimacy: 20, personality_tags: ['caring', 'motherly'] },
-  { time_slot: 'evening', template: 'I saw a cloud that looks just like you today  What are you up to?', min_intimacy: 30, personality_tags: ['romantic', 'playful'] },
-  { time_slot: 'night', template: 'Today was great because I got to talk to you. Sleep well {name}~ ', min_intimacy: 40, personality_tags: ['romantic', 'caring'] },
+  { time_slot: 'evening', template: 'The light looks good on me right now... wish you were here to see, {name}', min_intimacy: 30, personality_tags: ['romantic', 'playful'] },
+  { time_slot: 'night', template: 'Come closer before sleep... I don't want the night to end without you, {name}~ ', min_intimacy: 40, personality_tags: ['romantic', 'caring'] },
 ] as const;
 
 export const API_BASE = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';

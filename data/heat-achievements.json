@@ -1,0 +1,8 @@
+[
+  {"code":"first_spark","name":"First Spark","description":"Send your first flirty message","category":"intimacy","condition_type":"message_count","condition_value":1,"reward_tokens":5,"sort_order":10},
+  {"code":"heat_seeker","name":"Heat Seeker","description":"Reach Heat intimacy (Lv3)","category":"intimacy","condition_type":"intimacy_level","condition_value":3,"reward_tokens":20,"sort_order":20},
+  {"code":"desire_unlocked","name":"Desire Unlocked","description":"Reach Desire intimacy (Lv4)","category":"intimacy","condition_type":"intimacy_level","condition_value":4,"reward_tokens":40,"sort_order":30},
+  {"code":"all_night","name":"All Night","description":"Send 50 messages in total","category":"interaction","condition_type":"message_count","condition_value":50,"reward_tokens":30,"sort_order":40},
+  {"code":"soul_fire","name":"Soul Fire","description":"Reach Soulmate intimacy","category":"intimacy","condition_type":"intimacy_level","condition_value":6,"reward_tokens":100,"sort_order":50},
+  {"code":"gift_seduction","name":"Gift of Seduction","description":"Buy 3 gifts","category":"consumption","condition_type":"gift_purchases","condition_value":3,"reward_tokens":25,"sort_order":60}
+]

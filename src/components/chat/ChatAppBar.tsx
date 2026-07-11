@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Image as ImageIcon, Brain, ChevronDown, Home } from 'lucide-react';
 import type { ChatGirlfriend, IntimacyData } from './types';
+import { HEAT_UNLOCK_HINTS } from '@/lib/constants';
 import type { INTIMACY_LEVELS } from '@/lib/constants';
 
 type LevelInfo = (typeof INTIMACY_LEVELS)[number];
@@ -115,6 +116,11 @@ export function ChatAppBar(props: {
           <Home className="h-4 w-4" />
         </Link>
       </div>
+      {!isTyping && (
+        <div className="px-3 sm:px-4 pb-2 text-[10px] text-[#ff6ba6]/90 truncate">
+          {HEAT_UNLOCK_HINTS.find((h) => h.level === level)?.hint || 'Build heat together'}
+        </div>
+      )}
     </header>
   );
 }

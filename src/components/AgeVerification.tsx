@@ -49,7 +49,7 @@ export function AgeVerification() {
         <div className="rounded-2xl border border-white/[0.12] bg-white/[0.04] backdrop-blur-2xl p-8 shadow-[0_25px_60px_rgba(0,0,0,0.6),0_0_40px_rgba(255,45,120,0.08)]">
           <h1 className="text-xl font-semibold tracking-tight">Age Verification Required</h1>
           <p className="mt-3 text-sm leading-relaxed text-[#8B8BA3]">
-            This website contains adult-oriented AI companion content. 
+            This website contains adult-oriented AI companion content, including intimate and NSFW roleplay for consenting adults (18+). 
             You must be <strong className="text-[#F0F0F5]">18 years or older</strong> to access this site.
           </p>
 

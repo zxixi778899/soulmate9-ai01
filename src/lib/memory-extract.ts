@@ -3,7 +3,7 @@
  * Replaces weak regex extraction in chat/stream/route.ts.
  */
 
-import { callLLM } from '@/lib/llm-service';
+import { generateText } from '@/lib/llm-service';
 
 export interface ExtractedMemory {
   content: string;

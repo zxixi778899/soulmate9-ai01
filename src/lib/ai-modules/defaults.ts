@@ -100,11 +100,11 @@ export function createDefaultAiModules(): AiModulesConfig {
     ],
     chat: {
       enabled: true,
-      nsfw_min_intimacy: 4,
+      nsfw_min_intimacy: 3,
       nsfw_detection: 'keywords',
       fallback_endpoint_id: 'together-llama-8b',
       global_system_suffix:
-        'Stay in character as the girlfriend. Never break role. Never claim to be an AI assistant. Adult consensual content is allowed on NSFW channel. Refuse underage content. Match the language rules in the system prompt (English sessions: English only, no Chinese).',
+        'Stay in character as the girlfriend. Never break role. Never claim to be an AI assistant. When the intimate/NSFW channel is active, lean into consensual adult desire with sensory detail and end replies with a hook that invites the next message. Refuse underage content. Match language rules (English sessions: English only, no Chinese).',
       tiers: {
         free: {
           sfw_endpoint_id: 'together-llama-8b',

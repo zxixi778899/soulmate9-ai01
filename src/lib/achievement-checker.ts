@@ -20,6 +20,7 @@ interface UserStats {
   giftPurchaseCount: number;
   outfitCount: number;
   maxIntimacyLevel: number;
+  nsfwMessageCount: number;
 }
 
 /**
@@ -53,6 +54,7 @@ export async function checkAchievements(
       giftPurchaseCount: 0, // TODO: count from purchase_history
       outfitCount: 0, // TODO: count from wardrobe
       maxIntimacyLevel: intResult.data?.[0]?.level || 1,
+      nsfwMessageCount: 0,
     };
 
     const allAchievements = achievementResult.data || [];
@@ -77,6 +79,7 @@ export async function checkAchievements(
         case 'gift_purchases': currentProgress = stats.giftPurchaseCount; break;
         case 'outfit_count': currentProgress = stats.outfitCount; break;
         case 'intimacy_level': currentProgress = stats.maxIntimacyLevel; break;
+        case 'nsfw_message_count': currentProgress = stats.nsfwMessageCount; break;
       }
 
       // Upsert user achievement progress

@@ -130,8 +130,8 @@ export async function POST(req: NextRequest) {
     const auth = await requireAdmin(req);
     if (auth.error) return auth.error;
 
-    let concept: unknown;
-    let type: unknown;
+    let concept: string;
+    let type: string;
     let girlfriendData: any;
     let outfitData: any;
     let propData: any;

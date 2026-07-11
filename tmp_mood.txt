@@ -1,0 +1,17 @@
+export function deriveMood(
+  lastContent: string | undefined,
+  intimacyScore = 0,
+): { emoji: string; label: string; tone: string } {
+  const c = (lastContent || '').toLowerCase();
+  if (/kiss|亲|吻|lips|mouth|咬/.test(c)) return { emoji: '💋', label: '想被亲吻', tone: 'text-rose-300' };
+  if (/miss|想你|lonely|寂寞/.test(c)) return { emoji: '🥺', label: '想你了', tone: 'text-pink-300' };
+  if (/fuck|hard|粗暴|惩罚|spank|绑/.test(c)) return { emoji: '😈', label: '坏心思', tone: 'text-purple-300' };
+  if (/photo|自拍|look at|看我|穿着|wearing/.test(c)) return { emoji: '📸', label: '想给你看', tone: 'text-amber-300' };
+  if (/night|晚安|sleep|梦/.test(c)) return { emoji: '🌙', label: '睡意朦胧', tone: 'text-indigo-300' };
+  if (/love|爱|喜欢|heart/.test(c)) return { emoji: '❤️', label: '心跳加速', tone: 'text-rose-400' };
+  if (/angry|生气|哼|不理/.test(c)) return { emoji: '😤', label: '小脾气', tone: 'text-orange-300' };
+  if (intimacyScore >= 80) return { emoji: '🔥', label: '欲火难耐', tone: 'text-[#ff6ba6]' };
+  if (intimacyScore >= 50) return { emoji: '😊', label: '暧昧中', tone: 'text-pink-300' };
+  if (intimacyScore >= 20) return { emoji: '💭', label: '有点在意', tone: 'text-white/60' };
+  return { emoji: '✨', label: '刚认识', tone: 'text-white/45' };
+}

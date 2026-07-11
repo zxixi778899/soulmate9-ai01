@@ -78,6 +78,7 @@ export default function AchievementsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display text-xl md:text-2xl font-bold italic gradient-text">Achievements</h1>
+            <p className="text-xs text-[#ff6ba6]/80 mt-1">Heat path · unlock Desire & Soul Fire rewards</p>
             <p className="text-sm text-[#8B8BA3]">
               {unlockedCount} / {achievements.length} unlocked
             </p>

@@ -324,6 +324,8 @@ export async function POST(request: NextRequest) {
       loreContext,
       presets,
       locale: chatLocale,
+      allowNsfw: chatResolved.allowNsfw,
+      nsfwChannel: chatResolved.channel === 'nsfw',
     }) +
     (chatResolved.systemLanguageSuffix ? `\n\n${chatResolved.systemLanguageSuffix}` : '');
 

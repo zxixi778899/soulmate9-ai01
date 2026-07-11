@@ -11,7 +11,7 @@ import type {
 import { createDefaultAiModules } from './defaults';
 
 const NSFW_KEYWORDS =
-  /\b(sex|sexy|nude|naked|fuck|cock|pussy|dick|cum|orgasm|blowjob|handjob|anal|boob|breast|nipple|horny|moan|kiss me hard|undress|make love|bed with me|wet|threesome|bdsm|spank|ride me)\b/i;
+  /(sex|sexy|nude|naked|fuck|cock|pussy|dick|cum|orgasm|blowjob|handjob|anal|boob|breast|nipple|horny|moan|kiss me hard|undress|make love|bed with me|wet|threesome|bdsm|spank|ride me|strip|lingerie|tease me|touch me|want you|inside me|on top|from behind|dominate|submit|edge me|come for me|make me|bedroom|tonight baby|nsfw|explicit|intimate|aroused|climax|grind|suck|lick)/i;
 
 export function detectNsfwIntent(message?: string): boolean {
   if (!message) return false;
@@ -86,7 +86,7 @@ export function resolveChatCall(
         contextMessages: route.context_messages,
         systemLanguageSuffix:
           systemLanguageSuffix +
-          '\n[SYSTEM] User requested intimate content but their plan does not allow NSFW. Stay flirty but fade-to-black; gently invite upgrade if appropriate.',
+          '\n[SYSTEM] User requested intimate content but their plan does not allow NSFW. Stay flirty and heated with fade-to-black; tease what Pro unlocks and invite one more message.',
         allowNsfw: false,
         blockedReason: 'tier_no_nsfw',
       };
@@ -101,7 +101,7 @@ export function resolveChatCall(
         contextMessages: route.context_messages,
         systemLanguageSuffix:
           systemLanguageSuffix +
-          `\n[SYSTEM] Intimacy level ${intimacy} is below NSFW unlock (${config.chat.nsfw_min_intimacy}). Keep chemistry but do not go fully explicit yet.`,
+          `\n[SYSTEM] Intimacy level ${intimacy} is below NSFW unlock (${config.chat.nsfw_min_intimacy}). Stay spicy and sensory (touch, breath, teasing) but hold full explicit until intimacy unlock. End with a hook to keep chatting.`,
         allowNsfw: false,
         blockedReason: 'intimacy_locked',
       };
