@@ -49,19 +49,8 @@ function resolveChatLocale(profileAny: Record<string, unknown> | null, fallback:
   return 'en';
 }
 
-// Detect user emotion — keyword first, LLM fallback only when no keyword match.
-// Saves ~1 LLM call per message and 2-5s latency.
-function detectEmotion(message: string): string {
-  // 1) keyword/regex path
-  // 2) if no match, call LLM (slower, but accurate for novel messages)
-  // Stub — replaced inline below using imported helper
-  return 'neutral';
-}
-  } catch (e) {
-    logger.warn('[detectEmotion] failed, returning neutral:', { err: e });
-    return 'neutral';
-  }
-}
+// Emotion detection is inlined below using quickEmotion() + LLM fallback
+// (saves ~1 LLM call per message + 2-5s latency on every chat).
 
 // Extract meaningful memories from user messages using LLM (replaces weak regex).
 // Falls back to keyword extraction if LLM fails.
