@@ -17,8 +17,8 @@ import {
 } from '@/lib/prompt';
 
 export const runtime = 'nodejs';
-// Queue on single-worker endpoint often 2–5 min + ~30s gen
-export const maxDuration = 800;
+// Vercel Hobby max is 300s; Pro can raise via plan. Queue + gen must fit in this window.
+export const maxDuration = 300;
 
 // FLUX GPU rate limit for admin
 const FLUX_GEN_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };

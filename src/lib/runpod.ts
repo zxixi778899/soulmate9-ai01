@@ -439,9 +439,14 @@ class RunPodClient {
      * Old 90s budget abandoned jobs mid-queue and re-submitted next strategy → flood.
      * Only fall through to the next strategy on hard submit/FAILED (not on timeout).
      */
+    // Cap under Vercel Hobby serverless limit (300s). Prefer finishing one job
+    // over re-submitting strategies and flooding the queue.
     const pollBudgetMs = Math.max(
       60_000,
-      Number(process.env.RUNPOD_POLL_MS) || 10 * 60 * 1000, // default 10 min (queue 2–5m + gen)
+      Math.min(
+        Number(process.env.RUNPOD_POLL_MS) || 270_000,
+        270_000, // ~4.5 min leave headroom for upload + response
+      ),
     );
     const maxAttempts = Math.max(1, Math.floor(pollBudgetMs / pollIntervalMs));
     const errors: string[] = [];
