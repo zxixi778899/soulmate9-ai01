@@ -9,37 +9,52 @@
  * HH:MM
  */
 export function formatBubbleTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
+  try {
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return '';
+  }
 }
 
 /**
  * Today / Yesterday /  / 
  */
 export function dateGroupLabel(dateStr: string, now?: Date): string {
-  const date = new Date(dateStr);
-  const ref = now || new Date();
-  const startToday = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
-  const startYesterday = startToday - 86400000;
-  const ts = date.getTime();
-  if (ts >= startToday) return 'Today';
-  if (ts >= startYesterday) return 'Yesterday';
-  if (ref.getTime() - ts < 7 * 86400000) {
-    return date.toLocaleDateString('en-US', { weekday: 'long' });
+  try {
+    const date = new Date(dateStr);
+    const ts = date.getTime();
+    if (Number.isNaN(ts)) return '';
+    const ref = now || new Date();
+    const startToday = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
+    const startYesterday = startToday - 86400000;
+    if (ts >= startToday) return 'Today';
+    if (ts >= startYesterday) return 'Yesterday';
+    if (ref.getTime() - ts < 7 * 86400000) {
+      return date.toLocaleDateString('en-US', { weekday: 'long' });
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return '';
   }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 /**
  *  day key
  */
 export function dayKey(dateStr: string): string {
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  try {
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return 'unknown';
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  } catch {
+    return 'unknown';
+  }
 }
 
 /**

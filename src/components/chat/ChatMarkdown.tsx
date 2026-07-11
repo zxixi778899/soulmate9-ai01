@@ -14,11 +14,14 @@ interface ChatMarkdownProps {
  * Falls back to plain text for messages without markdown syntax.
  */
 export function ChatMarkdown({ content, className = '' }: ChatMarkdownProps) {
+  const text = typeof content === 'string' ? content : content == null ? '' : String(content);
+  if (!text) return null;
+
   // Fast check: if no markdown syntax, render as plain text
-  const hasMarkdown = /[*_~`#\[\]|]/.test(content);
+  const hasMarkdown = /[*_~`#\[\]|]/.test(text);
 
   if (!hasMarkdown) {
-    return <span className={className}>{content}</span>;
+    return <span className={className || undefined}>{text}</span>;
   }
 
   return (
@@ -77,7 +80,7 @@ export function ChatMarkdown({ content, className = '' }: ChatMarkdownProps) {
         em: ({ children }) => <em className="italic">{children}</em>,
       }}
     >
-      {content}
+      {text}
     </ReactMarkdown>
     </div>
   );

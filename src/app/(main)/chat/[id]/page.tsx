@@ -1,15 +1,12 @@
 'use client';
 import { useTranslation } from '@/lib/i18n/context';
 import { dateGroupLabel, dayKey } from '@/lib/chat-utils';
-import { motion } from 'motion/react';
-
 import { authedFetch } from '@/lib/supabase';
 import { useEffect, useState, useRef, use, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { IntimacyProgress } from '@/components/IntimacyProgress';
 import {
   Sheet,
   SheetContent,
@@ -83,9 +80,20 @@ const GIFTS = [
 
 // (helpers moved to @/lib/chat-utils)
 
-export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ChatPage({
+  params,
+}: {
+  params: Promise<{ id: string }> | { id: string };
+}) {
+  // Next 15 passes Promise; some runtimes may still pass a plain object.
+  // Always feed `use()` a thenable so it never throws "unsupported type".
+  const resolved = use(
+    params != null && typeof (params as { then?: unknown }).then === 'function'
+      ? (params as Promise<{ id: string }>)
+      : Promise.resolve(params as { id: string }),
+  );
+  const id = String(resolved?.id || '');
   const { t, locale } = useTranslation();
-  const { id } = use(params);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -533,15 +541,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     return level;
   };
 
-  const FEATURE_UNLOCKS: Record<number, string[]> = {
-    1: ['basic_chat', 'view_profile'],
-    2: ['personalized_greetings', 'send_gifts'],
-    3: ['nsfw_chat', 'advanced_memories'],
-    4: ['wardrobe_access', 'character_depth'],
-    5: ['exclusive_outfits', 'deep_roleplay'],
-    6: ['voice_messages', 'custom_stories', 'special_title'],
-  };
-
   function computeProgress(score: number, level: number): number {
     if (level >= INTIMACY_LEVELS.length) return 100;
     const curMin = (INTIMACY_LEVELS[level - 1] as any)?.min_score || 0;
@@ -549,12 +548,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     return Math.min(100, Math.round((score - curMin) / (nextMin - curMin) * 100)) || 0;
   }
 
-  function getNextLevelTitle(level: number): string | undefined {
-    if (level >= INTIMACY_LEVELS.length) return undefined;
-    return (INTIMACY_LEVELS[level] as any)?.title;
-  }
-
-  const levelInfo = getLevelInfo(intimacy.score);
+  const levelInfo = getLevelInfo(Number(intimacy.score) || 0);
 
   // Group messages by day + consecutive-merge (for IM look)
   const renderRows = useMemo(() => {
@@ -584,20 +578,12 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     return out;
   }, [messages]);
 
-  if (isLoading) {
+  if (!id) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" />
-      </div>
-    );
-  }
-
-  if (!girlfriend) {
-    return (
-      <div className="flex h-full items-center justify-center px-6">
+      <div className="flex min-h-[50dvh] items-center justify-center bg-[#08040e] px-6">
         <div className="text-center">
-          <p className="text-[#8B8BA3]">{t('chat.companionNotFound') || 'Companion not found'}</p>
-          <Button variant="outline" className="mt-4" onClick={() => router.push('/chats')}>
+          <p className="text-white/50">Invalid chat</p>
+          <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => router.push('/chats')}>
             Go back
           </Button>
         </div>
@@ -605,9 +591,33 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex h-[100dvh] items-center justify-center bg-[#08040e]">
+        <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" />
+      </div>
+    );
+  }
+
+  if (!girlfriend) {
+    return (
+      <div className="flex h-[100dvh] items-center justify-center bg-[#08040e] px-6">
+        <div className="text-center">
+          <p className="text-white/50">{t('chat.companionNotFound') || 'Companion not found'}</p>
+          <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => router.push('/chats')}>
+            Go back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const usageText = String(t('chat.usageWarning') || '')
+    .replace(/\{count\}/g, String(membership.todayMessagesCount ?? 0))
+    .replace(/\{limit\}/g, '50');
+
   return (
-    <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
-      {/* === PLACEHOLDER: AppBar / Messages / Input / Sheets === */}
+    <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#08040e] text-white">
       <ChatAppBar
         girlfriend={girlfriend}
         levelInfo={levelInfo}
@@ -619,15 +629,23 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         onMemories={() => setShowMemories(true)}
       />
 
-      {/* Intimacy Progress Bar */}
-      <div className="px-2 sm:px-4 pt-1">
-        <IntimacyProgress
-          currentLevel={levelInfo.level}
-          progressPercent={computeProgress(intimacy.score, levelInfo.level)}
-          intimacyScore={Math.round(intimacy.score)}
-          nextLevelName={getNextLevelTitle(levelInfo.level)}
-          unlockedFeatures={FEATURE_UNLOCKS[levelInfo.level] || []}
-        />
+      {/* Compact intimacy strip — full IntimacyProgress was crowding the dialog */}
+      <div className="shrink-0 px-3 sm:px-4 py-1.5 border-b border-white/[0.05] bg-[#0a0612]/60">
+        <div className="flex items-center gap-2 max-w-3xl mx-auto">
+          <Heart className="h-3.5 w-3.5 text-[#FF6BA6] shrink-0" />
+          <span className="text-[11px] text-white/70 shrink-0">
+            Lv.{levelInfo.level} · {levelInfo.title}
+          </span>
+          <div className="flex-1 h-1 rounded-full bg-white/[0.08] overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] transition-all duration-500"
+              style={{ width: `${computeProgress(intimacy.score, levelInfo.level)}%` }}
+            />
+          </div>
+          <span className="text-[10px] font-mono tabular-nums text-white/40 shrink-0">
+            {Math.round(intimacy.score)}pts
+          </span>
+        </div>
       </div>
 
       <ChatStream
@@ -675,18 +693,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             </span>
           </div>
           {!usageBannerDismissed && membership.todayMessagesCount >= 40 && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              className="flex items-center gap-3 rounded-2xl bg-white/[0.06] backdrop-blur-xl border border-white/[0.10] px-4 py-2.5 shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
-            >
+            <div className="flex items-center gap-3 rounded-2xl glass px-4 py-2.5">
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-[#F0F0F5]/90 leading-snug">
-                  {t('chat.usageWarning')
-                    .replace('{count}', String(membership.todayMessagesCount))
-                    .replace('{limit}', '50')}
-                </p>
+                <p className="text-xs text-white/90 leading-snug">{usageText}</p>
               </div>
               <Button
                 size="sm"
@@ -703,7 +712,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               >
                 <X className="h-3.5 w-3.5" />
               </button>
-            </motion.div>
+            </div>
           )}
         </div>
       )}
@@ -785,10 +794,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
       {/* Gift Dialog */}
       <Dialog open={showGiftDialog} onOpenChange={setShowGiftDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="glass-modal sm:max-w-md border-white/12 text-white">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">Send a Gift </DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="font-display text-xl text-white">Send a Gift</DialogTitle>
+            <DialogDescription className="text-white/50">
               Choose a gift to send to {girlfriend.name}. Gifts boost intimacy!
             </DialogDescription>
           </DialogHeader>
@@ -816,10 +825,12 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
       {/* Wardrobe Dialog */}
       <Dialog open={showWardrobeDialog} onOpenChange={setShowWardrobeDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="glass-modal sm:max-w-lg border-white/12 text-white">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">{t('chat.wardrobe') || 'Wardrobe'} </DialogTitle>
-            <DialogDescription>Dress up {girlfriend.name} with a new outfit.</DialogDescription>
+            <DialogTitle className="font-display text-xl text-white">{t('chat.wardrobe') || 'Wardrobe'}</DialogTitle>
+            <DialogDescription className="text-white/50">
+              Dress up {girlfriend.name} with a new outfit.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2">
             {outfits.map((outfit) => (
@@ -861,27 +872,31 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         </DialogContent>
       </Dialog>
 
-      {/* Image Lightbox */}
+      {/* Image Lightbox — no nested <button> (invalid HTML → React hydration issues) */}
       {showLightbox && (
-        <button
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] bg-black/92 flex items-center justify-center p-4"
           onClick={() => setShowLightbox(null)}
-          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-200"
-          aria-label="Close image"
+          onKeyDown={(e) => e.key === 'Escape' && setShowLightbox(null)}
         >
           <button
-            className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white"
+            type="button"
+            className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-white z-10"
             aria-label="Close"
-            onClick={(e) => { e.stopPropagation(); setShowLightbox(null); }}
+            onClick={() => setShowLightbox(null)}
           >
             <X className="h-5 w-5" />
           </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={showLightbox}
             alt="Preview"
             className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
-        </button>
+        </div>
       )}
     </div>
   );
