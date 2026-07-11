@@ -15,8 +15,8 @@ function safeInitial(name?: string | null) {
 
 export function ChatAppBar(props: {
   girlfriend: ChatGirlfriend | null;
-  levelInfo: LevelInfo;
-  intimacy: IntimacyData;
+  levelInfo?: LevelInfo | null;
+  intimacy?: IntimacyData | null;
   isTyping: boolean;
   onBack: () => void;
   onSelfie: () => void;

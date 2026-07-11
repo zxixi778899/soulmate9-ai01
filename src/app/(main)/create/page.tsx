@@ -16,6 +16,7 @@ import {
 import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/lib/i18n/context';
 
 const VISUAL_STYLES = [
   { id: 'realistic' as const, label: 'Realistic', desc: 'Photo-like skin & lighting' },
@@ -62,7 +63,8 @@ const RELATIONSHIPS = [
   { id: 'rival', label: 'Rival', desc: 'Competitive pull' },
 ];
 
-const STEPS = ['Look', 'Personality', 'Identity'];
+const STEPS_EN = ['Look', 'Personality', 'Identity'] as const;
+const STEPS_ZH = ['Look', 'Personality', 'Identity'] as const; // labels set below via locale
 
 function Pill({
   active, onClick, children, className,
@@ -86,6 +88,8 @@ function Pill({
 
 export default function CreatePage() {
   const router = useRouter();
+  const { locale } = useTranslation();
+  const stepLabels = locale === 'zh' ? ['外观', '性格', '身份'] : ['Look', 'Personality', 'Identity'];
   const [step, setStep] = useState(0);
 
   const [visualStyle, setVisualStyle] = useState<'realistic' | 'anime'>('realistic');
@@ -229,7 +233,7 @@ export default function CreatePage() {
       router.push('/chats');
     } catch (e) {
       logger.error(String(e));
-      setError('网络错误');
+      setError(locale === 'zh' ? '网络错误' : 'Network error');
     } finally {
       setSaving(false);
     }
@@ -243,8 +247,8 @@ export default function CreatePage() {
     <GameShell className="flex min-h-[100dvh] flex-col overflow-hidden pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
       <PageHeader
         eyebrow="CREATOR"
-        title="Create Companion"
-        subtitle="Look · Personality · Identity"
+        title={locale === 'zh' ? '捏脸创建' : 'Create Companion'}
+        subtitle={locale === 'zh' ? '外观 · 性格 · 身份' : 'Look · Personality · Identity'}
         backHref="/"
         sticky={false}
         actions={
@@ -255,7 +259,7 @@ export default function CreatePage() {
               onClick={handleSubmit}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Finish
+              {locale === 'zh' ? '完成' : 'Finish'}
             </GamePrimaryButton>
           ) : undefined
         }
@@ -263,7 +267,7 @@ export default function CreatePage() {
 
       {/* Stepper */}
       <div className="shrink-0 flex items-center justify-center gap-2 sm:gap-4 px-4 py-3 border-b border-white/[0.06]">
-        {STEPS.map((label, idx) => {
+        {stepLabels.map((label, idx) => {
           const active = idx === step;
           const done = idx < step;
           return (
@@ -281,7 +285,7 @@ export default function CreatePage() {
               <span className={cn('hidden sm:block text-xs font-medium', active ? 'text-white' : 'text-white/40')}>
                 {label}
               </span>
-              {idx < STEPS.length - 1 && (
+              {idx < stepLabels.length - 1 && (
                 <div className={cn('h-px w-8 sm:w-14', done ? 'bg-[#FF2D78]/50' : 'bg-white/10')} />
               )}
             </div>
@@ -289,9 +293,61 @@ export default function CreatePage() {
         })}
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+      <div className="shrink-0 border-b border-white/[0.06] px-3 sm:px-5 py-3">
+        <div className="mx-auto max-w-4xl grid grid-cols-[minmax(0,42%)_1fr] sm:grid-cols-[200px_1fr] gap-3 sm:gap-4 items-stretch">
+          <div className="relative aspect-[3/4] max-h-[220px] sm:max-h-[260px] rounded-xl overflow-hidden bg-black/40 border border-white/10">
+            {portraitUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={portraitUrl} alt="preview" className="h-full w-full object-cover" />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white/30 gap-2 p-2">
+                <User2 className="h-10 w-10" />
+                <span className="text-[11px] text-center">{locale === 'zh' ? '生成预览头像' : 'Preview portrait'}</span>
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex flex-col justify-between gap-2 py-0.5">
+            <div>
+              <div className="text-[10px] tracking-[0.25em] text-white/40 font-bold mb-1.5">
+                {locale === 'zh' ? '已选数据' : 'SELECTED'}
+              </div>
+              <div className="space-y-1 text-xs text-white/70">
+                <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '画风' : 'Style'}</span> {visualStyle} · {gender}</div>
+                <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '种族' : 'Ethnicity'}</span> {ethnicity} · {faceShape}</div>
+                <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '发型' : 'Hair'}</span> {hairStyle}</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-white/35 shrink-0">{locale === 'zh' ? '发色' : 'Color'}</span>
+                  <span className="h-3 w-3 rounded-full border border-white/20 shrink-0" style={{ background: hairColor }} />
+                  <span className="truncate">{eyeColor} · {bodyType}</span>
+                </div>
+                <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '风格' : 'Fashion'}</span> {fashionStyle}</div>
+                {name ? (
+                  <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '名字' : 'Name'}</span> {name} · {age}</div>
+                ) : null}
+              </div>
+              {selectedTags.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-2 max-h-14 overflow-hidden">
+                  {selectedTags.map((tag) => (
+                    <span key={tag} className="px-1.5 py-0.5 rounded bg-white/5 text-[10px]">{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <GamePrimaryButton
+              className="w-full h-10 text-xs"
+              disabled={generatingPortrait}
+              onClick={handleGeneratePortrait}
+            >
+              {generatingPortrait ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+              {locale === 'zh' ? 'AI 生成头像' : 'AI Generate Portrait'}
+            </GamePrimaryButton>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {/* Form */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-36 lg:pb-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-36">
           <div className="mx-auto max-w-2xl space-y-6">
             <AnimatePresence mode="wait">
               {step === 0 && (
@@ -302,7 +358,7 @@ export default function CreatePage() {
                   exit={{ opacity: 0, x: -24 }}
                   className="space-y-6"
                 >
-                  <Section title="画风">
+                  <Section title={locale === 'zh' ? '画风' : 'Visual Style'}>
                     <div className="grid grid-cols-2 gap-2">
                       {VISUAL_STYLES.map((v) => (
                         <button
@@ -323,7 +379,7 @@ export default function CreatePage() {
                     </div>
                   </Section>
 
-                  <Section title="性别气质">
+                  <Section title={locale === 'zh' ? '性别气质' : 'Gender'}>
                     <div className="flex flex-wrap gap-2">
                       {GENDERS.map((g) => (
                         <Pill key={g} active={gender === g} onClick={() => setGender(g)}>{g}</Pill>
@@ -417,7 +473,7 @@ export default function CreatePage() {
                   exit={{ opacity: 0, x: -24 }}
                   className="space-y-6"
                 >
-                  <Section title={`性格标签（${selectedTags.length}/8）`}>
+                  <Section title={locale === 'zh' ? `性格标签（${selectedTags.length}/8）` : `Personality (${selectedTags.length}/8)`}>
                     <div className="flex flex-wrap gap-2">
                       {PERSONALITY_TAGS.map((tag) => (
                         <Pill key={tag} active={selectedTags.includes(tag)} onClick={() => toggleTag(tag)}>
@@ -535,49 +591,7 @@ export default function CreatePage() {
           </div>
         </div>
 
-        {/* Live preview panel */}
-        <aside className="lg:w-[340px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] p-4 sm:p-5 overflow-y-auto max-h-[38vh] lg:max-h-none">
-          <div className="creator-preview rounded-2xl p-4 sticky top-4">
-            <div className="text-[10px] tracking-[0.25em] text-white/40 font-bold mb-3">LIVE PREVIEW</div>
-            <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-black/40 border border-white/10 mb-4">
-              {portraitUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={portraitUrl} alt="preview" className="h-full w-full object-cover" />
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-white/30 gap-2">
-                  <User2 className="h-12 w-12" />
-                  <span className="text-xs">生成预览头像</span>
-                </div>
-              )}
-            </div>
-            <div className="space-y-1.5 text-xs text-white/60 mb-4">
-              <div><span className="text-white/35">画风</span> {visualStyle} · {gender}</div>
-              <div><span className="text-white/35">种族</span> {ethnicity} · {faceShape}</div>
-              <div><span className="text-white/35">发型</span> {hairStyle}</div>
-              <div className="flex items-center gap-2">
-                <span className="text-white/35">发色</span>
-                <span className="h-3 w-3 rounded-full border border-white/20" style={{ background: hairColor }} />
-                <span>{eyeColor} eyes · {bodyType}</span>
-              </div>
-              <div><span className="text-white/35">服饰</span> {fashionStyle}</div>
-              {selectedTags.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {selectedTags.map((t) => (
-                    <span key={t} className="px-1.5 py-0.5 rounded bg-white/5 text-[10px]">{t}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <GamePrimaryButton
-              className="w-full h-11"
-              disabled={generatingPortrait}
-              onClick={handleGeneratePortrait}
-            >
-              {generatingPortrait ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-              AI 生成头像
-            </GamePrimaryButton>
-          </div>
-        </aside>
+        
       </div>
 
       {/* Bottom nav steps */}
@@ -591,7 +605,7 @@ export default function CreatePage() {
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           className="h-11 min-w-[5.5rem] px-4 rounded-full border border-white/10 text-sm disabled:opacity-30 flex items-center justify-center gap-1 touch-manipulation"
         >
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> {locale === 'zh' ? '上一步' : 'Back'}
         </button>
         {step < 2 ? (
           <GamePrimaryButton
@@ -599,7 +613,7 @@ export default function CreatePage() {
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
-            Next <ArrowRight className="h-4 w-4" />
+            {locale === 'zh' ? '下一步' : 'Next'} <ArrowRight className="h-4 w-4" />
           </GamePrimaryButton>
         ) : (
           <GamePrimaryButton
@@ -608,7 +622,7 @@ export default function CreatePage() {
             onClick={handleSubmit}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Create
+            {locale === 'zh' ? '创建' : 'Create'}
           </GamePrimaryButton>
         )}
       </div>

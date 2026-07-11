@@ -104,7 +104,7 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
               <div className="flex items-end justify-between">
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.3em] text-[#ff2e88] mb-1">
-                    {girl.rarity || 'R'} · ID #{girl.id.slice(0, 6)}
+                    {girl.rarity || 'R'} · ID #{String(girl.id || '').slice(0, 6)}
                   </div>
                   <h2 className="text-5xl font-bold tracking-tight text-white drop-shadow-[0_0_24px_rgba(255,46,136,0.4)]">
                     {girl.name}
@@ -122,7 +122,7 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
 
           {/* RIGHT: info + actions */}
           <div className="p-6 sm:p-8 space-y-5 flex flex-col">
-            <p className="text-sm text-zinc-300 leading-relaxed">{girl.tagline}</p>
+            <p className="text-sm text-zinc-300 leading-relaxed">{girl.tagline || girl.personality || ""}</p>
 
             {/* Personality radar */}
             <div>
@@ -151,7 +151,7 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
 
             {/* Tags */}
             <div className="flex flex-wrap gap-1.5">
-              {girl.tags.map((tag) => (
+              {(Array.isArray(girl.tags) ? girl.tags : []).map((tag) => (
                 <span key={tag} className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/[0.04] border border-white/[0.08] text-zinc-300">
                   {tag}
                 </span>

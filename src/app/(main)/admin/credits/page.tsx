@@ -117,6 +117,11 @@ export default function AdminCreditsPage() {
   };
 
   return (
+    <>
+    <div className="mx-6 mt-4 mb-0 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+      提示：代币套餐请在 <a className="underline font-medium" href="/admin/tokens">代币与积分</a> 统一管理；本页保留积分流水与调账工具。
+    </div>
+
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Credit Management</h1>
@@ -293,5 +298,6 @@ export default function AdminCreditsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }

@@ -57,7 +57,7 @@ export default function ExplorePage() {
       arr = arr.filter((g) => g.name.toLowerCase().includes(q) || g.tagline.toLowerCase().includes(q));
     }
     if (selectedTags.length) {
-      arr = arr.filter((g) => selectedTags.every((t) => g.tags.includes(t)));
+      arr = arr.filter((g) => selectedTags.every((t) => (Array.isArray(g.tags) ? g.tags : []).includes(t)));
     }
     if (rarityFilter) arr = arr.filter((g) => g.rarity === rarityFilter);
     if (sort === 'hot' || sort === 'intimacy') arr.sort((a, b) => b.intimacy - a.intimacy);
@@ -126,7 +126,7 @@ export default function ExplorePage() {
     <GameShell className="pb-6 md:pb-12 min-h-[100dvh]">
       <PageHeader
         eyebrow="CARD POOL"
-        title="角色卡池"
+        title="Card Pool"
         subtitle={
           loading
             ? '加载卡牌中…'
@@ -135,9 +135,7 @@ export default function ExplorePage() {
         backHref="/"
         sticky={false}
         actions={
-          <GamePrimaryButton onClick={() => router.push('/create')} className="!h-10 !px-3 sm:!px-4 text-xs touch-manipulation">
-            捏脸
-          </GamePrimaryButton>
+          <GamePrimaryButton onClick={() => router.push('/create')} className="!h-10 !px-3 sm:!px-4 text-xs touch-manipulation">Create</GamePrimaryButton>
         }
       />
 
@@ -150,7 +148,7 @@ export default function ExplorePage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索名字…"
+                placeholder="Search name…"
                 className="glass-input w-full h-11 pl-9 pr-3 text-[16px] sm:text-sm"
               />
             </div>

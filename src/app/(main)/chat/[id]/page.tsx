@@ -588,7 +588,7 @@ export default function ChatPage() {
     return Math.min(100, Math.max(0, Math.round(((safeScore - curMin) / span) * 100)));
   }
 
-  const levelInfo = getLevelInfo(Number(intimacy?.score) || 0) || INTIMACY_LEVELS[0];
+  const levelInfo = getLevelInfo(Number(intimacy?.score) || 0) || INTIMACY_LEVELS[0] || { level: 1, min_score: 0, title: 'Stranger', color: '#6b7280' };
 
   // Group messages by day + consecutive-merge (for IM look)
   const renderRows = useMemo(() => {
@@ -600,21 +600,26 @@ export default function ChatPage() {
     let lastRole: 'user' | 'assistant' | null = null;
     let lastTime = 0;
     (Array.isArray(messages) ? messages : []).forEach((m, i) => {
-      if (!m || !m.id) return;
-      const dk = dayKey(m.created_at || new Date().toISOString());
-      if (dk !== lastDay) {
-        out.push({ type: 'date', key: `date-${dk}-${i}`, label: dateGroupLabel(m.created_at) });
-        lastDay = dk;
-        lastRole = null;
-        lastTime = 0;
+      try {
+        if (!m || !m.id) return;
+        const created = m.created_at || new Date().toISOString();
+        const dk = dayKey(created);
+        if (dk !== lastDay) {
+          out.push({ type: 'date', key: `date-${dk}-${i}`, label: dateGroupLabel(created) });
+          lastDay = dk;
+          lastRole = null;
+          lastTime = 0;
+        }
+        const ts = new Date(created).getTime() || 0;
+        const role = m.role === 'user' ? 'user' : 'assistant';
+        const merged = lastRole === role && Math.abs(ts - lastTime) < 3 * 60 * 1000;
+        const showAvatar = role === 'assistant' && !merged;
+        out.push({ type: 'msg', key: String(m.id), msg: { ...m, role, created_at: created }, showAvatar, merged });
+        lastRole = role;
+        lastTime = ts;
+      } catch {
+        /* skip bad message row */
       }
-      const ts = new Date(m.created_at).getTime();
-      const merged = lastRole === m.role && Math.abs(ts - lastTime) < 3 * 60 * 1000;
-      // assistant avatar appears on first of a group
-      const showAvatar = m.role === 'assistant' && !merged;
-      out.push({ type: 'msg', key: m.id, msg: m, showAvatar, merged });
-      lastRole = m.role;
-      lastTime = ts;
     });
     return out;
   }, [messages]);
@@ -655,7 +660,7 @@ export default function ChatPage() {
 
   const usageText = String(t('chat.usageWarning') || '')
     .replace(/\{count\}/g, String(membership.todayMessagesCount ?? 0))
-    .replace(/\{limit\}/g, '40');
+    .replace(/\{limit\}/g, String(membership.capabilities?.dailyMessageLimit === Number.POSITIVE_INFINITY ? '∞' : (membership.capabilities?.dailyMessageLimit || 40)));
 
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#08040e] text-white">

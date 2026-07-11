@@ -26,41 +26,40 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: '用户与内容',
+    title: '角色与内容',
     items: [
-      { label: '用户管理', href: '/admin/users', icon: Users },
       { label: '女友管理', href: '/admin/girlfriends', icon: Heart },
-      { label: '推荐角色', href: '/admin/featured', icon: Star },
-      { label: '审核管理', href: '/admin/review', icon: CheckSquare },
-      { label: '图片管理', href: '/admin/images', icon: FileImage },
-      { label: '视频管理', href: '/admin/videos', icon: Film },
-      { label: 'Comfy 操作台', href: '/admin/comfy', icon: FileImage },
-      { label: '角色卡', href: '/admin/character-cards', icon: FileImage },
-      { label: '世界观', href: '/admin/lore', icon: BookOpen },
+      { label: '推荐/热门', href: '/admin/featured', icon: Star },
+      { label: '审核队列', href: '/admin/review', icon: CheckSquare },
+      { label: '图片库', href: '/admin/images', icon: FileImage },
+      { label: '视频库', href: '/admin/videos', icon: Film },
+      { label: 'Comfy 生成', href: '/admin/comfy', icon: FileImage },
+      { label: '角色卡导入', href: '/admin/character-cards', icon: FileImage },
+      { label: '世界书', href: '/admin/lore', icon: BookOpen },
     ],
   },
   {
-    title: '商业变现',
+    title: '商业',
     items: [
-      { label: '商城管理', href: '/admin/shop', icon: ShoppingBag },
-      { label: '代币套餐', href: '/admin/tokens', icon: Coins },
-      { label: '积分管理', href: '/admin/credits', icon: CreditCard },
+      { label: '商城', href: '/admin/shop', icon: ShoppingBag },
+      { label: '代币与积分', href: '/admin/tokens', icon: Coins },
       { label: '加密货币', href: '/admin/crypto', icon: Bitcoin },
-      { label: '广告管理', href: '/admin/ads', icon: Image },
+      { label: '广告', href: '/admin/ads', icon: Image },
     ],
   },
   {
     title: '站点与系统',
     items: [
+      { label: '用户', href: '/admin/users', icon: Users },
       { label: '全站模块', href: '/admin/homepage', icon: Home },
-      { label: '页面管理', href: '/admin/pages', icon: LayoutTemplate },
-      { label: '导航管理', href: '/admin/navigation', icon: Menu },
+      { label: '页面/导航', href: '/admin/pages', icon: LayoutTemplate },
       { label: 'AI 模型', href: '/admin/models', icon: Brain },
       { label: 'AI 模块方案', href: '/admin/ai-modules', icon: Brain },
       { label: '站点设置', href: '/admin/settings', icon: Settings },
     ],
   },
 ];
+
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, session, isLoading: authLoading } = useAuth();

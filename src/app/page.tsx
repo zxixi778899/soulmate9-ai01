@@ -130,7 +130,7 @@ export default function HomePage() {
 
   const roster = catalog.slice(0, 10);
   const featured = roster[focus] || catalog[0] || null;
-  const rc = RARITY_COLORS[featured?.rarity || 'R'];
+  const rc = RARITY_COLORS[(featured?.rarity as keyof typeof RARITY_COLORS) || 'R'] || RARITY_COLORS.R;
 
   const hotList = useMemo(
     () =>
@@ -332,7 +332,7 @@ export default function HomePage() {
                 className={cn(
                   'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation',
                   'aspect-[3/4] max-h-[min(58dvh,480px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
-                  `game-rarity-${featured.rarity.toLowerCase()}`,
+                  `game-rarity-${String(featured.rarity || 'R').toLowerCase()}`,
                 )}
                 style={{
                   boxShadow: `0 0 0 1px ${rc.color}55, 0 16px 48px rgba(0,0,0,0.45)`,
@@ -396,7 +396,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {featured.tags.slice(0, 6).map((tag) => (
+                  {(Array.isArray(featured.tags) ? featured.tags : []).slice(0, 6).map((tag) => (
                     <span key={tag} className="glass px-2 py-0.5 rounded-full text-[10px] text-[#ffc0d8]">#{tag}</span>
                   ))}
                 </div>
@@ -545,7 +545,7 @@ export default function HomePage() {
                 onClick={() => void enterBond(g)}
                 className={cn(
                   'relative rounded-xl sm:rounded-2xl overflow-hidden text-left active:scale-[0.98] transition-transform ring-1 ring-white/10 hover:ring-[#ff2e88]/45 hover:shadow-[0_0_24px_rgba(255,46,136,0.25)]',
-                  `game-rarity-${g.rarity.toLowerCase()}`,
+                  `game-rarity-${String(g.rarity || 'R').toLowerCase()}`,
                 )}
               >
                 <div className="relative aspect-[3/4]">
