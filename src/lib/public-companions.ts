@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 
 /** Columns that always exist on production girlfriends table */
 const CORE_SELECT =
-  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, personality, created_at, is_public, review_status';
+  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, personality, created_at, is_public, review_status, avatar_video_url, portrait_video_url';
 
 /** Optional catalog columns (migration 0007) — probed once */
 let _optionalCols: string | null | undefined;
@@ -51,14 +51,18 @@ function sanitizeName(raw: string, slug?: string | null): string {
   );
 }
 
-async function resolvePortrait(
-  portrait: string | null | undefined,
-  avatar: string | null | undefined,
+async function resolveMediaUrl(
+  ...candidates: Array<string | null | undefined>
 ): Promise<string> {
-  for (const raw of [portrait, avatar]) {
+  for (const raw of candidates) {
     if (!raw) continue;
     if (looksLikePromptText(raw)) continue;
-    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:image/')) {
+    if (
+      raw.startsWith('http://') ||
+      raw.startsWith('https://') ||
+      raw.startsWith('data:image/') ||
+      raw.startsWith('data:video/')
+    ) {
       return raw;
     }
     // bare storage key
@@ -72,6 +76,13 @@ async function resolvePortrait(
   return '';
 }
 
+async function resolvePortrait(
+  portrait: string | null | undefined,
+  avatar: string | null | undefined,
+): Promise<string> {
+  return resolveMediaUrl(portrait, avatar);
+}
+
 export interface PublicCompanionRow {
   id: string;
   name: string;
@@ -82,6 +93,10 @@ export interface PublicCompanionRow {
   portrait_url: string | null;
   avatar_url: string | null;
   image_url: string;
+  /** Preferred card/portrait loop video */
+  video_url?: string | null;
+  portrait_video_url?: string | null;
+  avatar_video_url?: string | null;
   personality: string | null;
   rarity?: string | null;
   access_status?: string | null;
@@ -129,6 +144,13 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
       g.portrait_url as string | null,
       g.avatar_url as string | null,
     );
+    const portrait_video_url = await resolveMediaUrl(
+      g.portrait_video_url as string | null,
+    );
+    const avatar_video_url = await resolveMediaUrl(
+      g.avatar_video_url as string | null,
+    );
+    const video_url = portrait_video_url || avatar_video_url || null;
     const name = sanitizeName(String(g.name || ''), g.slug as string | null);
     out.push({
       id: String(g.id),
@@ -140,6 +162,9 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
       portrait_url: image_url || (g.portrait_url as string) || null,
       avatar_url: image_url || (g.avatar_url as string) || null,
       image_url,
+      video_url,
+      portrait_video_url: portrait_video_url || null,
+      avatar_video_url: avatar_video_url || null,
       personality: (g.personality as string) ?? null,
       rarity: (g.rarity as string) ?? null,
       access_status: (g.access_status as string) ?? 'open',

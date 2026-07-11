@@ -44,6 +44,8 @@ type GirlfriendData = {
   backstory: string;
   portrait_url: string | null;
   avatar_url: string | null;
+  portrait_video_url?: string | null;
+  avatar_video_url?: string | null;
   appearance: {
     hair: string;
     hair_color: string;
@@ -80,6 +82,8 @@ const defaultForm = {
   backstory: '',
   portrait_url: '',
   avatar_url: '',
+  portrait_video_url: '',
+  avatar_video_url: '',
   hair: '',
   hair_color: '',
   eyes: '',
@@ -217,6 +221,8 @@ export default function AdminGirlfriendsPage() {
       backstory: gf.backstory || '',
       portrait_url: gf.portrait_url || '',
       avatar_url: gf.avatar_url || '',
+      portrait_video_url: gf.portrait_video_url || '',
+      avatar_video_url: gf.avatar_video_url || '',
       hair: gf.appearance?.hair || gf.appearance_hair || '',
       hair_color: gf.appearance?.hair_color || gf.appearance_hair_color || '',
       eyes: gf.appearance?.eyes || gf.appearance_eyes || '',
@@ -291,6 +297,8 @@ export default function AdminGirlfriendsPage() {
         backstory: form.backstory,
         portrait_url: form.portrait_url || null,
         avatar_url: form.avatar_url || null,
+        portrait_video_url: form.portrait_video_url || null,
+        avatar_video_url: form.avatar_video_url || null,
         appearance_hair: form.hair,
         appearance_hair_color: form.hair_color,
         appearance_eyes: form.eyes,
@@ -739,7 +747,7 @@ export default function AdminGirlfriendsPage() {
               )}
             </div>
 
-            {/* Images */}
+            {/* Images + videos */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="gf-portrait">肖像 URL</Label>
@@ -749,7 +757,42 @@ export default function AdminGirlfriendsPage() {
                 <Label htmlFor="gf-avatar">头像 URL</Label>
                 <Input id="gf-avatar" value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} placeholder="https://..." />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="gf-portrait-video">肖像视频 URL（卡面/主视觉）</Label>
+                <Input
+                  id="gf-portrait-video"
+                  value={form.portrait_video_url}
+                  onChange={(e) => setForm({ ...form, portrait_video_url: e.target.value })}
+                  placeholder="https://.../xxx.mp4"
+                />
+                <p className="text-[10px] text-muted-foreground">mp4/webm，建议竖版 9:16，循环静音短片</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gf-avatar-video">头像视频 URL（可选）</Label>
+                <Input
+                  id="gf-avatar-video"
+                  value={form.avatar_video_url}
+                  onChange={(e) => setForm({ ...form, avatar_video_url: e.target.value })}
+                  placeholder="https://.../xxx.mp4"
+                />
+              </div>
             </div>
+            {(form.portrait_video_url || form.avatar_video_url) && (
+              <div className="rounded-lg border border-border/40 bg-muted/20 p-2">
+                <p className="mb-1 text-[11px] text-muted-foreground">视频预览</p>
+                <video
+                  key={form.portrait_video_url || form.avatar_video_url}
+                  src={form.portrait_video_url || form.avatar_video_url}
+                  poster={form.portrait_url || form.avatar_url || undefined}
+                  className="mx-auto max-h-48 rounded-md object-cover"
+                  muted
+                  loop
+                  playsInline
+                  autoPlay
+                  controls
+                />
+              </div>
+            )}
 
             {/* Appearance */}
             <div className="border-t border-border/20 pt-4">

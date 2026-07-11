@@ -6,11 +6,12 @@
  * Layout: left big 3D-tilt portrait, right info panel with personality bars + voice + big SELECT.
  */
 
-import { useState, useRef } from 'react';
+import { useRef } from 'react';
 import { motion, useMotionValue, useTransform } from 'motion/react';
 import { X, Heart, Sparkles, Lock, Volume2, MessageCircle, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DemoGirl } from '@/lib/demo-data';
+import { CardMedia } from '@/components/discover/CardMedia';
 
 interface Props {
   girl: DemoGirl;
@@ -74,15 +75,15 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect }: Props) {
               }}
               style={{ rotateX, rotateY, transformStyle: 'preserve-3d', transformPerspective: 1200 }}
             >
-              {girl.avatar ? (
-                <img src={girl.avatar} alt={girl.name}
-                     className="w-full h-full object-cover"
-                     style={{ transform: 'translateZ(40px)' }} />
-              ) : (
-                <div className="w-3/4 h-3/4 flex items-center justify-center text-9xl font-bold text-white/30 rounded-3xl bg-white/[0.04]">
-                  {girl.name.charAt(0)}
-                </div>
-              )}
+              <div className="absolute inset-0" style={{ transform: 'translateZ(40px)' }}>
+                <CardMedia
+                  src={girl.portrait || girl.avatar}
+                  videoSrc={girl.video || girl.avatar_video}
+                  alt={girl.name}
+                  forcePlay
+                  showBadge
+                />
+              </div>
 
               {/* Floating sparkles */}
               <Sparkles className="absolute top-1/4 right-1/4 h-5 w-5 text-[#ff2e88] animate-pulse" style={{ transform: 'translateZ(80px)' }} />

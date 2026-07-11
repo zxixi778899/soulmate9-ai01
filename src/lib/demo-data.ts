@@ -35,6 +35,10 @@ export interface DemoGirl {
   tagline_zh?: string;
   avatar: string;
   portrait: string;
+  /** Optional looping card / portrait video (mp4/webm HTTPS) */
+  video?: string;
+  /** Optional short avatar loop (fallback if `video` empty) */
+  avatar_video?: string;
   rarity: Rarity;
   tags: string[];
   personality: string;

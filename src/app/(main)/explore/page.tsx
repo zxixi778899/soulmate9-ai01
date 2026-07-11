@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { Search, TrendingUp, Sparkles, Heart, Star, Loader2, Filter } from 'lucide-react';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
+import { CardMedia } from '@/components/discover/CardMedia';
 import { GIRLS, type DemoGirl, RARITY_COLORS } from '@/lib/demo-data';
 import { fetchCompanionCatalog } from '@/lib/companions';
 import { openCompanionChat } from '@/lib/ensure-companion';
@@ -216,15 +217,16 @@ export default function ExplorePage() {
                 )}
               >
                 <div className="relative aspect-[3/4]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={girl.portrait}
+                  <CardMedia
+                    src={girl.portrait || girl.avatar}
+                    videoSrc={girl.video || girl.avatar_video}
                     alt={girl.name}
-                    className={cn(
-                      'absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105',
+                    hoverPlay
+                    showBadge
+                    imgClassName={cn(
+                      'transition-transform duration-500 group-hover:scale-105',
                       lockedImageClass(girl.locked),
                     )}
-                    loading="lazy"
                   />
                   {girl.locked && <LockedPortraitOverlay price={girl.unlock_price_tokens} />}
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-[1]" />

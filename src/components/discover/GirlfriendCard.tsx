@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { Heart, Sparkles, Flame, Wind, Droplet, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type DemoGirl, ELEMENT_COLORS } from '@/lib/demo-data';
+import { CardMedia } from '@/components/discover/CardMedia';
 
 const ELEMENT_ICON = {
   fire: Flame, water: Droplet, wind: Wind, light: Sun, dark: Moon,
@@ -91,14 +92,21 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
       />
 
       <div className="relative aspect-[3/4] overflow-hidden">
-        <div className={cn('absolute inset-0 bg-gradient-to-b opacity-50',
+        <div className={cn('absolute inset-0 bg-gradient-to-b opacity-50 z-[1] pointer-events-none',
           girl.rarity === 'SSR' && 'from-[#ffd700]/40 via-[#ff2e88]/15 to-[#00e5ff]/10',
           girl.rarity === 'SR' && 'from-[#ff2e88]/45 to-fuchsia-500/10',
           girl.rarity === 'R' && 'from-[#00e5ff]/40 to-cyan-500/10',
           girl.rarity === 'N' && 'from-zinc-400/30 to-zinc-500/5',
         )} />
-        <img src={girl.portrait} alt={girl.name} className="relative w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.06]" loading="lazy" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/75" />
+        <CardMedia
+          src={girl.portrait || girl.avatar}
+          videoSrc={girl.video || girl.avatar_video}
+          alt={girl.name}
+          hoverPlay
+          showBadge
+          imgClassName="transition-transform duration-700 group-hover:scale-[1.06]"
+        />
+        <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/30 via-transparent to-black/75 pointer-events-none" />
 
         {hovered && (
           <motion.div

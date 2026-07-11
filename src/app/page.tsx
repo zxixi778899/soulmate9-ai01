@@ -22,6 +22,7 @@ import { GIRLS, RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } f
 import { fetchCompanionCatalog } from '@/lib/companions';
 import { openCompanionChat } from '@/lib/ensure-companion';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
+import { CardMedia } from '@/components/discover/CardMedia';
 import { ShareCard } from '@/components/ShareCard';
 import {
   GameShell, GameChip, GamePrimaryButton, RarityBadge,
@@ -296,15 +297,16 @@ export default function HomePage() {
                     style={{ background: `radial-gradient(circle, ${rc.color}55, transparent 70%)` }}
                   />
 
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={featured.portrait}
+                  <CardMedia
+                    src={featured.portrait || featured.avatar}
+                    videoSrc={featured.video || featured.avatar_video}
                     alt={featured.name}
-                    className={cn(
-                      'absolute inset-0 h-full w-full object-cover object-top transition-[filter] duration-500',
+                    forcePlay
+                    showBadge
+                    imgClassName={cn(
+                      'transition-[filter] duration-500',
                       lockedImageClass(featured.locked),
                     )}
-                    draggable={false}
                   />
                   {featured.locked && (
                     <LockedPortraitOverlay price={featured.unlock_price_tokens} />
@@ -534,15 +536,13 @@ export default function HomePage() {
                 )}
               >
                 <div className="relative aspect-[3/4]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={g.portrait}
+                  <CardMedia
+                    src={g.portrait || g.avatar}
+                    videoSrc={g.video || g.avatar_video}
                     alt={g.name}
-                    className={cn(
-                      'absolute inset-0 h-full w-full object-cover object-top',
-                      lockedImageClass(g.locked),
-                    )}
-                    loading="lazy"
+                    hoverPlay
+                    showBadge={!!(g.video || g.avatar_video)}
+                    imgClassName={lockedImageClass(g.locked)}
                   />
                   {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-md" />}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent z-[1]" />

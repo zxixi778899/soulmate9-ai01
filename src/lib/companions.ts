@@ -76,11 +76,36 @@ function pickImage(row: Record<string, unknown>, index: number): string {
   return '';
 }
 
+function pickVideo(row: Record<string, unknown>): string | undefined {
+  const candidates = [
+    row.video_url,
+    row.portrait_video_url,
+    row.video,
+    row.avatar_video_url,
+    row.avatar_video,
+  ];
+  for (const c of candidates) {
+    const u = String(c || '').trim();
+    if (!u) continue;
+    if (looksLikeFluxPrompt(u) && !u.startsWith('http')) continue;
+    if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('/')) {
+      return u;
+    }
+  }
+  return undefined;
+}
+
 /** Normalize any public/featured/girlfriend row into DemoGirl for cards. */
 export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl {
   const id = String(row.id || row.slug || `c-${index}`);
   const name = cleanName(row.name, row.slug, index);
   const image = pickImage(row, index);
+  const video = pickVideo(row);
+  const avatarVideo =
+    pickVideo({
+      video_url: row.avatar_video_url,
+      portrait_video_url: row.avatar_video,
+    }) || undefined;
 
   const tagsRaw = row.tags;
   const tags = Array.isArray(tagsRaw)
@@ -150,6 +175,8 @@ export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl
     tagline,
     avatar: image,
     portrait: image,
+    video,
+    avatar_video: avatarVideo || video,
     rarity: RARITIES.includes(rarity) ? rarity : 'R',
     tags: tags.length ? tags : ['romantic'],
     personality,
