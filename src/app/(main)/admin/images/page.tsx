@@ -1,6 +1,6 @@
-import { readResponseJson, errorMessageFromUnknown } from '@/lib/safe-json';
 'use client';
 
+import { readResponseJson, errorMessageFromUnknown } from '@/lib/safe-json';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Loader2, Plus, Trash2, RefreshCw, Sparkles, Check, X, ChevronDown, ChevronUp,
