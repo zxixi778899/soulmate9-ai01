@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       const seatCount = Number(session.metadata?.seats || 0);
       if (seatCount > 0) {
         try {
-          const next = await grantBonusSeats(supabase, userId, seatCount);
+          const next = await grantBonusSeats(supabaseAdmin, userId, seatCount);
           logger.info('stripe-webhook: companion seats granted', {
             userId,
             seatCount,
