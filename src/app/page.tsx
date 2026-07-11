@@ -11,7 +11,6 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   MessageCircle, ShoppingBag, Wand2, Crown, ChevronLeft, ChevronRight,
   Heart, Flame, Lock, Zap, Star, Users, Share2,
@@ -143,7 +142,12 @@ export default function HomePage() {
 
   useEffect(() => {
     if (catalog.length < 2 || paused) return;
-    const t = setInterval(() => setFocus((i) => (i + 1) % Math.min(catalog.length, 10)), 5500);
+    // Prefer slower carousel + pause when tab hidden (saves CPU/GPU)
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      setFocus((i) => (i + 1) % Math.min(catalog.length, 10));
+    };
+    const t = setInterval(tick, 8000);
     return () => clearInterval(t);
   }, [catalog.length, paused]);
 
@@ -202,17 +206,16 @@ export default function HomePage() {
 
   return (
     <GameShell className="pb-4 md:pb-8 min-h-[100dvh]" hex={false}>
-      {/* Ambient keyed to featured rarity — softer on mobile for perf */}
+      {/* Ambient — single static gradient (no multi-layer animated blur on mobile) */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
         <div
-          className="absolute inset-0 transition-all duration-700"
+          className="absolute inset-0"
           style={{
             background: `radial-gradient(ellipse 80% 60% at 30% 35%, ${rc.glow}, transparent 70%)`,
-            opacity: 0.45,
+            opacity: 0.35,
           }}
         />
-        <div className="absolute top-1/4 left-[15%] h-48 w-48 sm:h-64 sm:w-64 rounded-full bg-[#ff2e88]/12 blur-[80px] animate-pulse" />
-        <div className="hidden sm:block absolute bottom-1/4 right-[10%] h-72 w-72 rounded-full bg-[#7c3aed]/20 blur-[100px]" />
+        <div className="hidden md:block absolute top-1/4 left-[15%] h-48 w-48 rounded-full bg-[#ff2e88]/10 blur-[64px]" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-8 pt-2 sm:pt-4 space-y-4 sm:space-y-6">
@@ -272,100 +275,54 @@ export default function HomePage() {
                 <ChevronRight className="h-5 w-5" />
               </button>
 
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={featured.id}
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1.01 }}
-                  transition={{ duration: 0.35 }}
-                  className={cn(
-                    'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation',
-                    /* Mobile: viewport-fit height (no 560px min). Desktop: tall stage. */
-                    'aspect-[3/4] max-h-[min(58dvh,480px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
-                    'sm:stage-breathe',
-                    `game-rarity-${featured.rarity.toLowerCase()}`,
-                  )}
-                  style={{
-                    boxShadow: `0 0 0 2px ${rc.color}66, 0 0 48px ${rc.glow}, 0 0 100px ${rc.glow}, 0 28px 80px rgba(0,0,0,0.55)`,
-                  }}
-                  onClick={() => setDetail(featured)}
-                >
-                  {/* Pulsing outer aura */}
-                  <div
-                    className="pointer-events-none absolute -inset-3 rounded-[1.5rem] blur-2xl opacity-60 animate-pulse"
-                    style={{ background: `radial-gradient(circle, ${rc.color}55, transparent 70%)` }}
-                  />
+              {/* CSS-only fade (no layout thrash from AnimatePresence exit) */}
+              <div
+                key={featured.id}
+                className={cn(
+                  'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation',
+                  'aspect-[3/4] max-h-[min(58dvh,480px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
+                  `game-rarity-${featured.rarity.toLowerCase()}`,
+                )}
+                style={{
+                  boxShadow: `0 0 0 1px ${rc.color}55, 0 16px 48px rgba(0,0,0,0.45)`,
+                }}
+                onClick={() => setDetail(featured)}
+              >
+                <CardMedia
+                  src={featured.portrait || featured.avatar}
+                  videoSrc={featured.video || featured.avatar_video}
+                  alt={featured.name}
+                  forcePlay
+                  hoverPlay={false}
+                  showBadge
+                  imgClassName={lockedImageClass(featured.locked)}
+                />
+                {featured.locked && (
+                  <LockedPortraitOverlay price={featured.unlock_price_tokens} />
+                )}
 
-                  <CardMedia
-                    src={featured.portrait || featured.avatar}
-                    videoSrc={featured.video || featured.avatar_video}
-                    alt={featured.name}
-                    forcePlay
-                    showBadge
-                    imgClassName={cn(
-                      'transition-[filter] duration-500',
-                      lockedImageClass(featured.locked),
-                    )}
-                  />
-                  {featured.locked && (
-                    <LockedPortraitOverlay price={featured.unlock_price_tokens} />
-                  )}
+                {/* Single vignette — no mix-blend / particle / shimmer (GPU-heavy) */}
+                <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/55 via-transparent to-black/15 pointer-events-none" />
 
-                  {/* Soft vignette — keep full body readable */}
-                  <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/50 via-transparent to-black/20" />
-                  <div
-                    className="absolute inset-0 z-[1] mix-blend-soft-light opacity-45"
-                    style={{
-                      background: `linear-gradient(160deg, ${rc.color}40 0%, transparent 50%, #ff2e8830 100%)`,
-                    }}
-                  />
+                <div className="absolute top-3 left-3 z-[3] flex flex-col gap-1.5">
+                  <RarityBadge rarity={featured.rarity} />
+                  <span className="glass px-2 py-0.5 rounded-md text-[9px] font-bold text-[#ffb3cd] w-fit">
+                    MAIN VISUAL
+                  </span>
+                </div>
 
-                  {/* Floating particles */}
-                  <div className="pointer-events-none absolute inset-0 z-[2] overflow-hidden">
-                    {[...Array(10)].map((_, i) => (
-                      <span
-                        key={i}
-                        className="absolute text-sm opacity-80"
-                        style={{
-                          left: `${8 + i * 9}%`,
-                          bottom: `${6 + (i % 5) * 14}%`,
-                          animation: `float-heart ${2.2 + (i % 4) * 0.55}s ease-out infinite`,
-                          animationDelay: `${i * 0.28}s`,
-                          filter: 'drop-shadow(0 0 6px rgba(255,100,160,0.8))',
-                        }}
-                      >
-                        {i % 3 === 0 ? '✨' : i % 3 === 1 ? '💕' : '✦'}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Light sweep */}
-                  <div className="pointer-events-none absolute inset-0 z-[2] overflow-hidden">
-                    <div className="absolute inset-y-0 -left-1/3 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent game-shimmer" />
-                  </div>
-
-                  <div className="absolute top-3 left-3 z-[3] flex flex-col gap-1.5">
-                    <RarityBadge rarity={featured.rarity} />
-                    <span className="glass px-2 py-0.5 rounded-md text-[9px] font-bold text-[#ffb3cd] w-fit">
-                      MAIN VISUAL
-                    </span>
-                  </div>
-
-                  {/* Minimal name — thin strip only */}
-                  <div className="absolute bottom-3 left-3 right-3 z-[3]">
-                    <div className="glass-strong px-3 py-2 rounded-xl flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-lg sm:text-xl font-black truncate seduce-glow">{featured.name}</div>
-                        <div className="text-[10px] text-white/50 truncate">
-                          {relationshipLabel(featured.relationship, t)} · {featured.age}{t('home.yearsOld')} {t('home.tapProfile')}
-                        </div>
+                <div className="absolute bottom-3 left-3 right-3 z-[3]">
+                  <div className="glass-strong px-3 py-2 rounded-xl flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-lg sm:text-xl font-black truncate">{featured.name}</div>
+                      <div className="text-[10px] text-white/50 truncate">
+                        {relationshipLabel(featured.relationship, t)} · {featured.age}{t('home.yearsOld')} {t('home.tapProfile')}
                       </div>
-                      <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0 shadow-[0_0_10px_#34d399]" />
                     </div>
+                    <div className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
                   </div>
-                </motion.div>
-              </AnimatePresence>
+                </div>
+              </div>
             </div>
 
             {/* RIGHT — stats + actions + avatar strip */}
@@ -541,10 +498,11 @@ export default function HomePage() {
                     videoSrc={g.video || g.avatar_video}
                     alt={g.name}
                     hoverPlay
+                    forcePlay={false}
                     showBadge={!!(g.video || g.avatar_video)}
                     imgClassName={lockedImageClass(g.locked)}
                   />
-                  {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-md" />}
+                  {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-sm" />}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent z-[1]" />
                   <span className="absolute top-1.5 left-1.5 z-[2] text-[9px] font-black px-1.5 py-0.5 rounded bg-black/55 text-[#ffd700]">
                     #{i + 1}

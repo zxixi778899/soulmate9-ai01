@@ -1,14 +1,22 @@
 'use client';
 
 /**
- * Card portrait media: image poster + optional looping muted video.
- * - Plays when visible (IntersectionObserver) or when forcePlay / hoverPlay
- * - Falls back to still image on error / missing video
+ * Card portrait media — performance-first.
+ * - Still image by default
+ * - Video element only mounted when actually playing (hover / hero)
+ * - Global max 1 concurrent video (video-playback coordinator)
+ * - preload=none until play requested
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Film } from 'lucide-react';
+import {
+  isCoarsePointer,
+  prefersReducedMotion,
+  releaseVideoPlay,
+  requestVideoPlay,
+} from '@/lib/video-playback';
 
 export interface CardMediaProps {
   src?: string | null;
@@ -16,11 +24,10 @@ export interface CardMediaProps {
   alt: string;
   className?: string;
   imgClassName?: string;
-  /** Always try to play when mounted (hero) */
+  /** Hero: play when in view (still only 1 global slot) */
   forcePlay?: boolean;
-  /** Play only while hovered (desktop cards) */
+  /** Desktop: play on hover only (recommended for grids) */
   hoverPlay?: boolean;
-  /** Show a small VIDEO badge when video is available */
   showBadge?: boolean;
   objectPosition?: string;
 }
@@ -37,14 +44,14 @@ function isVideoUrl(url: string): boolean {
   );
 }
 
-export function CardMedia({
+function CardMediaInner({
   src,
   videoSrc,
   alt,
   className,
   imgClassName,
   forcePlay = false,
-  hoverPlay = false,
+  hoverPlay = true,
   showBadge = true,
   objectPosition = 'object-top',
 }: CardMediaProps) {
@@ -53,71 +60,82 @@ export function CardMedia({
   const [inView, setInView] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [coarse, setCoarse] = useState(false);
+  /** Defer mounting <video> until first play intent */
+  const [mountVideo, setMountVideo] = useState(false);
 
   const poster = (src || '').trim();
   const video = (videoSrc || '').trim();
-  const hasVideo = !!video && !videoFailed && (isVideoUrl(video) || video.startsWith('http'));
+  const hasVideo =
+    !!video &&
+    !videoFailed &&
+    !reduceMotion &&
+    (isVideoUrl(video) || video.startsWith('http'));
 
-  // Visibility for autoplay without draining battery off-screen
+  useEffect(() => {
+    setReduceMotion(prefersReducedMotion());
+    setCoarse(isCoarsePointer());
+  }, []);
+
   useEffect(() => {
     const el = rootRef.current;
-    if (!el) return;
+    if (!el || !hasVideo) return;
     const io = new IntersectionObserver(
-      ([entry]) => setInView(entry.isIntersecting && entry.intersectionRatio > 0.25),
-      { threshold: [0, 0.25, 0.5] },
+      ([entry]) => {
+        setInView(entry.isIntersecting && entry.intersectionRatio >= 0.35);
+      },
+      { threshold: [0, 0.35, 0.6], rootMargin: '40px' },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [hasVideo]);
 
-  const shouldPlay =
+  // Grids: hover only on fine pointer. Mobile: no auto multi-play (only forcePlay hero).
+  const wantPlay =
     hasVideo &&
-    (forcePlay ? inView : hoverPlay ? hovered && inView : inView);
+    inView &&
+    (forcePlay || (hoverPlay && hovered && !coarse));
+
+  useEffect(() => {
+    if (wantPlay) setMountVideo(true);
+  }, [wantPlay]);
 
   useEffect(() => {
     const v = videoRef.current;
-    if (!v || !hasVideo) return;
-    if (shouldPlay) {
-      v.play().catch(() => {
-        /* autoplay blocked — keep poster */
-      });
+    if (!v || !mountVideo) return;
+    if (wantPlay) {
+      requestVideoPlay(v);
     } else {
-      v.pause();
-      if (!forcePlay) {
-        try {
-          v.currentTime = 0;
-        } catch {
-          /* ignore */
-        }
+      releaseVideoPlay(v);
+      try {
+        v.currentTime = 0;
+      } catch {
+        /* ignore */
       }
     }
-  }, [shouldPlay, hasVideo, forcePlay, video]);
+    return () => {
+      releaseVideoPlay(v);
+    };
+  }, [wantPlay, mountVideo, video]);
+
+  const onEnter = useCallback(() => setHovered(true), []);
+  const onLeave = useCallback(() => setHovered(false), []);
 
   return (
     <div
       ref={rootRef}
-      className={cn('absolute inset-0 overflow-hidden bg-zinc-900', className)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className={cn(
+        'absolute inset-0 overflow-hidden bg-zinc-900',
+        // Isolate paint for smoother scroll
+        'contain-paint',
+        className,
+      )}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
     >
-      {hasVideo ? (
-        <video
-          ref={videoRef}
-          key={video}
-          className={cn(
-            'absolute inset-0 h-full w-full object-cover',
-            objectPosition,
-            imgClassName,
-          )}
-          src={video}
-          poster={poster || undefined}
-          muted
-          loop
-          playsInline
-          preload={forcePlay ? 'auto' : 'metadata'}
-          onError={() => setVideoFailed(true)}
-        />
-      ) : poster ? (
+      {/* Always paint poster first — zero decode cost until video mounts */}
+      {poster ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={poster}
@@ -126,8 +144,11 @@ export function CardMedia({
             'absolute inset-0 h-full w-full object-cover',
             objectPosition,
             imgClassName,
+            mountVideo && wantPlay ? 'opacity-0' : 'opacity-100',
+            'transition-opacity duration-300',
           )}
           loading="lazy"
+          decoding="async"
           draggable={false}
         />
       ) : (
@@ -136,8 +157,33 @@ export function CardMedia({
         </div>
       )}
 
+      {hasVideo && mountVideo && (
+        <video
+          ref={videoRef}
+          className={cn(
+            'absolute inset-0 h-full w-full object-cover',
+            objectPosition,
+            imgClassName,
+            wantPlay ? 'opacity-100' : 'opacity-0',
+            'transition-opacity duration-300',
+          )}
+          // Only set src when mounted for play — avoids eager network fetch
+          src={video}
+          poster={poster || undefined}
+          muted
+          loop
+          playsInline
+          preload="none"
+          disableRemotePlayback
+          onError={() => {
+            setVideoFailed(true);
+            setMountVideo(false);
+          }}
+        />
+      )}
+
       {hasVideo && showBadge && (
-        <span className="pointer-events-none absolute bottom-2 right-2 z-[2] flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white/90 backdrop-blur-sm">
+        <span className="pointer-events-none absolute bottom-2 right-2 z-[2] flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white/90">
           <Film className="h-3 w-3 text-[#ff6ba6]" />
           VIDEO
         </span>
@@ -145,3 +191,5 @@ export function CardMedia({
     </div>
   );
 }
+
+export const CardMedia = memo(CardMediaInner);

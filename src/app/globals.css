@@ -144,12 +144,33 @@
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
   }
+  /* Long card grids: skip offscreen paint when supported */
+  .content-visibility-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
+  }
+  .contain-paint {
+    contain: paint;
+  }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+    }
+    .stage-breathe,
+    .game-shimmer,
+    .seduce-glow {
+      animation: none !important;
+      filter: none !important;
+    }
+  }
+  /* Mobile: kill continuous shimmer / breathe for scroll FPS */
+  @media (max-width: 640px) {
+    .stage-breathe,
+    .game-shimmer {
+      animation: none !important;
     }
   }
 }

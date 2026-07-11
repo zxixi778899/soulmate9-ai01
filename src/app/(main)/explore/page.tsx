@@ -6,7 +6,6 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'motion/react';
 import { Search, TrendingUp, Sparkles, Heart, Star, Loader2, Filter } from 'lucide-react';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
 import { CardMedia } from '@/components/discover/CardMedia';
@@ -202,18 +201,15 @@ export default function ExplorePage() {
       <section className="px-4 sm:px-6 py-6">
         <div className="mx-auto max-w-6xl">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-            {girls.map((girl, i) => (
-              <motion.button
+            {girls.map((girl) => (
+              <button
                 key={girl.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(i * 0.03, 0.4) }}
-                whileHover={{ y: -6, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                type="button"
                 onClick={() => setSelected(girl)}
                 className={cn(
-                  'game-card-frame text-left group',
+                  'game-card-frame text-left group content-visibility-auto',
                   `game-rarity-${girl.rarity.toLowerCase()}`,
+                  'transition-transform duration-200 active:scale-[0.98] hover:-translate-y-1',
                 )}
               >
                 <div className="relative aspect-[3/4]">
@@ -222,9 +218,10 @@ export default function ExplorePage() {
                     videoSrc={girl.video || girl.avatar_video}
                     alt={girl.name}
                     hoverPlay
-                    showBadge
+                    forcePlay={false}
+                    showBadge={!!(girl.video || girl.avatar_video)}
                     imgClassName={cn(
-                      'transition-transform duration-500 group-hover:scale-105',
+                      'transition-transform duration-300 group-hover:scale-[1.03]',
                       lockedImageClass(girl.locked),
                     )}
                   />
@@ -267,7 +264,7 @@ export default function ExplorePage() {
                     </div>
                   </div>
                 </div>
-              </motion.button>
+              </button>
             ))}
           </div>
 

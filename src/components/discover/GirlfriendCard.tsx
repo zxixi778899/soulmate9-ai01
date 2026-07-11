@@ -103,8 +103,9 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
           videoSrc={girl.video || girl.avatar_video}
           alt={girl.name}
           hoverPlay
-          showBadge
-          imgClassName="transition-transform duration-700 group-hover:scale-[1.06]"
+          forcePlay={false}
+          showBadge={!!(girl.video || girl.avatar_video)}
+          imgClassName="transition-transform duration-300 group-hover:scale-[1.03]"
         />
         <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/30 via-transparent to-black/75 pointer-events-none" />
 
