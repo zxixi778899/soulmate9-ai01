@@ -73,6 +73,9 @@ function adminClient(): SupabaseClient {
   return _admin;
 }
 
+const IMAGE_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
+const VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v'] as const;
+
 async function ensureBucket(bucket: string): Promise<void> {
   if (_bucketEnsured) return;
   try {
@@ -81,8 +84,9 @@ async function ensureBucket(bucket: string): Promise<void> {
     if (!exists) {
       const { error } = await adminClient().storage.createBucket(bucket, {
         public: true,
-        fileSizeLimit: 15 * 1024 * 1024,
-        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+        // Videos can be larger than stills; Supabase project plan may still cap this.
+        fileSizeLimit: 50 * 1024 * 1024,
+        allowedMimeTypes: [...IMAGE_MIME, ...VIDEO_MIME],
       });
       if (error && !/already exists/i.test(error.message)) {
         logger.warn('[storage] createBucket failed (may already exist)', {
@@ -91,6 +95,17 @@ async function ensureBucket(bucket: string): Promise<void> {
         });
       } else {
         logger.info('[storage] created public bucket', { bucket });
+      }
+    } else {
+      // Best-effort: allow video on existing buckets (no-op if already set)
+      try {
+        await adminClient().storage.updateBucket(bucket, {
+          public: true,
+          fileSizeLimit: 50 * 1024 * 1024,
+          allowedMimeTypes: [...IMAGE_MIME, ...VIDEO_MIME],
+        });
+      } catch {
+        /* ignore — bucket may already be correct or plan-restricted */
       }
     }
     _bucketEnsured = true;
@@ -456,6 +471,101 @@ export async function resolveImageUrlBatch(
   values: (string | null | undefined)[],
 ): Promise<string[]> {
   return Promise.all(values.map((v) => resolveImageUrl(v)));
+}
+
+export const VIDEO_CONTENT_TYPES = VIDEO_MIME;
+
+export function isAllowedVideoContentType(ct: string): boolean {
+  const t = (ct || '').toLowerCase().trim();
+  return (VIDEO_MIME as readonly string[]).includes(t) || t === 'video/x-m4v';
+}
+
+function videoExtFromContentType(ct: string, fileName?: string): string {
+  const fromName = fileName?.split('.').pop()?.toLowerCase();
+  if (fromName && ['mp4', 'webm', 'mov', 'm4v'].includes(fromName)) return fromName;
+  if (ct.includes('webm')) return 'webm';
+  if (ct.includes('quicktime') || ct.includes('mov')) return 'mov';
+  return 'mp4';
+}
+
+/**
+ * Create a short-lived signed upload URL so the browser can PUT the video
+ * directly to Supabase Storage (bypasses Vercel 4.5MB body limit).
+ */
+export async function createVideoSignedUpload(opts: {
+  fileName?: string;
+  contentType: string;
+  folder?: string;
+}): Promise<{
+  bucket: string;
+  key: string;
+  signedUrl: string;
+  token: string;
+  publicUrl: string;
+  contentType: string;
+}> {
+  const contentType = (opts.contentType || 'video/mp4').toLowerCase();
+  if (!isAllowedVideoContentType(contentType)) {
+    throw new Error(
+      `Unsupported video type: ${contentType}. Allowed: ${VIDEO_MIME.join(', ')}`,
+    );
+  }
+
+  const bucket = resolveBucketName();
+  await ensureBucket(bucket);
+
+  const ext = videoExtFromContentType(contentType, opts.fileName);
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  const folder = (opts.folder || 'admin/videos').replace(/^\/+|\/+$/g, '');
+  const safeBase = (opts.fileName || `clip.${ext}`)
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 80);
+  const key = `${folder}/${ts}_${rand}_${safeBase.endsWith(`.${ext}`) ? safeBase : `${safeBase}.${ext}`}`;
+
+  const { data, error } = await adminClient()
+    .storage.from(bucket)
+    .createSignedUploadUrl(key, { upsert: true });
+
+  if (error || !data?.signedUrl) {
+    throw new Error(
+      `createSignedUploadUrl failed: ${error?.message || 'no signedUrl'}. ` +
+        'Ensure service role key and Storage policies allow uploads.',
+    );
+  }
+
+  const publicUrl =
+    adminClient().storage.from(bucket).getPublicUrl(key).data.publicUrl ||
+    publicObjectUrl(bucket, key);
+
+  return {
+    bucket,
+    key: data.path || key,
+    signedUrl: data.signedUrl,
+    token: data.token,
+    publicUrl,
+    contentType,
+  };
+}
+
+/** Server-side buffer upload for small videos / tooling (prefer signed client upload). */
+export async function uploadVideoFile(
+  buffer: Buffer,
+  fileName: string,
+  contentType = 'video/mp4',
+  folder = 'admin/videos',
+): Promise<{ key: string; url: string }> {
+  if (!isAllowedVideoContentType(contentType)) {
+    throw new Error(`Unsupported video type: ${contentType}`);
+  }
+  if (!buffer || buffer.length < 32) {
+    throw new Error('empty video buffer');
+  }
+  // Soft cap for server-side path (signed upload is preferred for large files)
+  if (buffer.length > 40 * 1024 * 1024) {
+    throw new Error('Video too large for server upload path; use signed client upload');
+  }
+  return uploadFile(buffer, fileName, contentType, folder);
 }
 
 export const __test = {

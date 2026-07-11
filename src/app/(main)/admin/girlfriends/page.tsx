@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,10 +25,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Plus, Pencil, Trash2, Heart, ImageOff, Sparkles, CheckSquare, Square, Users, X, Search, Calendar } from 'lucide-react';
+import { Loader2, Plus, Pencil, Trash2, Heart, ImageOff, Sparkles, CheckSquare, Square, Users, X, Search, Calendar, Upload, Film } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { uploadGirlfriendVideo, type VideoField } from '@/lib/admin-video-upload';
+import Link from 'next/link';
 
 type AccessStatus = 'open' | 'locked' | 'closed';
 type RarityTier = 'N' | 'R' | 'SR' | 'SSR';
@@ -127,6 +129,32 @@ export default function AdminGirlfriendsPage() {
   const [form, setForm] = useState(defaultForm);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
+  const [videoUploading, setVideoUploading] = useState<VideoField | null>(null);
+  const pvRef = useRef<HTMLInputElement>(null);
+  const avRef = useRef<HTMLInputElement>(null);
+
+  const handleVideoFile = async (field: VideoField, file: File | undefined) => {
+    if (!file) return;
+    setVideoUploading(field);
+    try {
+      const result = await uploadGirlfriendVideo({
+        file,
+        field,
+        // Bind only when editing existing row; new drafts just fill form URL
+        girlfriendId: editingId || undefined,
+      });
+      setForm((prev) => ({ ...prev, [field]: result.url }));
+      toast.success(
+        editingId
+          ? `视频已上传并写入角色（${field === 'portrait_video_url' ? '肖像' : '头像'}）`
+          : '视频已上传，保存表单后生效',
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '视频上传失败');
+    } finally {
+      setVideoUploading(null);
+    }
+  };
 
   // Batch create state
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
@@ -758,23 +786,83 @@ export default function AdminGirlfriendsPage() {
                 <Input id="gf-avatar" value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} placeholder="https://..." />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gf-portrait-video">肖像视频 URL（卡面/主视觉）</Label>
+                <Label htmlFor="gf-portrait-video">肖像视频（卡面/主视觉）</Label>
                 <Input
                   id="gf-portrait-video"
                   value={form.portrait_video_url}
                   onChange={(e) => setForm({ ...form, portrait_video_url: e.target.value })}
                   placeholder="https://.../xxx.mp4"
                 />
-                <p className="text-[10px] text-muted-foreground">mp4/webm，建议竖版 9:16，循环静音短片</p>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={pvRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                    className="hidden"
+                    onChange={(e) => {
+                      void handleVideoFile('portrait_video_url', e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="h-8"
+                    disabled={!!videoUploading}
+                    onClick={() => pvRef.current?.click()}
+                  >
+                    {videoUploading === 'portrait_video_url' ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="mr-1 h-3.5 w-3.5" />
+                    )}
+                    上传肖像视频
+                  </Button>
+                  <Link
+                    href="/admin/videos"
+                    className="inline-flex h-8 items-center gap-1 text-[11px] text-primary underline-offset-2 hover:underline"
+                  >
+                    <Film className="h-3.5 w-3.5" /> 视频管理
+                  </Link>
+                </div>
+                <p className="text-[10px] text-muted-foreground">mp4/webm，建议竖版 9:16、&lt;5MB 循环静音短片</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gf-avatar-video">头像视频 URL（可选）</Label>
+                <Label htmlFor="gf-avatar-video">头像视频（可选）</Label>
                 <Input
                   id="gf-avatar-video"
                   value={form.avatar_video_url}
                   onChange={(e) => setForm({ ...form, avatar_video_url: e.target.value })}
                   placeholder="https://.../xxx.mp4"
                 />
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={avRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                    className="hidden"
+                    onChange={(e) => {
+                      void handleVideoFile('avatar_video_url', e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    disabled={!!videoUploading}
+                    onClick={() => avRef.current?.click()}
+                  >
+                    {videoUploading === 'avatar_video_url' ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="mr-1 h-3.5 w-3.5" />
+                    )}
+                    上传头像视频
+                  </Button>
+                </div>
               </div>
             </div>
             {(form.portrait_video_url || form.avatar_video_url) && (
