@@ -225,7 +225,7 @@ export default function ExplorePage() {
                 onClick={() => setSelected(girl)}
                 className={cn(
                   'game-card-frame text-left group content-visibility-auto',
-                  `game-rarity-${girl.rarity.toLowerCase()}`,
+                  `game-rarity-${String(girl.rarity || 'N').toLowerCase()}`,
                   'transition-transform duration-200 active:scale-[0.98] hover:-translate-y-1',
                 )}
               >

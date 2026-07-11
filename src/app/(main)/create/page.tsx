@@ -1,12 +1,14 @@
 'use client';
 
 /**
- * Character Creator — game-style face sculpt / 捏脸系统
- * Steps: Body & Face → Personality → Identity
+ * Character Creator — mobile-first face sculpt / 捏脸系统
+ * Steps: Look → Personality → Identity
+ * Layout: top preview (left image / right selected) + scroll form + sticky footer
  */
 
 import { authedFetch } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { readResponseJson, errorMessageFromUnknown } from '@/lib/safe-json';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
@@ -63,9 +65,6 @@ const RELATIONSHIPS = [
   { id: 'rival', label: 'Rival', desc: 'Competitive pull' },
 ];
 
-const STEPS_EN = ['Look', 'Personality', 'Identity'] as const;
-const STEPS_ZH = ['Look', 'Personality', 'Identity'] as const; // labels set below via locale
-
 function Pill({
   active, onClick, children, className,
 }: { active: boolean; onClick: () => void; children: React.ReactNode; className?: string }) {
@@ -74,7 +73,7 @@ function Pill({
       type="button"
       onClick={onClick}
       className={cn(
-        'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+        'px-3 py-1.5 rounded-full text-xs font-medium border transition-all touch-manipulation',
         active
           ? 'bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white border-transparent shadow-[0_0_14px_rgba(255,45,120,0.35)]'
           : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-[#FF2D78]/40 hover:text-white',
@@ -89,7 +88,8 @@ function Pill({
 export default function CreatePage() {
   const router = useRouter();
   const { locale } = useTranslation();
-  const stepLabels = locale === 'zh' ? ['外观', '性格', '身份'] : ['Look', 'Personality', 'Identity'];
+  const zh = locale === 'zh';
+  const stepLabels = zh ? ['外观', '性格', '身份'] : ['Look', 'Personality', 'Identity'];
   const [step, setStep] = useState(0);
 
   const [visualStyle, setVisualStyle] = useState<'realistic' | 'anime'>('realistic');
@@ -122,8 +122,8 @@ export default function CreatePage() {
 
   useEffect(() => {
     authedFetch('/api/outfits')
-      .then((r) => r.json())
-      .then((data: { outfits?: { id: string; name: string; tier: string }[] }) => {
+      .then(async (r) => {
+        const data = await readResponseJson<{ outfits?: { id: string; name: string; tier: string }[] }>(r);
         setOutfits(data.outfits || []);
         if (data.outfits?.[0]) setSelectedOutfit(data.outfits[0].id);
       })
@@ -151,6 +151,7 @@ export default function CreatePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          name: name.trim() || 'Companion',
           visual_style: visualStyle,
           ethnicity,
           gender,
@@ -161,18 +162,32 @@ export default function CreatePage() {
           body_type: bodyType,
           fashion_style: fashionStyle,
           appearance_prompt: appearancePrompt,
+          personality: selectedTags.join(', '),
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.portrait_url || data.url) setPortraitUrl(data.portrait_url || data.url);
+      const data = await readResponseJson<{
+        portrait_url?: string;
+        url?: string;
+        imageUrl?: string;
+        error?: string;
+      }>(res);
+      if (!res.ok) {
+        setError(data.error || (zh ? '生成失败' : 'Generate failed'));
+        return;
       }
+      const url = data.portrait_url || data.url || data.imageUrl;
+      if (url) setPortraitUrl(url);
+      else setError(zh ? '未返回图片' : 'No image returned');
     } catch (e) {
       logger.error(String(e));
+      setError(errorMessageFromUnknown(e, zh ? '生成失败' : 'Generate failed'));
     } finally {
       setGeneratingPortrait(false);
     }
-  }, [visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt]);
+  }, [
+    name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor,
+    bodyType, fashionStyle, appearancePrompt, selectedTags, zh,
+  ]);
 
   const handleSubmit = useCallback(async () => {
     setSaving(true);
@@ -184,7 +199,7 @@ export default function CreatePage() {
         `Ethnicity: ${ethnicity}.`,
         `Occupation: ${occupation}.`,
         `Voice: ${voice}.`,
-        relMeta ? `Relationship: ${relMeta.label} — ${relMeta.desc}.` : '',
+        relMeta ? `Relationship: ${relMeta.label} - ${relMeta.desc}.` : '',
         hobbies ? `Hobbies: ${hobbies}.` : '',
         backstory ? `Backstory: ${backstory}` : '',
       ].filter(Boolean).join('\n');
@@ -220,35 +235,35 @@ export default function CreatePage() {
           },
         }),
       });
+      const data = await readResponseJson<{ error?: string; code?: string }>(res);
       if (!res.ok) {
-        const data = await res.json().catch(() => ({} as { error?: string; code?: string }));
-        if ((data as { code?: string }).code === 'SEAT_LIMIT') {
-          setError('Friend seats full — buy more seats in Shop or upgrade plan');
+        if (data.code === 'SEAT_LIMIT') {
+          setError(zh ? '好友席位已满，请到商城购买席位或升级套餐' : 'Friend seats full — buy more seats in Shop or upgrade plan');
           return;
         }
-        setError(data.error || 'Create failed');
+        setError(data.error || (zh ? '创建失败' : 'Create failed'));
         return;
       }
 
       router.push('/chats');
     } catch (e) {
       logger.error(String(e));
-      setError(locale === 'zh' ? '网络错误' : 'Network error');
+      setError(errorMessageFromUnknown(e, zh ? '网络错误' : 'Network error'));
     } finally {
       setSaving(false);
     }
   }, [
     name, age, shortDescription, selectedTags, hairStyle, hairColor, eyeColor, bodyType,
     fashionStyle, selectedOutfit, portraitUrl, visualStyle, ethnicity, gender, faceShape,
-    voice, occupation, relationship, hobbies, backstory, appearancePrompt, router,
+    voice, occupation, relationship, hobbies, backstory, appearancePrompt, router, zh,
   ]);
 
   return (
-    <GameShell className="flex min-h-[100dvh] flex-col overflow-hidden pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
+    <GameShell className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
       <PageHeader
         eyebrow="CREATOR"
-        title={locale === 'zh' ? '捏脸创建' : 'Create Companion'}
-        subtitle={locale === 'zh' ? '外观 · 性格 · 身份' : 'Look · Personality · Identity'}
+        title={zh ? '捏脸创建' : 'Create Companion'}
+        subtitle={zh ? '外观 · 性格 · 身份' : 'Look · Personality · Identity'}
         backHref="/"
         sticky={false}
         actions={
@@ -259,14 +274,14 @@ export default function CreatePage() {
               onClick={handleSubmit}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {locale === 'zh' ? '完成' : 'Finish'}
+              {zh ? '完成' : 'Finish'}
             </GamePrimaryButton>
           ) : undefined
         }
       />
 
       {/* Stepper */}
-      <div className="shrink-0 flex items-center justify-center gap-2 sm:gap-4 px-4 py-3 border-b border-white/[0.06]">
+      <div className="shrink-0 flex items-center justify-center gap-2 sm:gap-4 px-4 py-2.5 border-b border-white/[0.06]">
         {stepLabels.map((label, idx) => {
           const active = idx === step;
           const done = idx < step;
@@ -293,40 +308,55 @@ export default function CreatePage() {
         })}
       </div>
 
-      <div className="shrink-0 border-b border-white/[0.06] px-3 sm:px-5 py-3">
-        <div className="mx-auto max-w-4xl grid grid-cols-[minmax(0,42%)_1fr] sm:grid-cols-[200px_1fr] gap-3 sm:gap-4 items-stretch">
-          <div className="relative aspect-[3/4] max-h-[220px] sm:max-h-[260px] rounded-xl overflow-hidden bg-black/40 border border-white/10">
+      {/* Top preview: left image, right selected data */}
+      <div className="shrink-0 border-b border-white/[0.06] px-3 sm:px-5 py-3 bg-black/20">
+        <div className="mx-auto max-w-4xl grid grid-cols-[112px_1fr] sm:grid-cols-[168px_1fr] gap-3 sm:gap-4 items-stretch">
+          <div className="relative h-[148px] sm:h-[200px] w-full rounded-xl overflow-hidden bg-black/40 border border-white/10">
             {portraitUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={portraitUrl} alt="preview" className="h-full w-full object-cover" />
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white/30 gap-2 p-2">
-                <User2 className="h-10 w-10" />
-                <span className="text-[11px] text-center">{locale === 'zh' ? '生成预览头像' : 'Preview portrait'}</span>
+                <User2 className="h-9 w-9" />
+                <span className="text-[10px] text-center leading-tight">
+                  {zh ? '生成预览头像' : 'Preview portrait'}
+                </span>
               </div>
             )}
           </div>
           <div className="min-w-0 flex flex-col justify-between gap-2 py-0.5">
-            <div>
-              <div className="text-[10px] tracking-[0.25em] text-white/40 font-bold mb-1.5">
-                {locale === 'zh' ? '已选数据' : 'SELECTED'}
+            <div className="min-h-0">
+              <div className="text-[10px] tracking-[0.2em] text-white/40 font-bold mb-1">
+                {zh ? '已选数据' : 'SELECTED'}
               </div>
-              <div className="space-y-1 text-xs text-white/70">
-                <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '画风' : 'Style'}</span> {visualStyle} · {gender}</div>
-                <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '种族' : 'Ethnicity'}</span> {ethnicity} · {faceShape}</div>
-                <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '发型' : 'Hair'}</span> {hairStyle}</div>
+              <div className="space-y-0.5 text-[11px] sm:text-xs text-white/75 leading-snug">
+                <div className="truncate">
+                  <span className="text-white/35">{zh ? '画风' : 'Style'}</span>{' '}
+                  {visualStyle} · {gender}
+                </div>
+                <div className="truncate">
+                  <span className="text-white/35">{zh ? '种族' : 'Ethnicity'}</span>{' '}
+                  {ethnicity} · {faceShape}
+                </div>
+                <div className="truncate">
+                  <span className="text-white/35">{zh ? '发型' : 'Hair'}</span> {hairStyle}
+                </div>
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-white/35 shrink-0">{locale === 'zh' ? '发色' : 'Color'}</span>
+                  <span className="text-white/35 shrink-0">{zh ? '发色' : 'Color'}</span>
                   <span className="h-3 w-3 rounded-full border border-white/20 shrink-0" style={{ background: hairColor }} />
                   <span className="truncate">{eyeColor} · {bodyType}</span>
                 </div>
-                <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '风格' : 'Fashion'}</span> {fashionStyle}</div>
+                <div className="truncate">
+                  <span className="text-white/35">{zh ? '风格' : 'Fashion'}</span> {fashionStyle}
+                </div>
                 {name ? (
-                  <div className="truncate"><span className="text-white/35">{locale === 'zh' ? '名字' : 'Name'}</span> {name} · {age}</div>
+                  <div className="truncate">
+                    <span className="text-white/35">{zh ? '名字' : 'Name'}</span> {name} · {age}
+                  </div>
                 ) : null}
               </div>
               {selectedTags.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-2 max-h-14 overflow-hidden">
+                <div className="flex flex-wrap gap-1 pt-1.5 max-h-10 overflow-hidden">
                   {selectedTags.map((tag) => (
                     <span key={tag} className="px-1.5 py-0.5 rounded bg-white/5 text-[10px]">{tag}</span>
                   ))}
@@ -334,267 +364,264 @@ export default function CreatePage() {
               )}
             </div>
             <GamePrimaryButton
-              className="w-full h-10 text-xs"
+              className="w-full h-10 text-xs shrink-0"
               disabled={generatingPortrait}
               onClick={handleGeneratePortrait}
             >
               {generatingPortrait ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-              {locale === 'zh' ? 'AI 生成头像' : 'AI Generate Portrait'}
+              {zh ? 'AI 生成头像' : 'AI Generate Portrait'}
             </GamePrimaryButton>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {/* Form */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-36">
-          <div className="mx-auto max-w-2xl space-y-6">
-            <AnimatePresence mode="wait">
-              {step === 0 && (
-                <motion.div
-                  key="s0"
-                  initial={{ opacity: 0, x: 24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -24 }}
-                  className="space-y-6"
-                >
-                  <Section title={locale === 'zh' ? '画风' : 'Visual Style'}>
-                    <div className="grid grid-cols-2 gap-2">
-                      {VISUAL_STYLES.map((v) => (
-                        <button
-                          key={v.id}
-                          type="button"
-                          onClick={() => setVisualStyle(v.id)}
-                          className={cn(
-                            'rounded-xl border p-3 text-left transition-all',
-                            visualStyle === v.id
-                              ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
-                              : 'border-white/10 bg-white/[0.03]',
-                          )}
+      {/* Scrollable form */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-4 pb-28">
+        <div className="mx-auto max-w-2xl space-y-6">
+          <AnimatePresence mode="wait">
+            {step === 0 && (
+              <motion.div
+                key="s0"
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -24 }}
+                className="space-y-6"
+              >
+                <Section title={zh ? '画风' : 'Visual Style'}>
+                  <div className="grid grid-cols-2 gap-2">
+                    {VISUAL_STYLES.map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => setVisualStyle(v.id)}
+                        className={cn(
+                          'rounded-xl border p-3 text-left transition-all',
+                          visualStyle === v.id
+                            ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
+                            : 'border-white/10 bg-white/[0.03]',
+                        )}
+                      >
+                        <div className="font-semibold text-sm">{v.label}</div>
+                        <div className="text-[11px] text-white/40 mt-0.5">{v.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </Section>
+
+                <Section title={zh ? '性别气质' : 'Gender'}>
+                  <div className="flex flex-wrap gap-2">
+                    {GENDERS.map((g) => (
+                      <Pill key={g} active={gender === g} onClick={() => setGender(g)}>{g}</Pill>
+                    ))}
+                  </div>
+                </Section>
+
+                <Section title={zh ? '种族 / 血统' : 'Ethnicity'}>
+                  <div className="flex flex-wrap gap-2">
+                    {ETHNICITIES.map((e) => (
+                      <Pill key={e} active={ethnicity === e} onClick={() => setEthnicity(e)}>{e}</Pill>
+                    ))}
+                  </div>
+                </Section>
+
+                <Section title={zh ? '脸型' : 'Face Shape'}>
+                  <div className="flex flex-wrap gap-2">
+                    {FACE_SHAPES.map((f) => (
+                      <Pill key={f} active={faceShape === f} onClick={() => setFaceShape(f)}>{f}</Pill>
+                    ))}
+                  </div>
+                </Section>
+
+                <Section title={zh ? '体型' : 'Body Type'}>
+                  <div className="flex flex-wrap gap-2">
+                    {BODY_TYPES.map((b) => (
+                      <Pill key={b} active={bodyType === b} onClick={() => setBodyType(b)}>{b}</Pill>
+                    ))}
+                  </div>
+                </Section>
+
+                <Section title={zh ? '发型' : 'Hair Style'}>
+                  <div className="flex flex-wrap gap-2">
+                    {HAIR_STYLES.map((h) => (
+                      <Pill key={h} active={hairStyle === h} onClick={() => setHairStyle(h)}>{h}</Pill>
+                    ))}
+                  </div>
+                </Section>
+
+                <Section title={zh ? '发色' : 'Hair Color'}>
+                  <div className="flex flex-wrap gap-2">
+                    {HAIR_COLORS.map((c) => (
+                      <button
+                        key={c.hex}
+                        type="button"
+                        title={c.name}
+                        onClick={() => setHairColor(c.hex)}
+                        className={cn(
+                          'h-9 w-9 rounded-full border-2 transition-transform',
+                          hairColor === c.hex ? 'border-white scale-110 ring-2 ring-[#FF2D78]' : 'border-white/20',
+                        )}
+                        style={{ background: c.hex }}
+                      />
+                    ))}
+                  </div>
+                </Section>
+
+                <Section title={zh ? '瞳色' : 'Eye Color'}>
+                  <div className="flex flex-wrap gap-2">
+                    {EYE_COLORS.map((e) => (
+                      <Pill key={e} active={eyeColor === e} onClick={() => setEyeColor(e)}>{e}</Pill>
+                    ))}
+                  </div>
+                </Section>
+
+                <Section title={zh ? '服装风格' : 'Fashion Style'}>
+                  <div className="flex flex-wrap gap-2">
+                    {FASHION_STYLES.map((f) => (
+                      <Pill key={f} active={fashionStyle === f} onClick={() => setFashionStyle(f)}>{f}</Pill>
+                    ))}
+                  </div>
+                </Section>
+
+                <Section title={zh ? '补充描述（可选）' : 'Extra notes (optional)'}>
+                  <textarea
+                    value={appearancePrompt}
+                    onChange={(e) => setAppearancePrompt(e.target.value)}
+                    placeholder={zh ? '例如：酒窝、右眼泪痣、雀斑' : 'e.g. dimples, freckles, beauty mark'}
+                    rows={2}
+                    className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
+                  />
+                </Section>
+              </motion.div>
+            )}
+
+            {step === 1 && (
+              <motion.div
+                key="s1"
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -24 }}
+                className="space-y-6"
+              >
+                <Section title={zh ? `性格标签（${selectedTags.length}/8）` : `Personality (${selectedTags.length}/8)`}>
+                  <div className="flex flex-wrap gap-2">
+                    {PERSONALITY_TAGS.map((tag) => (
+                      <Pill key={tag} active={selectedTags.includes(tag)} onClick={() => toggleTag(tag)}>
+                        {tag}
+                      </Pill>
+                    ))}
+                  </div>
+                </Section>
+                <Section title={zh ? '声线' : 'Voice'}>
+                  <div className="flex flex-wrap gap-2">
+                    {VOICES.map((v) => (
+                      <Pill key={v.id} active={voice === v.id} onClick={() => setVoice(v.id)}>{v.label}</Pill>
+                    ))}
+                  </div>
+                </Section>
+                <Section title={zh ? '职业' : 'Occupation'}>
+                  <div className="flex flex-wrap gap-2">
+                    {OCCUPATIONS.map((o) => (
+                      <Pill key={o} active={occupation === o} onClick={() => setOccupation(o)}>{o}</Pill>
+                    ))}
+                  </div>
+                </Section>
+                <Section title={zh ? '兴趣爱好' : 'Hobbies'}>
+                  <input
+                    value={hobbies}
+                    onChange={(e) => setHobbies(e.target.value)}
+                    placeholder={zh ? '咖啡、摄影、深夜电台…' : 'Coffee, photography, late-night radio…'}
+                    className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
+                  />
+                </Section>
+              </motion.div>
+            )}
+
+            {step === 2 && (
+              <motion.div
+                key="s2"
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -24 }}
+                className="space-y-6"
+              >
+                <Section title={zh ? '名字 *' : 'Name *'}>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={zh ? '她的名字' : 'Her name'}
+                    className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
+                  />
+                </Section>
+                <Section title={zh ? '年龄' : 'Age'}>
+                  <input
+                    type="number"
+                    min={18}
+                    max={45}
+                    value={age}
+                    onChange={(e) => setAge(Number(e.target.value))}
+                    className="w-28 h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none"
+                  />
+                </Section>
+                <Section title={zh ? '一句话人设' : 'Tagline'}>
+                  <input
+                    value={shortDescription}
+                    onChange={(e) => setShortDescription(e.target.value)}
+                    placeholder={zh ? '深夜电台里的温柔声音…' : 'A soft voice on the late-night radio…'}
+                    className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
+                  />
+                </Section>
+                <Section title={zh ? '关系定位' : 'Relationship'}>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {RELATIONSHIPS.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setRelationship(r.id)}
+                        className={cn(
+                          'rounded-xl border p-3 text-left',
+                          relationship === r.id
+                            ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
+                            : 'border-white/10 bg-white/[0.03]',
+                        )}
+                      >
+                        <div className="text-sm font-semibold">{r.label}</div>
+                        <div className="text-[10px] text-white/40 mt-0.5">{r.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </Section>
+                <Section title={zh ? '背景故事（可选）' : 'Backstory (optional)'}>
+                  <textarea
+                    value={backstory}
+                    onChange={(e) => setBackstory(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
+                  />
+                </Section>
+                {outfits.length > 0 && (
+                  <Section title={zh ? '初始服装' : 'Starter outfit'}>
+                    <div className="flex flex-wrap gap-2">
+                      {outfits.slice(0, 12).map((o) => (
+                        <Pill
+                          key={o.id}
+                          active={selectedOutfit === o.id}
+                          onClick={() => setSelectedOutfit(o.id)}
                         >
-                          <div className="font-semibold text-sm">{v.label}</div>
-                          <div className="text-[11px] text-white/40 mt-0.5">{v.desc}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </Section>
-
-                  <Section title={locale === 'zh' ? '性别气质' : 'Gender'}>
-                    <div className="flex flex-wrap gap-2">
-                      {GENDERS.map((g) => (
-                        <Pill key={g} active={gender === g} onClick={() => setGender(g)}>{g}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  <Section title="种族 / 血统">
-                    <div className="flex flex-wrap gap-2">
-                      {ETHNICITIES.map((e) => (
-                        <Pill key={e} active={ethnicity === e} onClick={() => setEthnicity(e)}>{e}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  <Section title="脸型">
-                    <div className="flex flex-wrap gap-2">
-                      {FACE_SHAPES.map((f) => (
-                        <Pill key={f} active={faceShape === f} onClick={() => setFaceShape(f)}>{f}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  <Section title="体型">
-                    <div className="flex flex-wrap gap-2">
-                      {BODY_TYPES.map((b) => (
-                        <Pill key={b} active={bodyType === b} onClick={() => setBodyType(b)}>{b}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  <Section title="发型">
-                    <div className="flex flex-wrap gap-2">
-                      {HAIR_STYLES.map((h) => (
-                        <Pill key={h} active={hairStyle === h} onClick={() => setHairStyle(h)}>{h}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  <Section title="发色">
-                    <div className="flex flex-wrap gap-2">
-                      {HAIR_COLORS.map((c) => (
-                        <button
-                          key={c.hex}
-                          type="button"
-                          title={c.name}
-                          onClick={() => setHairColor(c.hex)}
-                          className={cn(
-                            'h-9 w-9 rounded-full border-2 transition-transform',
-                            hairColor === c.hex ? 'border-white scale-110 ring-2 ring-[#FF2D78]' : 'border-white/20',
-                          )}
-                          style={{ background: c.hex }}
-                        />
-                      ))}
-                    </div>
-                  </Section>
-
-                  <Section title="瞳色 / 五官强调">
-                    <div className="flex flex-wrap gap-2">
-                      {EYE_COLORS.map((e) => (
-                        <Pill key={e} active={eyeColor === e} onClick={() => setEyeColor(e)}>{e}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  <Section title="服饰风格">
-                    <div className="flex flex-wrap gap-2">
-                      {FASHION_STYLES.map((f) => (
-                        <Pill key={f} active={fashionStyle === f} onClick={() => setFashionStyle(f)}>{f}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  <Section title="补充描述（可选）">
-                    <textarea
-                      value={appearancePrompt}
-                      onChange={(e) => setAppearancePrompt(e.target.value)}
-                      placeholder="例如：酒窝、右眼泪痣、猫耳…"
-                      rows={2}
-                      className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
-                    />
-                  </Section>
-                </motion.div>
-              )}
-
-              {step === 1 && (
-                <motion.div
-                  key="s1"
-                  initial={{ opacity: 0, x: 24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -24 }}
-                  className="space-y-6"
-                >
-                  <Section title={locale === 'zh' ? `性格标签（${selectedTags.length}/8）` : `Personality (${selectedTags.length}/8)`}>
-                    <div className="flex flex-wrap gap-2">
-                      {PERSONALITY_TAGS.map((tag) => (
-                        <Pill key={tag} active={selectedTags.includes(tag)} onClick={() => toggleTag(tag)}>
-                          {tag}
+                          {o.name}
                         </Pill>
                       ))}
                     </div>
                   </Section>
-                  <Section title="声线">
-                    <div className="flex flex-wrap gap-2">
-                      {VOICES.map((v) => (
-                        <Pill key={v.id} active={voice === v.id} onClick={() => setVoice(v.id)}>{v.label}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-                  <Section title="职业">
-                    <div className="flex flex-wrap gap-2">
-                      {OCCUPATIONS.map((o) => (
-                        <Pill key={o} active={occupation === o} onClick={() => setOccupation(o)}>{o}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-                  <Section title="兴趣爱好">
-                    <input
-                      value={hobbies}
-                      onChange={(e) => setHobbies(e.target.value)}
-                      placeholder="咖啡、摄影、深夜电台…"
-                      className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
-                    />
-                  </Section>
-                </motion.div>
-              )}
-
-              {step === 2 && (
-                <motion.div
-                  key="s2"
-                  initial={{ opacity: 0, x: 24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -24 }}
-                  className="space-y-6"
-                >
-                  <Section title="名字 *">
-                    <input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="她的名字"
-                      className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
-                    />
-                  </Section>
-                  <Section title="年龄">
-                    <input
-                      type="number"
-                      min={18}
-                      max={45}
-                      value={age}
-                      onChange={(e) => setAge(Number(e.target.value))}
-                      className="w-28 h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none"
-                    />
-                  </Section>
-                  <Section title="一句话人设">
-                    <input
-                      value={shortDescription}
-                      onChange={(e) => setShortDescription(e.target.value)}
-                      placeholder="深夜电台里的温柔声线…"
-                      className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
-                    />
-                  </Section>
-                  <Section title="关系定位">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {RELATIONSHIPS.map((r) => (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => setRelationship(r.id)}
-                          className={cn(
-                            'rounded-xl border p-3 text-left',
-                            relationship === r.id
-                              ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
-                              : 'border-white/10 bg-white/[0.03]',
-                          )}
-                        >
-                          <div className="text-sm font-semibold">{r.label}</div>
-                          <div className="text-[10px] text-white/40 mt-0.5">{r.desc}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </Section>
-                  <Section title="背景故事（可选）">
-                    <textarea
-                      value={backstory}
-                      onChange={(e) => setBackstory(e.target.value)}
-                      rows={3}
-                      className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
-                    />
-                  </Section>
-                  {outfits.length > 0 && (
-                    <Section title="初始服饰">
-                      <div className="flex flex-wrap gap-2">
-                        {outfits.slice(0, 12).map((o) => (
-                          <Pill
-                            key={o.id}
-                            active={selectedOutfit === o.id}
-                            onClick={() => setSelectedOutfit(o.id)}
-                          >
-                            {o.name}
-                          </Pill>
-                        ))}
-                      </div>
-                    </Section>
-                  )}
-                  {error && <p className="text-sm text-red-400">{error}</p>}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                )}
+                {error && <p className="text-sm text-red-400">{error}</p>}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {error && step !== 2 && <p className="text-sm text-red-400">{error}</p>}
         </div>
-
-        
       </div>
 
-      {/* Bottom nav steps */}
+      {/* Bottom nav */}
       <div
         className="shrink-0 sticky bottom-0 z-30 flex items-center justify-between gap-3 border-t border-white/10 bg-[#0a0612]/96 backdrop-blur-xl px-4 py-3"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
@@ -605,7 +632,7 @@ export default function CreatePage() {
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           className="h-11 min-w-[5.5rem] px-4 rounded-full border border-white/10 text-sm disabled:opacity-30 flex items-center justify-center gap-1 touch-manipulation"
         >
-          <ArrowLeft className="h-4 w-4" /> {locale === 'zh' ? '上一步' : 'Back'}
+          <ArrowLeft className="h-4 w-4" /> {zh ? '上一步' : 'Back'}
         </button>
         {step < 2 ? (
           <GamePrimaryButton
@@ -613,7 +640,7 @@ export default function CreatePage() {
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
-            {locale === 'zh' ? '下一步' : 'Next'} <ArrowRight className="h-4 w-4" />
+            {zh ? '下一步' : 'Next'} <ArrowRight className="h-4 w-4" />
           </GamePrimaryButton>
         ) : (
           <GamePrimaryButton
@@ -622,7 +649,7 @@ export default function CreatePage() {
             onClick={handleSubmit}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {locale === 'zh' ? '创建' : 'Create'}
+            {zh ? '创建' : 'Create'}
           </GamePrimaryButton>
         )}
       </div>

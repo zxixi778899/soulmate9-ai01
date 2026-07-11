@@ -1,21 +1,34 @@
 /**
  * LLM Service — RunPod vLLM (self-hosted, uncensored)
  *
- * Endpoint: t3epwpytfgadr5 (Lumimaid 8B)
- * Response time: ~2-5s per request
+ * Recommended setup:
+ *   - Base:  TheBloke/Lumimaid-13B-v1.0-Q5_K_M.gguf (or NeverSleep/Lumimaid-13B)
+ *   - LoRA 1: KBlueLeaf/DPO-PII-13B (RP instructions, weight 0.7)
+ *   - LoRA 2: NSFW-13B-LoRA (NSFW mode, weight 0.3)
+ *   - Server: vLLM with --enable-lora + --lora-modules rp,nsfw
+ *   - Quant: Q5_K_M, ctx 12288
+ *
+ * Generation params (recommended):
+ *   temperature=0.7, top_p=0.9, repetition_penalty=1.05, max_tokens=1024
+ *
+ * Mistral-Instruct chat template (Lumimaid 13B is Mistral-based).
  */
 
 import { logger } from '@/lib/logger';
 
-const RP_BASE = process.env.RUNPOD_VLLM_URL || '';
-const RP_KEY = process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY || '';
-const FETCH_TIMEOUT = 60000; // 60s — Lumimaid cold start can be 20-30s
+const RP_BASE  = process.env.RUNPOD_VLLM_URL || '';
+const RP_KEY   = process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY || '';
+const LORA_NAME = process.env.RUNPOD_VLLM_LORA || 'rp'; // which LoRA to apply
+const FETCH_TIMEOUT = 60000;
 
-function isConfigured(): boolean {
-  return !!(RP_BASE && RP_KEY);
-}
+const DEFAULT_TEMPERATURE         = Number(process.env.LLM_TEMPERATURE || 0.7);
+const DEFAULT_MAX_TOKENS          = Number(process.env.LLM_MAX_TOKENS || 1024);
+const DEFAULT_TOP_P               = Number(process.env.LLM_TOP_P || 0.9);
+const DEFAULT_REPETITION_PENALTY  = Number(process.env.LLM_REPETITION_PENALTY || 1.05);
 
-function headers(): Record<string, string> {
+function isConfigured() { return !!(RP_BASE && RP_KEY); }
+
+function headers() {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${RP_KEY}` };
 }
 
@@ -27,65 +40,91 @@ function parseRunPodOutput(data: any): string {
   return '';
 }
 
-// ── Non-streaming (for emotion detection, meta generation, etc.) ──
+/**
+ * Mistral-Instruct chat template (compatible with Lumimaid 13B).
+ * vLLM uses the model's built-in template automatically when this
+ * matches chat_template=llama3 / mistral. We do NOT override it;
+ * we only ensure the messages array is well-formed.
+ */
 
-export async function generateText(options: {
-  prompt: string;
+interface GenOptions {
+  prompt?: string;
+  messages?: { role: 'system' | 'user' | 'assistant'; content: string }[];
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
-}): Promise<string> {
-  const { prompt, systemPrompt, temperature = 0.85, maxTokens = 1024 } = options;
-  if (!isConfigured()) throw new Error('LLM not configured');
+  topP?: number;
+  repetitionPenalty?: number;
+  loraName?: string;
+}
 
-  const messages: { role: string; content: string }[] = [];
-  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
-  messages.push({ role: 'user', content: prompt });
+function buildInput(opts: GenOptions) {
+  const msgs = opts.messages ?? [];
+  if (msgs.length === 0) {
+    if (!opts.prompt) throw new Error('generateText: provide either messages or prompt');
+    const arr: { role: string; content: string }[] = [];
+    if (opts.systemPrompt) arr.push({ role: 'system', content: opts.systemPrompt });
+    arr.push({ role: 'user', content: opts.prompt });
+    return arr;
+  }
+  return msgs;
+}
 
+async function postRunPod(input: Record<string, unknown>, signal: AbortSignal): Promise<any> {
   const res = await fetch(`${RP_BASE}/runsync`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ input: { messages, max_tokens: maxTokens, temperature } }),
-    signal: AbortSignal.timeout(FETCH_TIMEOUT),
+    body: JSON.stringify(input),
+    signal,
   });
-
   if (!res.ok) throw new Error(`LLM error (${res.status})`);
   const data = await res.json();
-  if (data.status === 'FAILED') throw new Error('LLM generation failed');
+  if (data.status === 'FAILED') throw new Error(`LLM generation failed: ${data.error || ''}`);
+  return data;
+}
 
+// ── Non-streaming ──
+
+export async function generateText(options: GenOptions): Promise<string> {
+  if (!isConfigured()) throw new Error('LLM not configured');
+  const messages = buildInput(options);
+  const data = await postRunPod({
+    input: {
+      messages,
+      max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+      temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+      top_p: options.topP ?? DEFAULT_TOP_P,
+      repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
+      // vLLM LoRA selection (server-side enabled)
+      ...(options.loraName || LORA_NAME ? { lora_name: options.loraName || LORA_NAME } : {}),
+    },
+  }, AbortSignal.timeout(FETCH_TIMEOUT));
   const content = parseRunPodOutput(data);
   if (!content) throw new Error('LLM returned empty');
   return content.trim();
 }
 
-// ── Streaming (for chat) — uses /runsync then emits as SSE ──
+// ── Streaming (returns SSE Response) ──
 
-export async function streamText(options: {
-  messages: { role: string; content: string }[];
-  temperature?: number;
-  maxTokens?: number;
-}): Promise<Response> {
-  const { messages, temperature = 0.85, maxTokens = 2048 } = options;
-
+export async function streamText(options: GenOptions): Promise<Response> {
   if (!isConfigured()) throw new Error('LLM not configured');
-
-  logger.debug('[llm] streaming request', { data: { msgCount: messages.length } });
+  const messages = buildInput(options);
   const start = Date.now();
+  logger.debug('[llm] streaming request', { data: { msgCount: messages.length } });
 
-  const res = await fetch(`${RP_BASE}/runsync`, {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify({ input: { messages, max_tokens: maxTokens, temperature } }),
-    signal: AbortSignal.timeout(FETCH_TIMEOUT),
-  });
-
-  if (!res.ok) throw new Error(`LLM error (${res.status})`);
-
-  const data = await res.json();
-  if (data.status === 'FAILED') throw new Error('LLM generation failed');
+  const data = await postRunPod({
+    input: {
+      messages,
+      max_tokens: options.maxTokens ?? 2048,
+      temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+      top_p: options.topP ?? DEFAULT_TOP_P,
+      repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
+      ...(options.loraName || LORA_NAME ? { lora_name: options.loraName || LORA_NAME } : {}),
+    },
+  }, AbortSignal.timeout(FETCH_TIMEOUT));
 
   const content = parseRunPodOutput(data) || '...';
-  logger.debug('[llm] response received', { data: { ms: Date.now() - start, len: content.length } });
+  logger.debug('[llm] response', { data: { ms: Date.now() - start, len: content.length } });
 
   const encoder = new TextEncoder();
   return new Response(
@@ -120,37 +159,42 @@ export async function streamTextSmart(options: {
   maxTokens?: number;
 }): Promise<StreamingResult> {
   const response = await streamText({
-    messages: options.messages,
+    messages: options.messages as any,
     temperature: options.temperature,
     maxTokens: options.maxTokens,
   });
-  return { response, provider: 'runpod', model: 'lumimaid-8b' };
+  return { response, provider: 'runpod', model: 'lumimaid-13b' };
 }
 
-export async function generateTextSmart(options: {
-  prompt: string;
-  systemPrompt?: string;
-  temperature?: number;
-  maxTokens?: number;
-}): Promise<{ content: string; provider: string }> {
+export async function generateTextSmart(options: GenOptions) {
   const content = await generateText(options);
   return { content, provider: 'runpod' };
 }
 
-export async function generateTextWithFallback(options: {
-  prompt: string;
-  systemPrompt?: string;
-  temperature?: number;
-  maxTokens?: number;
-}): Promise<{ content: string; provider: string; fallbacks: string[] }> {
+export async function generateTextWithFallback(options: GenOptions) {
   try {
     const content = await generateText(options);
-    return { content, provider: 'runpod', fallbacks: [] };
+    return { content, provider: 'runpod', fallbacks: [] as string[] };
   } catch (err) {
-    return { content: 'Sorry, I am unavailable. Try again shortly.', provider: 'error', fallbacks: [String(err)] };
+    return {
+      content: 'Sorry, I am unavailable. Try again shortly.',
+      provider: 'error',
+      fallbacks: [String(err)],
+    };
   }
 }
 
 export function getLLMStatus() {
-  return { configured: isConfigured(), model: 'lumimaid-8b', endpoint: RP_BASE };
+  return {
+    configured: isConfigured(),
+    model: process.env.LLM_MODEL_NAME || 'lumimaid-13b',
+    endpoint: RP_BASE,
+    lora: LORA_NAME,
+    generation: {
+      temperature: DEFAULT_TEMPERATURE,
+      top_p: DEFAULT_TOP_P,
+      max_tokens: DEFAULT_MAX_TOKENS,
+      repetition_penalty: DEFAULT_REPETITION_PENALTY,
+    },
+  };
 }

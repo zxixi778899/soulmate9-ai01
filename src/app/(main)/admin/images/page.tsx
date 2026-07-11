@@ -1,3 +1,4 @@
+import { readResponseJson, errorMessageFromUnknown } from '@/lib/safe-json';
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -810,13 +811,11 @@ export default function AdminImagesPage() {
         }),
       });
 
+      const data = await readResponseJson<{ metadata?: any; error?: string }>(res);
       if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`元数据生成失败 (${res.status}): ${err}`);
+        throw new Error(data.error || `Metadata generation failed (${res.status})`);
       }
-
-      const data = await res.json();
-      if (!data.metadata) throw new Error('未返回元数据');
+      if (!data.metadata) throw new Error(data.error || 'No metadata returned');
 
       const appearance = data.metadata.appearance || concept;
       // LLM sometimes echoes the full caption into "title" — only keep short names
@@ -930,13 +929,11 @@ export default function AdminImagesPage() {
         }),
       });
 
+      const data = await readResponseJson<{ success?: boolean; error?: string; images?: unknown[] }>(res);
       if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`生成失败 (${res.status}): ${err}`);
+        throw new Error(data.error || `Image generation failed (${res.status})`);
       }
-
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || '生成失败');
+      if (!data.success) throw new Error(data.error || 'Image generation failed');
 
       const rawList: unknown[] = Array.isArray(data.images) ? data.images : [];
       const images = rawList

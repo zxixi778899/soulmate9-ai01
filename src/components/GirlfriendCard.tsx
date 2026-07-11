@@ -64,7 +64,7 @@ export default function GirlfriendCard({ girl, onSelect }: { girl: Girl; onSelec
         </div>
         <p className="text-sm text-rose-300/90 line-clamp-2">{girl.tagline}</p>
         <div className="flex flex-wrap gap-1.5">
-          {girl.tags.slice(0, 3).map((tag) => (
+          {(Array.isArray(girl.tags) ? girl.tags : []).slice(0, 3).map((tag) => (
             <span key={tag} className="text-[10px] px-2.5 py-0.5 bg-white/10 rounded-full text-zinc-300">{tag}</span>
           ))}
         </div>

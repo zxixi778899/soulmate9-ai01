@@ -147,7 +147,7 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
         <p className="text-xs text-zinc-400 line-clamp-1 leading-relaxed mt-0.5">{girl.tagline}</p>
 
         <div className="flex flex-wrap gap-1 mt-2.5">
-          {girl.tags.slice(0, 3).map((tag) => (
+          {(Array.isArray(girl.tags) ? girl.tags : []).slice(0, 3).map((tag) => (
             <span key={tag} onClick={(e) => e.stopPropagation()}
               className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/[0.04] border border-white/[0.08] text-zinc-300">
               {tag}

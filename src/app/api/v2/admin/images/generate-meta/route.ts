@@ -130,7 +130,21 @@ export async function POST(req: NextRequest) {
     const auth = await requireAdmin(req);
     if (auth.error) return auth.error;
 
-    const { concept, type, girlfriendData, outfitData, propData } = await req.json();
+    let concept: unknown;
+    let type: unknown;
+    let girlfriendData: any;
+    let outfitData: any;
+    let propData: any;
+    try {
+      const body = await req.json();
+      concept = body.concept;
+      type = body.type;
+      girlfriendData = body.girlfriendData;
+      outfitData = body.outfitData;
+      propData = body.propData;
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     if (!concept || !type) {
       return NextResponse.json({ error: 'Missing concept or type' }, { status: 400 });
