@@ -189,32 +189,32 @@ export default function AdminAiModulesPage() {
       </div>
 
       
-      {(env?.warnings?.length > 0) && (
+      {env && (env.warnings?.length ?? 0) > 0 ? (
         <Card className="border-amber-500/30 bg-amber-500/5">
           <CardContent className="p-4 space-y-2">
             <div className="flex items-center gap-2 text-amber-200 text-sm font-medium">
               <AlertTriangle className="h-4 w-4" />
-              环境健康
+              Environment health
             </div>
             <ul className="text-xs text-amber-100/80 space-y-1 list-disc pl-5">
-              {env.warnings.map((w: string) => (
+              {(env.warnings ?? []).map((w: string) => (
                 <li key={w}>{w}</li>
               ))}
             </ul>
             <div className="flex flex-wrap gap-2 pt-1">
               <Badge className={env.imageReady ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}>
-                {env.imageReady ? '出图 RunPod 就绪' : '出图 RunPod 未配置'}
+                {env.imageReady ? 'Image RunPod ready' : 'Image RunPod missing'}
               </Badge>
               <Badge className={env.chatReady?.together ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}>
-                Together {env.chatReady?.together ? 'OK' : '缺失'}
+                Together {env.chatReady?.together ? 'OK' : 'missing'}
               </Badge>
               <Badge className={env.chatReady?.runpod_vllm ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}>
-                vLLM {env.chatReady?.runpod_vllm ? 'OK' : '缺失'}
+                vLLM {env.chatReady?.runpod_vllm ? 'OK' : 'missing'}
               </Badge>
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
 {/* Tabs */}
       <div className="flex flex-wrap gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1 w-fit">
