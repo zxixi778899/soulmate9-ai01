@@ -15,6 +15,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import { injectLore, loraExtraBody, pickLore, type LoreMode } from '@/lib/lora-prompt';
 
 const RP_BASE  = process.env.RUNPOD_VLLM_URL || '';
 const RP_KEY   = process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY || '';
@@ -56,16 +57,25 @@ interface GenOptions {
   topP?: number;
   repetitionPenalty?: number;
   loraName?: string;
+  loraMode?: LoreMode;
 }
 
 function buildInput(opts: GenOptions) {
+  const mode: LoreMode = opts.loraMode || 'default';
   const msgs = opts.messages ?? [];
   if (msgs.length === 0) {
     if (!opts.prompt) throw new Error('generateText: provide either messages or prompt');
     const arr: { role: string; content: string }[] = [];
-    if (opts.systemPrompt) arr.push({ role: 'system', content: opts.systemPrompt });
+    if (opts.systemPrompt) arr.push({ role: 'system', content: injectLore(opts.systemPrompt, mode) });
     arr.push({ role: 'user', content: opts.prompt });
     return arr;
+  }
+  // Inject LoRA trigger into existing system message (or prepend)
+  if (msgs[0]?.role === 'system' && mode !== 'default') {
+    return [{ ...msgs[0], content: injectLore(msgs[0].content, mode) }, ...msgs.slice(1)];
+  }
+  if (mode !== 'default') {
+    return [{ role: 'system', content: injectLore('', mode) }, ...msgs];
   }
   return msgs;
 }
@@ -88,6 +98,7 @@ async function postRunPod(input: Record<string, unknown>, signal: AbortSignal): 
 export async function generateText(options: GenOptions): Promise<string> {
   if (!isConfigured()) throw new Error('LLM not configured');
   const messages = buildInput(options);
+  const mode: LoreMode = options.loraMode || 'default';
   const data = await postRunPod({
     input: {
       messages,
@@ -95,8 +106,10 @@ export async function generateText(options: GenOptions): Promise<string> {
       temperature: options.temperature ?? DEFAULT_TEMPERATURE,
       top_p: options.topP ?? DEFAULT_TOP_P,
       repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
-      // vLLM LoRA selection (server-side enabled)
-      ...(options.loraName || LORA_NAME ? { lora_name: options.loraName || LORA_NAME } : {}),
+      // vLLM LoRA selection (server-side enabled). Defaults to env LORA_NAME.
+      ...(options.loraName || (mode !== 'default' ? mode : LORA_NAME)
+        ? { lora_name: options.loraName || (mode !== 'default' ? mode : LORA_NAME) }
+        : {}),
     },
   }, AbortSignal.timeout(FETCH_TIMEOUT));
   const content = parseRunPodOutput(data);
@@ -109,8 +122,9 @@ export async function generateText(options: GenOptions): Promise<string> {
 export async function streamText(options: GenOptions): Promise<Response> {
   if (!isConfigured()) throw new Error('LLM not configured');
   const messages = buildInput(options);
+  const mode: LoreMode = options.loraMode || 'default';
   const start = Date.now();
-  logger.debug('[llm] streaming request', { data: { msgCount: messages.length } });
+  logger.debug('[llm] streaming request', { data: { msgCount: messages.length, mode } });
 
   const data = await postRunPod({
     input: {
@@ -119,7 +133,9 @@ export async function streamText(options: GenOptions): Promise<Response> {
       temperature: options.temperature ?? DEFAULT_TEMPERATURE,
       top_p: options.topP ?? DEFAULT_TOP_P,
       repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
-      ...(options.loraName || LORA_NAME ? { lora_name: options.loraName || LORA_NAME } : {}),
+      ...(options.loraName || (mode !== 'default' ? mode : LORA_NAME)
+        ? { lora_name: options.loraName || (mode !== 'default' ? mode : LORA_NAME) }
+        : {}),
     },
   }, AbortSignal.timeout(FETCH_TIMEOUT));
 
@@ -157,11 +173,22 @@ export async function streamTextSmart(options: {
   messages: Array<{ role: string; content: string }>;
   temperature?: number;
   maxTokens?: number;
+  loraMode?: LoreMode;
+  loraName?: string;
+  intimacyLevel?: number;
+  nsfwOptIn?: boolean;
 }): Promise<StreamingResult> {
+  // Auto-pick LoRA mode from intimacy level if not explicit
+  const mode: LoreMode =
+    options.loraMode ??
+    pickLore(options.intimacyLevel ?? 1, options.nsfwOptIn ?? false);
+
   const response = await streamText({
     messages: options.messages as any,
     temperature: options.temperature,
     maxTokens: options.maxTokens,
+    loraMode: mode,
+    loraName: options.loraName,
   });
   return { response, provider: 'runpod', model: 'lumimaid-13b' };
 }

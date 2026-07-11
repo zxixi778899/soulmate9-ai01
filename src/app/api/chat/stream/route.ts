@@ -412,6 +412,8 @@ export async function POST(request: NextRequest) {
             messages: llmMessages,
             temperature: chatResolved.temperature,
             maxTokens: chatResolved.maxTokens,
+            intimacyLevel,
+            nsfwOptIn: gf?.adult_content_enabled ?? false,
           });
           response = fallback.response;
           provider = fallback.provider;
