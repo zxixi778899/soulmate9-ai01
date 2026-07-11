@@ -192,6 +192,8 @@ export async function POST(request: NextRequest) {
         backstory: body.backstory || '',
         portrait_url: body.portrait_url || null,
         avatar_url: body.avatar_url || null,
+        portrait_video_url: body.portrait_video_url || null,
+        avatar_video_url: body.avatar_video_url || null,
         appearance_hair: body.appearance_hair || body.appearance?.hair || '',
         appearance_hair_color: body.appearance_hair_color || body.appearance?.hair_color || '',
         appearance_eyes: body.appearance_eyes || body.appearance?.eyes || '',
