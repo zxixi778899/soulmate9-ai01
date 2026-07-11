@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { resolveImageUrl, toPublicUrl, looksLikePromptText } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,15 +22,36 @@ export async function POST(req: NextRequest) {
 
   const client = guard.supabase;
   const body = await req.json();
-  const { type, id, imageUrl, field } = body as {
+  const { type, id, field } = body as {
     type: 'girlfriend' | 'outfit' | 'shop_item';
     id: string;
     imageUrl: string;
     field: string;
   };
+  let imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
 
   if (!type || !id || !imageUrl) {
     return NextResponse.json({ error: 'Missing required fields: type, id, imageUrl' }, { status: 400 });
+  }
+
+  // Reject prompt text mistakenly saved as image URL (UI used to show the prompt as "the image")
+  if (looksLikePromptText(imageUrl)) {
+    return NextResponse.json(
+      { error: 'imageUrl looks like a text prompt, not an image URL' },
+      { status: 400 },
+    );
+  }
+
+  // Normalize bare storage keys → public HTTPS (DB should store browser-loadable URLs)
+  if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://') && !imageUrl.startsWith('data:image/')) {
+    const resolved = (await resolveImageUrl(imageUrl)) || toPublicUrl(imageUrl);
+    if (!resolved || !resolved.startsWith('http')) {
+      return NextResponse.json(
+        { error: 'imageUrl must be http(s), data:image, or a valid storage key path' },
+        { status: 400 },
+      );
+    }
+    imageUrl = resolved;
   }
 
   let table: string;
@@ -47,15 +69,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Invalid type: ${type}` }, { status: 400 });
   }
 
+  // Never overwrite girlfriend name with a full image prompt (was corrupting DB names)
+  const rawTitle = typeof body.title === 'string' ? body.title.trim() : '';
+  const safeName =
+    rawTitle &&
+    rawTitle.length > 0 &&
+    rawTitle.length <= 60 &&
+    (rawTitle.match(/,/g) || []).length < 3 &&
+    !/\b(raw photo|masterpiece|photorealistic|best quality|8k|sharp focus|three-quarter|natural skin)\b/i.test(
+      rawTitle,
+    )
+      ? rawTitle
+      : null;
+
+  if (rawTitle && !safeName) {
+    logger.warn('admin/images/update: ignored prompt-like title for name', {
+      id,
+      titleLen: rawTitle.length,
+      titleHead: rawTitle.slice(0, 60),
+    });
+  }
+
   // Girlfriend: keep portrait + avatar in sync for list/chat thumbnails
   const payload: Record<string, unknown> =
     type === 'girlfriend'
       ? {
           portrait_url: imageUrl,
           avatar_url: imageUrl,
-          ...(body.title ? { name: body.title } : {}),
+          ...(safeName ? { name: safeName } : {}),
           ...(Array.isArray(body.tags) ? { tags: body.tags } : {}),
-          ...(typeof body.description === 'string' ? { short_description: body.description } : {}),
+          ...(typeof body.description === 'string' && body.description.length < 500
+            ? { short_description: body.description }
+            : {}),
         }
       : { [field || (type === 'outfit' ? 'preview_url' : 'image_url')]: imageUrl };
 

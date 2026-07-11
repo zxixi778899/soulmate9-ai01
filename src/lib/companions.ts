@@ -5,6 +5,11 @@
 
 import type { AccessStatus, DemoGirl, Rarity, Relationship } from '@/lib/demo-data';
 import { GIRLS, ELEMENT_COLORS } from '@/lib/demo-data';
+import {
+  extractPersonName,
+  looksLikeFluxPrompt,
+  safeDisplayName,
+} from '@/lib/prompt/shared';
 
 export type CompanionSource = 'api' | 'demo';
 
@@ -23,18 +28,59 @@ function hashPick<T>(seed: string, arr: T[]): T {
   return arr[Math.abs(h) % arr.length];
 }
 
+function cleanName(raw: unknown, slug?: unknown, index = 0): string {
+  const s = String(raw || '').trim();
+  const slugStr = String(slug || '');
+  const fromSlug = slugStr
+    ? slugStr
+        .split('-')
+        .filter((p) => p && !/^[a-z0-9]{6,}$/i.test(p))
+        .slice(0, 3)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ')
+    : '';
+  if (!s) return fromSlug || `Companion ${index + 1}`;
+  if (!looksLikeFluxPrompt(s) && s.length <= 48) return s;
+  return extractPersonName(s) || safeDisplayName(s, fromSlug || `Companion ${index + 1}`);
+}
+
+function pickImage(row: Record<string, unknown>, index: number): string {
+  const candidates = [
+    row.image_url,
+    row.portrait_url,
+    row.avatar_url,
+    row.portrait,
+    row.avatar,
+  ];
+  for (const c of candidates) {
+    const u = String(c || '').trim();
+    if (!u) continue;
+    // Never use a full FLUX caption as an image src
+    if (looksLikeFluxPrompt(u) && !u.startsWith('http') && !u.startsWith('/') && !u.startsWith('data:')) {
+      continue;
+    }
+    if (
+      u.startsWith('http://') ||
+      u.startsWith('https://') ||
+      u.startsWith('/') ||
+      u.startsWith('data:image/')
+    ) {
+      return u;
+    }
+  }
+  // Do NOT fall back to demo portraits when we have real API rows — empty is better
+  // than showing the wrong person's face. Demo fallback only when source is demo.
+  if (row.is_demo) {
+    return GIRLS[index % GIRLS.length]?.portrait || '';
+  }
+  return '';
+}
+
 /** Normalize any public/featured/girlfriend row into DemoGirl for cards. */
 export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl {
   const id = String(row.id || row.slug || `c-${index}`);
-  const name = String(row.name || 'Companion');
-  const image =
-    (row.image_url as string) ||
-    (row.portrait_url as string) ||
-    (row.avatar_url as string) ||
-    (row.portrait as string) ||
-    (row.avatar as string) ||
-    GIRLS[index % GIRLS.length]?.portrait ||
-    '';
+  const name = cleanName(row.name, row.slug, index);
+  const image = pickImage(row, index);
 
   const tagsRaw = row.tags;
   const tags = Array.isArray(tagsRaw)
@@ -43,11 +89,15 @@ export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl
       ? tagsRaw.split(/[,|]/).map((t) => t.trim()).filter(Boolean)
       : ['romantic'];
 
-  const personality =
+  const personalityRaw =
     (row.personality as string) ||
     (row.short_description as string) ||
     tags.slice(0, 3).join(' · ') ||
     'mysterious';
+  // Guard: personality field sometimes holds a full caption
+  const personality = looksLikeFluxPrompt(personalityRaw)
+    ? tags.slice(0, 3).join(' · ') || 'mysterious'
+    : personalityRaw;
 
   const rarity = (row.rarity as Rarity) || hashPick(id, RARITIES);
   const element = (row.element as DemoGirl['element']) || hashPick(id + name, ELEMENTS);
@@ -63,7 +113,17 @@ export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl
   const kink =
     Number(row.base_kink ?? row.kink) ||
     Math.min(99, Math.floor(intimacy * 0.7 + index * 3));
-  const relationships: Relationship[] = ['邻居', '老师', '姐姐', '学妹', '同事', '上司', '青梅竹马', '陌生人', '女友'];
+  const relationships: Relationship[] = [
+    'neighbor',
+    'teacher',
+    'sister',
+    'junior',
+    'coworker',
+    'boss',
+    'childhood',
+    'stranger',
+    'girlfriend',
+  ];
   const relationship: Relationship =
     (row.relationship as Relationship) ||
     relationships[Math.abs(id.charCodeAt(0) || 0) % relationships.length];
@@ -74,15 +134,20 @@ export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl
   const is_unlocked = row.is_unlocked === true || row.unlocked === true;
   const locked = access_status === 'locked' && !is_unlocked;
 
+  const taglineRaw =
+    (row.tagline as string) ||
+    (row.short_description as string) ||
+    (row.rarity_quote as string) ||
+    personality;
+  const tagline = looksLikeFluxPrompt(taglineRaw)
+    ? `${name} is waiting for you.`
+    : taglineRaw;
+
   return {
     id,
     name,
     age,
-    tagline:
-      (row.tagline as string) ||
-      (row.short_description as string) ||
-      (row.rarity_quote as string) ||
-      personality,
+    tagline,
     avatar: image,
     portrait: image,
     rarity: RARITIES.includes(rarity) ? rarity : 'R',
@@ -95,8 +160,9 @@ export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl
     kink: Math.min(99, Math.max(0, kink)),
     relationship,
     rarity_quote:
-      (row.rarity_quote as string) ||
-      `"${name} is waiting for you."`,
+      (typeof row.rarity_quote === 'string' && !looksLikeFluxPrompt(row.rarity_quote)
+        ? row.rarity_quote
+        : undefined) || `"${name} is waiting for you."`,
     voice_preview: row.voice_preview as string | undefined,
     hot_score: Number(row.hot_score ?? intimacy) || intimacy,
     access_status,
@@ -134,25 +200,32 @@ async function mergeUnlockFlags(girls: DemoGirl[]): Promise<DemoGirl[]> {
 }
 
 export async function fetchCompanionCatalog(limit = 48): Promise<CompanionCatalog> {
-  // 1) Featured (auth optional; server returns public rows when possible)
+  // 1) Featured endpoint (now returns real public girlfriends first)
   try {
-    const featuredRes = await fetch('/api/v2/girlfriends/featured', {
+    const featuredRes = await fetch(`/api/v2/girlfriends/featured?limit=${limit}`, {
       credentials: 'include',
       cache: 'no-store',
     });
     if (featuredRes.ok) {
       const data = await featuredRes.json();
-      const rows = (data.featured_girlfriends || data.girlfriends || []) as Record<string, unknown>[];
-      // Hide closed
+      const apiSource = data.source === 'api';
+      const rows = (data.featured_girlfriends || data.girlfriends || []) as Record<
+        string,
+        unknown
+      >[];
       const visible = rows.filter((r) => String(r.access_status || 'open') !== 'closed');
-      if (visible.length > 0) {
+      if (visible.length > 0 && apiSource) {
         const girls = await mergeUnlockFlags(visible.map((r, i) => mapToDemoGirl(r, i)));
+        // Drop cards with no image at all when we have mixed quality — keep those with img first
+        const withImg = girls.filter((g) => !!g.portrait);
+        const ordered = withImg.length > 0 ? [...withImg, ...girls.filter((g) => !g.portrait)] : girls;
         return {
-          girls,
+          girls: ordered,
           source: 'api',
-          total: data.total ?? girls.length,
+          total: data.total ?? ordered.length,
         };
       }
+      // If server admitted demo, fall through to try public route once more
     }
   } catch {
     /* fall through */

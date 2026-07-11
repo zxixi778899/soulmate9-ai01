@@ -222,8 +222,30 @@ export default function AdminComfyConsolePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '生成失败');
-      setLastResult(data.assets || []);
-      toast.success(`生成成功 ${data.assets?.length || 0} 张`);
+      const assets = (data.assets || []).map((a: Any) => {
+        let url = String(a.url || '').trim();
+        // Bare storage key → public URL (never leave prompt text as src)
+        if (url && !/^https?:\/\//i.test(url) && !url.startsWith('data:')) {
+          const base =
+            process.env.NEXT_PUBLIC_SUPABASE_URL ||
+            process.env.NEXT_PUBLIC_COZE_SUPABASE_URL ||
+            '';
+          if (base && a.storage_key) {
+            url = `${base.replace(/\/$/, '')}/storage/v1/object/public/portraits/${String(a.storage_key).replace(/^\/+/, '')}`;
+          } else if (base && url.includes('/')) {
+            url = `${base.replace(/\/$/, '')}/storage/v1/object/public/portraits/${url.replace(/^\/+/, '')}`;
+          }
+        }
+        if (/\s/.test(url) && /masterpiece|photorealistic|raw photo/i.test(url)) {
+          url = '';
+        }
+        return { ...a, url };
+      }).filter((a: Any) => a.url && /^https?:\/\//i.test(a.url));
+      if (assets.length === 0) {
+        throw new Error('生成完成但没有可预览的 HTTPS 地址');
+      }
+      setLastResult(assets);
+      toast.success(`生成成功 ${assets.length} 张`);
       if (tab === 'library') loadAssets();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '生成失败');
@@ -586,10 +608,34 @@ export default function AdminComfyConsolePage() {
                     >
                       打开
                     </a>
+                    <button
+                      type="button"
+                      className="flex-1 text-[10px] py-1 rounded bg-violet-600/90"
+                      title="复制图片 URL，可在图片管理页「操作台图库」中选用"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(a.url || '');
+                          toast.success('已复制图片 URL · 去图片管理页可选用');
+                        } catch {
+                          toast.message(a.url || '');
+                        }
+                      }}
+                    >
+                      复制URL
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
+            {lastResult.length > 0 && (
+              <p className="mt-3 text-[11px] text-slate-500">
+                生成图已入库图库。可在{' '}
+                <a href="/admin/images" className="text-violet-400 underline">
+                  图片管理
+                </a>{' '}
+                点「操作台图库」一键应用到女友/道具/商城。
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -760,11 +806,16 @@ export default function AdminComfyConsolePage() {
       {/* LIBRARY */}
       {tab === 'library' && (
         <div>
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">生成图库（可随时调用 / 删除）</h2>
-            <Button size="sm" variant="outline" className="border-slate-700" onClick={loadAssets}>
-              <RefreshCw className="h-3.5 w-3.5 mr-1" /> 刷新
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="border-slate-700" asChild>
+                <a href="/admin/images">去图片管理应用</a>
+              </Button>
+              <Button size="sm" variant="outline" className="border-slate-700" onClick={loadAssets}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> 刷新
+              </Button>
+            </div>
           </div>
           {assetsLoading ? (
             <div className="flex h-40 items-center justify-center">
@@ -776,8 +827,11 @@ export default function AdminComfyConsolePage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {assets.map((a) => (
-                <div key={a.id} className="rounded-lg border border-slate-800 overflow-hidden bg-slate-900/50">
+              {assets.map((a, idx) => (
+                <div
+                  key={a.id || a.storage_key || a.url || idx}
+                  className="rounded-lg border border-slate-800 overflow-hidden bg-slate-900/50"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
                   <div className="p-2 space-y-1">
@@ -804,11 +858,28 @@ export default function AdminComfyConsolePage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 text-[10px] border-red-900 text-red-400"
-                        onClick={() => deleteAsset(a.id)}
+                        className="h-7 flex-1 text-[10px] border-violet-800 text-violet-300"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(a.url || '');
+                            toast.success('已复制 URL');
+                          } catch {
+                            toast.message(a.url || '');
+                          }
+                        }}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        复制
                       </Button>
+                      {a.id && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[10px] border-red-900 text-red-400"
+                          onClick={() => deleteAsset(a.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

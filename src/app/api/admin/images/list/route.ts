@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { logger } from '@/lib/logger';
+import { resolveImageUrlBatch, toPublicUrl } from '@/lib/storage';
+import { safeDisplayName, looksLikeFluxPrompt, extractPersonName } from '@/lib/prompt/shared';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,15 +26,26 @@ function mapGirlfriend(gf: Record<string, unknown>) {
   else if (hair) appearanceParts.push(hair);
   if (eyes) appearanceParts.push(`${eyes} eyes`);
   if (body) appearanceParts.push(`${body} figure`);
-  if (style) appearanceParts.push(style);
+  if (style && !looksLikeFluxPrompt(String(style))) appearanceParts.push(style);
 
   const portraitUrl = (gf.portrait_url as string) || null;
   const avatarUrl = (gf.avatar_url as string) || null;
   const imageUrl = portraitUrl || avatarUrl || null;
 
+  // DB may have been corrupted with a full prompt as "name" — recover for UI
+  const rawName = String(gf.name || '');
+  const cardTitle = typeof cc.title === 'string' ? cc.title : '';
+  const displayName = safeDisplayName(
+    rawName,
+    extractPersonName(String(gf.image_prompt || '')) ||
+      safeDisplayName(cardTitle, '未命名女友'),
+  );
+
   return {
     id: gf.id,
-    name: gf.name,
+    name: displayName,
+    /** Original DB value if different (for repair tooling) */
+    nameRaw: looksLikeFluxPrompt(rawName) ? rawName.slice(0, 120) : undefined,
     personality: gf.personality || '',
     tags: gf.tags || [],
     slug: gf.slug || null,
@@ -231,12 +244,36 @@ export async function GET(req: NextRequest) {
 
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+    // Resolve storage keys → browser-loadable public URLs (fixes broken thumbnails)
+    const mapped = items as Array<Record<string, unknown>>;
+    const rawUrls = mapped.map((it) => (it.imageUrl as string) || null);
+    let resolvedUrls: string[] = [];
+    try {
+      resolvedUrls = await resolveImageUrlBatch(rawUrls);
+    } catch {
+      resolvedUrls = rawUrls.map((u) => toPublicUrl(u || '') || u || '');
+    }
+    const itemsWithUrls = mapped.map((it, i) => {
+      let url = resolvedUrls[i] || toPublicUrl((it.imageUrl as string) || '') || (it.imageUrl as string) || '';
+      // Drop prompt-as-URL garbage so UI shows "无图" instead of a broken caption
+      if (
+        url &&
+        !url.startsWith('http') &&
+        !url.startsWith('data:image/') &&
+        (url.length > 80 || /\b(raw photo|masterpiece|photorealistic)\b/i.test(url))
+      ) {
+        url = '';
+      }
+      const ok = !!(url && (url.startsWith('http') || url.startsWith('data:image/')));
+      return { ...it, imageUrl: ok ? url : null, hasImage: ok };
+    });
+
     return NextResponse.json({
-      items,
+      items: itemsWithUrls,
       // backward-compat aliases (old page loaded all three arrays)
-      girlfriends: type === 'girlfriend' ? items : undefined,
-      outfits: type === 'outfit' ? items : undefined,
-      shopItems: type === 'shop_item' ? items : undefined,
+      girlfriends: type === 'girlfriend' ? itemsWithUrls : undefined,
+      outfits: type === 'outfit' ? itemsWithUrls : undefined,
+      shopItems: type === 'shop_item' ? itemsWithUrls : undefined,
       pagination: {
         page,
         pageSize,

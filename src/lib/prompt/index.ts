@@ -15,6 +15,8 @@ import { assembleShopItemPrompt, assembleShopItemFromRow } from './shop_item';
 import type { AssembledPrompt, PresetContext, PromptType } from './shared';
 
 export * from './shared';
+export * from './flux-presets';
+// re-export name helpers used by admin UI / list APIs
 export * as Girlfriend from './girlfriend';
 export * as Outfit from './outfit';
 export * as ShopItem from './shop_item';
@@ -23,9 +25,11 @@ export {
   subjectFromGirlfriendRow,
   GIRLFRIEND_BODY_FIXED,
   GIRLFRIEND_FRAMING,
+  GIRLFRIEND_NEGATIVE,
+  GIRLFRIEND_NEGATIVE_FLUX,
 } from './girlfriend';
-export { assembleOutfitFromRow } from './outfit';
-export { assembleShopItemFromRow } from './shop_item';
+export { assembleOutfitFromRow, OUTFIT_NEGATIVE } from './outfit';
+export { assembleShopItemFromRow, SHOP_ITEM_NEGATIVE } from './shop_item';
 
 export interface AssembleOptions extends PresetContext {
   subject?: GirlfriendSubject;

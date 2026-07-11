@@ -10,7 +10,6 @@
  * - EmptyLatentImage  KSampler  VAEDecode  SaveImage
  */
 
-import { uploadFile } from './storage';
 import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
 import { capture, AnalyticsEvents } from './analytics';
 import { logger } from './logger';
@@ -263,6 +262,9 @@ export interface RunPodGenerateOptions {
   guidance_scale?: number;
   num_images?: number;
   seed?: number;
+  /** Comfy KSampler sampler_name (FLUX: euler) */
+  sampler_name?: string;
+  /** Comfy KSampler scheduler (FLUX: simple) */
   scheduler?: string;
   input_image?: string;      // For img2img (character consistency)
   denoising_strength?: number; // 0-1, lower = closer to input
@@ -360,16 +362,17 @@ class RunPodClient {
     }
 
     // Build a ComfyUI-compatible workflow with the given prompt
+    // FLUX defaults: cfg≈1.0, euler + simple (high CFG / long neg → black frames)
     const workflow = buildFluxWorkflow({
       prompt: promptText,
       negativePrompt: options.negative_prompt,
       width: options.width,
       height: options.height,
       steps: options.num_inference_steps ?? 28,
-      guidance: options.guidance_scale ?? 3.5,
+      guidance: options.guidance_scale ?? 1.0,
       seed: options.seed,
-      sampler_name: options.scheduler === 'karras' ? 'dpmpp_2m' : 'euler',
-      scheduler: options.scheduler ?? 'karras',
+      sampler_name: options.sampler_name || 'euler',
+      scheduler: options.scheduler || 'simple',
       // Prefer resolved worker filename; if caller already passed a bare filename, keep it.
       input_image:
         inputImageName ||
@@ -431,8 +434,16 @@ class RunPodClient {
       },
     ];
 
-    // Short budget per strategy so batch can fall through quickly on hard fail
-    const maxAttempts = Math.floor(90000 / pollIntervalMs) || 1;
+    /**
+     * Queue delay on this endpoint is often 2–5 min (single worker).
+     * Old 90s budget abandoned jobs mid-queue and re-submitted next strategy → flood.
+     * Only fall through to the next strategy on hard submit/FAILED (not on timeout).
+     */
+    const pollBudgetMs = Math.max(
+      60_000,
+      Number(process.env.RUNPOD_POLL_MS) || 10 * 60 * 1000, // default 10 min (queue 2–5m + gen)
+    );
+    const maxAttempts = Math.max(1, Math.floor(pollBudgetMs / pollIntervalMs));
     const errors: string[] = [];
 
     for (const strategy of strategies) {
@@ -442,6 +453,7 @@ class RunPodClient {
           endpoint: endpointId,
           workflow_nodes: Object.keys(workflow).length,
           prompt_len: promptText.length,
+          poll_budget_ms: pollBudgetMs,
         });
 
         const submitRes = await fetch(`${baseUrl}/run`, {
@@ -454,6 +466,7 @@ class RunPodClient {
         if (!submitRes.ok) {
           const errText = await submitRes.text();
           errors.push(`${strategy.name}: submit HTTP ${submitRes.status} ${errText.slice(0, 160)}`);
+          // Hard submit fail → try next payload shape
           continue;
         }
 
@@ -463,11 +476,15 @@ class RunPodClient {
           continue;
         }
 
-        logger.debug('[runpod] job submitted', { id, strategy: strategy.name });
+        logger.info('[runpod] job submitted — waiting (queue may be 2–5 min)', {
+          id,
+          strategy: strategy.name,
+        });
 
         let terminal: 'success' | 'fail' | 'timeout' = 'timeout';
         let successResult: RunPodGenerateResult | null = null;
         let failMsg = '';
+        let lastStatus = '';
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           const statusRes = await fetch(`${baseUrl}/status/${id}`, {
@@ -489,16 +506,96 @@ class RunPodClient {
             };
           };
 
+          if (status.status !== lastStatus) {
+            lastStatus = status.status;
+            logger.info('[runpod] job status', { id, status: status.status, attempt });
+          }
+
           if (status.status === 'COMPLETED') {
             const images: string[] = [];
-            if (status.output?.images) {
-              for (const img of status.output.images) {
-                const raw = typeof img === 'string' ? img : img?.data;
-                if (raw) images.push(raw);
+            const out = status.output as Record<string, unknown> | undefined;
+
+            /** Only accept real image payloads — never prompts / bare filenames */
+            const looksLikeImagePayload = (s: string): boolean => {
+              const t = s.trim();
+              if (!t || t.length < 64) return false;
+              if (/^https?:\/\//i.test(t)) return true;
+              if (t.startsWith('data:image/')) return true;
+              // Reject natural-language prompts (common worker mis-map)
+              if (/\s/.test(t) && /\b(photo|portrait|woman|photorealistic|masterpiece)\b/i.test(t)) {
+                return false;
               }
+              // Bare Comfy filename without bytes — not usable
+              if (/^[\w./-]+\.(png|jpe?g|webp)$/i.test(t) && t.length < 180) return false;
+              // Base64-ish long blob (PNG magic in b64 often starts iVBOR)
+              const compact = t.replace(/\s+/g, '');
+              if (compact.startsWith('iVBOR') && compact.length > 200) return true;
+              if (compact.startsWith('/9j/') && compact.length > 200) return true;
+              return compact.length > 500 && /^[A-Za-z0-9+/_=-]+$/.test(compact.slice(0, 120));
+            };
+
+            const pushImg = (v: unknown) => {
+              if (!v) return;
+              if (typeof v === 'string') {
+                if (looksLikeImagePayload(v)) images.push(v);
+                return;
+              }
+              if (typeof v === 'object' && v !== null) {
+                const o = v as Record<string, unknown>;
+                // Prefer binary fields; never use prompt/text/filename alone
+                const candidates = [
+                  o.data,
+                  o.image,
+                  o.base64,
+                  o.b64_json,
+                  o.b64,
+                  o.url, // may be https
+                ];
+                for (const cand of candidates) {
+                  if (typeof cand === 'string' && looksLikeImagePayload(cand)) {
+                    images.push(cand);
+                    return;
+                  }
+                }
+              }
+            };
+
+            if (Array.isArray(out?.images)) {
+              for (const img of out!.images as unknown[]) pushImg(img);
             }
+            pushImg(out?.image);
+            // Some workers wrap: { output: { images: [...] } }
+            if (out?.output && typeof out.output === 'object') {
+              const inner = out.output as Record<string, unknown>;
+              if (Array.isArray(inner.images)) {
+                for (const img of inner.images) pushImg(img);
+              }
+              pushImg(inner.image);
+            }
+            // Only treat message as image if it is clearly a data-URL / base64 blob
+            if (typeof out?.message === 'string' && looksLikeImagePayload(out.message)) {
+              pushImg(out.message);
+            }
+            if (Array.isArray(out?.result)) {
+              for (const r of out!.result as unknown[]) pushImg(r);
+            }
+
             if (!images.length) {
-              failMsg = 'COMPLETED but no images in output';
+              // Help debug worker shape without dumping huge base64
+              const shape = out
+                ? Object.keys(out).reduce<Record<string, string>>((acc, k) => {
+                    const v = out[k];
+                    if (v == null) acc[k] = 'null';
+                    else if (typeof v === 'string') acc[k] = `str:${v.length}`;
+                    else if (Array.isArray(v)) acc[k] = `arr:${v.length}`;
+                    else if (typeof v === 'object') acc[k] = `obj:${Object.keys(v as object).join(',')}`;
+                    else acc[k] = typeof v;
+                    return acc;
+                  }, {})
+                : {};
+              failMsg =
+                'COMPLETED but no valid image bytes in output. shape=' +
+                JSON.stringify(shape).slice(0, 280);
               terminal = 'fail';
               break;
             }
@@ -534,13 +631,30 @@ class RunPodClient {
         }
 
         if (terminal === 'timeout') {
-          errors.push(
-            `${strategy.name}: timeout ${maxAttempts * pollIntervalMs}ms (job ${id}) — worker 可能冷启动过久或端点无可用 worker`,
+          // Do NOT try other strategies after a long queue wait — that floods the endpoint.
+          // Cancel best-effort so we don't leave zombies.
+          try {
+            await fetch(`${baseUrl}/cancel/${id}`, {
+              method: 'POST',
+              headers: this.headers,
+              signal: AbortSignal.timeout(5000),
+            });
+          } catch {
+            /* ignore */
+          }
+          throw new Error(
+            `RunPod 排队超时（已等 ${Math.round(pollBudgetMs / 1000)}s，job ${id}）。` +
+              `端点 ${endpointId} 当前 worker 忙/队列长。请稍后重试，或到 RunPod 控制台检查 workers。`,
           );
-        } else {
-          errors.push(`${strategy.name}: ${failMsg || 'failed'}`);
         }
+
+        // FAILED with this payload shape → try next strategy
+        errors.push(`${strategy.name}: ${failMsg || 'failed'}`);
+        // If the error is clearly "missing workflow" / bad shape, fall through.
+        // Otherwise still try next once.
       } catch (e) {
+        // Re-throw timeout (already user-facing)
+        if (e instanceof Error && e.message.startsWith('RunPod 排队超时')) throw e;
         errors.push(
           `${strategy.name}: ${e instanceof Error ? e.message : String(e)}`,
         );
@@ -591,12 +705,16 @@ class RunPodClient {
 
     // 2. cache miss -> RunPod
     const result = await this.generate(options);
+    const { uploadImageBase64 } = await import('./storage');
     const urls: string[] = [];
     for (let i = 0; i < result.images.length; i++) {
-      const base64 = result.images[i];
-      const buffer = Buffer.from(base64, 'base64');
-      const filename = `runpod_${Date.now()}_${i}.png`;
-      const { key, url } = await uploadFile(buffer, filename, 'image/png', folder);
+      const raw = result.images[i];
+      // Already a hosted URL — use directly
+      if (typeof raw === 'string' && /^https?:\/\//i.test(raw)) {
+        urls.push(raw);
+        continue;
+      }
+      const { key, url } = await uploadImageBase64(raw, folder, 'image/png');
       urls.push(url);
       if (i === 0) {
         await writeCache(cacheKey, 'image', key);

@@ -100,7 +100,9 @@ export default function HomePage() {
     ],
     [t],
   );
-  const [catalog, setCatalog] = useState<DemoGirl[]>(GIRLS);
+  const [catalog, setCatalog] = useState<DemoGirl[]>([]);
+  const [catalogReady, setCatalogReady] = useState(false);
+  const [catalogSource, setCatalogSource] = useState<'api' | 'demo'>('api');
   const [focus, setFocus] = useState(0);
   const [detail, setDetail] = useState<DemoGirl | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -110,14 +112,25 @@ export default function HomePage() {
   useEffect(() => {
     let cancelled = false;
     fetchCompanionCatalog(24).then((r) => {
-      if (!cancelled && r.girls.length) setCatalog(r.girls);
+      if (cancelled) return;
+      if (r.girls.length) {
+        setCatalog(r.girls);
+        setCatalogSource(r.source);
+      } else {
+        // hard empty — keep UI from crashing
+        setCatalog(GIRLS.slice(0, 8));
+        setCatalogSource('demo');
+      }
+      setCatalogReady(true);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const roster = catalog.slice(0, 10);
-  const featured = roster[focus] || catalog[0] || GIRLS[0];
-  const rc = RARITY_COLORS[featured.rarity];
+  const featured = roster[focus] || catalog[0] || null;
+  const rc = RARITY_COLORS[featured?.rarity || 'R'];
 
   const hotList = useMemo(
     () =>
@@ -143,7 +156,8 @@ export default function HomePage() {
     setFocus((i) => (i + 1) % roster.length);
   }, [roster.length]);
 
-  const enterBond = async (girl: DemoGirl = featured) => {
+  const enterBond = async (girl: DemoGirl = featured!) => {
+    if (!girl) return;
     setBonding(true);
     try {
       if (girl.locked) {
@@ -175,6 +189,16 @@ export default function HomePage() {
     }
   };
 
+  if (!catalogReady || !featured) {
+    return (
+      <GameShell className="pb-4 md:pb-8 min-h-[100dvh]" hex={false}>
+        <div className="flex min-h-[60dvh] items-center justify-center text-sm text-white/50">
+          Loading companions…
+        </div>
+      </GameShell>
+    );
+  }
+
   return (
     <GameShell className="pb-4 md:pb-8 min-h-[100dvh]" hex={false}>
       {/* Ambient keyed to featured rarity — softer on mobile for perf */}
@@ -200,6 +224,7 @@ export default function HomePage() {
               </GameChip>
               <span className="text-[10px] sm:text-[11px] text-white/35 truncate">
                 {t('home.onlineRoles', { count: catalog.length })}
+                {catalogSource === 'api' ? ' · live' : ' · demo'}
               </span>
             </div>
             <h1 className="mt-1 text-lg sm:text-3xl font-black tracking-tight leading-tight">

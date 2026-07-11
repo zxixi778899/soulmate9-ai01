@@ -18,13 +18,14 @@ const RUNPOD_BASE_URL = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}`;
 
 function buildWorkflow(prompt: string): Record<string, any> {
   const seed = Math.floor(Math.random() * 2147483647);
+  // FLUX-safe: cfg 1.0 + empty negative (long negatives / high CFG → black frames)
   return {
     '1': {
       class_type: 'KSampler',
       inputs: {
         seed,
         steps: 28,
-        cfg: 3.5,
+        cfg: 1.0,
         sampler_name: 'euler',
         scheduler: 'simple',
         denoise: 1,
@@ -39,11 +40,11 @@ function buildWorkflow(prompt: string): Record<string, any> {
     '4': {
       class_type: 'CLIPTextEncode',
       inputs: {
-        text: 'deformed, bad anatomy, low quality, blurry, watermark, nsfw, nude, cartoon, anime, illustration, 3d render, ugly, disfigured, stiff, unnatural, plastic, dead eyes, blank expression, gloomy, depressing',
+        text: '',
         clip: ['2', 1],
       },
     },
-    '5': { class_type: 'EmptyLatentImage', inputs: { width: 768, height: 1024, batch_size: 1 } },
+    '5': { class_type: 'EmptyLatentImage', inputs: { width: 832, height: 1216, batch_size: 1 } },
     '6': { class_type: 'VAEDecode', inputs: { samples: ['1', 0], vae: ['2', 2] } },
     '7': { class_type: 'SaveImage', inputs: { filename_prefix: 'soulmate', images: ['6', 0] } },
   };

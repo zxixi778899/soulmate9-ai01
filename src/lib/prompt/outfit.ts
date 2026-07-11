@@ -1,8 +1,5 @@
 /**
- * Outfit / costume (服装道具) image prompt
- * - NO model / no person
- * - Game item / cosplay prop presentation
- * - Sexy cos aesthetic
+ * Outfit image prompts — FLUX-friendly product / ghost mannequin
  */
 import {
   sanitizeBlurKeywords,
@@ -11,46 +8,33 @@ import {
   type PresetContext,
 } from './shared';
 
-/** Outfit presentation DSL — no human model */
 export const OUTFIT_DSL = {
   shotType:
-    'game item icon style product render, sexy cosplay costume as collectible game prop, ' +
-    'high-end fantasy fashion asset, stylized game UI showcase',
+    'game wardrobe item product render, sexy cosplay costume as collectible prop, ' +
+    'high-end fashion asset showcase',
   composition:
-    'the costume alone as the sole hero subject, perfectly centered, ' +
-    'full garment visible from neckline to hem, no crop',
+    'costume as sole hero subject, perfectly centered, full garment from neckline to hem',
   display:
-    'invisible ghost mannequin, empty hollow form, garment holds a sensual feminine 3D silhouette, ' +
-    'natural fabric drape and curves, headless faceless, no human skin, no body, no model',
+    'invisible ghost mannequin silhouette, garment holds feminine 3D shape with natural drape, ' +
+    'headless faceless form, clothing only',
   style:
-    'sexy cosplay fashion, seductive design details, revealing cut, lace straps, ' +
-    'glossy satin and sheer fabric accents, game wardrobe item aesthetic',
+    'sexy cosplay fashion, seductive cut details, satin and lace accents, game inventory item look',
   background:
-    'dark moody game inventory backdrop, subtle purple-pink neon rim glow, ' +
-    'soft particle sparkles, clean studio void, RPG item showcase',
+    'dark game inventory backdrop, subtle purple-pink rim glow, clean studio void',
   lighting:
-    'dramatic rim light, soft front key light on fabric texture, ' +
-    'specular highlights on satin and metal hardware, magical ambient glow',
+    'bright key light on fabric texture, clear rim light, specular on satin and metal, well-lit product',
   detail:
-    'ultra-detailed fabric weave, stitching, lace, ribbons, zippers, buckles, ' +
-    'embroidery, sequins, glossy materials, crisp silhouette edges',
+    'ultra-detailed fabric weave, stitching, lace, ribbons, zippers, embroidery, crisp edges',
   quality:
-    '4K 8K UHD, ultra sharp, game art product shot, Unreal Engine style material quality, ' +
-    'masterpiece, commercial game asset presentation',
+    '8k sharp product shot, game art quality, commercial asset presentation, clear and vibrant',
 } as const;
 
 export const OUTFIT_DEFAULT_SUBJECT =
   'sexy cosplay costume game wardrobe item with exquisite craftsmanship';
 
-/** Strongly ban people / models */
+/** Keep person ban short — FLUX handles short negatives better */
 export const OUTFIT_NEGATIVE =
-  'person, people, human, woman, man, girl, boy, child, lady, female, male, model, real person, ' +
-  'photoreal human, face, eyes, mouth, lips, nose, ears, hair, scalp, skin, flesh, hands, fingers, ' +
-  'arms, legs, feet, cleavage skin, neck skin, mannequin head, mannequin face, visible head, ' +
-  'naked body, nude, body parts, anatomy, wearing on person, model posing, ' +
-  'two outfits, multiple garments, duplicated garment, cropped garment, ' +
-  'off-center, blurry, soft focus, out of focus, bokeh, low quality, lowres, ' +
-  'watermark, text, logo, signature, jpeg artifacts, cluttered background';
+  'person, people, human, face, hands, skin, model, mannequin head, blurry, low quality, watermark, text, logo';
 
 export function assembleOutfitPrompt(ctx: PresetContext): AssembledPrompt {
   const cleaned = sanitizeBlurKeywords(ctx.rawPrompt || '');
@@ -69,19 +53,18 @@ export function assembleOutfitPrompt(ctx: PresetContext): AssembledPrompt {
     OUTFIT_DSL.lighting,
     OUTFIT_DSL.detail,
     OUTFIT_DSL.quality,
-    'no person, no model, empty costume only, sexy game prop',
+    'clothing only, empty costume display',
   ]);
 
   return { positive, negative: OUTFIT_NEGATIVE };
 }
 
-/** Build from outfit list/DB row */
 export function assembleOutfitFromRow(row: Record<string, unknown>): AssembledPrompt {
   const parts = [
-    String(row.name || 'sexy costume'),
-    row.category ? `${row.category} style cosplay outfit` : 'cosplay outfit',
-    row.tier ? `${row.tier} tier game wardrobe item` : 'game wardrobe item',
-    row.description ? String(row.description).slice(0, 200) : '',
-  ];
-  return assembleOutfitPrompt({ rawPrompt: parts.filter(Boolean).join(', ') });
+    String(row.name || ''),
+    String(row.description || ''),
+    String(row.category || ''),
+    String(row.tier || ''),
+  ].filter(Boolean);
+  return assembleOutfitPrompt({ rawPrompt: parts.join(', ') });
 }

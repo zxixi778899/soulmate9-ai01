@@ -9,7 +9,15 @@ import {
 import { createDefaultComfyConfig } from '@/lib/comfy-console/defaults';
 import { LORA_CATALOG, groupLorasByCategory } from '@/lib/comfy-console/lora-catalog';
 import { runpodClient } from '@/lib/runpod';
-import { uploadFile, deleteFile, resolveImageUrl, extractKeyFromUrl } from '@/lib/storage';
+import {
+  uploadImageBase64,
+  deleteFile,
+  resolveImageUrl,
+  extractKeyFromUrl,
+  toPublicUrl,
+  resolveBucketName,
+} from '@/lib/storage';
+import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 
@@ -72,22 +80,103 @@ export async function GET(req: NextRequest) {
       .limit(limit);
     if (kind) q = q.eq('kind', kind);
     const { data, error } = await q;
+
+    const assets: Array<Record<string, unknown>> = [];
+    let warning: string | undefined;
+
     if (error) {
-      // table may not exist yet
-      return NextResponse.json({
-        assets: [],
-        warning: error.message,
-        hint: 'Run db/migrations/0009_comfy_console.sql in Supabase',
-      });
+      warning = error.message;
+    } else {
+      for (const row of data || []) {
+        const r = row as Record<string, unknown>;
+        const key = String(r.storage_key || '');
+        const url =
+          (r.url as string) ||
+          (key ? await resolveImageUrl(key) : '') ||
+          toPublicUrl(key);
+        assets.push({ ...r, url, source: 'generation_assets' });
+      }
     }
-    const assets = await Promise.all(
-      (data || []).map(async (row: Record<string, unknown>) => {
-        const key = String(row.storage_key || '');
-        const url = row.url || (key ? await resolveImageUrl(key) : null);
-        return { ...row, url };
-      }),
-    );
-    return NextResponse.json({ assets });
+
+    // Supplement from storage folders (操作台 + 历史生成)
+    if (assets.length < limit) {
+      try {
+        const serviceKey =
+          process.env.COZE_SUPABASE_SERVICE_ROLE_KEY ||
+          process.env.SUPABASE_SERVICE_ROLE_KEY ||
+          '';
+        const supabaseUrl =
+          process.env.COZE_SUPABASE_URL ||
+          process.env.NEXT_PUBLIC_SUPABASE_URL ||
+          '';
+        if (serviceKey && supabaseUrl) {
+          const sb = createClient(supabaseUrl, serviceKey, {
+            auth: { autoRefreshToken: false, persistSession: false },
+          });
+          const bucket = resolveBucketName();
+          const folders = [
+            'comfy-outputs',
+            'girlfriends',
+            'admin/girlfriends',
+            'admin/outfits',
+            'admin/shop_items',
+          ];
+          for (const folder of folders) {
+            if (assets.length >= limit) break;
+            const { data: files } = await sb.storage.from(bucket).list(folder, {
+              limit: Math.min(24, limit - assets.length),
+              sortBy: { column: 'created_at', order: 'desc' },
+            });
+            for (const f of files || []) {
+              if (!f.name || f.name.endsWith('/')) continue;
+              if (!/\.(png|jpe?g|webp|gif)$/i.test(f.name)) continue;
+              const key = `${folder}/${f.name}`;
+              if (
+                assets.some(
+                  (a) =>
+                    a.storage_key === key ||
+                    String(a.url || '').includes(f.name),
+                )
+              ) {
+                continue;
+              }
+              const url = await resolveImageUrl(key);
+              assets.push({
+                id: null,
+                storage_key: key,
+                url,
+                kind: folder.includes('outfit')
+                  ? 'outfit'
+                  : folder.includes('shop')
+                    ? 'shop_item'
+                    : 'girlfriend',
+                created_at: f.created_at || f.updated_at || null,
+                source: 'storage',
+                prompt: null,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        logger.warn('[comfy] storage list fallback failed', {
+          err: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    return NextResponse.json({
+      assets,
+      warning:
+        warning && assets.length === 0
+          ? warning
+          : assets.length === 0
+            ? '暂无操作台生成图。请先在 Comfy 操作台生成。'
+            : undefined,
+      hint:
+        warning && assets.length === 0
+          ? 'Run db/migrations/0009_comfy_console.sql in Supabase'
+          : undefined,
+    });
   }
 
   return NextResponse.json({
@@ -240,12 +329,11 @@ export async function POST(req: NextRequest) {
 
       const assets: Array<Record<string, unknown>> = [];
       for (let i = 0; i < result.images.length; i++) {
-        const buf = Buffer.from(result.images[i], 'base64');
-        const { key, url } = await uploadFile(
-          buf,
-          `comfy_${kind}_${Date.now()}_${i}.png`,
-          'image/png',
+        const raw = result.images[i];
+        const { key, url } = await uploadImageBase64(
+          raw,
           'comfy-outputs',
+          'image/png',
         );
 
         const row = {

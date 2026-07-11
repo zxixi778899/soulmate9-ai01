@@ -5,15 +5,19 @@
  * - Prefers clear natural-language captions (not SD1.5 tag spam)
  * - Heavy negative prompts often cause black / washed frames → keep empty or minimal
  * - Avoid "soft / bokeh / shallow DOF" in positive (reads as blur)
+ * - Never use a full image prompt as the person "name"
  */
 import {
   sanitizeBlurKeywords,
   joinParts,
+  looksLikeFluxPrompt,
+  extractPersonName,
+  stripQualityBoilerplate,
   type AssembledPrompt,
   type PresetContext,
 } from './shared';
 
-/** Photoreal quality — sharp, bright, FLUX-friendly */
+/** Photoreal quality — sharp, bright, FLUX-friendly (applied once) */
 export const GIRLFRIEND_QUALITY_PREFIX =
   'RAW photo, masterpiece, best quality, ultra photorealistic, 8k uhd, ' +
   'highly detailed face and eyes, detailed skin texture, natural skin pores, ' +
@@ -67,12 +71,19 @@ function normalizeTags(tags?: string[] | string): string[] {
     .filter(Boolean);
 }
 
+/** Resolve a short person name; never return a full image caption */
+export function resolvePersonName(raw?: string | null, fallback = 'a stunning young woman'): string {
+  if (!raw?.trim()) return fallback;
+  if (!looksLikeFluxPrompt(raw)) return raw.trim().slice(0, 48);
+  return extractPersonName(raw) || fallback;
+}
+
 /**
  * Build trait clause from girlfriend features (reads card fields).
  * Written as a readable sentence for FLUX.
  */
 export function buildSubjectClause(s: GirlfriendSubject): string {
-  const name = s.name?.trim() || 'a stunningly beautiful young woman';
+  const name = resolvePersonName(s.name, 'a stunningly beautiful young woman');
   const parts: string[] = [
     `photorealistic three-quarter portrait of ${name}`,
     'gorgeous young adult woman age 23-28',
@@ -86,15 +97,21 @@ export function buildSubjectClause(s: GirlfriendSubject): string {
   }
   if (s.eyes) parts.push(`${s.eyes} eyes`);
   if (s.body) parts.push(`${s.body} figure`);
-  if (s.style) parts.push(`wearing ${s.style}`);
-  if (s.occupation) parts.push(String(s.occupation));
-  if (s.personality) {
-    const p = String(s.personality).slice(0, 100);
+  // style should be short outfit cue, not a full prompt
+  if (s.style && !looksLikeFluxPrompt(s.style)) {
+    parts.push(`wearing ${String(s.style).slice(0, 80)}`);
+  }
+  if (s.occupation && !looksLikeFluxPrompt(s.occupation)) {
+    parts.push(String(s.occupation).slice(0, 60));
+  }
+  if (s.personality && !looksLikeFluxPrompt(s.personality)) {
+    const p = String(s.personality).slice(0, 80);
     parts.push(`${p} expression`);
   }
-  if (s.appearance) {
+  // Only append short appearance notes — never re-paste a full assembled prompt
+  if (s.appearance && !looksLikeFluxPrompt(s.appearance)) {
     const a = sanitizeBlurKeywords(s.appearance);
-    if (a) parts.push(a);
+    if (a) parts.push(a.slice(0, 160));
   }
 
   const tags = normalizeTags(s.tags).slice(0, 5);
@@ -118,8 +135,26 @@ export function subjectFromGirlfriendRow(
       ? (card.appearance as Record<string, string>)
       : {};
 
+  const rawName = String(row.name || card.title || '');
+  const imagePrompt = (row.image_prompt as string) || undefined;
+  const appearanceField = (row.appearance as string) || undefined;
+
+  // Prefer structured appearance; skip full captions that would re-stack
+  let appearance: string | undefined;
+  const cand = appearanceField || imagePrompt;
+  if (cand && !looksLikeFluxPrompt(cand)) {
+    appearance = cand;
+  } else if (cand && looksLikeFluxPrompt(cand)) {
+    // keep only a short stripped fragment if no structured fields
+    const stripped = stripQualityBoilerplate(cand).slice(0, 120);
+    if (stripped && !looksLikeFluxPrompt(stripped)) appearance = stripped;
+  }
+
   return {
-    name: String(row.name || card.title || ''),
+    name: resolvePersonName(
+      rawName,
+      extractPersonName(imagePrompt) || extractPersonName(appearanceField) || '',
+    ),
     race: (row.appearance_race as string) || cardApp.race || undefined,
     hair:
       (row.appearance_hair as string) ||
@@ -134,8 +169,7 @@ export function subjectFromGirlfriendRow(
     personality:
       (row.personality as string) || (card.personality as string) || undefined,
     tags: (row.tags as string[] | string) || (card.tags as string[]) || undefined,
-    appearance:
-      (row.appearance as string) || (row.image_prompt as string) || undefined,
+    appearance,
     occupation:
       (card.occupation as string) || (card.role_label as string) || undefined,
   };
@@ -143,30 +177,58 @@ export function subjectFromGirlfriendRow(
 
 /**
  * Assemble full girlfriend card prompt (traits + fixed body + 3/4 framing).
+ * Avoids double quality prefixes when rawPrompt is already an assembled caption.
  */
 export function assembleGirlfriendPrompt(
   ctx: PresetContext,
   subject: GirlfriendSubject,
   opts?: { useEmptyNegative?: boolean },
 ): AssembledPrompt {
-  const subjectClause = buildSubjectClause(subject);
-  const cleanedRaw = sanitizeBlurKeywords(ctx.rawPrompt || '');
+  const fixedSubject: GirlfriendSubject = {
+    ...subject,
+    name: resolvePersonName(subject.name),
+  };
 
-  const extra =
-    cleanedRaw &&
-    !subjectClause.toLowerCase().includes(cleanedRaw.toLowerCase().slice(0, 40))
-      ? cleanedRaw
-      : '';
+  const rawIn = sanitizeBlurKeywords(ctx.rawPrompt || '');
 
-  // FLUX works better with slightly shorter, clearer prompts
-  let positive = joinParts([
-    GIRLFRIEND_QUALITY_PREFIX,
-    subjectClause,
-    GIRLFRIEND_BODY_FIXED,
-    GIRLFRIEND_FRAMING,
-    extra,
-    'seductive expression, soft parted lips, looking at viewer, vibrant colors, high contrast clear image',
-  ]);
+  // Full captions from UI/DB must never be re-stacked — rebuild from subject instead
+  const rawIsFullCaption =
+    rawIn.length > 120 &&
+    (/three-quarter|looking at viewer|hourglass|large breasts|photorealistic three-quarter|raw photo|masterpiece/i.test(
+      rawIn,
+    ) ||
+      looksLikeFluxPrompt(rawIn));
+
+  let positive: string;
+
+  if (rawIsFullCaption) {
+    // Ignore the stacked caption entirely; rebuild cleanly from structured subject
+    positive = joinParts([
+      GIRLFRIEND_QUALITY_PREFIX,
+      buildSubjectClause(fixedSubject),
+      GIRLFRIEND_BODY_FIXED,
+      GIRLFRIEND_FRAMING,
+      'seductive expression, soft parted lips, looking at viewer, vibrant colors, high contrast clear image',
+    ]);
+  } else {
+    const subjectClause = buildSubjectClause(fixedSubject);
+    const rawStripped = stripQualityBoilerplate(rawIn);
+    const extra =
+      rawStripped &&
+      rawStripped.length > 8 &&
+      !subjectClause.toLowerCase().includes(rawStripped.toLowerCase().slice(0, 40))
+        ? rawStripped.slice(0, 200)
+        : '';
+
+    positive = joinParts([
+      GIRLFRIEND_QUALITY_PREFIX,
+      subjectClause,
+      GIRLFRIEND_BODY_FIXED,
+      GIRLFRIEND_FRAMING,
+      extra,
+      'seductive expression, soft parted lips, looking at viewer, vibrant colors, high contrast clear image',
+    ]);
+  }
 
   // Soft cap ~900 chars — very long prompts can degrade FLUX
   if (positive.length > 900) {
@@ -174,6 +236,12 @@ export function assembleGirlfriendPrompt(
     const lastComma = positive.lastIndexOf(',');
     if (lastComma > 700) positive = positive.slice(0, lastComma);
   }
+
+  // Collapse accidental double commas / spaces after strip
+  positive = positive
+    .replace(/\s*,\s*,+/g, ', ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 
   const negative =
     opts?.useEmptyNegative === false ? GIRLFRIEND_NEGATIVE : GIRLFRIEND_NEGATIVE_FLUX;

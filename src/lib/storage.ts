@@ -139,6 +139,118 @@ function publicObjectUrl(bucket: string, key: string): string {
 }
 
 /**
+ * Build a browser-usable public URL for a storage key (sync).
+ * Safe to use on server; for client use with NEXT_PUBLIC_SUPABASE_URL.
+ */
+export function toPublicUrl(keyOrUrl: string | null | undefined): string {
+  if (!keyOrUrl) return '';
+  if (isDataUrl(keyOrUrl) || isHttpUrl(keyOrUrl)) return keyOrUrl;
+  if (!isLikelyStorageKey(keyOrUrl)) return keyOrUrl;
+  return publicObjectUrl(resolveBucketName(), keyOrUrl.replace(/^\/+/, ''));
+}
+
+/** True if buffer starts with PNG / JPEG / WEBP magic */
+export function isValidImageBuffer(buffer: Buffer): boolean {
+  if (!buffer || buffer.length < 32) return false;
+  const png = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e;
+  const jpg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const riff =
+    buffer.length > 12 &&
+    buffer.slice(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.slice(8, 12).toString('ascii') === 'WEBP';
+  return png || jpg || riff;
+}
+
+/**
+ * Detect non-image text (prompts) wrongly passed as "image".
+ * Real base64 image blobs are long and lack natural-language spaces.
+ */
+export function looksLikePromptText(s: string): boolean {
+  const t = s.trim();
+  if (!t) return false;
+  if (t.startsWith('data:image/')) return false;
+  if (/^https?:\/\//i.test(t)) return false;
+  // Natural language prompts almost always contain spaces + common words
+  if (/\s/.test(t) && t.length < 8000) {
+    if (
+      /\b(photo|portrait|woman|girl|masterpiece|photorealistic|wearing|looking|beautiful|sharp|8k)\b/i.test(
+        t,
+      )
+    ) {
+      return true;
+    }
+  }
+  // Short non-base64 filenames without image extension may still be ok; reject prose
+  if (t.length > 80 && /[a-zA-Z]{12,}/.test(t) && (t.match(/ /g) || []).length >= 3) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Decode RunPod / Comfy image payload (raw base64, data-URL, or URL-safe base64) → Buffer.
+ * Rejects prompt text and non-image binary so we never upload "text as png".
+ */
+export function decodeImagePayload(raw: string): Buffer {
+  let s = String(raw || '').trim();
+  if (!s) throw new Error('empty image payload');
+
+  if (looksLikePromptText(s)) {
+    throw new Error(
+      'image payload looks like a text prompt, not base64 image data — worker output shape mismatch',
+    );
+  }
+
+  if (s.startsWith('data:')) {
+    const comma = s.indexOf(',');
+    if (comma < 0) throw new Error('invalid data URL image payload');
+    const header = s.slice(0, comma).toLowerCase();
+    if (!header.includes('image/')) {
+      throw new Error(`data URL is not an image: ${header.slice(0, 40)}`);
+    }
+    s = s.slice(comma + 1);
+  }
+
+  // Strip whitespace / newlines often present in API dumps
+  s = s.replace(/\s+/g, '');
+
+  // Filename-only responses are not image bytes
+  if (/^[\w./-]+\.(png|jpe?g|webp|gif)$/i.test(s) && s.length < 200) {
+    throw new Error(
+      `worker returned filename only (${s}) without image bytes — cannot preview`,
+    );
+  }
+
+  // URL-safe base64 → standard
+  if (s.includes('-') || s.includes('_')) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+  }
+
+  // Base64 alphabet check (allow padding)
+  if (!/^[A-Za-z0-9+/]+=*$/.test(s.slice(0, 200)) && s.length > 200) {
+    // still try decode; some streams include odd prefixes
+  }
+
+  const buffer = Buffer.from(s, 'base64');
+  if (buffer.length < 512) {
+    throw new Error(`decoded image too small (${buffer.length} bytes) — likely not image data`);
+  }
+
+  if (!isValidImageBuffer(buffer)) {
+    logger.error('[storage] image magic bytes invalid', {
+      len: buffer.length,
+      head: buffer.slice(0, 16).toString('hex'),
+      asciiHead: buffer.slice(0, 40).toString('utf8').replace(/[^\x20-\x7E]/g, '.'),
+    });
+    throw new Error(
+      `decoded payload is not a valid PNG/JPEG/WEBP (got magic ${buffer.slice(0, 4).toString('hex')})`,
+    );
+  }
+
+  return buffer;
+}
+
+/**
  * Upload base64 data URL → storage key
  */
 export async function uploadDataUrl(dataUrl: string, prefix = 'girlfriends'): Promise<string> {
@@ -156,6 +268,8 @@ export async function uploadDataUrl(dataUrl: string, prefix = 'girlfriends'): Pr
  */
 export async function resolveImageUrl(value: string | null | undefined): Promise<string> {
   if (!value) return '';
+  // Never treat a FLUX caption as an image path (was breaking admin previews)
+  if (looksLikePromptText(value)) return '';
   if (isDataUrl(value)) return value;
   if (isHttpUrl(value)) return value;
   if (!isLikelyStorageKey(value)) return value;
@@ -231,6 +345,10 @@ export async function uploadFile(
         ? safeName
         : `uploads/${ts}_${rand}_${safeName}`;
 
+  if (!buffer || buffer.length < 32) {
+    throw new Error(`uploadFile: empty or invalid buffer (${buffer?.length ?? 0} bytes)`);
+  }
+
   const { error } = await adminClient().storage.from(bucket).upload(key, buffer, {
     contentType,
     upsert: true,
@@ -249,8 +367,56 @@ export async function uploadFile(
     );
   }
 
-  const url = publicObjectUrl(bucket, key);
+  // Prefer SDK public URL (works when bucket is public)
+  let url = publicObjectUrl(bucket, key);
+  try {
+    const { data: pub } = adminClient().storage.from(bucket).getPublicUrl(key);
+    if (pub?.publicUrl) url = pub.publicUrl;
+  } catch {
+    /* keep constructed */
+  }
+
+  // Optional: force signed URLs for private buckets
+  if (process.env.SUPABASE_STORAGE_SIGNED === '1') {
+    try {
+      const { data: signed, error: signErr } = await adminClient()
+        .storage.from(bucket)
+        .createSignedUrl(key, SIGNED_TTL_SEC);
+      if (!signErr && signed?.signedUrl) url = signed.signedUrl;
+    } catch {
+      /* keep public */
+    }
+  }
+
+  logger.info('[storage] uploaded', {
+    bucket,
+    key,
+    bytes: buffer.length,
+    url: url.slice(0, 100),
+  });
   return { key, url };
+}
+
+/**
+ * Upload raw base64 / data-URL image → storage, return browser URL + key.
+ */
+export async function uploadImageBase64(
+  raw: string,
+  folder = 'uploads',
+  contentType = 'image/png',
+): Promise<{ key: string; url: string }> {
+  // If worker already returned an HTTP URL, pass through (no re-upload)
+  if (isHttpUrl(raw)) {
+    return { key: extractKeyFromUrl(raw) || raw, url: raw };
+  }
+  const buffer = decodeImagePayload(raw);
+  const ext =
+    contentType.includes('jpeg') || contentType.includes('jpg')
+      ? 'jpg'
+      : contentType.includes('webp')
+        ? 'webp'
+        : 'png';
+  return uploadFile(buffer, `gen_${Date.now()}.${ext}`, contentType, folder);
 }
 
 export function extractKeyFromUrl(value: string | null | undefined): string | null {
