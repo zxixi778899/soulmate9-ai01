@@ -51,12 +51,12 @@ export function ChatInputBar(props: {
 
   const quickPresets = useMemo(
     () => [
-      { emoji: '🔥', label: t('chat.presetMiss'), fill: "I can't stop thinking about your hands on me right now…" },
-      { emoji: '😈', label: t('chat.presetBad'), fill: 'Be bad for me tonight - tell me what you'd do first…' },
-      { emoji: '💋', label: t('chat.presetKiss'), fill: '*pulls you onto me* Kiss me like you mean it.' },
-      { emoji: '🛏️', label: t('chat.presetCloser'), fill: 'Come here. Closer. I want to feel you.' },
-      { emoji: '📸', label: t('chat.presetShow'), fill: 'Show me how you look right now - leave nothing to imagination…' },
-      { emoji: '🌙', label: t('chat.presetNight'), fill: 'Don't sleep yet baby… dream of me.' },
+      { emoji: '🔥', label: t('chat.presetMiss'), fill: "I can't stop thinking about your hands on me right now..." },
+      { emoji: '😈', label: t('chat.presetBad'), fill: "Be bad for me tonight - tell me what you'd do first..." },
+      { emoji: '💋', label: t('chat.presetKiss'), fill: "*pulls you onto me* Kiss me like you mean it." },
+      { emoji: '🔥', label: t('chat.presetCloser'), fill: "Come here. Closer. I want to feel you." },
+      { emoji: '👀', label: t('chat.presetShow'), fill: "Show me how you look right now - leave nothing to imagination..." },
+      { emoji: '🌙', label: t('chat.presetNight'), fill: "Don't sleep yet baby... dream of me." },
     ],
     [t],
   );
