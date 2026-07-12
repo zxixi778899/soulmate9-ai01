@@ -123,6 +123,25 @@ export default function AdminAiModulesPage() {
     }
   };
 
+
+  const seedHeatAchievements = async () => {
+    setSaving(true);
+    try {
+      const res = await authedFetch('/api/admin/achievements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seed_heat' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Seed failed');
+      toast.success(`Heat achievements seeded (${data.upserted}/${data.attempted})`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Seed failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const runPreview = async () => {
     try {
       const qs = new URLSearchParams({
@@ -158,6 +177,17 @@ export default function AdminAiModulesPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
+
+      <Card className="border-[#ff2e88]/20 bg-black/30">
+        <CardContent className="p-4 space-y-2">
+          <div className="text-sm font-semibold text-[#ff6ba6]">Heat ladder (NSFW retention)</div>
+          <p className="text-xs text-white/60 leading-relaxed">
+            Spark → Tease → Heat (Lv3 intimate unlock) → Desire → Lover → Soulmate.
+            Free fades to black; Pro+ full intimate channel. Use Seed Heat Achievements to write the path into the database.
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
@@ -177,6 +207,9 @@ export default function AdminAiModulesPage() {
           </Button>
           <Button variant="outline" size="sm" onClick={seedModels} disabled={saving} className="gap-1.5">
             <Database className="h-3.5 w-3.5" /> 同步模型表
+          </Button>
+          <Button variant="outline" size="sm" disabled={saving} onClick={seedHeatAchievements}>
+            Seed Heat Achievements
           </Button>
           <Button variant="outline" size="sm" onClick={resetDefaults} disabled={saving} className="gap-1.5">
             <RotateCcw className="h-3.5 w-3.5" /> 恢复默认

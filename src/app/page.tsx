@@ -30,6 +30,7 @@ import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/Locke
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
+import { HEAT_UNLOCK_HINTS, INTIMACY_LEVELS } from '@/lib/constants';
 
 const FOOTER_LINKS = {
   telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL || 'https://t.me/soulmateai_support',
@@ -387,6 +388,19 @@ export default function HomePage() {
                   <Meter label={t('home.meterDesire')} value={featured.desire ?? featured.intimacy} color="#ff2e88" />
                   <Meter label={t('home.meterDev')} value={featured.development ?? Math.floor(featured.intimacy * 0.85)} color="#a855f7" />
                   <Meter label={t('home.meterKink')} value={featured.kink ?? Math.floor(featured.intimacy * 0.7)} color="#f59e0b" />
+                </div>
+
+                <div className="mt-3 rounded-xl border border-[#ff2e88]/25 bg-gradient-to-r from-[#ff2e88]/15 via-black/20 to-[#a855f7]/10 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold tracking-[0.2em] text-[#ff6ba6]">HEAT PATH</span>
+                    <span className="text-[10px] text-white/50">
+                      {INTIMACY_LEVELS.find((l) => l.level === Math.min(6, Math.max(1, Math.ceil(((featured.desire ?? featured.intimacy) || 0) / 20) || 1)))?.title || 'Spark'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-white/70 leading-snug">
+                    {HEAT_UNLOCK_HINTS.find((h) => h.level === Math.min(6, Math.max(1, Math.ceil(((featured.desire ?? featured.intimacy) || 0) / 20) || 1)))?.hint
+                      || 'Chat more to raise heat and unlock Desire.'}
+                  </p>
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2">

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { logger } from '@/lib/logger';
+import { heatAchievementsAsCatalogRows } from '@/lib/heat-achievements';
 
 /**
- * GET /api/v2/user/achievements - 获取用户成就列表与进度
+ * GET /api/v2/user/achievements — user achievement list + progress
+ * Falls back to heat catalog when DB table is empty (pre-seed).
  */
 export async function GET(req: NextRequest) {
   try {
@@ -13,7 +16,6 @@ export async function GET(req: NextRequest) {
 
     const supabase = auth.client;
 
-    // 获取全部成就定义
     const { data: allAchievements, error: achError } = await supabase
       .from('achievements')
       .select('*')
@@ -21,7 +23,13 @@ export async function GET(req: NextRequest) {
 
     if (achError) throw new Error(achError.message);
 
-    // 获取用户的成就进度
+    const catalog =
+      allAchievements && allAchievements.length > 0
+        ? allAchievements
+        : heatAchievementsAsCatalogRows();
+
+    const usingFallback = !allAchievements || allAchievements.length === 0;
+
     const { data: userAchievements, error: userAchError } = await supabase
       .from('user_achievements')
       .select('*')
@@ -29,9 +37,11 @@ export async function GET(req: NextRequest) {
 
     if (userAchError) throw new Error(userAchError.message);
 
-    // 构建响应：为每个成就添加用户的进度信息
-    const enrichedAchievements = (allAchievements || []).map((ach) => {
-      const userAch = userAchievements?.find((ua) => ua.achievement_id === ach.id);
+    const enrichedAchievements = catalog.map((ach) => {
+      const id = String(ach.id);
+      const userAch = (userAchievements || []).find(
+        (ua: { achievement_id: string }) => ua.achievement_id === id,
+      );
       return {
         ...ach,
         user_progress: userAch || {
@@ -44,14 +54,16 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       achievements: enrichedAchievements,
-      total_unlocked: userAchievements?.filter((ua) => ua.unlocked).length || 0,
-      total_claimed: userAchievements?.filter((ua) => ua.reward_claimed).length || 0,
+      total_unlocked: (userAchievements || []).filter((ua: { unlocked: boolean }) => ua.unlocked).length,
+      total_claimed: (userAchievements || []).filter((ua: { reward_claimed: boolean }) => ua.reward_claimed).length,
+      source: usingFallback ? 'heat_fallback' : 'database',
     });
-  } catch (err: any) {
-    console.error('[user/achievements] GET error:', err);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('[user/achievements] GET error', { err: message.slice(0, 200) });
     return NextResponse.json(
       { error: 'Failed to fetch achievements' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
