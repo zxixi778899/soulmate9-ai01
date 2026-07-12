@@ -10,6 +10,7 @@
  * - Varied poses / camera angles (not one static three-quarter stand)
  * - Natural light (window, flash, city night, golden hour) — avoid flat beauty-dish spam
  */
+import { pickInstalledLora, sanitizeLoraForVolume } from '@/lib/runpod-loras';
 import {
   sanitizeBlurKeywords,
   joinParts,
@@ -684,7 +685,7 @@ export type GirlfriendLoraPlan = {
  * Prompt = who/where/framing. LoRA = realism + optional body/outfit support.
  * Prefer 1 LoRA at a time (Comfy graph). Files must exist on volume models/loras/.
  */
-export function resolveGirlfriendLoraPlan(
+export function resolveGirlfriendLoraPlanRaw(
   subject: GirlfriendSubject,
   sceneId?: string,
   opts?: { preferBody?: boolean; preferOutfit?: boolean; preferNsfwPose?: boolean },
@@ -845,6 +846,40 @@ export function resolveGirlfriendLoraPlan(
     lora_strength_clip: 0.55,
     trigger_words: [],
     note: 'style-photoreal',
+  };
+}
+
+/** Public plan: never request a LoRA that is not on the volume. */
+export function resolveGirlfriendLoraPlan(
+  subject: GirlfriendSubject,
+  sceneId?: string,
+  opts?: { preferBody?: boolean; preferOutfit?: boolean; preferNsfwPose?: boolean },
+): GirlfriendLoraPlan {
+  const plan = resolveGirlfriendLoraPlanRaw(subject, sceneId, opts);
+  // Prefer body/style when pose/outfit missing on disk
+  const safe = sanitizeLoraForVolume(plan.lora_name, {
+    fallback: pickInstalledLora([
+      process.env.GIRLFRIEND_STYLE_LORA,
+      process.env.RUNPOD_DEFAULT_LORA,
+      'flux_style_photoreal_v1.safetensors',
+      'flux_body_curvy_v1.safetensors',
+      'flux_detail_skin_v1.safetensors',
+    ]),
+  });
+  if (!safe.changed) return plan;
+  return {
+    ...plan,
+    lora_name: safe.lora_name,
+    note: safe.lora_name
+      ? `${plan.note}->fallback:${safe.lora_name}`
+      : `${plan.note}->no-lora`,
+    // keep strength moderate for style fallback
+    lora_strength_model: safe.lora_name?.includes('style')
+      ? Math.min(plan.lora_strength_model, 0.55)
+      : plan.lora_strength_model,
+    lora_strength_clip: safe.lora_name?.includes('style')
+      ? Math.min(plan.lora_strength_clip, 0.55)
+      : plan.lora_strength_clip,
   };
 }
 

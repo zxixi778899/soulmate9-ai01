@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
 import { requireAdmin } from '@/lib/require-admin';
 import { logger } from '@/lib/logger';
 import { uploadFile, resolveImageUrl } from '@/lib/storage';
@@ -94,7 +95,7 @@ async function generateAndUpload(
 
   // FLUX: cfg 1.0 + empty negative (avoids black/blurry frames)
   const subject = subjectFromGirlfriendRow(char);
-  const loraPlan =
+  let loraPlan =
     params.lora_name || params.disable_lora
       ? {
           lora_name: params.lora_name ? String(params.lora_name) : null,
@@ -104,6 +105,36 @@ async function generateAndUpload(
           note: 'params',
         }
       : resolveGirlfriendLoraPlan(subject);
+
+  // Clamp to files that exist on the network volume (pose/outfit often missing)
+  if (!params.disable_lora) {
+    const safe = sanitizeLoraForVolume(loraPlan.lora_name, {
+      fallback: 'flux_style_photoreal_v1.safetensors',
+    });
+    if (safe.changed) {
+      logger.warn('[batch] lora not on volume, fallback', {
+        name,
+        requested: loraPlan.lora_name,
+        using: safe.lora_name,
+        reason: safe.reason,
+      });
+      loraPlan = {
+        ...loraPlan,
+        lora_name: safe.lora_name,
+        note: `${loraPlan.note}|${safe.reason || 'fallback'}`,
+        lora_strength_model:
+          safe.lora_name && safe.lora_name.includes('style')
+            ? Math.min(Number(loraPlan.lora_strength_model) || 0.55, 0.55)
+            : loraPlan.lora_strength_model,
+        lora_strength_clip:
+          safe.lora_name && safe.lora_name.includes('style')
+            ? Math.min(Number(loraPlan.lora_strength_clip) || 0.55, 0.55)
+            : loraPlan.lora_strength_clip,
+      };
+    }
+  } else {
+    loraPlan = { ...loraPlan, lora_name: null, note: 'disabled' };
+  }
 
   const promptWithTriggers = loraPlan.trigger_words?.length
     ? `${loraPlan.trigger_words.join(', ')}, ${positive}`

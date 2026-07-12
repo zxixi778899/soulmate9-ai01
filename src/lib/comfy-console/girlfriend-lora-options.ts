@@ -29,7 +29,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     effectZh:
       '根据性格/标签/身材关键词自动挑 1 个 LoRA。默认优先写实风格 photoreal；有曲线身材词会切 body-curvy；特定服装词才切 outfit（需盘上有对应文件）。',
     ruleZh:
-      '日常批量补图、不熟模型时用这个。日志会显示最终选中的文件名。若选中的 outfit 文件未下载，出图会失败或忽略，请改选「写实风格」等核心包。',
+      '日常批量补图、不熟模型时用这个。日志会显示最终选中的文件名。未上盘的 outfit/pose 会自动回退到写实风格 LoRA，不会再因 value_not_in_list 整单失败。',
     coreOnVolume: true,
   },
   {
@@ -114,6 +114,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     effectZh: '辅助内衣/丝袜造型一致性。',
     ruleZh: '若下载失败（Civitai 401）请勿选。强度 0.55–0.7。提示词仍要写具体服装。',
     nsfw: true,
+    coreOnVolume: false,
   },
   {
     id: 'outfit-bunny',
@@ -123,6 +124,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     effectZh: '兔女郎/紧身连体造型。',
     ruleZh: '文件未下载时会失败。强度 0.55–0.7。',
     nsfw: true,
+    coreOnVolume: false,
   },
   {
     id: 'outfit-maid',
@@ -132,6 +134,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     effectZh: '女仆装造型。',
     ruleZh: '文件未下载时会失败。强度 0.55–0.7。',
     nsfw: true,
+    coreOnVolume: false,
   },
   {
     id: 'outfit-bikini',
@@ -141,6 +144,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     effectZh: '泳装/沙滩场景。',
     ruleZh: '文件未下载时会失败。',
     nsfw: true,
+    coreOnVolume: false,
   },
   {
     id: 'outfit-latex',
@@ -150,6 +154,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     effectZh: '亮面紧身乳胶感。',
     ruleZh: '文件未下载时会失败。强度勿超过 0.75。',
     nsfw: true,
+    coreOnVolume: false,
   },
   {
     id: 'outfit-school',
@@ -159,6 +164,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     effectZh: '成人制服造型（仅 18+ 角色）。',
     ruleZh: '禁止未成年暗示。文件未下载时会失败。',
     nsfw: true,
+    coreOnVolume: false,
   },
   {
     id: 'pose-nsfw',
@@ -168,6 +174,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     effectZh: '丰富性感动态姿势，减轻「同一站姿」。',
     ruleZh: '文件未下载时会失败。强度 0.45–0.65。提示词仍要写具体动作。',
     nsfw: true,
+    coreOnVolume: false,
   },
 ];
 

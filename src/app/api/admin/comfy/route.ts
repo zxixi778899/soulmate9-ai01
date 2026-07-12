@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
 import { requireAdmin } from '@/lib/require-admin';
 import {
   loadComfyConfig,
@@ -547,6 +548,17 @@ export async function POST(req: NextRequest) {
         : wf?.defaults.lora_strength ?? lora?.default_strength ?? 0.8;
 
     try {
+      const requestedLora = lora?.filename || body.lora_name || null;
+      const loraSan = sanitizeLoraForVolume(requestedLora, {
+        fallback: 'flux_style_photoreal_v1.safetensors',
+      });
+      if (loraSan.changed && requestedLora) {
+        logger.warn('[comfy] lora not on volume, fallback', {
+          requested: requestedLora,
+          using: loraSan.lora_name,
+          reason: loraSan.reason,
+        });
+      }
       const result = await runpodClient.generate({
         prompt,
         negative_prompt: negative,
@@ -558,7 +570,7 @@ export async function POST(req: NextRequest) {
         input_image: body.input_image || undefined,
         denoising_strength: body.input_image ? denoise : undefined,
         ckpt_name: body.ckpt_name || ckpt?.filename,
-        lora_name: lora?.filename || body.lora_name || null,
+        lora_name: loraSan.lora_name,
         lora_strength_model: loraStrength,
         lora_strength_clip: loraStrength,
         endpoint_id: endpointId,
@@ -584,7 +596,7 @@ export async function POST(req: NextRequest) {
           workflow_id: workflowId || null,
           endpoint_id: endpointId,
           ckpt_name: body.ckpt_name || ckpt?.filename || null,
-          lora_name: lora?.filename || body.lora_name || null,
+          lora_name: loraSan.lora_name,
           width,
           height,
           steps,

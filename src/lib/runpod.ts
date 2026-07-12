@@ -11,8 +11,9 @@
  */
 
 import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
+import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
+import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from './analytics';
-import { logger } from './logger';
 
 // 
 // RunPod credentials  MUST come from environment variables
@@ -102,7 +103,18 @@ export function buildFluxWorkflow(opts: {
   const sampler_name = opts.sampler_name || 'euler';
   const scheduler = opts.scheduler || 'simple';
   const ckpt = opts.ckpt_name || 'flux1-dev-fp8.safetensors';
-  const useLora = !!(opts.lora_name && String(opts.lora_name).trim());
+  const sanitizedLora = sanitizeLoraForVolume(opts.lora_name, {
+    fallback: 'flux_style_photoreal_v1.safetensors',
+  });
+  const effectiveLoraName = sanitizedLora.lora_name;
+  if (sanitizedLora.changed && opts.lora_name) {
+    logger.warn('[runpod] lora not on volume, fallback', {
+      requested: opts.lora_name,
+      using: effectiveLoraName,
+      reason: sanitizedLora.reason,
+    });
+  }
+  const useLora = !!(effectiveLoraName && String(effectiveLoraName).trim());
 
   let promptText = String(opts.prompt || '').trim();
   if (!promptText) {
@@ -132,7 +144,7 @@ export function buildFluxWorkflow(opts: {
     ? {
         class_type: 'LoraLoader',
         inputs: {
-          lora_name: String(opts.lora_name).trim(),
+          lora_name: String(effectiveLoraName).trim(),
           strength_model: opts.lora_strength_model ?? 0.8,
           strength_clip: opts.lora_strength_clip ?? 0.8,
           model: ['1', 0],

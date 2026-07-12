@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
 import {
   uploadImageBase64,
   resolveImageUrl,
@@ -443,6 +444,25 @@ export async function POST(req: NextRequest) {
       loraNote = plan.note;
       if (plan.trigger_words?.length) {
         promptForGen = `${plan.trigger_words.join(', ')}, ${rawPrompt}`;
+      }
+    }
+
+    {
+      const safe = sanitizeLoraForVolume(loraName, {
+        fallback: 'flux_style_photoreal_v1.safetensors',
+      });
+      if (safe.changed) {
+        logger.warn('generate-from-meta: lora not on volume, fallback', {
+          requested: loraName,
+          using: safe.lora_name,
+          reason: safe.reason,
+        });
+        loraName = safe.lora_name;
+        if (safe.lora_name && safe.lora_name.includes('style')) {
+          loraStrengthModel = Math.min(loraStrengthModel, 0.55);
+          loraStrengthClip = Math.min(loraStrengthClip, 0.55);
+        }
+        loraNote = `${loraNote}|${safe.reason || 'fallback'}`;
       }
     }
 
