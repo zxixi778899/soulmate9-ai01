@@ -237,6 +237,12 @@ export async function streamText(options: GenOptions): Promise<Response> {
 
 // ── Compat wrappers ──
 
+export interface StreamingResult {
+  response: Response;
+  provider: string;
+  model: string;
+}
+
 export async function streamTextSmart(options: {
   messages: Array<{ role: string; content: string }>;
   temperature?: number;
