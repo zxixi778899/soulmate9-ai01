@@ -148,7 +148,7 @@ export default function ChatPage() {
     loadData();
     authedFetch('/api/outfits')
       .then(r => readResponseJson(r).catch(() => ({})))
-      .then(d => setOutfits(d.outfits || []))
+      .then(d => setOutfits(((d as { outfits?: OutfitItem[] }).outfits) || []))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
