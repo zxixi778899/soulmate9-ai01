@@ -22,31 +22,31 @@ import {
 
 /** Short quality tail — do NOT stack camera spam (causes same-face look). */
 export const GIRLFRIEND_QUALITY_PREFIX =
-  'photorealistic, fair luminous skin, even skin tone, natural pores, well-lit face, bright clean exposure, lively eyes with catchlights, sharp focus';
+  'stunning beautiful woman, refined glamorous makeup, glossy lips, long lashes, flawless dewy skin, bright high-key beauty lighting, sexy alluring presence, photorealistic, sharp focus'
 
 /**
  * Soft figure hint — keep short so face/pose still dominate.
  * Avoid fixed lingerie / same body spam that collapses variety.
  */
 export const GIRLFRIEND_BODY_FIXED =
-  'feminine curves, attractive adult figure, natural proportions';
+  'gorgeous hourglass figure, slim waist, full breasts, round hips, long toned legs, sexy feminine body'
 
 /** Default framing for companion cards: face the viewer (not back/side template). */
 export const GIRLFRIEND_FRAMING =
-  'facing viewer, eye contact, front three-quarter view, natural candid pose';
+  'facing viewer, eye contact, three-quarter body or full body, show chest and hips or long legs, not face-only close-up, Instagram AI-girlfriend card'
 
 /**
  * Short negatives — FLUX hates long SD negative lists.
  * Include anti-template tokens for the back/side lingerie collapse.
  */
 export const GIRLFRIEND_NEGATIVE =
-  'blurry, deformed, bad anatomy, extra fingers, underexposed, dark muddy skin, dull lifeless eyes, stiff expression, ' +
-  'from behind, back view, looking away, same pose, identical outfit, plastic skin, oversmoothed, ' +
-  'child, underage, watermark, text, logo, cartoon, anime';
+  'blurry, deformed, bad anatomy, extra fingers, underexposed, dark muddy skin, dull lifeless eyes, stiff expression, plain looking, ' +
+  'face-only close-up, headshot only, cropped at shoulders, baggy oversized hoodie hiding body, from behind, back view, looking away, ' +
+  'plastic skin, oversmoothed, child, underage, watermark, text, logo, cartoon, anime'
 
 /** Short FLUX-safe negative (empty only when caller opts in) */
 export const GIRLFRIEND_NEGATIVE_FLUX =
-  'from behind, back view, looking away, underexposed, dark muddy skin, stiff expression, blurry, deformed, child, underage, watermark';
+  'face-only close-up, headshot only, underexposed, dark muddy skin, baggy hoodie, from behind, stiff expression, blurry, deformed, child, underage, watermark'
 
 export interface GirlfriendSubject {
   name?: string;
@@ -104,240 +104,240 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
     id: 'rooftop_night',
     label: 'Rooftop night',
     poses: [
-      'standing at glass railing facing camera, one hand on rail, confident smile, medium full-body',
-      'leaning elbows on railing facing viewer, shoulders open, candid laugh, three-quarter body',
-      'walking toward camera on rooftop, hair moving, direct eye contact, full-body',
-      'sitting on outdoor lounge chair facing camera, legs crossed, relaxed editorial pose',
+      'standing full body facing camera on rooftop, hand on hip, chest out, long legs visible, sexy confident pose',
+      'three-quarter body at glass railing facing viewer, arched back, show bust and hips, glamorous night pose',
+      'walking toward camera full body, hips swaying, long legs, eye contact, sexy nightlife energy',
+      'leaning on railing three-quarter body facing camera, cleavage visible, hourglass silhouette',
     ],
     outfits: [
-      'fitted red satin crop top and black trousers',
-      'metallic evening mini dress',
-      'black blazer over lace cami and jeans',
-      'emerald green bodycon dress',
-      'white silk blouse and leather skirt',
+      'tight red mini dress, deep neckline, bodycon fit',
+      'black sequin crop top and high-waist mini skirt',
+      'shiny satin slip dress hugging curves',
+      'fitted leather pants and low-cut glam top',
+      'emerald bodycon dress with thigh slit',
     ],
-    env: 'luxury rooftop at night, city skyline soft bokeh',
-    light: 'bright front key light on face, cool city ambient background, warm rim on hair, subject clearly exposed',
+    env: 'luxury rooftop at night, city skyline bokeh',
+    light: 'bright beauty key light on face and body, high-key subject exposure, city lights only in background',
     match: /rooftop|night|city|skyline|club|glam|neon|evening/i,
   },
   {
     id: 'mirror_selfie',
     label: 'Mirror selfie',
     poses: [
-      'bathroom mirror selfie facing mirror, phone in hand, free hand in hair, hip slightly popped, high angle front view',
-      'front-facing mirror selfie, both shoulders visible, playful pout, phone at chest height',
-      'mirror selfie with peace sign, leaning toward glass, bright smile',
-      'mirror selfie holding phone with both hands, straight-on torso, candid after-party energy',
+      'full-body bathroom mirror selfie facing mirror, phone in hand, hip popped, show waist hips and legs',
+      'three-quarter mirror selfie facing camera, arched back, chest and hips visible, sexy Instagram pose',
+      'mirror selfie from slightly high angle, body angled to show curves, long legs, flirty face',
+      'standing mirror selfie, one hand in hair, body-focused framing, not face crop',
     ],
     outfits: [
-      'black graphic crop tee and ripped jeans',
-      'oversized band hoodie and shorts',
-      'red tank top and denim mini skirt',
-      'sports bra and track pants',
-      'striped long-sleeve and cargo pants',
+      'tight crop top and tiny shorts showing midriff and legs',
+      'fitted tank top and low-rise jeans hugging hips',
+      'sexy lingerie set with sheer robe, front view',
+      'sports bra and high-waist shorts, toned body',
+      'bodycon mini dress, deep neckline',
     ],
-    env: 'tiled bathroom with vanity lights',
-    light: 'bright phone flash on face, pale glossy skin highlights, hard flash catchlights, clear exposure',
+    env: 'bright bathroom vanity mirror, clean tiles',
+    light: 'bright vanity lights plus phone flash on face and body, pale glossy skin, high exposure beauty selfie',
     match: /selfie|mirror|bathroom|flash|tattoo|casual|party/i,
   },
   {
     id: 'city_apartment',
     label: 'Apartment couch',
     poses: [
-      'sitting on couch facing camera, elbows on thighs, calm direct eye contact, eye-level portrait',
-      'curled sideways on sofa facing viewer, chin on hand, soft smile',
-      'standing in living room facing camera, weight on one hip, arms relaxed',
-      'kneeling on rug facing camera with hands on knees, friendly smile, medium shot',
+      'sitting on couch three-quarter body facing camera, legs angled, bust and hips visible, sexy relaxed pose',
+      'standing in living room full body facing viewer, hand on hip, long legs, hourglass silhouette',
+      'kneeling on couch facing camera, arched back, show chest and waist, flirty look',
+      'sitting on armrest three-quarter body, crossed legs, cleavage visible, glamorous home look',
     ],
     outfits: [
-      'teal velvet corset top and denim shorts',
-      'cream knit sweater dress',
-      'striped button-up shirt and black skirt',
-      'soft pink cardigan over white top',
-      'casual hoodie and yoga pants',
+      'tight satin camisole and mini shorts',
+      'deep-v bodycon dress',
+      'crop sweater and high-waist skirt showing waist',
+      'lace bodysuit with jeans, curves visible',
+      'silk slip dress clinging to body',
     ],
-    env: 'modern apartment living room, soft pillows, night city prints on wall',
-    light: 'bright warm indoor key light on face, soft fill, clean skin exposure, background slightly dimmer',
+    env: 'stylish modern apartment living room',
+    light: 'bright warm beauty light on face and body, high exposure, soft fill, not dim ambient only',
     match: /apartment|couch|indoor|living room|soft glam|home/i,
   },
   {
     id: 'window_sunlight',
     label: 'Window sunlight',
     poses: [
-      'standing by window facing camera, soft smile, hand lightly on curtain, three-quarter body',
-      'sitting on window seat facing viewer, knees up casually, golden light on face',
-      'leaning back against window frame facing camera, relaxed shoulders',
-      'close portrait by window facing viewer, hair catching sun, bright eyes',
+      'standing by window three-quarter body facing camera, hand on curtain, bust and hips visible',
+      'full body by window facing viewer, weight on one hip, long legs, sexy soft smile',
+      'sitting on window seat three-quarter body, legs extended, body-focused framing',
+      'leaning on window frame three-quarter body, arched posture, glamorous daylight beauty',
     ],
     outfits: [
-      'white linen blouse and light jeans',
-      'floral summer dress',
-      'soft yellow sundress',
-      'beige knit top and skirt',
-      'pale blue shirt dress',
+      'sheer white blouse over lace bralette and skirt',
+      'tight sundress with cleavage and leg slit',
+      'crop top and high-waist shorts',
+      'satin camisole dress',
+      'body-hugging knit dress',
     ],
-    env: 'tall window, sheer curtains, airy home interior',
-    light: 'bright golden window key on face, soft shadows, luminous fair skin, airy daylight',
+    env: 'tall bright window, airy interior',
+    light: 'bright golden beauty light on face and body, luminous skin, high-key daylight exposure',
     match: /window|sunlight|lace|morning|sheer|curtain/i,
   },
   {
     id: 'pink_bedroom',
     label: 'Bedroom',
     poses: [
-      'sitting on bed facing camera, legs folded, bright smile, medium shot',
-      'lying on stomach on bed facing viewer, chin on hands, playful eyes',
-      'sitting at edge of bed facing camera, one knee up, soft laugh',
-      'kneeling on bed facing camera, hands on sheets, lively expression',
+      'sitting on bed three-quarter body facing camera, knees slightly apart, chest and hips visible, sexy smile',
+      'kneeling on bed facing camera, arched back, show bust waist hips, glamorous pose',
+      'lying on side on bed three-quarter body facing viewer, curves emphasized, long legs',
+      'standing by bed full body facing camera, hand in hair, lingerie body showcase',
     ],
     outfits: [
-      'pastel pink satin sleep set',
-      'black lace bralette with high-waist shorts (front view)',
-      'oversized white tee as sleepwear',
-      'red silk camisole and shorts',
-      'striped pajama top and shorts',
+      'sexy matching lingerie set, front view, curves visible',
+      'sheer babydoll nightie',
+      'silk camisole and lace panties',
+      'tight sleep shorts and crop top',
+      'black lace bodysuit',
     ],
-    env: 'pastel pink bedroom, LED accent lights, soft sheets',
-    light: 'bright pink LED plus warm bedside key on face, glossy pale skin, cheerful well-lit bedroom',
+    env: 'pastel pink bedroom, soft sheets, LED accents',
+    light: 'bright pink beauty key plus warm bedside fill on face and body, glossy pale skin, high exposure',
     match: /bedroom|lingerie|pink|led|garter|stockings|kneeling|nsfw/i,
   },
   {
     id: 'gothic_throne',
     label: 'Throne fantasy',
     poses: [
-      'seated on ornate throne facing camera, one hand on armrest, confident smirk, low-angle',
-      'sitting upright on throne facing viewer, legs elegantly crossed, crown tilt',
-      'leaning forward on throne armrest facing camera, intense eye contact',
-      'standing beside throne facing camera, hand on chair back, power pose',
+      'seated on throne three-quarter body facing camera, legs posed to show long legs and hips, power sexy pose',
+      'sitting upright on throne full torso and hips visible, cleavage, crown, facing viewer',
+      'leaning forward on throne three-quarter body, bust emphasized, seductive eye contact',
+      'standing beside throne full body, hand on chair, long legs, glamorous dark queen pose',
     ],
     outfits: [
-      'black lace gown with sapphire jewelry',
-      'dark velvet dress and silver crown',
-      'structured black corset dress',
-      'deep purple evening gown',
-      'black leather and lace hybrid outfit',
+      'black lace lingerie gown with high slit',
+      'dark velvet corset dress, deep neckline',
+      'structured black mini dress with garter details',
+      'purple satin gown hugging curves',
+      'black leather-and-lace bodysuit',
     ],
-    env: 'gothic set with controlled haze, dramatic props',
-    light: 'strong bright key light on face and body, cool rim light, pale luminous skin, deep background only',
+    env: 'gothic set, controlled haze, dramatic props',
+    light: 'strong bright beauty key on face and body, cool rim only, pale luminous skin, not underexposed',
     match: /gothic|throne|queen|crown|dark|fantasy|dominant/i,
   },
   {
     id: 'cafe_day',
     label: 'Cafe daylight',
     poses: [
-      'at cafe table facing camera, chin on hand, easy natural smile, 50mm portrait crop',
-      'holding coffee cup with both hands facing viewer, soft laugh',
-      'leaning toward table facing camera, elbows on wood, candid smile',
-      'standing by cafe window facing camera, cup in one hand, lifestyle shot',
+      'sitting at cafe table three-quarter body facing camera, crossed legs, bust visible, pretty smile',
+      'standing by cafe window full body facing viewer, hand on hip, long legs, stylish sexy casual',
+      'leaning on table three-quarter body, subtle cleavage, glamorous casual pose',
+      'walking into frame full body toward camera, hourglass silhouette, lifestyle beauty',
     ],
     outfits: [
-      'cream sweater and jeans',
-      'plaid shirt and skirt',
-      'trench coat over simple top',
-      'denim jacket and white tee',
-      'soft green blouse and trousers',
+      'tight blouse and mini skirt',
+      'bodycon midi dress with neckline',
+      'crop cardigan over fitted top and shorts',
+      'denim mini skirt and fitted tee',
+      'satin cami and high-waist trousers showing waist',
     ],
-    env: 'sunlit cafe window seat, coffee cup on table',
-    light: 'bright soft daylight on face, clear catchlights, fresh fair skin, clean exposure',
+    env: 'bright sunlit cafe',
+    light: 'bright daylight beauty light on face and body, high exposure, clear catchlights',
     match: /cafe|coffee|daylight|brunch|casual date|day/i,
   },
   {
     id: 'car_night',
     label: 'Car night',
     poses: [
-      'in passenger seat turned toward camera, soft intimate smile, close crop, face fully visible',
-      'sitting in car facing viewer through open door, one arm on seat, bright face light',
-      'driver seat selfie angle facing camera, hand on wheel edge, candid smile',
-      'leaning across center console facing camera, intimate but front-facing',
+      'sitting in car three-quarter body turned to camera, bust and waist visible, sexy night look',
+      'standing outside open car door full body facing viewer, long legs, hand on door, glamorous pose',
+      'passenger seat body-focused three-quarter crop facing camera, cleavage, flirty smile',
+      'leaning on car hood full body, hip cocked, long legs, sexy editorial',
     ],
     outfits: [
-      'black date-night dress',
-      'red off-shoulder top',
-      'leather jacket over tank',
-      'sparkly evening top',
-      'simple white blouse',
+      'tight red off-shoulder top and mini skirt',
+      'black bodycon dress',
+      'leather mini skirt and crop top',
+      'sparkly low-cut club top and tight pants',
+      'satin slip dress',
     ],
-    env: 'car interior at night, city lights through windows',
-    light: 'bright practical key on face, soft neon color spill in background only, clear skin exposure',
+    env: 'car and city night lights',
+    light: 'bright practical beauty light on face and body, neon only background, high subject exposure',
     match: /car|night drive|neon|passenger|vehicle/i,
   },
   {
     id: 'beach_breeze',
     label: 'Beach breeze',
     poses: [
-      'walking toward camera mid-step, hair wind-blown, bright natural smile, full-body',
-      'standing on sand facing camera, hands in hair, open sky behind',
-      'sitting on beach towel facing viewer, knees bent, playful smile',
-      'jogging lightly toward camera, candid laugh, lifestyle wide shot',
+      'full body walking toward camera on beach, long legs, hips swaying, sexy summer smile',
+      'standing full body facing camera, hand in hair, bikini body showcase, hourglass figure',
+      'three-quarter body on sand facing viewer, arched pose, bust and hips visible',
+      'sitting on beach towel three-quarter body, long legs extended, glamorous vacation look',
     ],
     outfits: [
-      'light summer sundress',
-      'white linen shirt over swimsuit',
-      'colorful bikini with sarong (front view)',
-      'denim shorts and crop tee',
-      'flowy beach cover-up',
+      'sexy bikini, front view, athletic glam body',
+      'micro skirt cover-up over bikini',
+      'wet-look white shirt dress open over swimsuit',
+      'high-leg one-piece swimsuit',
+      'crop top and tiny beach shorts',
     ],
     env: 'beach at golden hour, ocean behind',
-    light: 'bright warm sun on face, soft hair rim light, open sky, luminous skin',
+    light: 'bright warm sun on face and body, high-key beach beauty lighting, luminous skin',
     match: /beach|ocean|summer|outdoor|wind|vacation/i,
   },
   {
     id: 'kitchen_morning',
     label: 'Kitchen morning',
     poses: [
-      'standing at kitchen counter facing camera, mug in both hands, soft natural half-smile',
-      'leaning on counter facing viewer, one heel lifted, relaxed morning pose',
-      'sitting on counter edge facing camera, swinging feet, bright smile',
-      'pouring coffee facing camera, candid domestic moment',
+      'standing at kitchen counter three-quarter body facing camera, oversized shirt slightly open, long legs',
+      'full body in kitchen facing viewer, hip against counter, sexy casual morning pose',
+      'sitting on counter three-quarter body, crossed legs, bust visible, flirty smile',
+      'reaching for mug three-quarter body, arched posture, body-focused framing',
     ],
     outfits: [
-      'oversized morning shirt and shorts',
-      'soft robe over sleepwear',
-      'simple tee and sweatpants',
-      'knit cardigan and tank',
-      'casual home dress',
+      'oversized shirt barely covering sexy shorts',
+      'silk robe loosely tied over lingerie',
+      'tight tank top and tiny shorts',
+      'crop tee and high-waist sleep shorts',
+      'bodycon lounge dress',
     ],
-    env: 'bright kitchen, morning routine',
-    light: 'bright morning window light on face, clean soft shadows, fresh pale skin',
+    env: 'bright modern kitchen',
+    light: 'bright morning beauty light on face and body, high exposure, fresh dewy skin',
     match: /kitchen|morning|coffee home|domestic|cozy/i,
   },
   {
     id: 'studio_clean',
     label: 'Studio clean',
     poses: [
-      'standing facing camera, weight on one hip, soft approachable smile, three-quarter body lookbook',
-      'arms crossed lightly facing viewer, commercial smile, medium shot',
-      'one hand in pocket facing camera, confident posture, fashion card pose',
-      'seated on stool facing camera, hands on knees, clean portrait crop',
+      'three-quarter body fashion pose facing camera, hand on hip, show bust hips and waist, lookbook sexy',
+      'full body studio pose facing viewer, long legs, model stance, hourglass silhouette',
+      'three-quarter body with slight twist, chest toward camera, glamorous commercial beauty',
+      'seated on stool three-quarter body, legs long in frame, sexy polished pose',
     ],
     outfits: [
-      'premium black cocktail dress',
-      'white tailored blazer dress',
-      'red power dress',
-      'navy silk blouse and trousers',
-      'designer casual chic set',
+      'tight black cocktail dress, deep neckline',
+      'red bodycon dress',
+      'white blazer dress with long legs bare',
+      'lace bodysuit and tailored pants open blazer',
+      'silk slip dress',
     ],
-    env: 'seamless studio backdrop, premium companion card look',
-    light: 'large bright softbox key on face, gentle fill, fair luminous skin, clean commercial exposure',
+    env: 'clean seamless studio backdrop, premium AI girlfriend card',
+    light: 'large bright beauty softbox on face and body, high-key commercial exposure, flawless skin',
     match: /studio|clean|portrait|card|profile|simple/i,
   },
   {
     id: 'golden_hour',
     label: 'Golden hour outdoor',
     poses: [
-      'walk-and-turn toward camera, hair catching wind, warm natural smile to viewer',
-      'standing in park facing camera, soft golden light, candid lifestyle pose',
-      'sitting on outdoor steps facing viewer, elbows on knees, relaxed smile',
-      'close outdoor portrait facing camera, sun on face, lively eyes',
+      'full body outdoor walk toward camera, long legs, hips visible, sexy warm smile',
+      'three-quarter body golden hour facing viewer, hand in hair, bust and waist visible',
+      'standing full body, weight on one hip, hourglass silhouette, glamorous lifestyle',
+      'sitting on steps three-quarter body, legs long in frame, pretty sexy smile',
     ],
     outfits: [
-      'flowy midi dress',
-      'denim jacket and sundress',
-      'white tee and light skirt',
-      'pastel blouse and jeans',
-      'casual linen set',
+      'flowy dress with leg slit and fitted bodice',
+      'crop top and high-waist skirt',
+      'tight sundress',
+      'denim shorts and tied shirt showing midriff',
+      'satin cami dress',
     ],
-    env: 'outdoors at golden hour, lifestyle companion moment',
-    light: 'warm low sun fully lighting face and shoulders, bright golden exposure, luminous skin',
+    env: 'outdoors at golden hour',
+    light: 'bright warm beauty sunlight on face and body, high exposure golden glow, luminous skin',
     match: /golden|outdoor|park|sunset|warm smile|date/i,
   },
 ];
@@ -396,14 +396,14 @@ export function pickScenePoseAndOutfit(
 export function buildFaceIdentityClause(subject: GirlfriendSubject): string {
   const seed = `${subject.name || ''}|${subject.hairColor || ''}|${subject.eyes || ''}|${subject.race || ''}`;
   const faces = [
-    'oval face, soft cheekbones, light freckles, clear fair skin, soft natural makeup',
-    'heart-shaped face, defined jaw, bold eyeliner, glossy lips, luminous pale skin',
-    'round youthful face, full cheeks, dewy fair skin, soft pink makeup',
-    'long face, high cheekbones, sharp brows, minimal makeup, bright even complexion',
-    'diamond face shape, almond eyes, subtle contour, nude lips, porcelain-fair skin',
-    'soft square jaw, thick lashes, light freckles, healthy fair glow',
-    'narrow chin, wide-set eyes, messy baby hairs, no heavy foundation, fresh pale skin',
-    'soft angular face, beauty mark near lip, smoky eye, clear bright skin',
+    'symmetrical pretty face, high cheekbones, full glossy lips, long lashes, beauty makeup',
+    'model-like face, refined jaw, smoky eyes, nude glossy lips, flawless skin',
+    'soft glamorous face, doe eyes, pink blush, plump lips, dewy skin',
+    'sharp pretty features, arched brows, cat-eye liner, glamorous contour',
+    'classic beauty face, almond eyes, soft highlight, polished makeup',
+    'sultry pretty face, bedroom eyes, glossy nude lips, luminous skin',
+    'youthful glam face, bright eyes, soft contour, kissable lips',
+    'elegant beauty face, defined cheekbones, red-tinted lips, runway makeup',
   ];
   return faces[hashPick(seed || 'face', faces.length)];
 }
@@ -460,26 +460,26 @@ export function pickGirlfriendScene(
 
 export function buildExpressionClause(subject: GirlfriendSubject, scene: SceneRecipe): string {
   const p = (subject.personality || subject.mood || '').toLowerCase();
-  if (/shy|soft|gentle|innocent/.test(p)) return 'soft natural half-smile, relaxed cheeks, warm shy eyes';
-  if (/playful|brat|tease|flirty/.test(p)) return 'cheeky real smile, lively eyes, tiny nose wrinkle';
-  if (/dominant|confident|queen|bold/.test(p)) return 'confident soft smirk, relaxed jaw, intense but natural eyes';
-  if (/romantic|caring|sweet/.test(p)) return 'warm affectionate smile, soft eye crinkles';
+  if (/shy|soft|gentle|innocent/.test(p)) return 'soft glamorous smile, pretty eyes, refined makeup, shy allure';
+  if (/playful|brat|tease|flirty/.test(p)) return 'flirty glamorous smile, seductive eyes, glossy lips';
+  if (/dominant|confident|queen|bold/.test(p)) return 'confident seductive smirk, smoky eyes, glamorous makeup';
+  if (/romantic|caring|sweet/.test(p)) return 'warm seductive smile, pretty eyes, polished makeup';
 
   const byScene: Record<string, string> = {
-    mirror_selfie: 'cheeky pout or tiny tongue tip, playful eyes, natural micro-expression',
-    rooftop_night: 'soft glamorous smile, lively eyes, relaxed mouth',
-    pink_bedroom: 'bright over-shoulder smile, playful eyes',
-    gothic_throne: 'slight parted lips, controlled smirk, alive eyes',
-    window_sunlight: 'gentle over-shoulder smile, soft real expression',
-    cafe_day: 'easy candid smile, natural laugh lines',
-    car_night: 'intimate soft smile, relaxed face',
-    beach_breeze: 'bright natural smile, wind-kissed cheeks',
-    kitchen_morning: 'sleepy soft smile, relaxed eyelids',
-    studio_clean: 'approachable soft smile, commercial but natural',
-    golden_hour: 'warm natural smile to viewer',
-    city_apartment: 'calm soft smile, direct friendly eyes',
+    mirror_selfie: 'flirty pout, seductive eyes, glamorous selfie makeup',
+    rooftop_night: 'sexy glamorous smile, bedroom eyes, polished makeup',
+    pink_bedroom: 'sexy bright smile, seductive eyes, glossy lips',
+    gothic_throne: 'seductive parted lips, dark glamorous makeup, intense eyes',
+    window_sunlight: 'pretty soft smile, beauty makeup, luminous eyes',
+    cafe_day: 'pretty candid smile, polished casual glam',
+    car_night: 'intimate flirty smile, glamorous night makeup',
+    beach_breeze: 'bright sexy smile, sun-kissed glam, pretty face',
+    kitchen_morning: 'soft pretty smile, fresh beauty makeup',
+    studio_clean: 'magazine beauty smile, seductive eyes, flawless makeup',
+    golden_hour: 'warm sexy smile, golden-hour beauty glow',
+    city_apartment: 'calm seductive smile, pretty eyes, polished makeup',
   };
-  return byScene[scene.id] || 'natural soft smile, lively eyes, relaxed facial muscles';
+  return byScene[scene.id] || 'glamorous flirty smile, seductive eyes, polished beauty makeup';
 }
 
 /**
@@ -489,7 +489,7 @@ export function buildSubjectClause(s: GirlfriendSubject): string {
   const name = resolvePersonName(s.name, 'a beautiful young woman');
   const parts: string[] = [
     name,
-    'young adult woman 23-28',
+    'stunningly beautiful young adult woman 23-28',
     buildFaceIdentityClause(s),
   ];
 

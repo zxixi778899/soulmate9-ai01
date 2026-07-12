@@ -47,10 +47,10 @@ function buildBatchPrompt(char: Record<string, unknown>): { positive: string; ne
     if (!positive || positive.length < 20) {
     const personality = String(char.personality || 'warm, playful').slice(0, 120);
     positive = [
-      `portrait of ${name}, young adult woman 23-28, facing viewer, eye contact`,
+      `stunningly beautiful ${name}, young adult woman 23-28, glamorous makeup, flawless dewy skin`,
       personality,
-      'soft natural smile, fair luminous skin, well-lit face, bright clean exposure',
-      'varied stylish outfit, three-quarter body, photorealistic, sharp focus',
+      'gorgeous hourglass figure, full breasts, long legs, three-quarter body facing viewer',
+      'sexy fitted outfit, bright high-key beauty lighting, seductive smile, photorealistic',
     ].join(', ');
   }
 
