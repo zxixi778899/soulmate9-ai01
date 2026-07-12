@@ -11,7 +11,7 @@ import { loadCatalogCompanions } from '@/lib/public-companions';
 export async function GET(req: NextRequest) {
   try {
     const limit = Math.min(Number(req.nextUrl.searchParams.get('limit')) || 24, 60);
-    const { rows, source } = await loadCatalogCompanions(limit);
+    const { rows, source, featured_count, hot_count } = await loadCatalogCompanions(limit);
 
     if (rows.length > 0) {
       return NextResponse.json({
@@ -19,6 +19,9 @@ export async function GET(req: NextRequest) {
         girlfriends: rows,
         total: rows.length,
         source: 'api',
+        featured_count,
+        hot_count,
+        catalog_source: source,
       });
     }
 

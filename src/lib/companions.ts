@@ -196,6 +196,10 @@ export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl
     is_unlocked,
     unlock_price_tokens: Number(row.unlock_price_tokens) || 0,
     locked,
+    is_featured: row.is_featured === true || row.list_kind === 'featured',
+    is_hot: row.is_hot === true || row.list_kind === 'hot',
+    list_kind: (row.list_kind as DemoGirl['list_kind']) || undefined,
+    sort_order: Number(row.sort_order) || 0,
   };
 }
 

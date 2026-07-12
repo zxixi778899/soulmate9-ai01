@@ -130,17 +130,26 @@ export default function HomePage() {
     };
   }, []);
 
-  const roster = catalog.slice(0, 10);
+  // 主视觉轮播：后台推荐(featured)优先，不足再用热门/公开补齐
+  const roster = useMemo(() => {
+    const featuredFirst = catalog.filter((g) => g.is_featured || g.list_kind === 'featured');
+    const rest = catalog.filter((g) => !(g.is_featured || g.list_kind === 'featured'));
+    const ordered = [...featuredFirst, ...rest];
+    return ordered.slice(0, 10);
+  }, [catalog]);
   const featured = roster[focus] || catalog[0] || null;
   const rc = RARITY_COLORS[(featured?.rarity as keyof typeof RARITY_COLORS) || 'R'] || RARITY_COLORS.R;
 
-  const hotList = useMemo(
-    () =>
-      [...catalog]
-        .sort((a, b) => (b.hot_score ?? b.intimacy) - (a.hot_score ?? a.intimacy))
-        .slice(0, 12),
-    [catalog],
-  );
+  // 热门 12：后台 is_hot / featured 优先，再按 hot_score
+  const hotList = useMemo(() => {
+    const score = (g: DemoGirl) => {
+      const base = Number(g.hot_score ?? g.intimacy ?? 0);
+      if (g.is_hot || g.list_kind === 'hot') return 2_000_000 + base;
+      if (g.is_featured || g.list_kind === 'featured') return 1_000_000 + base;
+      return base;
+    };
+    return [...catalog].sort((a, b) => score(b) - score(a)).slice(0, 12);
+  }, [catalog]);
 
   useEffect(() => {
     if (catalog.length < 2 || paused) return;

@@ -107,6 +107,12 @@ export interface PublicCompanionRow {
   base_kink?: number | null;
   created_at?: string | null;
   is_demo?: boolean;
+  /** Homepage placement metadata from admin featured/hot lists */
+  list_kind?: 'featured' | 'hot' | 'public';
+  sort_order?: number | null;
+  hot_score?: number | null;
+  is_featured?: boolean;
+  is_hot?: boolean;
 }
 
 /**
@@ -235,6 +241,10 @@ export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[
                 personality: (base as { personality?: string }).personality ?? null,
                 access_status: 'open',
                 is_demo: false,
+                list_kind: 'featured',
+                is_featured: true,
+                sort_order: Number(f.sort_order ?? 0) || 0,
+                hot_score: 1000 - (Number(f.sort_order ?? 0) || 0) + Number(f.click_count ?? 0),
               });
             }
           }
@@ -254,6 +264,10 @@ export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[
         personality: (f.subtitle as string) || null,
         access_status: 'open',
         is_demo: false,
+        list_kind: 'featured',
+        is_featured: true,
+        sort_order: Number(f.sort_order ?? 0) || 0,
+        hot_score: 1000 - (Number(f.sort_order ?? 0) || 0) + Number(f.click_count ?? 0),
       });
     }
     return out;
@@ -271,24 +285,111 @@ export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[
 export async function loadCatalogCompanions(limit = 48): Promise<{
   rows: PublicCompanionRow[];
   source: 'api' | 'empty';
+  featured_count: number;
+  hot_count: number;
 }> {
-  // 1) Real public girlfriends
+  /**
+   * Homepage priority:
+   * 1) Admin featured_girlfriends (推荐/运营精选) — preserve sort_order
+   * 2) Admin-marked hot public girls (is_hot / hot_score) when columns exist
+   * 3) Remaining approved public girlfriends
+   * Never demote admin picks behind random public rows.
+   */
+  const featured = await loadFeaturedTable(Math.max(limit, 24));
+  for (const r of featured) {
+    r.list_kind = 'featured';
+    r.is_featured = true;
+    r.hot_score = r.hot_score ?? (1000 - Number(r.sort_order ?? 0));
+  }
+
+  let publicRows: PublicCompanionRow[] = [];
   try {
-    const girls = await loadPublicGirlfriends(limit);
-    if (girls.length > 0) {
-      return { rows: girls, source: 'api' };
-    }
+    publicRows = await loadPublicGirlfriends(Math.max(limit * 2, 48));
   } catch (e) {
-    logger.warn('[public-companions] primary load failed', {
+    logger.warn('[public-companions] public load failed', {
       err: e instanceof Error ? e.message : String(e),
     });
   }
 
-  // 2) Featured table (usable images only)
-  const featured = await loadFeaturedTable(limit);
-  if (featured.length > 0) {
-    return { rows: featured, source: 'api' };
+  // Probe optional hot flags on public rows via raw re-query if needed
+  // (loadPublicGirlfriends may not select is_hot / hot_score — enrich best-effort)
+  const hotById = new Map<
+    string,
+    { is_hot?: boolean; is_featured?: boolean; hot_score?: number; sort_order?: number }
+  >();
+  try {
+    const sb = getSupabaseClient();
+    const { data: hotRows, error: hotErr } = await sb
+      .from('girlfriends')
+      .select('id, is_hot, hot_score, sort_order, is_featured')
+      .eq('is_public', true)
+      .eq('review_status', 'approved')
+      .or('is_hot.eq.true,is_featured.eq.true,hot_score.gt.0')
+      .order('hot_score', { ascending: false })
+      .limit(60);
+    if (!hotErr && hotRows) {
+      for (const h of hotRows as Record<string, unknown>[]) {
+        hotById.set(String(h.id), {
+          is_hot: h.is_hot === true,
+          is_featured: h.is_featured === true,
+          hot_score: Number(h.hot_score ?? 0) || 0,
+          sort_order: Number(h.sort_order ?? 0) || 0,
+        });
+      }
+    }
+  } catch {
+    /* optional columns may not exist — ignore */
   }
 
-  return { rows: [], source: 'empty' };
+  for (const r of publicRows) {
+    const meta = hotById.get(r.id);
+    if (meta) {
+      r.is_hot = Boolean(meta.is_hot) || (meta.hot_score ?? 0) > 0;
+      r.is_featured = Boolean(r.is_featured) || Boolean(meta.is_featured);
+      r.hot_score = meta.hot_score ?? r.hot_score ?? null;
+      r.sort_order = meta.sort_order ?? r.sort_order ?? null;
+      if (r.is_featured) r.list_kind = 'featured';
+      else if (r.is_hot) r.list_kind = r.list_kind || 'hot';
+    }
+    if (!r.list_kind) r.list_kind = 'public';
+  }
+
+  const seen = new Set<string>();
+  const merged: PublicCompanionRow[] = [];
+
+  // A) featured first (admin 推荐)
+  for (const r of featured) {
+    if (!r.id || seen.has(r.id)) continue;
+    seen.add(r.id);
+    merged.push(r);
+  }
+
+  // B) hot public next
+  const hotPublic = publicRows
+    .filter((r) => r.is_hot || (Number(r.hot_score || 0) > 0))
+    .sort((a, b) => Number(b.hot_score || 0) - Number(a.hot_score || 0));
+  for (const r of hotPublic) {
+    if (!r.id || seen.has(r.id)) continue;
+    seen.add(r.id);
+    r.list_kind = 'hot';
+    merged.push(r);
+  }
+
+  // C) remaining public
+  for (const r of publicRows) {
+    if (!r.id || seen.has(r.id)) continue;
+    seen.add(r.id);
+    merged.push(r);
+  }
+
+  const rows = merged.slice(0, limit);
+  if (rows.length === 0) {
+    return { rows: [], source: 'empty', featured_count: 0, hot_count: 0 };
+  }
+  return {
+    rows,
+    source: 'api',
+    featured_count: featured.length,
+    hot_count: hotPublic.length,
+  };
 }

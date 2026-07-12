@@ -51,6 +51,10 @@ export interface DemoGirl {
   rarity_quote: string;
   voice_preview?: string;
   hot_score?: number;
+  is_featured?: boolean;
+  is_hot?: boolean;
+  list_kind?: 'featured' | 'hot' | 'public';
+  sort_order?: number;
   access_status?: AccessStatus;
   is_unlocked?: boolean;
   unlock_price_tokens?: number;
