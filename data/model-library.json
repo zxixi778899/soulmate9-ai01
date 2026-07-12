@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "updated_at": "2026-07-12T16:29:52.389947+00:00",
+  "items": [],
+  "notes": [
+    "Empty items[] will seed from data/lora-catalog.json on first load.",
+    "Civitai imports use id civitai:{modelId}:{versionId}."
+  ]
+}

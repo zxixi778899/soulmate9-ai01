@@ -1,9 +1,10 @@
-/**
+﻿/**
  * RunPod resources + Comfy console defaults for Soulmate9.
  * Network volume LoRAs/models are listed as filenames Comfy sees after mount.
  * LoRA 清单单源：data/lora-catalog.json → catalogToLoraAssets()
  */
 import { catalogToLoraAssets, LORA_CATALOG } from './lora-catalog';
+import type { LibraryItem } from '@/lib/model-library';
 
 export type WorkflowKind = 'girlfriend' | 'outfit' | 'prop' | 'custom';
 
@@ -38,6 +39,7 @@ export type LoraAsset = {
   page_url?: string;
   search_keywords?: string;
   workflows?: string[];
+  source?: string;
 };
 
 export type WorkflowPreset = {
@@ -94,8 +96,64 @@ export type ComfyConsoleConfig = {
 
 export const COMFY_CONFIG_KEY = 'comfy_console';
 
-export function createDefaultComfyConfig(): ComfyConsoleConfig {
-  const loras = catalogToLoraAssets();
+
+/** Merge static catalog + model-library LoRAs for Comfy dropdown. */
+export function mergeLoraAssets(libraryItems?: LibraryItem[]): LoraAsset[] {
+  const base = catalogToLoraAssets() as LoraAsset[];
+  if (!libraryItems?.length) return base;
+
+  const byFilename = new Map<string, LoraAsset>();
+  const byId = new Map<string, LoraAsset>();
+  for (const l of base) {
+    if (l.filename) byFilename.set(l.filename.toLowerCase(), l);
+    byId.set(l.id, l);
+  }
+
+  const extra: LoraAsset[] = [];
+  for (const it of libraryItems) {
+    if (it.kind !== 'lora' || !it.filename) continue;
+    // catalog seeds already in base
+    if (it.source === 'catalog') {
+      const bare = it.id.replace(/^catalog:/, '');
+      if (byId.has(bare) || byFilename.has(it.filename.toLowerCase())) continue;
+    }
+    const id =
+      it.id.startsWith('civitai:') || it.id.startsWith('manual:')
+        ? it.id
+        : it.id.startsWith('catalog:')
+          ? it.id.replace(/^catalog:/, '')
+          : it.id;
+    if (byId.has(id)) continue;
+    const existing = byFilename.get(it.filename.toLowerCase());
+    if (existing && existing.id !== 'none') {
+      if ((it.trigger_words?.length || 0) > (existing.trigger_words?.length || 0)) {
+        existing.trigger_words = it.trigger_words;
+      }
+      if (it.page_url && !existing.page_url) existing.page_url = it.page_url;
+      continue;
+    }
+    const prefix = it.source === 'civitai' || it.source === 'manual' ? '[库] ' : '';
+    extra.push({
+      id,
+      label: `${prefix}${it.label}`,
+      filename: it.filename,
+      default_strength: it.default_strength ?? 0.7,
+      tags: [it.category, ...(it.nsfw ? ['nsfw'] : []), it.source, 'library'],
+      category: it.category || 'style',
+      nsfw: !!it.nsfw,
+      usage: it.usage,
+      trigger_words: it.trigger_words || [],
+      page_url: it.page_url,
+      search_keywords: it.notes,
+      workflows: ['wf-girlfriend'],
+      source: it.source,
+    });
+  }
+  return [...base, ...extra];
+}
+
+export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyConsoleConfig {
+  const loras = mergeLoraAssets(libraryItems);
 
   return {
     version: 2,
@@ -117,6 +175,7 @@ export function createDefaultComfyConfig(): ComfyConsoleConfig {
         '5. Serverless 端点（ComfyUI / soulmate-portrait）都要挂同一网络卷',
         '6. 冷启动后首次读卷可能稍慢，属正常',
         '7. 详细清单与用法见后台「LoRA 清单」Tab 与 scripts/runpod/README-LORA.md',
+        '8. 从 Civitai 入库：后台「Civitai 模型库」搜索→加入→导出 lora-urls.txt→download-loras.sh',
       ],
     },
     endpoints: [

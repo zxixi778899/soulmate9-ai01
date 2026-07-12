@@ -11,7 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Loader2, LayoutDashboard, Users, Image, Heart, ShoppingBag, CheckSquare,
   Brain, CreditCard, FileImage, BookOpen, ChevronLeft, LayoutTemplate, Menu,
-  Home, Coins, Settings, Star, Bitcoin, Film,
+  Home, Coins, Settings, Star, Bitcoin, Film, Library,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +34,7 @@ const navGroups: NavGroup[] = [
       { label: '图片库', href: '/admin/images', icon: FileImage },
       { label: '视频库', href: '/admin/videos', icon: Film },
       { label: 'Comfy 生成', href: '/admin/comfy', icon: FileImage },
+      { label: 'Civitai 模型库', href: '/admin/model-library', icon: Library },
       { label: '角色卡导入', href: '/admin/character-cards', icon: FileImage },
       { label: '世界书', href: '/admin/lore', icon: BookOpen },
     ],

@@ -6,6 +6,7 @@ import {
   type ComfyConsoleConfig,
 } from './defaults';
 import { logger } from '@/lib/logger';
+import { loadModelLibrary } from '@/lib/model-library';
 
 export type { ComfyConsoleConfig };
 
@@ -16,8 +17,8 @@ function filePath() {
 let cache: { cfg: ComfyConsoleConfig; at: number } | null = null;
 
 function mergeDeep(base: ComfyConsoleConfig, patch: Partial<ComfyConsoleConfig>): ComfyConsoleConfig {
-  // LoRA 清单以 data/lora-catalog.json（createDefault）为单源，始终刷新；
-  // 端点 ID / 工作流等用户改动保留。
+  // LoRA list always comes from catalog + model-library (base.loras already merged).
+  // Keep user endpoint / workflow edits.
   return {
     ...base,
     ...patch,
@@ -35,6 +36,9 @@ function mergeDeep(base: ComfyConsoleConfig, patch: Partial<ComfyConsoleConfig>)
 export async function loadComfyConfig(supabase?: { from: (t: string) => any }): Promise<ComfyConsoleConfig> {
   if (cache && Date.now() - cache.at < 10_000) return cache.cfg;
 
+  const library = await loadModelLibrary(supabase).catch(() => ({ items: [] as never[] }));
+  const libraryItems = (library as { items?: unknown[] }).items as import('@/lib/model-library').LibraryItem[] | undefined;
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -44,7 +48,7 @@ export async function loadComfyConfig(supabase?: { from: (t: string) => any }): 
         .maybeSingle();
       if (!error && data?.value) {
         const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        const cfg = mergeDeep(createDefaultComfyConfig(), val);
+        const cfg = mergeDeep(createDefaultComfyConfig(libraryItems), val);
         cache = { cfg, at: Date.now() };
         return cfg;
       }
@@ -55,11 +59,11 @@ export async function loadComfyConfig(supabase?: { from: (t: string) => any }): 
 
   try {
     const raw = await readFile(filePath(), 'utf8');
-    const cfg = mergeDeep(createDefaultComfyConfig(), JSON.parse(raw));
+    const cfg = mergeDeep(createDefaultComfyConfig(libraryItems), JSON.parse(raw));
     cache = { cfg, at: Date.now() };
     return cfg;
   } catch {
-    const cfg = createDefaultComfyConfig();
+    const cfg = createDefaultComfyConfig(libraryItems);
     cache = { cfg, at: Date.now() };
     return cfg;
   }
@@ -69,8 +73,10 @@ export async function saveComfyConfig(
   cfg: ComfyConsoleConfig,
   supabase?: { from: (t: string) => any },
 ): Promise<{ source: 'db' | 'file' }> {
-  // 保存时仍强制同步最新 LoRA 清单（避免客户端旧缓存覆盖 catalog）
-  const fresh = createDefaultComfyConfig();
+  // Keep LoRA list in sync with catalog + model-library on save.
+  const library = await loadModelLibrary(supabase).catch(() => ({ items: [] as never[] }));
+  const libraryItems = (library as { items?: unknown[] }).items as import('@/lib/model-library').LibraryItem[] | undefined;
+  const fresh = createDefaultComfyConfig(libraryItems);
   const next: ComfyConsoleConfig = {
     ...cfg,
     updated_at: new Date().toISOString(),

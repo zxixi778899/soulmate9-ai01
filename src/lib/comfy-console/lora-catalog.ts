@@ -1,10 +1,10 @@
-/**
- * LoRA 清单：从 data/lora-catalog.json 加载，供 Comfy 默认配置与后台展示。
- * 单源：改 JSON 即可同步下载脚本清单与 Admin UI。
+﻿/**
+ * LoRA catalog: load from data/lora-catalog.json for Comfy defaults + admin UI.
+ * Single source: edit JSON to sync download scripts and Admin UI.
  */
 import catalogJson from '../../../data/lora-catalog.json';
 
-export type LoraCategoryId = 'body' | 'action' | 'outfit' | 'prop' | 'detail' | string;
+export type LoraCategoryId = 'body' | 'action' | 'outfit' | 'prop' | 'detail' | 'style' | 'checkpoint' | string;
 
 export type CatalogLora = {
   id: string;
@@ -71,7 +71,7 @@ export function catalogToLoraAssets(): Array<{
 }> {
   const none = {
     id: 'none',
-    label: '（不使用 LoRA）',
+    label: '(不使用 LoRA)',
     filename: '',
     default_strength: 0,
     tags: [],
@@ -108,6 +108,10 @@ function categoryPrefix(cat: string): string {
       return '[道具] ';
     case 'detail':
       return '[细节] ';
+    case 'style':
+      return '[风格] ';
+    case 'checkpoint':
+      return '[主模] ';
     default:
       return '';
   }

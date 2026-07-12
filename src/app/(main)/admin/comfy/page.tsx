@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 type Any = Record<string, any>;
 
@@ -371,6 +372,7 @@ export default function AdminComfyConsolePage() {
           </h1>
           <p className="text-xs text-slate-400 mt-1">
             工作流 · LoRA 清单一键调用 · Checkpoint（网络卷）· 图库存删
+          <Link href="/admin/model-library" className="mt-2 inline-flex text-xs text-rose-300 hover:text-rose-200 underline-offset-2 hover:underline">打开 Civitai 模型库（搜索 / 入库 / 导出下载清单）→</Link>
             {config.lora_catalog_version != null && (
               <span className="ml-2 text-violet-400/80">catalog v{config.lora_catalog_version}</span>
             )}
