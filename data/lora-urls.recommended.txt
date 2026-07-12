@@ -1,0 +1,33 @@
+﻿# Soulmate9 — recommended FLUX.1 D LoRA pack
+# Format: target_filename|https://civitai.com/api/download/models/<versionId>
+#
+# export CIVITAI_API_TOKEN='your_token'
+# bash one-click-download-loras.sh
+# or: ./download-loras.sh --from-file lora-urls.recommended.txt
+
+# Tier A — card quality
+flux_style_photoreal_v1.safetensors|https://civitai.com/api/download/models/1084957
+flux_style_hyperreal_aidma_v1.safetensors|https://civitai.com/api/download/models/980278
+flux_detail_skin_v1.safetensors|https://civitai.com/api/download/models/827325
+flux_detail_skin_nplastic_v1.safetensors|https://civitai.com/api/download/models/1301668
+flux_detail_hands_v1.safetensors|https://civitai.com/api/download/models/1003317
+flux_detail_upgrader_v1.safetensors|https://civitai.com/api/download/models/984672
+
+# Tier B — body
+flux_body_curvy_v1.safetensors|https://civitai.com/api/download/models/1668530
+flux_body_pear_v1.safetensors|https://civitai.com/api/download/models/1276427
+
+# Tier C — outfit
+flux_outfit_lingerie_v1.safetensors|https://civitai.com/api/download/models/869894
+flux_outfit_bunny_v1.safetensors|https://civitai.com/api/download/models/817758
+flux_outfit_maid_v1.safetensors|https://civitai.com/api/download/models/1588611
+flux_outfit_bikini_v1.safetensors|https://civitai.com/api/download/models/1184191
+flux_outfit_latex_v1.safetensors|https://civitai.com/api/download/models/734230
+flux_outfit_school_v1.safetensors|https://civitai.com/api/download/models/2163726
+
+# Tier D — NSFW scene
+flux_pose_nsfw_dynamic_v1.safetensors|https://civitai.com/api/download/models/746602
+flux_face_ahegao_v1.safetensors|https://civitai.com/api/download/models/1477302
+
+# Tier E — cinematic
+flux_style_cinematic_v1.safetensors|https://civitai.com/api/download/models/953083

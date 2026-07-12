@@ -1,0 +1,17 @@
+﻿# Soulmate9 — minimal FLUX LoRAs for girlfriend cards
+# Format: target_filename|civitai_version_download_url
+# On RunPod model-downloader (US-CA-2, volume soulmate-models-ca2):
+#   export CIVITAI_API_TOKEN=your_token
+#   chmod +x download-loras.sh
+#   ./download-loras.sh --from-file models/loras/lora-urls.txt
+#
+# Priority: style (default batch) + skin. Body/lingerie later when real files chosen.
+
+# 1) Photoreal style — default for card batch (GIRLFRIEND_STYLE_LORA)
+flux_style_photoreal_v1.safetensors|https://civitai.com/api/download/models/1084957
+
+# 2) Skin texture — optional / when tags ask detail (GIRLFRIEND_SKIN_LORA)
+flux_detail_skin_v1.safetensors|https://civitai.com/api/download/models/827325
+
+# Optional higher-detail style (not wired by default; rename if you prefer as default)
+# flux_style_aidma_pro.safetensors|https://civitai.com/api/download/models/1244911

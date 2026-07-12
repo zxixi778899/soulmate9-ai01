@@ -4,6 +4,7 @@
   "target_volume": "soulmate-models-ca2",
   "region": "US-CA-2",
   "notes": [
+    "最小挂盘：先下 flux_style_photoreal_v1 + flux_detail_skin_v1（见 scripts/runpod/lora-urls.minimal.txt）",
     "仅收录 FLUX 底模 LoRA，不可与 SDXL/SD1.5 LoRA 混用",
     "fp8 主模型已有：flux1-dev-fp8.safetensors（放在 models/checkpoints/）",
     "LoRA 下载到网盘：models/loras/，文件名必须与 filename 字段一致",
@@ -473,11 +474,13 @@
         "wf-girlfriend"
       ],
       "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=skin%20detail",
-      "search_keywords": "FLUX skin detail pores",
+      "page_url": "https://civitai.com/models/?query=fluxRealSkin",
+      "search_keywords": "FLUX fluxRealSkin skin texture",
       "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX skin detail LoRA"
+        "type": "civitai_version",
+        "version_id": 827325,
+        "url": "https://civitai.com/api/download/models/827325",
+        "hint": "Rename download to flux_detail_skin_v1.safetensors (fluxRealSkin-V2)"
       }
     },
     {
@@ -497,11 +500,13 @@
         "wf-girlfriend"
       ],
       "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=photoreal",
-      "search_keywords": "FLUX photorealistic",
+      "page_url": "https://civitai.com/models/?query=Immersive+Photorealistic",
+      "search_keywords": "FLUX Immersive Photorealistic",
       "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX photoreal style LoRA"
+        "type": "civitai_version",
+        "version_id": 1084957,
+        "url": "https://civitai.com/api/download/models/1084957",
+        "hint": "Rename download to flux_style_photoreal_v1.safetensors"
       }
     }
   ],

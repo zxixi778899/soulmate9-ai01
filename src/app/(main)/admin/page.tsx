@@ -139,7 +139,7 @@ export default function AdminDashboard() {
                 { label: '审核队列', href: '/admin/review', icon: CheckSquare },
                 { label: '用户', href: '/admin/users', icon: Users },
                 { label: '代币套餐', href: '/admin/tokens', icon: DollarSign },
-                { label: '站点设置', href: '/admin/settings', icon: Activity },Activity },
+                { label: '站点设置', href: '/admin/settings', icon: Activity },
               ].map((action) => (
                 <button
                   key={action.label}
