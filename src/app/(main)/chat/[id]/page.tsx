@@ -506,9 +506,10 @@ export default function ChatPage() {
       void authedFetch(`/api/chat/${id}`)
         .then((r) => readResponseJson(r).catch(() => ({})))
         .then((data) => {
-          if (data.messages?.length) {
-            setMessages((prev) => mergeMessages(data.messages, prev) as Message[]);
-            saveChatCache(id, { messages: data.messages });
+          const msgs = (data as { messages?: Message[] }).messages;
+          if (msgs?.length) {
+            setMessages((prev) => mergeMessages(msgs, prev) as Message[]);
+            saveChatCache(id, { messages: msgs });
           }
         })
         .catch(() => {});
