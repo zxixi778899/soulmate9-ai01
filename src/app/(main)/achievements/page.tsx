@@ -60,7 +60,11 @@ export default function AchievementsPage() {
         achievements?: Achievement[];
         total_unlocked?: number;
         source?: string;
-      }>(res).catch(() => ({}));
+      }>(res).catch(() => ({
+        achievements: [] as Achievement[],
+        total_unlocked: 0,
+        source: '',
+      }));
       setAchievements(data.achievements || []);
       setTotalUnlocked(data.total_unlocked || 0);
       setSource(data.source || '');
