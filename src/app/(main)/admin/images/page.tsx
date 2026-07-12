@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Loader2, Plus, Trash2, RefreshCw, Sparkles, Check, X, ChevronDown, ChevronUp,
   ChevronLeft, ChevronRight, SlidersHorizontal, ImageIcon, User, Shirt, Package,
-  Upload, Search, Wand2, Save, Eraser, LayoutGrid, ExternalLink,
+  Upload, Search, Wand2, Save, Eraser, LayoutGrid, ExternalLink, CheckSquare, Square,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -392,6 +392,10 @@ export default function AdminImagesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<ImageItem | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [batchBusy, setBatchBusy] = useState(false);
+  const batchFileRef = useRef<HTMLInputElement>(null);
+
   const [saving, setSaving] = useState(false);
 
   // Comfy 操作台图库选择
@@ -427,6 +431,11 @@ export default function AdminImagesPage() {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
     return () => clearTimeout(t);
   }, [searchQuery]);
+
+  useEffect(() => {
+    setCheckedIds(new Set());
+  }, [activeTab, pagination.page, debouncedSearch, filterStatus]);
+
 
   // Reset page when filters change
   useEffect(() => {
@@ -607,7 +616,7 @@ export default function AdminImagesPage() {
       const url = data.url || imageUrl;
       toast.success(`已应用操作台图片 → ${item.name}`);
       addLog('success', `操作台图已应用：${item.name}`);
-      if (selectedItem?.id === item.id) {
+      if (selectedItem?.id === item.id || checkedIds.has(item.id)) {
         setSelectedItem((prev) =>
           prev ? { ...prev, imageUrl: url, hasImage: true } : prev,
         );
@@ -1090,6 +1099,98 @@ export default function AdminImagesPage() {
     updateGenState(selectedItem.id, { selectedImages: next });
   };
 
+
+  const toggleChecked = (id: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleCheckAllVisible = () => {
+    setCheckedIds((prev) => {
+      const allIds = items.map((it) => it.id);
+      const allSelected = allIds.length > 0 && allIds.every((id) => prev.has(id));
+      if (allSelected) return new Set();
+      return new Set(allIds);
+    });
+  };
+
+  const batchDeleteSelected = async () => {
+    if (checkedIds.size === 0) {
+      toast.error('请先勾选要删除图片的条目');
+      return;
+    }
+    if (!confirm(`确认批量删除 ${checkedIds.size} 条图片？仅清空图片，不删条目本身。`)) return;
+    setBatchBusy(true);
+    try {
+      const payload = items
+        .filter((it) => checkedIds.has(it.id))
+        .map((it) => ({
+          type: it.itemCategory,
+          id: it.id,
+          imageUrl: it.imageUrl || undefined,
+          field: it.field,
+        }));
+      const res = await authedFetch('/api/admin/images/batch-delete', {
+        method: 'POST',
+        body: JSON.stringify({ items: payload }),
+      });
+      const data = await readResponseJson(res).catch(() => ({} as any));
+      if (!res.ok) throw new Error((data as any).error || '批量删除失败');
+      toast.success(`已删除 ${(data as any).deleted ?? payload.length} 张图片`);
+      addLog('success', `批量删图：${(data as any).deleted}/${payload.length}`);
+      setCheckedIds(new Set());
+      loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '批量删除失败');
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
+  const handleBatchFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const selected = items.filter((it) => checkedIds.has(it.id));
+    if (!selected.length) {
+      toast.error('请先勾选目标条目，再按顺序批量上传（文件顺序对应勾选顺序）');
+      e.target.value = '';
+      return;
+    }
+    if (files.length !== selected.length) {
+      toast.message(`已选 ${selected.length} 条，选了 ${files.length} 个文件：将按最小数量一一对应上传`);
+    }
+    setBatchBusy(true);
+    try {
+      const n = Math.min(files.length, selected.length);
+      const formData = new FormData();
+      formData.append('type', activeTab);
+      formData.append('ids', JSON.stringify(selected.slice(0, n).map((s) => s.id)));
+      if (selected[0]?.field) formData.append('field', selected[0].field);
+      for (let i = 0; i < n; i++) formData.append('files', files[i]);
+      const token = getSessionToken();
+      const res = await fetch('/api/admin/images/batch-upload', {
+        method: 'POST',
+        headers: token ? { 'x-session': token } : {},
+        body: formData,
+      });
+      const data = await readResponseJson(res).catch(() => ({} as any));
+      if (!res.ok) throw new Error((data as any).error || '批量上传失败');
+      toast.success(`批量上传成功 ${(data as any).uploaded ?? n} 张`);
+      addLog('success', `批量上传：${(data as any).uploaded}/${n}`);
+      setCheckedIds(new Set());
+      loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '批量上传失败');
+    } finally {
+      setBatchBusy(false);
+      e.target.value = '';
+    }
+  };
+
   const batchGenerate = async () => {
     if (batchRunning) return;
     setBatchRunning(true);
@@ -1235,6 +1336,14 @@ export default function AdminImagesPage() {
         accept="image/jpeg,image/png,image/webp,image/gif"
         className="hidden"
         onChange={handleFileSelected}
+      />
+      <input
+        ref={batchFileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        multiple
+        className="hidden"
+        onChange={handleBatchFiles}
       />
 
       {/* Header */}
@@ -1638,7 +1747,26 @@ export default function AdminImagesPage() {
                         key={item.id}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedItem(item)}
+                        onClick={() =>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleChecked(item.id);
+                    }}
+                    className={`absolute left-2 top-2 z-10 rounded-md border p-1 shadow-sm ${
+                      checkedIds.has(item.id)
+                        ? 'border-blue-500 bg-blue-600 text-white'
+                        : 'border-white/70 bg-black/40 text-white'
+                    }`}
+                    title="选择"
+                  >
+                    {checkedIds.has(item.id) ? (
+                      <CheckSquare className="h-3.5 w-3.5" />
+                    ) : (
+                      <Square className="h-3.5 w-3.5" />
+                    )}
+                  </button> setSelectedItem(item)}
                         onKeyDown={(e) => e.key === 'Enter' && setSelectedItem(item)}
                         className={`group relative overflow-hidden rounded-lg border-2 text-left transition-all ${
                           selectedItem?.id === item.id
