@@ -1747,26 +1747,7 @@ export default function AdminImagesPage() {
                         key={item.id}
                         role="button"
                         tabIndex={0}
-                        onClick={() =>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleChecked(item.id);
-                    }}
-                    className={`absolute left-2 top-2 z-10 rounded-md border p-1 shadow-sm ${
-                      checkedIds.has(item.id)
-                        ? 'border-blue-500 bg-blue-600 text-white'
-                        : 'border-white/70 bg-black/40 text-white'
-                    }`}
-                    title="选择"
-                  >
-                    {checkedIds.has(item.id) ? (
-                      <CheckSquare className="h-3.5 w-3.5" />
-                    ) : (
-                      <Square className="h-3.5 w-3.5" />
-                    )}
-                  </button> setSelectedItem(item)}
+                        onClick={() => setSelectedItem(item)}
                         onKeyDown={(e) => e.key === 'Enter' && setSelectedItem(item)}
                         className={`group relative overflow-hidden rounded-lg border-2 text-left transition-all ${
                           selectedItem?.id === item.id
@@ -1774,6 +1755,25 @@ export default function AdminImagesPage() {
                             : 'border-gray-100 hover:border-gray-300'
                         }`}
                       >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleChecked(item.id);
+                          }}
+                          className={`absolute left-2 top-2 z-10 rounded-md border p-1 shadow-sm ${
+                            checkedIds.has(item.id)
+                              ? 'border-blue-500 bg-blue-600 text-white'
+                              : 'border-white/70 bg-black/40 text-white'
+                          }`}
+                          title="Select"
+                        >
+                          {checkedIds.has(item.id) ? (
+                            <CheckSquare className="h-3.5 w-3.5" />
+                          ) : (
+                            <Square className="h-3.5 w-3.5" />
+                          )}
+                        </button>
                         <div className="aspect-[3/4] w-full bg-gray-50">
                           {item.hasImage && item.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
