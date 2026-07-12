@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger';
 import { uploadFile, resolveImageUrl } from '@/lib/storage';
 import {
   assembleGirlfriendFromRow,
+  resolveGirlfriendLoraPlan,
+  subjectFromGirlfriendRow,
 } from '@/lib/prompt/girlfriend';
 import { runpodClient } from '@/lib/runpod';
 
@@ -47,10 +49,10 @@ function buildBatchPrompt(char: Record<string, unknown>): { positive: string; ne
     if (!positive || positive.length < 20) {
     const personality = String(char.personality || 'warm, playful').slice(0, 120);
     positive = [
-      `stunningly beautiful ${name}, young adult woman 23-28, glamorous makeup, flawless dewy skin`,
+      `beautiful ${name}, young adult woman 23-28, pretty face, natural makeup`,
       personality,
-      'gorgeous hourglass figure, full breasts, long legs, three-quarter body facing viewer',
-      'sexy fitted outfit, bright high-key beauty lighting, seductive smile, photorealistic',
+      'attractive feminine figure, realistic proportions, three-quarter body facing viewer',
+      'stylish real outfit, soft natural beauty lighting, natural smile, photorealistic',
     ].join(', ');
   }
 
@@ -84,8 +86,31 @@ async function generateAndUpload(
   });
 
   // FLUX: cfg 1.0 + empty negative (avoids black/blurry frames)
+  const subject = subjectFromGirlfriendRow(char);
+  const loraPlan =
+    params.lora_name || params.disable_lora
+      ? {
+          lora_name: params.lora_name ? String(params.lora_name) : null,
+          lora_strength_model: Number(params.lora_strength_model ?? 0.55),
+          lora_strength_clip: Number(params.lora_strength_clip ?? params.lora_strength_model ?? 0.55),
+          trigger_words: [] as string[],
+          note: 'params',
+        }
+      : resolveGirlfriendLoraPlan(subject);
+
+  const promptWithTriggers = loraPlan.trigger_words?.length
+    ? `${loraPlan.trigger_words.join(', ')}, ${positive}`
+    : positive;
+
+  logger.info('[batch] lora', {
+    name,
+    lora: loraPlan.lora_name,
+    strength: loraPlan.lora_strength_model,
+    note: loraPlan.note,
+  });
+
   const result = await runpodClient.generate({
-    prompt: positive,
+    prompt: promptWithTriggers,
     negative_prompt: negative || '',
     width: Number(params.width) || 832,
     height: Number(params.height) || 1216,
@@ -102,6 +127,9 @@ async function generateAndUpload(
             ),
           ),
     ckpt_name: String(params.ckpt_name || 'flux1-dev-fp8.safetensors'),
+    lora_name: loraPlan.lora_name,
+    lora_strength_model: loraPlan.lora_strength_model,
+    lora_strength_clip: loraPlan.lora_strength_clip,
   });
 
   if (!result.images?.length) {

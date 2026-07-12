@@ -23,6 +23,7 @@ export * as ShopItem from './shop_item';
 export {
   assembleGirlfriendFromRow,
   subjectFromGirlfriendRow,
+  resolveGirlfriendLoraPlan,
   GIRLFRIEND_BODY_FIXED,
   GIRLFRIEND_FRAMING,
   GIRLFRIEND_NEGATIVE,
