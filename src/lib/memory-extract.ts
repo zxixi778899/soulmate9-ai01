@@ -38,7 +38,7 @@ export async function extractMemoriesLLM(
   const flat = last.map((m) => `[${m.role}] ${m.content}`).join('\n');
   const prompt = EXTRACT_PROMPT.replace('%s', flat);
   try {
-    const text = await callLLM([{ role: 'user', content: prompt }], { temperature: 0.3 });
+    const text = await generateText({ prompt, temperature: 0.3, maxTokens: 512 });
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) return [];
     const arr = JSON.parse(match[0]);
