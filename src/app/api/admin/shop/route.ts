@@ -105,8 +105,8 @@ export async function GET(request: NextRequest) {
       items,
       categories: Array.from(categories).sort(),
       counts: {
-        outfit: items.filter((i) => i.collection === 'outfit').length,
-        prop: items.filter((i) => i.collection === 'prop').length,
+        outfit: items.filter((i) => (i as { collection: 'outfit' | 'prop' }).collection === 'outfit').length,
+        prop: items.filter((i) => (i as { collection: 'outfit' | 'prop' }).collection === 'prop').length,
         total: items.length,
       },
     });
