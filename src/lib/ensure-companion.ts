@@ -4,6 +4,7 @@
  */
 
 import { authedFetch } from '@/lib/supabase';
+import { readResponseJson } from '@/lib/safe-json';
 import type { DemoGirl } from '@/lib/demo-data';
 
 export async function ensureCompanionChatId(girl: {
@@ -21,7 +22,7 @@ export async function ensureCompanionChatId(girl: {
   try {
     const listRes = await authedFetch('/api/girlfriends');
     if (listRes.ok) {
-      const data = await listRes.json();
+      const data = await readResponseJson(listRes).catch(() => ({} as any));
       const list = (data.girlfriends || []) as Array<{ id: string; name: string }>;
       const byId = list.find((g) => g.id === girl.id);
       if (byId) return byId.id;
@@ -54,7 +55,7 @@ export async function ensureCompanionChatId(girl: {
         },
       }),
     });
-    const data = await res.json().catch(() => ({} as Record<string, unknown>));
+    const data = await readResponseJson(res).catch(() => ({} as Record<string, unknown>));
     if (!res.ok) {
       const err = new Error(
         (data as { error?: string }).error || 'Failed to add companion',

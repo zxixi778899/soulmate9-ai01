@@ -309,9 +309,9 @@ export default function CreatePage() {
       </div>
 
       {/* Top preview: left image, right selected data */}
-      <div className="shrink-0 border-b border-white/[0.06] px-3 sm:px-5 py-3 bg-black/20">
-        <div className="mx-auto max-w-4xl grid grid-cols-[112px_1fr] sm:grid-cols-[168px_1fr] gap-3 sm:gap-4 items-stretch">
-          <div className="relative h-[148px] sm:h-[200px] w-full rounded-xl overflow-hidden bg-black/40 border border-white/10">
+      <div className="shrink-0 border-b border-white/[0.06] px-3 sm:px-5 py-3 bg-gradient-to-b from-black/35 to-black/10">
+        <div className="mx-auto max-w-4xl grid grid-cols-[100px_1fr] sm:grid-cols-[180px_1fr] gap-3 sm:gap-4 items-stretch">
+          <div className="relative h-[132px] sm:h-[210px] w-full rounded-xl overflow-hidden bg-black/40 border border-white/10 shadow-[0_0_24px_rgba(255,45,120,0.12)]">
             {portraitUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={portraitUrl} alt="preview" className="h-full w-full object-cover" />
@@ -329,7 +329,7 @@ export default function CreatePage() {
               <div className="text-[10px] tracking-[0.2em] text-white/40 font-bold mb-1">
                 {zh ? '已选数据' : 'SELECTED'}
               </div>
-              <div className="space-y-0.5 text-[11px] sm:text-xs text-white/75 leading-snug">
+              <div className="space-y-1 text-[11px] sm:text-xs text-white/85 leading-snug">
                 <div className="truncate">
                   <span className="text-white/35">{zh ? '画风' : 'Style'}</span>{' '}
                   {visualStyle} · {gender}
@@ -356,7 +356,7 @@ export default function CreatePage() {
                 ) : null}
               </div>
               {selectedTags.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-1.5 max-h-10 overflow-hidden">
+                <div className="flex flex-wrap gap-1 pt-1.5 max-h-12 overflow-hidden">
                   {selectedTags.map((tag) => (
                     <span key={tag} className="px-1.5 py-0.5 rounded bg-white/5 text-[10px]">{tag}</span>
                   ))}
@@ -376,7 +376,7 @@ export default function CreatePage() {
       </div>
 
       {/* Scrollable form */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-4 pb-28">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-3 pb-32">
         <div className="mx-auto max-w-2xl space-y-6">
           <AnimatePresence mode="wait">
             {step === 0 && (

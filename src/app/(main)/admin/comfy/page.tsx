@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
+import { readResponseJson } from '@/lib/safe-json';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,13 +26,51 @@ type Any = Record<string, any>;
 
 const CAT_LABEL: Record<string, string> = {
   body: '身材',
-  action: '人物动作 NSFW',
+  action: '人物动作 / NSFW',
   outfit: '服装',
   prop: '道具',
   detail: '细节质感',
 };
 
+
 const CAT_ORDER = ['body', 'action', 'outfit', 'prop', 'detail'];
+
+/** Civitai-style generation presets (中文说明 + 可一键应用) */
+const CIVITAI_PRESETS = [
+  {
+    id: 'portrait-soft',
+    name: '柔光肖像',
+    desc: '适合女友卡头像 / 首页封面',
+    prompt: 'beautiful young woman, soft beauty lighting, intimate portrait, detailed eyes, natural skin, seductive smile',
+    negative: 'blurry, lowres, deformed hands, extra fingers, watermark, text',
+    width: 832, height: 1216, steps: 28, cfg: 3.5,
+  },
+  {
+    id: 'fullbody-glam',
+    name: '全身时尚',
+    desc: '展示服装与身材比例',
+    prompt: 'full body fashion shot, elegant pose, studio lighting, detailed outfit, long legs, magazine cover vibe',
+    negative: 'cropped head, blurry, bad anatomy, watermark',
+    width: 768, height: 1344, steps: 30, cfg: 3.5,
+  },
+  {
+    id: 'nsfw-intimate',
+    name: '亲密氛围',
+    desc: '偏暧昧 / 成人向（Pro+ 素材）',
+    prompt: 'intimate bedroom atmosphere, soft shadows, sensual pose, detailed skin, cinematic lighting, adult mood',
+    negative: 'gore, violence, child, underage, low quality',
+    width: 832, height: 1216, steps: 30, cfg: 3.2,
+  },
+  {
+    id: 'anime-waifu',
+    name: '二次元',
+    desc: '动漫线稿清晰、大眼',
+    prompt: 'anime style, clean lineart, big expressive eyes, soft shading, waifu portrait, high detail',
+    negative: 'photorealistic, 3d, blurry, extra limbs',
+    width: 832, height: 1216, steps: 26, cfg: 4.0,
+  },
+];
+
 
 export default function AdminComfyConsolePage() {
   const [tab, setTab] = useState<'generate' | 'loras' | 'library' | 'workflows' | 'infra'>('generate');
@@ -60,11 +99,22 @@ export default function AdminComfyConsolePage() {
   const [kind, setKind] = useState('girlfriend');
   const [lastResult, setLastResult] = useState<Any[]>([]);
 
+  const applyPreset = (p: (typeof CIVITAI_PRESETS)[number]) => {
+    setPrompt(p.prompt);
+    setNegative(p.negative);
+    setWidth(p.width);
+    setHeight(p.height);
+    setSteps(p.steps);
+    setCfg(p.cfg);
+    toast.success(`已应用预设：${p.name}`);
+  };
+
   const loadConfig = useCallback(async () => {
+
     setLoading(true);
     try {
       const res = await authedFetch('/api/admin/comfy?view=config');
-      const data = await res.json();
+      const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '加载失败');
       setConfig(data.config);
       const wf = data.config?.workflows?.find((w: Any) => w.id === 'wf-girlfriend')
@@ -81,7 +131,7 @@ export default function AdminComfyConsolePage() {
     setAssetsLoading(true);
     try {
       const res = await authedFetch('/api/admin/comfy?view=assets&limit=60');
-      const data = await res.json();
+      const data = await readResponseJson(res).catch(() => ({} as any));
       setAssets(data.assets || []);
       if (data.warning) toast.message(data.warning);
     } catch {
@@ -220,7 +270,7 @@ export default function AdminComfyConsolePage() {
           kind,
         }),
       });
-      const data = await res.json();
+      const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '生成失败');
       const assets = (data.assets || []).map((a: Any) => {
         let url = String(a.url || '').trim();
@@ -262,7 +312,7 @@ export default function AdminComfyConsolePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete_asset', id }),
       });
-      const data = await res.json();
+      const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '删除失败');
       toast.success('已删除');
       setAssets((a) => a.filter((x) => x.id !== id));
@@ -280,7 +330,7 @@ export default function AdminComfyConsolePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config, replace: true }),
       });
-      const data = await res.json();
+      const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '保存失败');
       setConfig(data.config);
       toast.success('配置已保存');
@@ -296,7 +346,7 @@ export default function AdminComfyConsolePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'reset_config' }),
     });
-    const data = await res.json();
+    const data = await readResponseJson(res).catch(() => ({} as any));
     if (res.ok) {
       setConfig(data.config);
       toast.success('已恢复默认');
@@ -358,6 +408,30 @@ export default function AdminComfyConsolePage() {
       {/* GENERATE */}
       {tab === 'generate' && (
         <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-4">
+
+          <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-white">生成预设（Civitai 风格）</div>
+                <p className="text-[11px] text-white/55">一键填充提示词 / 尺寸 / Steps / CFG，再按需微调。</p>
+              </div>
+              <Badge variant="outline" className="text-[10px]">中文解说</Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {CIVITAI_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => applyPreset(p)}
+                  className="text-left rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] px-3 py-2 transition-colors"
+                >
+                  <div className="text-xs font-semibold text-pink-200">{p.name}</div>
+                  <div className="text-[11px] text-white/55 mt-0.5">{p.desc}</div>
+                  <div className="text-[10px] text-white/35 mt-1">{p.width}×{p.height} · steps {p.steps} · cfg {p.cfg}</div>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-violet-300">
               <Settings2 className="h-4 w-4" /> 节点参数

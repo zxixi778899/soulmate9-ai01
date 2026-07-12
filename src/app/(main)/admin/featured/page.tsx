@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
+import { readResponseJson } from '@/lib/safe-json';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,7 +78,7 @@ export default function AdminFeaturedPage() {
     setLoading(true);
     try {
       const res = await authedFetch('/api/admin/featured');
-      const data = await res.json();
+      const data = await readResponseJson(res).catch(() => ({} as any));
       setItems(data.items || []);
       if (data.warning) toast.message('提示', { description: data.warning });
     } catch {
@@ -92,11 +93,11 @@ export default function AdminFeaturedPage() {
     try {
       // Real approved/public companions from admin girlfriends API
       const res = await authedFetch('/api/admin/girlfriends?limit=200');
-      const data = await res.json().catch(() => ({}));
+      const data = await readResponseJson(res).catch(() => ({} as any));
       let list = (data.girlfriends || data.items || []) as PublicGf[];
       if (!list.length) {
         // public catalog fallback
-        const pub = await fetch('/api/v2/girlfriends/featured?limit=60').then((r) => r.json()).catch(() => ({}));
+        const pub = await fetch('/api/v2/girlfriends/featured?limit=60').then((r) => readResponseJson(r).catch(() => ({}))).catch(() => ({}));
         list = (pub.girlfriends || pub.featured_girlfriends || []) as PublicGf[];
       }
       // Prefer approved/public
@@ -196,7 +197,7 @@ export default function AdminFeaturedPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editing ? { id: editing.id, ...payload } : payload),
       });
-      const data = await res.json();
+      const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '保存失败');
       toast.success('已保存');
       setOpen(false);
@@ -218,14 +219,20 @@ export default function AdminFeaturedPage() {
   };
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6 max-w-6xl space-y-4 text-white">
+
+      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-xs text-white/75 leading-relaxed">
+        <span className="font-semibold text-amber-200">运营提示：</span>
+        排序越小越靠前；关闭启用可下线保留数据；务必填写/绑定 base_girlfriend_id，否则热门卡点击可能无法进入真实聊天。
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#1E293B] flex items-center gap-2">
-            <Star className="h-6 w-6 text-amber-500" /> 推荐 / 热门角色
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Star className="h-6 w-6 text-amber-400" /> 推荐 / 热门角色
           </h1>
-          <p className="text-sm text-[#64748B] mt-1">
-            从真实已审核角色库挑选，写入 featured_girlfriends（支持关联 base_girlfriend_id）
+          <p className="text-sm text-white/60 mt-1">
+            从真实公开角色池挑选写入 featured_girlfriends，支持绑定 base_girlfriend_id，保证前台点击可进对话。
           </p>
         </div>
         <div className="flex gap-2">
@@ -284,7 +291,7 @@ export default function AdminFeaturedPage() {
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="font-semibold text-[#1E293B]">{item.name}</div>
+                      <div className="font-semibold text-white">{item.name}</div>
                       <div className="text-xs text-slate-500 line-clamp-2">{item.subtitle}</div>
                     </div>
                     <div className="text-[10px] text-slate-400 shrink-0">#{item.sort_order ?? 0}</div>

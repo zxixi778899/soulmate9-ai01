@@ -2,6 +2,7 @@
 import { useTranslation } from '@/lib/i18n/context';
 import { dateGroupLabel, dayKey } from '@/lib/chat-utils';
 import { authedFetch } from '@/lib/supabase';
+import { readResponseJson } from '@/lib/safe-json';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -146,7 +147,7 @@ export default function ChatPage() {
   useEffect(() => {
     loadData();
     authedFetch('/api/outfits')
-      .then(r => r.json())
+      .then(r => readResponseJson(r).catch(() => ({})))
       .then(d => setOutfits(d.outfits || []))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,9 +174,9 @@ export default function ChatPage() {
         authedFetch(`/api/intimacy?girlfriend_id=${encodeURIComponent(id)}`),
       ]);
 
-      const gfData = await gfRes.json();
-      const msgData = await msgRes.json();
-      const intData = await intRes.json();
+      const gfData = await readResponseJson(gfRes).catch(() => ({} as any));
+      const msgData = await readResponseJson(msgRes).catch(() => ({} as any));
+      const intData = await readResponseJson(intRes).catch(() => ({} as any));
 
       let gf =
         (gfData.girlfriends || []).find((g: Girlfriend) => g.id === id) ||
@@ -184,7 +185,7 @@ export default function ChatPage() {
 
       // Fallback: list all if id filter unsupported / empty
       if (!gf) {
-        const all = await authedFetch('/api/girlfriends').then((r) => r.json()).catch(() => ({}));
+        const all = await authedFetch('/api/girlfriends').then((r) => readResponseJson(r).catch(() => ({}))).catch(() => ({}));
         gf = (all.girlfriends || []).find((g: Girlfriend) => g.id === id) || null;
       }
       setGirlfriend(gf);
@@ -237,7 +238,7 @@ export default function ChatPage() {
     try {
       const nextPage = page + 1;
       const res = await authedFetch(`/api/chat/${id}?page=${nextPage}&limit=30`);
-      const data = await res.json();
+      const data = await readResponseJson(res).catch(() => ({} as any));
       if (data.messages?.length) {
         setMessages(prev => [...data.messages, ...prev]);
         setPage(nextPage);
@@ -253,7 +254,7 @@ export default function ChatPage() {
     setLoadingMemories(true);
     try {
       const res = await authedFetch(`/api/memories?girlfriend_id=${id}`);
-      const data = await res.json();
+      const data = await readResponseJson(res).catch(() => ({} as any));
       setMemories(data.memories || []);
     } catch {}
     setLoadingMemories(false);
@@ -276,7 +277,7 @@ export default function ChatPage() {
           body: JSON.stringify({ girlfriend_id: id }),
         });
         if (!res.ok || cancelled) return;
-        const data = await res.json();
+        const data = await readResponseJson(res).catch(() => ({} as any));
         if (data.message) {
           setMessages(prev => [...prev, {
             id: `proactive-${Date.now()}`,
@@ -336,7 +337,7 @@ export default function ChatPage() {
           environment: selectedEnvironment,
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) {
         const msg =
           data?.code === 'daily_limit'
@@ -466,7 +467,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ girlfriend_id: id, message_type: 'normal' }),
       });
-      const intData = await intRes.json();
+      const intData = await readResponseJson(intRes).catch(() => ({} as any));
       let nextIntimacy = intimacy;
       if (intData.score !== undefined) {
         nextIntimacy = {
@@ -499,7 +500,7 @@ export default function ChatPage() {
 
       // Soft re-sync from server (real IDs) without clearing UI
       void authedFetch(`/api/chat/${id}`)
-        .then((r) => r.json())
+        .then((r) => readResponseJson(r).catch(() => ({})))
         .then((data) => {
           if (data.messages?.length) {
             setMessages((prev) => mergeMessages(data.messages, prev) as Message[]);
@@ -511,7 +512,7 @@ export default function ChatPage() {
       void membership.refresh();
 
       // Check achievements (fire and forget)
-      authedFetch('/api/v2/user/achievements').then(r => r.json()).then(data => {
+      authedFetch('/api/v2/user/achievements').then(r => readResponseJson(r).catch(() => ({}))).then((data: any) => {
         const newUnlocks = (data.achievements || []).filter((a: any) => a.user_progress?.unlocked && !a.user_progress?.reward_claimed);
         if (newUnlocks.length > 0) {
           toast.success(`🏆 Achievement Unlocked: ${newUnlocks[0].name}!`, {

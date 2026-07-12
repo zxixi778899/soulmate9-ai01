@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { GIRLS, RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
 import { fetchCompanionCatalog } from '@/lib/companions';
 import { openCompanionChat } from '@/lib/ensure-companion';
+import { readResponseJson } from '@/lib/safe-json';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
 import { CardMedia } from '@/components/discover/CardMedia';
 import { ShareCard } from '@/components/ShareCard';
@@ -208,7 +209,7 @@ export default function HomePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ girlfriend_id: girl.id }),
         });
-        const data = await res.json().catch(() => ({}));
+        const data = await readResponseJson(res).catch(() => ({} as Record<string, unknown>));
         if (!res.ok) {
           toast.error((data as { error?: string }).error || t('home.unlockFail'));
           setDetail(girl);
