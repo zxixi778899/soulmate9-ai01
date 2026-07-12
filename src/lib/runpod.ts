@@ -973,8 +973,6 @@ class RunPodClient {
           `${strategy.name}: ${e instanceof Error ? e.message : String(e)}`,
         );
       }
-        );
-      }
     }
 
     const joined = errors.join(' | ') || 'Unknown error';
