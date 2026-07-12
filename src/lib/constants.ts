@@ -92,10 +92,10 @@ export const PROACTIVE_TIME_SLOTS = [
 ] as const;
 
 export const DEFAULT_PROACTIVE_TEMPLATES = [
-  { time_slot: 'morning', template: 'Morning {name}... I woke up still thinking about last night with you~ ', min_intimacy: 10, personality_tags: ['romantic', 'caring'] },
-  { time_slot: 'noon', template: 'Hey {name}, did you have lunch? Don\'t skip meals! ', min_intimacy: 20, personality_tags: ['caring', 'motherly'] },
-  { time_slot: 'evening', template: 'The light looks good on me right now... wish you were here to see, {name}', min_intimacy: 30, personality_tags: ['romantic', 'playful'] },
-  { time_slot: 'night', template: 'Come closer before sleep... I don't want the night to end without you, {name}~ ', min_intimacy: 40, personality_tags: ['romantic', 'caring'] },
+  { time_slot: 'morning', template: "Morning {name}... I woke up still thinking about last night with you~ ", min_intimacy: 10, personality_tags: ['romantic', 'caring'] },
+  { time_slot: 'noon', template: "Hey {name}, did you have lunch? Don't skip meals! ", min_intimacy: 20, personality_tags: ['caring', 'motherly'] },
+  { time_slot: 'evening', template: "The light looks good on me right now... wish you were here to see, {name}", min_intimacy: 30, personality_tags: ['romantic', 'playful'] },
+  { time_slot: 'night', template: "Come closer before sleep... I don't want the night to end without you, {name}~ ", min_intimacy: 40, personality_tags: ['romantic', 'caring'] },
 ] as const;
 
 export const API_BASE = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
