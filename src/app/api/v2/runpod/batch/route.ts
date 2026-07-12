@@ -44,20 +44,21 @@ function buildBatchPrompt(char: Record<string, unknown>): { positive: string; ne
     });
   }
 
-  if (!positive || positive.length < 20) {
-    const personality = String(char.personality || 'warm, alluring').slice(0, 120);
+    if (!positive || positive.length < 20) {
+    const personality = String(char.personality || 'warm, playful').slice(0, 120);
     positive = [
-      'RAW photo, masterpiece, best quality, ultra photorealistic, 8k, sharp focus',
-      `three-quarter body portrait of ${name}`,
-      'gorgeous young adult woman, 21-28 years old',
+      `portrait of ${name}, young adult woman 23-28, facing viewer, eye contact`,
       personality,
-      'large breasts, wide hips, hourglass figure, sexy alluring',
-      'looking at viewer, bright clear lighting, detailed skin, detailed face, vibrant colors',
+      'soft natural smile, fair luminous skin, well-lit face, bright clean exposure',
+      'varied stylish outfit, three-quarter body, photorealistic, sharp focus',
     ].join(', ');
   }
 
-  // FLUX: empty negative by default (long negatives → black images)
-  if (negative.length > 180) negative = '';
+  // Keep short negatives; strip only if absurdly long (FLUX black-frame risk)
+  if (negative.length > 220) {
+    negative =
+      'from behind, back view, looking away, underexposed, dark muddy skin, stiff expression, blurry, deformed, child, underage, watermark';
+  }
 
   return { positive, negative: negative || '' };
 }
@@ -93,7 +94,13 @@ async function generateAndUpload(
     seed:
       params.seed != null && Number(params.seed) > 0
         ? Number(params.seed)
-        : undefined,
+        : // unique per character so batch doesn't share one noise pattern
+          Math.abs(
+            Array.from(String(char.id || name)).reduce(
+              (h, c) => ((h * 33) ^ c.charCodeAt(0)) >>> 0,
+              Math.floor(Math.random() * 1e6),
+            ),
+          ),
     ckpt_name: String(params.ckpt_name || 'flux1-dev-fp8.safetensors'),
   });
 

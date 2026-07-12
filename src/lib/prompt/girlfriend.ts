@@ -26,25 +26,27 @@ export const GIRLFRIEND_QUALITY_PREFIX =
 
 /**
  * Soft figure hint — keep short so face/pose still dominate.
- * Full "hourglass large breasts" spam forces same body every time.
+ * Avoid fixed lingerie / same body spam that collapses variety.
  */
 export const GIRLFRIEND_BODY_FIXED =
   'feminine curves, attractive adult figure, natural proportions';
 
-/** Framing only when scene does not already set camera */
+/** Default framing for companion cards: face the viewer (not back/side template). */
 export const GIRLFRIEND_FRAMING =
-  'three-quarter length, looking at viewer, natural candid pose';
+  'facing viewer, eye contact, front three-quarter view, natural candid pose';
 
 /**
  * Short negatives — FLUX hates long SD negative lists.
+ * Include anti-template tokens for the back/side lingerie collapse.
  */
 export const GIRLFRIEND_NEGATIVE =
   'blurry, deformed, bad anatomy, extra fingers, underexposed, dark muddy skin, dull lifeless eyes, stiff expression, ' +
-  'plastic skin, oversmoothed, child, underage, watermark, text, logo, cartoon, anime';
+  'from behind, back view, looking away, same pose, identical outfit, plastic skin, oversmoothed, ' +
+  'child, underage, watermark, text, logo, cartoon, anime';
 
 /** Short FLUX-safe negative (empty only when caller opts in) */
 export const GIRLFRIEND_NEGATIVE_FLUX =
-  'underexposed, dark muddy skin, dull lifeless eyes, stiff expression, blurry, deformed, child, underage, watermark';
+  'from behind, back view, looking away, underexposed, dark muddy skin, stiff expression, blurry, deformed, child, underage, watermark';
 
 export interface GirlfriendSubject {
   name?: string;
@@ -60,6 +62,7 @@ export interface GirlfriendSubject {
   occupation?: string;
   sceneId?: string;
   mood?: string;
+  outfit?: string;
 }
 
 export type GirlfriendSceneId =
@@ -80,115 +83,239 @@ export type GirlfriendSceneId =
 type SceneRecipe = {
   id: Exclude<GirlfriendSceneId, 'auto'>;
   label: string;
-  /** Action / pose / camera (most important for variety) */
-  action: string;
-  /** Place + wardrobe vibe */
+  /** Multiple front-facing poses (picked per character) */
+  poses: string[];
+  /** Wardrobe options (picked per character) — avoid one white lingerie look */
+  outfits: string[];
+  /** Place */
   env: string;
-  /** Light story — one clear source */
+  /** Light story — face is primary lit */
   light: string;
   match: RegExp;
 };
 
 /**
- * Reference-inspired scenes: different faces need different poses + light, not one template.
- * Keep each clause short (Civitai caption style).
+ * Companion-card scenes: mostly FACE CAMERA.
+ * Looking-back / from-behind is rare and never the only option.
+ * Outfits diversify per character hash so batch gen does not clone lingerie.
  */
 export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
   {
     id: 'rooftop_night',
     label: 'Rooftop night',
-    action:
-      'leaning on glass railing, one hip cocked, soft smile toward camera, medium full-body shot',
-    env: 'luxury rooftop at night, city skyline soft bokeh, fitted evening outfit',
+    poses: [
+      'standing at glass railing facing camera, one hand on rail, confident smile, medium full-body',
+      'leaning elbows on railing facing viewer, shoulders open, candid laugh, three-quarter body',
+      'walking toward camera on rooftop, hair moving, direct eye contact, full-body',
+      'sitting on outdoor lounge chair facing camera, legs crossed, relaxed editorial pose',
+    ],
+    outfits: [
+      'fitted red satin crop top and black trousers',
+      'metallic evening mini dress',
+      'black blazer over lace cami and jeans',
+      'emerald green bodycon dress',
+      'white silk blouse and leather skirt',
+    ],
+    env: 'luxury rooftop at night, city skyline soft bokeh',
     light: 'bright front key light on face, cool city ambient background, warm rim on hair, subject clearly exposed',
     match: /rooftop|night|city|skyline|club|glam|neon|evening/i,
   },
   {
     id: 'mirror_selfie',
     label: 'Mirror selfie',
-    action:
-      'bathroom mirror selfie, phone in hand, free hand in messy hair, hip popped, high angle',
-    env: 'tiled bathroom, casual crop top and jeans, candid after-party vibe',
+    poses: [
+      'bathroom mirror selfie facing mirror, phone in hand, free hand in hair, hip slightly popped, high angle front view',
+      'front-facing mirror selfie, both shoulders visible, playful pout, phone at chest height',
+      'mirror selfie with peace sign, leaning toward glass, bright smile',
+      'mirror selfie holding phone with both hands, straight-on torso, candid after-party energy',
+    ],
+    outfits: [
+      'black graphic crop tee and ripped jeans',
+      'oversized band hoodie and shorts',
+      'red tank top and denim mini skirt',
+      'sports bra and track pants',
+      'striped long-sleeve and cargo pants',
+    ],
+    env: 'tiled bathroom with vanity lights',
     light: 'bright phone flash on face, pale glossy skin highlights, hard flash catchlights, clear exposure',
     match: /selfie|mirror|bathroom|flash|tattoo|casual|party/i,
   },
   {
     id: 'city_apartment',
     label: 'Apartment couch',
-    action:
-      'sitting on couch edge, knees soft, elbows on thighs, calm direct eye contact, eye-level portrait',
-    env: 'modern apartment living room, soft pillows, stylish date-night top',
+    poses: [
+      'sitting on couch facing camera, elbows on thighs, calm direct eye contact, eye-level portrait',
+      'curled sideways on sofa facing viewer, chin on hand, soft smile',
+      'standing in living room facing camera, weight on one hip, arms relaxed',
+      'kneeling on rug facing camera with hands on knees, friendly smile, medium shot',
+    ],
+    outfits: [
+      'teal velvet corset top and denim shorts',
+      'cream knit sweater dress',
+      'striped button-up shirt and black skirt',
+      'soft pink cardigan over white top',
+      'casual hoodie and yoga pants',
+    ],
+    env: 'modern apartment living room, soft pillows, night city prints on wall',
     light: 'bright warm indoor key light on face, soft fill, clean skin exposure, background slightly dimmer',
     match: /apartment|couch|indoor|living room|soft glam|home/i,
   },
   {
     id: 'window_sunlight',
     label: 'Window sunlight',
-    action:
-      'standing by window, body three-quarter turned, looking back over shoulder with soft smile, hand on curtain',
-    env: 'tall window, sheer lace curtains, intimate home interior',
-    light: 'bright golden window key on face, soft lace shadows, luminous fair skin, airy daylight',
+    poses: [
+      'standing by window facing camera, soft smile, hand lightly on curtain, three-quarter body',
+      'sitting on window seat facing viewer, knees up casually, golden light on face',
+      'leaning back against window frame facing camera, relaxed shoulders',
+      'close portrait by window facing viewer, hair catching sun, bright eyes',
+    ],
+    outfits: [
+      'white linen blouse and light jeans',
+      'floral summer dress',
+      'soft yellow sundress',
+      'beige knit top and skirt',
+      'pale blue shirt dress',
+    ],
+    env: 'tall window, sheer curtains, airy home interior',
+    light: 'bright golden window key on face, soft shadows, luminous fair skin, airy daylight',
     match: /window|sunlight|lace|morning|sheer|curtain/i,
   },
   {
     id: 'pink_bedroom',
-    label: 'Bedroom kneel',
-    action:
-      'kneeling on bed looking back over shoulder, arched back, bright flirty smile, three-quarter crop',
-    env: 'pastel pink bedroom, LED strips, soft sheets, lingerie or sleepwear',
+    label: 'Bedroom',
+    poses: [
+      'sitting on bed facing camera, legs folded, bright smile, medium shot',
+      'lying on stomach on bed facing viewer, chin on hands, playful eyes',
+      'sitting at edge of bed facing camera, one knee up, soft laugh',
+      'kneeling on bed facing camera, hands on sheets, lively expression',
+    ],
+    outfits: [
+      'pastel pink satin sleep set',
+      'black lace bralette with high-waist shorts (front view)',
+      'oversized white tee as sleepwear',
+      'red silk camisole and shorts',
+      'striped pajama top and shorts',
+    ],
+    env: 'pastel pink bedroom, LED accent lights, soft sheets',
     light: 'bright pink LED plus warm bedside key on face, glossy pale skin, cheerful well-lit bedroom',
     match: /bedroom|lingerie|pink|led|garter|stockings|kneeling|nsfw/i,
   },
   {
     id: 'gothic_throne',
     label: 'Throne fantasy',
-    action:
-      'seated on ornate throne, elegant pose, one hand on armrest, slight parted lips, low-angle power pose',
-    env: 'gothic set with controlled haze, black lace outfit, dramatic props',
+    poses: [
+      'seated on ornate throne facing camera, one hand on armrest, confident smirk, low-angle',
+      'sitting upright on throne facing viewer, legs elegantly crossed, crown tilt',
+      'leaning forward on throne armrest facing camera, intense eye contact',
+      'standing beside throne facing camera, hand on chair back, power pose',
+    ],
+    outfits: [
+      'black lace gown with sapphire jewelry',
+      'dark velvet dress and silver crown',
+      'structured black corset dress',
+      'deep purple evening gown',
+      'black leather and lace hybrid outfit',
+    ],
+    env: 'gothic set with controlled haze, dramatic props',
     light: 'strong bright key light on face and body, cool rim light, pale luminous skin, deep background only',
     match: /gothic|throne|queen|crown|dark|fantasy|dominant/i,
   },
   {
     id: 'cafe_day',
     label: 'Cafe daylight',
-    action:
-      'leaning on cafe table with chin on hand, easy natural smile, 50mm candid portrait crop',
-    env: 'sunlit cafe window seat, coffee cup, casual day outfit',
+    poses: [
+      'at cafe table facing camera, chin on hand, easy natural smile, 50mm portrait crop',
+      'holding coffee cup with both hands facing viewer, soft laugh',
+      'leaning toward table facing camera, elbows on wood, candid smile',
+      'standing by cafe window facing camera, cup in one hand, lifestyle shot',
+    ],
+    outfits: [
+      'cream sweater and jeans',
+      'plaid shirt and skirt',
+      'trench coat over simple top',
+      'denim jacket and white tee',
+      'soft green blouse and trousers',
+    ],
+    env: 'sunlit cafe window seat, coffee cup on table',
     light: 'bright soft daylight on face, clear catchlights, fresh fair skin, clean exposure',
     match: /cafe|coffee|daylight|brunch|casual date|day/i,
   },
   {
     id: 'car_night',
     label: 'Car night',
-    action:
-      'in passenger seat, body turned toward camera, soft intimate smile, one arm on seat back, close crop',
-    env: 'car interior at night, city lights through windows, date-night dress',
+    poses: [
+      'in passenger seat turned toward camera, soft intimate smile, close crop, face fully visible',
+      'sitting in car facing viewer through open door, one arm on seat, bright face light',
+      'driver seat selfie angle facing camera, hand on wheel edge, candid smile',
+      'leaning across center console facing camera, intimate but front-facing',
+    ],
+    outfits: [
+      'black date-night dress',
+      'red off-shoulder top',
+      'leather jacket over tank',
+      'sparkly evening top',
+      'simple white blouse',
+    ],
+    env: 'car interior at night, city lights through windows',
     light: 'bright practical key on face, soft neon color spill in background only, clear skin exposure',
     match: /car|night drive|neon|passenger|vehicle/i,
   },
   {
     id: 'beach_breeze',
     label: 'Beach breeze',
-    action:
-      'walking toward camera mid-step, hair wind-blown, bright natural smile, full-body wide shot',
-    env: 'beach at golden hour, light summer outfit, ocean behind',
+    poses: [
+      'walking toward camera mid-step, hair wind-blown, bright natural smile, full-body',
+      'standing on sand facing camera, hands in hair, open sky behind',
+      'sitting on beach towel facing viewer, knees bent, playful smile',
+      'jogging lightly toward camera, candid laugh, lifestyle wide shot',
+    ],
+    outfits: [
+      'light summer sundress',
+      'white linen shirt over swimsuit',
+      'colorful bikini with sarong (front view)',
+      'denim shorts and crop tee',
+      'flowy beach cover-up',
+    ],
+    env: 'beach at golden hour, ocean behind',
     light: 'bright warm sun on face, soft hair rim light, open sky, luminous skin',
     match: /beach|ocean|summer|outdoor|wind|vacation/i,
   },
   {
     id: 'kitchen_morning',
     label: 'Kitchen morning',
-    action:
-      'standing at kitchen counter, mug in both hands, relaxed shoulders, soft natural half-smile, medium shot',
-    env: 'bright kitchen, morning routine, simple home clothes',
+    poses: [
+      'standing at kitchen counter facing camera, mug in both hands, soft natural half-smile',
+      'leaning on counter facing viewer, one heel lifted, relaxed morning pose',
+      'sitting on counter edge facing camera, swinging feet, bright smile',
+      'pouring coffee facing camera, candid domestic moment',
+    ],
+    outfits: [
+      'oversized morning shirt and shorts',
+      'soft robe over sleepwear',
+      'simple tee and sweatpants',
+      'knit cardigan and tank',
+      'casual home dress',
+    ],
+    env: 'bright kitchen, morning routine',
     light: 'bright morning window light on face, clean soft shadows, fresh pale skin',
     match: /kitchen|morning|coffee home|domestic|cozy/i,
   },
   {
     id: 'studio_clean',
     label: 'Studio clean',
-    action:
-      'weight on one hip, arms relaxed, soft approachable smile, fashion lookbook stance, three-quarter body',
+    poses: [
+      'standing facing camera, weight on one hip, soft approachable smile, three-quarter body lookbook',
+      'arms crossed lightly facing viewer, commercial smile, medium shot',
+      'one hand in pocket facing camera, confident posture, fashion card pose',
+      'seated on stool facing camera, hands on knees, clean portrait crop',
+    ],
+    outfits: [
+      'premium black cocktail dress',
+      'white tailored blazer dress',
+      'red power dress',
+      'navy silk blouse and trousers',
+      'designer casual chic set',
+    ],
     env: 'seamless studio backdrop, premium companion card look',
     light: 'large bright softbox key on face, gentle fill, fair luminous skin, clean commercial exposure',
     match: /studio|clean|portrait|card|profile|simple/i,
@@ -196,8 +323,19 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
   {
     id: 'golden_hour',
     label: 'Golden hour outdoor',
-    action:
-      'walk-and-turn pose, slight lean, hair catching wind, warm natural smile to viewer',
+    poses: [
+      'walk-and-turn toward camera, hair catching wind, warm natural smile to viewer',
+      'standing in park facing camera, soft golden light, candid lifestyle pose',
+      'sitting on outdoor steps facing viewer, elbows on knees, relaxed smile',
+      'close outdoor portrait facing camera, sun on face, lively eyes',
+    ],
+    outfits: [
+      'flowy midi dress',
+      'denim jacket and sundress',
+      'white tee and light skirt',
+      'pastel blouse and jeans',
+      'casual linen set',
+    ],
     env: 'outdoors at golden hour, lifestyle companion moment',
     light: 'warm low sun fully lighting face and shoulders, bright golden exposure, luminous skin',
     match: /golden|outdoor|park|sunset|warm smile|date/i,
@@ -224,6 +362,32 @@ function hashPick(seed: string, mod: number): number {
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
   return mod > 0 ? h % mod : 0;
 }
+
+function pickFromList(seed: string, list: string[], salt = ''): string {
+  if (!list.length) return '';
+  return list[hashPick(`${seed}|${salt}`, list.length)] || list[0];
+}
+
+/** Per-character variety: pose + wardrobe from scene pools (not one fixed template). */
+export function pickScenePoseAndOutfit(
+  subject: GirlfriendSubject,
+  scene: SceneRecipe,
+): { pose: string; outfit: string } {
+  const seed = [
+    subject.name || '',
+    subject.hairColor || '',
+    subject.eyes || '',
+    subject.race || '',
+    subject.personality || '',
+    subject.outfit || '',
+  ].join('|');
+  const pose = pickFromList(seed, scene.poses, `pose|${scene.id}`);
+  const outfit =
+    (subject.outfit && subject.outfit.trim()) ||
+    pickFromList(seed, scene.outfits, `outfit|${scene.id}`);
+  return { pose, outfit };
+}
+
 
 /**
  * Unique-ish face cue from name seed so different girls don't share one beauty face.
@@ -402,6 +566,12 @@ export function subjectFromGirlfriendRow(row: Record<string, unknown>): Girlfrie
       (meta.scene as string) ||
       undefined,
     mood: (row.mood as string) || (meta.mood as string) || undefined,
+    outfit:
+      (row.outfit as string) ||
+      (row.current_outfit as string) ||
+      (meta.outfit as string) ||
+      (cardApp.outfit as string) ||
+      undefined,
   };
 }
 
@@ -461,15 +631,20 @@ export function assembleGirlfriendPrompt(
     ctx.metadata?.lighting ? sanitizeBlurKeywords(String(ctx.metadata.lighting)).slice(0, 60) : '',
   ]);
 
-  // Order: who → body hint → action → place → light → face mood → quality
+    const { pose, outfit } = pickScenePoseAndOutfit(fixedSubject, scene);
+
+  // Order: who → body → FRONT-FACING pose → outfit → place → light → expression → quality
+  // Companion cards must face the viewer; avoid mass back/side lingerie templates.
   const positive = trimPrompt(
     joinParts([
       subjectClause,
       GIRLFRIEND_BODY_FIXED,
-      scene.action,
+      pose,
+      outfit,
       scene.env,
       scene.light,
       expression,
+      GIRLFRIEND_FRAMING,
       metaBits,
       extra,
       GIRLFRIEND_QUALITY_PREFIX,
