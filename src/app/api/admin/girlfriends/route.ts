@@ -50,6 +50,11 @@ const ALLOWED_PATCH_FIELDS = new Set<string>([
   'base_desire',
   'base_development',
   'base_kink',
+  // Homepage placement (merged from featured/hot)
+  'is_hot',
+  'is_featured',
+  'hot_score',
+  'sort_order',
 ]);
 
 const RARITIES = new Set(['N', 'R', 'SR', 'SSR']);
@@ -96,6 +101,7 @@ export async function GET(request: NextRequest) {
   const { supabase } = adminCheck;
 
   const { searchParams } = new URL(request.url);
+  const id = (searchParams.get('id') || '').trim();
   const page = parseInt(searchParams.get('page') || '1');
   const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
   const status = searchParams.get('status') || '';
@@ -108,6 +114,20 @@ export async function GET(request: NextRequest) {
   const to = from + limit - 1;
 
   try {
+    if (id) {
+      const { data, error: oneErr } = await supabase
+        .from('girlfriends')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (oneErr) throw oneErr;
+      return NextResponse.json({
+        girlfriend: data,
+        girlfriends: data ? [data] : [],
+        total: data ? 1 : 0,
+      });
+    }
+
     let query = supabase.from('girlfriends').select('*', { count: 'exact' });
 
     if (status && ['draft', 'pending', 'approved', 'rejected'].includes(status)) {
@@ -286,6 +306,14 @@ export async function PATCH(request: NextRequest) {
     if ('unlock_price_tokens' in updates) {
       updates.unlock_price_tokens = Math.max(0, Number(updates.unlock_price_tokens) || 0);
     }
+    if ('is_hot' in updates) updates.is_hot = Boolean(updates.is_hot);
+    if ('is_featured' in updates) updates.is_featured = Boolean(updates.is_featured);
+    if ('hot_score' in updates) {
+      updates.hot_score = Math.max(0, Math.round(Number(updates.hot_score) || 0));
+    }
+    if ('sort_order' in updates) {
+      updates.sort_order = Math.round(Number(updates.sort_order) || 0);
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'no valid fields to update' }, { status: 400 });
@@ -296,7 +324,70 @@ export async function PATCH(request: NextRequest) {
       .update(updates)
       .eq('id', id);
 
-    if (updateErr) throw updateErr;
+    if (updateErr) {
+      const msg = updateErr.message || '';
+      if (/is_hot|is_featured|hot_score|sort_order|column/i.test(msg)) {
+        const soft = { ...updates } as Record<string, unknown>;
+        delete soft.is_hot;
+        delete soft.is_featured;
+        delete soft.hot_score;
+        delete soft.sort_order;
+        if (Object.keys(soft).length > 0) {
+          const retry = await supabase.from('girlfriends').update(soft).eq('id', id);
+          if (retry.error) throw retry.error;
+        }
+      } else {
+        throw updateErr;
+      }
+    }
+
+    if ('is_featured' in updates) {
+      try {
+        const { data: gf } = await supabase.from('girlfriends').select('*').eq('id', id).maybeSingle();
+        if (gf && updates.is_featured === true) {
+          const tags = Array.isArray(gf.tags) ? gf.tags : [];
+          const avatar = gf.portrait_url || gf.avatar_url || gf.card_url || '';
+          const { data: existing } = await supabase
+            .from('featured_girlfriends')
+            .select('id')
+            .eq('base_girlfriend_id', id)
+            .limit(1);
+          if (existing && existing.length > 0) {
+            await supabase
+              .from('featured_girlfriends')
+              .update({
+                name: gf.name,
+                avatar_url: avatar || undefined,
+                description: gf.short_description || gf.personality || null,
+                personality_tags: tags,
+                is_active: true,
+                sort_order: Number(gf.sort_order || 0),
+              })
+              .eq('base_girlfriend_id', id);
+          } else if (avatar) {
+            await supabase.from('featured_girlfriends').insert({
+              name: gf.name,
+              subtitle: gf.short_description || null,
+              personality_tags: tags,
+              avatar_url: avatar,
+              description: gf.backstory || gf.personality || null,
+              greeting_message: null,
+              sort_order: Number(gf.sort_order || 0),
+              is_active: true,
+              quick_chat_enabled: true,
+              base_girlfriend_id: id,
+            });
+          }
+        } else if (updates.is_featured === false) {
+          await supabase.from('featured_girlfriends').delete().eq('base_girlfriend_id', id);
+        }
+      } catch (syncErr) {
+        logger.warn('[admin/girlfriends] featured sync failed', {
+          err: syncErr instanceof Error ? syncErr.message : String(syncErr),
+        });
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';

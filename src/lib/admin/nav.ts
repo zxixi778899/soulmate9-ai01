@@ -10,7 +10,6 @@
 import {
   LayoutDashboard,
   Heart,
-  Star,
   CheckSquare,
   Sparkles,
   Library,
@@ -57,13 +56,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: '/admin/girlfriends',
         icon: Heart,
         hint: '资料 + 头像/肖像/视频/音频',
-        aliases: ['/admin/images', '/admin/videos', '/admin/character-cards'],
-      },
-      {
-        label: '推荐 / 热门',
-        href: '/admin/featured',
-        icon: Star,
-        hint: '主页展示位',
+        aliases: ['/admin/images', '/admin/videos', '/admin/character-cards', '/admin/featured'],
       },
       {
         label: '审核队列',

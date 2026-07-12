@@ -87,7 +87,9 @@ const CIVITAI_PRESETS = [
 
 
 
-export default function ComfyConsole() {
+type ComfyConsoleProps = { girlfriendId?: string };
+
+export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
   const [tab, setTab] = useState<'generate' | 'loras' | 'library' | 'workflows' | 'infra'>('generate');
   const [config, setConfig] = useState<Any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,6 +118,9 @@ export default function ComfyConsole() {
   const [inputImage, setInputImage] = useState('');
   const [kind, setKind] = useState('girlfriend');
   const [lastResult, setLastResult] = useState<Any[]>([]);
+  const [scopedGirlfriend, setScopedGirlfriend] = useState<Any | null>(null);
+  const [gfLoading, setGfLoading] = useState(false);
+
 
   const applyPreset = (p: (typeof CIVITAI_PRESETS)[number]) => {
     setPrompt(p.prompt);
@@ -148,7 +153,10 @@ export default function ComfyConsole() {
   const loadAssets = useCallback(async () => {
     setAssetsLoading(true);
     try {
-      const res = await authedFetch('/api/admin/comfy?view=assets&limit=120');
+      const qs = new URLSearchParams({ view: 'assets', limit: '120' });
+      if (girlfriendId) qs.set('girlfriend_id', girlfriendId);
+      else qs.set('scope', 'public');
+      const res = await authedFetch(`/api/admin/comfy?${qs.toString()}`);
       const data = await readResponseJson(res).catch(() => ({} as any));
       setAssets(data.assets || []);
       setSelectedAssetKeys([]);
@@ -159,11 +167,54 @@ export default function ComfyConsole() {
     } finally {
       setAssetsLoading(false);
     }
-  }, []);
+  }, [girlfriendId]);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  useEffect(() => {
+    if (!girlfriendId) {
+      setScopedGirlfriend(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setGfLoading(true);
+      try {
+        const res = await authedFetch(`/api/admin/girlfriends?id=${encodeURIComponent(girlfriendId)}`);
+        const data = await readResponseJson(res).catch(() => ({} as Any));
+        const list = data.girlfriends || data.items || [];
+        const one = data.girlfriend || list[0] || null;
+        if (!cancelled) setScopedGirlfriend(one);
+        if (one) {
+          // fill prompt from card fields if empty
+          const bits = [
+            one.image_prompt,
+            one.appearance_hair_color,
+            one.appearance_hair,
+            one.appearance_eyes,
+            one.appearance_body,
+            one.appearance_style,
+            one.personality,
+          ].filter(Boolean);
+          if (bits.length) {
+            setPrompt((prev: string) => prev.trim() ? prev : bits.join(', '));
+          }
+          if (one.negative_prompt) {
+            setNegative((prev: string) => prev.trim() ? prev : String(one.negative_prompt));
+          }
+          toast.message(`已载入女友：${one.name || girlfriendId}`);
+        }
+      } catch {
+        if (!cancelled) toast.error('载入女友失败');
+      } finally {
+        if (!cancelled) setGfLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [girlfriendId]);
+
 
   useEffect(() => {
     if (tab === 'library') loadAssets();
@@ -272,6 +323,7 @@ export default function ComfyConsole() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'generate',
+        girlfriend_id: girlfriendId || undefined,
           workflow_id: workflowId,
           endpoint_key: endpointKey,
           endpoint_id: selectedEndpoint?.endpoint_id || undefined,
@@ -429,6 +481,7 @@ export default function ComfyConsole() {
     try {
       const fd = new FormData();
       fd.append('action', 'upload_assets');
+      if (girlfriendId) fd.append('girlfriend_id', girlfriendId);
       fd.append('kind', kind || 'girlfriend');
       for (const f of files) fd.append('files', f);
       const res = await authedFetch('/api/admin/comfy', { method: 'POST', body: fd });
@@ -487,6 +540,42 @@ export default function ComfyConsole() {
 
   return (
     <div className="min-h-screen bg-[#0b0f14] p-4 sm:p-6 text-slate-100">
+      {girlfriendId ? (
+        <div className="mb-4 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-sm text-violet-100">
+          {gfLoading ? '正在载入女友…' : scopedGirlfriend ? (
+            <span>
+              按女友创作：<strong>{scopedGirlfriend.name || girlfriendId}</strong>
+              <span className="ml-2 text-xs text-violet-200/70">资产写入 girlfriends/{girlfriendId}/ · 不进公共库</span>
+            </span>
+          ) : (
+            <span>按女友创作 · ID {girlfriendId}（资料未取到也可生成）</span>
+          )}
+          <button
+            type="button"
+            className="ml-3 text-xs underline text-violet-200"
+            onClick={() => {
+              if (!scopedGirlfriend) return;
+              const bits = [
+                scopedGirlfriend.image_prompt,
+                scopedGirlfriend.appearance_hair_color,
+                scopedGirlfriend.appearance_hair,
+                scopedGirlfriend.appearance_eyes,
+                scopedGirlfriend.appearance_body,
+                scopedGirlfriend.appearance_style,
+              ].filter(Boolean);
+              if (bits.length) setPrompt(bits.join(', '));
+              if (scopedGirlfriend.negative_prompt) setNegative(String(scopedGirlfriend.negative_prompt));
+              toast.success('已用女友卡填充提示词');
+            }}
+          >
+            一键填充提示词
+          </button>
+        </div>
+      ) : (
+        <div className="mb-4 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
+          公共创作模式：结果进入 comfy-outputs / 公共资产库。从「女友与媒体」点创作可切换为按卡隔离。
+        </div>
+      )}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">

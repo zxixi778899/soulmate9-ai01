@@ -26,6 +26,13 @@ export const maxDuration = 180;
 
 const GEN_LIMIT = { maxRequests: 40, windowMs: 60 * 60 * 1000 };
 
+function assetFolder(girlfriendId?: string | null): string {
+  const id = (girlfriendId || '').trim();
+  if (id) return `girlfriends/${id}`;
+  return 'comfy-outputs';
+}
+
+
 /**
  * GET /api/admin/comfy
  *   ?view=config | assets | help | loras
@@ -71,14 +78,22 @@ export async function GET(req: NextRequest) {
   }
 
   if (view === 'assets') {
-    const kind = new URL(req.url).searchParams.get('kind');
-    const limit = Math.min(Number(new URL(req.url).searchParams.get('limit') || 80), 200);
+    const sp = new URL(req.url).searchParams;
+    const kind = sp.get('kind');
+    const girlfriendId = (sp.get('girlfriend_id') || sp.get('girlfriendId') || '').trim();
+    const scope = (sp.get('scope') || '').trim();
+    const limit = Math.min(Number(sp.get('limit') || 80), 200);
     let q = admin.supabase
       .from('generation_assets')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
     if (kind) q = q.eq('kind', kind);
+    if (girlfriendId) {
+      q = q.eq('girlfriend_id', girlfriendId);
+    } else if (scope === 'public') {
+      q = q.is('girlfriend_id', null);
+    }
     const { data, error } = await q;
 
     const assets: Array<Record<string, unknown>> = [];
@@ -114,7 +129,12 @@ export async function GET(req: NextRequest) {
             auth: { autoRefreshToken: false, persistSession: false },
           });
           const bucket = resolveBucketName();
-          const folders = [
+          const folders = girlfriendId
+            ? [
+                `girlfriends/${girlfriendId}`,
+                'comfy-outputs',
+              ]
+            : [
             'comfy-outputs',
             'girlfriends',
             'admin/girlfriends',
@@ -223,6 +243,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'multipart only supports upload_assets' }, { status: 400 });
     }
     const kind = String(form.get('kind') || 'girlfriend');
+    const girlfriendId = String(form.get('girlfriend_id') || form.get('girlfriendId') || '').trim() || null;
+    const folder = assetFolder(girlfriendId);
     const files: File[] = [];
     for (const f of form.getAll('files')) {
       if (f instanceof File) files.push(f);
@@ -244,10 +266,11 @@ export async function POST(req: NextRequest) {
         if (file.size > 12 * 1024 * 1024) throw new Error('file > 12MB');
         const buf = Buffer.from(await file.arrayBuffer());
         const b64 = `data:${file.type};base64,${buf.toString('base64')}`;
-        const up = await uploadImageBase64(b64, 'comfy-outputs', file.type || 'image/png');
+        const up = await uploadImageBase64(b64, folder, file.type || 'image/png');
         const row = {
           created_by: admin.user!.id,
           kind,
+          girlfriend_id: girlfriendId,
           storage_key: up.key,
           url: up.url,
           prompt: null,
@@ -401,6 +424,8 @@ export async function POST(req: NextRequest) {
     }
 
     const kind = String(body.kind || 'girlfriend');
+    const girlfriendId = String(body.girlfriend_id || body.girlfriendId || '').trim() || null;
+    const folder = assetFolder(girlfriendId);
     const assets: Array<Record<string, unknown>> = [];
     let ok = 0;
     const errors: string[] = [];
@@ -414,10 +439,11 @@ export async function POST(req: NextRequest) {
         const dataUrl = raw.startsWith('data:')
           ? raw
           : `data:${ct};base64,${raw}`;
-        const up = await uploadImageBase64(dataUrl, 'comfy-outputs', ct);
+        const up = await uploadImageBase64(dataUrl, folder, ct);
         const row = {
           created_by: admin.user!.id,
           kind: String(f?.kind || kind),
+          girlfriend_id: girlfriendId,
           storage_key: up.key,
           url: up.url,
           prompt: f?.prompt ? String(f.prompt).slice(0, 2000) : null,
@@ -513,6 +539,8 @@ export async function POST(req: NextRequest) {
       body.negative || wf?.defaults.negative || 'blurry, low quality, watermark',
     );
     const kind = body.kind || wf?.kind || 'custom';
+    const girlfriendId = String(body.girlfriend_id || body.girlfriendId || '').trim() || null;
+    const folder = assetFolder(girlfriendId);
     const loraStrength =
       body.lora_strength != null
         ? Number(body.lora_strength)
@@ -541,13 +569,14 @@ export async function POST(req: NextRequest) {
         const raw = result.images[i];
         const { key, url } = await uploadImageBase64(
           raw,
-          'comfy-outputs',
+          folder,
           'image/png',
         );
 
         const row = {
           created_by: admin.user!.id,
           kind,
+          girlfriend_id: girlfriendId,
           storage_key: key,
           url,
           prompt,

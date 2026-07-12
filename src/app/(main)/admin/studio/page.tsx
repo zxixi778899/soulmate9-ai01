@@ -1,11 +1,12 @@
-﻿'use client';
+'use client';
 
 /**
- * 创作工作台入口：Comfy 生成 + 模型库 + 公共资产
- * 旧 /admin/comfy 重定向到此，并提供清晰工作流分区
+ * 创作工作台入口：Comfy 生成 + 模型库 + 公共/女友资产
  */
 import Link from 'next/link';
-import { Sparkles, Library, FolderOpen, Workflow, ImageIcon, Film, Mic2, ArrowRight } from 'lucide-react';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Sparkles, Library, FolderOpen, Workflow, ImageIcon, Film, Mic2, ArrowRight, UserRound } from 'lucide-react';
 import ComfyConsole from '../comfy/ComfyConsole';
 
 const steps = [
@@ -18,21 +19,24 @@ const steps = [
   },
   {
     n: '2',
-    title: '按女友生成',
-    desc: '下方工作台出图（后续接视频/音频）。生成结果进入公共资产，可再绑定到女友卡。',
+    title: '按女友或公共生成',
+    desc: '带 girlfriendId 进入时，读取该卡特征一键填充提示词，结果进该女友独立资产；无 ID 则进公共资产。',
     href: '#workspace',
     icon: Sparkles,
   },
   {
     n: '3',
     title: '资产选用',
-    desc: '公共资产库保留全部生成图，可删除/上传，并选用为站内女友头像或肖像。',
+    desc: '公共资产库或回「女友与媒体」绑定肖像/头像。推荐/热门在女友卡内设置。',
     href: '/admin/assets',
     icon: FolderOpen,
   },
 ];
 
-export default function AdminStudioPage() {
+function StudioInner() {
+  const sp = useSearchParams();
+  const girlfriendId = (sp.get('girlfriendId') || sp.get('girlfriend_id') || '').trim();
+
   return (
     <div className="min-h-screen bg-[#0b0b12] text-slate-100">
       <div className="border-b border-white/10 bg-gradient-to-r from-violet-950/80 to-slate-950 px-4 py-5 md:px-6">
@@ -43,8 +47,16 @@ export default function AdminStudioPage() {
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">创作工作台</h1>
               <p className="mt-1 max-w-2xl text-sm text-slate-400">
                 合并原 Comfy 生成与模型能力：出图 / 视频 / 音频（引擎统一 RunPod）。
-                站内女友资料绑定请去「女友与媒体」，本页只负责生产资产。
+                {girlfriendId
+                  ? ' 当前按女友创作：生成结果写入该女友文件夹，不进入公共库。'
+                  : ' 未选择女友：生成结果进入公共资产库。'}
               </p>
+              {girlfriendId ? (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-xs text-violet-200">
+                  <UserRound className="h-3.5 w-3.5" />
+                  女友 ID：{girlfriendId}
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
               <Link
@@ -63,7 +75,7 @@ export default function AdminStudioPage() {
                 href="/admin/girlfriends"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white hover:bg-violet-500"
               >
-                绑定到女友 <ArrowRight className="h-3.5 w-3.5" />
+                女友与媒体 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           </div>
@@ -105,8 +117,22 @@ export default function AdminStudioPage() {
       </div>
 
       <div id="workspace" className="border-t border-white/10">
-        <ComfyConsole />
+        <ComfyConsole girlfriendId={girlfriendId || undefined} />
       </div>
     </div>
+  );
+}
+
+export default function AdminStudioPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] items-center justify-center bg-[#0b0b12] text-slate-400">
+          加载创作台…
+        </div>
+      }
+    >
+      <StudioInner />
+    </Suspense>
   );
 }
