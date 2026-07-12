@@ -211,9 +211,18 @@ export async function POST(req: NextRequest) {
     (body.concept as string) ||
     '';
 
+  const sceneId =
+    (typeof body.sceneId === 'string' && body.sceneId) ||
+    (typeof body.scene_id === 'string' && body.scene_id) ||
+    (typeof metadata?.scene_id === 'string' && metadata.scene_id) ||
+    (typeof metadata?.scene === 'string' && metadata.scene) ||
+    undefined;
+
   if (type === 'girlfriend') {
     if (girlfriendRow) {
-      const assembled = assembleGirlfriendFromRow(girlfriendRow, customOrMeta);
+      const assembled = assembleGirlfriendFromRow(girlfriendRow, customOrMeta, {
+        sceneId: sceneId || undefined,
+      });
       rawPrompt = assembled.positive;
       assembledNegative = assembled.negative;
     } else {
