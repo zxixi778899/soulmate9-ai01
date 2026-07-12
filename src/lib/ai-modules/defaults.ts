@@ -147,20 +147,20 @@ export function createDefaultAiModules(): AiModulesConfig {
       scenes: {
         girlfriend_portrait: {
           endpoint_id: 'flux-portrait',
-          width: 832,
-          height: 1216,
-          steps: 28,
+          width: 768,
+          height: 1152,
+          steps: 20,
           cfg: 1.0,
-          count: 4,
+          count: 2,
           token_cost: 0, // admin
           use_consistency_default: true,
           allow_llm_prompt_polish: true,
         },
         chat_selfie: {
           endpoint_id: 'flux-portrait',
-          width: 768,
-          height: 1024,
-          steps: 22,
+          width: 704,
+          height: 960,
+          steps: 16,
           cfg: 1.0,
           count: 1,
           token_cost: 25,

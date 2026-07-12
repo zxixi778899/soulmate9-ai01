@@ -299,17 +299,9 @@ export async function POST(request: NextRequest) {
   const { retrieveMemories } = await import('@/lib/memory-rag');
   const memories = await retrieveMemories(client, user.id, girlfriend_id, message, 5);
 
-  // Emotion: keyword path is fast + free; LLM fallback only when no match
+  // Emotion: keyword-only (never block chat on a second LLM round-trip)
   const [detectedEmotion, loreContext] = await Promise.all([
-    (async () => {
-      const quick = quickEmotion(message);
-      if (quick) return quick;
-      const llmEmotion = await callLLM(
-        [{ role: 'system', content: `Analyze emotional state. Reply ONE word: happy/sad/romantic/playful/angry/neutral/anxious. Message: "${message.replace(/"/g, "'")}"` }],
-        { temperature: 0.1 },
-      ).catch(() => 'neutral');
-      return normalizeEmotion(llmEmotion);
-    })(),
+    Promise.resolve(normalizeEmotion(quickEmotion(message) || 'neutral')),
     getLoreContext(client, user.id, girlfriend_id, message),
   ]);
 
@@ -484,8 +476,20 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : 'Unknown error';
         logger.error('[chat-stream] streaming failed', { err: errMsg.slice(0, 200) });
-
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errMsg })}\n\n`));
+        const soft =
+          "I'm still here... my signal glitched for a second. Tap send again and I'll reply right away~";
+        fullResponse = soft;
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: soft })}\n\n`));
+        try {
+          await client.from('chat_messages').insert({
+            user_id: user.id,
+            girlfriend_id,
+            role: 'assistant',
+            content: soft,
+          });
+        } catch {
+          /* ignore persist errors */
+        }
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       }

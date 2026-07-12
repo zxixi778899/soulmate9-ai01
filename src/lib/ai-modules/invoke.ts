@@ -27,8 +27,20 @@ export interface InvokeChatResult {
 
 function resolveApiKey(endpoint: ModelEndpoint): string {
   const envName = endpoint.api_key_env || guessKeyEnv(endpoint.provider);
-  if (!envName) return '';
-  return process.env[envName] || '';
+  const primary = envName ? process.env[envName] || '' : '';
+  if (primary) return primary;
+  // Common aliases so mislabeled env still works
+  if (endpoint.provider === 'together') return process.env.TOGETHER_API_KEY || '';
+  if (endpoint.provider === 'runpod') {
+    return (
+      process.env.RUNPOD_VLLM_API_KEY ||
+      process.env.RUNPOD_API_KEY ||
+      process.env.RUNPOD_COMFYUI_API_KEY ||
+      ''
+    );
+  }
+  if (endpoint.provider === 'openai') return process.env.OPENAI_API_KEY || '';
+  return '';
 }
 
 function guessKeyEnv(provider: string): string {
@@ -159,18 +171,58 @@ export async function invokeChatAsSseStream(opts: InvokeChatOptions): Promise<{
       provider: opts.endpoint.provider,
       err: err instanceof Error ? err.message : String(err),
     });
-    const { streamTextSmart } = await import('@/lib/llm-service');
-    const fallback = await streamTextSmart({
-      messages: opts.messages,
-      temperature: opts.temperature ?? opts.endpoint.temperature,
-      maxTokens: opts.maxTokens ?? opts.endpoint.max_tokens,
-    });
-    return {
-      response: fallback.response,
-      provider: fallback.provider,
-      model: fallback.model || opts.endpoint.model_id,
-      meta: null,
-    };
+    try {
+      const { streamTextSmart } = await import('@/lib/llm-service');
+      const fallback = await streamTextSmart({
+        messages: opts.messages,
+        temperature: opts.temperature ?? opts.endpoint.temperature,
+        maxTokens: opts.maxTokens ?? opts.endpoint.max_tokens,
+      });
+      return {
+        response: fallback.response,
+        provider: fallback.provider,
+        model: fallback.model || opts.endpoint.model_id,
+        meta: null,
+      };
+    } catch (fallbackErr) {
+      logger.error('[ai-modules/invoke] all chat providers failed', {
+        primary: err instanceof Error ? err.message : String(err),
+        fallback: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+      });
+      const soft =
+        "I'm right here, baby... my connection just hiccuped. Send that again and I'll answer you properly~";
+      const encoder = new TextEncoder();
+      const response = new Response(
+        new ReadableStream({
+          start(ctrl) {
+            ctrl.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ choices: [{ delta: { content: soft } }] })}
+
+`,
+              ),
+            );
+            ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
+            ctrl.close();
+          },
+        }),
+        {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+            'X-Model-Provider': 'soft-fallback',
+            'X-Model-Id': 'offline-soft',
+          },
+        },
+      );
+      return {
+        response,
+        provider: 'soft-fallback',
+        model: 'offline-soft',
+        meta: null,
+      };
+    }
   }
 }
 

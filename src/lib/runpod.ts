@@ -96,7 +96,7 @@ export function buildFluxWorkflow(opts: {
   const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 32);
   const width = opts.width ?? 832;
   const height = opts.height ?? 1216;
-  const steps = Math.max(opts.steps ?? 28, 20);
+  const steps = Math.max(opts.steps ?? 20, 12);
   // FLUX.1-dev: cfg 1.0–3.5; higher often darkens/destroys image
   const guidance = Math.min(Math.max(opts.guidance ?? 1.0, 1.0), 3.5);
   const sampler_name = opts.sampler_name || 'euler';
@@ -329,7 +329,7 @@ class RunPodClient {
    * Generate images via RunPod (async polling).
    * Uses ComfyUI API workflow format internally.
    */
-  async generate(options: RunPodGenerateOptions, pollIntervalMs = 3000): Promise<RunPodGenerateResult> {
+  async generate(options: RunPodGenerateOptions, pollIntervalMs = 2000): Promise<RunPodGenerateResult> {
     this.refreshConfig();
     const endpointId = options.endpoint_id || this.endpointId;
     const baseUrl = endpointId ? `https://api.runpod.ai/v2/${endpointId}` : this.baseUrl;
@@ -368,7 +368,7 @@ class RunPodClient {
       negativePrompt: options.negative_prompt,
       width: options.width,
       height: options.height,
-      steps: options.num_inference_steps ?? 28,
+      steps: options.num_inference_steps ?? 18,
       guidance: options.guidance_scale ?? 1.0,
       seed: options.seed,
       sampler_name: options.sampler_name || 'euler',

@@ -178,11 +178,12 @@ export async function POST(request: NextRequest) {
       prompt,
       negative_prompt: negativePrompt,
       input_image: referenceImage,
-      denoising_strength: referenceImage ? 0.62 : 1,
-      width: sceneCfg.width || 768,
-      height: sceneCfg.height || 1024,
+      // Slightly higher denoise = freer composition + fewer stuck likeness retries
+      denoising_strength: referenceImage ? 0.72 : 1,
+      width: sceneCfg.width || 704,
+      height: sceneCfg.height || 960,
       num_images: 1,
-      num_inference_steps: sceneCfg.steps || 22,
+      num_inference_steps: sceneCfg.steps || 16,
       guidance_scale: Math.min(Math.max(sceneCfg.cfg || 1.0, 1.0), 3.5),
       endpoint_id: resolved.endpointId || undefined,
       ckpt_name: sceneCfg.ckpt_name || undefined,
@@ -240,6 +241,11 @@ export async function POST(request: NextRequest) {
       success: false,
       error_message: errMsg,
     });
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+    return NextResponse.json({
+      error: /timeout|queue|cold|not configured|FAILED/i.test(errMsg)
+        ? `${errMsg} — retry in 20–40s if the GPU is waking up.`
+        : errMsg,
+      code: 'image_gen_failed',
+    }, { status: 500 });
   }
 }

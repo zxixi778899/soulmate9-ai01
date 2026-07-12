@@ -326,6 +326,7 @@ export default function ChatPage() {
   const generateSelfie = async () => {
     setShowAttachments(false);
     setIsGenerating(true);
+    toast.message('Generating selfie…', { description: 'GPU may take 20–90s if cold. Hang tight.' });
     try {
       const res = await authedFetch('/api/chat/generate-image', {
         method: 'POST',
@@ -403,7 +404,10 @@ export default function ChatPage() {
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to send message');
+      if (!res.ok) {
+        const errBody = await readResponseJson(res).catch(() => ({} as any));
+        throw new Error(errBody?.error || `Failed to send message (${res.status})`);
+      }
       const ch = res.headers.get('X-AI-Channel');
       const md = res.headers.get('X-AI-Model');
       if (ch === 'sfw' || ch === 'nsfw') setAiChannel(ch);
@@ -523,7 +527,19 @@ export default function ChatPage() {
       }).catch(() => {});
     } catch (err) {
       logger.error('Send error:', { data: err });
+      const msg = err instanceof Error ? err.message : 'Failed to send message';
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `err-${Date.now()}`,
+          role: 'assistant',
+          content: msg.includes('limit')
+            ? msg
+            : `I missed that for a second... ${msg}. Try sending again?`,
+          created_at: new Date().toISOString(),
+        },
+      ]);
       setIsTyping(false);
     }
     setIsSending(false);

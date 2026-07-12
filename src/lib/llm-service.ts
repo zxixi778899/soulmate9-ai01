@@ -95,59 +95,91 @@ async function postRunPod(input: Record<string, unknown>, signal: AbortSignal): 
 
 // ── Non-streaming ──
 
-export async function generateText(options: GenOptions): Promise<string> {
-  if (!isConfigured()) throw new Error('LLM not configured');
-  const messages = buildInput(options);
-  const mode: LoreMode = options.loraMode || 'default';
-  const data = await postRunPod({
-    input: {
+
+async function callTogetherChat(
+  messages: { role: string; content: string }[],
+  options: GenOptions,
+): Promise<string> {
+  const key = process.env.TOGETHER_API_KEY || '';
+  if (!key) throw new Error('Together not configured');
+  const model =
+    process.env.TOGETHER_CHAT_MODEL ||
+    'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo';
+  const res = await fetch('https://api.together.xyz/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model,
       messages,
       max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
       temperature: options.temperature ?? DEFAULT_TEMPERATURE,
       top_p: options.topP ?? DEFAULT_TOP_P,
-      repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
-      // vLLM LoRA selection (server-side enabled). Defaults to env LORA_NAME.
-      ...(options.loraName || (mode !== 'default' ? mode : LORA_NAME)
-        ? { lora_name: options.loraName || (mode !== 'default' ? mode : LORA_NAME) }
-        : {}),
-    },
-  }, AbortSignal.timeout(FETCH_TIMEOUT));
-  const content = parseRunPodOutput(data);
-  if (!content) throw new Error('LLM returned empty');
-  return content.trim();
+    }),
+    signal: AbortSignal.timeout(Math.min(FETCH_TIMEOUT, 45000)),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Together HTTP ${res.status}: ${body.slice(0, 160)}`);
+  }
+  const data = await res.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Together returned empty');
+  return String(content).trim();
 }
 
-// ── Streaming (returns SSE Response) ──
-
-export async function streamText(options: GenOptions): Promise<Response> {
-  if (!isConfigured()) throw new Error('LLM not configured');
+export async function generateText(options: GenOptions): Promise<string> {
   const messages = buildInput(options);
   const mode: LoreMode = options.loraMode || 'default';
-  const start = Date.now();
-  logger.debug('[llm] streaming request', { data: { msgCount: messages.length, mode } });
+  const errors: string[] = [];
 
-  const data = await postRunPod({
-    input: {
-      messages,
-      max_tokens: options.maxTokens ?? 2048,
-      temperature: options.temperature ?? DEFAULT_TEMPERATURE,
-      top_p: options.topP ?? DEFAULT_TOP_P,
-      repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
-      ...(options.loraName || (mode !== 'default' ? mode : LORA_NAME)
-        ? { lora_name: options.loraName || (mode !== 'default' ? mode : LORA_NAME) }
-        : {}),
-    },
-  }, AbortSignal.timeout(FETCH_TIMEOUT));
+  if (isConfigured()) {
+    try {
+      const data = await postRunPod({
+        input: {
+          messages,
+          max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+          temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+          top_p: options.topP ?? DEFAULT_TOP_P,
+          repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
+          ...(options.loraName || (mode !== 'default' ? mode : LORA_NAME)
+            ? { lora_name: options.loraName || (mode !== 'default' ? mode : LORA_NAME) }
+            : {}),
+        },
+      }, AbortSignal.timeout(FETCH_TIMEOUT));
+      const content = parseRunPodOutput(data);
+      if (!content) throw new Error('LLM returned empty');
+      return content.trim();
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+      logger.warn('[llm] runpod generate failed, trying Together', { err: errors[errors.length - 1] });
+    }
+  }
 
-  const content = parseRunPodOutput(data) || '...';
-  logger.debug('[llm] response', { data: { ms: Date.now() - start, len: content.length } });
+  if (process.env.TOGETHER_API_KEY) {
+    try {
+      return await callTogetherChat(messages as { role: string; content: string }[], options);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
 
+  throw new Error(errors[0] || 'LLM not configured');
+}
+
+function sseFromText(content: string): Response {
   const encoder = new TextEncoder();
   return new Response(
     new ReadableStream({
       start(ctrl) {
-        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
-        ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
+        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}
+
+`));
+        ctrl.enqueue(encoder.encode('data: [DONE]
+
+'));
         ctrl.close();
       },
     }),
@@ -161,13 +193,53 @@ export async function streamText(options: GenOptions): Promise<Response> {
   );
 }
 
-// ── Compat wrappers ──
+export async function streamText(options: GenOptions): Promise<Response> {
+  const messages = buildInput(options);
+  const mode: LoreMode = options.loraMode || 'default';
+  const start = Date.now();
+  logger.debug('[llm] streaming request', { data: { msgCount: messages.length, mode } });
+  const errors: string[] = [];
 
-export interface StreamingResult {
-  response: Response;
-  provider: string;
-  model: string;
+  if (isConfigured()) {
+    try {
+      const data = await postRunPod({
+        input: {
+          messages,
+          max_tokens: options.maxTokens ?? 1024,
+          temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+          top_p: options.topP ?? DEFAULT_TOP_P,
+          repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
+          ...(options.loraName || (mode !== 'default' ? mode : LORA_NAME)
+            ? { lora_name: options.loraName || (mode !== 'default' ? mode : LORA_NAME) }
+            : {}),
+        },
+      }, AbortSignal.timeout(FETCH_TIMEOUT));
+      const content = parseRunPodOutput(data) || '...';
+      logger.debug('[llm] response', { data: { ms: Date.now() - start, len: content.length, provider: 'runpod' } });
+      return sseFromText(content);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+      logger.warn('[llm] runpod stream failed, trying Together', { err: errors[errors.length - 1] });
+    }
+  }
+
+  if (process.env.TOGETHER_API_KEY) {
+    try {
+      const content = await callTogetherChat(messages as { role: string; content: string }[], {
+        ...options,
+        maxTokens: options.maxTokens ?? 1024,
+      });
+      logger.debug('[llm] response', { data: { ms: Date.now() - start, len: content.length, provider: 'together' } });
+      return sseFromText(content);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  throw new Error(errors[0] || 'LLM not configured');
 }
+
+// ── Compat wrappers ──
 
 export async function streamTextSmart(options: {
   messages: Array<{ role: string; content: string }>;
@@ -190,7 +262,12 @@ export async function streamTextSmart(options: {
     loraMode: mode,
     loraName: options.loraName,
   });
-  return { response, provider: 'runpod', model: 'lumimaid-13b' };
+  const provider = isConfigured() ? 'runpod' : (process.env.TOGETHER_API_KEY ? 'together' : 'unknown');
+  const model =
+    provider === 'together'
+      ? (process.env.TOGETHER_CHAT_MODEL || 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo')
+      : (process.env.LLM_MODEL_NAME || 'lumimaid-13b');
+  return { response, provider, model };
 }
 
 export async function generateTextSmart(options: GenOptions) {
@@ -213,9 +290,10 @@ export async function generateTextWithFallback(options: GenOptions) {
 
 export function getLLMStatus() {
   return {
-    configured: isConfigured(),
+    configured: isConfigured() || !!process.env.TOGETHER_API_KEY,
     model: process.env.LLM_MODEL_NAME || 'lumimaid-13b',
     endpoint: RP_BASE,
+    together: !!process.env.TOGETHER_API_KEY,
     lora: LORA_NAME,
     generation: {
       temperature: DEFAULT_TEMPERATURE,
