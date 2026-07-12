@@ -233,7 +233,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           denoise: 1,
           endpoint_key: 'portrait-v9',
           positive:
-            'three-quarter body portrait of a stunningly beautiful young adult woman, curvy body, hourglass figure, large breasts, wide hips, sexy alluring, looking at viewer, ultra photorealistic, 8k, soft cinematic lighting',
+            'three-quarter body portrait of a beautiful young adult woman, natural soft smile, fair luminous skin, well-lit face, bright clean exposure, lively eyes with catchlights, looking at viewer, photorealistic, natural proportions, bright soft key light',
           negative:
             'blurry, deformed, bad anatomy, child, underage, watermark, text, logo, flat chest',
         },
