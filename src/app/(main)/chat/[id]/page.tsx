@@ -186,7 +186,7 @@ export default function ChatPage() {
       // Fallback: list all if id filter unsupported / empty
       if (!gf) {
         const all = await authedFetch('/api/girlfriends').then((r) => readResponseJson(r).catch(() => ({}))).catch(() => ({}));
-        gf = (all.girlfriends || []).find((g: Girlfriend) => g.id === id) || null;
+        gf = (((all as { girlfriends?: Girlfriend[] }).girlfriends) || []).find((g: Girlfriend) => g.id === id) || null;
       }
       setGirlfriend(gf);
 
