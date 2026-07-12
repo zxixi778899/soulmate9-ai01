@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       if (error) throw error;
       for (const row of data || []) {
         const m = mapProp(row as Record<string, unknown>);
-        items.push(m);
+        items.push(m as never);
         if (m.category) categories.add(String(m.category));
       }
     }
