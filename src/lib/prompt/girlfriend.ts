@@ -1,11 +1,14 @@
 /**
- * Girlfriend card image prompt preset — optimized for FLUX.1
+ * Girlfriend card image prompts — FLUX.1
  *
- * Design goals (from premium reference set):
- * - Read character traits (hair/eyes/body/personality/style) first
- * - Scene-driven life: rooftop night / selfie / apartment / window light / bedroom / fantasy throne
- * - Vivid pose + micro-expression + lighting story (not flat template spam)
- * - FLUX prefers short natural captions; keep empty/minimal negatives
+ * Structure (simple, Civitai-style natural language):
+ *   traits + action/pose + environment/light + short quality
+ * Negative: only hard exclusions (keep short for FLUX).
+ *
+ * Goals from reference set:
+ * - Distinct faces (not same template beauty face)
+ * - Varied poses / camera angles (not one static three-quarter stand)
+ * - Natural light (window, flash, city night, golden hour) — avoid flat beauty-dish spam
  */
 import {
   sanitizeBlurKeywords,
@@ -17,32 +20,27 @@ import {
   type PresetContext,
 } from './shared';
 
-/** Photoreal quality — sharp, bright, FLUX-friendly (applied once) */
+/** Short quality tail — do NOT stack camera spam (causes same-face look). */
 export const GIRLFRIEND_QUALITY_PREFIX =
-  'RAW photo, masterpiece, best quality, ultra photorealistic, 8k uhd, ' +
-  'highly detailed face and eyes, detailed skin texture with natural pores and subtle freckles, ' +
-  'sharp focus, crisp micro details, professional photography, ' +
-  'shot on Canon EOS R5, 50mm lens, vibrant color grade, high dynamic range';
+  'photorealistic, natural skin texture, detailed eyes, sharp focus, realistic lighting';
 
 /**
- * Sensual figure tokens — applied for girlfriend cards, but not the whole story.
+ * Soft figure hint — keep short so face/pose still dominate.
+ * Full "hourglass large breasts" spam forces same body every time.
  */
 export const GIRLFRIEND_BODY_FIXED =
-  'curvy hourglass figure, full bust, slim waist, wide hips, thick thighs, ' +
-  'soft feminine curves, sexy allure, confident body language';
+  'feminine curves, attractive adult figure, natural proportions';
 
-/** Default framing when no scene is chosen */
+/** Framing only when scene does not already set camera */
 export const GIRLFRIEND_FRAMING =
-  'three-quarter body portrait, head to mid-thighs, dynamic natural pose, ' +
-  'looking at viewer, centered composition, immersive environment';
+  'three-quarter length, looking at viewer, natural candid pose';
 
 /**
- * FLUX: keep negatives short or empty.
- * Long SD-style negatives frequently yield black / washed images.
+ * Short negatives — FLUX hates long SD negative lists.
  */
 export const GIRLFRIEND_NEGATIVE =
-  'blurry, low quality, worst quality, deformed, bad anatomy, extra fingers, ' +
-  'child, underage, watermark, text, logo, cartoon, anime, plastic skin, oversmoothed';
+  'blurry, deformed, bad anatomy, extra fingers, same face, plastic skin, oversmoothed, ' +
+  'child, underage, watermark, text, logo, cartoon, anime';
 
 /** Prefer empty negative for pure FLUX workers */
 export const GIRLFRIEND_NEGATIVE_FLUX = '';
@@ -59,7 +57,6 @@ export interface GirlfriendSubject {
   tags?: string[] | string;
   appearance?: string;
   occupation?: string;
-  /** Optional explicit scene id from admin UI / metadata */
   sceneId?: string;
   mood?: string;
 }
@@ -71,6 +68,10 @@ export type GirlfriendSceneId =
   | 'window_sunlight'
   | 'pink_bedroom'
   | 'gothic_throne'
+  | 'cafe_day'
+  | 'car_night'
+  | 'beach_breeze'
+  | 'kitchen_morning'
   | 'studio_clean'
   | 'golden_hour'
   | 'auto';
@@ -78,112 +79,126 @@ export type GirlfriendSceneId =
 type SceneRecipe = {
   id: Exclude<GirlfriendSceneId, 'auto'>;
   label: string;
-  /** Environment + wardrobe vibe */
-  scene: string;
-  pose: string;
+  /** Action / pose / camera (most important for variety) */
+  action: string;
+  /** Place + wardrobe vibe */
+  env: string;
+  /** Light story — one clear source */
   light: string;
-  mood: string;
-  /** keywords that route auto-pick here */
   match: RegExp;
 };
 
 /**
- * Reference-inspired scene library (more vivid than one static template).
+ * Reference-inspired scenes: different faces need different poses + light, not one template.
+ * Keep each clause short (Civitai caption style).
  */
 export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
   {
     id: 'rooftop_night',
-    label: 'Rooftop night glam',
-    scene:
-      'on a luxury rooftop terrace at night, city skyline and warm building lights behind her, ' +
-      'shiny red snakeskin crop top and matching high-waist leggings, diamond earrings and delicate pendant necklace',
-    pose:
-      'leaning forward over a glass table with both hands planted, arched back, chest forward, hips pushed out, ' +
-      'chin slightly lifted, sultry eye contact',
-    light:
-      'blue twilight sky with stars, mixed city glow and cool rim light on shoulders, specular highlights on glossy fabric',
-    mood: 'high-fashion nightlife energy, expensive and untouchable',
+    label: 'Rooftop night',
+    action:
+      'leaning on glass railing, one hip cocked, chin slightly down, looking up at camera, medium full-body shot',
+    env: 'luxury rooftop at night, city skyline bokeh, fitted evening outfit',
+    light: 'cool blue ambient + warm city rim light on hair and shoulders',
     match: /rooftop|night|city|skyline|club|glam|neon|evening/i,
   },
   {
     id: 'mirror_selfie',
-    label: 'Bathroom mirror selfie',
-    scene:
-      'candid bathroom mirror selfie, tiled walls and white door behind her, phone in one hand, ' +
-      'cropped black graphic tee lifted under her chest, low-rise ripped blue jeans, tattoos and navel piercing accents if fitting',
-    pose:
-      'one arm raised into messy wavy hair, hip cocked, casual mirror lean, intimate phone selfie angle from slightly above',
-    light: 'harsh on-camera flash mixed with warm indoor bathroom light, hard shadows, skin sheen',
-    mood: 'raw after-party energy, playful bratty confidence',
-    match: /selfie|mirror|bathroom|flash|tattoo|casual|party girl|messy/i,
+    label: 'Mirror selfie',
+    action:
+      'bathroom mirror selfie, phone in hand, free hand in messy hair, hip popped, high angle',
+    env: 'tiled bathroom, casual crop top and jeans, candid after-party vibe',
+    light: 'direct phone flash + warm overhead bulb, hard shadows, skin sheen',
+    match: /selfie|mirror|bathroom|flash|tattoo|casual|party/i,
   },
   {
     id: 'city_apartment',
-    label: 'City apartment couch',
-    scene:
-      'sitting on a beige sofa in a pink apartment living room, framed night city skyline prints on the wall, ' +
-      'teal velvet corset top with gold hooks, tiny frayed denim shorts, soft throw pillows nearby',
-    pose:
-      'upright on the couch edge, thighs together, palms resting on the cushions, calm direct gaze, elegant posture',
-    light: 'warm room light plus cool city lights through windows, clean editorial portrait lighting',
-    mood: 'polished girlfriend-next-door luxury, quietly seductive',
-    match: /apartment|couch|corset|denim|indoor|living room|soft glam/i,
+    label: 'Apartment couch',
+    action:
+      'sitting on couch edge, knees together then slightly open, elbows on thighs, calm direct eye contact, eye-level',
+    env: 'modern apartment living room, soft pillows, stylish date-night top',
+    light: 'warm lamp key light, cool window fill from city night',
+    match: /apartment|couch|indoor|living room|soft glam|home/i,
   },
   {
     id: 'window_sunlight',
-    label: 'Lace window sunlight',
-    scene:
-      'standing by a tall window with white lace curtains, soft domestic interior, intimate morning atmosphere',
-    pose:
-      'body turned in a three-quarter twist toward the window, looking back over her shoulder with a gentle smile, ' +
-      'one hand on the curtain, natural hip curve emphasized',
-    light:
-      'strong golden side sunlight, lace shadow patterns cast across bare skin, glowing highlights and deep warm shadows',
-    mood: 'sun-warmed intimacy, soft and erotic without stiffness',
-    match: /window|sunlight|lace|morning|golden|sheer|curtain|nude soft/i,
+    label: 'Window sunlight',
+    action:
+      'standing by window, body three-quarter turned, looking back over shoulder, hand resting on curtain',
+    env: 'tall window, sheer lace curtains, intimate home interior',
+    light: 'strong golden side sun, soft lace shadow patterns on skin',
+    match: /window|sunlight|lace|morning|sheer|curtain/i,
   },
   {
     id: 'pink_bedroom',
-    label: 'Pink neon bedroom',
-    scene:
-      'kneeling on a pastel pink bed with plush toys and LED strip lights, photo wall behind her, ' +
-      'black lingerie with garter straps and sheer stockings, glossy skin',
-    pose:
-      'on all fours / kneeling lean, back arched, looking back over her shoulder with a bright mischievous smile, ' +
-      'booty-forward composition, intimate close three-quarter framing',
-    light: 'pink LED glow, soft bedside lamp warmth, wet-skin specular highlights',
-    mood: 'playful NSFW girlfriend energy, flirty and inviting',
-    match: /bedroom|lingerie|pink|led|garter|stockings|kneeling|nsfw soft/i,
+    label: 'Bedroom kneel',
+    action:
+      'kneeling on bed facing away then looking back, arched back, over-shoulder smile, three-quarter crop',
+    env: 'pastel bedroom, LED strips, soft sheets, lingerie or sleepwear',
+    light: 'pink LED fill + warm bedside practical light',
+    match: /bedroom|lingerie|pink|led|garter|stockings|kneeling|nsfw/i,
   },
   {
     id: 'gothic_throne',
-    label: 'Gothic throne fantasy',
-    scene:
-      'seated on an ornate black gothic throne with smoke and dramatic props, ' +
-      'black lace lingerie bodysuit, jeweled crown and sapphire jewelry, dark royal atmosphere',
-    pose:
-      'legs open throne sit, one hand near her body, theatrical expression with parted lips and tongue tip, ' +
-      'dominant seductive energy, cinematic low angle',
-    light: 'volumetric god rays, smoke haze, high-contrast studio glamour lighting',
-    mood: 'dark queen fantasy, erotic power pose',
-    match: /gothic|throne|queen|crown|dark|fantasy|lace black|dominant/i,
+    label: 'Throne fantasy',
+    action:
+      'seated on ornate chair, legs crossed or open elegant, one hand on armrest, low-angle power pose',
+    env: 'dark gothic set, smoke haze, black lace outfit, dramatic props',
+    light: 'high-contrast key light, volumetric haze, deep shadows',
+    match: /gothic|throne|queen|crown|dark|fantasy|dominant/i,
+  },
+  {
+    id: 'cafe_day',
+    label: 'Cafe daylight',
+    action:
+      'leaning on cafe table with chin on hand, slight smile, 50mm candid portrait crop',
+    env: 'sunlit cafe window seat, coffee cup, casual day outfit',
+    light: 'soft daylight through glass, gentle catchlights in eyes',
+    match: /cafe|coffee|daylight|brunch|casual date|day/i,
+  },
+  {
+    id: 'car_night',
+    label: 'Car night',
+    action:
+      'in passenger seat, body turned toward camera, one arm on seat back, intimate close crop',
+    env: 'car interior at night, city lights through windows, date-night dress',
+    light: 'dashboard glow + street neon color spill, shallow depth of field',
+    match: /car|night drive|neon|passenger|vehicle/i,
+  },
+  {
+    id: 'beach_breeze',
+    label: 'Beach breeze',
+    action:
+      'walking toward camera mid-step, hair wind-blown, natural smile, full-body wide shot',
+    env: 'beach at golden hour, light summer outfit, ocean behind',
+    light: 'low warm sun, soft rim light through hair, bright open sky',
+    match: /beach|ocean|summer|outdoor|wind|vacation/i,
+  },
+  {
+    id: 'kitchen_morning',
+    label: 'Kitchen morning',
+    action:
+      'standing at kitchen counter, mug in both hands, relaxed shoulders, soft half-smile, medium shot',
+    env: 'bright kitchen, morning routine, simple home clothes',
+    light: 'cool morning window light from the side, clean soft shadows',
+    match: /kitchen|morning|coffee home|domestic|cozy/i,
   },
   {
     id: 'studio_clean',
-    label: 'Clean studio portrait',
-    scene: 'seamless studio backdrop, fashion lookbook styling, premium companion card presentation',
-    pose: 'confident standing three-quarter pose, weight on one hip, looking at viewer',
-    light: 'bright softbox key light, clean fill, no muddy shadows',
-    mood: 'commercial beauty, clear and marketable',
+    label: 'Studio clean',
+    action:
+      'weight on one hip, arms relaxed, fashion lookbook stance, three-quarter body',
+    env: 'seamless studio backdrop, premium companion card look',
+    light: 'large soft key light, gentle fill, clean commercial lighting',
     match: /studio|clean|portrait|card|profile|simple/i,
   },
   {
     id: 'golden_hour',
     label: 'Golden hour outdoor',
-    scene: 'outdoors at golden hour, soft wind in hair, lifestyle companion moment',
-    pose: 'natural walk-stop pose, slight lean, warm smile to viewer',
-    light: 'warm low sun on face and shoulders, bright well-lit subject, crisp edges',
-    mood: 'romantic and approachable',
+    action:
+      'walk-and-turn pose, slight lean, hair catching wind, warm smile to viewer',
+    env: 'outdoors at golden hour, lifestyle companion moment',
+    light: 'warm low sun on face and shoulders, natural outdoor light',
     match: /golden|outdoor|park|sunset|warm smile|date/i,
   },
 ];
@@ -197,8 +212,7 @@ function normalizeTags(tags?: string[] | string): string[] {
     .filter(Boolean);
 }
 
-/** Resolve a short person name; never return a full image caption */
-export function resolvePersonName(raw?: string | null, fallback = 'a stunning young woman'): string {
+export function resolvePersonName(raw?: string | null, fallback = 'a young woman'): string {
   if (!raw?.trim()) return fallback;
   if (!looksLikeFluxPrompt(raw)) return raw.trim().slice(0, 48);
   return extractPersonName(raw) || fallback;
@@ -211,8 +225,24 @@ function hashPick(seed: string, mod: number): number {
 }
 
 /**
- * Pick a scene from explicit id, metadata text, tags, or stable name hash.
+ * Unique-ish face cue from name seed so different girls don't share one beauty face.
+ * (Not ethnicity stereotypes — hairline / freckles / face shape / makeup intensity.)
  */
+export function buildFaceIdentityClause(subject: GirlfriendSubject): string {
+  const seed = `${subject.name || ''}|${subject.hairColor || ''}|${subject.eyes || ''}|${subject.race || ''}`;
+  const faces = [
+    'oval face, soft cheekbones, natural freckles across nose, light natural makeup',
+    'heart-shaped face, defined jaw, bold eyeliner, glossy lips',
+    'round youthful face, full cheeks, dewy skin, soft pink makeup',
+    'long face, high cheekbones, sharp brows, minimal makeup',
+    'diamond face shape, almond eyes, subtle contour, nude lips',
+    'square jaw softened, thick lashes, sun-kissed skin, freckles on cheeks',
+    'narrow chin, wide-set eyes, messy baby hairs, no heavy foundation',
+    'soft angular face, beauty mark near lip, smoky eye makeup',
+  ];
+  return faces[hashPick(seed || 'face', faces.length)];
+}
+
 export function pickGirlfriendScene(
   subject: GirlfriendSubject,
   rawPrompt = '',
@@ -241,7 +271,6 @@ export function pickGirlfriendScene(
     if (recipe.match.test(bag)) return recipe;
   }
 
-  // Personality routing
   const p = (subject.personality || '').toLowerCase();
   if (/shy|soft|gentle|innocent|caring/.test(p)) {
     return GIRLFRIEND_SCENE_RECIPES.find((s) => s.id === 'window_sunlight')!;
@@ -255,78 +284,67 @@ export function pickGirlfriendScene(
   if (/elegant|luxury|glam|model/.test(p)) {
     return GIRLFRIEND_SCENE_RECIPES.find((s) => s.id === 'rooftop_night')!;
   }
+  if (/cozy|home|sweet|girlfriend next door/.test(p)) {
+    return GIRLFRIEND_SCENE_RECIPES.find((s) => s.id === 'kitchen_morning')!;
+  }
 
-  // Stable variety per character so gallery does not look identical
-  const seed = `${subject.name || ''}|${subject.hairColor || ''}|${subject.eyes || ''}`;
+  const seed = `${subject.name || ''}|${subject.hairColor || ''}|${subject.eyes || ''}|${subject.body || ''}`;
   const idx = hashPick(seed || 'default', GIRLFRIEND_SCENE_RECIPES.length);
   return GIRLFRIEND_SCENE_RECIPES[idx] || GIRLFRIEND_SCENE_RECIPES[0];
 }
 
-/**
- * Expression / vibe from personality tags — keeps faces alive.
- */
 export function buildExpressionClause(subject: GirlfriendSubject, scene: SceneRecipe): string {
   const p = (subject.personality || subject.mood || '').toLowerCase();
-  if (/shy|soft|gentle|innocent/.test(p)) {
-    return 'soft parted lips, warm half-smile, slightly bashful eyes, tender gaze';
-  }
-  if (/playful|brat|tease|flirty/.test(p)) {
-    return 'mischievous smile, flirty eye contact, playful energy, lively expression';
-  }
-  if (/dominant|confident|queen|bold/.test(p)) {
-    return 'confident sultry stare, controlled seduction, powerful presence';
-  }
-  if (/romantic|caring|sweet/.test(p)) {
-    return 'affectionate gaze, soft smile, intimate eye contact';
-  }
-  // Scene default micro-expression
-  if (scene.id === 'mirror_selfie') return 'bratty mirror-face, lips slightly pouted, cheeky confidence';
-  if (scene.id === 'rooftop_night') return 'sultry open-mouth breath, glossy lips, elevated glam stare';
-  if (scene.id === 'pink_bedroom') return 'bright flirty smile over the shoulder, inviting eyes';
-  if (scene.id === 'gothic_throne') return 'dramatic erotic expression, tongue tip, hypnotic allure';
-  if (scene.id === 'window_sunlight') return 'gentle over-shoulder smile, sunlit freckles, soft eyes';
-  return 'seductive expression, soft parted lips, alive eye contact';
+  if (/shy|soft|gentle|innocent/.test(p)) return 'soft half-smile, bashful eyes';
+  if (/playful|brat|tease|flirty/.test(p)) return 'mischievous smile, flirty eyes';
+  if (/dominant|confident|queen|bold/.test(p)) return 'confident stare, calm seduction';
+  if (/romantic|caring|sweet/.test(p)) return 'warm affectionate gaze';
+
+  const byScene: Record<string, string> = {
+    mirror_selfie: 'cheeky pout, playful eyes',
+    rooftop_night: 'sultry half-lidded gaze',
+    pink_bedroom: 'bright over-shoulder smile',
+    gothic_throne: 'dramatic parted lips',
+    window_sunlight: 'gentle over-shoulder smile',
+    cafe_day: 'easy candid smile',
+    car_night: 'intimate soft look',
+    beach_breeze: 'bright natural smile',
+    kitchen_morning: 'sleepy soft smile',
+  };
+  return byScene[scene.id] || 'natural expression, alive eyes';
 }
 
 /**
- * Build trait clause from girlfriend features (reads card fields).
- * Written as a readable sentence for FLUX.
+ * Traits only — face identity + hair/eyes/body from card.
  */
 export function buildSubjectClause(s: GirlfriendSubject): string {
-  const name = resolvePersonName(s.name, 'a stunningly beautiful young woman');
+  const name = resolvePersonName(s.name, 'a beautiful young woman');
   const parts: string[] = [
-    `photorealistic portrait of ${name}`,
-    'gorgeous young adult woman age 23-28',
+    name,
+    'young adult woman 23-28',
+    buildFaceIdentityClause(s),
   ];
 
-  if (s.race) parts.push(`${s.race} ethnicity`);
+  if (s.race) parts.push(`${s.race} features`);
   if (s.hair || s.hairColor) {
-    parts.push(`beautiful ${[s.hairColor, s.hair].filter(Boolean).join(' ')} hair`.trim());
+    parts.push(`${[s.hairColor, s.hair].filter(Boolean).join(' ')} hair`.trim());
   }
-  if (s.eyes) parts.push(`${s.eyes} eyes with catchlights`);
-  if (s.body) parts.push(`${s.body} figure`);
-  // style should be short outfit cue, not a full prompt
+  if (s.eyes) parts.push(`${s.eyes} eyes`);
+  if (s.body) parts.push(`${s.body} body`);
   if (s.style && !looksLikeFluxPrompt(s.style)) {
-    parts.push(`personal style: ${String(s.style).slice(0, 80)}`);
+    parts.push(String(s.style).slice(0, 60));
   }
-  if (s.occupation && !looksLikeFluxPrompt(s.occupation)) {
-    parts.push(String(s.occupation).slice(0, 60));
-  }
-  // Only append short appearance notes — never re-paste a full assembled prompt
   if (s.appearance && !looksLikeFluxPrompt(s.appearance)) {
     const a = sanitizeBlurKeywords(s.appearance);
-    if (a) parts.push(a.slice(0, 160));
+    if (a) parts.push(a.slice(0, 100));
   }
 
-  const tags = normalizeTags(s.tags).slice(0, 6);
+  const tags = normalizeTags(s.tags).slice(0, 4);
   if (tags.length) parts.push(tags.join(', '));
 
   return parts.join(', ');
 }
 
-/**
- * Map a girlfriend DB / list row into GirlfriendSubject.
- */
 export function subjectFromGirlfriendRow(row: Record<string, unknown>): GirlfriendSubject {
   const card =
     row.character_card && typeof row.character_card === 'object'
@@ -341,13 +359,12 @@ export function subjectFromGirlfriendRow(row: Record<string, unknown>): Girlfrie
   const imagePrompt = (row.image_prompt as string) || undefined;
   const appearanceField = (row.appearance as string) || undefined;
 
-  // Prefer structured appearance; skip full captions that would re-stack
   let appearance: string | undefined;
   const cand = appearanceField || imagePrompt;
   if (cand && !looksLikeFluxPrompt(cand)) {
     appearance = cand;
   } else if (cand && looksLikeFluxPrompt(cand)) {
-    const stripped = stripQualityBoilerplate(cand).slice(0, 120);
+    const stripped = stripQualityBoilerplate(cand).slice(0, 100);
     if (stripped && !looksLikeFluxPrompt(stripped)) appearance = stripped;
   }
 
@@ -384,7 +401,7 @@ export function subjectFromGirlfriendRow(row: Record<string, unknown>): Girlfrie
   };
 }
 
-function trimPrompt(positive: string, max = 980): string {
+function trimPrompt(positive: string, max = 720): string {
   let out = positive
     .replace(/\s*,\s*,+/g, ', ')
     .replace(/\s{2,}/g, ' ')
@@ -392,14 +409,14 @@ function trimPrompt(positive: string, max = 980): string {
   if (out.length > max) {
     out = out.slice(0, max);
     const lastComma = out.lastIndexOf(',');
-    if (lastComma > max * 0.75) out = out.slice(0, lastComma);
+    if (lastComma > max * 0.7) out = out.slice(0, lastComma);
   }
   return out.trim();
 }
 
 /**
- * Assemble full girlfriend card prompt:
- * traits first → scene life → body → expression → quality.
+ * Assemble: traits → action → env → light → expression → quality.
+ * Simple Civitai-style caption, not stacked SD boilerplate.
  */
 export function assembleGirlfriendPrompt(
   ctx: PresetContext,
@@ -417,10 +434,9 @@ export function assembleGirlfriendPrompt(
   const scene = pickGirlfriendScene(fixedSubject, rawIn, metaScene);
   const expression = buildExpressionClause(fixedSubject, scene);
 
-  // Full captions from UI/DB must never be re-stacked — rebuild from subject instead
   const rawIsFullCaption =
-    rawIn.length > 120 &&
-    (/three-quarter|looking at viewer|hourglass|large breasts|photorealistic three-quarter|raw photo|masterpiece/i.test(
+    rawIn.length > 100 &&
+    (/three-quarter|looking at viewer|hourglass|large breasts|photorealistic|raw photo|masterpiece/i.test(
       rawIn,
     ) ||
       looksLikeFluxPrompt(rawIn));
@@ -431,30 +447,28 @@ export function assembleGirlfriendPrompt(
     rawStripped &&
     rawStripped.length > 8 &&
     !subjectClause.toLowerCase().includes(rawStripped.toLowerCase().slice(0, 40))
-      ? rawStripped.slice(0, 180)
+      ? rawStripped.slice(0, 120)
       : '';
 
-  // Optional lighting/appearance from generate-meta
   const metaBits = joinParts([
     ctx.metadata?.appearance && !looksLikeFluxPrompt(ctx.metadata.appearance)
-      ? sanitizeBlurKeywords(String(ctx.metadata.appearance)).slice(0, 120)
+      ? sanitizeBlurKeywords(String(ctx.metadata.appearance)).slice(0, 80)
       : '',
-    ctx.metadata?.lighting ? sanitizeBlurKeywords(String(ctx.metadata.lighting)).slice(0, 80) : '',
+    ctx.metadata?.lighting ? sanitizeBlurKeywords(String(ctx.metadata.lighting)).slice(0, 60) : '',
   ]);
 
+  // Order: who → body hint → action → place → light → face mood → quality
   const positive = trimPrompt(
     joinParts([
-      GIRLFRIEND_QUALITY_PREFIX,
       subjectClause,
       GIRLFRIEND_BODY_FIXED,
-      scene.scene,
-      scene.pose,
+      scene.action,
+      scene.env,
       scene.light,
       expression,
-      scene.mood,
       metaBits,
       extra,
-      'same woman identity consistent, natural anatomy, vivid storytelling portrait',
+      GIRLFRIEND_QUALITY_PREFIX,
     ]),
   );
 
@@ -464,10 +478,6 @@ export function assembleGirlfriendPrompt(
   return { positive, negative };
 }
 
-/**
- * Convenience: build prompt directly from a girlfriend list/DB row.
- * Defaults to empty negative for FLUX stability.
- */
 export function assembleGirlfriendFromRow(
   row: Record<string, unknown>,
   rawPrompt = '',

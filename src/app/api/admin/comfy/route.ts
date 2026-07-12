@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
 
   if (view === 'assets') {
     const kind = new URL(req.url).searchParams.get('kind');
-    const limit = Math.min(Number(new URL(req.url).searchParams.get('limit') || 48), 100);
+    const limit = Math.min(Number(new URL(req.url).searchParams.get('limit') || 80), 200);
     let q = admin.supabase
       .from('generation_assets')
       .select('*')
@@ -170,7 +170,7 @@ export async function GET(req: NextRequest) {
         warning && assets.length === 0
           ? warning
           : assets.length === 0
-            ? '暂无操作台生成图。请先在 Comfy 操作台生成。'
+            ? '暂无操作台生成图。请先在 Comfy 生成，或批量上传。'
             : undefined,
       hint:
         warning && assets.length === 0
@@ -215,6 +215,75 @@ export async function POST(req: NextRequest) {
   const admin = await requireAdmin(req, 'admin');
   if (admin.error) return admin.error;
 
+  const ct = req.headers.get('content-type') || '';
+  if (ct.includes('multipart/form-data')) {
+    const form = await req.formData();
+    const action = String(form.get('action') || 'upload_assets');
+    if (action !== 'upload_assets') {
+      return NextResponse.json({ error: 'multipart only supports upload_assets' }, { status: 400 });
+    }
+    const kind = String(form.get('kind') || 'girlfriend');
+    const files: File[] = [];
+    for (const f of form.getAll('files')) {
+      if (f instanceof File) files.push(f);
+    }
+    if (!files.length) {
+      for (const [k, v] of form.entries()) {
+        if ((k === 'file' || k.startsWith('file')) && v instanceof File) files.push(v);
+      }
+    }
+    if (!files.length) return NextResponse.json({ error: 'No files' }, { status: 400 });
+    if (files.length > 30) return NextResponse.json({ error: 'Max 30 files' }, { status: 400 });
+
+    const assets: Array<Record<string, unknown>> = [];
+    let ok = 0;
+    const errors: string[] = [];
+    for (const file of files) {
+      try {
+        if (!/^image\//.test(file.type)) throw new Error(`bad type ${file.type}`);
+        if (file.size > 12 * 1024 * 1024) throw new Error('file > 12MB');
+        const buf = Buffer.from(await file.arrayBuffer());
+        const b64 = `data:${file.type};base64,${buf.toString('base64')}`;
+        const up = await uploadImageBase64(b64, 'comfy-outputs', file.type || 'image/png');
+        const row = {
+          created_by: admin.user!.id,
+          kind,
+          storage_key: up.key,
+          url: up.url,
+          prompt: null,
+          negative_prompt: null,
+          workflow_id: 'upload',
+          endpoint_id: null,
+          ckpt_name: null,
+          lora_name: null,
+          width: null,
+          height: null,
+          steps: null,
+          cfg: null,
+          seed: null,
+          meta: { source: 'admin_upload', original_name: file.name },
+        };
+        const { data: saved, error: insErr } = await admin.supabase
+          .from('generation_assets')
+          .insert(row)
+          .select('*')
+          .single();
+        if (insErr) assets.push({ ...row, id: null, warning: insErr.message });
+        else assets.push(saved);
+        ok += 1;
+      } catch (e) {
+        errors.push(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    return NextResponse.json({
+      success: true,
+      uploaded: ok,
+      failed: errors.length,
+      assets,
+      errors: errors.slice(0, 10),
+    });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body?.action) {
     return NextResponse.json({ error: 'action required' }, { status: 400 });
@@ -228,25 +297,165 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.action === 'delete_asset') {
-    const id = body.id as string;
-    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
-
-    const { data: row } = await admin.supabase
-      .from('generation_assets')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (row?.storage_key) {
-      await deleteFile(String(row.storage_key));
-    } else if (row?.url) {
-      const k = extractKeyFromUrl(String(row.url));
-      if (k) await deleteFile(k);
+    const id = body.id as string | undefined;
+    const storageKey = body.storage_key as string | undefined;
+    if (!id && !storageKey) {
+      return NextResponse.json({ error: 'id or storage_key required' }, { status: 400 });
     }
 
-    const { error } = await admin.supabase.from('generation_assets').delete().eq('id', id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true });
+    if (id) {
+      const { data: row } = await admin.supabase
+        .from('generation_assets')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (row?.storage_key) {
+        await deleteFile(String(row.storage_key));
+      } else if (row?.url) {
+        const k = extractKeyFromUrl(String(row.url));
+        if (k) await deleteFile(k);
+      }
+
+      const { error } = await admin.supabase.from('generation_assets').delete().eq('id', id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+
+    // storage-only asset (no DB row)
+    await deleteFile(String(storageKey));
+    return NextResponse.json({ success: true, storage_only: true });
+  }
+
+  if (body.action === 'batch_delete_assets') {
+    const ids = Array.isArray(body.ids) ? (body.ids as string[]).filter(Boolean) : [];
+    const keys = Array.isArray(body.storage_keys)
+      ? (body.storage_keys as string[]).filter(Boolean)
+      : [];
+    const items = Array.isArray(body.items) ? (body.items as Array<Record<string, unknown>>) : [];
+    for (const it of items) {
+      if (it?.id) ids.push(String(it.id));
+      if (it?.storage_key) keys.push(String(it.storage_key));
+      else if (it?.url) {
+        const k = extractKeyFromUrl(String(it.url));
+        if (k) keys.push(k);
+      }
+    }
+    if (!ids.length && !keys.length) {
+      return NextResponse.json({ error: 'ids or storage_keys required' }, { status: 400 });
+    }
+    if (ids.length + keys.length > 80) {
+      return NextResponse.json({ error: 'Max 80 items per batch' }, { status: 400 });
+    }
+
+    let deleted = 0;
+    const errors: string[] = [];
+
+    for (const id of ids) {
+      try {
+        const { data: row } = await admin.supabase
+          .from('generation_assets')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (row?.storage_key) await deleteFile(String(row.storage_key));
+        else if (row?.url) {
+          const k = extractKeyFromUrl(String(row.url));
+          if (k) await deleteFile(k);
+        }
+        const { error } = await admin.supabase.from('generation_assets').delete().eq('id', id);
+        if (error) throw error;
+        deleted += 1;
+      } catch (e) {
+        errors.push(`${id}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    for (const key of keys) {
+      try {
+        await deleteFile(key);
+        // best-effort db cleanup by storage_key
+        await admin.supabase.from('generation_assets').delete().eq('storage_key', key);
+        deleted += 1;
+      } catch (e) {
+        errors.push(`${key}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      deleted,
+      failed: errors.length,
+      errors: errors.slice(0, 15),
+    });
+  }
+
+  if (body.action === 'upload_assets') {
+    // JSON: { files: [{ name, content_type, data_base64, kind? }] }
+    const files = Array.isArray(body.files) ? body.files : [];
+    if (!files.length) {
+      return NextResponse.json({ error: 'files required' }, { status: 400 });
+    }
+    if (files.length > 30) {
+      return NextResponse.json({ error: 'Max 30 files' }, { status: 400 });
+    }
+
+    const kind = String(body.kind || 'girlfriend');
+    const assets: Array<Record<string, unknown>> = [];
+    let ok = 0;
+    const errors: string[] = [];
+
+    for (const f of files) {
+      const name = String(f?.name || `upload_${Date.now()}.png`);
+      try {
+        const ct = String(f?.content_type || 'image/png');
+        const raw = String(f?.data_base64 || '');
+        if (!raw) throw new Error('empty data');
+        const dataUrl = raw.startsWith('data:')
+          ? raw
+          : `data:${ct};base64,${raw}`;
+        const up = await uploadImageBase64(dataUrl, 'comfy-outputs', ct);
+        const row = {
+          created_by: admin.user!.id,
+          kind: String(f?.kind || kind),
+          storage_key: up.key,
+          url: up.url,
+          prompt: f?.prompt ? String(f.prompt).slice(0, 2000) : null,
+          negative_prompt: null,
+          workflow_id: 'upload',
+          endpoint_id: null,
+          ckpt_name: null,
+          lora_name: null,
+          width: null,
+          height: null,
+          steps: null,
+          cfg: null,
+          seed: null,
+          meta: { source: 'admin_upload', original_name: name },
+        };
+        const { data: saved, error: insErr } = await admin.supabase
+          .from('generation_assets')
+          .insert(row)
+          .select('*')
+          .single();
+        if (insErr) {
+          assets.push({ ...row, id: null, warning: insErr.message });
+        } else {
+          assets.push(saved);
+        }
+        ok += 1;
+      } catch (e) {
+        errors.push(`${name}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      uploaded: ok,
+      failed: errors.length,
+      assets,
+      errors: errors.slice(0, 10),
+    });
   }
 
   if (body.action === 'generate') {

@@ -63,7 +63,7 @@ export function assemblePrompt(type: PromptType, options: AssembleOptions): Asse
 
 /**
  * Build full positive/negative from an admin list item / DB row.
- * Girlfriend: traits + fixed sexy body + 3/4 framing
+ * Girlfriend: traits + action + env/light + short quality (Civitai-style)
  * Outfit: no model, sexy cos game prop
  * Shop: VFX special-effects game prop
  */

@@ -3,7 +3,7 @@
 /**
  * Comfy 操作台 — 工作流 / 模型 / LoRA 清单一键调用 / 生成 / 图库
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
 import { readResponseJson } from '@/lib/safe-json';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import {
 import {
   Loader2, Play, Trash2, RefreshCw, HardDrive, Workflow, ImageIcon,
   Settings2, BookOpen, Save, RotateCcw, Sparkles, Layers, ExternalLink,
-  Zap,
+  Zap, Upload, Download, CheckSquare, Square, Copy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -40,37 +40,51 @@ const CAT_ORDER = ['body', 'action', 'outfit', 'prop', 'detail'];
 const CIVITAI_PRESETS = [
   {
     id: 'portrait-soft',
-    name: '柔光肖像',
-    desc: '适合女友卡头像 / 首页封面',
-    prompt: 'beautiful young woman, soft beauty lighting, intimate portrait, detailed eyes, natural skin, seductive smile',
-    negative: 'blurry, lowres, deformed hands, extra fingers, watermark, text',
+    name: '窗边人像',
+    desc: '特征清晰 · 侧光自然 · 适合主页卡',
+    prompt:
+      'young woman with unique facial features, soft freckles, looking over shoulder by a window, sheer curtains, golden side sunlight, natural skin, candid three-quarter portrait, photorealistic, sharp eyes',
+    negative: 'blurry, deformed, same face, plastic skin, child, underage, watermark, text',
     width: 832, height: 1216, steps: 28, cfg: 3.5,
   },
   {
     id: 'fullbody-glam',
-    name: '全身时尚',
-    desc: '展示服装与身材比例',
-    prompt: 'full body fashion shot, elegant pose, studio lighting, detailed outfit, long legs, magazine cover vibe',
-    negative: 'cropped head, blurry, bad anatomy, watermark',
-    width: 768, height: 1344, steps: 30, cfg: 3.5,
+    name: '夜景全长',
+    desc: '动作站姿变化 · 城市轮廓光',
+    prompt:
+      'attractive young woman, full body, leaning on rooftop railing, hip cocked, city skyline bokeh at night, fitted evening outfit, cool ambient light with warm rim light, photorealistic, natural proportions',
+    negative: 'blurry, cropped head, bad anatomy, same face, watermark',
+    width: 768, height: 1344, steps: 28, cfg: 3.5,
   },
   {
     id: 'nsfw-intimate',
-    name: '亲密氛围',
-    desc: '偏暧昧 / 成人向（Pro+ 素材）',
-    prompt: 'intimate bedroom atmosphere, soft shadows, sensual pose, detailed skin, cinematic lighting, adult mood',
-    negative: 'gore, violence, child, underage, low quality',
-    width: 832, height: 1216, steps: 30, cfg: 3.2,
+    name: '卧室亲密',
+    desc: '回眸跪姿 · 粉光 · 成人氛围',
+    prompt:
+      'young woman kneeling on bed looking back over shoulder, arched back, soft lingerie, pink LED bedroom light plus warm lamp, intimate mood, detailed skin, photorealistic',
+    negative: 'gore, violence, child, underage, blurry, deformed, watermark',
+    width: 832, height: 1216, steps: 28, cfg: 3.2,
   },
   {
-    id: 'anime-waifu',
-    name: '二次元',
-    desc: '动漫线稿清晰、大眼',
-    prompt: 'anime style, clean lineart, big expressive eyes, soft shading, waifu portrait, high detail',
-    negative: 'photorealistic, 3d, blurry, extra limbs',
-    width: 832, height: 1216, steps: 26, cfg: 4.0,
+    id: 'selfie-flash',
+    name: '镜子自拍',
+    desc: '动作与光线变化 · 减少脸模版感',
+    prompt:
+      'messy wavy hair young woman, bathroom mirror selfie, phone in hand, hip popped, direct flash lighting, casual crop top, candid expression, photorealistic, natural skin texture',
+    negative: 'studio softbox only, plastic skin, same face, child, underage, watermark',
+    width: 832, height: 1216, steps: 26, cfg: 3.5,
+  },
+  {
+    id: 'cafe-day',
+    name: '咖啡馆日间',
+    desc: '日常动作 · 窗光 · 更生活化',
+    prompt:
+      'young woman at cafe window seat, chin on hand, soft daylight, coffee cup, casual outfit, easy smile, 50mm candid portrait, photorealistic, detailed eyes',
+    negative: 'blurry, deformed, plastic skin, same face, watermark, text',
+    width: 832, height: 1216, steps: 26, cfg: 3.5,
   },
 ];
+
 
 
 export default function AdminComfyConsolePage() {
@@ -80,6 +94,9 @@ export default function AdminComfyConsolePage() {
   const [generating, setGenerating] = useState(false);
   const [assets, setAssets] = useState<Any[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
+  const [selectedAssetKeys, setSelectedAssetKeys] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [loraFilter, setLoraFilter] = useState<string>('all');
 
   // Generate form
@@ -131,9 +148,11 @@ export default function AdminComfyConsolePage() {
   const loadAssets = useCallback(async () => {
     setAssetsLoading(true);
     try {
-      const res = await authedFetch('/api/admin/comfy?view=assets&limit=60');
+      const res = await authedFetch('/api/admin/comfy?view=assets&limit=120');
       const data = await readResponseJson(res).catch(() => ({} as any));
       setAssets(data.assets || []);
+      setSelectedAssetKeys([]);
+
       if (data.warning) toast.message(data.warning);
     } catch {
       toast.error('图库加载失败');
@@ -305,23 +324,127 @@ export default function AdminComfyConsolePage() {
     }
   };
 
-  const deleteAsset = async (id: string) => {
-    if (!id || !confirm('删除这张图？会同时删存储文件。')) return;
+  const deleteAsset = async (idOrAsset: string | Any) => {
+    const id = typeof idOrAsset === 'string' ? idOrAsset : idOrAsset?.id;
+    const storage_key = typeof idOrAsset === 'string' ? undefined : idOrAsset?.storage_key;
+    if ((!id && !storage_key) || !confirm('删除这张图？会同时删存储文件。')) return;
     try {
       const res = await authedFetch('/api/admin/comfy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete_asset', id }),
+        body: JSON.stringify({ action: 'delete_asset', id, storage_key }),
       });
       const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '删除失败');
       toast.success('已删除');
-      setAssets((a) => a.filter((x) => x.id !== id));
-      setLastResult((a) => a.filter((x) => x.id !== id));
+      setAssets((a) => a.filter((x) => x.id !== id && x.storage_key !== storage_key));
+      setLastResult((a) => a.filter((x) => x.id !== id && x.storage_key !== storage_key));
+      setSelectedAssetKeys((keys) => keys.filter((k) => k !== String(id || storage_key || '')));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '删除失败');
     }
   };
+
+  const assetKey = (a: Any) => String(a.id || a.storage_key || a.url || '');
+
+  const toggleSelect = (a: Any) => {
+    const k = assetKey(a);
+    if (!k) return;
+    setSelectedAssetKeys((prev) =>
+      prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k],
+    );
+  };
+
+  const selectAllVisible = () => {
+    setSelectedAssetKeys(assets.map(assetKey).filter(Boolean));
+  };
+
+  const clearSelection = () => setSelectedAssetKeys([]);
+
+  const selectedAssets = useMemo(
+    () => assets.filter((a) => selectedAssetKeys.includes(assetKey(a))),
+    [assets, selectedAssetKeys],
+  );
+
+  const batchDelete = async () => {
+    if (!selectedAssets.length) {
+      toast.message('先勾选图片');
+      return;
+    }
+    if (!confirm(`批量删除 ${selectedAssets.length} 张？会同时删存储文件。`)) return;
+    try {
+      const res = await authedFetch('/api/admin/comfy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'batch_delete_assets',
+          items: selectedAssets.map((a) => ({
+            id: a.id || undefined,
+            storage_key: a.storage_key || undefined,
+            url: a.url || undefined,
+          })),
+        }),
+      });
+      const data = await readResponseJson(res).catch(() => ({} as any));
+      if (!res.ok) throw new Error(data.error || '批量删除失败');
+      toast.success(`已删除 ${data.deleted ?? selectedAssets.length} 张`);
+      clearSelection();
+      await loadAssets();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '批量删除失败');
+    }
+  };
+
+  const batchDownload = async () => {
+    const list = selectedAssets.length ? selectedAssets : assets.slice(0, 20);
+    if (!list.length) {
+      toast.message('没有可下载的图');
+      return;
+    }
+    toast.message(`开始下载 ${list.length} 张（浏览器可能拦截多文件）`);
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      const url = a.url as string;
+      if (!url) continue;
+      try {
+        const aEl = document.createElement('a');
+        aEl.href = url;
+        aEl.download = `comfy_${a.id || i}.png`;
+        aEl.target = '_blank';
+        aEl.rel = 'noreferrer';
+        document.body.appendChild(aEl);
+        aEl.click();
+        aEl.remove();
+        await new Promise((r) => setTimeout(r, 250));
+      } catch {
+        window.open(url, '_blank');
+      }
+    }
+  };
+
+  const onUploadFiles = async (fileList: FileList | null) => {
+    if (!fileList?.length) return;
+    const files = Array.from(fileList).slice(0, 30);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('action', 'upload_assets');
+      fd.append('kind', kind || 'girlfriend');
+      for (const f of files) fd.append('files', f);
+      const res = await authedFetch('/api/admin/comfy', { method: 'POST', body: fd });
+      const data = await readResponseJson(res).catch(() => ({} as any));
+      if (!res.ok) throw new Error(data.error || '上传失败');
+      toast.success(`上传成功 ${data.uploaded ?? files.length} 张`);
+      setTab('library');
+      await loadAssets();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '上传失败');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
 
   const saveEndpoints = async () => {
     if (!config) return;
@@ -883,10 +1006,50 @@ export default function AdminComfyConsolePage() {
       {tab === 'library' && (
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold">生成图库（可随时调用 / 删除）</h2>
-            <div className="flex gap-2">
+            <div>
+              <h2 className="text-sm font-semibold">生成图库</h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                支持多选 · 批量上传 / 下载 / 删除 · 单张可作参考图
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                multiple
+                className="hidden"
+                onChange={(e) => onUploadFiles(e.target.files)}
+              />
+              <Button
+                size="sm"
+                className="bg-rose-600 hover:bg-rose-500"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+                批量上传
+              </Button>
+              <Button size="sm" variant="outline" className="border-slate-700" onClick={batchDownload}>
+                <Download className="h-3.5 w-3.5 mr-1" /> 下载{selectedAssetKeys.length ? `(${selectedAssetKeys.length})` : ''}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-900 text-red-300"
+                onClick={batchDelete}
+                disabled={!selectedAssetKeys.length}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> 批量删除{selectedAssetKeys.length ? `(${selectedAssetKeys.length})` : ''}
+              </Button>
+              <Button size="sm" variant="outline" className="border-slate-700" onClick={selectAllVisible}>
+                全选
+              </Button>
+              <Button size="sm" variant="outline" className="border-slate-700" onClick={clearSelection}>
+                清空
+              </Button>
               <Button size="sm" variant="outline" className="border-slate-700" asChild>
-                <a href="/admin/images">去图片管理应用</a>
+                <a href="/admin/images">图片管理</a>
               </Button>
               <Button size="sm" variant="outline" className="border-slate-700" onClick={loadAssets}>
                 <RefreshCw className="h-3.5 w-3.5 mr-1" /> 刷新
@@ -898,74 +1061,109 @@ export default function AdminComfyConsolePage() {
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : assets.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-700 p-12 text-center text-slate-500 text-sm">
-              暂无记录。先生成，或执行 migration 0009 创建 generation_assets 表。
+            <div className="rounded-xl border border-dashed border-slate-700 p-12 text-center text-slate-500 text-sm space-y-3">
+              <p>暂无记录。先生成，或点「批量上传」导入参考图。</p>
+              <Button size="sm" className="bg-rose-600" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-3.5 w-3.5 mr-1" /> 上传图片
+              </Button>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {assets.map((a, idx) => (
-                <div
-                  key={a.id || a.storage_key || a.url || idx}
-                  className="rounded-lg border border-slate-800 overflow-hidden bg-slate-900/50"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
-                  <div className="p-2 space-y-1">
-                    <div className="flex gap-1 flex-wrap">
-                      <Badge variant="outline" className="text-[9px] border-slate-600">{a.kind}</Badge>
-                      {a.lora_name && (
-                        <Badge className="text-[9px] bg-violet-900/50">{a.lora_name}</Badge>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-500 line-clamp-2 font-mono">{a.prompt}</p>
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 flex-1 text-[10px] border-slate-700"
-                        onClick={() => {
-                          setInputImage(a.url || '');
-                          setTab('generate');
-                          toast.message('已填入参考图');
-                        }}
-                      >
-                        作参考
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 flex-1 text-[10px] border-violet-800 text-violet-300"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(a.url || '');
-                            toast.success('已复制 URL');
-                          } catch {
-                            toast.message(a.url || '');
-                          }
-                        }}
-                      >
-                        复制
-                      </Button>
-                      {a.id && (
+              {assets.map((a, idx) => {
+                const k = assetKey(a);
+                const selected = selectedAssetKeys.includes(k);
+                return (
+                  <div
+                    key={k || idx}
+                    className={cn(
+                      'rounded-lg border overflow-hidden bg-slate-900/50 relative group',
+                      selected ? 'border-rose-500 ring-1 ring-rose-500/40' : 'border-slate-800',
+                    )}
+                  >
+                    <button
+                      type="button"
+                      className="absolute left-2 top-2 z-10 rounded bg-black/60 p-1 text-white"
+                      onClick={() => toggleSelect(a)}
+                      title="选择"
+                    >
+                      {selected ? <CheckSquare className="h-4 w-4 text-rose-400" /> : <Square className="h-4 w-4" />}
+                    </button>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
+                    <div className="p-2 space-y-1">
+                      <div className="flex gap-1 flex-wrap">
+                        <Badge variant="outline" className="text-[9px] border-slate-600">{a.kind || 'img'}</Badge>
+                        {a.lora_name && (
+                          <Badge className="text-[9px] bg-violet-900/50">{a.lora_name}</Badge>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 line-clamp-2 font-mono">{a.prompt || a.storage_key}</p>
+                      <div className="flex gap-1 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 flex-1 text-[10px] border-slate-700"
+                          onClick={() => {
+                            setInputImage(a.url || '');
+                            setTab('generate');
+                            toast.message('已填入参考图');
+                          }}
+                        >
+                          作参考
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 flex-1 text-[10px] border-violet-800 text-violet-300"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(a.url || '');
+                              toast.success('已复制 URL');
+                            } catch {
+                              toast.message(a.url || '');
+                            }
+                          }}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[10px] border-slate-700"
+                          onClick={() => {
+                            if (!a.url) return;
+                            const aEl = document.createElement('a');
+                            aEl.href = a.url;
+                            aEl.download = `comfy_${a.id || idx}.png`;
+                            aEl.target = '_blank';
+                            document.body.appendChild(aEl);
+                            aEl.click();
+                            aEl.remove();
+                          }}
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           className="h-7 text-[10px] border-red-900 text-red-400"
-                          onClick={() => deleteAsset(a.id)}
+                          onClick={() => deleteAsset(a.id ? a.id : a)}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
-                      )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
       {/* WORKFLOWS */}
+
+      
       {tab === 'workflows' && (
         <div className="grid md:grid-cols-2 gap-3">
           {workflows.map((w) => (
