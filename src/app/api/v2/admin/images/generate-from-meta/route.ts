@@ -9,7 +9,7 @@ import {
 import { requireAdmin } from '@/lib/require-admin';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
-import { runpodClient } from '@/lib/runpod';
+import { runpodClient, RunPodPendingError } from '@/lib/runpod';
 import {
   assemblePrompt,
   assembleGirlfriendFromRow,
@@ -111,6 +111,12 @@ export async function POST(req: NextRequest) {
   const negativePrompt = (body.negativePrompt as string) || '';
   const girlfriendId = body.girlfriendId as string | undefined;
   const metadata = body.metadata as Record<string, string> | undefined;
+  const resumeJobId =
+    (typeof body.job_id === 'string' && body.job_id) ||
+    (typeof body.jobId === 'string' && body.jobId) ||
+    '';
+  const folderEarly = ((type || 'girlfriend') + 's') as string;
+
 
   // Character consistency (img2img)
   const referenceImage =
@@ -128,11 +134,11 @@ export async function POST(req: NextRequest) {
 
   // FLUX-safe scene defaults
   let sceneDefaults = {
-    steps: 28,
+    steps: 18,
     cfg: 1.0,
-    width: 832,
-    height: 1216,
-    count: 4,
+    width: 768,
+    height: 1152,
+    count: 1,
     defaultNegative: '',
   };
   try {
@@ -261,18 +267,94 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Fast resume path: only poll existing job (no re-submit, no re-prompt)
+    if (resumeJobId) {
+      logger.info('generate-from-meta: resuming job', { jobId: resumeJobId, type });
+      try {
+        const result = await runpodClient.generate({
+          prompt: rawPrompt || 'resume',
+          job_id: resumeJobId,
+          on_timeout: 'pending',
+          throw_on_pending: false,
+          poll_budget_ms: 240_000,
+        });
+        if (result.pending || !result.images?.length) {
+          return NextResponse.json({
+            success: false,
+            pending: true,
+            job_id: result.job_id || resumeJobId,
+            endpoint_id: result.endpoint_id,
+            status: result.status || 'IN_QUEUE',
+            waited_ms: result.waited_ms || 0,
+            message:
+              `仍在排队/生成中（job ${result.job_id || resumeJobId}，状态 ${result.status || 'IN_QUEUE'}）。` +
+              '请勿重新点生成；页面会自动继续等待。',
+          });
+        }
+        const b64 = result.images[0];
+        if (typeof b64 !== 'string') throw new Error('Invalid image payload on resume');
+        const uploaded = await uploadToStorage(b64, folderEarly);
+        return NextResponse.json({
+          success: true,
+          images: [
+            {
+              url: uploaded.url,
+              key: uploaded.key,
+              previewUrl: uploaded.url,
+              alt: '生成图 1',
+            },
+          ],
+          job_id: result.job_id || resumeJobId,
+          meta: metadata,
+          optimizedPrompt: rawPrompt,
+          usedConsistency: !!referenceImage,
+          denoise: referenceImage ? denoise : 1,
+          params: {
+            steps: params.steps,
+            cfg: params.cfg,
+            width: params.width,
+            height: params.height,
+            sampler: params.sampler,
+            scheduler: params.scheduler,
+          },
+        });
+      } catch (err) {
+        if (err instanceof RunPodPendingError) {
+          return NextResponse.json({
+            success: false,
+            pending: true,
+            job_id: err.job_id,
+            endpoint_id: err.endpoint_id,
+            status: err.status,
+            waited_ms: err.waited_ms,
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }
+
     logger.info('generate-from-meta: starting generation (sequential, 1 job)', {
       count,
       type,
       consistency: !!referenceImage,
+      steps: params.steps,
+      width: params.width,
+      height: params.height,
     });
 
     const folder = (type || 'girlfriend') + 's';
     const baseSeed =
       params.seed > 0 ? params.seed : Math.floor(Math.random() * 1_000_000);
 
-    // Sequential single-job generation — parallel jobs + short timeout was flooding
-    // the 1-worker endpoint (queue 2–5 min) and never returning previewable URLs.
+    // Prefer faster admin portrait defaults on long queues (single worker).
+    const steps =
+      type === 'girlfriend'
+        ? Math.min(params.steps || 18, 20)
+        : params.steps;
+    const width = type === 'girlfriend' ? Math.min(params.width || 768, 768) : params.width;
+    const height = type === 'girlfriend' ? Math.min(params.height || 1152, 1152) : params.height;
+
     const results: Array<{
       url: string;
       key: string;
@@ -283,25 +365,60 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < count; i++) {
       const seed = baseSeed + i;
-      const result = await runpodClient.generate({
-        prompt: rawPrompt,
-        negative_prompt: finalNegativePrompt,
-        width: params.width,
-        height: params.height,
-        num_inference_steps: params.steps,
-        guidance_scale: params.cfg,
-        seed,
-        sampler_name: params.sampler,
-        scheduler: params.scheduler,
-        input_image: referenceImage || undefined,
-        denoising_strength: referenceImage ? denoise : undefined,
-      });
+      let result;
+      try {
+        result = await runpodClient.generate({
+          prompt: rawPrompt,
+          negative_prompt: finalNegativePrompt,
+          width,
+          height,
+          num_inference_steps: steps,
+          guidance_scale: params.cfg,
+          seed,
+          sampler_name: params.sampler,
+          scheduler: params.scheduler,
+          input_image: referenceImage || undefined,
+          denoising_strength: referenceImage ? denoise : undefined,
+          on_timeout: 'pending',
+          throw_on_pending: false,
+          poll_budget_ms: 240_000,
+        });
+      } catch (err) {
+        if (err instanceof RunPodPendingError) {
+          return NextResponse.json({
+            success: false,
+            pending: true,
+            job_id: err.job_id,
+            endpoint_id: err.endpoint_id,
+            status: err.status,
+            waited_ms: err.waited_ms,
+            message: err.message,
+            optimizedPrompt: rawPrompt,
+          });
+        }
+        throw err;
+      }
+
+      if (result.pending || !result.images?.length) {
+        return NextResponse.json({
+          success: false,
+          pending: true,
+          job_id: result.job_id,
+          endpoint_id: result.endpoint_id,
+          status: result.status || 'IN_QUEUE',
+          waited_ms: result.waited_ms || 0,
+          message:
+            `仍在排队/生成中（job ${result.job_id}，状态 ${result.status || 'IN_QUEUE'}）。` +
+            '任务未取消，请勿重复点生成；页面会自动续等。',
+          optimizedPrompt: rawPrompt,
+        });
+      }
+
       const b64 = result.images?.[0];
       if (!b64) throw new Error(`No image returned for seed ${seed}`);
       if (typeof b64 !== 'string') {
         throw new Error(`Invalid image payload type for seed ${seed}`);
       }
-      // Guard: never treat prompt text as image
       if (/\s/.test(b64) && /\b(photorealistic|portrait|masterpiece)\b/i.test(b64)) {
         throw new Error(
           'Worker returned text prompt instead of image bytes. Check RunPod Comfy output mapping.',
@@ -326,7 +443,6 @@ export async function POST(req: NextRequest) {
       bytes: results.map((r) => r.bytes),
     });
 
-    // Tiny payload: only https urls
     return NextResponse.json({
       success: true,
       images: results.map((r) => ({
@@ -340,15 +456,26 @@ export async function POST(req: NextRequest) {
       usedConsistency: !!referenceImage,
       denoise: referenceImage ? denoise : 1,
       params: {
-        steps: params.steps,
+        steps,
         cfg: params.cfg,
-        width: params.width,
-        height: params.height,
+        width,
+        height,
         sampler: params.sampler,
         scheduler: params.scheduler,
       },
     });
   } catch (err) {
+    if (err instanceof RunPodPendingError) {
+      return NextResponse.json({
+        success: false,
+        pending: true,
+        job_id: err.job_id,
+        endpoint_id: err.endpoint_id,
+        status: err.status,
+        waited_ms: err.waited_ms,
+        message: err.message,
+      });
+    }
     logger.error('generate-from-meta: generation failed', { err });
     return NextResponse.json(
       {
@@ -359,3 +486,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

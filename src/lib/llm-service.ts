@@ -174,12 +174,8 @@ function sseFromText(content: string): Response {
   return new Response(
     new ReadableStream({
       start(ctrl) {
-        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}
-
-`));
-        ctrl.enqueue(encoder.encode('data: [DONE]
-
-'));
+        ctrl.enqueue(encoder.encode('data: ' + JSON.stringify({ choices: [{ delta: { content } }] }) + '\n\n'));
+        ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
         ctrl.close();
       },
     }),

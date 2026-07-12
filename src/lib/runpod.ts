@@ -274,12 +274,56 @@ export interface RunPodGenerateOptions {
   lora_strength_clip?: number;
   /** Override default RUNPOD_ENDPOINT_ID for this call */
   endpoint_id?: string;
+  /** Resume an existing RunPod job (skip /run submit). */
+  job_id?: string;
+  /** Max time to poll in this request (ms). Default ~270s under Vercel 300s. */
+  poll_budget_ms?: number;
+  /**
+   * When poll budget ends while still queued/running:
+   * - 'pending' (default): return pending result / throw RunPodPendingError — do NOT cancel
+   * - 'cancel': cancel job and throw hard timeout (legacy)
+   */
+  on_timeout?: 'pending' | 'cancel';
+  /** If true, generate() throws RunPodPendingError instead of returning pending payload. */
+  throw_on_pending?: boolean;
 }
 
 export interface RunPodGenerateResult {
   images: string[];
   execution_time?: number;
   job_id?: string;
+  pending?: boolean;
+  status?: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  endpoint_id?: string;
+  waited_ms?: number;
+  strategy?: string;
+}
+
+export class RunPodPendingError extends Error {
+  job_id: string;
+  endpoint_id: string;
+  waited_ms: number;
+  status: string;
+  strategy?: string;
+
+  constructor(info: {
+    job_id: string;
+    endpoint_id: string;
+    waited_ms: number;
+    status: string;
+    strategy?: string;
+  }) {
+    super(
+      `RunPod still queued/running (waited ${Math.round(info.waited_ms / 1000)}s, job ${info.job_id}, status ${info.status}). ` +
+        `Endpoint ${info.endpoint_id} is busy — resume with the same job_id; do not re-submit.`,
+    );
+    this.name = 'RunPodPendingError';
+    this.job_id = info.job_id;
+    this.endpoint_id = info.endpoint_id;
+    this.waited_ms = info.waited_ms;
+    this.status = info.status;
+    this.strategy = info.strategy;
+  }
 }
 
 interface RunPodImageOutput {
@@ -301,6 +345,65 @@ interface RunPodJobStatus {
 // 
 // Client
 // 
+
+
+/** Only accept real image payloads — never prompts / bare filenames */
+function looksLikeImagePayload(s: string): boolean {
+  const t = s.trim();
+  if (!t || t.length < 64) return false;
+  if (/^https?:\/\//i.test(t)) return true;
+  if (t.startsWith('data:image/')) return true;
+  if (/\s/.test(t) && /\b(photo|portrait|woman|photorealistic|masterpiece)\b/i.test(t)) {
+    return false;
+  }
+  if (/^[\w./-]+\.(png|jpe?g|webp)$/i.test(t) && t.length < 180) return false;
+  const compact = t.replace(/\s+/g, '');
+  if (compact.startsWith('iVBOR') && compact.length > 200) return true;
+  if (compact.startsWith('/9j/') && compact.length > 200) return true;
+  return compact.length > 500 && /^[A-Za-z0-9+/_=-]+$/.test(compact.slice(0, 120));
+}
+
+function extractImagesFromOutput(out: Record<string, unknown> | undefined): string[] {
+  const images: string[] = [];
+  if (!out) return images;
+
+  const pushImg = (v: unknown) => {
+    if (!v) return;
+    if (typeof v === 'string') {
+      if (looksLikeImagePayload(v)) images.push(v);
+      return;
+    }
+    if (typeof v === 'object' && v !== null) {
+      const o = v as Record<string, unknown>;
+      const candidates = [o.data, o.image, o.base64, o.b64_json, o.b64, o.url];
+      for (const cand of candidates) {
+        if (typeof cand === 'string' && looksLikeImagePayload(cand)) {
+          images.push(cand);
+          return;
+        }
+      }
+    }
+  };
+
+  if (Array.isArray(out.images)) {
+    for (const img of out.images) pushImg(img);
+  }
+  pushImg(out.image);
+  if (out.output && typeof out.output === 'object') {
+    const inner = out.output as Record<string, unknown>;
+    if (Array.isArray(inner.images)) {
+      for (const img of inner.images) pushImg(img);
+    }
+    pushImg(inner.image);
+  }
+  if (typeof out.message === 'string' && looksLikeImagePayload(out.message)) {
+    pushImg(out.message);
+  }
+  if (Array.isArray(out.result)) {
+    for (const r of out.result) pushImg(r);
+  }
+  return images;
+}
 
 class RunPodClient {
   private apiKey: string;
@@ -325,9 +428,159 @@ class RunPodClient {
     };
   }
 
+  private resolveBase(endpointId?: string): { apiKey: string; endpointId: string; baseUrl: string } {
+    this.refreshConfig();
+    const id = endpointId || this.endpointId;
+    if (!this.apiKey || !id) {
+      throw new Error('RunPod is not configured. Set RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID.');
+    }
+    return {
+      apiKey: this.apiKey,
+      endpointId: id,
+      baseUrl: `https://api.runpod.ai/v2/${id}`,
+    };
+  }
+
+  /** Best-effort cancel (only when explicitly requested). */
+  async cancelJob(jobId: string, endpointId?: string): Promise<void> {
+    const { baseUrl } = this.resolveBase(endpointId);
+    try {
+      await fetch(`${baseUrl}/cancel/${jobId}`, {
+        method: 'POST',
+        headers: this.headers,
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Poll an existing job until COMPLETED/FAILED or poll budget ends.
+   * Does NOT cancel on timeout by default — preserves queue position.
+   */
+  async pollJob(
+    jobId: string,
+    opts: {
+      endpoint_id?: string;
+      poll_interval_ms?: number;
+      poll_budget_ms?: number;
+      on_timeout?: 'pending' | 'cancel';
+      strategy?: string;
+    } = {},
+  ): Promise<RunPodGenerateResult> {
+    const { endpointId, baseUrl } = this.resolveBase(opts.endpoint_id);
+    const pollIntervalMs = Math.max(1000, opts.poll_interval_ms ?? 2000);
+    const pollBudgetMs = Math.max(
+      15_000,
+      Math.min(Number(opts.poll_budget_ms) || Number(process.env.RUNPOD_POLL_MS) || 240_000, 270_000),
+    );
+    const maxAttempts = Math.max(1, Math.floor(pollBudgetMs / pollIntervalMs));
+    const onTimeout = opts.on_timeout || 'pending';
+    const started = Date.now();
+    let lastStatus = '';
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const statusRes = await fetch(`${baseUrl}/status/${jobId}`, {
+        headers: this.headers,
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!statusRes.ok) {
+        throw new Error(`RunPod status HTTP ${statusRes.status} for job ${jobId}`);
+      }
+
+      const status = (await statusRes.json()) as RunPodJobStatus & {
+        output?: {
+          images?: Array<RunPodImageOutput | string>;
+          error?: string;
+          message?: string;
+          image?: unknown;
+          result?: unknown;
+          output?: unknown;
+        };
+      };
+
+      if (status.status !== lastStatus) {
+        lastStatus = status.status;
+        logger.info('[runpod] job status', { id: jobId, status: status.status, attempt });
+      }
+
+      if (status.status === 'COMPLETED') {
+        const images = extractImagesFromOutput(status.output as Record<string, unknown> | undefined);
+        if (!images.length) {
+          const out = status.output as Record<string, unknown> | undefined;
+          const shape = out
+            ? Object.keys(out).reduce<Record<string, string>>((acc, k) => {
+                const v = out[k];
+                if (v == null) acc[k] = 'null';
+                else if (typeof v === 'string') acc[k] = `str:${v.length}`;
+                else if (Array.isArray(v)) acc[k] = `arr:${v.length}`;
+                else if (typeof v === 'object') acc[k] = `obj:${Object.keys(v as object).join(',')}`;
+                else acc[k] = typeof v;
+                return acc;
+              }, {})
+            : {};
+          throw new Error(
+            'COMPLETED but no valid image bytes in output. shape=' +
+              JSON.stringify(shape).slice(0, 280),
+          );
+        }
+        return {
+          images,
+          execution_time: status.execution_time,
+          job_id: jobId,
+          pending: false,
+          status: 'COMPLETED',
+          endpoint_id: endpointId,
+          waited_ms: Date.now() - started,
+          strategy: opts.strategy,
+        };
+      }
+
+      if (status.status === 'FAILED') {
+        const failMsg =
+          status.error ||
+          status.output?.error ||
+          status.output?.message ||
+          JSON.stringify(status.output || status).slice(0, 280);
+        throw new Error(`RunPod job FAILED: ${failMsg}`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    }
+
+    const waited = Date.now() - started;
+    const last = (lastStatus as 'IN_QUEUE' | 'IN_PROGRESS') || 'IN_QUEUE';
+    if (onTimeout === 'cancel') {
+      await this.cancelJob(jobId, endpointId);
+      throw new Error(
+        `RunPod queue timeout (waited ${Math.round(waited / 1000)}s, job ${jobId}). ` +
+          `Endpoint ${endpointId} workers busy/long queue. Retry later or check RunPod console.`,
+      );
+    }
+
+    logger.info('[runpod] poll budget exceeded — keep job alive', {
+      id: jobId,
+      waited_ms: waited,
+      status: last,
+      endpoint: endpointId,
+    });
+
+    return {
+      images: [],
+      job_id: jobId,
+      pending: true,
+      status: last,
+      endpoint_id: endpointId,
+      waited_ms: waited,
+      strategy: opts.strategy,
+    };
+  }
+
   /**
    * Generate images via RunPod (async polling).
    * Uses ComfyUI API workflow format internally.
+   * On long queue: returns pending + job_id by default (does not cancel).
    */
   async generate(options: RunPodGenerateOptions, pollIntervalMs = 2000): Promise<RunPodGenerateResult> {
     this.refreshConfig();
@@ -335,6 +588,26 @@ class RunPodClient {
     const baseUrl = endpointId ? `https://api.runpod.ai/v2/${endpointId}` : this.baseUrl;
     if (!this.apiKey || !endpointId) {
       throw new Error('RunPod is not configured. Set RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID.');
+    }
+
+    // Resume existing job (no new /run)
+    if (options.job_id) {
+      const polled = await this.pollJob(options.job_id, {
+        endpoint_id: endpointId,
+        poll_interval_ms: pollIntervalMs,
+        poll_budget_ms: options.poll_budget_ms,
+        on_timeout: options.on_timeout || 'pending',
+      });
+      if (polled.pending && options.throw_on_pending !== false) {
+        throw new RunPodPendingError({
+          job_id: polled.job_id || options.job_id,
+          endpoint_id: polled.endpoint_id || endpointId,
+          waited_ms: polled.waited_ms || 0,
+          status: polled.status || 'IN_QUEUE',
+          strategy: polled.strategy,
+        });
+      }
+      return polled;
     }
 
     // Resolve reference image to a base64 payload + worker-local filename.
@@ -635,22 +908,49 @@ class RunPodClient {
           return successResult;
         }
 
-        if (terminal === 'timeout') {
-          // Do NOT try other strategies after a long queue wait — that floods the endpoint.
-          // Cancel best-effort so we don't leave zombies.
-          try {
-            await fetch(`${baseUrl}/cancel/${id}`, {
-              method: 'POST',
-              headers: this.headers,
-              signal: AbortSignal.timeout(5000),
-            });
-          } catch {
-            /* ignore */
+                if (terminal === 'timeout') {
+          // Keep queue position — do NOT cancel unless caller opts in.
+          const waited = pollBudgetMs;
+          if ((options.on_timeout || 'pending') === 'cancel') {
+            try {
+              await fetch(`${baseUrl}/cancel/${id}`, {
+                method: 'POST',
+                headers: this.headers,
+                signal: AbortSignal.timeout(5000),
+              });
+            } catch {
+              /* ignore */
+            }
+            throw new Error(
+              `RunPod queue timeout (waited ${Math.round(pollBudgetMs / 1000)}s, job ${id}). ` +
+                `Endpoint ${endpointId} workers busy/long queue. Retry later or check RunPod console.`,
+            );
           }
-          throw new Error(
-            `RunPod 排队超时（已等 ${Math.round(pollBudgetMs / 1000)}s，job ${id}）。` +
-              `端点 ${endpointId} 当前 worker 忙/队列长。请稍后重试，或到 RunPod 控制台检查 workers。`,
-          );
+          logger.info('[runpod] poll budget exceeded — keep job alive', {
+            id,
+            strategy: strategy.name,
+            waited_ms: waited,
+            endpoint: endpointId,
+          });
+          const pendingResult: RunPodGenerateResult = {
+            images: [],
+            job_id: id,
+            pending: true,
+            status: (lastStatus as 'IN_QUEUE' | 'IN_PROGRESS') || 'IN_QUEUE',
+            endpoint_id: endpointId,
+            waited_ms: waited,
+            strategy: strategy.name,
+          };
+          if (options.throw_on_pending !== false) {
+            throw new RunPodPendingError({
+              job_id: id,
+              endpoint_id: endpointId,
+              waited_ms: waited,
+              status: pendingResult.status || 'IN_QUEUE',
+              strategy: strategy.name,
+            });
+          }
+          return pendingResult;
         }
 
         // FAILED with this payload shape → try next strategy
@@ -658,10 +958,21 @@ class RunPodClient {
         // If the error is clearly "missing workflow" / bad shape, fall through.
         // Otherwise still try next once.
       } catch (e) {
-        // Re-throw timeout (already user-facing)
-        if (e instanceof Error && e.message.startsWith('RunPod 排队超时')) throw e;
+        // Re-throw pending/timeout so caller can resume the same job_id
+        if (e instanceof RunPodPendingError) throw e;
+        if (
+          e instanceof Error &&
+          (e.message.startsWith('RunPod queue timeout') ||
+            e.message.startsWith('RunPod still queued') ||
+            e.message.includes('仍在排队') ||
+            e.message.includes('排队超时'))
+        ) {
+          throw e;
+        }
         errors.push(
           `${strategy.name}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
         );
       }
     }
@@ -709,7 +1020,14 @@ class RunPodClient {
     }
 
     // 2. cache miss -> RunPod
-    const result = await this.generate(options);
+    const result = await this.generate({ ...options, throw_on_pending: true });
+    if (result.pending || !result.images?.length) {
+      throw new Error(
+        result.job_id
+          ? `RunPod job still pending (${result.job_id}). Resume with job_id.`
+          : 'RunPod returned no images',
+      );
+    }
     const { uploadImageBase64 } = await import('./storage');
     const urls: string[] = [];
     for (let i = 0; i < result.images.length; i++) {
