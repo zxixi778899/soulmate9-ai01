@@ -7,10 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { authedFetch } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
-import {
-  Loader2, Users, Heart, Image, CheckSquare, TrendingUp, ArrowUpRight,
-  ShoppingBag, DollarSign, Crown, Activity, UserCheck,
-} from 'lucide-react';
+import { Activity, ArrowUpRight, Brain, CheckSquare, Crown, DollarSign, Heart, Image, Loader2, ShoppingBag, TrendingUp, UserCheck, Users } from 'lucide-react';
+// icons
 
 type DashboardStats = {
   totalUsers: number;
@@ -132,14 +130,16 @@ export default function AdminDashboard() {
             </h2>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: '用户管理', href: '/admin/users', icon: Users },
-                { label: '审核管理', href: '/admin/review', icon: CheckSquare },
-                { label: '女友管理', href: '/admin/girlfriends', icon: Heart },
-                { label: '推荐角色', href: '/admin/featured', icon: Crown },
+     { label: '女友与媒体', href: '/admin/girlfriends', icon: Heart },
+                { label: '创作工作台', href: '/admin/studio', icon: Image },
+                { label: '模型与 LoRA', href: '/admin/model-library', icon: Brain },
+                { label: '公共资产库', href: '/admin/assets', icon: Image },
+                { label: '商品管理', href: '/admin/shop', icon: ShoppingBag },
+                { label: '推荐/热门', href: '/admin/featured', icon: Crown },
+                { label: '审核队列', href: '/admin/review', icon: CheckSquare },
+                { label: '用户', href: '/admin/users', icon: Users },
                 { label: '代币套餐', href: '/admin/tokens', icon: DollarSign },
-                { label: '图片管理', href: '/admin/images', icon: Image },
-                { label: '商城管理', href: '/admin/shop', icon: ShoppingBag },
-                { label: '站点设置', href: '/admin/settings', icon: Activity },
+                { label: '站点设置', href: '/admin/settings', icon: Activity },Activity },
               ].map((action) => (
                 <button
                   key={action.label}

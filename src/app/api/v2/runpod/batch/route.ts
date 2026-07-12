@@ -68,7 +68,14 @@ function buildBatchPrompt(char: Record<string, unknown>): { positive: string; ne
 async function generateAndUpload(
   char: Record<string, unknown>,
   params: Record<string, unknown>,
-): Promise<{ name: string; imageUrl: string; id?: string }> {
+): Promise<{
+  name: string;
+  imageUrl: string;
+  id?: string;
+  lora: string | null;
+  loraStrength: number;
+  loraNote: string;
+}> {
   const name = String(char.name || 'Character');
   const { positive, negative } = buildBatchPrompt(char);
 
@@ -152,6 +159,9 @@ async function generateAndUpload(
     name,
     imageUrl: publicUrl,
     id: char.id ? String(char.id) : undefined,
+    lora: loraPlan.lora_name,
+    loraStrength: loraPlan.lora_strength_model,
+    loraNote: loraPlan.note,
   };
 }
 
@@ -278,6 +288,15 @@ export async function POST(req: NextRequest) {
         });
 
         try {
+          const loraHint = params.disable_lora
+            ? '强制关闭 LoRA'
+            : params.lora_name
+              ? `指定 LoRA: ${String(params.lora_name)}`
+              : '自动选择 LoRA';
+          send('log', {
+            type: 'info',
+            message: `${name} · ${loraHint}`,
+          });
           const result = await generateAndUpload(char, params);
 
           // Persist portrait + avatar so list hasImage becomes true
@@ -308,15 +327,21 @@ export async function POST(req: NextRequest) {
           }
 
           completed += 1;
+          const loraLabel = result.lora
+            ? `${result.lora} @ ${result.loraStrength} (${result.loraNote})`
+            : `none (${result.loraNote || 'no-lora'})`;
           send('complete', {
             index: i,
             name: result.name,
             imageUrl: result.imageUrl,
             status: 'completed',
+            lora: result.lora,
+            loraStrength: result.loraStrength,
+            loraNote: result.loraNote,
           });
           send('log', {
             type: 'success',
-            message: `✓ 完成 ${name}`,
+            message: `${name} 生成完成 · LoRA: ${loraLabel} · ${result.imageUrl}`,
           });
         } catch (error) {
           failed += 1;

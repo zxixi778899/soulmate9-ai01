@@ -15,6 +15,10 @@ import {
   assembleGirlfriendFromRow,
   sanitizeBlurKeywords,
 } from '@/lib/prompt';
+import {
+  resolveGirlfriendLoraPlan,
+  subjectFromGirlfriendRow,
+} from '@/lib/prompt/girlfriend';
 
 export const runtime = 'nodejs';
 // Vercel Hobby max is 300s; Pro can raise via plan. Queue + gen must fit in this window.
@@ -316,6 +320,9 @@ export async function POST(req: NextRequest) {
           job_id: result.job_id || resumeJobId,
           meta: metadata,
           optimizedPrompt: rawPrompt,
+          lora: null,
+          loraStrength: null,
+          loraNote: 'resume',
           usedConsistency: !!referenceImage,
           denoise: referenceImage ? denoise : 1,
           params: {
@@ -372,12 +379,86 @@ export async function POST(req: NextRequest) {
       alt: string;
     }> = [];
 
+    
+    // LoRA: body override or auto from girlfriend row
+    const disableLora = body.disable_lora === true || body.disableLora === true;
+    const bodyLoraName =
+      typeof body.lora_name === 'string'
+        ? body.lora_name
+        : typeof body.loraName === 'string'
+          ? body.loraName
+          : null;
+    let loraName: string | null = null;
+    let loraStrengthModel = 0.55;
+    let loraStrengthClip = 0.55;
+    let loraNote = 'none';
+    let promptForGen = rawPrompt;
+
+    if (disableLora) {
+      loraName = null;
+      loraNote = 'disabled';
+    } else if (bodyLoraName && String(bodyLoraName).trim()) {
+      loraName = String(bodyLoraName).trim();
+      loraStrengthModel = Math.min(
+        1,
+        Math.max(0.05, Number(body.lora_strength_model ?? body.loraStrength ?? 0.55) || 0.55),
+      );
+      loraStrengthClip = Math.min(
+        1,
+        Math.max(
+          0.05,
+          Number(body.lora_strength_clip ?? body.lora_strength_model ?? body.loraStrength ?? loraStrengthModel) ||
+            loraStrengthModel,
+        ),
+      );
+      loraNote = 'params';
+    } else if (type === 'girlfriend') {
+      // Auto plan when girlfriendId provided or metadata appearance available
+      const subjectRow: Record<string, unknown> = {
+        id: girlfriendId,
+        name: metadata?.title,
+        personality: metadata?.description,
+        tags: metadata?.tags,
+        image_prompt: rawPrompt,
+        appearance: metadata?.appearance || rawPrompt,
+      };
+      if (girlfriendId) {
+        try {
+          const { data: gf } = await guard.supabase
+            .from('girlfriends')
+            .select(
+              'id, name, personality, tags, backstory, short_description, image_prompt, character_card, appearance_race, appearance_hair, appearance_hair_color, appearance_eyes, appearance_body, appearance_style',
+            )
+            .eq('id', girlfriendId)
+            .maybeSingle();
+          if (gf) Object.assign(subjectRow, gf);
+        } catch {
+          /* ignore */
+        }
+      }
+      const plan = resolveGirlfriendLoraPlan(subjectFromGirlfriendRow(subjectRow));
+      loraName = plan.lora_name;
+      loraStrengthModel = plan.lora_strength_model;
+      loraStrengthClip = plan.lora_strength_clip;
+      loraNote = plan.note;
+      if (plan.trigger_words?.length) {
+        promptForGen = `${plan.trigger_words.join(', ')}, ${rawPrompt}`;
+      }
+    }
+
+    logger.info('generate-from-meta: lora', {
+      type,
+      loraName,
+      loraStrengthModel,
+      loraNote,
+    });
+
     for (let i = 0; i < count; i++) {
       const seed = baseSeed + i;
       let result;
       try {
         result = await runpodClient.generate({
-          prompt: rawPrompt,
+          prompt: promptForGen,
           negative_prompt: finalNegativePrompt,
           width,
           height,
@@ -388,6 +469,9 @@ export async function POST(req: NextRequest) {
           scheduler: params.scheduler,
           input_image: referenceImage || undefined,
           denoising_strength: referenceImage ? denoise : undefined,
+          lora_name: loraName,
+          lora_strength_model: loraStrengthModel,
+          lora_strength_clip: loraStrengthClip,
           on_timeout: 'pending',
           throw_on_pending: false,
           poll_budget_ms: 240_000,
@@ -402,7 +486,10 @@ export async function POST(req: NextRequest) {
             status: err.status,
             waited_ms: err.waited_ms,
             message: err.message,
-            optimizedPrompt: rawPrompt,
+            optimizedPrompt: typeof promptForGen !== 'undefined' ? promptForGen : rawPrompt,
+          lora: typeof loraName !== 'undefined' ? loraName : null,
+          loraStrength: typeof loraStrengthModel !== 'undefined' ? loraStrengthModel : null,
+          loraNote: typeof loraNote !== 'undefined' ? loraNote : null,
           });
         }
         throw err;
@@ -419,7 +506,10 @@ export async function POST(req: NextRequest) {
           message:
             `仍在排队/生成中（job ${result.job_id}，状态 ${result.status || 'IN_QUEUE'}）。` +
             '任务未取消，请勿重复点生成；页面会自动续等。',
-          optimizedPrompt: rawPrompt,
+          optimizedPrompt: typeof promptForGen !== 'undefined' ? promptForGen : rawPrompt,
+          lora: typeof loraName !== 'undefined' ? loraName : null,
+          loraStrength: typeof loraStrengthModel !== 'undefined' ? loraStrengthModel : null,
+          loraNote: typeof loraNote !== 'undefined' ? loraNote : null,
         });
       }
 
@@ -461,7 +551,10 @@ export async function POST(req: NextRequest) {
         alt: r.alt,
       })),
       meta: metadata,
-      optimizedPrompt: rawPrompt,
+      optimizedPrompt: typeof promptForGen !== 'undefined' ? promptForGen : rawPrompt,
+          lora: typeof loraName !== 'undefined' ? loraName : null,
+          loraStrength: typeof loraStrengthModel !== 'undefined' ? loraStrengthModel : null,
+          loraNote: typeof loraNote !== 'undefined' ? loraNote : null,
       usedConsistency: !!referenceImage,
       denoise: referenceImage ? denoise : 1,
       params: {

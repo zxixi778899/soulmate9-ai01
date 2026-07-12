@@ -41,6 +41,7 @@ import {
   Tags,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import Link from 'next/link';
 import { logger } from '@/lib/logger';
 
 type Collection = 'outfit' | 'prop';
@@ -481,6 +482,26 @@ export default function AdminShopPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
+
+      <div className="mb-4 rounded-xl border border-amber-100 bg-gradient-to-r from-amber-50 to-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">商城</p>
+            <h2 className="mt-0.5 text-base font-semibold text-[#1E293B]">商品管理（服装 / 道具 / 礼物）</h2>
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[#64748B]">
+              只管理可售卖物品：媒体（静图/动图/视频）、价格与分级、分类、亲密加成与功能开关。
+              女友角色图请在「女友与媒体」；AI 出图请在「创作工作台」。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">图片 / 视频</span>
+            <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">价格 · 分级</span>
+            <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">分类 · 排序</span>
+            <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">亲密加成 · 礼物标记</span>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold text-white">

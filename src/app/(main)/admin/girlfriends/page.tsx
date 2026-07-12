@@ -438,6 +438,32 @@ export default function AdminGirlfriendsPage() {
 
   return (
     <div className="p-6">
+
+      <div className="mb-4 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">女友资源库</p>
+            <h2 className="mt-0.5 text-base font-semibold text-[#1E293B]">女友与媒体（合并入口）</h2>
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[#64748B]">
+              本页管理站内女友卡片资料，以及头像 / 肖像 / 视频 / 音频的上传、删除与选用。
+              <b className="font-medium text-[#334155]">不含 AI 生图</b>——生成请到创作工作台，生成结果进公共资产库后再绑定到这里。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/studio" className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100">创作工作台</Link>
+            <Link href="/admin/assets" className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-[#475569] hover:bg-gray-50">公共资产库</Link>
+            <Link href="/admin/featured" className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-[#475569] hover:bg-gray-50">推荐/热门</Link>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+          <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">资料字段</span>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">图片上传/删除</span>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">视频上传/删除</span>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">音频（预留绑定）</span>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 ring-1 ring-emerald-100">公开/审核状态</span>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold"></h1>

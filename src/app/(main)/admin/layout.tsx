@@ -8,59 +8,9 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Loader2, LayoutDashboard, Users, Image, Heart, ShoppingBag, CheckSquare,
-  Brain, CreditCard, FileImage, BookOpen, ChevronLeft, LayoutTemplate, Menu,
-  Home, Coins, Settings, Star, Bitcoin, Film, Library,
-} from 'lucide-react';
+import { Loader2, LayoutDashboard, ChevronLeft, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-type NavItem = { label: string; href: string; icon: React.ElementType };
-type NavGroup = { title: string; items: NavItem[] };
-
-const navGroups: NavGroup[] = [
-  {
-    title: '总览',
-    items: [
-      { label: '仪表盘', href: '/admin', icon: LayoutDashboard },
-    ],
-  },
-  {
-    title: '角色与内容',
-    items: [
-      { label: '女友管理', href: '/admin/girlfriends', icon: Heart },
-      { label: '推荐/热门', href: '/admin/featured', icon: Star },
-      { label: '审核队列', href: '/admin/review', icon: CheckSquare },
-      { label: '图片库', href: '/admin/images', icon: FileImage },
-      { label: '视频库', href: '/admin/videos', icon: Film },
-      { label: 'Comfy 生成', href: '/admin/comfy', icon: FileImage },
-      { label: 'Civitai 模型库', href: '/admin/model-library', icon: Library },
-      { label: '角色卡导入', href: '/admin/character-cards', icon: FileImage },
-      { label: '世界书', href: '/admin/lore', icon: BookOpen },
-    ],
-  },
-  {
-    title: '商业',
-    items: [
-      { label: '商城', href: '/admin/shop', icon: ShoppingBag },
-      { label: '代币与积分', href: '/admin/tokens', icon: Coins },
-      { label: '加密货币', href: '/admin/crypto', icon: Bitcoin },
-      { label: '广告', href: '/admin/ads', icon: Image },
-    ],
-  },
-  {
-    title: '站点与系统',
-    items: [
-      { label: '用户', href: '/admin/users', icon: Users },
-      { label: '全站模块', href: '/admin/homepage', icon: Home },
-      { label: '页面/导航', href: '/admin/pages', icon: LayoutTemplate },
-      { label: 'AI 模型', href: '/admin/models', icon: Brain },
-      { label: 'AI 模块方案', href: '/admin/ai-modules', icon: Brain },
-      { label: '站点设置', href: '/admin/settings', icon: Settings },
-    ],
-  },
-];
-
+import { ADMIN_NAV_GROUPS, adminPathActive } from '@/lib/admin/nav';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, session, isLoading: authLoading } = useAuth();
@@ -176,9 +126,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const isActive = (href: string) =>
-    href === '/admin' ? pathname === '/admin' : pathname === href || pathname?.startsWith(href + '/');
-
   return (
     <div className="admin-layout flex h-full min-h-screen bg-[#F5F7FA]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       <button
@@ -213,28 +160,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <ScrollArea className="h-[calc(100%-56px-56px)] p-3">
           <nav className="flex flex-col gap-4">
-            {navGroups.map((group) => (
+            {ADMIN_NAV_GROUPS.map((group) => (
               <div key={group.title}>
-                <div className="px-3 mb-1.5 text-[10px] font-bold tracking-wider text-[#94A3B8] uppercase">
-                  {group.title}
+                <div className="px-3 mb-1">
+                  <div className="text-[10px] font-bold tracking-wider text-[#94A3B8] uppercase">
+                    {group.title}
+                  </div>
+                  {group.description ? (
+                    <div className="mt-0.5 text-[10px] leading-snug text-[#CBD5E1]">{group.description}</div>
+                  ) : null}
                 </div>
                 <div className="flex flex-col gap-0.5">
                   {group.items.map((item) => {
-                    const active = isActive(item.href);
+                    const active = adminPathActive(pathname, item);
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
                         onClick={() => setSidebarOpen(false)}
+                        title={item.hint}
                         className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                          'flex items-start gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                           active
                             ? 'bg-[#EFF6FF] text-[#2563EB]'
                             : 'text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#1E293B]',
                         )}
                       >
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        {item.label}
+                        <item.icon className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span className="min-w-0">
+                          <span className="block leading-tight">{item.label}</span>
+                          {item.hint ? (
+                            <span className={cn('mt-0.5 block text-[10px] font-normal leading-snug', active ? 'text-blue-400' : 'text-[#94A3B8]')}>
+                              {item.hint}
+                            </span>
+                          ) : null}
+                        </span>
                       </Link>
                     );
                   })}
@@ -248,25 +208,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start text-xs text-[#64748B] gap-2"
+            className="w-full justify-start text-[#64748B]"
             onClick={() => router.push('/')}
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
+            <ChevronLeft className="mr-2 h-4 w-4" />
             返回前台
           </Button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto min-w-0">
-        <div className="sticky top-0 z-20 flex h-12 items-center justify-between border-b border-[#E2E8F0] bg-white/90 backdrop-blur px-4 lg:px-6">
-          <div className="text-xs text-[#94A3B8]">
-            管理后台 · <span className="text-[#64748B]">{pathname}</span>
-          </div>
-          <div className="text-xs text-[#64748B] truncate max-w-[200px]">
-            {user.email}
-          </div>
-        </div>
-        {children}
+      <main className="flex-1 overflow-auto">
+        <div className="min-h-full">{children}</div>
       </main>
     </div>
   );

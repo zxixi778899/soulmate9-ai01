@@ -22,18 +22,18 @@ import {
 
 /** Short quality tail — do NOT stack camera spam (causes same-face look). */
 export const GIRLFRIEND_QUALITY_PREFIX =
-  'beautiful young woman, pretty face, natural flattering makeup, healthy skin texture, realistic proportions, soft natural beauty lighting, photorealistic, sharp focus'
+  'stunning beautiful young woman, pretty balanced face, refined natural glam makeup, clear healthy skin, attractive feminine figure, soft bright beauty lighting on face, photorealistic, sharp focus'
 
 /**
  * Soft figure hint — keep short so face/pose still dominate.
  * Avoid fixed lingerie / same body spam that collapses variety.
  */
 export const GIRLFRIEND_BODY_FIXED =
-  'attractive feminine figure, natural waist-to-hip balance, realistic body proportions'
+  'sexy attractive feminine figure, defined waist and hips, tasteful body showcase, realistic proportions, long legs when full body'
 
 /** Default framing for companion cards: face the viewer (not back/side template). */
 export const GIRLFRIEND_FRAMING =
-  'facing viewer, eye contact, three-quarter body or full body lifestyle photo, natural pose, not face-only, not stiff catalog mannequin'
+  'facing viewer, eye contact, companion card photo, three-quarter body preferred (chest and hips visible) or full body long legs, natural flirty pose, not face-only headshot, not stiff catalog mannequin, not dark underexposed'
 
 /**
  * Short negatives — FLUX hates long SD negative lists.
@@ -137,7 +137,7 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'simple slip dress',
     ],
     env: 'home bathroom mirror, real tiles and vanity',
-    light: 'vanity bulbs plus mild phone flash, bright enough face, realistic home selfie light',
+    light: 'bright vanity bulbs plus mild phone flash, clear face exposure, realistic home selfie light',
     match: /selfie|mirror|bathroom|flash|tattoo|casual|party/i,
   },
   {
@@ -177,7 +177,7 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'casual tee dress',
     ],
     env: 'bright apartment window, sheer curtains',
-    light: 'soft window key light on face, gentle falloff, natural daylight photo',
+    light: 'bright soft window key light on face, clean highlights, natural daylight photo, not underexposed',
     match: /window|sunlight|lace|morning|sheer|curtain/i,
   },
   {
@@ -671,7 +671,7 @@ export function assembleGirlfriendFromRow(
 }
 
 
-/** Default image LoRA plan for girlfriend cards (style/skin first; pose/outfit optional). */
+﻿/** Default image LoRA plan for girlfriend cards (style/skin first; pose/outfit optional). */
 export type GirlfriendLoraPlan = {
   lora_name: string | null;
   lora_strength_model: number;
@@ -682,12 +682,12 @@ export type GirlfriendLoraPlan = {
 
 /**
  * Prompt = who/where/framing. LoRA = realism + optional body/outfit support.
- * Prefer 1 LoRA. Pose LoRAs only when scene explicitly needs them.
+ * Prefer 1 LoRA at a time (Comfy graph). Files must exist on volume models/loras/.
  */
 export function resolveGirlfriendLoraPlan(
   subject: GirlfriendSubject,
   sceneId?: string,
-  opts?: { preferBody?: boolean; preferOutfit?: boolean },
+  opts?: { preferBody?: boolean; preferOutfit?: boolean; preferNsfwPose?: boolean },
 ): GirlfriendLoraPlan {
   const bag = [
     subject.personality || '',
@@ -700,16 +700,95 @@ export function resolveGirlfriendLoraPlan(
     .join(' ')
     .toLowerCase();
 
-  // Env overrides for files actually on the RunPod volume
   const styleFile =
     process.env.GIRLFRIEND_STYLE_LORA ||
     process.env.RUNPOD_DEFAULT_LORA ||
     'flux_style_photoreal_v1.safetensors';
+  const hyperFile =
+    process.env.GIRLFRIEND_HYPER_LORA || 'flux_style_hyperreal_aidma_v1.safetensors';
   const skinFile = process.env.GIRLFRIEND_SKIN_LORA || 'flux_detail_skin_v1.safetensors';
   const bodyFile = process.env.GIRLFRIEND_BODY_LORA || 'flux_body_curvy_v1.safetensors';
-  const lingerieFile = process.env.GIRLFRIEND_LINGERIE_LORA || 'flux_outfit_lingerie_v1.safetensors';
+  const pearFile = process.env.GIRLFRIEND_PEAR_LORA || 'flux_body_pear_v1.safetensors';
+  const lingerieFile =
+    process.env.GIRLFRIEND_LINGERIE_LORA || 'flux_outfit_lingerie_v1.safetensors';
+  const bunnyFile = process.env.GIRLFRIEND_BUNNY_LORA || 'flux_outfit_bunny_v1.safetensors';
+  const maidFile = process.env.GIRLFRIEND_MAID_LORA || 'flux_outfit_maid_v1.safetensors';
+  const bikiniFile = process.env.GIRLFRIEND_BIKINI_LORA || 'flux_outfit_bikini_v1.safetensors';
+  const latexFile = process.env.GIRLFRIEND_LATEX_LORA || 'flux_outfit_latex_v1.safetensors';
+  const schoolFile = process.env.GIRLFRIEND_SCHOOL_LORA || 'flux_outfit_school_v1.safetensors';
+  const nsfwPoseFile =
+    process.env.GIRLFRIEND_NSFW_POSE_LORA || 'flux_pose_nsfw_dynamic_v1.safetensors';
+  const ahegaoFile = process.env.GIRLFRIEND_AHEGAO_LORA || 'flux_face_ahegao_v1.safetensors';
 
-  if (opts?.preferOutfit || /lingerie|garter|nsfw|bedroom|babydoll/.test(bag)) {
+  if (opts?.preferNsfwPose || /ahegao|orgasm face|rolling eyes/.test(bag)) {
+    if (/ahegao|orgasm face|rolling eyes/.test(bag)) {
+      return {
+        lora_name: ahegaoFile,
+        lora_strength_model: 0.5,
+        lora_strength_clip: 0.5,
+        trigger_words: [],
+        note: 'face-ahegao',
+      };
+    }
+    return {
+      lora_name: nsfwPoseFile,
+      lora_strength_model: 0.55,
+      lora_strength_clip: 0.55,
+      trigger_words: [],
+      note: 'pose-nsfw-dynamic',
+    };
+  }
+
+  if (/bunny|playboy|rabbit ears|leotard/.test(bag)) {
+    return {
+      lora_name: bunnyFile,
+      lora_strength_model: 0.65,
+      lora_strength_clip: 0.65,
+      trigger_words: [],
+      note: 'outfit-bunny',
+    };
+  }
+  if (/maid|apron|french maid/.test(bag)) {
+    return {
+      lora_name: maidFile,
+      lora_strength_model: 0.65,
+      lora_strength_clip: 0.65,
+      trigger_words: [],
+      note: 'outfit-maid',
+    };
+  }
+  if (/bikini|swimsuit|beach|poolside/.test(bag)) {
+    return {
+      lora_name: bikiniFile,
+      lora_strength_model: 0.62,
+      lora_strength_clip: 0.62,
+      trigger_words: [],
+      note: 'outfit-bikini',
+    };
+  }
+  if (/latex|catsuit|pvc|shiny rubber/.test(bag)) {
+    return {
+      lora_name: latexFile,
+      lora_strength_model: 0.6,
+      lora_strength_clip: 0.6,
+      trigger_words: [],
+      note: 'outfit-latex',
+    };
+  }
+  if (/school uniform|sailor uniform|jk uniform|plaid skirt uniform/.test(bag)) {
+    return {
+      lora_name: schoolFile,
+      lora_strength_model: 0.6,
+      lora_strength_clip: 0.6,
+      trigger_words: [],
+      note: 'outfit-school',
+    };
+  }
+
+  if (
+    opts?.preferOutfit ||
+    /lingerie|garter|babydoll|lace bra|stockings|bodysuit sheer/.test(bag)
+  ) {
     return {
       lora_name: lingerieFile,
       lora_strength_model: 0.62,
@@ -719,7 +798,19 @@ export function resolveGirlfriendLoraPlan(
     };
   }
 
-  if (opts?.preferBody || /curvy|busty|hourglass|voluptuous/.test(bag)) {
+  if (/pear|wide hips|big ass|thick thighs|booty/.test(bag) && !/hourglass|busty/.test(bag)) {
+    return {
+      lora_name: pearFile,
+      lora_strength_model: 0.55,
+      lora_strength_clip: 0.55,
+      trigger_words: [],
+      note: 'body-pear',
+    };
+  }
+  if (
+    opts?.preferBody ||
+    /curvy|busty|hourglass|voluptuous|large breasts|slim waist/.test(bag)
+  ) {
     return {
       lora_name: bodyFile,
       lora_strength_model: 0.55,
@@ -729,13 +820,31 @@ export function resolveGirlfriendLoraPlan(
     };
   }
 
-  // Default: photoreal style LoRA (or skin if style missing on volume — same path still works if present)
-  const useSkin = /skin|pores|detail/.test(bag);
+  if (/skin|pores|detail|texture/.test(bag)) {
+    return {
+      lora_name: skinFile,
+      lora_strength_model: 0.4,
+      lora_strength_clip: 0.4,
+      trigger_words: [],
+      note: 'detail-skin',
+    };
+  }
+  if (/hyperreal|aidma|ultra realistic/.test(bag)) {
+    return {
+      lora_name: hyperFile,
+      lora_strength_model: 0.5,
+      lora_strength_clip: 0.5,
+      trigger_words: [],
+      note: 'style-hyperreal',
+    };
+  }
+
   return {
-    lora_name: useSkin ? skinFile : styleFile,
-    lora_strength_model: useSkin ? 0.4 : 0.55,
-    lora_strength_clip: useSkin ? 0.4 : 0.55,
+    lora_name: styleFile,
+    lora_strength_model: 0.55,
+    lora_strength_clip: 0.55,
     trigger_words: [],
-    note: useSkin ? 'detail-skin' : 'style-photoreal',
+    note: 'style-photoreal',
   };
 }
+

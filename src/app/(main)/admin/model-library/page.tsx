@@ -206,6 +206,18 @@ export default function AdminModelLibraryPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-4 md:p-6">
+      <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50/80 p-3 text-sm text-violet-900">
+        <div className="font-semibold">创作中心 · 模型与 LoRA</div>
+        <p className="mt-1 text-xs leading-relaxed text-violet-800/90">
+          在此搜索 Civitai → 入库 → 导出下载清单到 RunPod 网盘。生成时在「创作工作台」选择模型/LoRA。
+          一次只挂 1 个 LoRA；服装类需盘上文件名与清单一致。
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+          <a href="/admin/studio" className="rounded-md bg-violet-600 px-2.5 py-1 font-medium text-white">打开创作工作台</a>
+          <a href="/admin/assets" className="rounded-md border border-violet-200 bg-white px-2.5 py-1 text-violet-800">公共资产库</a>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
