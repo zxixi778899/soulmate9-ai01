@@ -98,7 +98,7 @@ export default function AdminFeaturedPage() {
       if (!list.length) {
         // public catalog fallback
         const pub = await fetch('/api/v2/girlfriends/featured?limit=60').then((r) => readResponseJson(r).catch(() => ({}))).catch(() => ({}));
-        list = (pub.girlfriends || pub.featured_girlfriends || []) as PublicGf[];
+        list = ((pub as { girlfriends?: PublicGf[]; featured_girlfriends?: PublicGf[] }).girlfriends || (pub as { featured_girlfriends?: PublicGf[] }).featured_girlfriends || []) as PublicGf[];
       }
       // Prefer approved/public
       list = list.filter((g) => {
