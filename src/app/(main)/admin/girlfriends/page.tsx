@@ -767,7 +767,7 @@ function AdminGirlfriendsMediaPageInner() {
         ) : null}
       </div>
       <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) closeDialog(); }}>
-        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto border-white/10 bg-[#12121c] text-slate-100">
+        <DialogContent className="max-h-[96vh] max-w-6xl w-[95vw] overflow-y-auto border-white/10 bg-[#12121c] text-slate-100">
           <DialogHeader>
             <DialogTitle>{creating ? '新建女友' : `编辑 · ${selected?.name || ''}`}</DialogTitle>
             <DialogDescription className="text-slate-400">

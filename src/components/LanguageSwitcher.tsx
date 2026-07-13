@@ -39,7 +39,7 @@ export function LanguageSwitcher({ variant = 'default' }: { variant?: 'default' 
       <div className="relative">
         <button
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          className="flex items-center gap-1 rounded-full glass h-9 sm:h-10 px-2 sm:px-2.5 text-xs text-white/70 hover:text-white transition-colors shrink-0"
         >
           <Globe className="h-3.5 w-3.5" />
           <span>{current?.nativeLabel || 'EN'}</span>

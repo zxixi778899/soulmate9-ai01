@@ -112,21 +112,21 @@ export default function GlobalTopNav() {
 
         <div className="flex-1 md:hidden" />
 
-        <div className="ml-auto md:ml-0 flex items-center gap-1.5 shrink-0">
+        <div className="ml-auto md:ml-0 flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap">
           <LanguageSwitcher variant="compact" />
           {user ? (
             <>
               <Link
                 href="/pricing"
-                className="glass h-10 px-2.5 sm:px-3 rounded-full text-xs flex items-center gap-1 text-[#ffd700] touch-manipulation"
+                className="glass h-9 sm:h-10 px-2 sm:px-3 rounded-full text-xs flex items-center gap-1 text-[#ffd700] touch-manipulation shrink-0"
               >
                 <Crown className="h-3.5 w-3.5" />
-                <span className="hidden min-[360px]:inline">VIP</span>
+                <span className="hidden min-[400px]:inline">VIP</span>
               </Link>
               <Link
                 href="/profile"
                 className={cn(
-                  'h-10 w-10 rounded-full flex items-center justify-center touch-manipulation',
+                  'h-9 w-9 sm:h-10 sm:w-10 rounded-full flex items-center justify-center touch-manipulation shrink-0',
                   pathname?.startsWith('/profile')
                     ? 'glass-btn !rounded-full !p-0'
                     : 'glass text-[#ffb3cd]',
@@ -140,13 +140,13 @@ export default function GlobalTopNav() {
             <>
               <Link
                 href="/login"
-                className="text-xs text-white/55 hover:text-white px-2 py-2 hidden min-[360px]:inline touch-manipulation"
+                className="text-xs text-white/55 hover:text-white px-1.5 sm:px-2 py-2 hidden min-[380px]:inline touch-manipulation shrink-0"
               >
                 {t('home.login')}
               </Link>
               <Link
                 href="/register"
-                className="glass-btn !h-10 !px-3.5 text-xs touch-manipulation"
+                className="glass-btn !h-9 sm:!h-10 !px-3 sm:!px-3.5 text-xs touch-manipulation shrink-0 inline-flex items-center justify-center leading-none"
               >
                 {t('home.join')}
               </Link>

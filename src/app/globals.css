@@ -1394,6 +1394,11 @@ body {
 
 .glass-btn {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  line-height: 1;
   overflow: hidden;
   background: linear-gradient(
     135deg,

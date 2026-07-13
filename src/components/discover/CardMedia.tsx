@@ -67,11 +67,12 @@ function CardMediaInner({
 
   const poster = (src || '').trim();
   const video = (videoSrc || '').trim();
+  // Only treat real video URLs as video. Never treat arbitrary HTTPS (image CDN) as video.
   const hasVideo =
     !!video &&
     !videoFailed &&
     !reduceMotion &&
-    (isVideoUrl(video) || video.startsWith('http'));
+    isVideoUrl(video);
 
   useEffect(() => {
     setReduceMotion(prefersReducedMotion());

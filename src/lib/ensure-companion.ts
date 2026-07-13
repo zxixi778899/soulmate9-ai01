@@ -10,10 +10,12 @@ import type { DemoGirl } from '@/lib/demo-data';
 export async function ensureCompanionChatId(girl: {
   id: string;
   name: string;
+  slug?: string;
   age?: number;
   tagline?: string;
   portrait?: string;
   avatar?: string;
+  image_url?: string;
   tags?: string[];
   personality?: string;
   relationship?: string;
@@ -35,7 +37,23 @@ export async function ensureCompanionChatId(girl: {
     /* continue create */
   }
 
-  // 2) Create a private clone for this user (uses a friend seat)
+  // 2) If we have a public slug, prefer the add-from-public clone (keeps seat + ownership check)
+  if (girl.slug) {
+    try {
+      const add = await authedFetch('/api/girlfriends/add-from-public', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: girl.slug }),
+      });
+      if (add.ok) {
+        const d = await readResponseJson(add).catch(() => ({} as any));
+        const gid = (d.girlfriend?.id || d.id) as string | undefined;
+        if (gid) return gid;
+      }
+    } catch { /* fallthrough to generic create */ }
+  }
+
+  // 3) Create a private clone for this user (uses a friend seat)
   try {
     const res = await authedFetch('/api/girlfriends', {
       method: 'POST',
@@ -78,18 +96,23 @@ export async function openCompanionChat(
   girl: DemoGirl & { relationship?: string },
   router: { push: (href: string) => void },
 ): Promise<boolean> {
+  if (!girl?.id && !girl?.name) return false;
   try {
     const chatId = await ensureCompanionChatId(girl);
-    if (!chatId) return false;
+    if (!chatId || chatId === 'undefined' || chatId === 'null') return false;
     try {
       sessionStorage.setItem(
         'soulmate_selected_companion',
-        JSON.stringify({ id: chatId, name: girl.name, portrait: girl.portrait }),
+        JSON.stringify({
+          id: chatId,
+          name: girl.name,
+          portrait: girl.portrait || girl.avatar || '',
+        }),
       );
     } catch {
       /* ignore */
     }
-    router.push(`/chat/${chatId}`);
+    router.push(`/chat/${encodeURIComponent(chatId)}`);
     return true;
   } catch (err) {
     throw err;

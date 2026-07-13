@@ -33,6 +33,13 @@ import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
 import { HEAT_UNLOCK_HINTS, INTIMACY_LEVELS } from '@/lib/constants';
 
+
+function isHomeVideoUrl(url?: string | null): boolean {
+  const u = String(url || '').toLowerCase().split('?')[0];
+  if (!u) return false;
+  return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov') || u.endsWith('.m4v') || '/video/' in u || '/videos/' in u;
+}
+
 const FOOTER_LINKS = {
   telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL || 'https://t.me/soulmateai_support',
   x: process.env.NEXT_PUBLIC_X_URL || 'https://x.com/soulmateai',
@@ -352,7 +359,13 @@ export default function HomePage() {
               >
                 <CardMedia
                   src={featured.portrait || featured.avatar}
-                  videoSrc={featured.video || featured.avatar_video}
+                  videoSrc={
+                    isHomeVideoUrl(featured.video)
+                      ? featured.video
+                      : isHomeVideoUrl(featured.avatar_video)
+                        ? featured.avatar_video
+                        : undefined
+                  }
                   alt={featured.name}
                   forcePlay
                   hoverPlay={false}
@@ -469,7 +482,7 @@ export default function HomePage() {
                       aria-pressed={i === focus}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={g.avatar || g.portrait} alt="" className="h-full w-full object-cover object-top" draggable={false} />
+                      <img src={g.portrait || g.avatar} alt="" className="h-full w-full object-cover object-top" draggable={false} loading="lazy" decoding="async" />
                       {i === focus && (
                         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-[#ff2e88] to-[#ffd700]" />
                       )}
@@ -566,7 +579,7 @@ export default function HomePage() {
               <button
                 key={g.id}
                 type="button"
-                onClick={() => void enterBond(g)}
+                onClick={() => setDetail(g)}
                 className={cn(
                   'relative rounded-xl sm:rounded-2xl overflow-hidden text-left active:scale-[0.98] transition-transform ring-1 ring-white/10 hover:ring-[#ff2e88]/45 hover:shadow-[0_0_24px_rgba(255,46,136,0.25)]',
                   `game-rarity-${String(g.rarity || 'R').toLowerCase()}`,
@@ -575,11 +588,10 @@ export default function HomePage() {
                 <div className="relative aspect-[3/4]">
                   <CardMedia
                     src={g.portrait || g.avatar}
-                    videoSrc={g.video || g.avatar_video}
                     alt={g.name}
-                    hoverPlay
+                    hoverPlay={false}
                     forcePlay={false}
-                    showBadge={!!(g.video || g.avatar_video)}
+                    showBadge={false}
                     imgClassName={lockedImageClass(g.locked)}
                   />
                   {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-sm" />}

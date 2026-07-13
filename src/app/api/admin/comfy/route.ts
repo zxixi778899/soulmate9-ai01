@@ -45,6 +45,26 @@ export async function GET(req: NextRequest) {
   const view = new URL(req.url).searchParams.get('view') || 'config';
   const cfg = await loadComfyConfig(admin.supabase);
 
+  if (view === 'volume' || view === 'installed') {
+    const { VOLUME_INSTALLED_LORAS, getInstalledLoraSet } = await import('@/lib/runpod-loras');
+    const installed = [...getInstalledLoraSet()].sort();
+    return NextResponse.json({
+      volume: cfg.network_volume,
+      target_volume: LORA_CATALOG.target_volume,
+      region: LORA_CATALOG.region,
+      base_model: LORA_CATALOG.base_model,
+      installed_loras: installed,
+      code_allowlist: [...VOLUME_INSTALLED_LORAS],
+      env_override: !!(process.env.RUNPOD_INSTALLED_LORAS || process.env.COMFY_INSTALLED_LORAS),
+      paths: {
+        loras: cfg.network_volume?.loras_dir || 'models/loras',
+        checkpoints: cfg.network_volume?.checkpoints_dir || 'models/checkpoints',
+      },
+      note:
+        'installed_loras 与 Comfy LoraLoader 白名单一致；下载新文件后请更新 VOLUME_INSTALLED_LORAS 或设置 RUNPOD_INSTALLED_LORAS，并重新部署。',
+    });
+  }
+
   if (view === 'loras') {
     return NextResponse.json({
       catalog: {
@@ -485,7 +505,150 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  if (body.action === 'generate') {
+  
+  if (body.action === 'move_assets' || body.action === 'copy_assets') {
+    const mode = body.action === 'copy_assets' ? 'copy' : 'move';
+    const targetGirlfriendId = String(body.girlfriend_id || body.girlfriendId || '').trim() || null;
+    const ids = Array.isArray(body.ids) ? (body.ids as string[]).filter(Boolean) : [];
+    const keys = Array.isArray(body.storage_keys)
+      ? (body.storage_keys as string[]).filter(Boolean)
+      : [];
+    const items = Array.isArray(body.items) ? (body.items as Array<Record<string, unknown>>) : [];
+    for (const it of items) {
+      if (it?.id) ids.push(String(it.id));
+      if (it?.storage_key) keys.push(String(it.storage_key));
+    }
+    if (!ids.length && !keys.length) {
+      return NextResponse.json({ error: 'ids or storage_keys required' }, { status: 400 });
+    }
+    if (ids.length + keys.length > 80) {
+      return NextResponse.json({ error: 'Max 80 items per batch' }, { status: 400 });
+    }
+
+    const folder = assetFolder(targetGirlfriendId);
+    let changed = 0;
+    const errors: string[] = [];
+    const touched = new Set<string>();
+
+    const processRow = async (row: Record<string, unknown> | null, fallbackKey?: string) => {
+      const storageKey = String(row?.storage_key || fallbackKey || '').trim();
+      if (!storageKey) throw new Error('missing storage_key');
+      if (touched.has(storageKey)) return;
+      touched.add(storageKey);
+
+      const serviceKey =
+        process.env.COZE_SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        '';
+      const supabaseUrl =
+        process.env.COZE_SUPABASE_URL ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        '';
+      if (!serviceKey || !supabaseUrl) throw new Error('storage not configured');
+      const sb = createClient(supabaseUrl, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const bucket = resolveBucketName();
+      const { data: blob, error: dlErr } = await sb.storage.from(bucket).download(storageKey);
+      if (dlErr || !blob) throw new Error(dlErr?.message || 'download failed');
+      const ab = await blob.arrayBuffer();
+      const b64 = `data:image/png;base64,${Buffer.from(ab).toString('base64')}`;
+      const up = await uploadImageBase64(b64, folder, 'image/png');
+
+      if (row?.id) {
+        if (mode === 'move') {
+          const { error } = await admin.supabase
+            .from('generation_assets')
+            .update({
+              girlfriend_id: targetGirlfriendId,
+              storage_key: up.key,
+              url: up.url,
+            })
+            .eq('id', String(row.id));
+          if (error) throw error;
+          if (storageKey !== up.key) await deleteFile(storageKey);
+        } else {
+          await admin.supabase.from('generation_assets').insert({
+            created_by: admin.user!.id,
+            kind: row.kind || 'girlfriend',
+            girlfriend_id: targetGirlfriendId,
+            storage_key: up.key,
+            url: up.url,
+            prompt: row.prompt || null,
+            negative_prompt: row.negative_prompt || null,
+            workflow_id: row.workflow_id || null,
+            endpoint_id: row.endpoint_id || null,
+            ckpt_name: row.ckpt_name || null,
+            lora_name: row.lora_name || null,
+            width: row.width || null,
+            height: row.height || null,
+            steps: row.steps || null,
+            cfg: row.cfg || null,
+            seed: row.seed || null,
+            meta: { ...(typeof row.meta === 'object' && row.meta ? (row.meta as object) : {}), copied_from: row.id },
+          });
+        }
+      } else {
+        await admin.supabase.from('generation_assets').insert({
+          created_by: admin.user!.id,
+          kind: 'girlfriend',
+          girlfriend_id: targetGirlfriendId,
+          storage_key: up.key,
+          url: up.url,
+          prompt: null,
+          negative_prompt: null,
+          workflow_id: mode,
+          endpoint_id: null,
+          ckpt_name: null,
+          lora_name: null,
+          width: null,
+          height: null,
+          steps: null,
+          cfg: null,
+          seed: null,
+          meta: { source: mode, from_key: storageKey },
+        });
+        if (mode === 'move' && storageKey !== up.key) await deleteFile(storageKey);
+      }
+      changed += 1;
+    };
+
+    for (const id of ids) {
+      try {
+        const { data: row } = await admin.supabase
+          .from('generation_assets')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        await processRow((row as Record<string, unknown>) || null);
+      } catch (e) {
+        errors.push(`${id}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    for (const key of keys) {
+      try {
+        const { data: row } = await admin.supabase
+          .from('generation_assets')
+          .select('*')
+          .eq('storage_key', key)
+          .maybeSingle();
+        await processRow((row as Record<string, unknown>) || null, key);
+      } catch (e) {
+        errors.push(`${key}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      mode,
+      changed,
+      failed: errors.length,
+      target_girlfriend_id: targetGirlfriendId,
+      errors: errors.slice(0, 15),
+    });
+  }
+
+if (body.action === 'generate') {
     const rl = await checkRateLimitAsync(`comfy-gen:${admin.user!.id}`, GEN_LIMIT);
     if (!rl.allowed) {
       return NextResponse.json(

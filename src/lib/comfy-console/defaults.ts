@@ -221,7 +221,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
         id: 'wf-girlfriend',
         name: '人物肖像 · 3/4 全身',
         kind: 'girlfriend',
-        description: '性感女友卡：3/4 构图 + 固定体态词，可挂身材/动作/服装 LoRA',
+        description: '性感女友卡：特征+动作+环境+质量；3/4 身材展示；明亮面部光；可挂身材/质感 LoRA',
         defaults: {
           ckpt_id: 'flux-fp8',
           lora_id: 'body-curvy-flux',
@@ -233,9 +233,9 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           denoise: 1,
           endpoint_key: 'portrait-v9',
           positive:
-            'three-quarter body portrait of a beautiful young adult woman, natural soft smile, fair luminous skin, well-lit face, bright clean exposure, lively eyes with catchlights, looking at viewer, photorealistic, natural proportions, bright soft key light',
+            'stunning beautiful young woman, pretty balanced face, refined natural glam makeup, clear healthy skin, attractive feminine figure, three-quarter body preferred (chest and hips visible) or full body long legs, facing viewer, eye contact, natural flirty pose, soft bright beauty lighting on face, photorealistic, sharp focus',
           negative:
-            'blurry, deformed, bad anatomy, child, underage, watermark, text, logo, flat chest',
+            'stiff mannequin pose, face-only close-up, underexposed, exaggerated plastic body, from behind, blurry, deformed, child, underage, watermark',
         },
       },
       {

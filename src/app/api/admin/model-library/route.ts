@@ -18,6 +18,7 @@ import {
   type ModelLibrary,
 } from '@/lib/model-library';
 import { LORA_CATALOG, groupLorasByCategory } from '@/lib/comfy-console/lora-catalog';
+import { getInstalledLoraSet } from '@/lib/runpod-loras';
 import { FLUX_PARAM_PRESETS, FLUX_SCENE_PRESETS } from '@/lib/prompt/flux-presets';
 
 export const dynamic = 'force-dynamic';
@@ -331,6 +332,34 @@ export async function POST(req: NextRequest) {
     );
     const { source } = await saveModelLibrary(lib, admin.supabase);
     return NextResponse.json({ success: true, source, library: lib });
+  }
+
+  if (action === 'sync_installed') {
+    const lib = await loadModelLibrary(admin.supabase);
+    const installed = getInstalledLoraSet();
+    let updated = 0;
+    const now = new Date().toISOString();
+    for (const it of lib.items) {
+      const fn = String(it.filename || '').trim();
+      if (!fn) continue;
+      if (installed.has(fn) && it.status !== 'downloaded') {
+        it.status = 'downloaded';
+        it.updated_at = now;
+        updated += 1;
+      } else if (!installed.has(fn) && it.status === 'downloaded' && body.demote_missing) {
+        it.status = 'wishlist';
+        it.updated_at = now;
+        updated += 1;
+      }
+    }
+    lib.updated_at = now;
+    await saveModelLibrary(lib, admin.supabase);
+    return NextResponse.json({
+      ok: true,
+      updated,
+      installed: [...installed].sort(),
+      library: lib,
+    });
   }
 
   if (action === 'import_catalog') {

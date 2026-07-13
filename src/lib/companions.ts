@@ -44,6 +44,19 @@ function cleanName(raw: unknown, slug?: unknown, index = 0): string {
   return extractPersonName(s) || safeDisplayName(s, fromSlug || `Companion ${index + 1}`);
 }
 
+
+function isLikelyVideoUrl(url: string): boolean {
+  const u = url.toLowerCase().split('?')[0];
+  return (
+    u.endsWith('.mp4') ||
+    u.endsWith('.webm') ||
+    u.endsWith('.mov') ||
+    u.endsWith('.m4v') ||
+    u.includes('/video/') ||
+    u.includes('/videos/')
+  );
+}
+
 function pickImage(row: Record<string, unknown>, index: number): string {
   const candidates = [
     row.image_url,
@@ -65,6 +78,8 @@ function pickImage(row: Record<string, unknown>, index: number): string {
       u.startsWith('/') ||
       u.startsWith('data:image/')
     ) {
+      // Image fields must not swallow video assets
+      if (isLikelyVideoUrl(u) && !u.startsWith('data:image/')) continue;
       return u;
     }
   }
@@ -88,7 +103,7 @@ function pickVideo(row: Record<string, unknown>): string | undefined {
     const u = String(c || '').trim();
     if (!u) continue;
     if (looksLikeFluxPrompt(u) && !u.startsWith('http')) continue;
-    if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('/')) {
+    if ((u.startsWith('http://') || u.startsWith('https://') || u.startsWith('/')) && isLikelyVideoUrl(u)) {
       return u;
     }
   }
@@ -171,12 +186,13 @@ export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl
   return {
     id,
     name,
+    slug: (row.slug as string) || undefined,
     age,
     tagline,
     avatar: image,
     portrait: image,
     video,
-    avatar_video: avatarVideo || video,
+    avatar_video: avatarVideo || undefined,
     rarity: RARITIES.includes(rarity) ? rarity : 'R',
     tags: tags.length ? tags : ['romantic'],
     personality,

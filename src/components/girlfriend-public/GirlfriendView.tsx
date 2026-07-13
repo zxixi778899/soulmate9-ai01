@@ -102,7 +102,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
     }
   };
 
-  const imgUrl = girlfriend.image_url;
+  const imgUrl = girlfriend.image_url || girlfriend.portrait_url || girlfriend.avatar_url || null;
 
   return (
     <>

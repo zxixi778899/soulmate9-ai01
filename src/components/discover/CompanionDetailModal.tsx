@@ -37,7 +37,11 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
   const rotateY = useTransform(x, [-200, 200], [-15, 15]);
   const rotateX = useTransform(y, [-200, 200], [12, -12]);
 
-  if (!open) return null;
+  if (!open || !girl) return null;
+
+  const safeName = girl.name || 'Companion';
+  const portrait = girl.portrait || girl.avatar || '';
+  const video = girl.video || girl.avatar_video || '';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
@@ -79,11 +83,11 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
             >
               <div className="absolute inset-0" style={{ transform: 'translateZ(40px)' }}>
                 <CardMedia
-                  src={girl.portrait || girl.avatar}
-                  videoSrc={girl.video || girl.avatar_video}
-                  alt={girl.name}
-                  forcePlay
-                  showBadge
+                  src={portrait}
+                  videoSrc={video || undefined}
+                  alt={safeName}
+                  forcePlay={Boolean(video)}
+                  showBadge={Boolean(video)}
                 />
               </div>
 
@@ -107,7 +111,7 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
                     {girl.rarity || 'R'} · ID #{String(girl.id || '').slice(0, 6)}
                   </div>
                   <h2 className="text-5xl font-bold tracking-tight text-white drop-shadow-[0_0_24px_rgba(255,46,136,0.4)]">
-                    {girl.name}
+                    {safeName}
                   </h2>
                 </div>
                 {girl.age && (
@@ -198,7 +202,7 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
                     if (navigator.share) {
                       await navigator.share({ title: girl.name, text: girl.tagline || girl.name, url });
                     } else if (navigator.clipboard) {
-                      await navigator.clipboard.writeText(`${girl.name} — ${url}`);
+                      await navigator.clipboard.writeText(`${safeName} — ${url}`);
                     }
                   } catch { /* user cancelled */ }
                 }}

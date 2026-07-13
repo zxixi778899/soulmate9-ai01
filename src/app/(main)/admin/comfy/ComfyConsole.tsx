@@ -17,11 +17,17 @@ import {
 import {
   Loader2, Play, Trash2, RefreshCw, HardDrive, Workflow, ImageIcon,
   Settings2, BookOpen, Save, RotateCcw, Sparkles, Layers, ExternalLink,
-  Zap, Upload, Download, CheckSquare, Square, Copy,
+  Zap, Upload, Download, CheckSquare, Square, Copy, ImagePlus, Video, FileImage,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import {
+  assembleGirlfriendFromRow,
+  GIRLFRIEND_NEGATIVE_FLUX,
+  resolveGirlfriendLoraPlan,
+  subjectFromGirlfriendRow,
+} from '@/lib/prompt/girlfriend';
 
 type Any = Record<string, any>;
 
@@ -41,55 +47,56 @@ const CIVITAI_PRESETS = [
   {
     id: 'portrait-soft',
     name: '窗边人像',
-    desc: '特征清晰 · 侧光自然 · 适合主页卡',
+    desc: '3/4 构图 · 明亮侧光 · 适合主页卡',
     prompt:
-      'young woman with unique facial features, soft freckles, looking over shoulder by a window, sheer curtains, golden side sunlight, natural skin, candid three-quarter portrait, photorealistic, sharp eyes',
-    negative: 'blurry, deformed, same face, plastic skin, child, underage, watermark, text',
+      'stunning beautiful young woman, refined face, glam makeup, fair luminous skin, three-quarter body chest and hips visible, leaning by a bright window, soft side sunlight on face, looking at viewer, flirty soft smile, photorealistic, sharp eyes, natural proportions',
+    negative: 'blurry, deformed, underexposed, from behind, face-only close-up, plastic skin, child, underage, watermark, text',
     width: 832, height: 1216, steps: 28, cfg: 3.5,
   },
   {
     id: 'fullbody-glam',
-    name: '夜景全长',
-    desc: '动作站姿变化 · 城市轮廓光',
+    name: '夜景全身',
+    desc: '大长腿 · 站姿变化 · 城市夜景',
     prompt:
-      'attractive young woman, full body, leaning on rooftop railing, hip cocked, city skyline bokeh at night, fitted evening outfit, cool ambient light with warm rim light, photorealistic, natural proportions',
-    negative: 'blurry, cropped head, bad anatomy, same face, watermark',
+      'stunning beautiful young woman, full body long legs, weight on one hip, rooftop railing, city skyline bokeh, fitted evening dress, bright key light on face, cool ambient rim, looking at viewer, photorealistic, attractive figure',
+    negative: 'blurry, cropped head, bad anatomy, underexposed, from behind, same face, watermark, child, underage',
     width: 768, height: 1344, steps: 28, cfg: 3.5,
   },
   {
     id: 'nsfw-intimate',
-    name: '卧室亲密',
-    desc: '回眸跪姿 · 粉光 · 成人氛围',
+    name: '卧室私密',
+    desc: '3/4 身材展示 · 暧昧光 · 成人氛围',
     prompt:
-      'young woman kneeling on bed looking back over shoulder, arched back, soft lingerie, pink LED bedroom light plus warm lamp, intimate mood, detailed skin, photorealistic',
-    negative: 'gore, violence, child, underage, blurry, deformed, watermark',
+      'stunning beautiful young woman, three-quarter body on bed, arched posture facing camera, soft lingerie, pink LED plus warm lamp on face, seductive eye contact, fair luminous skin, photorealistic, detailed skin texture',
+    negative: 'gore, violence, child, underage, blurry, deformed, underexposed, from behind only, watermark',
     width: 832, height: 1216, steps: 28, cfg: 3.2,
   },
   {
     id: 'selfie-flash',
-    name: '镜子自拍',
-    desc: '动作与光线变化 · 减少脸模版感',
+    name: '镜面自拍',
+    desc: '自拍角度 · 闪光 · 自然身体语言',
     prompt:
-      'messy wavy hair young woman, bathroom mirror selfie, phone in hand, hip popped, direct flash lighting, casual crop top, candid expression, photorealistic, natural skin texture',
-    negative: 'studio softbox only, plastic skin, same face, child, underage, watermark',
+      'stunning beautiful young woman, bathroom mirror selfie, phone in hand, hip popped, direct flash plus vanity light on face, casual crop top, candid playful expression, three-quarter to full body, photorealistic, natural skin texture',
+    negative: 'studio softbox only, plastic skin, underexposed, face-only, child, underage, watermark',
     width: 832, height: 1216, steps: 26, cfg: 3.5,
   },
   {
     id: 'cafe-day',
-    name: '咖啡馆日间',
-    desc: '日常动作 · 窗光 · 更生活化',
+    name: '咖啡馆日景',
+    desc: '日常甜美 · 明亮 · 表情生动',
     prompt:
-      'young woman at cafe window seat, chin on hand, soft daylight, coffee cup, casual outfit, easy smile, 50mm candid portrait, photorealistic, detailed eyes',
-    negative: 'blurry, deformed, plastic skin, same face, watermark, text',
+      'stunning beautiful young woman at cafe window seat, chin on hand, bright daylight on face, coffee cup, casual stylish outfit, easy smile looking at viewer, three-quarter body, 50mm candid, photorealistic, detailed eyes',
+    negative: 'blurry, deformed, plastic skin, underexposed, from behind, watermark, text, child, underage',
     width: 832, height: 1216, steps: 26, cfg: 3.5,
   },
 ];
 
 
 
-type ComfyConsoleProps = { girlfriendId?: string };
 
-export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
+type ComfyConsoleProps = { girlfriendId?: string; embedded?: boolean };
+
+export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyConsoleProps) {
   const [tab, setTab] = useState<'generate' | 'loras' | 'library' | 'workflows' | 'infra'>('generate');
   const [config, setConfig] = useState<Any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,6 +107,10 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [loraFilter, setLoraFilter] = useState<string>('all');
+  const [genMode, setGenMode] = useState<'txt2img' | 'img2img' | 'img2video'>('txt2img');
+  const [installedLoras, setInstalledLoras] = useState<string[]>([]);
+  const [volumeInfo, setVolumeInfo] = useState<Any | null>(null);
+  const [syncingInstalled, setSyncingInstalled] = useState(false);
 
   // Generate form
   const [workflowId, setWorkflowId] = useState('wf-girlfriend');
@@ -132,6 +143,18 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
     toast.success(`已应用预设：${p.name}`);
   };
 
+  const loadVolume = useCallback(async () => {
+    try {
+      const res = await authedFetch('/api/admin/comfy?view=volume');
+      const data = await readResponseJson(res).catch(() => ({} as any));
+      if (!res.ok) return;
+      setInstalledLoras(Array.isArray(data.installed_loras) ? data.installed_loras : []);
+      setVolumeInfo(data);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const loadConfig = useCallback(async () => {
 
     setLoading(true);
@@ -142,7 +165,8 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
       setConfig(data.config);
       const wf = data.config?.workflows?.find((w: Any) => w.id === 'wf-girlfriend')
         || data.config?.workflows?.[0];
-      if (wf) applyWorkflow(wf, data.config);
+      // 有女友卡时只套参数，不写死通用 positive（避免盖住已调试提示词）
+      if (wf) applyWorkflow(wf, data.config, { preservePrompt: Boolean(girlfriendId) });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -171,7 +195,8 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
 
   useEffect(() => {
     loadConfig();
-  }, [loadConfig]);
+    loadVolume();
+  }, [loadConfig, loadVolume]);
 
   useEffect(() => {
     if (!girlfriendId) {
@@ -188,22 +213,8 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
         const one = data.girlfriend || list[0] || null;
         if (!cancelled) setScopedGirlfriend(one);
         if (one) {
-          // fill prompt from card fields if empty
-          const bits = [
-            one.image_prompt,
-            one.appearance_hair_color,
-            one.appearance_hair,
-            one.appearance_eyes,
-            one.appearance_body,
-            one.appearance_style,
-            one.personality,
-          ].filter(Boolean);
-          if (bits.length) {
-            setPrompt((prev: string) => prev.trim() ? prev : bits.join(', '));
-          }
-          if (one.negative_prompt) {
-            setNegative((prev: string) => prev.trim() ? prev : String(one.negative_prompt));
-          }
+          // 强制使用已调试的 assembleGirlfriendFromRow，而不是字段逗号拼接
+          fillPromptFromGirlfriend(one, { force: true, toastOn: true });
           toast.message(`已载入女友：${one.name || girlfriendId}`);
         }
       } catch {
@@ -220,7 +231,7 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
     if (tab === 'library') loadAssets();
   }, [tab, loadAssets]);
 
-  function applyWorkflow(wf: Any, cfg?: Any) {
+  function applyWorkflow(wf: Any, cfg?: Any, opts?: { preservePrompt?: boolean }) {
     const c = cfg || config;
     setWorkflowId(wf.id);
     setKind(wf.kind || 'custom');
@@ -233,9 +244,67 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
     setSteps(wf.defaults?.steps || 28);
     setCfg(wf.defaults?.cfg || 3.5);
     setDenoise(wf.defaults?.denoise ?? 0.55);
-    setPrompt(wf.defaults?.positive || '');
-    setNegative(wf.defaults?.negative || '');
+    if (!opts?.preservePrompt) {
+      setPrompt(wf.defaults?.positive || '');
+      setNegative(wf.defaults?.negative || '');
+    }
     void c;
+  }
+
+  /** 用已调试的女友卡提示词配方（特征+动作+环境+质量），覆盖通用工作流默认句 */
+  function fillPromptFromGirlfriend(row: Any, opts?: { force?: boolean; toastOn?: boolean }) {
+    if (!row) return false;
+    try {
+      const assembled = assembleGirlfriendFromRow(row as Record<string, unknown>, '', {
+        useEmptyNegative: false,
+      });
+      const nextPrompt = String(assembled.positive || '').trim();
+      const nextNeg = String(assembled.negative || GIRLFRIEND_NEGATIVE_FLUX).trim();
+      if (!nextPrompt) return false;
+      if (opts?.force) {
+        setPrompt(nextPrompt);
+        setNegative(nextNeg || GIRLFRIEND_NEGATIVE_FLUX);
+      } else {
+        setPrompt((prev: string) => {
+          const p = (prev || '').trim();
+          const isGeneric =
+            !p ||
+            p.startsWith('three-quarter body portrait of a beautiful young adult woman') ||
+            p === String((config as Any)?.workflows?.find((w: Any) => w.id === 'wf-girlfriend')?.defaults?.positive || '').trim();
+          return isGeneric ? nextPrompt : p;
+        });
+        setNegative((prev: string) => {
+          const n = (prev || '').trim();
+          if (!n || n.includes('flat chest') || n.startsWith('blurry, deformed, bad anatomy, child')) {
+            return nextNeg || GIRLFRIEND_NEGATIVE_FLUX;
+          }
+          return n;
+        });
+      }
+
+      try {
+        const plan = resolveGirlfriendLoraPlan(subjectFromGirlfriendRow(row as Record<string, unknown>));
+        if (plan?.lora_name) {
+          const match = (config?.loras || []).find((l: Any) =>
+            String(l.filename || '') === plan.lora_name || String(l.id || '') === plan.lora_name,
+          );
+          if (match) {
+            setLoraId((cur: string) => (cur && cur !== 'none' ? cur : match.id));
+            setLoraStrength((s: number) => (s > 0 ? s : plan.lora_strength_model || match.default_strength || 0.75));
+          }
+        }
+      } catch {
+        /* ignore lora plan */
+      }
+
+      if (opts?.toastOn !== false) {
+        toast.success(`已套用女友卡提示词配方：${row.name || 'girlfriend'}`);
+      }
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '提示词组装失败');
+      return false;
+    }
   }
 
   /** 一键调用：选中 LoRA + 强度 + 触发词写入提示词 */
@@ -293,6 +362,16 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
     [loras, loraId],
   );
 
+  const installedSet = useMemo(() => new Set(installedLoras), [installedLoras]);
+
+  const loraOnDisk = useMemo(() => {
+    if (!selectedLora || loraId === 'none') return true;
+    const fn = String(selectedLora.filename || '').trim();
+    if (!fn) return false;
+    if (installedSet.size === 0) return true;
+    return installedSet.has(fn);
+  }, [selectedLora, loraId, installedSet]);
+
   const lorasByCat = useMemo(() => {
     const map: Record<string, Any[]> = {};
     for (const l of loras) {
@@ -310,9 +389,36 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
     [endpoints, endpointKey],
   );
 
+  const syncInstalled = async () => {
+    setSyncingInstalled(true);
+    try {
+      const res = await authedFetch('/api/admin/model-library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_installed' }),
+      });
+      const data = await readResponseJson(res).catch(() => ({} as any));
+      if (!res.ok) throw new Error(data.error || '同步失败');
+      await loadVolume();
+      toast.success(`已同步盘状态 · 更新 ${data.updated ?? 0} 条`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '同步失败');
+    } finally {
+      setSyncingInstalled(false);
+    }
+  };
+
   const generate = async () => {
+    if (genMode === 'img2video') {
+      toast.message('图生视频接口预留中，请先用文生图/图生图');
+      return;
+    }
     if (!prompt.trim()) {
       toast.error('请填写正向提示词');
+      return;
+    }
+    if (genMode === 'img2img' && !inputImage.trim()) {
+      toast.error('图生图需要参考图 URL');
       return;
     }
     setGenerating(true);
@@ -323,7 +429,7 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'generate',
-        girlfriend_id: girlfriendId || undefined,
+          girlfriend_id: girlfriendId || undefined,
           workflow_id: workflowId,
           endpoint_key: endpointKey,
           endpoint_id: selectedEndpoint?.endpoint_id || undefined,
@@ -337,8 +443,9 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
           steps,
           cfg,
           seed,
-          denoise: inputImage ? denoise : undefined,
-          input_image: inputImage.trim() || undefined,
+          denoise: genMode === 'img2img' || inputImage ? denoise : undefined,
+          input_image: genMode === 'img2img' || inputImage.trim() ? inputImage.trim() || undefined : undefined,
+          gen_mode: genMode,
           kind,
         }),
       });
@@ -539,7 +646,7 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0f14] p-4 sm:p-6 text-slate-100">
+    <div className={embedded ? 'bg-transparent p-3 sm:p-4 text-slate-100' : 'min-h-screen bg-[#0b0f14] p-4 sm:p-6 text-slate-100'}>
       {girlfriendId ? (
         <div className="mb-4 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-sm text-violet-100">
           {gfLoading ? '正在载入女友…' : scopedGirlfriend ? (
@@ -555,17 +662,7 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
             className="ml-3 text-xs underline text-violet-200"
             onClick={() => {
               if (!scopedGirlfriend) return;
-              const bits = [
-                scopedGirlfriend.image_prompt,
-                scopedGirlfriend.appearance_hair_color,
-                scopedGirlfriend.appearance_hair,
-                scopedGirlfriend.appearance_eyes,
-                scopedGirlfriend.appearance_body,
-                scopedGirlfriend.appearance_style,
-              ].filter(Boolean);
-              if (bits.length) setPrompt(bits.join(', '));
-              if (scopedGirlfriend.negative_prompt) setNegative(String(scopedGirlfriend.negative_prompt));
-              toast.success('已用女友卡填充提示词');
+              fillPromptFromGirlfriend(scopedGirlfriend, { force: true, toastOn: true });
             }}
           >
             一键填充提示词
@@ -576,6 +673,7 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
           公共创作模式：结果进入 comfy-outputs / 公共资产库。从「女友与媒体」点创作可切换为按卡隔离。
         </div>
       )}
+      {!embedded && (
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
@@ -591,342 +689,244 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={loadConfig} className="border-slate-700">
+          <Button size="sm" variant="outline" onClick={() => { loadConfig(); loadVolume(); }} className="border-slate-700">
             <RefreshCw className="h-3.5 w-3.5 mr-1" /> 刷新
           </Button>
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-900/50 p-1 w-fit">
+      )}
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-900/50 p-1 w-fit">
         {[
           { id: 'generate', label: '生成', icon: Play },
           { id: 'loras', label: 'LoRA 清单', icon: Layers },
           { id: 'library', label: '图库', icon: ImageIcon },
           { id: 'workflows', label: '工作流', icon: Workflow },
           { id: 'infra', label: '网络卷/端点', icon: HardDrive },
-        ].map((t) => (
+        ].map((tabItem) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id as typeof tab)}
+            key={tabItem.id}
+            type="button"
+            onClick={() => setTab(tabItem.id as typeof tab)}
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 rounded-md text-sm',
-              tab === t.id ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white',
+              tab === tabItem.id ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white',
             )}
           >
-            <t.icon className="h-3.5 w-3.5" />
-            {t.label}
+            <tabItem.icon className="h-3.5 w-3.5" />
+            {tabItem.label}
           </button>
         ))}
+        </div>
+        <Button size="sm" variant="outline" className="border-cyan-800 text-cyan-200 h-9" disabled={syncingInstalled} onClick={syncInstalled}>
+          {syncingInstalled ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <HardDrive className="h-3.5 w-3.5 mr-1" />}
+          同步盘状态
+        </Button>
+        <span className="text-[10px] text-slate-500">
+          已装 {installedLoras.length} · {volumeInfo?.paths?.loras || config.network_volume?.loras_dir || 'models/loras'}
+        </span>
       </div>
 
-      {/* GENERATE */}
+      {/* GENERATE — SD: left params sticky / right preview */}
       {tab === 'generate' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-4">
-
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-semibold text-white">生成预设（Civitai 风格）</div>
-                <p className="text-[11px] text-white/55">一键填充提示词 / 尺寸 / Steps / CFG，再按需微调。</p>
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(300px,400px)_1fr] gap-3 items-start">
+          <div className="space-y-3 xl:sticky xl:top-14 xl:max-h-[calc(100vh-4.5rem)] xl:overflow-y-auto pr-0.5">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+              <div className="text-[11px] text-slate-400 mb-2 flex items-center gap-1">
+                <Settings2 className="h-3.5 w-3.5" /> 生成模式
               </div>
-              <Badge variant="outline" className="text-[10px]">中文解说</Badge>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {CIVITAI_PRESETS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => applyPreset(p)}
-                  className="text-left rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] px-3 py-2 transition-colors"
-                >
-                  <div className="text-xs font-semibold text-pink-200">{p.name}</div>
-                  <div className="text-[11px] text-white/55 mt-0.5">{p.desc}</div>
-                  <div className="text-[10px] text-white/35 mt-1">{p.width}×{p.height} · steps {p.steps} · cfg {p.cfg}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-violet-300">
-              <Settings2 className="h-4 w-4" /> 节点参数
-            </div>
-
-            <div>
-              <Label className="text-[11px] text-slate-400">工作流预设</Label>
-              <Select
-                value={workflowId}
-                onValueChange={(id) => {
-                  const wf = workflows.find((w) => w.id === id);
-                  if (wf) applyWorkflow(wf);
-                }}
-              >
-                <SelectTrigger className="mt-1 bg-slate-950 border-slate-700"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {workflows.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-[10px] text-slate-500">
-                {workflows.find((w) => w.id === workflowId)?.description}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-[11px] text-slate-400">类型 kind</Label>
-                <Select value={kind} onValueChange={setKind}>
-                  <SelectTrigger className="mt-1 bg-slate-950 border-slate-700"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {['girlfriend', 'outfit', 'prop', 'custom', 'tryon'].map((k) => (
-                      <SelectItem key={k} value={k}>{k}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[11px] text-slate-400">端点</Label>
-                <Select value={endpointKey} onValueChange={setEndpointKey}>
-                  <SelectTrigger className="mt-1 bg-slate-950 border-slate-700"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {endpoints.filter((e) => e.kind === 'comfy').map((e) => (
-                      <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-3 gap-1.5">
+                {([
+                  { id: 'txt2img' as const, label: '文生图', icon: FileImage },
+                  { id: 'img2img' as const, label: '图生图', icon: ImagePlus },
+                  { id: 'img2video' as const, label: '图生视频', icon: Video },
+                ]).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      if (m.id === 'img2video') toast.message('图生视频预留：工作流就绪后开放');
+                      setGenMode(m.id);
+                    }}
+                    className={cn(
+                      'flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px]',
+                      genMode === m.id
+                        ? 'border-violet-500 bg-violet-600/30 text-white'
+                        : 'border-slate-700 bg-black/20 text-slate-400 hover:text-white',
+                    )}
+                  >
+                    <m.icon className="h-4 w-4" />
+                    {m.label}
+                  </button>
+                ))}
               </div>
             </div>
-            <p className="text-[10px] font-mono text-slate-500">
-              endpoint_id: {selectedEndpoint?.endpoint_id || '(空 — 请到「网络卷/端点」填写)'}
-            </p>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-white">快速预设</div>
+                <Badge variant="outline" className="text-[10px]">中文</Badge>
+              </div>
+              <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto">
+                {CIVITAI_PRESETS.map((pr) => (
+                  <button
+                    key={pr.id}
+                    type="button"
+                    onClick={() => applyPreset(pr)}
+                    className="text-left rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] px-2.5 py-1.5"
+                  >
+                    <div className="text-[11px] font-semibold text-pink-200">{pr.name}</div>
+                    <div className="text-[10px] text-white/50">{pr.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-violet-300">
+                <Settings2 className="h-4 w-4" /> 参数
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[11px] text-slate-400">工作流</Label>
+                  <Select value={workflowId} onValueChange={(id) => { const wf = workflows.find((w) => w.id === id); if (wf) applyWorkflow(wf); else setWorkflowId(id); }}>
+                    <SelectTrigger className="h-9 bg-slate-950 border-slate-700 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{workflows.map((w) => (<SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>))}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[11px] text-slate-400">端点</Label>
+                  <Select value={endpointKey} onValueChange={setEndpointKey}>
+                    <SelectTrigger className="h-9 bg-slate-950 border-slate-700 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{endpoints.map((e) => (<SelectItem key={e.id} value={e.id}>{e.label || e.id}</SelectItem>))}</SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div>
                 <Label className="text-[11px] text-slate-400">Checkpoint</Label>
                 <Select value={ckptId} onValueChange={setCkptId}>
-                  <SelectTrigger className="mt-1 bg-slate-950 border-slate-700"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 bg-slate-950 border-slate-700 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{checkpoints.map((c) => (<SelectItem key={c.id} value={c.id}>{c.label || c.filename || c.id}</SelectItem>))}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[11px] text-slate-400 flex items-center justify-between">
+                  <span>LoRA（网络卷）</span>
+                  {loraId !== 'none' && (
+                    <span className={cn('text-[10px]', loraOnDisk ? 'text-emerald-400' : 'text-amber-400')}>
+                      {loraOnDisk ? '盘上可调' : '未在盘上·会回退'}
+                    </span>
+                  )}
+                </Label>
+                <Select value={loraId || 'none'} onValueChange={(id) => { setLoraId(id); const l = loras.find((x) => x.id === id); if (l?.default_strength != null) setLoraStrength(l.default_strength); }}>
+                  <SelectTrigger className="h-9 bg-slate-950 border-slate-700 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {checkpoints.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
-                    ))}
+                    <SelectItem value="none">不使用 LoRA</SelectItem>
+                    {loras.map((l) => {
+                      const fn = String(l.filename || '');
+                      const on = !fn || installedSet.size === 0 || installedSet.has(fn);
+                      return (
+                        <SelectItem key={l.id} value={l.id}>
+                          {on ? '● ' : '○ '}{String(l.label || l.id).replace(/^\[[^\]]+\]\s*/, '')}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-[11px] text-slate-400">LoRA（网络卷）</Label>
-                <Select
-                  value={loraId || 'none'}
-                  onValueChange={(id) => {
-                    setLoraId(id);
-                    const l = loras.find((x) => x.id === id);
-                    if (l?.default_strength != null) setLoraStrength(l.default_strength);
-                  }}
-                >
-                  <SelectTrigger className="mt-1 bg-slate-950 border-slate-700"><SelectValue /></SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {loras.map((l) => (
-                      <SelectItem key={l.id} value={l.id || 'none'}>{l.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {loraId && loraId !== 'none' && (
-              <div className="rounded-lg border border-violet-900/40 bg-violet-950/20 p-2 space-y-2">
-                <div>
-                  <Label className="text-[11px] text-slate-400">
-                    LoRA 强度 {loraStrength.toFixed(2)}
-                    {selectedLora?.default_strength != null && (
-                      <span className="ml-1 text-slate-500">
-                        （推荐 {selectedLora.default_strength}）
-                      </span>
-                    )}
-                  </Label>
-                  <input
-                    type="range" min={0} max={1.5} step={0.05}
-                    value={loraStrength}
-                    onChange={(e) => setLoraStrength(Number(e.target.value))}
-                    className="w-full accent-violet-500"
-                  />
+              {loraId && loraId !== 'none' && (
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-slate-400">LoRA 强度 {loraStrength.toFixed(2)}</Label>
+                  <input type="range" min={0} max={1.2} step={0.05} value={loraStrength} onChange={(e) => setLoraStrength(Number(e.target.value))} className="w-full accent-violet-500" />
+                  {selectedLora?.filename && <p className="text-[10px] font-mono text-cyan-400/80">{selectedLora.filename}</p>}
+                  {selectedLora?.usage && <p className="text-[10px] text-slate-400">{selectedLora.usage}</p>}
                 </div>
-                {selectedLora?.usage && (
-                  <p className="text-[10px] text-slate-400 leading-relaxed">{selectedLora.usage}</p>
-                )}
-                {selectedLora?.filename && (
-                  <p className="text-[10px] font-mono text-cyan-400/80">{selectedLora.filename}</p>
-                )}
-                {(selectedLora?.trigger_words?.length ?? 0) > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {selectedLora!.trigger_words!.map((t: string) => (
-                      <button
-                        key={t}
-                        type="button"
-                        className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-violet-200 hover:bg-violet-800"
-                        onClick={() => {
-                          setPrompt((p) => (p.includes(t) ? p : p ? `${t}, ${p}` : t));
-                          toast.message(`已插入：${t}`);
-                        }}
-                      >
-                        + {t}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-[10px] border-slate-700 w-full"
-                  onClick={() => setTab('loras')}
-                >
-                  打开完整 LoRA 清单
-                </Button>
-              </div>
-            )}
-
-            <div>
-              <Label className="text-[11px] text-slate-400">Positive</Label>
-              <Textarea
-                className="mt-1 min-h-[100px] bg-slate-950 border-slate-700 text-xs font-mono"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-[11px] text-slate-400">Negative</Label>
-              <Textarea
-                className="mt-1 min-h-[60px] bg-slate-950 border-slate-700 text-xs font-mono"
-                value={negative}
-                onChange={(e) => setNegative(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <Label className="text-[11px] text-slate-400">宽</Label>
-                <Input type="number" className="mt-1 bg-slate-950 border-slate-700 h-8"
-                  value={width} onChange={(e) => setWidth(Number(e.target.value))} />
-              </div>
-              <div>
-                <Label className="text-[11px] text-slate-400">高</Label>
-                <Input type="number" className="mt-1 bg-slate-950 border-slate-700 h-8"
-                  value={height} onChange={(e) => setHeight(Number(e.target.value))} />
-              </div>
-              <div>
-                <Label className="text-[11px] text-slate-400">Steps</Label>
-                <Input type="number" className="mt-1 bg-slate-950 border-slate-700 h-8"
-                  value={steps} onChange={(e) => setSteps(Number(e.target.value))} />
-              </div>
-              <div>
-                <Label className="text-[11px] text-slate-400">CFG</Label>
-                <Input type="number" step={0.1} className="mt-1 bg-slate-950 border-slate-700 h-8"
-                  value={cfg} onChange={(e) => setCfg(Number(e.target.value))} />
-              </div>
-              <div>
-                <Label className="text-[11px] text-slate-400">Seed (-1随机)</Label>
-                <Input type="number" className="mt-1 bg-slate-950 border-slate-700 h-8"
-                  value={seed} onChange={(e) => setSeed(Number(e.target.value))} />
-              </div>
-              <div>
-                <Label className="text-[11px] text-slate-400">Denoise</Label>
-                <Input type="number" step={0.05} className="mt-1 bg-slate-950 border-slate-700 h-8"
-                  value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} />
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-[11px] text-slate-400">参考图 URL（img2img / 换装）</Label>
-              <Input
-                className="mt-1 bg-slate-950 border-slate-700 h-8 text-xs"
-                placeholder="https://... 女友肖像"
-                value={inputImage}
-                onChange={(e) => setInputImage(e.target.value)}
-              />
-            </div>
-
-            <Button
-              className="w-full h-11 bg-violet-600 hover:bg-violet-500 font-bold"
-              disabled={generating}
-              onClick={generate}
-            >
-              {generating ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> 生成中（30–90s）…</>
-              ) : (
-                <><Play className="h-4 w-4 mr-2" /> Queue Prompt 生成</>
               )}
-            </Button>
+              <div>
+                <Label className="text-[11px] text-slate-400">正向提示词</Label>
+                <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={5} className="bg-slate-950 border-slate-700 text-xs font-mono" placeholder="特征 + 动作 + 环境 + 质量" />
+              </div>
+              <div>
+                <Label className="text-[11px] text-slate-400">反向提示词</Label>
+                <Textarea value={negative} onChange={(e) => setNegative(e.target.value)} rows={2} className="bg-slate-950 border-slate-700 text-xs font-mono" />
+              </div>
+              {(genMode === 'img2img' || genMode === 'img2video') && (
+                <div className="space-y-2 rounded-lg border border-amber-900/40 bg-amber-950/20 p-2">
+                  <Label className="text-[11px] text-amber-200/90">参考图 URL</Label>
+                  <Input value={inputImage} onChange={(e) => setInputImage(e.target.value)} className="bg-slate-950 border-slate-700 text-xs font-mono" placeholder="https://..." />
+                  {genMode === 'img2img' && (
+                    <div>
+                      <Label className="text-[11px] text-slate-400">Denoise {denoise.toFixed(2)}</Label>
+                      <input type="range" min={0.15} max={0.95} step={0.05} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} className="w-full accent-amber-500" />
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label className="text-[11px] text-slate-400">宽</Label><Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
+                <div><Label className="text-[11px] text-slate-400">高</Label><Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
+                <div><Label className="text-[11px] text-slate-400">Steps</Label><Input type="number" value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
+                <div><Label className="text-[11px] text-slate-400">CFG</Label><Input type="number" step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
+                <div><Label className="text-[11px] text-slate-400">Seed</Label><Input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value))} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
+                <div><Label className="text-[11px] text-slate-400">kind</Label><Input value={kind} onChange={(e) => setKind(e.target.value)} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
+              </div>
+              <Button className="w-full bg-violet-600 hover:bg-violet-500 h-10" disabled={generating || genMode === 'img2video'} onClick={generate}>
+                {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                {genMode === 'img2video' ? '视频预留' : generating ? '生成中…' : '开始生成'}
+              </Button>
+            </div>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 min-h-[420px]">
-            <div className="mb-3 text-sm font-semibold text-slate-300">输出预览</div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 min-h-[420px] flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-semibold text-white flex items-center gap-2">
+                <ImageIcon className="h-4 w-4 text-violet-400" /> 输出预览
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {genMode === 'txt2img' && '文生图'}
+                {genMode === 'img2img' && '图生图'}
+                {genMode === 'img2video' && '图生视频（预留）'}
+              </div>
+            </div>
             {generating && (
-              <div className="flex h-64 flex-col items-center justify-center text-slate-400">
-                <Loader2 className="h-10 w-10 animate-spin text-violet-400 mb-2" />
-                正在调用 RunPod Comfy…
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-slate-400 py-16">
+                <Loader2 className="h-10 w-10 animate-spin text-violet-400" />
+                <p className="text-sm">RunPod 排队 / 推理中…</p>
               </div>
             )}
             {!generating && lastResult.length === 0 && (
-              <div className="flex h-64 flex-col items-center justify-center text-slate-500 text-sm gap-2">
-                <span>左侧填参数后点生成</span>
-                <Button size="sm" variant="outline" className="border-slate-700" onClick={() => setTab('loras')}>
-                  或从 LoRA 清单一键调用
-                </Button>
+              <div className="flex flex-1 flex-col items-center justify-center border border-dashed border-slate-700 rounded-lg text-slate-500 text-sm py-20">
+                <ImageIcon className="h-10 w-10 mb-3 opacity-40" />
+                生成结果会出现在这里
               </div>
             )}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {lastResult.map((a, i) => (
-                <div key={a.id || i} className="group relative rounded-lg overflow-hidden border border-slate-700">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
-                  <div className="absolute inset-x-0 bottom-0 flex gap-1 p-1 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {a.id && (
-                      <button
-                        type="button"
-                        className="flex-1 text-[10px] py-1 rounded bg-red-600/80"
-                        onClick={() => deleteAsset(a.id)}
-                      >
-                        删除
-                      </button>
-                    )}
-                    <a
-                      href={a.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 text-center text-[10px] py-1 rounded bg-slate-700"
-                    >
-                      打开
-                    </a>
-                    <button
-                      type="button"
-                      className="flex-1 text-[10px] py-1 rounded bg-violet-600/90"
-                      title="复制图片 URL，可在图片管理页「操作台图库」中选用"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(a.url || '');
-                          toast.success('已复制图片 URL · 去图片管理页可选用');
-                        } catch {
-                          toast.message(a.url || '');
-                        }
-                      }}
-                    >
-                      复制URL
-                    </button>
+            {!generating && lastResult.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {lastResult.map((a, idx) => (
+                  <div key={a.id || a.url || idx} className="rounded-lg border border-slate-700 overflow-hidden bg-black/40">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt="" className="w-full object-contain max-h-[70vh] bg-black" />
+                    <div className="p-2 flex flex-wrap gap-1">
+                      <Button size="sm" variant="outline" className="h-7 text-[10px] border-slate-700 flex-1" onClick={async () => { try { await navigator.clipboard.writeText(a.url || ''); toast.success('已复制 URL'); } catch { toast.message(a.url || ''); } }}>
+                        <Copy className="h-3 w-3 mr-1" /> 复制
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 text-[10px] border-slate-700" onClick={() => { setInputImage(a.url || ''); setGenMode('img2img'); toast.message('已设为参考图'); }}>
+                        作参考
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 text-[10px] border-red-900 text-red-400" onClick={() => deleteAsset(a)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            {lastResult.length > 0 && (
-              <p className="mt-3 text-[11px] text-slate-500">
-                生成图已入库图库。可在{' '}
-                <a href="/admin/images" className="text-violet-400 underline">
-                  图片管理
-                </a>{' '}
-                点「操作台图库」一键应用到女友/道具/商城。
-              </p>
+                ))}
+              </div>
             )}
           </div>
         </div>
       )}
+
 
       {/* LORA CATALOG */}
       {tab === 'loras' && (
@@ -1032,6 +1032,9 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
                           {l.nsfw && (
                             <Badge className="text-[9px] bg-rose-900/60 text-rose-100">NSFW</Badge>
                           )}
+                          <Badge className={cn('text-[9px]', (!l.filename || installedSet.size === 0 || installedSet.has(String(l.filename))) ? 'bg-emerald-900/50 text-emerald-100' : 'bg-amber-900/40 text-amber-100')}>
+                            {(!l.filename || installedSet.size === 0 || installedSet.has(String(l.filename))) ? '盘上' : '未下载'}
+                          </Badge>
                           <Badge variant="outline" className="text-[9px] border-slate-600">
                             强度 {l.default_strength}
                           </Badge>
@@ -1363,6 +1366,19 @@ export default function ComfyConsole({ girlfriendId }: ComfyConsoleProps) {
           </div>
         </div>
       )}
+      <footer className="mt-8 border-t border-white/10 pt-4 pb-6 text-[11px] text-slate-500 space-y-2 max-w-4xl">
+        <h3 className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+          <BookOpen className="h-3.5 w-3.5" /> 使用说明
+        </h3>
+        <ol className="list-decimal pl-4 space-y-1 text-slate-400">
+          <li>左侧参数（文生图 / 图生图），右侧输出预览；说明固定在页面底部。</li>
+          <li>LoRA 须对应网络卷 models/loras/ 真实文件名；● 盘上可调，未安装会在服务端回退。</li>
+          <li>下载：模型库导出 lora-urls.txt → RunPod downloader → 更新 VOLUME_INSTALLED_LORAS 或 env → 同步盘状态。</li>
+          <li>女友模式写入 girlfriends/&#123;id&#125;/；公共模式写入 comfy-outputs。</li>
+          <li>图生视频为预留，不会假生成。</li>
+        </ol>
+      </footer>
+
     </div>
   );
 }

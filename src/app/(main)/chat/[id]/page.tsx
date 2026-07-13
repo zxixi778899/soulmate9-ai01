@@ -90,8 +90,9 @@ const GIFTS = [
 
 export default function ChatPage() {
   const routeParams = useParams<{ id?: string }>();
-  const id = String(routeParams?.id || '');
+  const id = String(routeParams?.id || '').trim();
   const { t, locale } = useTranslation();
+  const invalidChatId = !id || id === 'undefined' || id === 'null';
   const { user } = useAuth();
   const router = useRouter();
 
@@ -154,6 +155,11 @@ export default function ChatPage() {
   }, [id]);
 
   const loadData = async () => {
+    if (invalidChatId) {
+      setIsLoading(false);
+      setGirlfriend(null);
+      return;
+    }
     setIsLoading(true);
     // Instant paint from local cache so history never "vanishes" on re-enter
     const cached = loadChatCache(id);
@@ -642,11 +648,11 @@ export default function ChatPage() {
     return out;
   }, [messages]);
 
-  if (!id) {
+  if (invalidChatId) {
     return (
       <div className="flex min-h-[50dvh] items-center justify-center bg-[#08040e] px-6">
         <div className="text-center">
-          <p className="text-white/40">Invalid chat</p>
+          <p className="text-white/40">This chat link is invalid or expired.</p>
           <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => router.push('/chats')}>
             Go back
           </Button>
@@ -654,6 +660,7 @@ export default function ChatPage() {
       </div>
     );
   }
+
 
   if (isLoading) {
     return (
