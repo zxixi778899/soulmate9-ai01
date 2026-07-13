@@ -37,7 +37,7 @@ import { HEAT_UNLOCK_HINTS, INTIMACY_LEVELS } from '@/lib/constants';
 function isHomeVideoUrl(url?: string | null): boolean {
   const u = String(url || '').toLowerCase().split('?')[0];
   if (!u) return false;
-  return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov') || u.endsWith('.m4v') || '/video/' in u || '/videos/' in u;
+  return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov') || u.endsWith('.m4v') || u.includes('/video/') || u.includes('/videos/');
 }
 
 const FOOTER_LINKS = {
