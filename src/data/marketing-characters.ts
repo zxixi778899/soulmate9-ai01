@@ -1,3 +1,5 @@
+export type CardSceneVariant = 'warm' | 'cool' | 'neon' | 'sunset' | 'minimal';
+
 export interface MarketingCharacter {
   slug: string;
   name: string;
@@ -8,6 +10,10 @@ export interface MarketingCharacter {
   accent: string;
   bgAccent: string;
   sceneSlug: string;
+  // 卡图生成可选字段
+  cardPoseSeed?: string;          // per-character positive seed，用于打破"相同站姿"
+  cardNegativeHint?: string;      // 额外 negative token（e.g. 运动员体型补 "muscular"）
+  cardSceneVariant?: CardSceneVariant; // 锁定 pickGirlfriendScene 的场景大类
 }
 
 export const CHARACTERS: MarketingCharacter[] = [
