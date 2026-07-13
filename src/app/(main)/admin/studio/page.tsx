@@ -19,7 +19,7 @@ function StudioInner() {
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-white md:text-lg">创作工作台</h1>
+              <h1 className="text-base font-bold tracking-tight !text-white md:text-lg">创作工作台</h1>
               <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-400">
                 FLUX · RunPod Comfy
               </span>
@@ -36,19 +36,19 @@ function StudioInner() {
           <div className="flex flex-wrap gap-1.5">
             <Link
               href="/admin/model-library"
-              className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] text-slate-200 hover:bg-white/10"
+              className="inline-flex items-center gap-1 rounded-md border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold !text-white hover:bg-white/15"
             >
               <Library className="h-3.5 w-3.5" /> 模型与 LoRA
             </Link>
             <Link
               href="/admin/assets"
-              className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] text-slate-200 hover:bg-white/10"
+              className="inline-flex items-center gap-1 rounded-md border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold !text-white hover:bg-white/15"
             >
               <FolderOpen className="h-3.5 w-3.5" /> 公共资产
             </Link>
             <Link
               href="/admin/girlfriends"
-              className="inline-flex items-center gap-1 rounded-md bg-violet-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-violet-500"
+              className="inline-flex items-center gap-1 rounded-md bg-violet-600 px-2.5 py-1.5 text-[11px] font-bold !text-white hover:bg-violet-500"
             >
               女友与媒体 <ArrowRight className="h-3 w-3" />
             </Link>

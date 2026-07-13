@@ -21,6 +21,7 @@ import {
 import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { assembleGirlfriendFromRow } from '@/lib/prompt/girlfriend';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -162,13 +163,32 @@ export async function GET(req: NextRequest) {
             'admin/outfits',
             'admin/shop_items',
           ];
-          for (const folder of folders) {
-            if (assets.length >= limit) break;
-            const { data: files } = await sb.storage.from(bucket).list(folder, {
-              limit: Math.min(24, limit - assets.length),
-              sortBy: { column: 'created_at', order: 'desc' },
+          const folderQueue = [...folders];
+          const rootIndex = folderQueue.indexOf('girlfriends');
+          if (rootIndex >= 0) {
+            folderQueue.splice(rootIndex, 1);
+            const { data: girlfriendFolders } = await sb.storage.from(bucket).list('girlfriends', {
+              limit: 300,
+              sortBy: { column: 'name', order: 'asc' },
             });
-            for (const f of files || []) {
+            for (const entry of girlfriendFolders || []) {
+              if (entry.name && !/\.(png|jpe?g|webp|gif)$/i.test(entry.name)) {
+                folderQueue.push(`girlfriends/${entry.name}`);
+              }
+            }
+          }
+          // Scan folder metadata in bounded parallel batches. Sequentially walking
+          // 100+ girlfriend folders made the assets page appear permanently stuck.
+          for (let start = 0; start < folderQueue.length && assets.length < limit; start += 12) {
+            const batch = folderQueue.slice(start, start + 12);
+            const listings = await Promise.all(batch.map(async (folder) => ({
+              folder,
+              files: (await sb.storage.from(bucket).list(folder, {
+                limit: 60,
+                sortBy: { column: 'created_at', order: 'desc' },
+              })).data || [],
+            })));
+            for (const { folder, files } of listings) for (const f of files) {
               if (!f.name || f.name.endsWith('/')) continue;
               if (!/\.(png|jpe?g|webp|gif)$/i.test(f.name)) continue;
               const key = `${folder}/${f.name}`;
@@ -182,6 +202,7 @@ export async function GET(req: NextRequest) {
                 continue;
               }
               const url = await resolveImageUrl(key);
+              const girlfriendMatch = folder.match(/^girlfriends\/([^/]+)$/);
               assets.push({
                 id: null,
                 storage_key: key,
@@ -191,10 +212,12 @@ export async function GET(req: NextRequest) {
                   : folder.includes('shop')
                     ? 'shop_item'
                     : 'girlfriend',
+                girlfriend_id: girlfriendMatch?.[1] || null,
                 created_at: f.created_at || f.updated_at || null,
                 source: 'storage',
                 prompt: null,
               });
+              if (assets.length >= limit) break;
             }
           }
         }
@@ -658,7 +681,7 @@ if (body.action === 'generate') {
     }
 
     const cfg = await loadComfyConfig(admin.supabase);
-    const prompt = String(body.prompt || '').trim();
+    let prompt = String(body.prompt || '').trim();
     if (!prompt) return NextResponse.json({ error: 'prompt required' }, { status: 400 });
 
     const workflowId = body.workflow_id as string | undefined;
@@ -692,6 +715,13 @@ if (body.action === 'generate') {
     const height = Number(body.height || wf?.defaults.height || 1216);
     const steps = Number(body.steps || wf?.defaults.steps || 28);
     const cfgScale = Number(body.cfg || wf?.defaults.cfg || 3.5);
+    const allowedSamplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_sde']);
+    const allowedSchedulers = new Set(['simple', 'normal', 'karras', 'sgm_uniform']);
+    const requestedSampler = String(body.sampler_name || 'euler');
+    const requestedScheduler = String(body.scheduler || 'simple');
+    const samplerName = allowedSamplers.has(requestedSampler) ? requestedSampler : 'euler';
+    const scheduler = allowedSchedulers.has(requestedScheduler) ? requestedScheduler : 'simple';
+    const imageCount = Math.min(4, Math.max(1, Math.floor(Number(body.num_images || 1))));
     const seed = body.seed != null ? Number(body.seed) : -1;
     const denoise =
       body.denoise != null
@@ -704,11 +734,69 @@ if (body.action === 'generate') {
     );
     const kind = body.kind || wf?.kind || 'custom';
     const girlfriendId = String(body.girlfriend_id || body.girlfriendId || '').trim() || null;
+    const characterConsistency = body.character_consistency === true;
+    let consistencyReference = '';
+    if (characterConsistency && girlfriendId) {
+      const { data: girlfriend, error: girlfriendError } = await admin.supabase
+        .from('girlfriends')
+        .select('*')
+        .eq('id', girlfriendId)
+        .maybeSingle();
+      if (girlfriendError) {
+        logger.warn('[comfy] consistency girlfriend lookup failed', {
+          girlfriend_id: girlfriendId,
+          error: girlfriendError.message,
+        });
+      } else if (girlfriend) {
+        prompt = assembleGirlfriendFromRow(girlfriend, prompt).positive;
+        consistencyReference = String(
+          girlfriend.portrait_url || girlfriend.avatar_url || girlfriend.card_url || '',
+        ).trim();
+      }
+    }
+    const effectiveInputImage = String(body.input_image || consistencyReference || '').trim() || undefined;
+    const effectiveDenoise = effectiveInputImage
+      ? characterConsistency ? Math.min(0.45, denoise) : denoise
+      : undefined;
     const folder = assetFolder(girlfriendId);
     const loraStrength =
       body.lora_strength != null
         ? Number(body.lora_strength)
         : wf?.defaults.lora_strength ?? lora?.default_strength ?? 0.8;
+
+    type RequestedLora = {
+      id: string;
+      name: string;
+      strength_model: number;
+      strength_clip: number;
+    };
+    const requestedLoras: RequestedLora[] = Array.isArray(body.loras)
+      ? body.loras.slice(0, 4).map((item: unknown) => {
+          const value = item && typeof item === 'object'
+            ? item as Record<string, unknown>
+            : {};
+          const asset = cfg.loras.find((candidate) => candidate.id === String(value.id || ''));
+          const strength = Number(value.strength ?? asset?.default_strength ?? 0.7);
+          return asset?.filename
+            ? {
+                id: asset.id,
+                name: asset.filename,
+                strength_model: Math.min(1.2, Math.max(0, strength)),
+                strength_clip: Math.min(1.2, Math.max(0, strength)),
+              }
+            : null;
+        }).filter((item: RequestedLora | null): item is RequestedLora => item !== null)
+      : [];
+    const totalLoraStrength = requestedLoras.reduce(
+      (sum: number, item: RequestedLora) => sum + item.strength_model,
+      0,
+    );
+    const loraScale = totalLoraStrength > 1 ? 1 / totalLoraStrength : 1;
+    const normalizedLoras = requestedLoras.map((item: RequestedLora) => ({
+      ...item,
+      strength_model: Number((item.strength_model * loraScale).toFixed(3)),
+      strength_clip: Number((item.strength_clip * loraScale).toFixed(3)),
+    }));
 
     try {
       const requestedLora = lora?.filename || body.lora_name || null;
@@ -722,22 +810,45 @@ if (body.action === 'generate') {
           reason: loraSan.reason,
         });
       }
-      const result = await runpodClient.generate({
+      const generationOptions = {
         prompt,
         negative_prompt: negative,
         width,
         height,
         num_inference_steps: steps,
         guidance_scale: cfgScale,
+        sampler_name: samplerName,
+        scheduler,
+        num_images: effectiveInputImage ? 1 : imageCount,
         seed: seed >= 0 ? seed : undefined,
-        input_image: body.input_image || undefined,
-        denoising_strength: body.input_image ? denoise : undefined,
+        input_image: effectiveInputImage,
+        denoising_strength: effectiveDenoise,
         ckpt_name: body.ckpt_name || ckpt?.filename,
-        lora_name: loraSan.lora_name,
+        lora_name: normalizedLoras.length ? null : loraSan.lora_name,
         lora_strength_model: loraStrength,
         lora_strength_clip: loraStrength,
+        loras: normalizedLoras,
         endpoint_id: endpointId,
-      });
+      };
+      let result;
+      try {
+        result = await runpodClient.generate(generationOptions);
+      } catch (generationError) {
+        // A stale volume inventory can make Comfy reject the whole prompt when a
+        // selected LoRA was removed or renamed on RunPod. Keep generation usable
+        // by retrying once without optional LoRAs; checkpoint generation remains
+        // the source of truth and the failure is still recorded in server logs.
+        if (!normalizedLoras.length) throw generationError;
+        logger.warn('[comfy] LoRA workflow failed, retrying without LoRA', {
+          error: generationError instanceof Error ? generationError.message : String(generationError),
+          loras: normalizedLoras.map((item) => item.name),
+        });
+        result = await runpodClient.generate({
+          ...generationOptions,
+          lora_name: null,
+          loras: [],
+        });
+      }
 
       const assets: Array<Record<string, unknown>> = [];
       for (let i = 0; i < result.images.length; i++) {
@@ -759,7 +870,9 @@ if (body.action === 'generate') {
           workflow_id: workflowId || null,
           endpoint_id: endpointId,
           ckpt_name: body.ckpt_name || ckpt?.filename || null,
-          lora_name: loraSan.lora_name,
+          lora_name: normalizedLoras.length
+            ? normalizedLoras.map((item: RequestedLora) => item.name).join(',')
+            : loraSan.lora_name,
           width,
           height,
           steps,
@@ -769,7 +882,15 @@ if (body.action === 'generate') {
             job_id: result.job_id,
             execution_time: result.execution_time,
             lora_strength: loraStrength,
-            denoise: body.input_image ? denoise : 1,
+            loras: normalizedLoras,
+            requested_lora_total_strength: totalLoraStrength,
+            denoise: effectiveDenoise ?? 1,
+            character_consistency: characterConsistency,
+            consistency_reference: body.input_image
+              ? 'uploaded_reference'
+              : consistencyReference
+                ? 'girlfriend_card'
+                : 'prompt_traits_only',
           },
         };
 

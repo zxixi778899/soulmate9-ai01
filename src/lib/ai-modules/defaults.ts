@@ -102,12 +102,15 @@ export function createDefaultAiModules(): AiModulesConfig {
       enabled: true,
       nsfw_min_intimacy: 3,
       nsfw_detection: 'keywords',
-      fallback_endpoint_id: 'together-llama-8b',
+      // Prefer RunPod self-host when Together key is absent (resolve.ts also auto-skips dead endpoints).
+      fallback_endpoint_id: 'runpod-lumimaid-8b',
       global_system_suffix:
         'Stay in character as the girlfriend. Never break role. Never claim to be an AI assistant. When the intimate/NSFW channel is active, lean into consensual adult desire with sensory detail and end replies with a hook that invites the next message. Refuse underage content. Match language rules (English sessions: English only, no Chinese).',
       tiers: {
         free: {
-          sfw_endpoint_id: 'together-llama-8b',
+          // Self-host first so local/prod works without TOGETHER_API_KEY.
+          // If Together is configured later, admin can switch this back in AI modules UI.
+          sfw_endpoint_id: 'runpod-lumimaid-8b',
           nsfw_endpoint_id: null,
           max_tokens: 512,
           context_messages: 10,
@@ -115,7 +118,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           allow_nsfw: false,
         },
         pro: {
-          sfw_endpoint_id: 'together-llama-70b',
+          sfw_endpoint_id: 'runpod-lumimaid-8b',
           nsfw_endpoint_id: 'runpod-lumimaid-8b',
           max_tokens: 1024,
           context_messages: 24,
@@ -124,7 +127,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           allow_nsfw: true,
         },
         unlimited: {
-          sfw_endpoint_id: 'together-llama-70b',
+          sfw_endpoint_id: 'runpod-lumimaid-8b',
           nsfw_endpoint_id: 'runpod-noromaid-12b',
           max_tokens: 1536,
           context_messages: 40,

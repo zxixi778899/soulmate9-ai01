@@ -23,18 +23,18 @@ import {
 
 /** Short quality tail — do NOT stack camera spam (causes same-face look). */
 export const GIRLFRIEND_QUALITY_PREFIX =
-  'stunning beautiful young woman, pretty balanced face, refined natural glam makeup, clear healthy skin, attractive feminine figure, soft bright beauty lighting on face, photorealistic, sharp focus'
+  'photorealistic editorial photo, crisp eyes, natural skin texture, detailed hair, clean high-resolution detail, sharp focus'
 
 /**
  * Soft figure hint — keep short so face/pose still dominate.
  * Avoid fixed lingerie / same body spam that collapses variety.
  */
 export const GIRLFRIEND_BODY_FIXED =
-  'sexy attractive feminine figure, defined waist and hips, tasteful body showcase, realistic proportions, long legs when full body'
+  'sexy feminine silhouette, graceful waist and hips, realistic anatomy and proportions'
 
 /** Default framing for companion cards: face the viewer (not back/side template). */
 export const GIRLFRIEND_FRAMING =
-  'facing viewer, eye contact, companion card photo, three-quarter body preferred (chest and hips visible) or full body long legs, natural flirty pose, not face-only headshot, not stiff catalog mannequin, not dark underexposed'
+  'facing the viewer with intimate eye contact'
 
 /**
  * Short negatives — FLUX hates long SD negative lists.
@@ -47,7 +47,7 @@ export const GIRLFRIEND_NEGATIVE =
 
 /** Short FLUX-safe negative (empty only when caller opts in) */
 export const GIRLFRIEND_NEGATIVE_FLUX =
-  'stiff mannequin pose, face-only close-up, underexposed, exaggerated plastic body, from behind, blurry, deformed, child, underage, watermark'
+  'blurry, out of focus, oversaturated, orange skin, harsh backlight, blown highlights, stiff pose, twisted torso, waxy skin, bad anatomy, deformed hands, child, underage, watermark, text'
 
 export interface GirlfriendSubject {
   name?: string;
@@ -165,10 +165,10 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
     id: 'window_sunlight',
     label: 'Window light',
     poses: [
-      'standing by window, shoulder toward light, face turned to camera, three-quarter body',
+      'standing at a gentle 20-degree angle by the window, torso and hips aligned, shoulders relaxed, head naturally turned toward camera, three-quarter body',
       'sitting on window ledge, knees up casually, lifestyle portrait',
       'leaning back on window frame, arms loosely crossed, full body',
-      'holding curtain lightly, soft smile, natural three-quarter pose',
+      'holding curtain lightly, subtle smile, balanced natural three-quarter pose',
     ],
     outfits: [
       'white linen shirt and jeans',
@@ -178,7 +178,7 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'casual tee dress',
     ],
     env: 'bright apartment window, sheer curtains',
-    light: 'bright soft window key light on face, clean highlights, natural daylight photo, not underexposed',
+    light: 'bright diffused window key light on face, clean highlights, natural daylight exposure',
     match: /window|sunlight|lace|morning|sheer|curtain/i,
   },
   {
@@ -461,7 +461,7 @@ export function pickGirlfriendScene(
 
 export function buildExpressionClause(subject: GirlfriendSubject, scene: SceneRecipe): string {
   const p = (subject.personality || subject.mood || '').toLowerCase();
-  if (/shy|soft|gentle|innocent/.test(p)) return 'soft pretty smile, warm eyes'
+  if (/shy|soft|gentle|innocent/.test(p)) return 'gentle pretty smile, warm eyes'
   if (/playful|brat|tease|flirty/.test(p)) return 'playful smile, lively eyes'
   if (/dominant|confident|queen|bold/.test(p)) return 'confident smile, calm eyes'
   if (/romantic|caring|sweet/.test(p)) return 'warm smile, kind eyes'
@@ -496,7 +496,8 @@ export function buildSubjectClause(s: GirlfriendSubject): string {
 
   if (s.race) parts.push(`${s.race} features`);
   if (s.hair || s.hairColor) {
-    parts.push(`${[s.hairColor, s.hair].filter(Boolean).join(' ')} hair`.trim());
+    const hair = [s.hairColor, s.hair].filter(Boolean).join(' ').trim();
+    parts.push(/\bhair\b/i.test(hair) ? hair : `${hair} hair`);
   }
   if (s.eyes) parts.push(`${s.eyes} eyes`);
   if (s.body) parts.push(`${s.body} body`);
@@ -576,7 +577,7 @@ export function subjectFromGirlfriendRow(row: Record<string, unknown>): Girlfrie
   };
 }
 
-function trimPrompt(positive: string, max = 720): string {
+function trimPrompt(positive: string, max = 650): string {
   let out = positive
     .replace(/\s*,\s*,+/g, ', ')
     .replace(/\s{2,}/g, ' ')
@@ -625,37 +626,28 @@ export function assembleGirlfriendPrompt(
       ? rawStripped.slice(0, 120)
       : '';
 
-  const metaBits = joinParts([
-    ctx.metadata?.appearance && !looksLikeFluxPrompt(ctx.metadata.appearance)
-      ? sanitizeBlurKeywords(String(ctx.metadata.appearance)).slice(0, 80)
-      : '',
-    ctx.metadata?.lighting ? sanitizeBlurKeywords(String(ctx.metadata.lighting)).slice(0, 60) : '',
+  const { pose, outfit } = pickScenePoseAndOutfit(fixedSubject, scene);
+
+  // FLUX understands concise natural language well. Keep the editable prompt
+  // intentionally limited to two concepts: who she is + what she is doing.
+  // Model quality, sampler and resolution belong to the workflow controls.
+  const hair = [fixedSubject.hairColor, fixedSubject.hair].filter(Boolean).join(' ').trim();
+  const conciseIdentity = joinParts([
+    fixedSubject.name,
+    'a beautiful sensual adult AI girlfriend age 23-28',
+    fixedSubject.race ? `with ${fixedSubject.race} features` : '',
+    hair ? `with ${/\bhair\b/i.test(hair) ? hair : `${hair} hair`}` : '',
+    fixedSubject.eyes ? `${fixedSubject.eyes} eyes` : '',
+    fixedSubject.body ? `${fixedSubject.body} figure` : GIRLFRIEND_BODY_FIXED,
   ]);
-
-    const { pose, outfit } = pickScenePoseAndOutfit(fixedSubject, scene);
-
-  // Order: who → body → FRONT-FACING pose → outfit → place → light → expression → quality
-  // Companion cards must face the viewer; avoid mass back/side lingerie templates.
-  const positive = trimPrompt(
-    joinParts([
-      subjectClause,
-      GIRLFRIEND_BODY_FIXED,
-      pose,
-      outfit,
-      scene.env,
-      scene.light,
-      expression,
-      GIRLFRIEND_FRAMING,
-      metaBits,
-      extra,
-      GIRLFRIEND_QUALITY_PREFIX,
-    ]),
-  );
+  const person = trimPrompt(conciseIdentity || subjectClause, 230);
+  const generatedAction = `${pose}, while soft neutral light illuminates her face evenly and preserves natural skin tone, ${expression}, ${GIRLFRIEND_FRAMING}, wearing ${outfit} in ${scene.env}`;
+  const action = trimPrompt(extra || generatedAction, 230);
+  const positive = `${person}. She is ${action.replace(/^[Ss]he is\s+/i, '').replace(/[.]$/, '')}.`;
 
   // Default: short anti-underexposure negative (user issue: dark muddy faces).
   // Pass useEmptyNegative: true only for pure FLUX workers that black-frame on any neg.
-  const negative =
-    opts?.useEmptyNegative === true ? '' : GIRLFRIEND_NEGATIVE;
+  const negative = opts?.useEmptyNegative === true ? '' : GIRLFRIEND_NEGATIVE_FLUX;
 
   return { positive, negative };
 }
@@ -882,4 +874,3 @@ export function resolveGirlfriendLoraPlan(
       : plan.lora_strength_clip,
   };
 }
-

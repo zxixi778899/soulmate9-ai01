@@ -10,8 +10,9 @@ import type {
 } from './types';
 import { createDefaultAiModules } from './defaults';
 
+// Word-boundary \b (backslash + b). Do not corrupt this to a raw control character.
 const NSFW_KEYWORDS =
-  /(sex|sexy|nude|naked|fuck|cock|pussy|dick|cum|orgasm|blowjob|handjob|anal|boob|breast|nipple|horny|moan|kiss me hard|undress|make love|bed with me|wet|threesome|bdsm|spank|ride me|strip|lingerie|tease me|touch me|want you|inside me|on top|from behind|dominate|submit|edge me|come for me|make me|bedroom|tonight baby|nsfw|explicit|intimate|aroused|climax|grind|suck|lick)/i;
+  /\b(sex|sexy|nude|naked|fuck|cock|pussy|dick|cum|orgasm|blowjob|handjob|anal|boob|breast|nipple|horny|moan|kiss me hard|undress|make love|bed with me|wet|threesome|bdsm|spank|ride me|strip|lingerie|tease me|touch me|want you|inside me|on top|from behind|dominate|submit|edge me|come for me|make me|bedroom|tonight baby|nsfw|explicit|intimate|aroused|climax|grind|suck|lick)\b/i;
 
 export function detectNsfwIntent(message?: string): boolean {
   if (!message) return false;
@@ -29,6 +30,67 @@ function normalizeTier(tier?: MembershipTier): 'free' | 'pro' | 'unlimited' {
   return 'free';
 }
 
+/** True when the endpoint's required env credentials look present. */
+export function isEndpointConfigured(ep: ModelEndpoint | null | undefined): boolean {
+  if (!ep) return false;
+  const named = ep.api_key_env ? process.env[ep.api_key_env] : '';
+  if (named) {
+    if (ep.provider === 'runpod') {
+      return !!(ep.api_base_url || process.env.RUNPOD_VLLM_URL);
+    }
+    return true;
+  }
+  switch (ep.provider) {
+    case 'together':
+      return !!process.env.TOGETHER_API_KEY;
+    case 'openai':
+      return !!process.env.OPENAI_API_KEY;
+    case 'anthropic':
+      return !!process.env.ANTHROPIC_API_KEY;
+    case 'runpod':
+      return !!(
+        (ep.api_base_url || process.env.RUNPOD_VLLM_URL) &&
+        (process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY)
+      );
+    case 'coze':
+      return !!process.env.COZE_API_KEY;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Prefer preferredId when its credentials exist; otherwise first ready candidate.
+ * Avoids Free tier resolving to Together when TOGETHER_API_KEY is unset.
+ */
+function pickReadyEndpoint(
+  cfg: AiModulesConfig,
+  preferredId: string | null | undefined,
+  ...extraIds: Array<string | null | undefined>
+): ModelEndpoint {
+  const ordered: ModelEndpoint[] = [];
+  const push = (id: string | null | undefined) => {
+    const ep = findEndpoint(cfg, id);
+    if (ep && !ordered.some((e) => e.id === ep.id)) ordered.push(ep);
+  };
+  push(preferredId);
+  for (const id of extraIds) push(id);
+  for (const ep of cfg.endpoints) {
+    if (!ordered.some((e) => e.id === ep.id)) ordered.push(ep);
+  }
+
+  const ready = ordered.find((ep) => isEndpointConfigured(ep));
+  if (ready) return ready;
+
+  // Last resort: return preferred even if unconfigured (invoke will soft-fail)
+  return (
+    findEndpoint(cfg, preferredId) ||
+    findEndpoint(cfg, cfg.chat.fallback_endpoint_id) ||
+    cfg.endpoints[0] ||
+    createDefaultAiModules().endpoints[0]
+  );
+}
+
 /**
  * Resolve which chat model/channel to use for a request.
  */
@@ -39,10 +101,12 @@ export function resolveChatCall(
   const config = cfg || createDefaultAiModules();
   const tier = normalizeTier(ctx.tier);
   const route = config.chat.tiers[tier];
-  const fallback =
-    findEndpoint(config, config.chat.fallback_endpoint_id) ||
-    config.endpoints[0] ||
-    createDefaultAiModules().endpoints[0];
+  const fallback = pickReadyEndpoint(
+    config,
+    config.chat.fallback_endpoint_id,
+    route.sfw_endpoint_id,
+    route.nsfw_endpoint_id,
+  );
 
   const locale = (ctx.locale || config.language.default_locale) as AppLocale;
   const langHint =
@@ -78,10 +142,11 @@ export function resolveChatCall(
 
   if (wantsNsfw) {
     if (!route.allow_nsfw || !route.nsfw_endpoint_id) {
+      const ep = pickReadyEndpoint(config, route.sfw_endpoint_id, config.chat.fallback_endpoint_id);
       return {
         channel: 'sfw',
-        endpoint: findEndpoint(config, route.sfw_endpoint_id) || fallback,
-        temperature: (findEndpoint(config, route.sfw_endpoint_id) || fallback).temperature,
+        endpoint: ep,
+        temperature: ep.temperature,
         maxTokens: route.max_tokens,
         contextMessages: route.context_messages,
         systemLanguageSuffix:
@@ -92,7 +157,7 @@ export function resolveChatCall(
       };
     }
     if (!intimacyOk) {
-      const ep = findEndpoint(config, route.sfw_endpoint_id) || fallback;
+      const ep = pickReadyEndpoint(config, route.sfw_endpoint_id, config.chat.fallback_endpoint_id);
       return {
         channel: 'sfw',
         endpoint: ep,
@@ -106,8 +171,13 @@ export function resolveChatCall(
         blockedReason: 'intimacy_locked',
       };
     }
-    const nsfwEp = findEndpoint(config, route.nsfw_endpoint_id);
-    if (nsfwEp?.nsfw_capable) {
+    const nsfwEp = pickReadyEndpoint(
+      config,
+      route.nsfw_endpoint_id,
+      route.sfw_endpoint_id,
+      config.chat.fallback_endpoint_id,
+    );
+    if (nsfwEp.nsfw_capable && isEndpointConfigured(nsfwEp)) {
       return {
         channel: 'nsfw',
         endpoint: nsfwEp,
@@ -120,7 +190,12 @@ export function resolveChatCall(
     }
   }
 
-  const sfwEp = findEndpoint(config, route.sfw_endpoint_id) || fallback;
+  const sfwEp = pickReadyEndpoint(
+    config,
+    route.sfw_endpoint_id,
+    config.chat.fallback_endpoint_id,
+    route.nsfw_endpoint_id,
+  );
   return {
     channel: 'sfw',
     endpoint: sfwEp,

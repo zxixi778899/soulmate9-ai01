@@ -247,11 +247,15 @@ async function callRunPodVllm(
     body: JSON.stringify({
       input: { messages, max_tokens: maxTokens, temperature },
     }),
-    signal: AbortSignal.timeout(90000),
+    signal: AbortSignal.timeout(120000),
   });
   if (!res.ok) throw new Error(`RunPod HTTP ${res.status}`);
   const data = await res.json();
   if (data.status === 'FAILED') throw new Error(data.error || 'RunPod FAILED');
+  // IN_QUEUE / IN_PROGRESS without output = worker still cold; treat as empty fail for fallback.
+  if (data.status && data.status !== 'COMPLETED' && !data.output) {
+    throw new Error(`RunPod status ${data.status} (no output yet)`);
+  }
   const tokens = data?.output?.[0]?.choices?.[0]?.tokens;
   if (Array.isArray(tokens)) return tokens.join('').trim();
   const openai = data?.choices?.[0]?.message?.content;
@@ -285,7 +289,7 @@ async function callOpenAiCompatible(
       max_tokens: maxTokens,
       temperature,
     }),
-    signal: AbortSignal.timeout(90000),
+    signal: AbortSignal.timeout(120000),
   });
   if (!res.ok) {
     const t = await res.text().catch(() => '');

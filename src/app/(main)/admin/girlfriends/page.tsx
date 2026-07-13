@@ -266,6 +266,9 @@ function AdminGirlfriendsMediaPageInner() {
   const [videoUploading, setVideoUploading] = useState<VideoField | null>(null);
   const [imageUploading, setImageUploading] = useState<'portrait' | 'avatar' | 'card' | null>(null);
   const [audioUploading, setAudioUploading] = useState(false);
+  const [assetPickerField, setAssetPickerField] = useState<'portrait_url' | 'avatar_url' | 'card_url' | null>(null);
+  const [girlfriendAssets, setGirlfriendAssets] = useState<Array<{ id?: string; url?: string; preview_url?: string; storage_key?: string }>>([]);
+  const [girlfriendAssetsLoading, setGirlfriendAssetsLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -337,6 +340,7 @@ function AdminGirlfriendsMediaPageInner() {
     setCreating(false);
     setSelected(null);
     setForm(emptyForm());
+    setAssetPickerField(null);
   };
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -349,10 +353,10 @@ function AdminGirlfriendsMediaPageInner() {
       name: form.name.trim(),
       age: Math.max(18, Number(form.age) || 18),
       slug: form.slug.trim() || undefined,
-      personality: form.personality.trim(),
+      personality: form.personality.trim() || null,
       tags,
-      short_description: form.short_description.trim(),
-      backstory: form.backstory.trim(),
+      short_description: form.short_description.trim() || null,
+      backstory: form.backstory.trim() || null,
       portrait_url: form.portrait_url.trim() || null,
       avatar_url: form.avatar_url.trim() || null,
       card_url: form.card_url.trim() || null,
@@ -398,9 +402,13 @@ function AdminGirlfriendsMediaPageInner() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: selected.id, ...payload }),
         });
-        const data = await readResponseJson<{ error?: string; girlfriend?: Girlfriend }>(res);
+        const data = await readResponseJson<{ error?: string; girlfriend?: Girlfriend; skipped_fields?: string[] }>(res);
         if (!res.ok) throw new Error(data.error || '保存失败');
-        toast.success('已保存，前端展示将同步');
+        if (data.skipped_fields?.length) {
+          toast.warning(`主体资料已保存；当前数据库缺少字段：${data.skipped_fields.join('、')}`);
+        } else {
+          toast.success('已保存，前端展示已同步');
+        }
         if (data.girlfriend) {
           setSelected(data.girlfriend);
           setForm(toForm(data.girlfriend));
@@ -499,9 +507,7 @@ function AdminGirlfriendsMediaPageInner() {
         logger.warn('comfy upload fallback', { err: err instanceof Error ? err.message : String(err) });
       }
       if (!url) {
-        const dataUrl = await fileToDataUrl(file);
-        if (dataUrl.length > 4_000_000) throw new Error('图片过大，请压缩后重试');
-        url = dataUrl;
+        throw new Error('上传到女友独立资源库失败，未绑定本地临时图片');
       }
       const res = await authedFetch('/api/admin/girlfriends', {
         method: 'PATCH',
@@ -590,8 +596,24 @@ function AdminGirlfriendsMediaPageInner() {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / limit));
   const dialogOpen = creating || Boolean(selected);
+
+  useEffect(() => {
+    if (!dialogOpen || !selected?.id) {
+      setGirlfriendAssets([]);
+      return;
+    }
+    let cancelled = false;
+    setGirlfriendAssetsLoading(true);
+    void authedFetch(`/api/admin/comfy?view=assets&girlfriend_id=${encodeURIComponent(selected.id)}&limit=80`)
+      .then((response) => readResponseJson<{ assets?: Array<{ id?: string; url?: string; preview_url?: string; storage_key?: string }> }>(response))
+      .then((data) => { if (!cancelled) setGirlfriendAssets(data.assets || []); })
+      .catch(() => { if (!cancelled) setGirlfriendAssets([]); })
+      .finally(() => { if (!cancelled) setGirlfriendAssetsLoading(false); });
+    return () => { cancelled = true; };
+  }, [dialogOpen, selected?.id]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div className="min-h-screen bg-[#0b0b12] text-slate-100">
@@ -767,15 +789,18 @@ function AdminGirlfriendsMediaPageInner() {
         ) : null}
       </div>
       <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) closeDialog(); }}>
-        <DialogContent className="max-h-[96vh] max-w-6xl w-[95vw] overflow-y-auto border-white/10 bg-[#12121c] text-slate-100">
+        <DialogContent
+          className="h-[92vh] w-[94vw] max-w-[94vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-white/10 bg-[#12121c] text-slate-100 sm:max-w-[94vw] xl:max-w-[1600px]"
+        >
           <DialogHeader>
             <DialogTitle>{creating ? '新建女友' : `编辑 · ${selected?.name || ''}`}</DialogTitle>
             <DialogDescription className="text-slate-400">
               参数会同步到前台卡片。媒体上传后直接绑定本卡；创作请进工作台（按女友隔离资产）。
+              <span className="ml-2 hidden text-violet-300 md:inline">横屏双栏显示，左右信息可同时编辑。</span>
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-h-0 gap-5 overflow-y-auto pr-1 md:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]">
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -930,6 +955,37 @@ function AdminGirlfriendsMediaPageInner() {
                 <p className="mb-2 text-xs font-semibold text-slate-300">媒体绑定（本卡专用）</p>
                 {selected ? (
                   <div className="space-y-2">
+                    <div className="rounded-lg border border-violet-400/30 bg-violet-950/20 p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-[11px] font-semibold text-violet-100">优先从 {selected.name} 的独立资源库选择</p>
+                          <p className="text-[10px] text-slate-300">已有 {girlfriendAssets.length} 项；未找到时再进入公共库或本地上传。</p>
+                        </div>
+                        <Link href="/admin/assets" target="_blank" className="rounded border border-white/15 px-2 py-1 text-[10px] text-slate-100 hover:bg-white/10">打开公共资产库</Link>
+                      </div>
+                      {assetPickerField ? (
+                        <div className="mt-2">
+                          <div className="mb-1 flex items-center justify-between text-[10px] text-slate-200">
+                            <span>选择图片绑定到 {assetPickerField === 'portrait_url' ? '肖像' : assetPickerField === 'avatar_url' ? '头像' : '卡片'}</span>
+                            <button type="button" onClick={() => setAssetPickerField(null)} className="text-slate-300 hover:text-white">关闭</button>
+                          </div>
+                          {girlfriendAssetsLoading ? (
+                            <div className="flex items-center gap-1 py-3 text-[10px] text-slate-300"><Loader2 className="h-3 w-3 animate-spin" /> 加载女友资源库…</div>
+                          ) : girlfriendAssets.length ? (
+                            <div className="grid max-h-40 grid-cols-5 gap-1.5 overflow-y-auto pr-1">
+                              {girlfriendAssets.map((asset, index) => {
+                                const url = asset.preview_url || asset.url || '';
+                                if (!url) return null;
+                                return <button key={asset.id || asset.storage_key || index} type="button" className="aspect-[3/4] overflow-hidden rounded border border-white/15 hover:border-violet-300" onClick={() => { setField(assetPickerField, url); setAssetPickerField(null); toast.success('已从女友资源库选中'); }}>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={url} alt="女友资源" className="h-full w-full object-cover" />
+                                </button>;
+                              })}
+                            </div>
+                          ) : <p className="py-3 text-[10px] text-slate-400">该女友资源库暂无图片，请使用本地上传或前往创作工作台生成。</p>}
+                        </div>
+                      ) : null}
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       {([
                         ['portrait_url', '肖像', 'portrait'] as const,
@@ -946,9 +1002,12 @@ function AdminGirlfriendsMediaPageInner() {
                               <div className="flex h-full items-center justify-center text-slate-600"><ImageOff className="h-4 w-4" /></div>
                             )}
                           </div>
+                          <button type="button" onClick={() => setAssetPickerField(field)} className="mb-1 flex w-full items-center justify-center rounded bg-violet-500/20 py-1 text-[10px] font-medium text-violet-100 hover:bg-violet-500/35">
+                            从女友库选择
+                          </button>
                           <label className="flex cursor-pointer items-center justify-center gap-1 rounded bg-white/5 py-1 text-[10px] hover:bg-white/10">
                             {imageUploading === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                            上传
+                            本地上传
                             <input
                               type="file"
                               accept="image/*"

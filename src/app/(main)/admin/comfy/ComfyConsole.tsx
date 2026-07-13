@@ -17,7 +17,8 @@ import {
 import {
   Loader2, Play, Trash2, RefreshCw, HardDrive, Workflow, ImageIcon,
   Settings2, BookOpen, Save, RotateCcw, Sparkles, Layers, ExternalLink,
-  Zap, Upload, Download, CheckSquare, Square, Copy, ImagePlus, Video, FileImage,
+  Zap, Upload, Download, CheckSquare, Square, Copy, ImagePlus, FileImage,
+  Users, Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -49,45 +50,45 @@ const CIVITAI_PRESETS = [
     name: '窗边人像',
     desc: '3/4 构图 · 明亮侧光 · 适合主页卡',
     prompt:
-      'stunning beautiful young woman, refined face, glam makeup, fair luminous skin, three-quarter body chest and hips visible, leaning by a bright window, soft side sunlight on face, looking at viewer, flirty soft smile, photorealistic, sharp eyes, natural proportions',
+      'She is leaning against a bright apartment window, turning toward the viewer with relaxed shoulders and a teasing smile.',
     negative: 'blurry, deformed, underexposed, from behind, face-only close-up, plastic skin, child, underage, watermark, text',
-    width: 832, height: 1216, steps: 28, cfg: 3.5,
+    width: 832, height: 1216, steps: 28, cfg: 1,
   },
   {
     id: 'fullbody-glam',
     name: '夜景全身',
     desc: '大长腿 · 站姿变化 · 城市夜景',
     prompt:
-      'stunning beautiful young woman, full body long legs, weight on one hip, rooftop railing, city skyline bokeh, fitted evening dress, bright key light on face, cool ambient rim, looking at viewer, photorealistic, attractive figure',
+      'She is posing beside a rooftop railing in a fitted evening dress, resting her weight on one hip and seductively looking at the viewer.',
     negative: 'blurry, cropped head, bad anatomy, underexposed, from behind, same face, watermark, child, underage',
-    width: 768, height: 1344, steps: 28, cfg: 3.5,
+    width: 768, height: 1344, steps: 28, cfg: 1,
   },
   {
     id: 'nsfw-intimate',
     name: '卧室私密',
     desc: '3/4 身材展示 · 暧昧光 · 成人氛围',
     prompt:
-      'stunning beautiful young woman, three-quarter body on bed, arched posture facing camera, soft lingerie, pink LED plus warm lamp on face, seductive eye contact, fair luminous skin, photorealistic, detailed skin texture',
+      'She is reclining naturally on a bed in sensual lingerie, arching slightly toward the viewer with inviting eye contact.',
     negative: 'gore, violence, child, underage, blurry, deformed, underexposed, from behind only, watermark',
-    width: 832, height: 1216, steps: 28, cfg: 3.2,
+    width: 832, height: 1216, steps: 28, cfg: 1,
   },
   {
     id: 'selfie-flash',
     name: '镜面自拍',
     desc: '自拍角度 · 闪光 · 自然身体语言',
     prompt:
-      'stunning beautiful young woman, bathroom mirror selfie, phone in hand, hip popped, direct flash plus vanity light on face, casual crop top, candid playful expression, three-quarter to full body, photorealistic, natural skin texture',
+      'She is taking a playful bathroom mirror selfie in a crop top, holding her phone in one hand while naturally shifting one hip.',
     negative: 'studio softbox only, plastic skin, underexposed, face-only, child, underage, watermark',
-    width: 832, height: 1216, steps: 26, cfg: 3.5,
+    width: 832, height: 1216, steps: 26, cfg: 1,
   },
   {
     id: 'cafe-day',
     name: '咖啡馆日景',
     desc: '日常甜美 · 明亮 · 表情生动',
     prompt:
-      'stunning beautiful young woman at cafe window seat, chin on hand, bright daylight on face, coffee cup, casual stylish outfit, easy smile looking at viewer, three-quarter body, 50mm candid, photorealistic, detailed eyes',
+      'She is sitting beside a cafe window with her chin resting on one hand, smiling warmly and flirtatiously at the viewer.',
     negative: 'blurry, deformed, plastic skin, underexposed, from behind, watermark, text, child, underage',
-    width: 832, height: 1216, steps: 26, cfg: 3.5,
+    width: 832, height: 1216, steps: 26, cfg: 1,
   },
 ];
 
@@ -106,6 +107,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [selectedAssetKeys, setSelectedAssetKeys] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const referenceImageInputRef = useRef<HTMLInputElement | null>(null);
   const [loraFilter, setLoraFilter] = useState<string>('all');
   const [genMode, setGenMode] = useState<'txt2img' | 'img2img' | 'img2video'>('txt2img');
   const [installedLoras, setInstalledLoras] = useState<string[]>([]);
@@ -118,29 +120,72 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [ckptId, setCkptId] = useState('flux-fp8');
   const [loraId, setLoraId] = useState('none');
   const [loraStrength, setLoraStrength] = useState(0.8);
+  const [selectedLoras, setSelectedLoras] = useState<Array<{ id: string; strength: number }>>([]);
   const [prompt, setPrompt] = useState('');
   const [negative, setNegative] = useState('');
   const [width, setWidth] = useState(832);
   const [height, setHeight] = useState(1216);
   const [steps, setSteps] = useState(28);
-  const [cfg, setCfg] = useState(3.5);
+  const [cfg, setCfg] = useState(1);
+  const [imageCount, setImageCount] = useState(1);
+  const [customPresets, setCustomPresets] = useState<Array<(typeof CIVITAI_PRESETS)[number]>>([]);
+  const [presetName, setPresetName] = useState('');
+  const [sampler, setSampler] = useState('euler');
+  const [scheduler, setScheduler] = useState('simple');
   const [seed, setSeed] = useState(-1);
   const [denoise, setDenoise] = useState(0.55);
   const [inputImage, setInputImage] = useState('');
+  const [referenceImageUploading, setReferenceImageUploading] = useState(false);
+  const [identityConsistency, setIdentityConsistency] = useState(Boolean(girlfriendId));
   const [kind, setKind] = useState('girlfriend');
   const [lastResult, setLastResult] = useState<Any[]>([]);
   const [scopedGirlfriend, setScopedGirlfriend] = useState<Any | null>(null);
   const [gfLoading, setGfLoading] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchGirlfriends, setBatchGirlfriends] = useState<Any[]>([]);
+  const [batchSelectedIds, setBatchSelectedIds] = useState<string[]>([]);
+  const [batchSearch, setBatchSearch] = useState('');
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<Array<{ id: string; name: string; status: 'pending' | 'running' | 'success' | 'failed'; error?: string }>>([]);
 
 
   const applyPreset = (p: (typeof CIVITAI_PRESETS)[number]) => {
-    setPrompt(p.prompt);
+    setPrompt(scopedGirlfriend
+      ? assembleGirlfriendFromRow(scopedGirlfriend, p.prompt).positive
+      : p.prompt);
     setNegative(p.negative);
     setWidth(p.width);
     setHeight(p.height);
     setSteps(p.steps);
     setCfg(p.cfg);
     toast.success(`已应用预设：${p.name}`);
+  };
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('soulmate-comfy-presets');
+      if (saved) setCustomPresets(JSON.parse(saved));
+    } catch { /* ignore invalid local preset data */ }
+  }, []);
+
+  const persistCustomPresets = (items: Array<(typeof CIVITAI_PRESETS)[number]>) => {
+    setCustomPresets(items);
+    localStorage.setItem('soulmate-comfy-presets', JSON.stringify(items));
+  };
+
+  const saveCurrentPreset = () => {
+    const name = presetName.trim();
+    if (!name || !prompt.trim()) return toast.error('请输入预设名称并填写提示词');
+    const item = {
+      id: `custom-${Date.now()}`,
+      name,
+      desc: '自定义预设',
+      prompt: prompt.trim(), negative: negative.trim(), width, height, steps, cfg,
+    };
+    persistCustomPresets([...customPresets, item]);
+    setPresetName('');
+    toast.success('预设已保存到当前浏览器');
   };
 
   const loadVolume = useCallback(async () => {
@@ -239,10 +284,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setCkptId(wf.defaults?.ckpt_id || 'flux-fp8');
     setLoraId(wf.defaults?.lora_id || 'none');
     setLoraStrength(wf.defaults?.lora_strength ?? 0.8);
+    setSelectedLoras(wf.defaults?.lora_id
+      ? [{ id: wf.defaults.lora_id, strength: wf.defaults?.lora_strength ?? 0.8 }]
+      : []);
     setWidth(wf.defaults?.width || 832);
     setHeight(wf.defaults?.height || 1216);
     setSteps(wf.defaults?.steps || 28);
-    setCfg(wf.defaults?.cfg || 3.5);
+    setCfg(String(wf.defaults?.ckpt_id || '').startsWith('flux') ? 1 : (wf.defaults?.cfg || 7));
     setDenoise(wf.defaults?.denoise ?? 0.55);
     if (!opts?.preservePrompt) {
       setPrompt(wf.defaults?.positive || '');
@@ -291,6 +339,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           if (match) {
             setLoraId((cur: string) => (cur && cur !== 'none' ? cur : match.id));
             setLoraStrength((s: number) => (s > 0 ? s : plan.lora_strength_model || match.default_strength || 0.75));
+            setSelectedLoras((current) => current.length
+              ? current
+              : [{ id: match.id, strength: plan.lora_strength_model || match.default_strength || 0.75 }]);
           }
         }
       } catch {
@@ -317,6 +368,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
     setLoraId(lora.id);
     setLoraStrength(lora.default_strength ?? 0.75);
+    setSelectedLoras((current) => current.some((item) => item.id === lora.id)
+      ? current
+      : [...current, { id: lora.id, strength: lora.default_strength ?? 0.75 }].slice(-4));
     const triggers = (lora.trigger_words || []).slice(0, 4).join(', ');
     if (opts?.appendTriggers !== false && triggers) {
       setPrompt((p) => {
@@ -337,6 +391,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     if (lora) {
       setLoraId(lora.id);
       setLoraStrength(recipe.lora_strength ?? lora.default_strength ?? 0.75);
+      setSelectedLoras([{ id: lora.id, strength: recipe.lora_strength ?? lora.default_strength ?? 0.75 }]);
       const triggers =
         recipe.append_triggers !== false
           ? (lora.trigger_words || []).slice(0, 4).join(', ')
@@ -357,20 +412,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const recipes: Any[] = config?.lora_recipes || [];
   const stackingTips: string[] = config?.lora_stacking_tips || [];
 
-  const selectedLora = useMemo(
-    () => loras.find((l) => l.id === loraId),
-    [loras, loraId],
-  );
-
   const installedSet = useMemo(() => new Set(installedLoras), [installedLoras]);
-
-  const loraOnDisk = useMemo(() => {
-    if (!selectedLora || loraId === 'none') return true;
-    const fn = String(selectedLora.filename || '').trim();
-    if (!fn) return false;
-    if (installedSet.size === 0) return true;
-    return installedSet.has(fn);
-  }, [selectedLora, loraId, installedSet]);
 
   const lorasByCat = useMemo(() => {
     const map: Record<string, Any[]> = {};
@@ -388,6 +430,110 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     () => endpoints.find((e) => e.id === endpointKey),
     [endpoints, endpointKey],
   );
+
+  const filteredBatchGirlfriends = useMemo(() => {
+    const query = batchSearch.trim().toLowerCase();
+    if (!query) return batchGirlfriends;
+    return batchGirlfriends.filter((item) =>
+      String(item.name || '').toLowerCase().includes(query) ||
+      String(item.slug || '').toLowerCase().includes(query),
+    );
+  }, [batchGirlfriends, batchSearch]);
+
+  const loadBatchGirlfriends = async () => {
+    setBatchLoading(true);
+    try {
+      const res = await authedFetch('/api/admin/girlfriends?limit=100&sort=name&order=asc');
+      const data = await readResponseJson(res).catch(() => ({} as Any));
+      if (!res.ok) throw new Error(data.error || '加载女友列表失败');
+      setBatchGirlfriends(Array.isArray(data.girlfriends) ? data.girlfriends : []);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '加载女友列表失败');
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  const toggleBatchGirlfriend = (id: string) => {
+    setBatchSelectedIds((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      if (current.length >= 20) {
+        toast.error('单次批量任务最多选择 20 位女友');
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+
+  const generationBody = (overrides?: { girlfriendId?: string; prompt?: string; negative?: string }) => ({
+    action: 'generate',
+    girlfriend_id: overrides?.girlfriendId || girlfriendId || undefined,
+    workflow_id: workflowId,
+    endpoint_key: endpointKey,
+    endpoint_id: selectedEndpoint?.endpoint_id || undefined,
+    ckpt_id: ckptId,
+    lora_id: loraId === 'none' ? null : loraId,
+    lora_strength: loraStrength,
+    loras: selectedLoras,
+    prompt: overrides?.prompt ?? prompt,
+    negative: overrides?.negative ?? negative,
+    width,
+    height,
+    steps,
+    cfg,
+    sampler_name: sampler,
+    scheduler,
+    num_images: imageCount,
+    seed,
+    denoise: genMode === 'img2img' || inputImage ? denoise : undefined,
+    input_image: genMode === 'img2img' || inputImage.trim() ? inputImage.trim() || undefined : undefined,
+    character_consistency: identityConsistency,
+    gen_mode: genMode,
+    kind,
+  });
+
+  const runBatchGeneration = async () => {
+    const selected = batchGirlfriends.filter((item) => batchSelectedIds.includes(String(item.id)));
+    if (!selected.length) return toast.error('请先选择需要生成的女友');
+    if (genMode === 'img2img' && !inputImage.trim()) return toast.error('批量图生图需要先上传参考图');
+    const actionText = prompt.includes('. She is ') ? prompt.split('. She is ').slice(1).join('. She is ') : prompt;
+    setBatchRunning(true);
+    setLastResult([]);
+    setBatchProgress(selected.map((item) => ({ id: String(item.id), name: String(item.name || item.id), status: 'pending' })));
+    const generatedAssets: Any[] = [];
+    let succeeded = 0;
+    let failed = 0;
+    for (const girlfriend of selected) {
+      const id = String(girlfriend.id);
+      const name = String(girlfriend.name || id);
+      setBatchProgress((items) => items.map((item) => item.id === id ? { ...item, status: 'running' } : item));
+      try {
+        const assembled = assembleGirlfriendFromRow(girlfriend as Record<string, unknown>, actionText, { useEmptyNegative: false });
+        const res = await authedFetch('/api/admin/comfy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...generationBody({ girlfriendId: id, prompt: assembled.positive, negative: assembled.negative }),
+            character_consistency: true,
+          }),
+        });
+        const data = await readResponseJson(res).catch(() => ({} as Any));
+        if (!res.ok) throw new Error(data.error || '生成失败');
+        generatedAssets.push(...(Array.isArray(data.assets) ? data.assets : []));
+        succeeded += 1;
+        setBatchProgress((items) => items.map((item) => item.id === id ? { ...item, status: 'success' } : item));
+      } catch (error) {
+        failed += 1;
+        setBatchProgress((items) => items.map((item) => item.id === id
+          ? { ...item, status: 'failed', error: error instanceof Error ? error.message : '生成失败' }
+          : item));
+      }
+    }
+    setLastResult(generatedAssets);
+    setBatchRunning(false);
+    if (failed) toast.warning(`批量任务完成：成功 ${succeeded}，失败 ${failed}`);
+    else toast.success(`批量任务完成：${succeeded} 位女友全部生成成功`);
+  };
 
   const syncInstalled = async () => {
     setSyncingInstalled(true);
@@ -427,27 +573,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       const res = await authedFetch('/api/admin/comfy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate',
-          girlfriend_id: girlfriendId || undefined,
-          workflow_id: workflowId,
-          endpoint_key: endpointKey,
-          endpoint_id: selectedEndpoint?.endpoint_id || undefined,
-          ckpt_id: ckptId,
-          lora_id: loraId === 'none' ? null : loraId,
-          lora_strength: loraStrength,
-          prompt,
-          negative,
-          width,
-          height,
-          steps,
-          cfg,
-          seed,
-          denoise: genMode === 'img2img' || inputImage ? denoise : undefined,
-          input_image: genMode === 'img2img' || inputImage.trim() ? inputImage.trim() || undefined : undefined,
-          gen_mode: genMode,
-          kind,
-        }),
+        body: JSON.stringify(generationBody()),
       });
       const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '生成失败');
@@ -605,6 +731,36 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
   };
 
+  const uploadReferenceImage = async (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('请选择图片文件');
+      return;
+    }
+    setReferenceImageUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('action', 'upload_assets');
+      fd.append('kind', 'reference');
+      if (girlfriendId) fd.append('girlfriend_id', girlfriendId);
+      fd.append('files', file);
+      const res = await authedFetch('/api/admin/comfy', { method: 'POST', body: fd });
+      const data = await readResponseJson(res).catch(() => ({} as Any));
+      if (!res.ok) throw new Error(String(data.error || '参考图上传失败'));
+      const uploaded = Array.isArray(data.assets) ? data.assets[0] : null;
+      const url = String(uploaded?.url || '').trim();
+      if (!/^https?:\/\//i.test(url)) throw new Error('上传成功但未返回可用的 HTTPS 图片地址');
+      setInputImage(url);
+      setGenMode('img2img');
+      toast.success('参考图已上传并启用图生图');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '参考图上传失败');
+    } finally {
+      setReferenceImageUploading(false);
+      if (referenceImageInputRef.current) referenceImageInputRef.current.value = '';
+    }
+  };
+
 
   const saveEndpoints = async () => {
     if (!config) return;
@@ -724,6 +880,19 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           {syncingInstalled ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <HardDrive className="h-3.5 w-3.5 mr-1" />}
           同步盘状态
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className={cn('h-9 border-violet-700 text-violet-100', batchOpen && 'bg-violet-600/25')}
+          onClick={() => {
+            const next = !batchOpen;
+            setBatchOpen(next);
+            if (next && batchGirlfriends.length === 0) void loadBatchGirlfriends();
+          }}
+        >
+          <Users className="mr-1 h-3.5 w-3.5" /> 批量生成
+          {batchSelectedIds.length ? <Badge className="ml-1.5 bg-violet-500 text-white">{batchSelectedIds.length}</Badge> : null}
+        </Button>
         <span className="text-[10px] text-slate-500">
           已装 {installedLoras.length} · {volumeInfo?.paths?.loras || config.network_volume?.loras_dir || 'models/loras'}
         </span>
@@ -731,30 +900,144 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
 
       {/* GENERATE — SD: left params sticky / right preview */}
       {tab === 'generate' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(300px,400px)_1fr] gap-3 items-start">
+        <div className="space-y-4 text-slate-100">
+          {batchOpen ? (
+            <section className="rounded-xl border border-violet-500/40 bg-violet-950/20 p-3 shadow-lg shadow-violet-950/20">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-bold text-white"><Users className="h-4 w-4 text-violet-300" /> 批量生成女友</h2>
+                  <p className="mt-1 text-[11px] text-slate-300">逐个读取女友卡特征并生成，每张图片自动进入对应女友独立资源库。单次最多 20 位。</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" disabled={batchRunning || batchLoading} onClick={() => {
+                    setBatchSelectedIds(filteredBatchGirlfriends.slice(0, 20).map((item) => String(item.id)));
+                  }}>选择当前结果</Button>
+                  <Button type="button" size="sm" variant="outline" disabled={batchRunning} onClick={() => setBatchSelectedIds([])}>清空</Button>
+                  <Button type="button" size="sm" className="bg-violet-600 hover:bg-violet-500" disabled={batchRunning || batchSelectedIds.length === 0} onClick={() => void runBatchGeneration()}>
+                    {batchRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Play className="mr-1.5 h-4 w-4" />}
+                    {batchRunning ? '批量生成中' : `开始生成 ${batchSelectedIds.length || ''}`}
+                  </Button>
+                </div>
+              </div>
+              <div className="relative mt-3">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                <Input value={batchSearch} onChange={(event) => setBatchSearch(event.target.value)} placeholder="搜索女友名字 / slug" className="h-9 border-slate-700 bg-slate-950 pl-8 text-sm" />
+              </div>
+              {batchLoading ? (
+                <div className="flex h-28 items-center justify-center text-sm text-slate-300"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 加载女友列表…</div>
+              ) : (
+                <div className="mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+                  {filteredBatchGirlfriends.map((item) => {
+                    const id = String(item.id);
+                    const checked = batchSelectedIds.includes(id);
+                    const progress = batchProgress.find((entry) => entry.id === id);
+                    const image = String(item.avatar_url || item.portrait_url || item.card_url || '');
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-pressed={checked}
+                        disabled={batchRunning}
+                        onClick={() => toggleBatchGirlfriend(id)}
+                        className={cn('flex items-center gap-2 rounded-lg border p-2 text-left transition', checked ? 'border-violet-400 bg-violet-500/20' : 'border-slate-700 bg-slate-950/70 hover:border-slate-500')}
+                      >
+                        <div className="h-11 w-9 shrink-0 overflow-hidden rounded bg-slate-800">
+                          {image ? <img src={image} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="m-2 h-5 w-5 text-slate-500" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold text-white">{item.name || id}</p>
+                          <p className={cn('mt-0.5 text-[10px]', progress?.status === 'failed' ? 'text-red-300' : progress?.status === 'success' ? 'text-emerald-300' : progress?.status === 'running' ? 'text-cyan-300' : 'text-slate-400')}>
+                            {progress?.status === 'running' ? '生成中…' : progress?.status === 'success' ? '已完成' : progress?.status === 'failed' ? '失败' : checked ? '已选择' : '待选择'}
+                          </p>
+                        </div>
+                        {checked ? <CheckSquare className="h-4 w-4 shrink-0 text-violet-300" /> : <Square className="h-4 w-4 shrink-0 text-slate-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {batchProgress.some((item) => item.status === 'failed') ? (
+                <div className="mt-2 rounded border border-red-500/30 bg-red-950/20 px-2 py-1.5 text-[10px] text-red-200">
+                  {batchProgress.filter((item) => item.status === 'failed').map((item) => `${item.name}: ${item.error || '生成失败'}`).join('；')}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+          <section className="rounded-md border border-slate-700 bg-[#111214] p-3 shadow-xl shadow-black/30">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-white">正向提示词 · 人物 + 做什么</h2>
+                <p className="text-[11px] text-slate-300">使用自然语言描述成年 AI 女友及她正在进行的性感、妩媚或亲密动作。</p>
+              </div>
+              <Badge className="border-violet-400/40 bg-violet-500/15 text-violet-100">{prompt.length} 字符</Badge>
+            </div>
+            <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px]">
+              <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-500 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年女友。她正倚在床边，用妩媚的眼神邀请观众靠近。" />
+              <Button className="min-h-28 bg-slate-100 text-base font-bold !text-slate-950 hover:bg-white" disabled={generating} onClick={generate}>
+                {generating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
+                {generating ? '生成中…' : '生成'}
+              </Button>
+            </div>
+            <div className="mt-2">
+              <div className="mb-1 text-[11px] font-semibold text-slate-300">反向提示词</div>
+              <Textarea value={negative} onChange={(e) => setNegative(e.target.value)} rows={2} className="min-h-16 resize-y border-slate-700 bg-[#0b0c0e] font-mono text-xs leading-5 text-slate-200 placeholder:text-slate-600 focus-visible:ring-rose-500" placeholder="blurry, bad anatomy, underage, watermark…" />
+            </div>
+          </section>
+
+          <section className="grid gap-3 rounded-md border border-slate-700 bg-[#17181b] p-3 md:grid-cols-[1fr_1fr_1.2fr]">
+            <div>
+              <Label className="mb-1 block text-[11px] text-slate-300">采样方法 (Sampler)</Label>
+              <Select value={sampler} onValueChange={setSampler}>
+                <SelectTrigger className="h-9 border-slate-600 bg-[#0b0c0e] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="euler">Euler（FLUX 推荐）</SelectItem>
+                  <SelectItem value="euler_ancestral">Euler ancestral</SelectItem>
+                  <SelectItem value="dpmpp_2m">DPM++ 2M</SelectItem>
+                  <SelectItem value="dpmpp_sde">DPM++ SDE</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-1 block text-[11px] text-slate-300">调度类型 (Scheduler)</Label>
+              <Select value={scheduler} onValueChange={setScheduler}>
+                <SelectTrigger className="h-9 border-slate-600 bg-[#0b0c0e] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="simple">Simple（FLUX 推荐）</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="karras">Karras</SelectItem>
+                  <SelectItem value="sgm_uniform">SGM Uniform</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <div className="mb-1 flex justify-between text-[11px] text-slate-300"><span>迭代步数 (Steps)</span><span>{steps}</span></div>
+              <input type="range" min={8} max={50} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="mt-2 w-full accent-violet-500" />
+            </div>
+          </section>
+
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(460px,1fr)_minmax(520px,1fr)] gap-4 items-start">
           <div className="space-y-3 xl:sticky xl:top-14 xl:max-h-[calc(100vh-4.5rem)] xl:overflow-y-auto pr-0.5">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
-              <div className="text-[11px] text-slate-400 mb-2 flex items-center gap-1">
+            <div className="rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-lg shadow-black/20">
+              <div className="text-xs font-semibold text-slate-100 mb-2 flex items-center gap-1">
                 <Settings2 className="h-3.5 w-3.5" /> 生成模式
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 {([
                   { id: 'txt2img' as const, label: '文生图', icon: FileImage },
                   { id: 'img2img' as const, label: '图生图', icon: ImagePlus },
-                  { id: 'img2video' as const, label: '图生视频', icon: Video },
                 ]).map((m) => (
                   <button
                     key={m.id}
                     type="button"
                     onClick={() => {
-                      if (m.id === 'img2video') toast.message('图生视频预留：工作流就绪后开放');
                       setGenMode(m.id);
+                      if (m.id === 'img2img' && identityConsistency) setDenoise((value) => Math.min(value, 0.45));
                     }}
                     className={cn(
                       'flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px]',
                       genMode === m.id
-                        ? 'border-violet-500 bg-violet-600/30 text-white'
-                        : 'border-slate-700 bg-black/20 text-slate-400 hover:text-white',
+                        ? 'border-violet-400 bg-violet-600/60 !text-white'
+                        : 'border-slate-500 bg-slate-950 !text-slate-100 hover:border-violet-400 hover:!text-white',
                     )}
                   >
                     <m.icon className="h-4 w-4" />
@@ -762,29 +1045,63 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                   </button>
                 ))}
               </div>
+              <button
+                type="button"
+                aria-pressed={identityConsistency}
+                onClick={() => setIdentityConsistency((enabled) => {
+                  const next = !enabled;
+                  if (next && genMode === 'img2img') setDenoise((value) => Math.min(value, 0.45));
+                  return next;
+                })}
+                className={cn(
+                  'mt-2 flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition',
+                  identityConsistency
+                    ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-50'
+                    : 'border-slate-600 bg-slate-950/60 text-slate-300 hover:border-slate-500',
+                )}
+              >
+                <span className="flex items-center gap-2 text-xs font-semibold">
+                  {identityConsistency ? <CheckSquare className="h-4 w-4 text-cyan-300" /> : <Square className="h-4 w-4" />}
+                  人物一致性
+                </span>
+                <span className="text-[10px] opacity-80">
+                  {identityConsistency
+                    ? girlfriendId ? '已锁定当前女友特征' : '需先选择女友卡'
+                    : '关闭'}
+                </span>
+              </button>
+              <p className="mt-1.5 text-[10px] leading-4 text-slate-400">
+                文生图优先使用女友卡肖像保持身份；图生图把上传图片作为姿势与构图参考，人物仍以女友卡的脸型、发色、眼睛和身材为准。
+              </p>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2">
+            <div className="rounded-xl border border-slate-700 bg-slate-900 p-3 space-y-2 shadow-lg shadow-black/20">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-semibold text-white">快速预设</div>
                 <Badge variant="outline" className="text-[10px]">中文</Badge>
               </div>
+              <div className="flex gap-1.5">
+                <Input value={presetName} onChange={(e) => setPresetName(e.target.value)} className="h-8 border-slate-600 bg-slate-950 text-xs text-white" placeholder="新预设名称" />
+                <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 border-slate-500 text-white" onClick={saveCurrentPreset}>保存当前</Button>
+              </div>
               <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto">
-                {CIVITAI_PRESETS.map((pr) => (
-                  <button
-                    key={pr.id}
-                    type="button"
-                    onClick={() => applyPreset(pr)}
-                    className="text-left rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] px-2.5 py-1.5"
-                  >
-                    <div className="text-[11px] font-semibold text-pink-200">{pr.name}</div>
-                    <div className="text-[10px] text-white/50">{pr.desc}</div>
-                  </button>
+                {[...CIVITAI_PRESETS, ...customPresets].map((pr) => (
+                  <div key={pr.id} className="flex items-stretch rounded-lg border border-slate-600 bg-slate-950 hover:border-pink-400">
+                    <button type="button" onClick={() => applyPreset(pr)} className="min-w-0 flex-1 px-3 py-2 text-left transition-colors hover:bg-slate-800">
+                      <div className="text-[11px] font-semibold text-pink-100">{pr.name}</div>
+                      <div className="text-[11px] text-slate-100">{pr.desc}</div>
+                    </button>
+                    {pr.id.startsWith('custom-') && (
+                      <button type="button" className="px-2 text-red-300 hover:bg-red-950/40 hover:text-red-100" aria-label={`删除预设 ${pr.name}`} onClick={() => persistCustomPresets(customPresets.filter((item) => item.id !== pr.id))}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
 
-            <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+            <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-lg shadow-black/20 [&_label]:font-medium [&_label]:text-slate-200">
               <div className="flex items-center gap-2 text-sm font-semibold text-violet-300">
                 <Settings2 className="h-4 w-4" /> 参数
               </div>
@@ -812,18 +1129,23 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 </Select>
               </div>
               <div>
-                <Label className="text-[11px] text-slate-400 flex items-center justify-between">
-                  <span>LoRA（网络卷）</span>
-                  {loraId !== 'none' && (
-                    <span className={cn('text-[10px]', loraOnDisk ? 'text-emerald-400' : 'text-amber-400')}>
-                      {loraOnDisk ? '盘上可调' : '未在盘上·会回退'}
-                    </span>
-                  )}
+                <Label className="text-[11px] flex items-center justify-between">
+                  <span>LoRA 叠加（最多 4 个）</span>
+                  <span className="text-[10px] text-cyan-300">已选 {selectedLoras.length}</span>
                 </Label>
-                <Select value={loraId || 'none'} onValueChange={(id) => { setLoraId(id); const l = loras.find((x) => x.id === id); if (l?.default_strength != null) setLoraStrength(l.default_strength); }}>
-                  <SelectTrigger className="h-9 bg-slate-950 border-slate-700 text-xs"><SelectValue /></SelectTrigger>
+                <Select value="none" onValueChange={(id) => {
+                  if (id === 'none') return;
+                  const l = loras.find((x) => x.id === id);
+                  if (!l) return;
+                  setLoraId(id);
+                  setLoraStrength(l.default_strength ?? 0.7);
+                  setSelectedLoras((current) => current.some((item) => item.id === id)
+                    ? current
+                    : [...current, { id, strength: l.default_strength ?? 0.7 }].slice(-4));
+                }}>
+                  <SelectTrigger className="h-9 bg-slate-950 border-slate-600 text-xs text-slate-100"><SelectValue placeholder="添加 LoRA…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">不使用 LoRA</SelectItem>
+                    <SelectItem value="none">添加 LoRA…</SelectItem>
                     {loras.map((l) => {
                       const fn = String(l.filename || '');
                       const on = !fn || installedSet.size === 0 || installedSet.has(fn);
@@ -836,30 +1158,83 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                   </SelectContent>
                 </Select>
               </div>
-              {loraId && loraId !== 'none' && (
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] text-slate-400">LoRA 强度 {loraStrength.toFixed(2)}</Label>
-                  <input type="range" min={0} max={1.2} step={0.05} value={loraStrength} onChange={(e) => setLoraStrength(Number(e.target.value))} className="w-full accent-violet-500" />
-                  {selectedLora?.filename && <p className="text-[10px] font-mono text-cyan-400/80">{selectedLora.filename}</p>}
-                  {selectedLora?.usage && <p className="text-[10px] text-slate-400">{selectedLora.usage}</p>}
+              {selectedLoras.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-violet-500/30 bg-violet-950/20 p-2.5">
+                  {selectedLoras.map((selection) => {
+                    const asset = loras.find((item) => item.id === selection.id);
+                    const filename = String(asset?.filename || '');
+                    const onDisk = !filename || installedSet.size === 0 || installedSet.has(filename);
+                    return (
+                      <div key={selection.id} className="rounded-md border border-slate-700 bg-slate-950 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-[11px] font-semibold text-white">{asset?.label || selection.id}</p>
+                            <p className={cn('truncate text-[10px] font-mono', onDisk ? 'text-cyan-300' : 'text-amber-300')}>
+                              {onDisk ? filename : `${filename} · 未在盘上`}
+                            </p>
+                          </div>
+                          <button type="button" className="text-slate-300 hover:text-red-300" onClick={() => {
+                            setSelectedLoras((current) => current.filter((item) => item.id !== selection.id));
+                            if (loraId === selection.id) setLoraId('none');
+                          }} aria-label={`移除 ${asset?.label || selection.id}`}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <input type="range" min={0} max={1.2} step={0.05} value={selection.strength} onChange={(event) => {
+                            const strength = Number(event.target.value);
+                            setSelectedLoras((current) => current.map((item) => item.id === selection.id ? { ...item, strength } : item));
+                          }} className="w-full accent-violet-500" />
+                          <span className="w-9 text-right text-[11px] font-semibold text-violet-200">{selection.strength.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button type="button" className="text-[10px] font-medium text-slate-300 hover:text-white" onClick={() => { setSelectedLoras([]); setLoraId('none'); }}>
+                    清空全部 LoRA
+                  </button>
                 </div>
               )}
-              <div>
-                <Label className="text-[11px] text-slate-400">正向提示词</Label>
-                <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={5} className="bg-slate-950 border-slate-700 text-xs font-mono" placeholder="特征 + 动作 + 环境 + 质量" />
-              </div>
-              <div>
-                <Label className="text-[11px] text-slate-400">反向提示词</Label>
-                <Textarea value={negative} onChange={(e) => setNegative(e.target.value)} rows={2} className="bg-slate-950 border-slate-700 text-xs font-mono" />
-              </div>
               {(genMode === 'img2img' || genMode === 'img2video') && (
                 <div className="space-y-2 rounded-lg border border-amber-900/40 bg-amber-950/20 p-2">
-                  <Label className="text-[11px] text-amber-200/90">参考图 URL</Label>
-                  <Input value={inputImage} onChange={(e) => setInputImage(e.target.value)} className="bg-slate-950 border-slate-700 text-xs font-mono" placeholder="https://..." />
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-[11px] text-amber-200/90">参考图</Label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={referenceImageUploading}
+                      onClick={() => referenceImageInputRef.current?.click()}
+                      className="h-7 border-amber-700/60 bg-amber-950/40 px-2 text-[11px] text-amber-100 hover:bg-amber-900/50"
+                    >
+                      {referenceImageUploading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Upload className="mr-1 h-3 w-3" />}
+                      上传图片
+                    </Button>
+                    <input
+                      ref={referenceImageInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(event) => void uploadReferenceImage(event.target.files?.[0] || null)}
+                    />
+                  </div>
+                  <Input value={inputImage} onChange={(e) => setInputImage(e.target.value)} className="bg-slate-950 border-slate-700 text-xs font-mono" placeholder="也可粘贴 HTTPS 图片地址" />
+                  {inputImage ? (
+                    <div className="flex items-center gap-2 rounded border border-white/10 bg-black/20 p-1.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={inputImage} alt="参考图预览" className="h-16 w-12 rounded object-cover" />
+                      <div className="min-w-0 flex-1 text-[10px] text-slate-300">
+                        <p className="font-medium text-amber-100">已启用参考图</p>
+                        <p className="truncate">{inputImage}</p>
+                      </div>
+                      <button type="button" onClick={() => setInputImage('')} className="px-1 text-[10px] text-slate-400 hover:text-white">清除</button>
+                    </div>
+                  ) : null}
                   {genMode === 'img2img' && (
                     <div>
                       <Label className="text-[11px] text-slate-400">Denoise {denoise.toFixed(2)}</Label>
                       <input type="range" min={0.15} max={0.95} step={0.05} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} className="w-full accent-amber-500" />
+                      {identityConsistency ? <p className="mt-1 text-[10px] text-cyan-200/80">一致性开启时服务端会将有效 Denoise 限制在 0.45 以内，降低换脸和体貌漂移。</p> : null}
                     </div>
                   )}
                 </div>
@@ -870,21 +1245,18 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <div><Label className="text-[11px] text-slate-400">Steps</Label><Input type="number" value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
                 <div><Label className="text-[11px] text-slate-400">CFG</Label><Input type="number" step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
                 <div><Label className="text-[11px] text-slate-400">Seed</Label><Input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value))} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
+                <div><Label className="text-[11px] text-slate-200">生成数量</Label><Select value={String(imageCount)} onValueChange={(value) => setImageCount(Number(value))}><SelectTrigger className="h-9 border-slate-600 bg-slate-950 text-xs text-white"><SelectValue /></SelectTrigger><SelectContent>{[1, 2, 3, 4].map((count) => <SelectItem key={count} value={String(count)}>{count} 张</SelectItem>)}</SelectContent></Select></div>
                 <div><Label className="text-[11px] text-slate-400">kind</Label><Input value={kind} onChange={(e) => setKind(e.target.value)} className="h-9 bg-slate-950 border-slate-700 text-xs" /></div>
               </div>
-              <Button className="w-full bg-violet-600 hover:bg-violet-500 h-10" disabled={generating || genMode === 'img2video'} onClick={generate}>
-                {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                {genMode === 'img2video' ? '视频预留' : generating ? '生成中…' : '开始生成'}
-              </Button>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 min-h-[420px] flex flex-col">
+          <div className="rounded-xl border border-slate-700 bg-slate-900 p-4 min-h-[calc(100vh-11rem)] flex flex-col shadow-xl shadow-black/20">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-semibold text-white flex items-center gap-2">
                 <ImageIcon className="h-4 w-4 text-violet-400" /> 输出预览
               </div>
-              <div className="text-[10px] text-slate-500">
+              <div className="text-[11px] font-medium text-slate-300">
                 {genMode === 'txt2img' && '文生图'}
                 {genMode === 'img2img' && '图生图'}
                 {genMode === 'img2video' && '图生视频（预留）'}
@@ -897,7 +1269,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
             )}
             {!generating && lastResult.length === 0 && (
-              <div className="flex flex-1 flex-col items-center justify-center border border-dashed border-slate-700 rounded-lg text-slate-500 text-sm py-20">
+              <div className="flex flex-1 min-h-[560px] flex-col items-center justify-center border border-dashed border-slate-600 bg-slate-950/70 rounded-lg text-slate-300 text-sm py-20">
                 <ImageIcon className="h-10 w-10 mb-3 opacity-40" />
                 生成结果会出现在这里
               </div>
@@ -924,6 +1296,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
             )}
           </div>
+        </div>
         </div>
       )}
 
@@ -1375,7 +1748,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           <li>LoRA 须对应网络卷 models/loras/ 真实文件名；● 盘上可调，未安装会在服务端回退。</li>
           <li>下载：模型库导出 lora-urls.txt → RunPod downloader → 更新 VOLUME_INSTALLED_LORAS 或 env → 同步盘状态。</li>
           <li>女友模式写入 girlfriends/&#123;id&#125;/；公共模式写入 comfy-outputs。</li>
-          <li>图生视频为预留，不会假生成。</li>
+          <li>当前仅展示已接通的文生图与图生图；采样器、调度器、Steps、CFG、Seed 和 LoRA 均写入真实工作流。</li>
         </ol>
       </footer>
 

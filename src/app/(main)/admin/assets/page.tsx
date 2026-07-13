@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import {
   Loader2, FolderOpen, Folder, RefreshCw, Trash2, Upload, ExternalLink, Heart,
   Sparkles, CheckSquare, Square, ArrowLeft, Scissors, Copy, ClipboardPaste, MoveRight,
+  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -52,6 +53,8 @@ export default function AdminAssetsPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
+  const [folderQ, setFolderQ] = useState('');
+  const [kindFilter, setKindFilter] = useState('all');
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'folders' | 'folder'>('folders');
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null); // null = uncategorized
@@ -126,6 +129,7 @@ export default function AdminAssetsPage() {
   const activeAssets = useMemo(() => {
     const list = items.filter((a) => {
       const gid = (a.girlfriend_id || '').trim() || null;
+      if (kindFilter !== 'all' && (a.kind || 'girlfriend') !== kindFilter) return false;
       if (activeFolderId === null) return !gid;
       return gid === activeFolderId;
     });
@@ -137,7 +141,20 @@ export default function AdminAssetsPage() {
       (a.storage_key || '').toLowerCase().includes(s) ||
       (a.girlfriend_id || '').toLowerCase().includes(s),
     );
-  }, [items, activeFolderId, q]);
+  }, [items, activeFolderId, q, kindFilter]);
+
+  const visibleFolders = useMemo(() => {
+    const term = folderQ.trim().toLowerCase();
+    const matchingIds = kindFilter === 'all'
+      ? null
+      : new Set(items.filter((item) => (item.kind || 'girlfriend') === kindFilter && item.girlfriend_id).map((item) => String(item.girlfriend_id)));
+    return folders.classified.filter((folder) =>
+      (!matchingIds || matchingIds.has(folder.id)) &&
+      (!term || folder.name.toLowerCase().includes(term) || folder.id.toLowerCase().includes(term)),
+    );
+  }, [folders.classified, folderQ, kindFilter, items]);
+
+  const assetKinds = useMemo(() => Array.from(new Set(items.map((item) => item.kind || 'girlfriend'))).sort(), [items]);
 
   const openFolder = (id: string | null) => {
     setActiveFolderId(id);
@@ -323,6 +340,16 @@ export default function AdminAssetsPage() {
           </div>
         ) : (
           <div className="space-y-6">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+              <div className="relative min-w-64 flex-1 max-w-md">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input value={folderQ} onChange={(e) => setFolderQ(e.target.value)} placeholder="搜索女友名称或资源库 ID" className="pl-9" />
+              </div>
+              <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-[#334155]">
+                <option value="all">全部分类</option>
+                {assetKinds.map((kind) => <option key={kind} value={kind}>{kind === 'girlfriend' ? '女友图片' : kind === 'outfit' ? '服装' : kind === 'shop_item' ? '商品' : kind}</option>)}
+              </select>
+            </div>
             <section>
               <h2 className="mb-2 text-sm font-semibold text-[#334155]">未分类</h2>
               <button
@@ -343,10 +370,10 @@ export default function AdminAssetsPage() {
             <section>
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-[#334155]">已分类（按女友）</h2>
-                <span className="text-xs text-[#94A3B8]">{folders.classified.length} 个文件夹</span>
+                <span className="text-xs text-[#94A3B8]">{visibleFolders.length} / {folders.classified.length} 个文件夹</span>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                {folders.classified.map((f) => (
+                {visibleFolders.map((f) => (
                   <button
                     key={f.id}
                     type="button"
@@ -386,6 +413,10 @@ export default function AdminAssetsPage() {
               placeholder="搜索当前文件夹"
               className="max-w-xs"
             />
+            <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} className="h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-[#334155]">
+              <option value="all">全部分类</option>
+              {assetKinds.map((kind) => <option key={kind} value={kind}>{kind === 'girlfriend' ? '女友图片' : kind === 'outfit' ? '服装' : kind === 'shop_item' ? '商品' : kind}</option>)}
+            </select>
             <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm text-[#334155] hover:bg-gray-50">
               <Upload className="h-4 w-4" />
               上传到此文件夹

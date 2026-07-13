@@ -1,7 +1,41 @@
-import { describe, it, expect } from 'vitest';
-import { createDefaultAiModules, resolveChatCall, resolveImageCall } from '@/lib/ai-modules';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import {
+  createDefaultAiModules,
+  resolveChatCall,
+  resolveImageCall,
+  detectNsfwIntent,
+} from '@/lib/ai-modules';
 
 describe('ai-modules resolve', () => {
+  const envBackup: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const k of [
+      'TOGETHER_API_KEY',
+      'RUNPOD_VLLM_URL',
+      'RUNPOD_VLLM_API_KEY',
+      'RUNPOD_API_KEY',
+    ]) {
+      envBackup[k] = process.env[k];
+    }
+    // Simulate local .env: RunPod present, Together absent
+    delete process.env.TOGETHER_API_KEY;
+    process.env.RUNPOD_VLLM_URL = 'https://api.runpod.ai/v2/test';
+    process.env.RUNPOD_VLLM_API_KEY = 'test-key';
+  });
+
+  afterEach(() => {
+    for (const [k, v] of Object.entries(envBackup)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
+  it('detects nsfw keywords with word boundaries', () => {
+    expect(detectNsfwIntent('kiss me hard')).toBe(true);
+    expect(detectNsfwIntent('hello there')).toBe(false);
+  });
+
   it('routes free users to SFW even with nsfw keywords', () => {
     const cfg = createDefaultAiModules();
     const r = resolveChatCall(cfg, {
@@ -11,7 +45,20 @@ describe('ai-modules resolve', () => {
     });
     expect(r.channel).toBe('sfw');
     expect(r.blockedReason).toBe('tier_no_nsfw');
-    expect(r.endpoint.id).toBe(cfg.chat.tiers.free.sfw_endpoint_id);
+    // Free SFW must land on a configured endpoint (RunPod when Together is missing)
+    expect(r.endpoint.provider).toBe('runpod');
+  });
+
+  it('skips Together when key is missing and uses RunPod', () => {
+    const cfg = createDefaultAiModules();
+    cfg.chat.tiers.free.sfw_endpoint_id = 'together-llama-8b';
+    cfg.chat.fallback_endpoint_id = 'together-llama-8b';
+    const r = resolveChatCall(cfg, {
+      tier: 'free',
+      intimacyLevel: 1,
+      message: 'hello',
+    });
+    expect(r.endpoint.provider).toBe('runpod');
   });
 
   it('routes pro users to NSFW when intimacy unlocks', () => {

@@ -229,13 +229,13 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           width: 832,
           height: 1216,
           steps: 28,
-          cfg: 3.5,
+          cfg: 1,
           denoise: 1,
           endpoint_key: 'portrait-v9',
           positive:
-            'stunning beautiful young woman, pretty balanced face, refined natural glam makeup, clear healthy skin, attractive feminine figure, three-quarter body preferred (chest and hips visible) or full body long legs, facing viewer, eye contact, natural flirty pose, soft bright beauty lighting on face, photorealistic, sharp focus',
+            'beautiful seductive adult woman, distinctive face and hairstyle, alluring eye contact, relaxed asymmetrical three-quarter pose, elegant revealing outfit, soft directional key light on face with natural rim light, photorealistic editorial portrait, crisp eyes, fine skin texture, realistic hair, high-resolution detail, sharp focus',
           negative:
-            'stiff mannequin pose, face-only close-up, underexposed, exaggerated plastic body, from behind, blurry, deformed, child, underage, watermark',
+            'blurry, soft focus, stiff mannequin pose, waxy plastic skin, bad anatomy, deformed hands, underexposed face, child, underage, watermark, text',
         },
       },
       {
@@ -250,7 +250,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           width: 1024,
           height: 1024,
           steps: 24,
-          cfg: 3.5,
+          cfg: 1,
           endpoint_key: 'comfy-default',
           positive:
             'sexy cosplay costume game prop, invisible ghost mannequin, no person no face, full garment front view, game inventory showcase, 8k',
@@ -270,7 +270,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           width: 1024,
           height: 1024,
           steps: 22,
-          cfg: 3.5,
+          cfg: 1,
           endpoint_key: 'comfy-default',
           positive:
             'fantasy game prop icon, magical special effects, glowing aura, particles, RPG loot, centered product, 8k',
@@ -289,7 +289,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           width: 832,
           height: 1216,
           steps: 26,
-          cfg: 3.5,
+          cfg: 1,
           denoise: 0.55,
           endpoint_key: 'portrait-v9',
           positive:
@@ -308,7 +308,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           width: 832,
           height: 1216,
           steps: 28,
-          cfg: 3.5,
+          cfg: 1,
           endpoint_key: 'comfy-default',
           positive: '',
           negative: 'blurry, low quality, watermark, text',

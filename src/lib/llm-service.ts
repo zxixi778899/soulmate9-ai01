@@ -20,7 +20,8 @@ import { injectLore, loraExtraBody, pickLore, type LoreMode } from '@/lib/lora-p
 const RP_BASE  = process.env.RUNPOD_VLLM_URL || '';
 const RP_KEY   = process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY || '';
 const LORA_NAME = process.env.RUNPOD_VLLM_LORA || 'rp'; // which LoRA to apply
-const FETCH_TIMEOUT = 60000;
+// RunPod serverless cold starts often exceed 60s (queue delay alone can be 70s+).
+const FETCH_TIMEOUT = 120000;
 
 const DEFAULT_TEMPERATURE         = Number(process.env.LLM_TEMPERATURE || 0.7);
 const DEFAULT_MAX_TOKENS          = Number(process.env.LLM_MAX_TOKENS || 1024);

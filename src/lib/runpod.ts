@@ -83,6 +83,7 @@ export function buildFluxWorkflow(opts: {
   seed?: number;
   sampler_name?: string;
   scheduler?: string;
+  batch_size?: number;
   /** Worker-local filename registered via RunPod `images` payload, or path for LoadImage */
   input_image?: string;
   denoising_strength?: number;
@@ -92,6 +93,12 @@ export function buildFluxWorkflow(opts: {
   lora_name?: string | null;
   lora_strength_model?: number;
   lora_strength_clip?: number;
+  /** Optional ordered LoRA stack. Each loader feeds the next one. */
+  loras?: Array<{
+    name: string;
+    strength_model?: number;
+    strength_clip?: number;
+  }>;
 }): Record<string, unknown> {
   // FLUX defaults: lower CFG + empty/minimal negative avoids black frames
   const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 32);
@@ -102,19 +109,32 @@ export function buildFluxWorkflow(opts: {
   const guidance = Math.min(Math.max(opts.guidance ?? 1.0, 1.0), 3.5);
   const sampler_name = opts.sampler_name || 'euler';
   const scheduler = opts.scheduler || 'simple';
+  const batchSize = Math.min(4, Math.max(1, Math.floor(opts.batch_size ?? 1)));
   const ckpt = opts.ckpt_name || 'flux1-dev-fp8.safetensors';
-  const sanitizedLora = sanitizeLoraForVolume(opts.lora_name, {
-    fallback: 'flux_style_photoreal_v1.safetensors',
-  });
-  const effectiveLoraName = sanitizedLora.lora_name;
-  if (sanitizedLora.changed && opts.lora_name) {
-    logger.warn('[runpod] lora not on volume, fallback', {
-      requested: opts.lora_name,
-      using: effectiveLoraName,
-      reason: sanitizedLora.reason,
-    });
-  }
-  const useLora = !!(effectiveLoraName && String(effectiveLoraName).trim());
+  const requestedStack = opts.loras?.length
+    ? opts.loras
+    : opts.lora_name
+      ? [{
+          name: opts.lora_name,
+          strength_model: opts.lora_strength_model,
+          strength_clip: opts.lora_strength_clip,
+        }]
+      : [];
+  const loraStack = requestedStack
+    .map((item) => {
+      const sanitized = sanitizeLoraForVolume(item.name, { fallback: null });
+      if (sanitized.changed) {
+        logger.warn('[runpod] skipping LoRA not on volume', {
+          requested: item.name,
+          reason: sanitized.reason,
+        });
+      }
+      return sanitized.lora_name
+        ? { ...item, name: sanitized.lora_name }
+        : null;
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+    .slice(0, 4);
 
   let promptText = String(opts.prompt || '').trim();
   if (!promptText) {
@@ -136,22 +156,25 @@ export function buildFluxWorkflow(opts: {
 
   // Node IDs: 1 Checkpoint → 2 pos CLIP → 3 neg CLIP → 4 latent → 5 KSampler → 6 VAE → 7 Save
   // Optional LoRA node 14
-  const modelRef: [string, number] = useLora ? ['14', 0] : ['1', 0];
-  const clipRef: [string, number] = useLora ? ['14', 1] : ['1', 1];
+  const lastLoraNodeId = loraStack.length ? String(14 + loraStack.length - 1) : '1';
+  const modelRef: [string, number] = [lastLoraNodeId, 0];
+  const clipRef: [string, number] = [lastLoraNodeId, 1];
   const vaeRef: [string, number] = ['1', 2];
 
-  const loraNode = useLora
-    ? {
+  const loraNodes = Object.fromEntries(loraStack.map((item, index) => {
+    const id = String(14 + index);
+    const previousId = index === 0 ? '1' : String(14 + index - 1);
+    return [id, {
         class_type: 'LoraLoader',
         inputs: {
-          lora_name: String(effectiveLoraName).trim(),
-          strength_model: opts.lora_strength_model ?? 0.8,
-          strength_clip: opts.lora_strength_clip ?? 0.8,
-          model: ['1', 0],
-          clip: ['1', 1],
+          lora_name: item.name,
+          strength_model: item.strength_model ?? 0.7,
+          strength_clip: item.strength_clip ?? item.strength_model ?? 0.7,
+          model: [previousId, 0],
+          clip: [previousId, 1],
         },
-      }
-    : null;
+      }];
+  }));
 
   // img2img path
   if (opts.input_image) {
@@ -211,7 +234,7 @@ export function buildFluxWorkflow(opts: {
         inputs: { pixels: ['12', 0], vae: vaeRef },
       },
     };
-    if (loraNode) graph['14'] = loraNode;
+    Object.assign(graph, loraNodes);
     return graph;
   }
 
@@ -231,7 +254,7 @@ export function buildFluxWorkflow(opts: {
     },
     '4': {
       class_type: 'EmptyLatentImage',
-      inputs: { width, height, batch_size: 1 },
+      inputs: { width, height, batch_size: batchSize },
     },
     '5': {
       class_type: 'KSampler',
@@ -257,7 +280,7 @@ export function buildFluxWorkflow(opts: {
       inputs: { filename_prefix: 'soulmate', images: ['6', 0] },
     },
   };
-  if (loraNode) graph['14'] = loraNode;
+  Object.assign(graph, loraNodes);
   return graph;
 }
 
@@ -284,6 +307,11 @@ export interface RunPodGenerateOptions {
   lora_name?: string | null;
   lora_strength_model?: number;
   lora_strength_clip?: number;
+  loras?: Array<{
+    name: string;
+    strength_model?: number;
+    strength_clip?: number;
+  }>;
   /** Override default RUNPOD_ENDPOINT_ID for this call */
   endpoint_id?: string;
   /** Resume an existing RunPod job (skip /run submit). */
@@ -658,6 +686,7 @@ class RunPodClient {
       seed: options.seed,
       sampler_name: options.sampler_name || 'euler',
       scheduler: options.scheduler || 'simple',
+      batch_size: options.num_images,
       // Prefer resolved worker filename; if caller already passed a bare filename, keep it.
       input_image:
         inputImageName ||
@@ -671,6 +700,7 @@ class RunPodClient {
       lora_name: options.lora_name,
       lora_strength_model: options.lora_strength_model,
       lora_strength_clip: options.lora_strength_clip,
+      loras: options.loras,
     });
 
     const imagesPayload =

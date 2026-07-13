@@ -66,6 +66,13 @@ function clampStat(v: unknown, fallback = 0): number {
   return Math.min(100, Math.max(0, Math.round(n)));
 }
 
+function missingColumnFromError(message: string): string | null {
+  const schemaCache = message.match(/Could not find the ['"]([^'"]+)['"] column/i);
+  if (schemaCache?.[1]) return schemaCache[1];
+  const postgres = message.match(/column\s+(?:girlfriends\.)?["']?([a-zA-Z0-9_]+)["']?\s+does not exist/i);
+  return postgres?.[1] || null;
+}
+
 //  age 18+ M17
 function validateAge(age: unknown): { ok: true; age: number } | { ok: false; error: string } {
   const n = Number(age);
@@ -319,32 +326,43 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'no valid fields to update' }, { status: 400 });
     }
 
-    const { error: updateErr } = await supabase
-      .from('girlfriends')
-      .update(updates)
-      .eq('id', id);
+    const appliedUpdates = { ...updates } as Record<string, unknown>;
+    const skippedFields: string[] = [];
+    let updateError: { message?: string } | null = null;
+    for (let attempt = 0; attempt <= Object.keys(updates).length; attempt += 1) {
+      const result = await supabase.from('girlfriends').update(appliedUpdates).eq('id', id);
+      updateError = result.error;
+      if (!updateError) break;
 
-    if (updateErr) {
-      const msg = updateErr.message || '';
-      if (/is_hot|is_featured|hot_score|sort_order|column/i.test(msg)) {
-        const soft = { ...updates } as Record<string, unknown>;
-        delete soft.is_hot;
-        delete soft.is_featured;
-        delete soft.hot_score;
-        delete soft.sort_order;
-        if (Object.keys(soft).length > 0) {
-          const retry = await supabase.from('girlfriends').update(soft).eq('id', id);
-          if (retry.error) throw retry.error;
-        }
-      } else {
-        throw updateErr;
+      const message = updateError.message || '';
+      const missingColumn = missingColumnFromError(message);
+      if (missingColumn && missingColumn in appliedUpdates) {
+        delete appliedUpdates[missingColumn];
+        skippedFields.push(missingColumn);
+        continue;
       }
-    }
 
-    if ('is_featured' in updates) {
+      // Older deployments may report a generic schema-cache error without the
+      // exact field. Remove only optional placement fields, then retry once.
+      if (/schema cache|column/i.test(message)) {
+        const optionalPlacementFields = ['is_hot', 'is_featured', 'hot_score', 'sort_order'];
+        const removable = optionalPlacementFields.filter((field) => field in appliedUpdates);
+        if (removable.length) {
+          removable.forEach((field) => {
+            delete appliedUpdates[field];
+            skippedFields.push(field);
+          });
+          continue;
+        }
+      }
+      throw updateError;
+    }
+    if (updateError) throw updateError;
+
+    if ('is_featured' in appliedUpdates) {
       try {
         const { data: gf } = await supabase.from('girlfriends').select('*').eq('id', id).maybeSingle();
-        if (gf && updates.is_featured === true) {
+        if (gf && appliedUpdates.is_featured === true) {
           const tags = Array.isArray(gf.tags) ? gf.tags : [];
           const avatar = gf.portrait_url || gf.avatar_url || gf.card_url || '';
           const { data: existing } = await supabase
@@ -378,7 +396,7 @@ export async function PATCH(request: NextRequest) {
               base_girlfriend_id: id,
             });
           }
-        } else if (updates.is_featured === false) {
+        } else if (appliedUpdates.is_featured === false) {
           await supabase.from('featured_girlfriends').delete().eq('base_girlfriend_id', id);
         }
       } catch (syncErr) {
@@ -388,7 +406,13 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    const { data: girlfriend, error: readBackError } = await supabase
+      .from('girlfriends')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (readBackError) throw readBackError;
+    return NextResponse.json({ success: true, girlfriend, skipped_fields: skippedFields });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });

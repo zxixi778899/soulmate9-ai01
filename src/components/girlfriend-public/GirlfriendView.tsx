@@ -25,6 +25,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { AgeVerification } from '@/components/AgeVerification';
 import { ShareCard } from '@/components/ShareCard';
 import { APP_NAME } from '@/lib/constants';
+import { toast } from 'sonner';
 
 export interface PublicGirlfriend {
   id: string;
@@ -49,47 +50,78 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
   const [addingThenChat, setAddingThenChat] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
-  const addGirlfriendToCollection = async () => {
+  const addGirlfriendToCollection = async (): Promise<
+    { id: string } | null | { error: string; code?: string }
+  > => {
     try {
       const res = await authedFetch('/api/girlfriends/add-from-public', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug: girlfriend.slug }),
       });
-      const data = await res.json();
-      if (res.ok) {
+      const data = await res.json().catch(() => ({} as Record<string, unknown>));
+      if (res.ok && (data as { girlfriend?: { id: string } }).girlfriend) {
         setAddedFriend(true);
-        return data.girlfriend;
+        return (data as { girlfriend: { id: string } }).girlfriend;
       }
-      return null;
+      return {
+        error: String((data as { error?: string }).error || 'Failed to add companion'),
+        code: (data as { code?: string }).code,
+      };
     } catch {
-      return null;
+      return { error: 'Network error' };
     }
   };
 
   const handleChat = async () => {
     if (!user) {
-      router.push('/login');
+      router.push(`/login?next=${encodeURIComponent(`/girlfriend/${girlfriend.slug}`)}`);
       return;
     }
     setAddingThenChat(true);
-    const gf = await addGirlfriendToCollection();
-    if (gf) {
-      router.push(`/chat/${gf.id}`);
+    try {
+      const result = await addGirlfriendToCollection();
+      if (result && 'id' in result && result.id) {
+        router.push(`/chat/${result.id}`);
+        return;
+      }
+      const err = result && 'error' in result ? result : null;
+      if (err?.code === 'SEAT_LIMIT') {
+        toast.error('Friend seats full', {
+          description: 'Upgrade membership or buy permanent seats',
+          action: { label: 'Shop', onClick: () => router.push('/shop?tab=seats') },
+        });
+      } else {
+        toast.error(err?.error || 'Could not open chat');
+      }
+    } finally {
+      setAddingThenChat(false);
     }
-    setAddingThenChat(false);
   };
 
   const handleAddFriend = async () => {
     if (!user) {
-      router.push('/login');
+      router.push(`/login?next=${encodeURIComponent(`/girlfriend/${girlfriend.slug}`)}`);
       return;
     }
     setAddingFriend(true);
-    const gf = await addGirlfriendToCollection();
-    if (gf) {
-      router.push('/explore');
-    } else {
+    try {
+      const result = await addGirlfriendToCollection();
+      if (result && 'id' in result && result.id) {
+        toast.success('Added to friends');
+        router.push('/explore');
+        return;
+      }
+      const err = result && 'error' in result ? result : null;
+      if (err?.code === 'SEAT_LIMIT') {
+        toast.error('Friend seats full', {
+          description: 'Upgrade membership or buy permanent seats',
+          action: { label: 'Shop', onClick: () => router.push('/shop?tab=seats') },
+        });
+      } else {
+        toast.error(err?.error || 'Failed to add friend');
+      }
+    } finally {
       setAddingFriend(false);
     }
   };
