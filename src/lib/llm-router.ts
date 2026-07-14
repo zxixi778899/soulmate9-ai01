@@ -59,6 +59,8 @@ const INTENT_PATTERNS: { pattern: RegExp; task: TaskType; priority: number }[] =
   { pattern: /(generate|create|make|draw|render|show me)\s.*(picture|image|photo|selfie|art|pic|portrait)/i, task: 'image_generation', priority: 10 },
   { pattern: /(send me|take|snap|shoot)\s.*(selfie|photo|picture|pic)/i, task: 'image_generation', priority: 10 },
   { pattern: /\b(draw|sketch|paint|render)\s+(yourself|you|urself)\b/i, task: 'image_generation', priority: 10 },
+  { pattern: /(show|send|let me see)\s+(me\s+)?(your\s+)?(ass|butt|booty|body|boobs?|chest|legs?|feet|face)/i, task: 'image_generation', priority: 10 },
+  { pattern: /(发张自拍|来张自拍|发我.*图|给我看|看看你的|自拍|照片)/i, task: 'image_generation', priority: 10 },
   { pattern: /\b(selfie|photo|picture)\b/i, task: 'image_generation', priority: 9 },
   { pattern: /(what do I look|how do I|can you see|look at)\s/i, task: 'image_generation', priority: 9 },
   { pattern: /(why|how does|explain|analyze|compare|difference|reason|logic)/i, task: 'complex_reasoning', priority: 5 },

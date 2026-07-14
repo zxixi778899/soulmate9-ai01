@@ -10,6 +10,7 @@ export type CachedMessage = {
   created_at: string;
   is_proactive?: boolean;
   media_url?: string | null;
+  media_type?: string | null;
   status?: 'sending' | 'sent' | 'read' | 'failed';
 };
 
@@ -64,18 +65,49 @@ export function mergeMessages(
   local: CachedMessage[],
 ): CachedMessage[] {
   const map = new Map<string, CachedMessage>();
-  for (const m of [...local, ...server]) {
-    const k = m.id.startsWith('temp-') || m.id.startsWith('assist-')
-      ? `${m.role}:${m.created_at.slice(0, 16)}:${m.content.slice(0, 40)}`
-      : m.id;
-    const existing = map.get(k);
-    if (!existing || (m.content?.length || 0) >= (existing.content?.length || 0)) {
-      map.set(k, m);
+  const list = [...(Array.isArray(local) ? local : []), ...(Array.isArray(server) ? server : [])];
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') continue;
+    try {
+      const id = raw.id != null ? String(raw.id) : '';
+      const role: CachedMessage['role'] = raw.role === 'user' ? 'user' : 'assistant';
+      const content =
+        typeof raw.content === 'string'
+          ? raw.content
+          : raw.content == null
+            ? ''
+            : String(raw.content);
+      const created_at =
+        typeof raw.created_at === 'string' && raw.created_at
+          ? raw.created_at
+          : new Date().toISOString();
+      const m: CachedMessage = {
+        id: id || `${role}:${created_at}:${content.slice(0, 24)}`,
+        role,
+        content,
+        created_at,
+        is_proactive: raw.is_proactive,
+        media_url: raw.media_url,
+        media_type: raw.media_type ?? null,
+        status: raw.status,
+      };
+      const k =
+        m.id.startsWith('temp-') || m.id.startsWith('assist-') || m.id.startsWith('proactive-')
+          ? `${m.role}:${m.created_at.slice(0, 16)}:${m.content.slice(0, 40)}`
+          : m.id;
+      const existing = map.get(k);
+      if (!existing || (m.content?.length || 0) >= (existing.content?.length || 0)) {
+        map.set(k, m);
+      }
+    } catch {
+      /* skip corrupt row */
     }
   }
-  return Array.from(map.values()).sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
+  return Array.from(map.values()).sort((a, b) => {
+    const ta = new Date(a.created_at).getTime();
+    const tb = new Date(b.created_at).getTime();
+    return (Number.isFinite(ta) ? ta : 0) - (Number.isFinite(tb) ? tb : 0);
+  });
 }
 
 /** Derive display mood from last message + intimacy */

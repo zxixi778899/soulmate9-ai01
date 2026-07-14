@@ -15,6 +15,7 @@ import {
   Library,
   FolderOpen,
   ShoppingBag,
+  Gift,
   Coins,
   Bitcoin,
   Image as ImageIcon,
@@ -93,13 +94,19 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   },
   {
     title: '商城',
-    description: '服装 · 道具 · 礼物（媒体 + 参数 + 效果）',
+    description: '服装 · 道具 · 直播礼物特效',
     items: [
       {
         label: '商品管理',
         href: '/admin/shop',
         icon: ShoppingBag,
         hint: '图/视频 · 价格 · 亲密加成',
+      },
+      {
+        label: '礼物与特效',
+        href: '/admin/gifts',
+        icon: Gift,
+        hint: '对话送礼 · 全屏特效配置',
       },
       {
         label: '代币与积分',

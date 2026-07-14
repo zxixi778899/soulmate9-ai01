@@ -6,49 +6,43 @@ import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { loadAiModules, resolveImageCall, type MembershipTier } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
+import { assembleGirlfriendFromRow, GIRLFRIEND_NEGATIVE_FLUX } from '@/lib/prompt/girlfriend';
+import {
+  buildImageActionFromChat,
+  type ChatContextLine,
+} from '@/lib/chat-image-intent';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
-const IMAGE_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
+const IMAGE_GEN_LIMIT = { maxRequests: 12, windowMs: 60 * 60 * 1000 };
 
 const MOOD_TAGS: Record<string, string> = {
-  romantic:
-    'warm dreamy atmosphere, soft golden lighting, loving gaze, gentle warm smile, radiant glowing skin, vibrant warm colors',
-  playful:
-    'cheeky expression, playful smirk, bright energetic lighting, candid moment, bright eyes sparkling with joy, vibrant colors',
-  sweet:
-    'sweet innocent smile, warm cozy glow, soft pastel tones, tender expression, radiant skin, inviting girlfriend-next-door vibe',
-  passionate:
-    'intense smoldering gaze, dramatic warm lighting, sultry expression, confident pose, captivating alluring presence, glowing skin',
-  cozy:
-    'comfortable relaxed vibe, soft warm lighting, natural genuine smile, homely atmosphere, warm inviting glow, radiant skin',
-  cheerful:
-    'bright sunny expression, energetic pose, vibrant colors, laughing joyfully, eyes sparkling with happiness, sun-kissed glowing skin',
+  romantic: 'warm romantic atmosphere, soft golden light, loving gaze',
+  playful: 'playful smirk, bright energetic mood, cheeky expression',
+  sweet: 'sweet soft smile, tender girlfriend vibe',
+  passionate: 'intense smoldering gaze, sultry desire, bedroom eyes',
+  cozy: 'comfortable relaxed mood, soft warm lighting',
+  cheerful: 'bright cheerful smile, lively energy',
 };
 
 const POSE_TAGS: Record<string, string> = {
-  sitting: 'sitting gracefully, hands resting naturally, relaxed elegant posture, natural expression',
-  standing: 'standing confidently, full body shot, natural elegant stance, warm genuine smile',
-  lying_down: 'lying down comfortably, relaxed pose, intimate angle, soft bedding visible, dreamy expression',
-  walking: 'caught in motion, natural walking pose, candid street style, hair flowing, bright smile',
-  dancing: 'mid-dance movement, flowing dress/hair, graceful dynamic pose, joyful expression',
-  close_up:
-    'intimate close-up portrait, face filling frame, detailed features, warm genuine expression, sparkling eyes',
+  sitting: 'sitting gracefully with relaxed elegant posture',
+  standing: 'standing confidently in a full-body glamorous pose',
+  lying_down: 'lying down comfortably in an intimate angle',
+  walking: 'caught mid-step, natural candid walking pose',
+  dancing: 'mid-dance movement, dynamic sexy pose',
+  close_up: 'intimate close-up portrait, face filling the frame',
 };
 
 const ENV_TAGS: Record<string, string> = {
-  bedroom:
-    'cozy bedroom setting, soft bed sheets, warm lamp light, intimate indoor atmosphere, warm vibrant colors',
-  beach:
-    'sunny beach background, ocean waves, golden sand, natural sunlight, seaside breeze, vibrant summer colors',
-  garden:
-    'lush garden setting, blooming flowers, green foliage, soft dappled sunlight, warm romantic atmosphere',
-  city: 'urban cityscape, modern architecture, street lights, city vibe background, vibrant energetic atmosphere',
-  cozy_room:
-    'warm cozy indoor space, comfortable furniture, soft lighting, homey atmosphere, warm inviting glow',
-  outdoor:
-    'natural outdoor setting, open sky, scenic landscape, fresh air ambiance, bright warm sunlight',
+  bedroom: 'cozy bedroom with soft sheets and warm lamp light',
+  beach: 'sunny beach with ocean and golden light',
+  garden: 'lush garden with soft dappled sunlight',
+  city: 'urban night city lights soft bokeh',
+  cozy_room: 'warm cozy indoor room',
+  outdoor: 'natural outdoor daylight setting',
 };
 
 function membershipFromProfile(profile: Record<string, unknown> | null): MembershipTier {
@@ -76,11 +70,22 @@ export async function POST(request: NextRequest) {
 
   const started = Date.now();
   try {
-    const body = await request.json();
-    const girlfriend_id = body.girlfriend_id as string | undefined;
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const girlfriend_id = String((body as { girlfriend_id?: string }).girlfriend_id || '').trim();
     if (!girlfriend_id) {
       return NextResponse.json({ error: 'girlfriend_id is required' }, { status: 400 });
     }
+
+    const userRequest = String(
+      (body as { user_request?: string; prompt?: string; message?: string }).user_request ||
+        (body as { prompt?: string }).prompt ||
+        (body as { message?: string }).message ||
+        '',
+    ).trim();
 
     const aiModules = await loadAiModules(client);
     const { data: profile } = await client
@@ -127,64 +132,126 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { data: gf } = await client
+    // Own girlfriend first; allow public approved for deep-link bootstrap
+    let { data: gf } = await client
       .from('girlfriends')
-      .select(
-        'name, appearance_hair, appearance_hair_color, appearance_eyes, appearance_body, appearance_style, appearance_race, portrait_url',
-      )
+      .select('*')
       .eq('id', girlfriend_id)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
+
+    if (!gf) {
+      const { data: pub } = await client
+        .from('girlfriends')
+        .select('*')
+        .eq('id', girlfriend_id)
+        .eq('is_public', true)
+        .eq('review_status', 'approved')
+        .maybeSingle();
+      gf = pub;
+    }
 
     if (!gf) {
       return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
     }
 
-    const appearanceDesc = [
-      gf.appearance_race ? gf.appearance_race : '',
-      gf.appearance_hair_color && gf.appearance_hair
-        ? `${gf.appearance_hair_color} ${gf.appearance_hair}`
-        : '',
-      gf.appearance_eyes ? `${gf.appearance_eyes} eyes` : '',
-      gf.appearance_body ? `${gf.appearance_body} body type` : '',
-      gf.appearance_style ? `wearing ${gf.appearance_style}` : '',
-    ]
-      .filter(Boolean)
-      .join(', ');
+    const mood = (body as { mood?: string }).mood;
+    const pose = (body as { pose?: string }).pose;
+    const environment = (body as { environment?: string }).environment;
+    const moodTag = mood ? MOOD_TAGS[mood] || mood : '';
+    const poseTag = pose ? POSE_TAGS[pose] || pose : '';
+    const envTag = environment ? ENV_TAGS[environment] || environment : '';
 
-    const mood = body.mood as string | undefined;
-    const pose = body.pose as string | undefined;
-    const environment = body.environment as string | undefined;
-    const moodTag = mood ? MOOD_TAGS[mood] || mood : 'warm expression, natural smile';
-    const poseTag = pose ? POSE_TAGS[pose] || pose : 'natural pose';
-    const envTag = environment ? ENV_TAGS[environment] || environment : 'soft clean background';
+    // Optional recent chat lines so the photo matches the conversation
+    const rawCtx = (body as { chat_context?: unknown }).chat_context;
+    const chatContext: ChatContextLine[] = Array.isArray(rawCtx)
+      ? rawCtx
+          .slice(-10)
+          .map((row) => {
+            const r = row as { role?: string; content?: string };
+            return {
+              role: String(r?.role || 'user'),
+              content: String(r?.content || '').slice(0, 400),
+            };
+          })
+          .filter((r) => r.content.trim())
+      : [];
 
-    const prompt = `Stunningly beautiful gorgeous young woman ${gf.name}, ${appearanceDesc}. ${poseTag}. ${envTag}. ${moodTag}. Intimate selfie-style photo, looking at camera, ultra photorealistic, shot on Canon EOS R5 85mm f/1.4, ultra high quality, 8K, sharp focus, natural skin texture, professional photography, warm vibrant colors, radiant glowing skin, magazine cover quality, captivating presence.`;
+    // If client did not send context, pull last turns from DB
+    if (!chatContext.length) {
+      const { data: recent } = await client
+        .from('chat_messages')
+        .select('role, content')
+        .eq('girlfriend_id', girlfriend_id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(8);
+      for (const row of recent || []) {
+        chatContext.push({
+          role: String((row as { role?: string }).role || 'user'),
+          content: String((row as { content?: string }).content || '').slice(0, 400),
+        });
+      }
+      chatContext.reverse();
+    }
 
+    const intent = buildImageActionFromChat(userRequest || 'send me a selfie', chatContext);
+    const actionBits = [intent.action, poseTag, envTag, moodTag].filter(Boolean).join(', ');
+
+    // Character-consistent NL: identity + what they talked about + quality
+    const assembled = assembleGirlfriendFromRow(
+      gf as Record<string, unknown>,
+      actionBits ||
+        'taking a flirty intimate selfie for her boyfriend matching their chat, looking at camera',
+    );
+
+    const prompt = assembled.positive;
     const negativePrompt =
-      typeof body.negative_prompt === 'string' ? body.negative_prompt : resolved.defaultNegative || '';
+      typeof (body as { negative_prompt?: string }).negative_prompt === 'string' &&
+      (body as { negative_prompt: string }).negative_prompt.trim()
+        ? (body as { negative_prompt: string }).negative_prompt
+        : assembled.negative || resolved.defaultNegative || GIRLFRIEND_NEGATIVE_FLUX;
 
+    // Face / body reference for character consistency
+    const refCandidates = [
+      (gf as { face_reference_url?: string }).face_reference_url,
+      (gf as { portrait_url?: string }).portrait_url,
+      (gf as { avatar_url?: string }).avatar_url,
+      (gf as { card_url?: string }).card_url,
+    ];
     let referenceImage: string | undefined;
-    if (resolved.config.use_consistency_default && gf.portrait_url) {
+    for (const raw of refCandidates) {
+      if (!raw || typeof raw !== 'string') continue;
       try {
-        referenceImage = (await resolveImageUrl(gf.portrait_url)) || gf.portrait_url;
+        const url = (await resolveImageUrl(raw)) || raw;
+        if (url.startsWith('http') || url.startsWith('data:image/')) {
+          referenceImage = url;
+          break;
+        }
       } catch {
-        referenceImage = gf.portrait_url;
+        if (String(raw).startsWith('http')) {
+          referenceImage = String(raw);
+          break;
+        }
       }
     }
+
+    // Prefer consistency when a reference face exists (lower denoise = keep identity)
+    const useConsistency =
+      resolved.config.use_consistency_default !== false && Boolean(referenceImage);
+    const denoise = useConsistency ? 0.48 : 1;
 
     const sceneCfg = resolved.config;
     const gen = await runpodClient.generate({
       prompt,
       negative_prompt: negativePrompt,
-      input_image: referenceImage,
-      // Slightly higher denoise = freer composition + fewer stuck likeness retries
-      denoising_strength: referenceImage ? 0.72 : 1,
+      input_image: useConsistency ? referenceImage : undefined,
+      denoising_strength: useConsistency ? denoise : undefined,
       width: sceneCfg.width || 704,
       height: sceneCfg.height || 960,
       num_images: 1,
-      num_inference_steps: sceneCfg.steps || 16,
-      guidance_scale: Math.min(Math.max(sceneCfg.cfg || 1.0, 1.0), 3.5),
+      num_inference_steps: sceneCfg.steps || 20,
+      guidance_scale: Math.min(Math.max(sceneCfg.cfg || 2.5, 1.0), 3.5),
       endpoint_id: resolved.endpointId || undefined,
       ckpt_name: sceneCfg.ckpt_name || undefined,
       lora_name: sceneCfg.lora_name || undefined,
@@ -200,14 +267,21 @@ export async function POST(request: NextRequest) {
     const key = await uploadDataUrl(dataUrl, `chat_photos/${girlfriend_id}`);
     const generatedUrl = (await resolveImageUrl(key)) || key;
 
-    const message = `${gf.name} sends you a photo  [${[mood, pose, environment].filter(Boolean).join(', ')}]`;
+    const gfName = String((gf as { name?: string }).name || 'She');
+    const caption =
+      intent.kind === 'selfie'
+        ? `${gfName} sends you a selfie 💕`
+        : intent.kind === 'body'
+          ? `${gfName} sends you a teasing photo… just for you 🔥`
+          : `${gfName} sends you a photo 📸`;
 
     await client.from('chat_messages').insert({
       user_id: user.id,
       girlfriend_id,
       role: 'assistant',
-      content: message,
+      content: caption,
       media_url: generatedUrl,
+      media_type: 'image',
     });
 
     void logModelUsage({
@@ -224,8 +298,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       imageUrl: generatedUrl,
       image_url: generatedUrl,
-      message,
+      message: caption,
       scene: 'chat_selfie',
+      kind: intent.kind,
+      prompt_preview: prompt.slice(0, 220),
+      used_reference: Boolean(useConsistency),
       token_cost: resolved.tokenCost,
       daily_limit: resolved.dailyLimit,
     });
@@ -241,11 +318,14 @@ export async function POST(request: NextRequest) {
       success: false,
       error_message: errMsg,
     });
-    return NextResponse.json({
-      error: /timeout|queue|cold|not configured|FAILED/i.test(errMsg)
-        ? `${errMsg} — retry in 20–40s if the GPU is waking up.`
-        : errMsg,
-      code: 'image_gen_failed',
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: /timeout|queue|cold|not configured|FAILED/i.test(errMsg)
+          ? `${errMsg} — retry in 20–40s if the GPU is waking up.`
+          : errMsg,
+        code: 'image_gen_failed',
+      },
+      { status: 500 },
+    );
   }
 }

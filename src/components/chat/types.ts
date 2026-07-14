@@ -5,6 +5,8 @@ export type ChatMessage = {
   created_at: string;
   is_proactive?: boolean;
   media_url?: string | null;
+  /** image | audio | video */
+  media_type?: string | null;
   status?: 'sending' | 'sent' | 'read' | 'failed';
 };
 
@@ -15,12 +17,25 @@ export type ChatGirlfriend = {
   portrait_url?: string | null;
   image_url?: string | null;
   personality: string | null;
+  backstory?: string | null;
+  age?: number | null;
+  occupation?: string | null;
+  hobbies?: string | string[] | null;
+  /** Catalog base closeness 0–100 */
+  base_intimacy?: number | null;
+  /** 热情值 50–100: cold / warm / wild */
+  base_desire?: number | null;
+  /** 开发值 50–100: clingy / proactive NSFW / direct seduction */
+  base_development?: number | null;
+  /** 变态值 50–100: vanilla / thrills / kinky */
+  base_kink?: number | null;
   appearance_race?: string;
   appearance_hair?: string;
   appearance_hair_color?: string;
   appearance_eyes?: string;
   appearance_body?: string;
   appearance_style?: string;
+  character_card?: Record<string, unknown> | null;
 };
 
 export type IntimacyData = {

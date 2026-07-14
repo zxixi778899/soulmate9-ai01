@@ -6,7 +6,6 @@ import { readResponseJson } from '@/lib/safe-json';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -15,28 +14,9 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import {
   Loader2,
-  Send,
-  Gift,
-  Shirt,
-  Image as ImageIcon,
-  Mic,
-  Sparkles,
   Heart,
-  ArrowLeft,
-  Check,
-  CheckCheck,
   BrainCircuit,
-  ChevronUp,
-  Brain,
-  Plus,
   ChevronDown,
   X,
   Crown,
@@ -47,11 +27,13 @@ import { useMembership } from '@/hooks/useMembership';
 import { toast } from 'sonner';
 import { ChatAppBar } from '@/components/chat/ChatAppBar';
 import { ChatStream } from '@/components/chat/ChatStream';
-import { ChatInputBar } from '@/components/chat/ChatInputBar';
-import { AttachmentsSheet } from '@/components/chat/AttachmentsSheet';
+import { ChatInputBar, type PendingMedia } from '@/components/chat/ChatInputBar';
 import type { ChatMessage as Message, ChatGirlfriend as Girlfriend, IntimacyData } from '@/components/chat/types';
-import { CHAT_MOODS as MOODS, CHAT_POSES as POSES, CHAT_ENVS as ENVS } from '@/components/chat/types';
 import { loadChatCache, saveChatCache, mergeMessages, deriveMood } from '@/lib/chat-cache';
+import { parseChatImageIntent } from '@/lib/chat-image-intent';
+import { DEFAULT_CHAT_GIFTS, type ChatGift } from '@/lib/gifts/catalog';
+import { GiftEffectOverlay, type GiftBurstState } from '@/components/chat/GiftEffectOverlay';
+import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 
 
 type OutfitItem = {
@@ -72,20 +54,6 @@ type MemoryItem = {
   created_at: string;
 };
 
-const GIFTS = [
-  { id: 'rose', name: 'Rose', emoji: '🌹', boost: 3, cost: 1, desc: 'Classic romance' },
-  { id: 'lollipop', name: 'Lollipop', emoji: '🍭', boost: 4, cost: 2, desc: 'Playful sweet' },
-  { id: 'chocolate', name: 'Chocolate', emoji: '🍫', boost: 5, cost: 3, desc: 'Warm & thoughtful' },
-  { id: 'perfume', name: 'Perfume', emoji: '🧴', boost: 8, cost: 6, desc: 'Luxury scent' },
-  { id: 'necklace', name: 'Necklace', emoji: '📿', boost: 10, cost: 10, desc: 'Elegant gift' },
-  { id: 'teddy', name: 'Teddy', emoji: '🧸', boost: 12, cost: 12, desc: 'Hug-worthy' },
-  { id: 'ring', name: 'Promise Ring', emoji: '💍', boost: 15, cost: 18, desc: 'Deep commitment' },
-  { id: 'crown', name: 'Crown', emoji: '👑', boost: 25, cost: 30, desc: 'Live-room showstopper' },
-  { id: 'rocket', name: 'Rocket', emoji: '🚀', boost: 40, cost: 50, desc: 'Full combo effect' },
-  { id: 'castle', name: 'Castle', emoji: '🏰', boost: 60, cost: 80, desc: 'Ultimate live combo' },
-] as const;
-
-
 // (helpers moved to @/lib/chat-utils)
 
 export default function ChatPage() {
@@ -102,6 +70,7 @@ export default function ChatPage() {
   const [intimacy, setIntimacy] = useState<IntimacyData>({ score: 0, level: 1, daily_score_gained: 0 });
   const [outfits, setOutfits] = useState<OutfitItem[]>([]);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
+  const [gifts, setGifts] = useState<ChatGift[]>(DEFAULT_CHAT_GIFTS);
 
   // Input
   const [input, setInput] = useState('');
@@ -119,13 +88,10 @@ export default function ChatPage() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   // UI panels
-  const [showGiftDialog, setShowGiftDialog] = useState(false);
-  const [giftBurst, setGiftBurst] = useState<{ emoji: string; name: string; combo: number } | null>(null);
-  const [, setGiftCombo] = useState(0);
+  const [giftBurst, setGiftBurst] = useState<GiftBurstState | null>(null);
+  const giftComboRef = useRef(0);
   const giftComboTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showWardrobeDialog, setShowWardrobeDialog] = useState(false);
   const [showMemories, setShowMemories] = useState(false);
-  const [showAttachments, setShowAttachments] = useState(false);
   const [showLightbox, setShowLightbox] = useState<string | null>(null);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
 
@@ -139,6 +105,18 @@ export default function ChatPage() {
   const membership = useMembership();
   const [usageBannerDismissed, setUsageBannerDismissed] = useState(false);
 
+  // AI quick-reply chips (retention)
+  const [smartSuggestions, setSmartSuggestions] = useState<string[]>([]);
+  const [smartSuggestionsLoading, setSmartSuggestionsLoading] = useState(false);
+
+  // User media (photo / voice) attachment
+  const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceSeconds, setVoiceSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
+  const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Scroll
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -150,6 +128,13 @@ export default function ChatPage() {
     authedFetch('/api/outfits')
       .then(r => readResponseJson(r).catch(() => ({})))
       .then(d => setOutfits(((d as { outfits?: OutfitItem[] }).outfits) || []))
+      .catch(() => {});
+    // Live gifts + effects (admin-managed; falls back to defaults)
+    fetch('/api/gifts', { cache: 'no-store' })
+      .then((r) => r.json().catch(() => ({})))
+      .then((d: { gifts?: ChatGift[] }) => {
+        if (Array.isArray(d.gifts) && d.gifts.length > 0) setGifts(d.gifts);
+      })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -164,14 +149,37 @@ export default function ChatPage() {
     // Instant paint from local cache so history never "vanishes" on re-enter
     const cached = loadChatCache(id);
     if (cached?.messages?.length) {
-      setMessages(cached.messages as Message[]);
+      try {
+        setMessages(mergeMessages([], cached.messages) as Message[]);
+      } catch {
+        setMessages([]);
+      }
       if (cached.intimacy) {
         setIntimacy({
-          score: cached.intimacy.score,
-          level: cached.intimacy.level,
-          daily_score_gained: cached.intimacy.daily_score_gained || 0,
+          score: Number(cached.intimacy.score) || 0,
+          level: Number(cached.intimacy.level) || 1,
+          daily_score_gained: Number(cached.intimacy.daily_score_gained) || 0,
         });
       }
+    }
+    // Instant name/avatar from session bootstrap (openCompanionChat)
+    try {
+      const raw = sessionStorage.getItem('soulmate_selected_companion');
+      if (raw) {
+        const boot = JSON.parse(raw) as { id?: string; name?: string; portrait?: string };
+        if (boot?.id === id && boot.name) {
+          const bootGirl: Girlfriend = {
+            id,
+            name: String(boot.name),
+            avatar_url: boot.portrait || null,
+            portrait_url: boot.portrait || null,
+            personality: null,
+          };
+          setGirlfriend((prev) => prev ?? bootGirl);
+        }
+      }
+    } catch {
+      /* ignore */
     }
     try {
       const [gfRes, msgRes, intRes] = await Promise.all([
@@ -180,43 +188,75 @@ export default function ChatPage() {
         authedFetch(`/api/intimacy?girlfriend_id=${encodeURIComponent(id)}`),
       ]);
 
-      const gfData = await readResponseJson(gfRes).catch(() => ({} as any));
-      const msgData = await readResponseJson(msgRes).catch(() => ({} as any));
-      const intData = await readResponseJson(intRes).catch(() => ({} as any));
+      const gfData = await readResponseJson(gfRes).catch(() => ({} as Record<string, unknown>));
+      const msgData = await readResponseJson(msgRes).catch(() => ({} as Record<string, unknown>));
+      const intData = await readResponseJson(intRes).catch(() => ({} as Record<string, unknown>));
 
-      let gf =
-        (gfData.girlfriends || []).find((g: Girlfriend) => g.id === id) ||
-        gfData.girlfriends?.[0] ||
+      const gfList = Array.isArray((gfData as { girlfriends?: Girlfriend[] }).girlfriends)
+        ? ((gfData as { girlfriends: Girlfriend[] }).girlfriends)
+        : [];
+      let gf: Girlfriend | null =
+        gfList.find((g: Girlfriend) => g.id === id) ||
+        gfList[0] ||
         null;
 
       // Fallback: list all if id filter unsupported / empty
       if (!gf) {
-        const all = await authedFetch('/api/girlfriends').then((r) => readResponseJson(r).catch(() => ({}))).catch(() => ({}));
-        gf = (((all as { girlfriends?: Girlfriend[] }).girlfriends) || []).find((g: Girlfriend) => g.id === id) || null;
+        const all = await authedFetch('/api/girlfriends')
+          .then((r) => readResponseJson(r).catch(() => ({})))
+          .catch(() => ({}));
+        const listed = ((all as { girlfriends?: Girlfriend[] }).girlfriends) || [];
+        gf = listed.find((g: Girlfriend) => g.id === id) || null;
       }
-      setGirlfriend(gf);
+      if (gf) {
+        setGirlfriend({
+          ...gf,
+          avatar_url: gf.avatar_url || gf.portrait_url || gf.image_url || null,
+          portrait_url: gf.portrait_url || gf.avatar_url || gf.image_url || null,
+        });
+      }
 
-      const serverMsgs = (msgData.messages || []) as Message[];
+      const serverMsgs = Array.isArray((msgData as { messages?: Message[] }).messages)
+        ? ((msgData as { messages: Message[] }).messages)
+        : [];
       const localMsgs = (cached?.messages || []) as Message[];
-      const merged = mergeMessages(serverMsgs, localMsgs) as Message[];
+      let merged: Message[] = [];
+      try {
+        merged = mergeMessages(serverMsgs, localMsgs) as Message[];
+      } catch (mergeErr) {
+        logger.warn('mergeMessages failed, using server only', {
+          err: mergeErr instanceof Error ? mergeErr.message : String(mergeErr),
+        });
+        merged = serverMsgs.length ? serverMsgs : localMsgs;
+      }
       setMessages(merged);
-      if (typeof msgData.hasMore === 'boolean') setHasMore(msgData.hasMore);
+      if (typeof (msgData as { hasMore?: boolean }).hasMore === 'boolean') {
+        setHasMore(Boolean((msgData as { hasMore: boolean }).hasMore));
+      }
 
-      const intScore = (intData.scores || []).find(
-        (s: { girlfriend_id: string; score: number; level: number; daily_score_gained?: number }) =>
-          s.girlfriend_id === id,
-      ) || intData.scores?.[0];
+      const scores = Array.isArray((intData as { scores?: unknown[] }).scores)
+        ? ((intData as {
+            scores: Array<{
+              girlfriend_id: string;
+              score: number;
+              level: number;
+              daily_score_gained?: number;
+            }>;
+          }).scores)
+        : [];
+      const intScore =
+        scores.find((s) => s.girlfriend_id === id) || scores[0];
       const nextInt = intScore
         ? {
-            score: intScore.score,
-            level: intScore.level,
-            daily_score_gained: intScore.daily_score_gained || 0,
+            score: Number(intScore.score) || 0,
+            level: Number(intScore.level) || 1,
+            daily_score_gained: Number(intScore.daily_score_gained) || 0,
           }
         : cached?.intimacy
           ? {
-              score: cached.intimacy.score,
-              level: cached.intimacy.level,
-              daily_score_gained: cached.intimacy.daily_score_gained || 0,
+              score: Number(cached.intimacy.score) || 0,
+              level: Number(cached.intimacy.level) || 1,
+              daily_score_gained: Number(cached.intimacy.daily_score_gained) || 0,
             }
           : null;
       if (nextInt) setIntimacy(nextInt);
@@ -232,7 +272,11 @@ export default function ChatPage() {
       logger.error('Failed to load chat:', { data: err });
       // Keep cache if network fails
       if (cached?.messages?.length) {
-        setMessages(cached.messages as Message[]);
+        try {
+          setMessages(mergeMessages([], cached.messages) as Message[]);
+        } catch {
+          /* ignore */
+        }
       }
     }
     setIsLoading(false);
@@ -271,8 +315,9 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showMemories]);
 
-  // Proactive check — only while the tab is visible; 90s cadence (was 60s always-on)
+  // Daily re-engagement (1–3 msgs) + periodic check while chat is open
   useEffect(() => {
+    if (invalidChatId) return;
     let cancelled = false;
     const tick = async () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
@@ -280,32 +325,93 @@ export default function ChatPage() {
         const res = await authedFetch('/api/proactive/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ girlfriend_id: id }),
+          body: JSON.stringify({ girlfriend_id: id, locale }),
         });
         if (!res.ok || cancelled) return;
-        const data = await readResponseJson(res).catch(() => ({} as any));
-        if (data.message) {
-          setMessages(prev => [...prev, {
-            id: `proactive-${Date.now()}`,
-            role: 'assistant',
-            content: data.message,
+        const data = (await readResponseJson(res).catch(() => ({}))) as {
+          messages?: Array<{ content?: string; girlfriend_id?: string }>;
+          message?: string;
+        };
+        const list = Array.isArray(data.messages)
+          ? data.messages
+          : data.message
+            ? [{ content: data.message }]
+            : [];
+        if (!list.length) return;
+        setMessages((prev) => [
+          ...prev,
+          ...list.map((m, i) => ({
+            id: `proactive-${Date.now()}-${i}`,
+            role: 'assistant' as const,
+            content: String(m.content || ''),
             created_at: new Date().toISOString(),
             is_proactive: true,
-          } as Message]);
-        }
-      } catch { /* ignore transient network errors */ }
+          })),
+        ]);
+        // Refresh smart replies for the latest proactive line
+        const last = list[list.length - 1]?.content;
+        if (last) void fetchSmartSuggestions(String(last));
+      } catch {
+        /* ignore */
+      }
     };
-    const interval = setInterval(tick, 90_000);
+    // First check soon after open, then every 3 min
+    const first = setTimeout(() => void tick(), 2500);
+    const interval = setInterval(tick, 180_000);
     const onVis = () => {
       if (document.visibilityState === 'visible') void tick();
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
       cancelled = true;
+      clearTimeout(first);
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, locale, invalidChatId]);
+
+  const fetchSmartSuggestions = useCallback(
+    async (lastAssistant: string, lastUser?: string) => {
+      if (!id || !lastAssistant?.trim()) return;
+      setSmartSuggestionsLoading(true);
+      try {
+        const res = await authedFetch('/api/chat/quick-replies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            girlfriend_id: id,
+            last_assistant: lastAssistant.slice(0, 600),
+            last_user: (lastUser || '').slice(0, 400),
+            locale,
+          }),
+        });
+        const data = (await readResponseJson(res).catch(() => ({}))) as {
+          replies?: string[];
+        };
+        if (Array.isArray(data.replies) && data.replies.length) {
+          setSmartSuggestions(data.replies.slice(0, 3));
+        }
+      } catch {
+        /* keep previous chips */
+      } finally {
+        setSmartSuggestionsLoading(false);
+      }
+    },
+    [id, locale],
+  );
+
+  // After history load: seed 3 quick replies from last assistant message
+  useEffect(() => {
+    if (isLoading || !messages.length) return;
+    const lastAssist = [...messages].reverse().find((m) => m.role === 'assistant' && m.content);
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user' && m.content);
+    if (lastAssist?.content) {
+      void fetchSmartSuggestions(lastAssist.content, lastUser?.content);
+    }
+    // only when chat finishes initial load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   // Auto scroll to bottom on new messages (if user near bottom)
   useEffect(() => {
@@ -329,22 +435,163 @@ export default function ChatPage() {
     }
   };
 
-  const generateSelfie = async () => {
-    setShowAttachments(false);
-    setIsGenerating(true);
-    toast.message('Generating selfie…', { description: 'GPU may take 20–90s if cold. Hang tight.' });
+  const uploadUserFile = async (file: File, folder: string): Promise<string> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('folder', folder);
+    const res = await authedFetch('/api/upload', { method: 'POST', body: fd });
+    const data = await readResponseJson<{ url?: string; error?: string }>(res);
+    if (!res.ok || !data.url) throw new Error(data.error || 'Upload failed');
+    return data.url;
+  };
+
+  const handlePickImage = (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image must be under 10MB');
+      return;
+    }
+    if (!/^image\//.test(file.type)) {
+      toast.error('Please choose an image file');
+      return;
+    }
+    const previewUrl = URL.createObjectURL(file);
+    setPendingMedia({ kind: 'image', url: previewUrl, previewUrl, file });
+  };
+
+  const clearPendingMedia = () => {
+    if (pendingMedia?.previewUrl?.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(pendingMedia.previewUrl);
+      } catch {
+        /* ignore */
+      }
+    }
+    setPendingMedia(null);
+  };
+
+  const stopVoiceTimer = () => {
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+  };
+
+  const toggleVoiceRecord = async () => {
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      stopVoiceTimer();
+      return;
+    }
     try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : '';
+      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      mediaChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) mediaChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(mediaChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        if (blob.size < 800) {
+          toast.error('Recording too short');
+          return;
+        }
+        const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type });
+        const previewUrl = URL.createObjectURL(blob);
+        setPendingMedia({ kind: 'audio', url: previewUrl, previewUrl, file });
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start(200);
+      setIsRecording(true);
+      setVoiceSeconds(0);
+      voiceTimerRef.current = setInterval(() => {
+        setVoiceSeconds((s) => {
+          if (s >= 59) {
+            recorder.stop();
+            setIsRecording(false);
+            stopVoiceTimer();
+            return s;
+          }
+          return s + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      logger.warn('mic denied', { err: err instanceof Error ? err.message : String(err) });
+      toast.error('Microphone permission needed for voice notes');
+    }
+  };
+
+  /** Generate a photo of the girlfriend from optional user request (auto or button). */
+  const generateSelfie = async (
+    userRequest?: string,
+    extraContext?: Array<{ role: string; content: string }>,
+  ) => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    const req = (userRequest || 'send me a sexy selfie').trim();
+
+    // Girlfriend "I'm taking a photo" wait message — match user language
+    const waitZh =
+      /[\u4e00-\u9fff]/.test(req) ||
+      String(locale || '').toLowerCase().startsWith('zh');
+    const waitText = waitZh
+      ? '哥哥我正在拍照哦，要换衣服、化妆需要点时间，请哥哥耐心等待，拍好了我会发给哥哥哦！'
+      : "Babe I'm taking a photo for you~ need a moment to change and do my makeup. Be patient for me — I'll send it as soon as it's ready 💕";
+    const waitId = `selfie-wait-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: waitId,
+        role: 'assistant',
+        content: waitText,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    setIsTyping(true);
+    setAutoScroll(true);
+    toast.message(waitZh ? '她正在拍照…' : 'She is taking a photo…', {
+      description: waitZh
+        ? '换装化妆中，请稍候（GPU 冷启动可能 20–90 秒）'
+        : 'Changing & makeup · GPU may take 20–90s if cold',
+    });
+
+    try {
+      // Recent chat so the photo matches the conversation
+      const fromState = messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .slice(-8)
+        .map((m) => ({
+          role: m.role,
+          content: String(m.content || '').slice(0, 400),
+        }));
+      const chat_context = [...fromState, ...(extraContext || [])].slice(-10);
+
       const res = await authedFetch('/api/chat/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           girlfriend_id: id,
+          user_request: req,
+          message: req,
+          chat_context,
           mood: selectedMood,
           pose: selectedPose,
           environment: selectedEnvironment,
         }),
       });
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson<{
+        error?: string;
+        code?: string;
+        image_url?: string;
+        imageUrl?: string;
+        message?: string;
+      }>(res);
       if (!res.ok) {
         const msg =
           data?.code === 'daily_limit'
@@ -352,26 +599,52 @@ export default function ChatPage() {
             : (data?.error || 'Failed to generate image');
         throw new Error(msg);
       }
+      setIsTyping(false);
       if (data.image_url || data.imageUrl) {
+        const readyText = waitZh
+          ? data.message || '拍好啦～给哥哥看 💕'
+          : data.message || "Here's a photo just for you 💕";
         const newMsg: Message = {
           id: `selfie-${Date.now()}`,
           role: 'assistant',
-          content: data.message || "Here's a selfie for you ",
+          content: readyText,
           created_at: new Date().toISOString(),
           media_url: data.image_url || data.imageUrl,
+          media_type: 'image',
         };
-        setMessages(prev => [...prev, newMsg]);
+        setMessages((prev) => [...prev, newMsg]);
+        const waitMsg: Message = {
+          id: waitId,
+          role: 'assistant',
+          content: waitText,
+          created_at: new Date().toISOString(),
+        };
+        saveChatCache(id, {
+          messages: [...messages, waitMsg, newMsg].slice(-200).map((m) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            created_at: m.created_at,
+            media_url: m.media_url,
+            media_type: m.media_type,
+            is_proactive: m.is_proactive,
+            status: m.status,
+          })),
+        });
       }
     } catch (err) {
+      setIsTyping(false);
       logger.error('Generate selfie error:', { data: err });
-      // surface friendly error in chat as system-ish assistant note
-      const text = err instanceof Error ? err.message : 'Failed to generate image';
-      setMessages(prev => [
+      const failText = err instanceof Error ? err.message : 'Failed to generate image';
+      const sorry = waitZh
+        ? `拍糊了…${failText} 哥哥再让我试一次好不好？`
+        : `Photo glitched… ${failText} Want me to try again?`;
+      setMessages((prev) => [
         ...prev,
         {
           id: `selfie-err-${Date.now()}`,
           role: 'assistant',
-          content: text,
+          content: sorry,
           created_at: new Date().toISOString(),
         },
       ]);
@@ -379,116 +652,225 @@ export default function ChatPage() {
     setIsGenerating(false);
   };
 
-  const sendMessage = async (overrideText?: string) => {
+  const sendMessage = async (
+    overrideText?: string,
+    opts?: { /** Gift path: never lock UI / never wait on the gift panel */ silent?: boolean },
+  ) => {
     const text = (overrideText ?? input).trim();
-    if (!text || isSending) return;
+    const media = opts?.silent ? null : pendingMedia;
+    // Silent gift sends can run in parallel with a normal send
+    if ((!text && !media) || (isSending && !opts?.silent)) return;
 
-    setInput('');
-    setIsSending(true);
+    if (!opts?.silent) {
+      setInput('');
+      setSmartSuggestions([]);
+      clearPendingMedia();
+      setIsSending(true);
+    }
+    const mediaSnapshot = opts?.silent ? null : media;
     setAutoScroll(true);
 
+    let mediaUrl: string | undefined;
+    let mediaType: string | undefined;
+    try {
+      if (mediaSnapshot?.file) {
+        toast.message(mediaSnapshot.kind === 'audio' ? 'Uploading voice…' : 'Uploading photo…');
+        mediaUrl = await uploadUserFile(
+          mediaSnapshot.file,
+          mediaSnapshot.kind === 'audio' ? `chat_voice/${id}` : `chat_user/${id}`,
+        );
+        mediaType = mediaSnapshot.kind;
+      } else if (mediaSnapshot?.url?.startsWith('http')) {
+        mediaUrl = mediaSnapshot.url;
+        mediaType = mediaSnapshot.kind;
+      }
+    } catch (upErr) {
+      setIsSending(false);
+      toast.error(upErr instanceof Error ? upErr.message : 'Upload failed');
+      if (mediaSnapshot) setPendingMedia(mediaSnapshot);
+      return;
+    }
+
+    const displayText =
+      text ||
+      (mediaType === 'audio' ? '[Voice message]' : mediaType === 'image' ? '[Photo]' : '');
+
     const tempId = `temp-${Date.now()}`;
-    setMessages(prev => [...prev, {
-      id: tempId,
-      role: 'user',
-      content: text,
-      created_at: new Date().toISOString(),
-      status: 'sending',
-    }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        role: 'user',
+        content: displayText,
+        created_at: new Date().toISOString(),
+        status: 'sending',
+        media_url: mediaUrl || mediaSnapshot?.previewUrl || null,
+        media_type: mediaType || null,
+      },
+    ]);
+
+    const wantsPhoto = parseChatImageIntent(text).wantsImage;
 
     try {
       const res = await authedFetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: text,
+          message: text || displayText,
           girlfriend_id: id,
           mood: selectedMood,
           pose: selectedPose,
           environment: selectedEnvironment,
           locale,
+          ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}),
         }),
       });
 
       if (!res.ok) {
-        const errBody = await readResponseJson(res).catch(() => ({} as any));
-        throw new Error(errBody?.error || `Failed to send message (${res.status})`);
+        const errBody = (await readResponseJson(res).catch(() => ({}))) as { error?: string };
+        throw new Error(
+          typeof errBody?.error === 'string'
+            ? errBody.error
+            : `Failed to send message (${res.status})`,
+        );
       }
       const ch = res.headers.get('X-AI-Channel');
       const md = res.headers.get('X-AI-Model');
       if (ch === 'sfw' || ch === 'nsfw') setAiChannel(ch);
       if (md) setAiModel(md);
 
-      // Mark user message as sent
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m));
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId
+            ? { ...m, status: 'sent', media_url: mediaUrl || m.media_url, media_type: mediaType || m.media_type }
+            : m,
+        ),
+      );
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No response body');
 
       const decoder = new TextDecoder();
       let fullContent = '';
+      let sseBuf = '';
       setIsTyping(true);
 
       const assistId = `assist-${Date.now()}`;
       let assistInserted = false;
 
+      const pushAssist = (content: string) => {
+        if (!content) return;
+        if (!assistInserted) {
+          assistInserted = true;
+          setIsTyping(false);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: assistId,
+              role: 'assistant',
+              content,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+        } else {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistId ? { ...m, content } : m)),
+          );
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(l => l.trim());
+        sseBuf += decoder.decode(value, { stream: true });
+        const parts = sseBuf.split('\n');
+        sseBuf = parts.pop() || '';
 
-        for (const line of lines) {
-          if (line === 'data: [DONE]') continue;
-          if (!line.startsWith('data: ')) continue;
+        for (const line of parts) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === 'data: [DONE]') continue;
+          if (!trimmed.startsWith('data: ')) continue;
 
           try {
-            const json = JSON.parse(line.slice(6));
+            const json = JSON.parse(trimmed.slice(6)) as {
+              error?: string;
+              content?: string;
+              replace?: string;
+            };
             if (json.error) {
               logger.error('Stream error:', { data: json.error });
               continue;
             }
-            fullContent += json.content || '';
-            if (!assistInserted && fullContent) {
-              assistInserted = true;
-              setIsTyping(false);
-              setMessages(prev => [...prev, {
-                id: assistId,
-                role: 'assistant',
-                content: fullContent,
-                created_at: new Date().toISOString(),
-              }]);
-            } else if (assistInserted) {
-              setMessages(prev => prev.map(m =>
-                m.id === assistId ? { ...m, content: fullContent } : m
-              ));
+            // Server final sanitize may replace the whole reply
+            if (typeof json.replace === 'string' && json.replace.length) {
+              fullContent = sanitizeAssistantReply(json.replace, {
+                preferZh: /[\u4e00-\u9fff]/.test(json.replace),
+              });
+              pushAssist(fullContent);
+              continue;
             }
-          } catch {}
+            if (json.content) {
+              fullContent += json.content;
+              pushAssist(fullContent);
+            }
+          } catch {
+            /* incomplete / skip */
+          }
         }
       }
-      setIsTyping(false);
-      // Mark user message as read once assistant responded
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'read' } : m));
 
-      // Update intimacy
+      // Client-side sanitize as last line of defense
+      if (fullContent) {
+        const cleaned = sanitizeAssistantReply(fullContent, {
+          preferZh:
+            /[\u4e00-\u9fff]/.test(fullContent) ||
+            String(locale || '').toLowerCase().startsWith('zh'),
+        });
+        if (cleaned !== fullContent) {
+          fullContent = cleaned;
+          pushAssist(fullContent);
+        }
+      }
+
+      setIsTyping(false);
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'read' } : m)));
+
+      // 3 AI quick-reply chips for next turn (retention)
+      if (fullContent) {
+        void fetchSmartSuggestions(fullContent, text);
+      }
+
+      // Auto-trigger photo that matches this chat turn when user asked for one
+      if (wantsPhoto && text) {
+        void generateSelfie(text, [
+          { role: 'user', content: text },
+          ...(fullContent ? [{ role: 'assistant', content: fullContent.slice(0, 400) }] : []),
+        ]);
+      }
+
       const intRes = await authedFetch('/api/intimacy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ girlfriend_id: id, message_type: 'normal' }),
       });
-      const intData = await readResponseJson(intRes).catch(() => ({} as any));
+      const intData = (await readResponseJson(intRes).catch(() => ({}))) as {
+        score?: number;
+        level?: number;
+        gained?: number;
+      };
       let nextIntimacy = intimacy;
-      if (intData.score !== undefined) {
+      if (typeof intData.score === 'number') {
         nextIntimacy = {
           score: intData.score,
-          level: intData.level,
-          daily_score_gained: (intimacy.daily_score_gained || 0) + (intData.gained || 0),
+          level: typeof intData.level === 'number' ? intData.level : 1,
+          daily_score_gained:
+            (intimacy.daily_score_gained || 0) +
+            (typeof intData.gained === 'number' ? intData.gained : 0),
         };
         setIntimacy(nextIntimacy);
       }
 
-      // Persist conversation + intimacy so re-enter always restores history
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         const mood = deriveMood(last?.content, nextIntimacy.score);
@@ -500,6 +882,7 @@ export default function ChatPage() {
             created_at: m.created_at,
             is_proactive: m.is_proactive,
             media_url: m.media_url,
+            media_type: m.media_type,
             status: m.status,
           })),
           intimacy: nextIntimacy,
@@ -508,7 +891,6 @@ export default function ChatPage() {
         return prev;
       });
 
-      // Soft re-sync from server (real IDs) without clearing UI
       void authedFetch(`/api/chat/${id}`)
         .then((r) => readResponseJson(r).catch(() => ({})))
         .then((data) => {
@@ -522,53 +904,81 @@ export default function ChatPage() {
 
       void membership.refresh();
 
-      // Check achievements (fire and forget)
-      authedFetch('/api/v2/user/achievements').then(r => readResponseJson(r).catch(() => ({}))).then((data: any) => {
-        const newUnlocks = (data.achievements || []).filter((a: any) => a.user_progress?.unlocked && !a.user_progress?.reward_claimed);
-        if (newUnlocks.length > 0) {
-          toast.success(`🏆 Achievement Unlocked: ${newUnlocks[0].name}!`, {
-            description: `+${newUnlocks[0].reward_tokens} tokens`,
-            duration: 4000,
-          });
-        }
-      }).catch(() => {});
+      void authedFetch('/api/v2/user/achievements')
+        .then((r) => readResponseJson(r).catch(() => ({})))
+        .then((data: unknown) => {
+          const payload = data as {
+            achievements?: Array<{
+              name?: string;
+              reward_tokens?: number;
+              user_progress?: { unlocked?: boolean; reward_claimed?: boolean };
+            }>;
+          };
+          const newUnlocks = (payload.achievements || []).filter(
+            (a) => a.user_progress?.unlocked && !a.user_progress?.reward_claimed,
+          );
+          if (newUnlocks.length > 0) {
+            toast.success(`🏆 Achievement Unlocked: ${newUnlocks[0].name}!`, {
+              description: `+${newUnlocks[0].reward_tokens} tokens`,
+              duration: 4000,
+            });
+          }
+        })
+        .catch(() => {});
     } catch (err) {
       logger.error('Send error:', { data: err });
       const msg = err instanceof Error ? err.message : 'Failed to send message';
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `err-${Date.now()}`,
-          role: 'assistant',
-          content: msg.includes('limit')
-            ? msg
-            : `I missed that for a second... ${msg}. Try sending again?`,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
+      if (!opts?.silent) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `err-${Date.now()}`,
+            role: 'assistant',
+            content: msg.includes('limit')
+              ? msg
+              : `I missed that for a second... ${msg}. Try sending again?`,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      }
       setIsTyping(false);
     }
-    setIsSending(false);
+    if (!opts?.silent) setIsSending(false);
   };
 
-  const handleSendGift = (gift: typeof GIFTS[number]) => {
-    setShowAttachments(false);
-    setGiftCombo((c) => {
-      const next = c + 1;
-      setGiftBurst({ emoji: gift.emoji, name: gift.name, combo: next });
-      if (giftComboTimer.current) clearTimeout(giftComboTimer.current);
-      giftComboTimer.current = setTimeout(() => {
-        setGiftBurst(null);
-        setGiftCombo(0);
-      }, 2400);
-      toast.success(`${gift.emoji} x${next} ${gift.name}`, {
-        description: `+${gift.boost * next} intimacy combo`,
-      });
-      return next;
+  const clearGiftBurst = useCallback(() => {
+    setGiftBurst(null);
+  }, []);
+
+  const handleSendGift = (gift: ChatGift) => {
+    // 1) Instant FX — never wait for chat stream or gift panel
+    const next = giftComboRef.current + 1;
+    giftComboRef.current = next;
+    const isSvga =
+      gift.effect_type === 'svga' ||
+      (gift.effect_asset_url || '').toLowerCase().includes('.svga');
+    const duration = gift.effect_config?.duration_ms ?? (isSvga ? 4200 : 2800);
+
+    setGiftBurst({
+      gift,
+      combo: next,
+      key: Date.now() + next,
+      senderName: user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'You',
     });
-    // Keep gallery open for rapid live-room combo taps
-    void sendMessage(`*sends a gift: ${gift.emoji} ${gift.name}*`);
+
+    if (giftComboTimer.current) clearTimeout(giftComboTimer.current);
+    giftComboTimer.current = setTimeout(() => {
+      setGiftBurst(null);
+      giftComboRef.current = 0;
+    }, duration + 1200);
+
+    toast.success(`${gift.emoji} x${next} ${gift.name}`, {
+      description: `+${gift.intimacy_boost * next} intimacy`,
+    });
+
+    // 2) Background chat line — silent = no isSending lock, gift panel stays usable for combo
+    void sendMessage(`*sends a gift: ${gift.emoji} ${gift.name}*`, { silent: true });
   };
 
   const handleEquipOutfit = (outfitId: string) => {
@@ -582,8 +992,6 @@ export default function ChatPage() {
         created_at: new Date().toISOString(),
       }]);
     }
-    setShowWardrobeDialog(false);
-    setShowAttachments(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -806,27 +1214,34 @@ export default function ChatPage() {
         onSend={() => sendMessage()}
         onKeyDown={handleKeyDown}
         isSending={isSending}
-        onOpenAttachments={() => setShowAttachments(true)}
         showPresets={showPresets}
-        togglePresets={() => setShowPresets(s => !s)}
+        togglePresets={() => setShowPresets((s) => !s)}
         selectedMood={selectedMood}
         setSelectedMood={setSelectedMood}
         selectedPose={selectedPose}
         setSelectedPose={setSelectedPose}
         selectedEnvironment={selectedEnvironment}
         setSelectedEnvironment={setSelectedEnvironment}
-      />
-
-      {/* Attachment Sheet */}
-      <AttachmentsSheet
-        open={showAttachments}
-        onOpenChange={setShowAttachments}
-        onGift={() => { setShowAttachments(false); setShowGiftDialog(true); }}
-        onWardrobe={() => { setShowAttachments(false); setShowWardrobeDialog(true); }}
-        onSelfie={generateSelfie}
-        onMemories={() => { setShowAttachments(false); setShowMemories(true); }}
-        onPresets={() => { setShowAttachments(false); setShowPresets(true); }}
+        pendingMedia={pendingMedia}
+        onPickImage={handlePickImage}
+        onClearMedia={clearPendingMedia}
+        onToggleVoice={() => void toggleVoiceRecord()}
+        isRecording={isRecording}
+        voiceSeconds={voiceSeconds}
+        smartSuggestions={smartSuggestions}
+        smartSuggestionsLoading={smartSuggestionsLoading}
+        onSmartSuggestion={(line) => {
+          setSmartSuggestions([]);
+          void sendMessage(line);
+        }}
+        gifts={gifts}
+        onSendGift={handleSendGift}
+        outfits={outfits}
+        selectedOutfit={selectedOutfit}
+        onEquipOutfit={handleEquipOutfit}
+        onSelfie={() => void generateSelfie('send me a sexy selfie')}
         isGenerating={isGenerating}
+        onMemories={() => setShowMemories(true)}
       />
 
       {/* Memories Sheet */}
@@ -875,92 +1290,7 @@ export default function ChatPage() {
         </SheetContent>
       </Sheet>
 
-      {giftBurst && (
-        <div className="pointer-events-none fixed inset-0 z-[120] flex items-end justify-center pb-36 sm:items-center sm:pb-0">
-          <div className="animate-bounce text-center">
-            <div className="text-7xl drop-shadow-[0_0_30px_rgba(255,45,120,0.7)]">{giftBurst.emoji}</div>
-            <div className="mt-3 text-sm font-bold tracking-wide text-white bg-gradient-to-r from-[#ff2e88] to-[#c026d3] px-4 py-1.5 rounded-full shadow-lg">
-              {giftBurst.name}{giftBurst.combo > 1 ? `  x${giftBurst.combo}` : ''}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Gift Dialog */}
-      <Dialog open={showGiftDialog} onOpenChange={setShowGiftDialog}>
-        <DialogContent className="glass-modal sm:max-w-md border-white/12 text-white">
-          <DialogHeader>
-            <DialogTitle className="font-display text-xl text-white">Live Gifts</DialogTitle>
-            <DialogDescription className="text-white/50">
-              Pick a gift for {girlfriend?.name || "her"}. Live-room combo + intimacy boost.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-3 gap-2.5 py-2 max-h-[50vh] overflow-y-auto">
-            {GIFTS.map((gift) => (
-              <button
-                key={gift.id}
-                type="button"
-                onClick={() => handleSendGift(gift)}
-                className="relative flex flex-col items-center gap-1 p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-[#FF2D78]/40 transition-all text-center active:scale-[0.97] touch-manipulation"
-              >
-                <span className="text-3xl leading-none">{gift.emoji}</span>
-                <div className="text-[11px] font-semibold text-white truncate w-full">{gift.name}</div>
-                <div className="text-[10px] text-[#FF6BA6] font-bold">+{gift.boost}</div>
-                <div className="text-[9px] text-white/35">{gift.cost} coins</div>
-              </button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Wardrobe Dialog */}
-      <Dialog open={showWardrobeDialog} onOpenChange={setShowWardrobeDialog}>
-        <DialogContent className="glass-modal sm:max-w-lg border-white/12 text-white">
-          <DialogHeader>
-            <DialogTitle className="font-display text-xl text-white">{t('chat.wardrobe') || 'Wardrobe'}</DialogTitle>
-            <DialogDescription className="text-white/40">
-              Dress up {girlfriend?.name || "her"} with a new outfit.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2">
-            {outfits.map((outfit) => (
-              <button
-                key={outfit.id}
-                onClick={() => handleEquipOutfit(outfit.id)}
-                className={`relative flex flex-col items-center gap-1.5 p-4 rounded-2xl border transition-all active:scale-[0.97] ${
-                  selectedOutfit === outfit.id
-                    ? 'border-[#FF2D78]/40 bg-[#FF2D78]/10 ring-1 ring-[#FF2D78]/20 shadow-[0_0_18px_rgba(255,45,120,0.18)]'
-                    : 'border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.12]'
-                }`}
-              >
-                <span className="text-4xl">{outfit.emoji}</span>
-                <div className="text-xs font-semibold text-center text-[#F0F0F5]">{outfit.name}</div>
-                <span className="text-[10px] text-[#8B8BA3] capitalize">{outfit.category}</span>
-                <span
-                  className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider"
-                  style={{
-                    backgroundColor:
-                      outfit.tier === 'free' ? 'rgba(139,139,163,0.18)' :
-                      outfit.tier === 'premium' ? 'rgba(192,38,211,0.18)' :
-                      'rgba(255,45,120,0.18)',
-                    color:
-                      outfit.tier === 'free' ? '#8B8BA3' :
-                      outfit.tier === 'premium' ? '#C026D3' :
-                      '#FF6BA6',
-                  }}
-                >
-                  {outfit.tier}
-                </span>
-                {selectedOutfit === outfit.id && (
-                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#FF2D78] flex items-center justify-center shadow-[0_0_12px_rgba(255,45,120,0.6)]">
-                    <Check className="h-3 w-3 text-white" />
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <GiftEffectOverlay burst={giftBurst} onDone={clearGiftBurst} />
 
       {/* Image Lightbox — no nested <button> (invalid HTML → React hydration issues) */}
       {showLightbox && (

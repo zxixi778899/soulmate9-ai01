@@ -18,33 +18,68 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // 
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!allowedTypes.includes(file.type)) {
+    const fileName = file.name || 'upload.bin';
+    const ext = fileName.includes('.')
+      ? fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
+      : '';
+    // Some browsers omit codecs in type (audio/webm;codecs=opus)
+    // SVGA often has empty type or application/octet-stream
+    const baseType = (file.type || '').split(';')[0].trim().toLowerCase();
+    const isSvga =
+      ext === '.svga' ||
+      baseType === 'application/octet-stream' && fileName.toLowerCase().endsWith('.svga') ||
+      baseType === 'application/x-svga';
+    const isImage =
+      ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(baseType) ||
+      ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
+    const isAudio =
+      baseType.startsWith('audio/') ||
+      ['.webm', '.ogg', '.mp3', '.m4a', '.wav', '.mp4'].includes(ext) &&
+        !isImage &&
+        !isSvga;
+
+    if (!isImage && !isAudio && !isSvga) {
       return NextResponse.json(
-        { error: `Unsupported file type: ${file.type}. Allowed: ${allowedTypes.join(', ')}` },
-        { status: 400 }
+        {
+          error: `Unsupported file type: ${file.type || ext || 'unknown'}. Allowed: images, SVGA, short voice notes.`,
+        },
+        { status: 400 },
       );
     }
 
-    //  10MB
-    const maxSize = 10 * 1024 * 1024;
+    const maxSize = isSvga ? 20 * 1024 * 1024 : isAudio ? 8 * 1024 * 1024 : 12 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 10MB.' },
-        { status: 400 }
+        {
+          error: `File too large. Maximum size is ${Math.round(maxSize / (1024 * 1024))}MB.`,
+        },
+        { status: 400 },
       );
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await uploadFile(buffer, file.name, file.type, folder);
+    // SVGA is zip-based; prefer application/zip so image-only buckets accept it
+    // (uploadFile will also retry octet-stream / x-svga if needed)
+    const contentType = isSvga
+      ? 'application/zip'
+      : file.type || (isImage ? 'image/png' : 'application/octet-stream');
+    const safeName = isSvga && !fileName.toLowerCase().endsWith('.svga')
+      ? `${fileName}.svga`
+      : fileName;
+    const uploadFolder = isSvga
+      ? folder.includes('gift')
+        ? folder
+        : 'gifts/svga'
+      : folder;
+    const result = await uploadFile(buffer, safeName, contentType, uploadFolder);
 
     return NextResponse.json({
       key: result.key,
       url: result.url,
-      fileName: file.name,
+      fileName: safeName,
       fileSize: file.size,
-      fileType: file.type,
+      fileType: contentType,
+      kind: isSvga ? 'svga' : isAudio ? 'audio' : 'image',
     });
   } catch (error) {
     logger.error('Upload error:', { data: error });

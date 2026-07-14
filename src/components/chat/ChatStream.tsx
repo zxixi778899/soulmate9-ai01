@@ -156,22 +156,41 @@ function ChatStreamInner(props: {
                         <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
                       </span>
                     )}
-                    {msg.media_url && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenImage(msg.media_url!)}
-                        className="block mt-2 rounded-xl overflow-hidden border border-white/10 max-w-full active:scale-[0.98] transition-transform"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                    {msg.media_url &&
+                      (msg.media_type === 'audio' ||
+                      /\.(mp3|wav|m4a|ogg|webm)(\?|$)/i.test(msg.media_url) ||
+                      msg.media_url.startsWith('data:audio') ? (
+                        <audio
+                          controls
                           src={msg.media_url}
-                          alt=""
-                          className="w-full h-auto max-h-[280px] object-cover"
-                          loading="lazy"
-                          decoding="async"
+                          className="mt-2 w-full max-w-[260px] h-10 rounded-lg"
+                          preload="metadata"
                         />
-                      </button>
-                    )}
+                      ) : msg.media_type === 'video' ||
+                        /\.(mp4|webm|mov)(\?|$)/i.test(msg.media_url) ||
+                        msg.media_url.startsWith('data:video') ? (
+                        <video
+                          controls
+                          src={msg.media_url}
+                          className="mt-2 w-full max-h-[280px] rounded-xl border border-white/10"
+                          preload="metadata"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onOpenImage(msg.media_url!)}
+                          className="block mt-2 rounded-xl overflow-hidden border border-white/10 max-w-full active:scale-[0.98] transition-transform"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={msg.media_url}
+                            alt=""
+                            className="w-full h-auto max-h-[280px] object-cover"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </button>
+                      ))}
                   </div>
 
                   <div className={`flex items-center gap-1.5 mt-0.5 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>

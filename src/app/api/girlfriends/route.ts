@@ -18,15 +18,58 @@ export async function GET(req: NextRequest) {
   const filter = searchParams.get('filter'); // 'draft' | 'all'
   const id = searchParams.get('id'); // optional single-record fetch
 
+  type Row = Record<string, unknown> & {
+    portrait_url?: string | null;
+    avatar_url?: string | null;
+    card_url?: string | null;
+  };
+
+  // Single-id fetch: own first, then public catalog (for chat open / deep links)
+  if (id) {
+    const { data: owned, error: ownedErr } = await client
+      .from('girlfriends')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('id', id)
+      .maybeSingle();
+    if (ownedErr) {
+      return NextResponse.json({ error: ownedErr.message }, { status: 500 });
+    }
+
+    let row = owned as Row | null;
+    if (!row) {
+      // Fall back: public approved companion (read-only for chat bootstrap)
+      const { data: pub, error: pubErr } = await client
+        .from('girlfriends')
+        .select('*')
+        .eq('id', id)
+        .eq('is_public', true)
+        .eq('review_status', 'approved')
+        .maybeSingle();
+      if (pubErr) {
+        logger.warn('[girlfriends GET] public fallback failed', { err: pubErr.message });
+      } else {
+        row = (pub as Row | null) || null;
+      }
+    }
+
+    if (!row) {
+      return NextResponse.json({ girlfriends: [], total: 0 });
+    }
+
+    const raw = row.portrait_url || row.avatar_url || row.card_url || null;
+    const image_url = await resolveImageUrl(raw);
+    return NextResponse.json({
+      girlfriends: [{ ...row, image_url }],
+      total: 1,
+    });
+  }
+
   let query = client
     .from('girlfriends')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
-
-  if (id) {
-    query = query.eq('id', id).limit(1);
-  }
 
   if (filter === 'draft') {
     query = query.in('review_status', ['draft', 'pending', 'rejected']);
@@ -38,15 +81,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // image_url  portrait_url avatar_url
-  type Row = Record<string, unknown> & {
-    portrait_url?: string | null;
-    avatar_url?: string | null;
-  };
   const rows = (girlfriends || []) as Row[];
   const enriched = await Promise.all(
     rows.map(async (g) => {
-      const raw = g.portrait_url || g.avatar_url || null;
+      const raw = g.portrait_url || g.avatar_url || g.card_url || null;
       const image_url = await resolveImageUrl(raw);
       return { ...g, image_url };
     }),

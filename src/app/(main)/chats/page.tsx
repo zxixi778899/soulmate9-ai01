@@ -102,6 +102,31 @@ export default function MessagesPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Daily re-engagement: girlfriends send 1–3 emotional check-ins
+    void authedFetch('/api/proactive/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+      .then((r) => r.json().catch(() => ({})))
+      .then((data: { messages?: Array<{ girlfriend_id: string; content: string }> }) => {
+        const list = data.messages || [];
+        if (!list.length) return;
+        setLastMessages((prev) => {
+          const next = { ...prev };
+          for (const m of list) {
+            next[m.girlfriend_id] = {
+              girlfriend_id: m.girlfriend_id,
+              content: m.content,
+              created_at: new Date().toISOString(),
+              role: 'assistant',
+            };
+          }
+          return next;
+        });
+      })
+      .catch(() => {});
   }, []);
 
 

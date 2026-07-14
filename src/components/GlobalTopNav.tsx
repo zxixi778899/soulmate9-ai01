@@ -22,7 +22,16 @@ export default function GlobalTopNav() {
   const router = useRouter();
   const { t } = useTranslation();
 
-  if (pathname?.startsWith('/admin') || pathname?.startsWith('/chat/')) return null;
+  // Hooks must run unconditionally — hide admin/chat chrome only after all hooks.
+  const hideChrome =
+    Boolean(pathname?.startsWith('/admin')) || Boolean(pathname?.startsWith('/chat/'));
+
+  // Close sheet on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  if (hideChrome) return null;
 
   const isHome = pathname === '/';
 
@@ -42,11 +51,6 @@ export default function GlobalTopNav() {
   ];
 
   const displayLinks = user ? navLoggedIn : navGuest;
-
-  // Close sheet on route change
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
 
   const goBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {

@@ -306,14 +306,22 @@ export async function POST(req: NextRequest) {
     const errors: string[] = [];
     for (const file of files) {
       try {
-        if (!/^image\//.test(file.type)) throw new Error(`bad type ${file.type}`);
+        const isImage = /^image\//.test(file.type);
+        const isAudio = /^audio\//.test(file.type);
+        if (!isImage && !isAudio) throw new Error(`bad type ${file.type}`);
         if (file.size > 12 * 1024 * 1024) throw new Error('file > 12MB');
         const buf = Buffer.from(await file.arrayBuffer());
         const b64 = `data:${file.type};base64,${buf.toString('base64')}`;
-        const up = await uploadImageBase64(b64, folder, file.type || 'image/png');
+        // uploadImageBase64 handles image MIME; for audio reuse same storage path
+        const up = await uploadImageBase64(
+          b64,
+          folder,
+          file.type || (isAudio ? 'audio/mpeg' : 'image/png'),
+        );
+        if (!up?.url) throw new Error('storage returned empty url');
         const row = {
           created_by: admin.user!.id,
-          kind,
+          kind: isAudio ? 'audio' : kind,
           girlfriend_id: girlfriendId,
           storage_key: up.key,
           url: up.url,
@@ -335,8 +343,16 @@ export async function POST(req: NextRequest) {
           .insert(row)
           .select('*')
           .single();
-        if (insErr) assets.push({ ...row, id: null, warning: insErr.message });
-        else assets.push(saved);
+        // Always return a usable URL so media binding succeeds even if assets table is missing columns
+        if (insErr) {
+          logger.warn('[comfy] generation_assets insert failed (url still returned)', {
+            err: insErr.message,
+            key: up.key,
+          });
+          assets.push({ ...row, id: null, warning: insErr.message });
+        } else {
+          assets.push(saved || row);
+        }
         ok += 1;
       } catch (e) {
         errors.push(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);

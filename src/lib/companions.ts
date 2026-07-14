@@ -62,6 +62,7 @@ function pickImage(row: Record<string, unknown>, index: number): string {
     row.image_url,
     row.portrait_url,
     row.avatar_url,
+    row.card_url,
     row.portrait,
     row.avatar,
   ];
@@ -80,6 +81,10 @@ function pickImage(row: Record<string, unknown>, index: number): string {
     ) {
       // Image fields must not swallow video assets
       if (isLikelyVideoUrl(u) && !u.startsWith('data:image/')) continue;
+      return u;
+    }
+    // Bare storage keys (girlfriends/<id>/x.png) — still usable if CDN resolves them client-side
+    if (!looksLikeFluxPrompt(u) && u.includes('/') && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(u)) {
       return u;
     }
   }

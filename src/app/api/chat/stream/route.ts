@@ -18,6 +18,15 @@ import {
   safetySuffix,
   userMessageWrapper,
 } from '@/lib/chat-character-prompt';
+import {
+  languageLockInstruction,
+  resolveReplyLocale,
+  type ReplyLocale,
+} from '@/lib/chat-locale';
+import {
+  sanitizeAssistantReply,
+  sanitizeHistoryContent,
+} from '@/lib/chat-reply-sanitize';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,13 +50,7 @@ async function callLLM(
   });
 }
 
-function resolveChatLocale(profileAny: Record<string, unknown> | null, fallback: string): string {
-  const raw = String(
-    profileAny?.preferred_locale || profileAny?.locale || fallback || 'en',
-  ).toLowerCase();
-  if (raw.startsWith('zh') || raw === 'cn') return 'zh';
-  return 'en';
-}
+
 
 // Emotion detection is inlined below using quickEmotion() + LLM fallback
 // (saves ~1 LLM call per message + 2-5s latency on every chat).
@@ -182,10 +185,50 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const body = await request.json();
-  const { message, girlfriend_id, mood, pose, environment, locale: bodyLocale } = body;
-  if (!message || !girlfriend_id) {
-    return NextResponse.json({ error: 'message and girlfriend_id are required' }, { status: 400 });
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const {
+    message,
+    girlfriend_id,
+    mood,
+    pose,
+    environment,
+    locale: bodyLocale,
+    media_url: rawMediaUrl,
+    media_type: rawMediaType,
+  } = body as {
+    message?: string;
+    girlfriend_id?: string;
+    mood?: string;
+    pose?: string;
+    environment?: string;
+    locale?: string;
+    media_url?: string;
+    media_type?: string;
+  };
+  const mediaUrl =
+    typeof rawMediaUrl === 'string' && rawMediaUrl.trim().startsWith('http')
+      ? rawMediaUrl.trim().slice(0, 2000)
+      : typeof rawMediaUrl === 'string' && rawMediaUrl.trim().startsWith('data:')
+        ? rawMediaUrl.trim().slice(0, 2_500_000)
+        : null;
+  const mediaType =
+    mediaUrl &&
+    (rawMediaType === 'image' || rawMediaType === 'audio' || rawMediaType === 'video'
+      ? rawMediaType
+      : mediaUrl.startsWith('data:audio') || /\.(mp3|wav|m4a|ogg|webm)(\?|$)/i.test(mediaUrl)
+        ? 'audio'
+        : mediaUrl.startsWith('data:video') || /\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl)
+          ? 'video'
+          : 'image');
+
+  if ((!message && !mediaUrl) || !girlfriend_id) {
+    return NextResponse.json(
+      { error: 'message or media_url, and girlfriend_id are required' },
+      { status: 400 },
+    );
   }
 
   // Build presets object
@@ -203,7 +246,7 @@ export async function POST(request: NextRequest) {
     membershipTier = 'pro';
 
   // Legacy router kept for task logging / image intent
-  const routing = analyzeAndRoute(message, {
+  const routing = analyzeAndRoute(String(message || ''), {
     userTier: membershipTier === 'unlimited' ? 'admin' : membershipTier === 'pro' ? 'pro' : 'free',
   });
 
@@ -256,16 +299,23 @@ export async function POST(request: NextRequest) {
     intimacyLevel = intimacyResult.data.level;
   }
 
-  // Prefer client UI locale (matches Language switcher), then profile, then default.
-  // Critical for Nordic EN users: EN UI → English-only girlfriend replies.
-  const chatLocale = bodyLocale
-    ? resolveChatLocale({ preferred_locale: bodyLocale } as Record<string, unknown>, 'en')
-    : resolveChatLocale(profileAny, aiModules.language.default_locale || 'en');
+  const messageText = String(message ?? '').trim() || (mediaUrl ? '[media]' : '');
+
+  // Reply language follows PAGE UI locale (zh UI → Chinese, en UI → English).
+  // Do NOT auto-detect from message content — that caused mixed/garbled bilingual replies.
+  const chatLocale: ReplyLocale = resolveReplyLocale({
+    message: messageText,
+    uiLocale: bodyLocale || null,
+    profileLocale:
+      (profileAny?.preferred_locale as string) || (profileAny?.locale as string) || null,
+    defaultLocale: aiModules.language.default_locale || 'en',
+    autoDetect: false,
+  });
 
   const chatResolved = resolveChatCall(aiModules, {
     tier: membershipTier,
     intimacyLevel,
-    message: String(message),
+    message: messageText,
     locale: chatLocale,
   });
 
@@ -297,16 +347,17 @@ export async function POST(request: NextRequest) {
   }
   // RAG: pull top-5 most relevant memories for this user message
   const { retrieveMemories } = await import('@/lib/memory-rag');
-  const memories = await retrieveMemories(client, user.id, girlfriend_id, message, 5);
+  const memories = await retrieveMemories(client, user.id, girlfriend_id, messageText, 5);
 
   // Emotion: keyword-only (never block chat on a second LLM round-trip)
   const [detectedEmotion, loreContext] = await Promise.all([
-    Promise.resolve(normalizeEmotion(quickEmotion(message) || 'neutral')),
-    getLoreContext(client, user.id, girlfriend_id, message),
+    Promise.resolve(normalizeEmotion(quickEmotion(messageText) || 'neutral')),
+    getLoreContext(client, user.id, girlfriend_id, messageText),
   ]);
 
-  // Build system prompt from character card + locale (EN pure / ZH pure) + module suffix
+  // Build system prompt: character + hard language lock from this turn's message
   const zhChat = chatLocale === 'zh';
+  const langLock = languageLockInstruction(chatLocale);
   const systemPrompt =
     buildCharacterPrompt({
       gf,
@@ -319,32 +370,72 @@ export async function POST(request: NextRequest) {
       allowNsfw: chatResolved.allowNsfw,
       nsfwChannel: chatResolved.channel === 'nsfw',
     }) +
+    `\n\n${langLock}` +
     (chatResolved.systemLanguageSuffix ? `\n\n${chatResolved.systemLanguageSuffix}` : '');
 
   const MAX_USER_MESSAGE_LENGTH = 4000;
-  const truncatedMessage =
+  const textPart =
     typeof message === 'string' && message.length > MAX_USER_MESSAGE_LENGTH
       ? message.slice(0, MAX_USER_MESSAGE_LENGTH)
-      : String(message ?? '');
-  const wrappedUserContent = userMessageWrapper(truncatedMessage, zhChat);
-  const hardenedSystemPrompt = systemPrompt + safetySuffix(zhChat);
+      : String(message ?? '').trim();
+  // Persist caption for media-only messages so history still has text
+  const truncatedMessage =
+    textPart ||
+    (mediaType === 'audio'
+      ? '[Voice message]'
+      : mediaType === 'video'
+        ? '[Video]'
+        : mediaUrl
+          ? '[Photo]'
+          : '');
+  let mediaNote = '';
+  if (mediaUrl && mediaType === 'image') {
+    mediaNote = zhChat
+      ? '\n\n[系统提示：用户发来一张图片，请自然回应，可调侃/欣赏，不要说你看不到。]'
+      : '\n\n[System: The user sent you a photo. React naturally — flirt, comment, appreciate. Never claim you cannot see it.]';
+  } else if (mediaUrl && mediaType === 'audio') {
+    mediaNote = zhChat
+      ? '\n\n[系统提示：用户发来一段语音，请像听过一样亲密回应。]'
+      : '\n\n[System: The user sent a voice note. Respond as if you heard it, warm and intimate.]';
+  }
+  const wrappedUserContent = userMessageWrapper(truncatedMessage + mediaNote, zhChat);
+  const hardenedSystemPrompt =
+    systemPrompt +
+    safetySuffix(zhChat) +
+    (zhChat
+      ? '\n\n[输出质量] 只输出女友好友会发的聊天正文。禁止输出特殊符号标记、思考过程、系统提示、乱码或无意义重复。'
+      : '\n\n[OUTPUT QUALITY] Output only the girlfriend chat reply. No special tokens, no chain-of-thought, no system text, no garbled characters, no nonsense loops.');
 
-  // Build message array for LLM
+  // Build message array for LLM — clean history so garbage does not poison the model
+  const historyForLlm = (recentMessages || [])
+    .slice()
+    .reverse()
+    .map((m: { role: string; content: string }) => {
+      const content = sanitizeHistoryContent(m.role, m.content);
+      if (!content) return null;
+      const role = m.role === 'assistant' ? 'assistant' : 'user';
+      return { role: role as 'user' | 'assistant', content };
+    })
+    .filter((m): m is { role: 'user' | 'assistant'; content: string } => Boolean(m));
+
   const llmMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
     { role: 'system', content: hardenedSystemPrompt },
-    ...(recentMessages || []).reverse().map((m: { role: string; content: string }) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content
-    })),
-    { role: 'user', content: wrappedUserContent }
+    ...historyForLlm,
+    { role: 'user', content: wrappedUserContent },
   ];
 
-  // Save user message truncated message wrapper
+  // Save user message (text + optional media)
   await client.from('chat_messages').insert({
     user_id: user.id,
     girlfriend_id,
     role: 'user',
     content: truncatedMessage,
+    ...(mediaUrl
+      ? {
+          media_url: mediaUrl,
+          media_type: mediaType,
+        }
+      : {}),
   });
 
   // Update intimacy via internal call (fire and forget)  skip for newbie trial
@@ -409,13 +500,17 @@ export async function POST(request: NextRequest) {
         if (!reader) throw new Error('No response body from LLM');
 
         const decoder = new TextDecoder();
+        let sseBuf = '';
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          for (const line of chunk.split('\n')) {
+          sseBuf += decoder.decode(value, { stream: true });
+          const parts = sseBuf.split('\n');
+          sseBuf = parts.pop() || '';
+
+          for (const line of parts) {
             const trimmed = line.trim();
             if (!trimmed || !trimmed.startsWith('data: ')) continue;
 
@@ -425,17 +520,38 @@ export async function POST(request: NextRequest) {
             try {
               const parsed = JSON.parse(dataStr);
 
-              // Skip reasoning_content
-              const reasoningContent = parsed?.choices?.[0]?.delta?.reasoning_content;
-              if (reasoningContent) continue;
+              // Skip reasoning_content / thinking leaks
+              const reasoningContent =
+                parsed?.choices?.[0]?.delta?.reasoning_content ||
+                parsed?.choices?.[0]?.delta?.reasoning;
+              if (reasoningContent && !parsed?.choices?.[0]?.delta?.content) continue;
 
               const delta = parsed?.choices?.[0]?.delta?.content;
-              if (delta) {
+              if (typeof delta === 'string' && delta.length) {
                 fullResponse += delta;
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: delta })}\n\n`));
               }
             } catch { /* skip malformed */ }
           }
+        }
+
+        // Final sanitize (tokens / mojibake / empty garbage / wrong-language blocks)
+        const cleaned = sanitizeAssistantReply(fullResponse, { preferZh: zhChat });
+        if (cleaned && cleaned !== fullResponse) {
+          // Tell client the cleaned full text so UI replaces garble / mixed language
+          fullResponse = cleaned;
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ content: '', replace: cleaned })}\n\n`),
+          );
+        } else if (cleaned) {
+          fullResponse = cleaned;
+        } else {
+          fullResponse = sanitizeAssistantReply(fullResponse || '…', { preferZh: zhChat });
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ content: '', replace: fullResponse })}\n\n`,
+            ),
+          );
         }
 
         // Save assistant message
@@ -466,7 +582,9 @@ export async function POST(request: NextRequest) {
         }).catch(() => {});
 
         // Extract memories from user message (fire and forget)
-        extractMemories(client, user.id, girlfriend_id, message, gf.name).catch(() => {});
+        if (messageText && messageText !== '[media]') {
+          extractMemories(client, user.id, girlfriend_id, messageText, gf.name).catch(() => {});
+        }
 
         // Check achievements (fire and forget)
         checkAchievements(client, user.id).catch(() => {});
@@ -506,6 +624,7 @@ export async function POST(request: NextRequest) {
       'X-AI-Endpoint': chatResolved.endpoint.id,
       'X-AI-Provider': chatResolved.endpoint.provider,
       'X-AI-Allow-NSFW': chatResolved.allowNsfw ? '1' : '0',
+      'X-AI-Reply-Locale': chatLocale,
       ...(chatResolved.blockedReason
         ? { 'X-AI-Blocked-Reason': chatResolved.blockedReason }
         : {}),

@@ -1,10 +1,91 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/require-admin';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
+import {
+  clampTrait,
+  randomizeGirlfriendTraits,
+} from '@/lib/girlfriend-traits';
 
 export const dynamic = 'force-dynamic';
+
+/** Bust ISR + soft-refresh public marketing surfaces after admin writes. */
+function revalidateGirlfriendSurfaces(slug?: string | null) {
+  try {
+    revalidatePath('/');
+    revalidatePath('/explore');
+    revalidatePath('/summon');
+    if (slug) revalidatePath(`/girlfriend/${slug}`);
+  } catch (err) {
+    logger.warn('[admin/girlfriends] revalidatePath failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+async function syncFeaturedFromGirlfriend(
+  supabase: SupabaseClient,
+  id: string,
+  isFeatured?: boolean | null,
+): Promise<void> {
+  const { data: gf } = await supabase.from('girlfriends').select('*').eq('id', id).maybeSingle();
+  if (!gf) return;
+
+  const row = gf as {
+    is_featured?: boolean | null;
+    tags?: string[] | null;
+    portrait_url?: string | null;
+    avatar_url?: string | null;
+    card_url?: string | null;
+    name?: string | null;
+    short_description?: string | null;
+    personality?: string | null;
+    backstory?: string | null;
+    sort_order?: number | null;
+  };
+
+  const featured = isFeatured === true || row.is_featured === true;
+  if (!featured) {
+    if (isFeatured === false) {
+      await supabase.from('featured_girlfriends').delete().eq('base_girlfriend_id', id);
+    }
+    return;
+  }
+
+  const tags = Array.isArray(row.tags) ? row.tags : [];
+  const avatar = row.portrait_url || row.avatar_url || row.card_url || '';
+  if (!avatar) return;
+
+  const { data: existing } = await supabase
+    .from('featured_girlfriends')
+    .select('id')
+    .eq('base_girlfriend_id', id)
+    .limit(1);
+
+  const payload = {
+    name: row.name,
+    subtitle: row.short_description || null,
+    avatar_url: avatar,
+    description: row.short_description || row.personality || row.backstory || null,
+    personality_tags: tags,
+    is_active: true,
+    sort_order: Number(row.sort_order || 0),
+  };
+
+  if (existing && existing.length > 0) {
+    await supabase.from('featured_girlfriends').update(payload).eq('base_girlfriend_id', id);
+  } else {
+    await supabase.from('featured_girlfriends').insert({
+      ...payload,
+      greeting_message: null,
+      quick_chat_enabled: true,
+      base_girlfriend_id: id,
+    });
+  }
+}
 
 const ADMIN_GF_WRITE_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 }; // 60/h/admin
 
@@ -61,9 +142,7 @@ const RARITIES = new Set(['N', 'R', 'SR', 'SSR']);
 const ACCESS_STATUSES = new Set(['open', 'locked', 'closed']);
 
 function clampStat(v: unknown, fallback = 0): number {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(100, Math.max(0, Math.round(n)));
+  return clampTrait(v, 0, 100, fallback);
 }
 
 function missingColumnFromError(message: string): string | null {
@@ -206,41 +285,96 @@ export async function POST(request: NextRequest) {
       ? String(body.access_status)
       : 'open';
 
-    const { data, error: insertErr } = await supabase
-      .from('girlfriends')
-      .insert({
-        user_id: user.id,
-        name: body.name,
-        age: ageCheck.age,
-        slug: makeGirlfriendSlug(body.name, body.slug),
-        personality: body.personality || '',
-        tags: body.tags || [],
-        short_description: body.short_description || '',
-        backstory: body.backstory || '',
-        portrait_url: body.portrait_url || null,
-        avatar_url: body.avatar_url || null,
-        portrait_video_url: body.portrait_video_url || null,
-        avatar_video_url: body.avatar_video_url || null,
-        appearance_hair: body.appearance_hair || body.appearance?.hair || '',
-        appearance_hair_color: body.appearance_hair_color || body.appearance?.hair_color || '',
-        appearance_eyes: body.appearance_eyes || body.appearance?.eyes || '',
-        appearance_body: body.appearance_body || body.appearance?.body || '',
-        appearance_style: body.appearance_style || body.appearance?.style || '',
-        is_public: body.is_public !== undefined ? body.is_public : false,
-        review_status: body.review_status || 'approved',
-        age_verified: true,
-        rarity,
-        access_status: accessStatus,
-        unlock_price_tokens: Math.max(0, Number(body.unlock_price_tokens) || 0),
-        base_intimacy: clampStat(body.base_intimacy, 10),
-        base_desire: clampStat(body.base_desire, 20),
-        base_development: clampStat(body.base_development, 15),
-        base_kink: clampStat(body.base_kink, 10),
-      })
-      .select()
-      .single();
+    const slug = makeGirlfriendSlug(body.name, body.slug);
+    // Default heat stats into product range 50–100 when omitted
+    const rnd = randomizeGirlfriendTraits({
+      keepAge: ageCheck.age,
+      keepOccupation: body.occupation || null,
+      keepHobbies: body.hobbies || null,
+    });
+    const insertRow: Record<string, unknown> = {
+      user_id: user.id,
+      name: body.name,
+      age: ageCheck.age,
+      slug,
+      personality: body.personality || '',
+      tags: body.tags || [],
+      short_description: body.short_description || '',
+      backstory: body.backstory || '',
+      occupation: String(body.occupation || rnd.occupation || '').trim() || null,
+      hobbies: String(body.hobbies || rnd.hobbies || '').trim() || null,
+      portrait_url: body.portrait_url || null,
+      avatar_url: body.avatar_url || null,
+      card_url: body.card_url || null,
+      portrait_video_url: body.portrait_video_url || null,
+      avatar_video_url: body.avatar_video_url || null,
+      voice: body.voice || null,
+      image_prompt: body.image_prompt || null,
+      negative_prompt: body.negative_prompt || null,
+      appearance_hair: body.appearance_hair || body.appearance?.hair || '',
+      appearance_hair_color: body.appearance_hair_color || body.appearance?.hair_color || '',
+      appearance_eyes: body.appearance_eyes || body.appearance?.eyes || '',
+      appearance_body: body.appearance_body || body.appearance?.body || '',
+      appearance_style: body.appearance_style || body.appearance?.style || '',
+      appearance_race: body.appearance_race || body.appearance?.race || '',
+      is_public: body.is_public !== undefined ? body.is_public : true,
+      review_status: body.review_status || 'approved',
+      age_verified: true,
+      rarity,
+      access_status: accessStatus,
+      unlock_price_tokens: Math.max(0, Number(body.unlock_price_tokens) || 0),
+      base_intimacy: clampStat(
+        body.base_intimacy != null ? body.base_intimacy : rnd.base_intimacy,
+        rnd.base_intimacy,
+      ),
+      base_desire: clampStat(
+        body.base_desire != null ? body.base_desire : rnd.base_desire,
+        rnd.base_desire,
+      ),
+      base_development: clampStat(
+        body.base_development != null ? body.base_development : rnd.base_development,
+        rnd.base_development,
+      ),
+      base_kink: clampStat(
+        body.base_kink != null ? body.base_kink : rnd.base_kink,
+        rnd.base_kink,
+      ),
+      is_hot: Boolean(body.is_hot),
+      is_featured: Boolean(body.is_featured),
+      hot_score: Math.max(0, Math.round(Number(body.hot_score) || 0)),
+      sort_order: Math.round(Number(body.sort_order) || 0),
+    };
 
+    // Drop unknown columns so older DBs still accept create
+    let data: Record<string, unknown> | null = null;
+    let insertErr: { message?: string } | null = null;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const result = await supabase.from('girlfriends').insert(insertRow).select().single();
+      insertErr = result.error;
+      if (!insertErr) {
+        data = result.data as Record<string, unknown>;
+        break;
+      }
+      const missing = missingColumnFromError(insertErr.message || '');
+      if (missing && missing in insertRow) {
+        delete insertRow[missing];
+        continue;
+      }
+      break;
+    }
     if (insertErr) throw insertErr;
+
+    if (data?.is_featured === true) {
+      try {
+        await syncFeaturedFromGirlfriend(supabase, String(data.id), true);
+      } catch (syncErr) {
+        logger.warn('[admin/girlfriends] featured sync on create failed', {
+          err: syncErr instanceof Error ? syncErr.message : String(syncErr),
+        });
+      }
+    }
+
+    revalidateGirlfriendSurfaces(slug);
     return NextResponse.json({ girlfriend: data });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -263,6 +397,60 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    // Bulk: randomize age / intimacy / occupation / hobbies / passion / openness / kink
+    if (body?.action === 'randomize_traits') {
+      const { data: rows, error: listErr } = await supabase
+        .from('girlfriends')
+        .select('id, age, occupation, hobbies')
+        .limit(2000);
+      if (listErr) throw listErr;
+
+      let updated = 0;
+      const errors: string[] = [];
+      for (const row of rows || []) {
+        const id = String((row as { id?: string }).id || '');
+        if (!id) continue;
+        const traits = randomizeGirlfriendTraits({
+          keepAge: null, // re-roll age in 20–28 unless you want to keep — user asked full random
+          keepOccupation: null,
+          keepHobbies: null,
+        });
+        // Always re-roll all trait fields
+        const patch: Record<string, unknown> = {
+          age: traits.age,
+          base_intimacy: traits.base_intimacy,
+          base_desire: traits.base_desire,
+          base_development: traits.base_development,
+          base_kink: traits.base_kink,
+          occupation: traits.occupation,
+          hobbies: traits.hobbies,
+        };
+        const { error: upErr } = await supabase.from('girlfriends').update(patch).eq('id', id);
+        if (upErr) {
+          // Retry without optional columns
+          const soft = { ...patch };
+          delete soft.occupation;
+          delete soft.hobbies;
+          const { error: up2 } = await supabase.from('girlfriends').update(soft).eq('id', id);
+          if (up2) {
+            errors.push(`${id}: ${up2.message}`);
+            continue;
+          }
+        }
+        updated += 1;
+      }
+      revalidateGirlfriendSurfaces();
+      logger.info('[admin/girlfriends] randomize_traits done', { updated, errors: errors.length });
+      return NextResponse.json({
+        ok: true,
+        updated,
+        total: (rows || []).length,
+        errors: errors.slice(0, 10),
+        message: `已为 ${updated} 位女友随机分配年龄/亲密/职业/爱好/热情/开发/变态值`,
+      });
+    }
+
     const { id, ...rawUpdates } = body;
 
     if (!id) {
@@ -359,46 +547,30 @@ export async function PATCH(request: NextRequest) {
     }
     if (updateError) throw updateError;
 
-    if ('is_featured' in appliedUpdates) {
+    // Re-sync featured marketing row when placement OR media/identity changes
+    const mediaOrIdentityKeys = [
+      'is_featured',
+      'name',
+      'short_description',
+      'personality',
+      'tags',
+      'portrait_url',
+      'avatar_url',
+      'card_url',
+      'sort_order',
+    ];
+    const shouldSyncFeatured = mediaOrIdentityKeys.some((k) => k in appliedUpdates);
+    if (shouldSyncFeatured) {
       try {
-        const { data: gf } = await supabase.from('girlfriends').select('*').eq('id', id).maybeSingle();
-        if (gf && appliedUpdates.is_featured === true) {
-          const tags = Array.isArray(gf.tags) ? gf.tags : [];
-          const avatar = gf.portrait_url || gf.avatar_url || gf.card_url || '';
-          const { data: existing } = await supabase
-            .from('featured_girlfriends')
-            .select('id')
-            .eq('base_girlfriend_id', id)
-            .limit(1);
-          if (existing && existing.length > 0) {
-            await supabase
-              .from('featured_girlfriends')
-              .update({
-                name: gf.name,
-                avatar_url: avatar || undefined,
-                description: gf.short_description || gf.personality || null,
-                personality_tags: tags,
-                is_active: true,
-                sort_order: Number(gf.sort_order || 0),
-              })
-              .eq('base_girlfriend_id', id);
-          } else if (avatar) {
-            await supabase.from('featured_girlfriends').insert({
-              name: gf.name,
-              subtitle: gf.short_description || null,
-              personality_tags: tags,
-              avatar_url: avatar,
-              description: gf.backstory || gf.personality || null,
-              greeting_message: null,
-              sort_order: Number(gf.sort_order || 0),
-              is_active: true,
-              quick_chat_enabled: true,
-              base_girlfriend_id: id,
-            });
-          }
-        } else if (appliedUpdates.is_featured === false) {
-          await supabase.from('featured_girlfriends').delete().eq('base_girlfriend_id', id);
-        }
+        const featuredFlag =
+          'is_featured' in appliedUpdates
+            ? Boolean(appliedUpdates.is_featured)
+            : undefined;
+        await syncFeaturedFromGirlfriend(
+          supabase,
+          id,
+          featuredFlag === undefined ? null : featuredFlag,
+        );
       } catch (syncErr) {
         logger.warn('[admin/girlfriends] featured sync failed', {
           err: syncErr instanceof Error ? syncErr.message : String(syncErr),
@@ -412,6 +584,12 @@ export async function PATCH(request: NextRequest) {
       .eq('id', id)
       .maybeSingle();
     if (readBackError) throw readBackError;
+
+    const slug =
+      (girlfriend?.slug as string | undefined) ||
+      (typeof appliedUpdates.slug === 'string' ? appliedUpdates.slug : null);
+    revalidateGirlfriendSurfaces(slug);
+
     return NextResponse.json({ success: true, girlfriend, skipped_fields: skippedFields });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -439,8 +617,24 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
+    // Best-effort slug for ISR bust before delete
+    let slug: string | null = null;
+    try {
+      const { data: row } = await supabase.from('girlfriends').select('slug').eq('id', id).maybeSingle();
+      slug = (row?.slug as string) || null;
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      await supabase.from('featured_girlfriends').delete().eq('base_girlfriend_id', id);
+    } catch {
+      /* optional table */
+    }
+
     const { error: deleteErr } = await supabase.from('girlfriends').delete().eq('id', id);
     if (deleteErr) throw deleteErr;
+    revalidateGirlfriendSurfaces(slug);
     return NextResponse.json({ success: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';

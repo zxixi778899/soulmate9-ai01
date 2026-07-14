@@ -46,6 +46,10 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { uploadGirlfriendVideo, type VideoField } from '@/lib/admin-video-upload';
 import { logger } from '@/lib/logger';
+import {
+  traitLabelFor,
+  randomizeGirlfriendTraits,
+} from '@/lib/girlfriend-traits';
 
 type AccessStatus = 'open' | 'locked' | 'closed';
 type RarityTier = 'N' | 'R' | 'SR' | 'SSR';
@@ -68,6 +72,8 @@ type Girlfriend = {
   tags?: string[] | string | null;
   short_description?: string | null;
   backstory?: string | null;
+  occupation?: string | null;
+  hobbies?: string | string[] | null;
   portrait_url?: string | null;
   avatar_url?: string | null;
   card_url?: string | null;
@@ -106,6 +112,8 @@ type FormState = {
   tags: string;
   short_description: string;
   backstory: string;
+  occupation: string;
+  hobbies: string;
   portrait_url: string;
   avatar_url: string;
   card_url: string;
@@ -136,14 +144,17 @@ type FormState = {
 };
 
 function emptyForm(): FormState {
+  const rnd = randomizeGirlfriendTraits();
   return {
     name: '',
-    age: 22,
+    age: rnd.age,
     slug: '',
     personality: '',
     tags: '',
     short_description: '',
     backstory: '',
+    occupation: rnd.occupation || '',
+    hobbies: rnd.hobbies || '',
     portrait_url: '',
     avatar_url: '',
     card_url: '',
@@ -163,10 +174,10 @@ function emptyForm(): FormState {
     rarity: 'R',
     access_status: 'open',
     unlock_price_tokens: 0,
-    base_intimacy: 0,
-    base_desire: 0,
-    base_development: 0,
-    base_kink: 0,
+    base_intimacy: rnd.base_intimacy,
+    base_desire: rnd.base_desire,
+    base_development: rnd.base_development,
+    base_kink: rnd.base_kink,
     is_hot: false,
     is_featured: false,
     hot_score: 0,
@@ -179,6 +190,11 @@ function tagsToString(tags: Girlfriend['tags']): string {
   return String(tags || '');
 }
 
+function hobbiesToString(h: Girlfriend['hobbies']): string {
+  if (Array.isArray(h)) return h.join(', ');
+  return String(h || '');
+}
+
 function toForm(g: Girlfriend): FormState {
   return {
     name: g.name || '',
@@ -188,6 +204,8 @@ function toForm(g: Girlfriend): FormState {
     tags: tagsToString(g.tags),
     short_description: g.short_description || '',
     backstory: g.backstory || '',
+    occupation: String(g.occupation || ''),
+    hobbies: hobbiesToString(g.hobbies),
     portrait_url: g.portrait_url || '',
     avatar_url: g.avatar_url || '',
     card_url: g.card_url || '',
@@ -208,9 +226,9 @@ function toForm(g: Girlfriend): FormState {
     access_status: (String(g.access_status || 'open') as AccessStatus) || 'open',
     unlock_price_tokens: Number(g.unlock_price_tokens || 0),
     base_intimacy: Number(g.base_intimacy || 0),
-    base_desire: Number(g.base_desire || 0),
-    base_development: Number(g.base_development || 0),
-    base_kink: Number(g.base_kink || 0),
+    base_desire: Number(g.base_desire || 60),
+    base_development: Number(g.base_development || 60),
+    base_kink: Number(g.base_kink || 55),
     is_hot: Boolean(g.is_hot),
     is_featured: Boolean(g.is_featured),
     hot_score: Number(g.hot_score || 0),
@@ -262,6 +280,7 @@ function AdminGirlfriendsMediaPageInner() {
   const [selected, setSelected] = useState<Girlfriend | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
+  const [randomizing, setRandomizing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [videoUploading, setVideoUploading] = useState<VideoField | null>(null);
   const [imageUploading, setImageUploading] = useState<'portrait' | 'avatar' | 'card' | null>(null);
@@ -357,6 +376,8 @@ function AdminGirlfriendsMediaPageInner() {
       tags,
       short_description: form.short_description.trim() || null,
       backstory: form.backstory.trim() || null,
+      occupation: form.occupation.trim() || null,
+      hobbies: form.hobbies.trim() || null,
       portrait_url: form.portrait_url.trim() || null,
       avatar_url: form.avatar_url.trim() || null,
       card_url: form.card_url.trim() || null,
@@ -386,6 +407,51 @@ function AdminGirlfriendsMediaPageInner() {
       sort_order: Number(form.sort_order) || 0,
     };
     return payload;
+  };
+
+  const handleRandomizeAll = async () => {
+    if (
+      !window.confirm(
+        '将为所有现有女友随机分配：年龄、亲密值、职业、兴趣爱好、热情值、开发值、变态值。是否继续？',
+      )
+    ) {
+      return;
+    }
+    setRandomizing(true);
+    try {
+      const res = await authedFetch('/api/admin/girlfriends', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'randomize_traits' }),
+      });
+      const data = await readResponseJson<{
+        error?: string;
+        updated?: number;
+        message?: string;
+      }>(res);
+      if (!res.ok) throw new Error(data.error || '随机分配失败');
+      toast.success(data.message || `已更新 ${data.updated ?? 0} 位女友`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '随机分配失败');
+    } finally {
+      setRandomizing(false);
+    }
+  };
+
+  const randomizeCurrentForm = () => {
+    const rnd = randomizeGirlfriendTraits();
+    setForm((f) => ({
+      ...f,
+      age: rnd.age,
+      occupation: rnd.occupation || f.occupation,
+      hobbies: rnd.hobbies || f.hobbies,
+      base_intimacy: rnd.base_intimacy,
+      base_desire: rnd.base_desire,
+      base_development: rnd.base_development,
+      base_kink: rnd.base_kink,
+    }));
+    toast.message('已为本卡随机生成基础参数（保存后生效）');
   };
 
   const handleSave = async () => {
@@ -493,7 +559,10 @@ function AdminGirlfriendsMediaPageInner() {
     setImageUploading(key);
     try {
       if (file.size > 12 * 1024 * 1024) throw new Error('图片请小于 12MB');
+      if (!/^image\//.test(file.type)) throw new Error('请上传图片文件（png/jpg/webp）');
       let url = '';
+
+      // 1) Prefer girlfriend-scoped asset library (comfy / generation_assets)
       try {
         const fd = new FormData();
         fd.append('action', 'upload_assets');
@@ -501,25 +570,53 @@ function AdminGirlfriendsMediaPageInner() {
         fd.append('girlfriend_id', selected.id);
         fd.append('files', file);
         const res = await authedFetch('/api/admin/comfy', { method: 'POST', body: fd });
-        const data = await readResponseJson<{ assets?: Array<{ url?: string }>; error?: string }>(res);
-        if (res.ok && data.assets?.[0]?.url) url = data.assets[0].url;
+        const data = await readResponseJson<{
+          assets?: Array<{ url?: string; storage_key?: string }>;
+          error?: string;
+        }>(res);
+        if (res.ok) {
+          url = String(data.assets?.[0]?.url || '').trim();
+        } else {
+          logger.warn('comfy upload rejected', { error: data.error });
+        }
       } catch (err) {
         logger.warn('comfy upload fallback', { err: err instanceof Error ? err.message : String(err) });
       }
+
+      // 2) Generic upload API (storage) so media still binds if comfy path fails
       if (!url) {
-        throw new Error('上传到女友独立资源库失败，未绑定本地临时图片');
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('folder', `girlfriends/${selected.id}`);
+        const res = await authedFetch('/api/upload', { method: 'POST', body: fd });
+        const data = await readResponseJson<{ url?: string; key?: string; error?: string }>(res);
+        if (!res.ok || !data.url) {
+          throw new Error(data.error || '图片上传失败');
+        }
+        url = data.url;
       }
+
+      // 3) Persist URL onto girlfriend row (also revalidates public surfaces)
       const res = await authedFetch('/api/admin/girlfriends', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selected.id, [field]: url }),
       });
-      const data = await readResponseJson<{ error?: string }>(res);
+      const data = await readResponseJson<{
+        error?: string;
+        girlfriend?: Girlfriend;
+        skipped_fields?: string[];
+      }>(res);
       if (!res.ok) throw new Error(data.error || '绑定图片失败');
-      setForm((f) => ({ ...f, [field]: url }));
-      setSelected((s) => (s ? { ...s, [field]: url } : s));
-      setItems((list) => list.map((x) => (x.id === selected.id ? { ...x, [field]: url } : x)));
-      toast.success('图片已绑定');
+      if (data.skipped_fields?.includes(field)) {
+        throw new Error(`数据库缺少字段 ${field}，图片未写入`);
+      }
+
+      const next = data.girlfriend || ({ ...selected, [field]: url } as Girlfriend);
+      setForm((f) => ({ ...f, [field]: String(next[field] || url) }));
+      setSelected(next);
+      setItems((list) => list.map((x) => (x.id === selected.id ? { ...x, ...next, [field]: url } : x)));
+      toast.success('图片已保存并同步到前端');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '图片上传失败');
     } finally {
@@ -624,12 +721,25 @@ function AdminGirlfriendsMediaPageInner() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300/80">站内 CMS</p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">女友与媒体</h1>
               <p className="mt-1 max-w-3xl text-sm text-slate-400">
-                管理女友卡片参数、图片 / 视频 / 音频。推荐与热门在卡片内设置。生图请点「创作」进入工作台。
+                管理女友基础档案（年龄/亲密/职业/爱好/热情·开发·变态）与媒体。参数同步到前台卡片与对话人设。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" className="border-white/15 bg-white/5" onClick={() => void load()} disabled={loading}>
                 <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', loading && 'animate-spin')} /> 刷新
+              </Button>
+              <Button
+                variant="outline"
+                className="border-amber-400/40 bg-amber-500/10 text-amber-100"
+                onClick={() => void handleRandomizeAll()}
+                disabled={randomizing}
+              >
+                {randomizing ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                随机分配全部数值
               </Button>
               <Button className="bg-rose-600 hover:bg-rose-500" onClick={openCreate}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" /> 新建女友
@@ -736,7 +846,11 @@ function AdminGirlfriendsMediaPageInner() {
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1.5 pt-6">
                         <p className="truncate text-xs font-semibold text-white">{g.name}</p>
                         <p className="truncate text-[10px] text-slate-300">
-                          {String(g.rarity || 'R').toUpperCase()} · {g.review_status || '—'}
+                          {g.age || '—'}岁 · {g.occupation || '—'} · {String(g.rarity || 'R').toUpperCase()}
+                        </p>
+                        <p className="truncate text-[9px] text-rose-200/80">
+                          热{Number(g.base_desire || 0)} · 开{Number(g.base_development || 0)} · 变
+                          {Number(g.base_kink || 0)}
                         </p>
                       </div>
                     </div>
@@ -802,6 +916,18 @@ function AdminGirlfriendsMediaPageInner() {
 
           <div className="grid min-h-0 gap-5 overflow-y-auto pr-1 md:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]">
             <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-rose-200/90">基础档案（同步对话人设）</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-white/15 text-[11px]"
+                  onClick={randomizeCurrentForm}
+                >
+                  <Sparkles className="mr-1 h-3 w-3" /> 随机本卡数值
+                </Button>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label>名字</Label>
@@ -809,12 +935,95 @@ function AdminGirlfriendsMediaPageInner() {
                 </div>
                 <div>
                   <Label>年龄 (≥18)</Label>
-                  <Input type="number" min={18} value={form.age} onChange={(e) => setField('age', Number(e.target.value) || 18)} className="mt-1 bg-black/30" />
+                  <Input type="number" min={18} max={99} value={form.age} onChange={(e) => setField('age', Number(e.target.value) || 18)} className="mt-1 bg-black/30" />
                 </div>
               </div>
               <div>
                 <Label>Slug</Label>
                 <Input value={form.slug} onChange={(e) => setField('slug', e.target.value)} className="mt-1 bg-black/30" placeholder="url-name" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>职业</Label>
+                  <Input
+                    value={form.occupation}
+                    onChange={(e) => setField('occupation', e.target.value)}
+                    className="mt-1 bg-black/30"
+                    placeholder="Nurse / Student / Model…"
+                  />
+                </div>
+                <div>
+                  <Label>兴趣爱好</Label>
+                  <Input
+                    value={form.hobbies}
+                    onChange={(e) => setField('hobbies', e.target.value)}
+                    className="mt-1 bg-black/30"
+                    placeholder="yoga, coffee, gaming…"
+                  />
+                </div>
+              </div>
+              <div className="rounded-xl border border-rose-400/20 bg-rose-950/20 p-3 space-y-3">
+                <p className="text-[11px] font-semibold text-rose-100">性格参数（影响对话风格）</p>
+                <div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <Label className="text-[11px]">亲密值 base_intimacy</Label>
+                    <span className="tabular-nums text-rose-200">{form.base_intimacy}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={form.base_intimacy}
+                    onChange={(e) => setField('base_intimacy', Number(e.target.value))}
+                    className="mt-1 w-full accent-rose-500"
+                  />
+                  <p className="text-[10px] text-slate-500">起始亲近感 0–100，对话里与动态亲密度一起决定称呼/距离。</p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <Label className="text-[11px]">热情值 · {traitLabelFor('desire', form.base_desire)}</Label>
+                    <span className="tabular-nums text-orange-200">{form.base_desire}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50}
+                    max={100}
+                    value={form.base_desire}
+                    onChange={(e) => setField('base_desire', Number(e.target.value))}
+                    className="mt-1 w-full accent-orange-500"
+                  />
+                  <p className="text-[10px] text-slate-500">50–70 高冷 · 70–85 热情 · 85–100 奔放</p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <Label className="text-[11px]">开发值 · {traitLabelFor('development', form.base_development)}</Label>
+                    <span className="tabular-nums text-fuchsia-200">{form.base_development}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50}
+                    max={100}
+                    value={form.base_development}
+                    onChange={(e) => setField('base_development', Number(e.target.value))}
+                    className="mt-1 w-full accent-fuchsia-500"
+                  />
+                  <p className="text-[10px] text-slate-500">50–70 撒娇 · 70–85 主动 NSFW · 85–100 直白勾引</p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <Label className="text-[11px]">变态值 · {traitLabelFor('kink', form.base_kink)}</Label>
+                    <span className="tabular-nums text-violet-200">{form.base_kink}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50}
+                    max={100}
+                    value={form.base_kink}
+                    onChange={(e) => setField('base_kink', Number(e.target.value))}
+                    className="mt-1 w-full accent-violet-500"
+                  />
+                  <p className="text-[10px] text-slate-500">50–70 正常 · 70–85 喜欢刺激 · 85–100 变态玩法</p>
+                </div>
               </div>
               <div>
                 <Label>性格 / 人设</Label>
@@ -931,24 +1140,9 @@ function AdminGirlfriendsMediaPageInner() {
                     <Input type="number" value={form.unlock_price_tokens} onChange={(e) => setField('unlock_price_tokens', Number(e.target.value) || 0)} className="mt-1 h-8 bg-black/30" />
                   </div>
                 </div>
-                <div className="mt-2 grid grid-cols-4 gap-1">
-                  {([
-                    ['base_intimacy', '亲密'],
-                    ['base_desire', '欲望'],
-                    ['base_development', '成长'],
-                    ['base_kink', '癖好'],
-                  ] as const).map(([k, label]) => (
-                    <div key={k}>
-                      <Label className="text-[10px]">{label}</Label>
-                      <Input
-                        type="number"
-                        value={form[k]}
-                        onChange={(e) => setField(k, Number(e.target.value) || 0)}
-                        className="mt-0.5 h-8 bg-black/30"
-                      />
-                    </div>
-                  ))}
-                </div>
+                <p className="mt-2 text-[10px] text-slate-500">
+                  热情/开发/变态请在左侧「基础档案」滑动条调节；保存后同步前台与对话。
+                </p>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-black/20 p-3">

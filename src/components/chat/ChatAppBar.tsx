@@ -6,6 +6,7 @@ import { Image as ImageIcon, Brain, ChevronDown, Home } from 'lucide-react';
 import type { ChatGirlfriend, IntimacyData } from './types';
 import { HEAT_UNLOCK_HINTS } from '@/lib/constants';
 import type { INTIMACY_LEVELS } from '@/lib/constants';
+import { traitLabelFor } from '@/lib/girlfriend-traits';
 
 type LevelInfo = (typeof INTIMACY_LEVELS)[number];
 
@@ -78,13 +79,25 @@ export function ChatAppBar(props: {
             >
               Lv.{level}
             </span>
+            {girlfriend?.age ? (
+              <span className="text-[9px] text-white/40 shrink-0">{girlfriend.age}</span>
+            ) : null}
           </div>
           <div className="text-[11px] mt-0.5 truncate">
             {isTyping ? (
               <span className="text-[#FF6BA6] font-medium">typing…</span>
             ) : (
               <span className="text-white/45">
+                {girlfriend?.occupation
+                  ? `${girlfriend.occupation} · `
+                  : ''}
                 {title} · <span className="font-mono tabular-nums">{score}pts</span>
+                {typeof girlfriend?.base_desire === 'number' ? (
+                  <span className="text-white/35">
+                    {' '}
+                    · {traitLabelFor('desire', girlfriend.base_desire, false)}
+                  </span>
+                ) : null}
               </span>
             )}
           </div>

@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 
 /** Columns that always exist on production girlfriends table */
 const CORE_SELECT =
-  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, personality, created_at, is_public, review_status, avatar_video_url, portrait_video_url';
+  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, card_url, personality, created_at, is_public, review_status, avatar_video_url, portrait_video_url';
 
 /** Optional catalog columns (migration 0007) — probed once */
 let _optionalCols: string | null | undefined;
@@ -28,7 +28,7 @@ async function optionalSelectFragment(): Promise<string> {
     return '';
   }
   _optionalCols =
-    ', rarity, access_status, unlock_price_tokens, base_intimacy, base_desire, base_development, base_kink';
+    ', rarity, access_status, unlock_price_tokens, base_intimacy, base_desire, base_development, base_kink, occupation, hobbies';
   return _optionalCols;
 }
 
@@ -79,8 +79,10 @@ async function resolveMediaUrl(
 async function resolvePortrait(
   portrait: string | null | undefined,
   avatar: string | null | undefined,
+  card?: string | null | undefined,
 ): Promise<string> {
-  return resolveMediaUrl(portrait, avatar);
+  // Prefer portrait → avatar → card so admin card_url still shows on home/explore
+  return resolveMediaUrl(portrait, avatar, card);
 }
 
 export interface PublicCompanionRow {
@@ -98,6 +100,8 @@ export interface PublicCompanionRow {
   portrait_video_url?: string | null;
   avatar_video_url?: string | null;
   personality: string | null;
+  occupation?: string | null;
+  hobbies?: string | null;
   rarity?: string | null;
   access_status?: string | null;
   unlock_price_tokens?: number | null;
@@ -149,6 +153,7 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
     const image_url = await resolvePortrait(
       g.portrait_url as string | null,
       g.avatar_url as string | null,
+      g.card_url as string | null,
     );
     const portrait_video_url = await resolveMediaUrl(
       g.portrait_video_url as string | null,
@@ -165,13 +170,20 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
       slug: (g.slug as string) ?? null,
       tags: (g.tags as string[]) ?? null,
       short_description: (g.short_description as string) ?? null,
-      portrait_url: image_url || (g.portrait_url as string) || null,
-      avatar_url: image_url || (g.avatar_url as string) || null,
+      portrait_url: image_url || (g.portrait_url as string) || (g.card_url as string) || null,
+      avatar_url: image_url || (g.avatar_url as string) || (g.card_url as string) || null,
       image_url,
       video_url,
       portrait_video_url: portrait_video_url || null,
       avatar_video_url: avatar_video_url || null,
       personality: (g.personality as string) ?? null,
+      occupation: (g.occupation as string) ?? null,
+      hobbies:
+        typeof g.hobbies === 'string'
+          ? g.hobbies
+          : Array.isArray(g.hobbies)
+            ? (g.hobbies as string[]).join(', ')
+            : null,
       rarity: (g.rarity as string) ?? null,
       access_status: (g.access_status as string) ?? 'open',
       unlock_price_tokens: (g.unlock_price_tokens as number) ?? 0,
@@ -218,6 +230,7 @@ export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[
             const img = await resolvePortrait(
               (base as { portrait_url?: string }).portrait_url,
               (base as { avatar_url?: string }).avatar_url,
+              (base as { card_url?: string }).card_url,
             );
             if (img) {
               out.push({

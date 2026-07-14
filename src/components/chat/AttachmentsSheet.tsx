@@ -6,7 +6,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { Gift, Shirt, Image as ImageIcon, Brain, Sparkles, Loader2 } from 'lucide-react';
+import {
+  Gift,
+  Shirt,
+  Image as ImageIcon,
+  Brain,
+  Sparkles,
+  Loader2,
+  ImagePlus,
+  Mic,
+} from 'lucide-react';
 
 export function AttachmentsSheet(props: {
   open: boolean;
@@ -16,9 +25,22 @@ export function AttachmentsSheet(props: {
   onSelfie: () => void;
   onMemories: () => void;
   onPresets: () => void;
+  onSendPhoto?: () => void;
+  onVoice?: () => void;
   isGenerating: boolean;
 }) {
-  const { open, onOpenChange, onGift, onWardrobe, onSelfie, onMemories, onPresets, isGenerating } = props;
+  const {
+    open,
+    onOpenChange,
+    onGift,
+    onWardrobe,
+    onSelfie,
+    onMemories,
+    onPresets,
+    onSendPhoto,
+    onVoice,
+    isGenerating,
+  } = props;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -34,15 +56,31 @@ export function AttachmentsSheet(props: {
             { icon: <Shirt className="h-6 w-6" />, label: 'Outfit', onClick: onWardrobe, color: '#C026D3' },
             {
               icon: isGenerating ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageIcon className="h-6 w-6" />,
-              label: 'Selfie', onClick: onSelfie, color: '#FF6BA6',
+              label: 'Her photo',
+              onClick: onSelfie,
+              color: '#FF6BA6',
+              disabled: isGenerating,
+            },
+            {
+              icon: <ImagePlus className="h-6 w-6" />,
+              label: 'My photo',
+              onClick: onSendPhoto || (() => {}),
+              color: '#38bdf8',
+            },
+            {
+              icon: <Mic className="h-6 w-6" />,
+              label: 'Voice',
+              onClick: onVoice || (() => {}),
+              color: '#a78bfa',
             },
             { icon: <Brain className="h-6 w-6" />, label: 'Memories', onClick: onMemories, color: '#FF2D78' },
             { icon: <Sparkles className="h-6 w-6" />, label: 'Presets', onClick: onPresets, color: '#C026D3' },
           ].map((it) => (
             <button
               key={it.label}
+              type="button"
               onClick={it.onClick}
-              disabled={it.label === 'Selfie' && isGenerating}
+              disabled={Boolean((it as { disabled?: boolean }).disabled)}
               className="flex flex-col items-center gap-1.5 active:scale-95 disabled:opacity-50 transition-all"
             >
               <span

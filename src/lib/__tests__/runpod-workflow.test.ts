@@ -32,7 +32,7 @@ describe('buildFluxWorkflow LoRA stacking', () => {
 });
 
 describe('FLUX girlfriend prompt', () => {
-  it('keeps the card-specific prompt to a concise person plus action description', () => {
+  it('builds natural language: protagonist + action + quality (beauty/allure)', () => {
     const result = assembleGirlfriendFromRow({
       name: 'Daisy Perez',
       appearance_race: 'Scandinavian',
@@ -47,10 +47,13 @@ describe('FLUX girlfriend prompt', () => {
       tags: ['classic', 'window sunlight', 'elegant', 'romantic', 'editorial', 'confident'],
     });
 
-    expect(result.positive.length).toBeLessThanOrEqual(650);
+    expect(result.positive.length).toBeLessThanOrEqual(700);
     expect(result.positive).toMatch(/^Daisy Perez,/);
     expect(result.positive).toMatch(/\. She is /);
-    expect(result.positive).not.toMatch(/sharp focus|high-resolution|photorealistic editorial/i);
+    // quality tail: beauty + seduction + photoreal
+    expect(result.positive).toMatch(/stunningly beautiful|seductive|alluring|photorealistic/i);
+    // must keep identity + action variety, not pure quality spam only
+    expect(result.positive).toMatch(/AI girlfriend|emerald green|auburn|curvy/i);
     expect(result.negative.length).toBeLessThan(200);
   });
 });

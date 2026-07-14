@@ -9,8 +9,8 @@ import { resolveImageUrl } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 import { GirlfriendView } from '@/components/girlfriend-public/GirlfriendView';
 
-//  1h  URL 30 
-export const revalidate = 3600;
+// Short ISR so admin media/profile edits surface quickly (also busted via revalidatePath)
+export const revalidate = 60;
 export const dynamicParams = true;
 
 /**
@@ -64,7 +64,7 @@ async function getPublicGirlfriend(slug: string): Promise<PublicGirlfriend | nul
     return null;
   }
 
-  const raw = data.portrait_url || data.avatar_url || null;
+  const raw = data.portrait_url || data.avatar_url || data.card_url || null;
   const image_url = await resolveImageUrl(raw);
 
   return {

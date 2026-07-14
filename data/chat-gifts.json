@@ -1,0 +1,291 @@
+{
+  "gifts": [
+    {
+      "id": "04b93ed0-206f-4be7-a8d9-a9f9d2237cc3",
+      "code": "rose",
+      "name": "Rose",
+      "description": "Classic romance",
+      "emoji": "🌹",
+      "icon_url": null,
+      "cost_tokens": 1,
+      "intimacy_boost": 3,
+      "effect_type": "rose_petals",
+      "effect_config": {
+        "duration_ms": 2200,
+        "intensity": 0.7,
+        "colors": [
+          "#ff2e88",
+          "#ff6ba6",
+          "#f43f5e"
+        ]
+      },
+      "effect_asset_url": null,
+      "sort_order": 10,
+      "is_active": true
+    },
+    {
+      "id": "472440fb-080e-46f9-aa5b-d36f45654012",
+      "code": "lollipop",
+      "name": "Lollipop",
+      "description": "Playful sweet",
+      "emoji": "🍭",
+      "icon_url": null,
+      "cost_tokens": 2,
+      "intimacy_boost": 4,
+      "effect_type": "sparkle",
+      "effect_config": {
+        "duration_ms": 2000,
+        "intensity": 0.55,
+        "colors": [
+          "#f472b6",
+          "#a78bfa"
+        ]
+      },
+      "effect_asset_url": null,
+      "sort_order": 20,
+      "is_active": true
+    },
+    {
+      "id": "aacfe716-57f5-498a-80e2-520c1d5e99f8",
+      "code": "chocolate",
+      "name": "Chocolate",
+      "description": "Warm & thoughtful",
+      "emoji": "🍫",
+      "icon_url": null,
+      "cost_tokens": 3,
+      "intimacy_boost": 5,
+      "effect_type": "float_emoji",
+      "effect_config": {
+        "duration_ms": 2000,
+        "intensity": 0.5
+      },
+      "effect_asset_url": null,
+      "sort_order": 30,
+      "is_active": true
+    },
+    {
+      "id": "5af8ccd7-9754-4c10-81cb-1b5e085d1d4f",
+      "code": "perfume",
+      "name": "Perfume",
+      "description": "Luxury scent",
+      "emoji": "🧴",
+      "icon_url": null,
+      "cost_tokens": 6,
+      "intimacy_boost": 8,
+      "effect_type": "sparkle",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.65,
+        "colors": [
+          "#e9d5ff",
+          "#fbcfe8"
+        ]
+      },
+      "effect_asset_url": null,
+      "sort_order": 40,
+      "is_active": true
+    },
+    {
+      "id": "fc9f2740-7a42-472e-9b27-d76cc9737c2e",
+      "code": "necklace",
+      "name": "Necklace",
+      "description": "Elegant gift",
+      "emoji": "📿",
+      "icon_url": null,
+      "cost_tokens": 10,
+      "intimacy_boost": 10,
+      "effect_type": "gold_shower",
+      "effect_config": {
+        "duration_ms": 2600,
+        "intensity": 0.7,
+        "colors": [
+          "#fbbf24",
+          "#f59e0b"
+        ]
+      },
+      "effect_asset_url": null,
+      "sort_order": 50,
+      "is_active": true
+    },
+    {
+      "id": "50f5658a-f52c-4595-8a50-f107adf01843",
+      "code": "teddy",
+      "name": "Teddy",
+      "description": "Hug-worthy",
+      "emoji": "🧸",
+      "icon_url": null,
+      "cost_tokens": 12,
+      "intimacy_boost": 12,
+      "effect_type": "heart_rain",
+      "effect_config": {
+        "duration_ms": 2600,
+        "intensity": 0.75,
+        "colors": [
+          "#ff6ba6",
+          "#ff2e88"
+        ]
+      },
+      "effect_asset_url": null,
+      "sort_order": 60,
+      "is_active": true
+    },
+    {
+      "id": "3c2fd581-cd28-477d-a8b5-5c4a8eaf660e",
+      "code": "ring",
+      "name": "Promise Ring",
+      "description": "Deep commitment",
+      "emoji": "💍",
+      "icon_url": null,
+      "cost_tokens": 18,
+      "intimacy_boost": 15,
+      "effect_type": "sparkle",
+      "effect_config": {
+        "duration_ms": 2800,
+        "intensity": 0.85,
+        "colors": [
+          "#fde68a",
+          "#fff"
+        ]
+      },
+      "effect_asset_url": null,
+      "sort_order": 70,
+      "is_active": true
+    },
+    {
+      "id": "c42f322c-b2e0-4309-b64d-b2a57d3a0001",
+      "code": "crown",
+      "name": "Crown",
+      "description": "Live-room showstopper",
+      "emoji": "👑",
+      "icon_url": null,
+      "cost_tokens": 30,
+      "intimacy_boost": 25,
+      "effect_type": "crown",
+      "effect_config": {
+        "duration_ms": 3000,
+        "intensity": 0.9,
+        "colors": [
+          "#fbbf24",
+          "#f59e0b",
+          "#fff7ed"
+        ]
+      },
+      "effect_asset_url": null,
+      "sort_order": 80,
+      "is_active": true
+    },
+    {
+      "id": "b76dea30-f283-44e1-a110-6849ac2e5742",
+      "code": "rocket",
+      "name": "Rocket",
+      "description": "Full combo effect",
+      "emoji": "🚀",
+      "icon_url": null,
+      "cost_tokens": 50,
+      "intimacy_boost": 40,
+      "effect_type": "rocket",
+      "effect_config": {
+        "duration_ms": 3200,
+        "intensity": 1,
+        "colors": [
+          "#38bdf8",
+          "#a78bfa",
+          "#ff2e88"
+        ]
+      },
+      "effect_asset_url": null,
+      "sort_order": 90,
+      "is_active": true
+    },
+    {
+      "id": "491f90c1-62c6-4278-a438-2b7a547e851f",
+      "code": "castle",
+      "name": "Castle",
+      "description": "Ultimate live combo",
+      "emoji": "🏰",
+      "icon_url": null,
+      "cost_tokens": 80,
+      "intimacy_boost": 60,
+      "effect_type": "castle",
+      "effect_config": {
+        "duration_ms": 3600,
+        "intensity": 1,
+        "colors": [
+          "#c026d3",
+          "#ff2e88",
+          "#fbbf24"
+        ]
+      },
+      "effect_asset_url": null,
+      "sort_order": 100,
+      "is_active": true
+    },
+    {
+      "id": "327d2ef5-e26c-47c8-bd92-db2288b84183",
+      "code": "gift_mrjxho61",
+      "name": "荧光棒",
+      "description": "挥舞手中的光，今夜我们都是追光者✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1783989762442_at8fcb____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1783989768551_fihk3l____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "7c201e69-e007-49bb-a0dd-9c75f9f464b8",
+      "code": "gift_mrjxlatc",
+      "name": "水晶风车",
+      "description": "手摇水晶风车，转出漫天星河✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1783989991898_9hinwx_____.png",
+      "cost_tokens": 2,
+      "intimacy_boost": 3,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1783990008005_f1gzl3_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "1a090e6f-72c0-4fed-8384-b1a8a9cb11c4",
+      "code": "gift_mrjxo6es",
+      "name": "彩虹玫瑰",
+      "description": "打翻上帝的调色盘｜送你一朵会发光的彩虹玫瑰🌹",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1783990126505_srdzxb_____.png",
+      "cost_tokens": 3,
+      "intimacy_boost": 5,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1783990141732_0udfnk_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    }
+  ],
+  "updated_at": "2026-07-14T00:49:24.935Z"
+}

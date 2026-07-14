@@ -21,16 +21,19 @@ import {
   type PresetContext,
 } from './shared';
 
-/** Short quality tail — do NOT stack camera spam (causes same-face look). */
+/**
+ * Quality tail (自然语言质量词) — beauty / allure / photoreal.
+ * Keep short; avoid stacking camera spam that collapses faces.
+ */
 export const GIRLFRIEND_QUALITY_PREFIX =
-  'photorealistic editorial photo, crisp eyes, natural skin texture, detailed hair, clean high-resolution detail, sharp focus'
+  'stunningly beautiful, seductive and alluring, soft glamorous makeup, glossy lips, bedroom eyes, flawless glowing skin, photorealistic editorial beauty photo, crisp eyes, natural skin texture, detailed hair, high-resolution detail, sharp focus, intimate and captivating'
 
 /**
  * Soft figure hint — keep short so face/pose still dominate.
  * Avoid fixed lingerie / same body spam that collapses variety.
  */
 export const GIRLFRIEND_BODY_FIXED =
-  'sexy feminine silhouette, graceful waist and hips, realistic anatomy and proportions'
+  'sexy feminine silhouette, graceful waist and hips, attractive figure, realistic anatomy and proportions'
 
 /** Default framing for companion cards: face the viewer (not back/side template). */
 export const GIRLFRIEND_FRAMING =
@@ -591,8 +594,13 @@ function trimPrompt(positive: string, max = 650): string {
 }
 
 /**
- * Assemble: traits → action → env → light → expression → quality.
- * Simple Civitai-style caption, not stacked SD boilerplate.
+ * Assemble natural-language FLUX caption:
+ *   1) 主角 (who she is — name + identity)
+ *   2) 在干嘛 (what she is doing — pose / outfit / scene / expression)
+ *   3) 质量词 (beauty + allure + photoreal quality)
+ *
+ * AI girlfriend is the product core: images must feel seductive, beautiful, alluring.
+ * Avoid identical template spam — pose/outfit/env vary per character hash + scene.
  */
 export function assembleGirlfriendPrompt(
   ctx: PresetContext,
@@ -623,27 +631,49 @@ export function assembleGirlfriendPrompt(
     rawStripped &&
     rawStripped.length > 8 &&
     !subjectClause.toLowerCase().includes(rawStripped.toLowerCase().slice(0, 40))
-      ? rawStripped.slice(0, 120)
+      ? rawStripped.slice(0, 140)
       : '';
 
   const { pose, outfit } = pickScenePoseAndOutfit(fixedSubject, scene);
 
-  // FLUX understands concise natural language well. Keep the editable prompt
-  // intentionally limited to two concepts: who she is + what she is doing.
-  // Model quality, sampler and resolution belong to the workflow controls.
+  // ── 1) 主角 ──
   const hair = [fixedSubject.hairColor, fixedSubject.hair].filter(Boolean).join(' ').trim();
+  const personalityHint =
+    fixedSubject.personality && !looksLikeFluxPrompt(fixedSubject.personality)
+      ? String(fixedSubject.personality).slice(0, 48)
+      : '';
   const conciseIdentity = joinParts([
     fixedSubject.name,
-    'a beautiful sensual adult AI girlfriend age 23-28',
-    fixedSubject.race ? `with ${fixedSubject.race} features` : '',
-    hair ? `with ${/\bhair\b/i.test(hair) ? hair : `${hair} hair`}` : '',
+    'a stunningly beautiful seductive adult AI girlfriend, age 23-28',
+    fixedSubject.race ? `${fixedSubject.race} features` : '',
+    hair ? (/\bhair\b/i.test(hair) ? hair : `${hair} hair`) : '',
     fixedSubject.eyes ? `${fixedSubject.eyes} eyes` : '',
     fixedSubject.body ? `${fixedSubject.body} figure` : GIRLFRIEND_BODY_FIXED,
+    personalityHint ? `${personalityHint} vibe` : '',
   ]);
-  const person = trimPrompt(conciseIdentity || subjectClause, 230);
-  const generatedAction = `${pose}, while soft neutral light illuminates her face evenly and preserves natural skin tone, ${expression}, ${GIRLFRIEND_FRAMING}, wearing ${outfit} in ${scene.env}`;
-  const action = trimPrompt(extra || generatedAction, 230);
-  const positive = `${person}. She is ${action.replace(/^[Ss]he is\s+/i, '').replace(/[.]$/, '')}.`;
+  const person = trimPrompt(conciseIdentity || subjectClause, 260);
+
+  // ── 2) 在干嘛 ──
+  const light = scene.light || 'soft flattering key light on her face, natural skin tone';
+  const generatedAction = joinParts([
+    pose,
+    `wearing ${outfit}`,
+    `in ${scene.env}`,
+    light,
+    expression,
+    GIRLFRIEND_FRAMING,
+  ]);
+  // Prefer admin/custom action text when present; otherwise scene recipe.
+  const actionCore = extra || generatedAction;
+  const action = trimPrompt(actionCore.replace(/^[Ss]he is\s+/i, '').replace(/[.]$/, ''), 280);
+
+  // ── 3) 质量词 ──
+  const quality = GIRLFRIEND_QUALITY_PREFIX;
+
+  const positive = trimPrompt(
+    `${person}. She is ${action}. ${quality}.`,
+    700,
+  );
 
   // Default: short anti-underexposure negative (user issue: dark muddy faces).
   // Pass useEmptyNegative: true only for pure FLUX workers that black-frame on any neg.

@@ -75,19 +75,45 @@ function adminClient(): SupabaseClient {
 
 const IMAGE_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
 const VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v'] as const;
+const AUDIO_MIME = [
+  'audio/webm',
+  'audio/ogg',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/wav',
+  'audio/x-m4a',
+  'audio/mp3',
+] as const;
+/** SVGA (Douyin gifts) is a zip-based binary; buckets often reject bare octet-stream unless listed */
+const BINARY_MIME = [
+  'application/octet-stream',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-svga',
+  'application/svga',
+] as const;
+
+/** Full allowlist for portraits bucket (images + video + audio + SVGA gifts) */
+export const STORAGE_ALLOWED_MIME = [
+  ...IMAGE_MIME,
+  ...VIDEO_MIME,
+  ...AUDIO_MIME,
+  ...BINARY_MIME,
+] as const;
 
 async function ensureBucket(bucket: string): Promise<void> {
   if (_bucketEnsured) return;
   try {
     const { data: list } = await adminClient().storage.listBuckets();
     const exists = (list || []).some((b) => b.name === bucket);
+    const bucketOpts = {
+      public: true,
+      // Videos / SVGA gifts can be larger than stills
+      fileSizeLimit: 50 * 1024 * 1024,
+      allowedMimeTypes: [...STORAGE_ALLOWED_MIME],
+    };
     if (!exists) {
-      const { error } = await adminClient().storage.createBucket(bucket, {
-        public: true,
-        // Videos can be larger than stills; Supabase project plan may still cap this.
-        fileSizeLimit: 50 * 1024 * 1024,
-        allowedMimeTypes: [...IMAGE_MIME, ...VIDEO_MIME],
-      });
+      const { error } = await adminClient().storage.createBucket(bucket, bucketOpts);
       if (error && !/already exists/i.test(error.message)) {
         logger.warn('[storage] createBucket failed (may already exist)', {
           bucket,
@@ -97,13 +123,15 @@ async function ensureBucket(bucket: string): Promise<void> {
         logger.info('[storage] created public bucket', { bucket });
       }
     } else {
-      // Best-effort: allow video on existing buckets (no-op if already set)
+      // Best-effort: expand MIME allowlist so SVGA/audio uploads are not rejected
       try {
-        await adminClient().storage.updateBucket(bucket, {
-          public: true,
-          fileSizeLimit: 50 * 1024 * 1024,
-          allowedMimeTypes: [...IMAGE_MIME, ...VIDEO_MIME],
-        });
+        const { error: updErr } = await adminClient().storage.updateBucket(bucket, bucketOpts);
+        if (updErr) {
+          logger.warn('[storage] updateBucket mime allowlist failed', {
+            bucket,
+            err: updErr.message,
+          });
+        }
       } catch {
         /* ignore — bucket may already be correct or plan-restricted */
       }
@@ -338,6 +366,38 @@ export async function ensureImageKey(
 }
 
 /**
+ * Content-type candidates for tricky formats (SVGA / empty browser type).
+ * SVGA is a zip container — application/zip is accepted by most image-first buckets
+ * once allowlist includes zip, and players only need the .svga URL.
+ */
+function contentTypeCandidates(fileName: string, preferred: string): string[] {
+  const lower = (fileName || '').toLowerCase();
+  const isSvga =
+    lower.endsWith('.svga') ||
+    preferred === 'application/x-svga' ||
+    preferred === 'application/svga';
+  if (isSvga) {
+    return [
+      preferred,
+      'application/zip',
+      'application/x-zip-compressed',
+      'application/octet-stream',
+      'application/x-svga',
+    ].filter((v, i, a) => v && a.indexOf(v) === i);
+  }
+  if (
+    preferred === 'application/octet-stream' ||
+    !preferred ||
+    preferred === 'application/x-www-form-urlencoded'
+  ) {
+    return ['application/zip', 'application/octet-stream', preferred].filter(
+      (v, i, a) => v && a.indexOf(v) === i,
+    );
+  }
+  return [preferred];
+}
+
+/**
  * Upload Buffer → { key, url }
  */
 export async function uploadFile(
@@ -364,23 +424,51 @@ export async function uploadFile(
     throw new Error(`uploadFile: empty or invalid buffer (${buffer?.length ?? 0} bytes)`);
   }
 
-  const { error } = await adminClient().storage.from(bucket).upload(key, buffer, {
-    contentType,
-    upsert: true,
-    cacheControl: 'public, max-age=31536000',
-  });
+  const candidates = contentTypeCandidates(fileName, contentType);
+  let lastError: { message?: string } | null = null;
+  let usedType = contentType;
 
-  if (error) {
+  for (const ct of candidates) {
+    const { error } = await adminClient().storage.from(bucket).upload(key, buffer, {
+      contentType: ct,
+      upsert: true,
+      cacheControl: 'public, max-age=31536000',
+    });
+    if (!error) {
+      usedType = ct;
+      lastError = null;
+      break;
+    }
+    lastError = error;
+    // Only retry mime-type rejections with the next candidate
+    if (!/mime type|not supported|invalid.*type/i.test(error.message || '')) {
+      break;
+    }
+    logger.warn('[storage] upload mime rejected, retrying', {
+      bucket,
+      key,
+      contentType: ct,
+      err: error.message,
+    });
+  }
+
+  if (lastError) {
     logger.error('[storage] supabase upload failed', {
       bucket,
       key,
-      err: error.message,
+      err: lastError.message,
+      tried: candidates,
     });
     throw new Error(
-      `Supabase Storage upload failed (${bucket}/${key}): ${error.message}. ` +
-        `Ensure service role key is set and bucket "${bucket}" exists (public recommended).`,
+      `Supabase Storage upload failed (${bucket}/${key}): ${lastError.message}. ` +
+        `Tried content-types: ${candidates.join(', ')}. ` +
+        `If the bucket restricts MIME types, open Supabase Dashboard → Storage → "${bucket}" → ` +
+        `Configuration and allow application/zip + application/octet-stream (SVGA gifts), ` +
+        `or clear the allowed MIME list.`,
     );
   }
+
+  logger.info('[storage] upload content-type', { key, contentType: usedType });
 
   // Prefer SDK public URL (works when bucket is public)
   let url = publicObjectUrl(bucket, key);

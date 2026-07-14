@@ -214,19 +214,19 @@ export function createDefaultAiModules(): AiModulesConfig {
       auto_detect: true,
       reply_instructions: {
         en:
-          'LANGUAGE LOCK: Reply in natural modern English only. ' +
-          'Do not use Chinese characters. Do not switch to Chinese, Japanese, or Korean. ' +
-          'International/Nordic English is fine. Only match another language if the user clearly wrote their full message in that language.',
+          'LANGUAGE LOCK (this turn): User message is English. Reply in natural modern English ONLY. ' +
+          'Do not use any Chinese characters (汉字). Do not switch to Chinese/Japanese/Korean. ' +
+          'Do not bilingual-mix. International/Nordic English is fine.',
         zh:
-          '语言锁定：请用自然流畅的简体中文回复。正文不要整段英文。' +
-          '除非用户明确要求其他语言或整段使用其他语言，否则保持中文。',
-        ja: 'ユーザーが他の言語を指定しない限り、自然な日本語で返答してください。',
-        ko: '사용자가 다른 언어를 요청하지 않는 한 자연스러운 한국어로 답하세요.',
-        es: 'Responde en español natural salvo que el usuario pida otro idioma.',
-        fr: 'Réponds en français naturel sauf si l’utilisateur demande une autre langue.',
-        de: 'Antworte auf natürlichem Deutsch, sofern der Nutzer keine andere Sprache verlangt.',
-        pt: 'Responda em português natural, a menos que o usuário peça outro idioma.',
-        ru: 'Отвечай на естественном русском, если пользователь не просит другой язык.',
+          '语言锁定（本轮）：用户用中文写消息。请只用自然流畅的简体中文回复。' +
+          '禁止整段英文，禁止中英夹杂乱入。动作旁白可用*星号*，对白必须是中文。',
+        ja: '言語ロック：ユーザーは日本語です。自然な日本語のみで返答。中国語・英語の本文混入禁止。',
+        ko: '언어 잠금: 사용자가 한국어로 썼습니다. 자연스러운 한국어로만 답하세요. 중국어/영어 본문 혼입 금지.',
+        es: 'BLOQUEO DE IDIOMA: el usuario escribió en español. Responde solo en español natural. Sin chino ni bloques de inglés al azar.',
+        fr: 'VERROUILLAGE LANGUE : l’utilisateur a écrit en français. Réponds uniquement en français naturel. Pas de chinois ni d’anglais mélangé.',
+        de: 'SPRACHSPERRE: Der Nutzer schrieb auf Deutsch. Antworte nur auf natürlichem Deutsch. Kein Chinesisch, kein wildes Englisch-Mix.',
+        pt: 'BLOQUEIO DE IDIOMA: o usuário escreveu em português. Responda só em português natural. Sem chinês nem inglês misturado.',
+        ru: 'ЯЗЫКОВОЙ ЗАМОК: пользователь написал по-русски. Отвечай только на естественном русском. Без китайского и случайного английского.',
       },
     },
   };

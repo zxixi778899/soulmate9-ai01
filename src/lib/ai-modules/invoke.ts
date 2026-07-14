@@ -4,6 +4,7 @@
 import type { ModelEndpoint } from './types';
 import { logger } from '@/lib/logger';
 import { estimateTokens, estimateCost, logModelUsage } from '@/lib/model-usage';
+import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 
 export interface InvokeChatOptions {
   endpoint: ModelEndpoint;
@@ -119,7 +120,7 @@ export async function invokeChat(opts: InvokeChatOptions): Promise<InvokeChatRes
   );
 
   return {
-    content,
+    content: sanitizeAssistantReply(content),
     provider: ep.provider,
     model: ep.model_id,
     latency_ms,

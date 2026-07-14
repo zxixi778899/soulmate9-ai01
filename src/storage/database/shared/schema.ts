@@ -166,6 +166,29 @@ export const shopItems = pgTable(
   (table) => [index("shop_items_type_idx").on(table.item_type)]
 );
 
+/** Live-room chat gifts with per-gift visual FX (admin-managed) */
+export const chatGifts = pgTable(
+  "chat_gifts",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    code: varchar("code", { length: 64 }).notNull().unique(),
+    name: varchar("name", { length: 128 }).notNull(),
+    description: text("description"),
+    emoji: varchar("emoji", { length: 16 }).notNull().default("🎁"),
+    icon_url: text("icon_url"),
+    cost_tokens: integer("cost_tokens").notNull().default(1),
+    intimacy_boost: integer("intimacy_boost").notNull().default(1),
+    effect_type: varchar("effect_type", { length: 32 }).notNull().default("float_emoji"),
+    effect_config: jsonb("effect_config").notNull().default({}),
+    effect_asset_url: text("effect_asset_url"),
+    sort_order: integer("sort_order").notNull().default(0),
+    is_active: boolean("is_active").notNull().default(true),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("chat_gifts_active_sort_idx").on(table.is_active, table.sort_order)],
+);
+
 //   
 export const wardrobe = pgTable(
   "wardrobe",
