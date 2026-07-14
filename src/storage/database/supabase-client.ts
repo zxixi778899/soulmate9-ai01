@@ -31,6 +31,23 @@ function getSupabaseCredentials(): SupabaseCredentials {
     throw new Error('COZE_SUPABASE_ANON_KEY is not set. Required for Supabase client.');
   }
 
+  // Diagnostic for non-ASCII characters in env vars. Surfaces "Cannot
+  // convert argument to a ByteString" failures from fetch() by reporting
+  // which credential contains characters outside the Latin1 range.
+  // Logged once per process — Supabase client is created per-request.
+  const urlBuf = Buffer.from(url, 'utf8');
+  const keyBuf = Buffer.from(anonKey, 'utf8');
+  const urlNonAscii = [...url].some((c) => c.charCodeAt(0) > 0xff);
+  const keyNonAscii = [...anonKey].some((c) => c.charCodeAt(0) > 0xff);
+  if (urlNonAscii || keyNonAscii) {
+    logger.error('[supabase-client] env var contains non-Latin1 character', {
+      urlNonAscii,
+      keyNonAscii,
+      urlLength: urlBuf.length,
+      keyLength: keyBuf.length,
+    });
+  }
+
   return { url, anonKey };
 }
 
