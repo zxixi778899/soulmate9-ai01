@@ -110,6 +110,12 @@ export function GiftEffectOverlay({
     asset && !isSvgaUrl(asset) && /\.(gif|webp|png|jpg|jpeg|webm|mp4)(\?|$)/i.test(asset),
   );
 
+  // SVGA needs a longer hard ceiling — complex Douyin gifts are 6–15s of animation.
+  // For non-SVGA effects the original short ceiling is fine (CSS particles complete in ~3s).
+  const fallbackFinishMs = useSvga
+    ? Math.max(duration, 8000) + 800
+    : Math.max(duration, 2200) + 400;
+
   // Always build CSS particles as instant feedback; keep under SVGA while it loads
   const particles = useMemo(() => {
     if (!burst) return [];
@@ -141,13 +147,14 @@ export function GiftEffectOverlay({
     setSvgaFailed(false);
     setSvgaReady(false);
     const b = window.setTimeout(() => setBannerIn(true), 20);
-    // Always auto-finish so effect never sticks (even if SVGA hangs)
-    const t = window.setTimeout(() => finish(), Math.max(duration, 2200) + 400);
+    // Hard ceiling — only used as fallback if SVGA never fires onReady/onFinished/onError
+    // (e.g. parser hung). For non-SVGA this is the primary close timer.
+    const t = window.setTimeout(() => finish(), fallbackFinishMs);
     return () => {
       window.clearTimeout(b);
       window.clearTimeout(t);
     };
-  }, [burstKey, duration, finish, burst]);
+  }, [burstKey, fallbackFinishMs, finish, burst]);
 
   if (!mounted || !burst || !gift || typeof document === 'undefined') return null;
 

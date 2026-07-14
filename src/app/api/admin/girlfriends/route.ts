@@ -404,7 +404,19 @@ export async function PATCH(request: NextRequest) {
         .from('girlfriends')
         .select('id, age, occupation, hobbies')
         .limit(2000);
-      if (listErr) throw listErr;
+      if (listErr) {
+        logger.warn('[admin/girlfriends] randomize_traits list failed', {
+          err: listErr.message,
+          code: listErr.code,
+          hint: listErr.hint,
+        });
+        throw listErr;
+      }
+
+      logger.info('[admin/girlfriends] randomize_traits starting', {
+        found: (rows || []).length,
+        firstId: (rows || [])[0]?.id ?? null,
+      });
 
       let updated = 0;
       const errors: string[] = [];
@@ -428,14 +440,23 @@ export async function PATCH(request: NextRequest) {
         };
         const { error: upErr } = await supabase.from('girlfriends').update(patch).eq('id', id);
         if (upErr) {
-          // Retry without optional columns
-          const soft = { ...patch };
-          delete soft.occupation;
-          delete soft.hobbies;
-          const { error: up2 } = await supabase.from('girlfriends').update(soft).eq('id', id);
+          // Retry 1: drop occupation + hobbies (added later, may not exist on older DBs)
+          const soft1 = { ...patch };
+          delete soft1.occupation;
+          delete soft1.hobbies;
+          const { error: up2 } = await supabase.from('girlfriends').update(soft1).eq('id', id);
           if (up2) {
-            errors.push(`${id}: ${up2.message}`);
-            continue;
+            // Retry 2: also drop age — some DBs predate migration 0007-style trait columns
+            const soft2 = { ...soft1 };
+            delete soft2.age;
+            const { error: up3 } = await supabase
+              .from('girlfriends')
+              .update(soft2)
+              .eq('id', id);
+            if (up3) {
+              errors.push(`${id}: ${up3.message}`);
+              continue;
+            }
           }
         }
         updated += 1;

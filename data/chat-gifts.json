@@ -1,226 +1,6 @@
 {
   "gifts": [
     {
-      "id": "04b93ed0-206f-4be7-a8d9-a9f9d2237cc3",
-      "code": "rose",
-      "name": "Rose",
-      "description": "Classic romance",
-      "emoji": "🌹",
-      "icon_url": null,
-      "cost_tokens": 1,
-      "intimacy_boost": 3,
-      "effect_type": "rose_petals",
-      "effect_config": {
-        "duration_ms": 2200,
-        "intensity": 0.7,
-        "colors": [
-          "#ff2e88",
-          "#ff6ba6",
-          "#f43f5e"
-        ]
-      },
-      "effect_asset_url": null,
-      "sort_order": 10,
-      "is_active": true
-    },
-    {
-      "id": "472440fb-080e-46f9-aa5b-d36f45654012",
-      "code": "lollipop",
-      "name": "Lollipop",
-      "description": "Playful sweet",
-      "emoji": "🍭",
-      "icon_url": null,
-      "cost_tokens": 2,
-      "intimacy_boost": 4,
-      "effect_type": "sparkle",
-      "effect_config": {
-        "duration_ms": 2000,
-        "intensity": 0.55,
-        "colors": [
-          "#f472b6",
-          "#a78bfa"
-        ]
-      },
-      "effect_asset_url": null,
-      "sort_order": 20,
-      "is_active": true
-    },
-    {
-      "id": "aacfe716-57f5-498a-80e2-520c1d5e99f8",
-      "code": "chocolate",
-      "name": "Chocolate",
-      "description": "Warm & thoughtful",
-      "emoji": "🍫",
-      "icon_url": null,
-      "cost_tokens": 3,
-      "intimacy_boost": 5,
-      "effect_type": "float_emoji",
-      "effect_config": {
-        "duration_ms": 2000,
-        "intensity": 0.5
-      },
-      "effect_asset_url": null,
-      "sort_order": 30,
-      "is_active": true
-    },
-    {
-      "id": "5af8ccd7-9754-4c10-81cb-1b5e085d1d4f",
-      "code": "perfume",
-      "name": "Perfume",
-      "description": "Luxury scent",
-      "emoji": "🧴",
-      "icon_url": null,
-      "cost_tokens": 6,
-      "intimacy_boost": 8,
-      "effect_type": "sparkle",
-      "effect_config": {
-        "duration_ms": 2400,
-        "intensity": 0.65,
-        "colors": [
-          "#e9d5ff",
-          "#fbcfe8"
-        ]
-      },
-      "effect_asset_url": null,
-      "sort_order": 40,
-      "is_active": true
-    },
-    {
-      "id": "fc9f2740-7a42-472e-9b27-d76cc9737c2e",
-      "code": "necklace",
-      "name": "Necklace",
-      "description": "Elegant gift",
-      "emoji": "📿",
-      "icon_url": null,
-      "cost_tokens": 10,
-      "intimacy_boost": 10,
-      "effect_type": "gold_shower",
-      "effect_config": {
-        "duration_ms": 2600,
-        "intensity": 0.7,
-        "colors": [
-          "#fbbf24",
-          "#f59e0b"
-        ]
-      },
-      "effect_asset_url": null,
-      "sort_order": 50,
-      "is_active": true
-    },
-    {
-      "id": "50f5658a-f52c-4595-8a50-f107adf01843",
-      "code": "teddy",
-      "name": "Teddy",
-      "description": "Hug-worthy",
-      "emoji": "🧸",
-      "icon_url": null,
-      "cost_tokens": 12,
-      "intimacy_boost": 12,
-      "effect_type": "heart_rain",
-      "effect_config": {
-        "duration_ms": 2600,
-        "intensity": 0.75,
-        "colors": [
-          "#ff6ba6",
-          "#ff2e88"
-        ]
-      },
-      "effect_asset_url": null,
-      "sort_order": 60,
-      "is_active": true
-    },
-    {
-      "id": "3c2fd581-cd28-477d-a8b5-5c4a8eaf660e",
-      "code": "ring",
-      "name": "Promise Ring",
-      "description": "Deep commitment",
-      "emoji": "💍",
-      "icon_url": null,
-      "cost_tokens": 18,
-      "intimacy_boost": 15,
-      "effect_type": "sparkle",
-      "effect_config": {
-        "duration_ms": 2800,
-        "intensity": 0.85,
-        "colors": [
-          "#fde68a",
-          "#fff"
-        ]
-      },
-      "effect_asset_url": null,
-      "sort_order": 70,
-      "is_active": true
-    },
-    {
-      "id": "c42f322c-b2e0-4309-b64d-b2a57d3a0001",
-      "code": "crown",
-      "name": "Crown",
-      "description": "Live-room showstopper",
-      "emoji": "👑",
-      "icon_url": null,
-      "cost_tokens": 30,
-      "intimacy_boost": 25,
-      "effect_type": "crown",
-      "effect_config": {
-        "duration_ms": 3000,
-        "intensity": 0.9,
-        "colors": [
-          "#fbbf24",
-          "#f59e0b",
-          "#fff7ed"
-        ]
-      },
-      "effect_asset_url": null,
-      "sort_order": 80,
-      "is_active": true
-    },
-    {
-      "id": "b76dea30-f283-44e1-a110-6849ac2e5742",
-      "code": "rocket",
-      "name": "Rocket",
-      "description": "Full combo effect",
-      "emoji": "🚀",
-      "icon_url": null,
-      "cost_tokens": 50,
-      "intimacy_boost": 40,
-      "effect_type": "rocket",
-      "effect_config": {
-        "duration_ms": 3200,
-        "intensity": 1,
-        "colors": [
-          "#38bdf8",
-          "#a78bfa",
-          "#ff2e88"
-        ]
-      },
-      "effect_asset_url": null,
-      "sort_order": 90,
-      "is_active": true
-    },
-    {
-      "id": "491f90c1-62c6-4278-a438-2b7a547e851f",
-      "code": "castle",
-      "name": "Castle",
-      "description": "Ultimate live combo",
-      "emoji": "🏰",
-      "icon_url": null,
-      "cost_tokens": 80,
-      "intimacy_boost": 60,
-      "effect_type": "castle",
-      "effect_config": {
-        "duration_ms": 3600,
-        "intensity": 1,
-        "colors": [
-          "#c026d3",
-          "#ff2e88",
-          "#fbbf24"
-        ]
-      },
-      "effect_asset_url": null,
-      "sort_order": 100,
-      "is_active": true
-    },
-    {
       "id": "327d2ef5-e26c-47c8-bd92-db2288b84183",
       "code": "gift_mrjxho61",
       "name": "荧光棒",
@@ -285,7 +65,689 @@
       "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1783990141732_0udfnk_____.svga",
       "sort_order": 0,
       "is_active": true
+    },
+    {
+      "id": "58778742-79de-450a-9d74-03aaa05e19ad",
+      "code": "gift_mrl2dlz1",
+      "name": "心愿灯",
+      "description": "点一盏心愿灯，把想说的话说给光听✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058497178_s8b6mi____.png",
+      "cost_tokens": 3,
+      "intimacy_boost": 5,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058511550_icrjv6____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "06cc01a3-7788-4874-8fb5-6398fe79564b",
+      "code": "gift_mrl2fmy3",
+      "name": "爱心小狗",
+      "description": "它摇着尾巴，把我的心都晃软了🐶❤️",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058585992_g3maby_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058588485_v9xbpz_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "4ac816f6-4e1a-42b1-aaf1-b4202c03d186",
+      "code": "gift_mrl2gkey",
+      "name": "爱心勋章",
+      "description": "佩戴这枚光，你就是被爱选中的人❤️✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058635636_hggge9_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058639393_axfzan_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "9e4b11db-7fc3-4863-9b8c-c68f959f911e",
+      "code": "gift_mrl2hzhz",
+      "name": "爱琴岛",
+      "description": "你是我一个人的爱琴岛｜把整片海都送给你💙",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058694980_nbim27____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058698235_9flwck____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "0c41b71b-5a7d-43ba-a69d-fb2d60179ab2",
+      "code": "gift_mrl2j09f",
+      "name": "晚安",
+      "description": "今晚，对世界说晚安，对TA说好梦🌙",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058750950_r3426h___.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058753398_rpshjz___.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "1dac468a-f31b-4545-8c28-fa164f7d4d16",
+      "code": "gift_mrl2jyt6",
+      "name": "水晶鞋",
+      "description": "穿上这双水晶鞋，今夜你就是公主👑✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058795580_nzp2fc____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058799235_0bq9fi____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "0ed10a42-c1ee-439e-bc0f-04badf907fe8",
+      "code": "gift_mrl2kttv",
+      "name": "水晶吊坠",
+      "description": "锁骨上的星光｜一枚会发光的“水晶吊坠”✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058834151_otqumr_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058837535_13b0lg_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "024e2581-4d56-4252-8ee3-197fc4e669fe",
+      "code": "gift_mrl2m1vi",
+      "name": "马卡龙",
+      "description": "多巴胺女孩上线！马卡龙色发光挂件，甜度超标💖",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058884830_b8q2sh____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058888236_2u454w____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "207a6bc7-2c65-4517-a2fd-7b5cef5a7e05",
+      "code": "gift_mrl2myoy",
+      "name": "玫瑰花盒",
+      "description": "打开盒子的一瞬间，TA的心就被偷走了💕🎁",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058931033_e0ym5s_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058936018_c75c53_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "a43a0b93-5773-415c-afbf-82dba3297fa5",
+      "code": "gift_mrl2o2tm",
+      "name": "樱花物语",
+      "description": "樱花飘落的速度，是我奔向你的决心🌸💨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784058983969_mmke6w_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784058988283_nuuwoy_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "b2b16844-a059-4cef-9d2e-bacde8a521d9",
+      "code": "gift_mrl2oz92",
+      "name": "紫樱树",
+      "description": "种一棵会发光的紫樱树，等一场紫色的梦💜🌙",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059027026_6foz3o____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059030366_zqp5ar____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "007e3fa5-bf41-4c86-9943-be0b7b6413f9",
+      "code": "gift_mrl2qpz2",
+      "name": "海盗船",
+      "description": "登上这艘海盗船，去寻找你的宝藏🏴‍☠️✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059104449_1l9a9j____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059113236_dr1wjr____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "7f14b89a-10c1-475e-ab1e-2e9cc07c8212",
+      "code": "gift_mrl2sr52",
+      "name": "私人飞机",
+      "description": "想见你，所以包了一架“光”的飞机💕✈️",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059192888_fzueqz_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059196056_8cgbm5_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "5557bfd4-5d19-4f26-96db-f9262de1a580",
+      "code": "gift_mrl2tja9",
+      "name": "水晶城堡",
+      "description": "每个女孩心里，都藏着一座发光的城堡👑✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059242372_xwdjls_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059246021_bnxaxo_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "4855e34f-40f2-482b-a4cb-b2bb638420ab",
+      "code": "gift_mrl2vbfp",
+      "name": "爱心雨伞",
+      "description": "总有人，在雨里为你撑一把发光的伞🌙☔️",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059323037_wlof1v_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059326246_bf8b33_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "81bf6f54-f238-48a9-a028-2ff2727f7fbf",
+      "code": "gift_mrl2wu57",
+      "name": "白龙马",
+      "description": "白马会发光，我在等你上马👑🐴",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059390348_tc70q6____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059391866_zvmikr____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "96c264d1-8f74-47db-b76b-39e33b9bc217",
+      "code": "gift_mrl2xl4d",
+      "name": "冰雪城堡",
+      "description": "高级感拉满｜一座会发光的“冰雪城堡”，美到失语💎❄️",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059444157_vws101_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059447228_vnr5t4_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "392d6aed-506e-4596-85d8-22dd782d1423",
+      "code": "gift_mrl2zmx8",
+      "name": "玻璃少女",
+      "description": "玻璃做的少女，心里住着一座光之城💎✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059522305_rdfqlc_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059527115_jec3ws_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "02e86ed9-3cbc-4158-a998-8b27b5842a58",
+      "code": "gift_mrl30yvd",
+      "name": "彩妆礼盒",
+      "description": "拆开的不是盒子，是一整天的好心情🎁✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059589717_7w76wv_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059592506_50581c_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "e97d659f-0a69-4387-9ee4-31b8604fee2a",
+      "code": "gift_mrl32mzv",
+      "name": "灯盏",
+      "description": "一灯如豆，长夜不孤🌙🕯️",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059663451_8ar4x7___.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059666442_7h81rm___.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "e007a030-ebee-4381-89bf-2a5c90fe3544",
+      "code": "gift_mrl33oe2",
+      "name": "飞机情书",
+      "description": "飞机在天上写情书，我在光里说想你✈️💌",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059716587_025l5t_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059719169_efa3b8_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "8bce88b7-3dc7-4624-ba59-bdd579c0bdad",
+      "code": "gift_mrl35cy3",
+      "name": "海底探险",
+      "description": "潜入发光的深海，和鲸鱼说一场梦话🐋✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059792011_8tx06d_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059796132_3o7bao_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "8e0aed28-d759-4828-8ac6-38dfe27c611a",
+      "code": "gift_mrl38mn2",
+      "name": "梦幻城堡",
+      "description": "欢迎来到你的梦幻城堡，公主殿下👑💗",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784059945482_go40nx_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784059948421_mhb4kv_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "88252499-6a47-4009-996b-e73019d7f5e8",
+      "code": "gift_mrl3apab",
+      "name": "森林列车",
+      "description": "开往春天的森林列车，载着光出发了🚂🌿✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784060027171_jqhh7r_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784060030901_ar1jmk_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "2cfd437a-ca4f-4d1c-885c-774735fb6deb",
+      "code": "gift_mrl3bovh",
+      "name": "时光沙漏",
+      "description": "时光沙漏，漏下的是光，留下的是你⏳✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784060085235_y141tj_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784060088307_p0tkrl_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "6c6b0a0c-c2d7-4e75-bb15-1fb407f853e3",
+      "code": "gift_mrl3cxbl",
+      "name": "糖果小镇",
+      "description": "欢迎来到糖果小镇，这里的房子会发光🍬🏰✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784060148113_wdkegz_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784060151179_ulx780_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "c825c1a1-1d44-4b62-bc0f-a3898a1d373a",
+      "code": "gift_mrl3e02c",
+      "name": "天使小猪",
+      "description": "天使小猪｜翅膀是软的，光是暖的，心是甜的🐷👼✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784060195083_htc642_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784060198343_csg21m_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "b05c7eb5-24d8-4e5e-b9a6-50d114603324",
+      "code": "gift_mrl3eztm",
+      "name": "兔兔戒指",
+      "description": "戴上兔兔戒指，做我一辈子的小朋友🐰💍✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784060239764_cgkgs6_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784060242808_lsr8tk_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "df6465d6-b40c-4e70-8be7-09d154eb460b",
+      "code": "gift_mrl3jvzh",
+      "name": "一箭穿心",
+      "description": "箭已离弦，心已属于你💘🏹✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784060468238_o0i15b______20240308104659.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784060470451_w8czwd_____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "175459ac-e5e2-47e5-a20f-f00de80059fd",
+      "code": "gift_mrl3lmvx",
+      "name": "钞票枪",
+      "description": "一枪“暴富”，好运上膛🔫🧧✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784060554403_d7votk____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784060555701_3axkzc____.svga",
+      "sort_order": 0,
+      "is_active": true
+    },
+    {
+      "id": "388eb3bb-eeb6-4fcf-b7c4-83015d5bd65b",
+      "code": "gift_mrl3p9jx",
+      "name": "浪漫游轮",
+      "description": "登船吗？我包了一艘发光的游轮，只载你一个人🚢💕✨",
+      "emoji": "🎁",
+      "icon_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/icons/1784060719239_k34ysc_____.png",
+      "cost_tokens": 1,
+      "intimacy_boost": 1,
+      "effect_type": "svga",
+      "effect_config": {
+        "duration_ms": 2400,
+        "intensity": 0.75,
+        "colors": [
+          "#ff2e88",
+          "#c026d3"
+        ]
+      },
+      "effect_asset_url": "https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/gifts/svga/1784060721052_17jqkh_____.svga",
+      "sort_order": 0,
+      "is_active": true
     }
   ],
-  "updated_at": "2026-07-14T00:49:24.935Z"
+  "updated_at": "2026-07-14T20:38:44.078Z"
 }

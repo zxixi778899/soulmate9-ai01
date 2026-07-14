@@ -968,8 +968,12 @@ export default function ChatPage() {
     });
 
     if (giftComboTimer.current) clearTimeout(giftComboTimer.current);
+    // Combo reset timer: only zeroes the combo counter, does NOT unmount the
+    // burst overlay. Unmounting is driven by GiftEffectOverlay's onDone,
+    // which fires when SvgaPlayer.onFinished (or the fallback timer inside
+    // the overlay) completes — so SVGA animations are allowed to play out
+    // fully instead of being truncated at duration + 1200ms.
     giftComboTimer.current = setTimeout(() => {
-      setGiftBurst(null);
       giftComboRef.current = 0;
     }, duration + 1200);
 
