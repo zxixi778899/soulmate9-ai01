@@ -1,14 +1,25 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Hardcoded Supabase config — solves Railway cache + Turbopack env problems.
- * Env vars take priority; these are fallbacks for when env is not injected.
+ * Hardcoded Supabase config — primary fallback when env vars are not
+ * injected at build time. Next.js / Turbopack performs dead-code elimination
+ * on `process.env.NEXT_PUBLIC_X || HARDCODED_X` patterns: if the env var is
+ * undefined at build time the bundler drops the `|| HARDCODED_X` branch and
+ * only the undefined env value is inlined into the client bundle, breaking
+ * `createClient(URL, KEY)` with "supabaseUrl is required".
+ *
+ * Resolution: read HARDCODED first, fall back to env if explicitly set.
+ * This keeps the fallback chain reachable regardless of bundler behaviour.
  */
 const HARDCODED_URL = 'https://vvblrkngzuyxeeoslzkl.supabase.co';
 const HARDCODED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Ymxya25nend5eGVlb3Nsemt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDE4NzU0OTgsImV4cCI6MjAxNzQ1MTQ5OH0.dcXgk_H_1TNBuNwGg4p4lERm_6vWQfYNwvoEGnVQYl0';
 
-const SUPABASE_URL: string = process.env.NEXT_PUBLIC_SUPABASE_URL || HARDCODED_URL;
-const SUPABASE_ANON_KEY: string = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || HARDCODED_KEY;
+const SUPABASE_URL: string =
+  (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_URL.trim()) ||
+  HARDCODED_URL;
+const SUPABASE_ANON_KEY: string =
+  (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()) ||
+  HARDCODED_KEY;
 
 export const SOULMATE_BUILD_ID = 'nuclear-deploy-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
 
