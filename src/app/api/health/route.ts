@@ -19,7 +19,12 @@ async function checkSupabase(): Promise<DependencyResult> {
     if (error) return { ok: false, error: error.message };
     return { ok: true, latencyMs: Date.now() - start };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    // Include the URL we tried to hit so encoding / wrong-host failures
+    // (e.g. non-ASCII characters in COZE_SUPABASE_URL) are diagnosable
+    // from the deploy logs alone.
+    const url = (process.env.COZE_SUPABASE_URL || '').slice(0, 60);
+    const msg = e instanceof Error ? `${e.message} [url=${url}]` : String(e);
+    return { ok: false, error: msg };
   }
 }
 
