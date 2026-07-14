@@ -31,27 +31,6 @@ function getSupabaseCredentials(): SupabaseCredentials {
     throw new Error('COZE_SUPABASE_ANON_KEY is not set. Required for Supabase client.');
   }
 
-  // Diagnostic: print byte-level signature of env values to expose
-  // invisible characters (BOM, zero-width space, trailing \n / \r, etc.)
-  // that fetch() rejects with "Cannot convert argument to a ByteString".
-  // Logged once per getSupabaseClient() call — Supabase clients are
-  // created per-request in this codebase, so this floods the log; the
-  // intent is to make the bytes visible, not to be performant.
-  const inspect = (label: string, value: string) => {
-    const bytes = Buffer.from(value, 'utf8');
-    // Show hex of first/last 4 bytes plus length — enough to spot BOM (EF BB BF),
-    // trailing CR/LF, zero-width chars (E2 80 8B), or whitespace padding.
-    const head = bytes.subarray(0, 4).toString('hex');
-    const tail = bytes.subarray(Math.max(0, bytes.length - 4)).toString('hex');
-    logger.warn(`[supabase-diag] ${label} len=${bytes.length} head=${head} tail=${tail}`);
-  };
-  inspect('COZE_SUPABASE_URL', url);
-  inspect('COZE_SUPABASE_ANON_KEY', anonKey);
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL) inspect('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL);
-  if (process.env.NEXT_PUBLIC_COZE_SUPABASE_URL) inspect('NEXT_PUBLIC_COZE_SUPABASE_URL', process.env.NEXT_PUBLIC_COZE_SUPABASE_URL);
-  if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) inspect('NEXT_PUBLIC_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  if (process.env.NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY) inspect('NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_COZE_SUPABASE_ANON_KEY);
-
   return { url, anonKey };
 }
 
