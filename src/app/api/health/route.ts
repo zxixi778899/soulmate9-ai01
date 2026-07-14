@@ -89,13 +89,25 @@ export async function GET(): Promise<NextResponse> {
     logger.error('health check failed', { supabase, stripe, runpod, upstash });
   }
 
+  const buildSha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null;
+  const buildBranch = process.env.VERCEL_GIT_COMMIT_REF ?? null;
+  const buildMessage = process.env.VERCEL_GIT_COMMIT_MESSAGE ?? null;
+
   return NextResponse.json(
     {
       ok: allOk,
       ts: new Date().toISOString(),
       service: 'soulmate9',
       checks: { supabase, stripe, runpod, upstash },
-      version: process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev',
+      // 部署元信息:用于一眼判断"线上是不是最新的 commit"
+      build: {
+        sha: buildSha,
+        branch: buildBranch,
+        message: buildMessage,
+        environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'unknown',
+      },
+      // 旧字段保留(向后兼容),值 = build.sha 或 fallback
+      version: buildSha ?? process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev',
     },
     { status },
   );
