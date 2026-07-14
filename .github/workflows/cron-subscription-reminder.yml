@@ -1,0 +1,38 @@
+# ============================================================
+# Vercel Cron replacement — Railway does not provide native cron,
+# so we use GitHub Actions (free for public repos, 2000 min/month
+# for private) to call the deployed /api/cron/* endpoints.
+#
+# Vercel Cron schedules (from vercel.json) — DO NOT REMOVE THIS
+# WORKFLOW WITHOUT ALSO DELETING THE MATCHING vercel.json entry
+# so the two systems stay in sync during any future rollback.
+# ============================================================
+
+# Schedule: 0 9 * * *   (every day at 09:00 UTC)
+name: cron-subscription-reminder
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:    # allow manual trigger from GitHub UI for testing
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/subscription-reminder
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::error::APP_URL secret is not set"
+            exit 1
+          fi
+          curl -fsS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "User-Agent: github-actions/cron-subscription-reminder" \
+            "${APP_URL}/api/cron/subscription-reminder" \
+            -w '\nHTTP=%{http_code} TIME=%{time_total}s\n' \
+            || (echo "::error::cron request failed"; exit 1)

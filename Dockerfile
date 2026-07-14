@@ -1,8 +1,9 @@
 # ============================================================
 # Soulmate9 生产 Dockerfile
-# 多阶段构建：deps → builder → runner
-# 目标平台：Railway / 自托管 VPS
-# 输出镜像：node:20-alpine，~150MB
+# 多阶段构建:deps → builder → runner
+# 目标平台:Railway(主) / 自托管 VPS(备)
+# 部署指引:docs/RAILWAY_MIGRATION.md
+# 输出镜像:node:20-alpine,~150MB
 # ============================================================
 
 # ─────────────────────────── Stage 1: deps ───────────────────────────

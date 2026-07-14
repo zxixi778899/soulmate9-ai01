@@ -1,0 +1,28 @@
+# Schedule: 0 14 * * *   (every day at 14:00 UTC)
+name: cron-re-engagement
+
+on:
+  schedule:
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/re-engagement
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::error::APP_URL secret is not set"
+            exit 1
+          fi
+          curl -fsS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "User-Agent: github-actions/cron-re-engagement" \
+            "${APP_URL}/api/cron/re-engagement" \
+            -w '\nHTTP=%{http_code} TIME=%{time_total}s\n' \
+            || (echo "::error::cron request failed"; exit 1)
