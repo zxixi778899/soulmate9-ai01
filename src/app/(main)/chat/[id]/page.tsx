@@ -24,6 +24,7 @@ import {
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 import { useMembership } from '@/hooks/useMembership';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { toast } from 'sonner';
 import { ChatAppBar } from '@/components/chat/ChatAppBar';
 import { ChatStream } from '@/components/chat/ChatStream';
@@ -281,6 +282,8 @@ export default function ChatPage() {
     }
     setIsLoading(false);
   };
+
+  useAutoRefresh(loadData);
 
   const loadHistory = async () => {
     if (loadingMore || !hasMore) return;
@@ -1079,7 +1082,7 @@ export default function ChatPage() {
 
   if (invalidChatId) {
     return (
-      <div className="flex min-h-[50dvh] items-center justify-center bg-[#08040e] px-6">
+      <div className="flex min-h-[50dvh] items-center justify-center bg-[#0b0b12] px-6">
         <div className="text-center">
           <p className="text-white/40">This chat link is invalid or expired.</p>
           <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => router.push('/chats')}>
@@ -1093,7 +1096,7 @@ export default function ChatPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-[#08040e]">
+      <div className="flex h-[100dvh] items-center justify-center bg-[#0b0b12]">
         <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" />
       </div>
     );
@@ -1101,7 +1104,7 @@ export default function ChatPage() {
 
   if (!girlfriend) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-[#08040e] px-6">
+      <div className="flex h-[100dvh] items-center justify-center bg-[#0b0b12] px-6">
         <div className="text-center">
           <p className="text-white/40">{t('chat.companionNotFound') || 'Companion not found'}</p>
           <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => router.push('/chats')}>
@@ -1117,7 +1120,24 @@ export default function ChatPage() {
     .replace(/\{limit\}/g, String(membership.capabilities?.dailyMessageLimit === Number.POSITIVE_INFINITY ? '∞' : (membership.capabilities?.dailyMessageLimit || 40)));
 
   return (
-    <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#08040e] text-white">
+    <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#0b0b12] text-white">
+      {/* Girlfriend portrait background at low opacity */}
+      {girlfriend?.portrait_url && (
+        <div
+          className="pointer-events-none absolute inset-0 z-0 opacity-[0.08]"
+          style={{
+            backgroundImage: `url(${girlfriend.portrait_url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center top',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+      )}
+      {/* Dark gradient overlay for readability */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0b0b12]/70 via-[#0b0b12]/50 to-[#0b0b12]/90" />
+
+      {/* Content layer above background */}
+      <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
       <ChatAppBar
         girlfriend={girlfriend}
         levelInfo={levelInfo}
@@ -1264,6 +1284,7 @@ export default function ChatPage() {
         isGenerating={isGenerating}
         onMemories={() => setShowMemories(true)}
       />
+      </div>
 
       {/* Memories Sheet */}
       <Sheet open={showMemories} onOpenChange={setShowMemories}>

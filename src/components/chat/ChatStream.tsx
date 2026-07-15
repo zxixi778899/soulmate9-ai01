@@ -5,7 +5,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ChatMarkdown } from '@/components/chat/ChatMarkdown';
 import { formatBubbleTime } from '@/lib/chat-utils';
 import {
-  Loader2, Heart, Check, CheckCheck, Sparkles, Shirt, ChevronUp,
+  Loader2, Heart, Check, CheckCheck, Sparkles, Shirt, ChevronUp, RefreshCw,
 } from 'lucide-react';
 import type { ChatGirlfriend, StreamRow } from './types';
 import { useTranslation } from '@/lib/i18n/context';
@@ -42,7 +42,7 @@ function ChatStreamInner(props: {
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 pt-2 pb-2"
+      className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 pt-2 pb-2 bg-transparent"
     >
       {/* Soft stage — no heavy blur/scale (was GPU-heavy & layout-janky) */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
@@ -117,7 +117,7 @@ function ChatStreamInner(props: {
             return (
               <div
                 key={row.key}
-                className={`flex gap-2 items-end ${isUser ? 'flex-row-reverse' : ''} ${merged ? 'mt-0.5' : 'mt-2.5'}`}
+                className={`group flex gap-2 items-end animate-in fade-in slide-in-from-bottom-2 duration-300 ${isUser ? 'flex-row-reverse' : ''} ${merged ? 'mt-0.5' : 'mt-2.5'}`}
               >
                 {isAssistant && (
                   <div className="w-8 shrink-0">
@@ -196,7 +196,7 @@ function ChatStreamInner(props: {
                   </div>
 
                   <div className={`flex items-center gap-1.5 mt-0.5 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
-                    <span className="text-[10px] text-white/35 font-mono tabular-nums">
+                    <span className="text-[10px] text-white/35 font-mono tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       {msg.created_at ? formatBubbleTime(msg.created_at) : ''}
                     </span>
                     {isUser && msg.status === 'sending' && (
@@ -205,7 +205,16 @@ function ChatStreamInner(props: {
                     {isUser && msg.status === 'sent' && <Check className="h-3 w-3 text-white/35" />}
                     {isUser && msg.status === 'read' && <CheckCheck className="h-3 w-3 text-[#FF6BA6]" />}
                     {isUser && msg.status === 'failed' && (
-                      <span className="text-[10px] text-red-400 font-medium">{t('chat.failed')}</span>
+                      <span className="text-[10px] text-red-400 font-medium flex items-center gap-1">
+                        {t('chat.failed')}
+                        <button
+                          type="button"
+                          className="text-rose-400 hover:text-rose-300 active:scale-95 transition-all flex items-center gap-0.5"
+                          title="Retry"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </button>
+                      </span>
                     )}
                     {msg.is_proactive && (
                       <span className="text-[10px] text-[#FF6BA6]/70 flex items-center gap-0.5">
@@ -226,24 +235,15 @@ function ChatStreamInner(props: {
           })}
 
           {isTyping && (
-            <div className="flex gap-2 items-end mt-2.5">
-              <div className="w-8 shrink-0">
-                <Avatar className="h-8 w-8 ring-1 ring-white/10">
-                  {girlfriend?.avatar_url ? (
-                    <AvatarImage src={girlfriend.avatar_url} alt={displayName} className="object-cover" />
-                  ) : (
-                    <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">
-                      {safeInitial(displayName)}
-                    </AvatarFallback>
-                  )}
-                </Avatar>
-              </div>
-              <div className="px-3.5 py-2.5 glass rounded-2xl rounded-tl-md">
-                <span className="inline-flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-[#FF6BA6] rounded-full animate-bounce" />
-                  <span className="w-1.5 h-1.5 bg-[#FF6BA6] rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                  <span className="w-1.5 h-1.5 bg-[#FF6BA6] rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
-                </span>
+            <div className="flex items-center gap-2 px-4 py-2 max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {girlfriend?.avatar_url && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={girlfriend.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover" />
+              )}
+              <div className="flex gap-1 rounded-2xl bg-white/[0.06] backdrop-blur-sm px-4 py-3 border border-white/[0.08]">
+                <span className="h-2 w-2 rounded-full bg-white/40 animate-bounce [animation-delay:0ms]" />
+                <span className="h-2 w-2 rounded-full bg-white/40 animate-bounce [animation-delay:150ms]" />
+                <span className="h-2 w-2 rounded-full bg-white/40 animate-bounce [animation-delay:300ms]" />
               </div>
             </div>
           )}
