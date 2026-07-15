@@ -7,6 +7,7 @@ import {
   assembleGirlfriendFromRow,
   resolveGirlfriendLoraPlan,
   subjectFromGirlfriendRow,
+  planToLorasArray,
 } from '@/lib/prompt/girlfriend';
 import { runpodClient } from '@/lib/runpod';
 
@@ -106,6 +107,8 @@ async function generateAndUpload(
         }
       : resolveGirlfriendLoraPlan(subject);
 
+  const loraArray = 'plan' in loraPlan && loraPlan.plan ? planToLorasArray(loraPlan.plan) : null;
+
   // Clamp to files that exist on the network volume (pose/outfit often missing)
   if (!params.disable_lora) {
     const safe = sanitizeLoraForVolume(loraPlan.lora_name, {
@@ -165,7 +168,8 @@ async function generateAndUpload(
             ),
           ),
     ckpt_name: String(params.ckpt_name || 'flux1-dev-fp8.safetensors'),
-    lora_name: loraPlan.lora_name,
+    loras: loraArray || undefined,
+    lora_name: loraArray ? null : loraPlan.lora_name,
     lora_strength_model: loraPlan.lora_strength_model,
     lora_strength_clip: loraPlan.lora_strength_clip,
   });

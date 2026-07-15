@@ -1,21 +1,97 @@
-﻿/**
- * LoRAs that actually exist on the RunPod network volume (models/loras/).
- * Comfy validates lora_name against this list — anything else fails the job.
- * Update when you download more files to the volume.
+/**
+ * LoRA Registry & Volume Management
+ *
+ * Architecture: Two-LoRA stack per generation
+ *   - Primary  = style LoRA (photoreal / hyperreal) — always applied
+ *   - Secondary = body or detail LoRA — applied when the character warrants it
+ *
+ * Only LoRAs confirmed on the RunPod network volume are listed here.
+ * Update LORA_REGISTRY when you download more files.
+ *
+ * Environment variables:
+ *   RUNPOD_INSTALLED_LORAS / COMFY_INSTALLED_LORAS
+ *     Comma/semicolon/newline-separated extra filenames (auto-appends .safetensors)
  */
-export const VOLUME_INSTALLED_LORAS = [
-  'flux_body_curvy_v1.safetensors',
-  'flux_body_pear_v1.safetensors',
-  'flux_detail_hands_v1.safetensors',
-  'flux_detail_skin_nplastic_v1.safetensors',
-  'flux_detail_skin_v1.safetensors',
-  'flux_style_hyperreal_aidma_v1.safetensors',
-  'flux_style_photoreal_v1.safetensors',
+
+import { logger } from '@/lib/logger';
+
+// ─── Category types ──────────────────────────────────────────
+export type LoraCategory = 'style' | 'body' | 'detail';
+
+// ─── Installed LoRA registry ─────────────────────────────────
+export interface LoraEntry {
+  /** Filename on volume (models/loras/) */
+  file: string;
+  /** Category */
+  category: LoraCategory;
+  /** Recommended model strength */
+  strength: number;
+  /** Short label for admin UI */
+  label: string;
+  /** ComfyUI trigger words (empty for FLUX) */
+  trigger_words: string[];
+}
+
+/**
+ * Source of truth: only LoRAs physically present on the RunPod volume.
+ * Add new entries here after downloading to the volume.
+ */
+export const LORA_REGISTRY: readonly LoraEntry[] = [
+  // ── Style ──
+  {
+    file: 'flux_style_photoreal_v1.safetensors',
+    category: 'style',
+    strength: 0.55,
+    label: 'Photoreal (default)',
+    trigger_words: [],
+  },
+  {
+    file: 'flux_style_hyperreal_aidma_v1.safetensors',
+    category: 'style',
+    strength: 0.50,
+    label: 'Hyperreal (AIDMA)',
+    trigger_words: [],
+  },
+  // ── Body ──
+  {
+    file: 'flux_body_curvy_v1.safetensors',
+    category: 'body',
+    strength: 0.50,
+    label: 'Curvy body',
+    trigger_words: [],
+  },
+  {
+    file: 'flux_body_pear_v1.safetensors',
+    category: 'body',
+    strength: 0.50,
+    label: 'Pear body',
+    trigger_words: [],
+  },
+  // ── Detail ──
+  {
+    file: 'flux_detail_skin_v1.safetensors',
+    category: 'detail',
+    strength: 0.40,
+    label: 'Skin detail',
+    trigger_words: [],
+  },
+  {
+    file: 'flux_detail_skin_nplastic_v1.safetensors',
+    category: 'detail',
+    strength: 0.35,
+    label: 'Skin natural (no plastic)',
+    trigger_words: [],
+  },
+  {
+    file: 'flux_detail_hands_v1.safetensors',
+    category: 'detail',
+    strength: 0.35,
+    label: 'Hand detail',
+    trigger_words: [],
+  },
 ] as const;
 
-export type VolumeInstalledLora = (typeof VOLUME_INSTALLED_LORAS)[number];
-
-const DEFAULT_FALLBACK: VolumeInstalledLora = 'flux_style_photoreal_v1.safetensors';
+// ─── Installed set helpers ───────────────────────────────────
 
 function parseEnvInstalled(): string[] {
   const raw = process.env.RUNPOD_INSTALLED_LORAS || process.env.COMFY_INSTALLED_LORAS || '';
@@ -27,9 +103,9 @@ function parseEnvInstalled(): string[] {
     .map((s) => (s.endsWith('.safetensors') ? s : `${s}.safetensors`));
 }
 
-/** Effective installed set: code allowlist + optional env extras. */
+/** All LoRA filenames confirmed on the volume (registry + env extras). */
 export function getInstalledLoraSet(): Set<string> {
-  const set = new Set<string>(VOLUME_INSTALLED_LORAS);
+  const set = new Set<string>(LORA_REGISTRY.map((e) => e.file));
   for (const extra of parseEnvInstalled()) set.add(extra);
   return set;
 }
@@ -39,15 +115,51 @@ export function isLoraInstalled(name: string | null | undefined): boolean {
   return getInstalledLoraSet().has(String(name).trim());
 }
 
+/** Look up a registry entry by filename (partial match OK). */
+export function findLoraEntry(name: string): LoraEntry | undefined {
+  const n = name.trim();
+  return LORA_REGISTRY.find(
+    (e) => e.file === n || e.file.startsWith(n.replace(/\.safetensors$/, '')),
+  );
+}
+
+/** Get all installed entries grouped by category. */
+export function getLorasByCategory(): Record<LoraCategory, LoraEntry[]> {
+  const installed = getInstalledLoraSet();
+  const result: Record<LoraCategory, LoraEntry[]> = { style: [], body: [], detail: [] };
+  for (const entry of LORA_REGISTRY) {
+    if (installed.has(entry.file)) {
+      result[entry.category].push(entry);
+    }
+  }
+  return result;
+}
+
+/** Get default style LoRA (first installed style). */
+export function getDefaultStyleLora(): LoraEntry {
+  const envStyle = process.env.GIRLFRIEND_STYLE_LORA || process.env.RUNPOD_DEFAULT_LORA;
+  if (envStyle) {
+    const found = findLoraEntry(envStyle);
+    if (found) return found;
+  }
+  return (
+    LORA_REGISTRY.find((e) => e.category === 'style' && isLoraInstalled(e.file)) ||
+    LORA_REGISTRY[0]
+  );
+}
+
+// ─── Sanitize (backward compat) ──────────────────────────────
+
+const DEFAULT_FALLBACK = getDefaultStyleLora().file;
+
 /**
- * Clamp a requested LoRA to something Comfy can load.
- * Missing pose/outfit files fall back to style photoreal (or first installed).
+ * Clamp a requested LoRA filename to one that exists on the volume.
+ * Returns { lora_name, changed, reason }.
  */
 export function sanitizeLoraForVolume(
   requested: string | null | undefined,
   opts?: { fallback?: string | null; allowNull?: boolean },
 ): { lora_name: string | null; changed: boolean; reason?: string } {
-  const allowNull = opts?.allowNull !== false;
   const raw = requested == null ? '' : String(requested).trim();
   if (!raw) {
     return { lora_name: null, changed: false };
@@ -58,12 +170,13 @@ export function sanitizeLoraForVolume(
     return { lora_name: raw, changed: false };
   }
 
-  // basename only
+  // Try basename match
   const base = raw.split(/[/\\]/).pop() || raw;
   if (installed.has(base)) {
     return { lora_name: base, changed: base !== raw, reason: 'basename' };
   }
 
+  // Fallback chain
   const fb =
     opts?.fallback === null
       ? null
@@ -74,21 +187,14 @@ export function sanitizeLoraForVolume(
           : [...installed][0] || null;
 
   if (!fb) {
-    return {
-      lora_name: allowNull ? null : null,
-      changed: true,
-      reason: `missing:${raw}; no fallback on volume`,
-    };
+    logger.warn('[lora] no fallback available', { requested: raw });
+    return { lora_name: null, changed: true, reason: `missing:${raw}; no fallback` };
   }
 
-  return {
-    lora_name: fb,
-    changed: true,
-    reason: `missing:${raw}; fallback:${fb}`,
-  };
+  return { lora_name: fb, changed: true, reason: `missing:${raw}; fallback:${fb}` };
 }
 
-/** Prefer first installed candidate in order. */
+/** Prefer first installed candidate from ordered list. */
 export function pickInstalledLora(
   candidates: Array<string | null | undefined>,
   fallback: string | null = DEFAULT_FALLBACK,
@@ -100,4 +206,50 @@ export function pickInstalledLora(
   }
   if (fallback && installed.has(fallback)) return fallback;
   return [...installed][0] || null;
+}
+
+// ─── Two-LoRA plan type ──────────────────────────────────────
+
+/**
+ * A LoRA plan with up to 2 LoRAs for stacking:
+ *   - primary   = always a style LoRA (photoreal / hyperreal)
+ *   - secondary = optional body or detail LoRA
+ */
+export interface LoraPlan {
+  primary: {
+    name: string;
+    strength_model: number;
+    strength_clip: number;
+    note: string;
+  };
+  secondary: {
+    name: string;
+    strength_model: number;
+    strength_clip: number;
+    note: string;
+  } | null;
+}
+
+/** Convert a LoraPlan to the loras[] array for runpodClient.generate(). */
+export function planToLorasArray(plan: LoraPlan): Array<{
+  name: string;
+  strength_model: number;
+  strength_clip: number;
+}> {
+  const arr: Array<{ name: string; strength_model: number; strength_clip: number }> = [
+    { name: plan.primary.name, strength_model: plan.primary.strength_model, strength_clip: plan.primary.strength_clip },
+  ];
+  if (plan.secondary) {
+    arr.push({
+      name: plan.secondary.name,
+      strength_model: plan.secondary.strength_model,
+      strength_clip: plan.secondary.strength_clip,
+    });
+  }
+  return arr;
+}
+
+/** Backward-compat: extract single lora_name from plan (primary). */
+export function planToSingleLora(plan: LoraPlan): string {
+  return plan.primary.name;
 }

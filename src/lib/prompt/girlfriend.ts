@@ -10,7 +10,16 @@
  * - Varied poses / camera angles (not one static three-quarter stand)
  * - Natural light (window, flash, city night, golden hour) — avoid flat beauty-dish spam
  */
-import { pickInstalledLora, sanitizeLoraForVolume } from '@/lib/runpod-loras';
+import {
+  pickInstalledLora,
+  sanitizeLoraForVolume,
+  type LoraPlan,
+  type LoraEntry,
+  LORA_REGISTRY,
+  getDefaultStyleLora,
+  isLoraInstalled,
+  planToLorasArray,
+} from '@/lib/runpod-loras';
 import {
   sanitizeBlurKeywords,
   joinParts,
@@ -722,24 +731,58 @@ export function assembleGirlfriendFromRow(
 }
 
 
-﻿/** Default image LoRA plan for girlfriend cards (style/skin first; pose/outfit optional). */
+﻿/**
+ * Two-LoRA plan for girlfriend card generation.
+ *
+ * Primary  = style LoRA (photoreal / hyperreal) — always applied
+ * Secondary = body or detail LoRA — applied when character traits warrant it
+ *
+ * Only references LoRAs that exist in LORA_REGISTRY (confirmed on volume).
+ */
+
+export type { LoraPlan };
+export { planToLorasArray };
+
+/** Backward-compat type alias */
 export type GirlfriendLoraPlan = {
   lora_name: string | null;
   lora_strength_model: number;
   lora_strength_clip: number;
   trigger_words: string[];
   note: string;
+  /** Extended two-LoRA plan */
+  plan: LoraPlan;
 };
 
+function registryByCategory(cat: 'style' | 'body' | 'detail'): LoraEntry | undefined {
+  return LORA_REGISTRY.find((e) => e.category === cat && isLoraInstalled(e.file));
+}
+
+function envOrDefault(envKey: string, fallback: LoraEntry): LoraEntry {
+  const env = process.env[envKey];
+  if (env) {
+    const found = LORA_REGISTRY.find((e) => e.file === env || e.file.startsWith(env));
+    if (found && isLoraInstalled(found.file)) return found;
+  }
+  return fallback;
+}
+
 /**
- * Prompt = who/where/framing. LoRA = realism + optional body/outfit support.
- * Prefer 1 LoRA at a time (Comfy graph). Files must exist on volume models/loras/.
+ * Build a two-LoRA plan from character traits.
+ *
+ * Decision tree:
+ *   Primary  → always a style LoRA (photoreal by default, hyperreal for "hyperreal" keyword)
+ *   Secondary →
+ *     curvy/busty/hourglass keywords → body-curvy
+ *     pear/wide-hips keywords        → body-pear
+ *     skin/pores/texture keywords     → detail-skin
+ *     (no match)                     → null (style only)
  */
-export function resolveGirlfriendLoraPlanRaw(
+export function buildLoraPlan(
   subject: GirlfriendSubject,
   sceneId?: string,
-  opts?: { preferBody?: boolean; preferOutfit?: boolean; preferNsfwPose?: boolean },
-): GirlfriendLoraPlan {
+  opts?: { preferBody?: boolean; preferDetail?: boolean },
+): LoraPlan {
   const bag = [
     subject.personality || '',
     subject.style || '',
@@ -751,184 +794,91 @@ export function resolveGirlfriendLoraPlanRaw(
     .join(' ')
     .toLowerCase();
 
-  const styleFile =
-    process.env.GIRLFRIEND_STYLE_LORA ||
-    process.env.RUNPOD_DEFAULT_LORA ||
-    'flux_style_photoreal_v1.safetensors';
-  const hyperFile =
-    process.env.GIRLFRIEND_HYPER_LORA || 'flux_style_hyperreal_aidma_v1.safetensors';
-  const skinFile = process.env.GIRLFRIEND_SKIN_LORA || 'flux_detail_skin_v1.safetensors';
-  const bodyFile = process.env.GIRLFRIEND_BODY_LORA || 'flux_body_curvy_v1.safetensors';
-  const pearFile = process.env.GIRLFRIEND_PEAR_LORA || 'flux_body_pear_v1.safetensors';
-  const lingerieFile =
-    process.env.GIRLFRIEND_LINGERIE_LORA || 'flux_outfit_lingerie_v1.safetensors';
-  const bunnyFile = process.env.GIRLFRIEND_BUNNY_LORA || 'flux_outfit_bunny_v1.safetensors';
-  const maidFile = process.env.GIRLFRIEND_MAID_LORA || 'flux_outfit_maid_v1.safetensors';
-  const bikiniFile = process.env.GIRLFRIEND_BIKINI_LORA || 'flux_outfit_bikini_v1.safetensors';
-  const latexFile = process.env.GIRLFRIEND_LATEX_LORA || 'flux_outfit_latex_v1.safetensors';
-  const schoolFile = process.env.GIRLFRIEND_SCHOOL_LORA || 'flux_outfit_school_v1.safetensors';
-  const nsfwPoseFile =
-    process.env.GIRLFRIEND_NSFW_POSE_LORA || 'flux_pose_nsfw_dynamic_v1.safetensors';
-  const ahegaoFile = process.env.GIRLFRIEND_AHEGAO_LORA || 'flux_face_ahegao_v1.safetensors';
+  // ── Primary: style LoRA ──
+  const defaultStyle = getDefaultStyleLora();
+  let primary = envOrDefault('GIRLFRIEND_STYLE_LORA', defaultStyle);
 
-  if (opts?.preferNsfwPose || /ahegao|orgasm face|rolling eyes/.test(bag)) {
-    if (/ahegao|orgasm face|rolling eyes/.test(bag)) {
-      return {
-        lora_name: ahegaoFile,
-        lora_strength_model: 0.5,
-        lora_strength_clip: 0.5,
-        trigger_words: [],
-        note: 'face-ahegao',
+  if (/hyperreal|aidma|ultra.?real/.test(bag)) {
+    const hyper = LORA_REGISTRY.find(
+      (e) => e.file.includes('hyperreal') && isLoraInstalled(e.file),
+    );
+    if (hyper) primary = hyper;
+  }
+
+  // ── Secondary: body or detail ──
+  let secondary: LoraPlan['secondary'] = null;
+
+  if (opts?.preferBody || /curvy|busty|hourglass|voluptuous|large breasts/.test(bag)) {
+    const bodyCurvy = LORA_REGISTRY.find(
+      (e) => e.file.includes('body_curvy') && isLoraInstalled(e.file),
+    );
+    if (bodyCurvy) {
+      secondary = {
+        name: bodyCurvy.file,
+        strength_model: bodyCurvy.strength,
+        strength_clip: bodyCurvy.strength,
+        note: 'body-curvy',
       };
     }
-    return {
-      lora_name: nsfwPoseFile,
-      lora_strength_model: 0.55,
-      lora_strength_clip: 0.55,
-      trigger_words: [],
-      note: 'pose-nsfw-dynamic',
-    };
-  }
-
-  if (/bunny|playboy|rabbit ears|leotard/.test(bag)) {
-    return {
-      lora_name: bunnyFile,
-      lora_strength_model: 0.65,
-      lora_strength_clip: 0.65,
-      trigger_words: [],
-      note: 'outfit-bunny',
-    };
-  }
-  if (/maid|apron|french maid/.test(bag)) {
-    return {
-      lora_name: maidFile,
-      lora_strength_model: 0.65,
-      lora_strength_clip: 0.65,
-      trigger_words: [],
-      note: 'outfit-maid',
-    };
-  }
-  if (/bikini|swimsuit|beach|poolside/.test(bag)) {
-    return {
-      lora_name: bikiniFile,
-      lora_strength_model: 0.62,
-      lora_strength_clip: 0.62,
-      trigger_words: [],
-      note: 'outfit-bikini',
-    };
-  }
-  if (/latex|catsuit|pvc|shiny rubber/.test(bag)) {
-    return {
-      lora_name: latexFile,
-      lora_strength_model: 0.6,
-      lora_strength_clip: 0.6,
-      trigger_words: [],
-      note: 'outfit-latex',
-    };
-  }
-  if (/school uniform|sailor uniform|jk uniform|plaid skirt uniform/.test(bag)) {
-    return {
-      lora_name: schoolFile,
-      lora_strength_model: 0.6,
-      lora_strength_clip: 0.6,
-      trigger_words: [],
-      note: 'outfit-school',
-    };
-  }
-
-  if (
-    opts?.preferOutfit ||
-    /lingerie|garter|babydoll|lace bra|stockings|bodysuit sheer/.test(bag)
-  ) {
-    return {
-      lora_name: lingerieFile,
-      lora_strength_model: 0.62,
-      lora_strength_clip: 0.62,
-      trigger_words: [],
-      note: 'outfit-lingerie',
-    };
-  }
-
-  if (/pear|wide hips|big ass|thick thighs|booty/.test(bag) && !/hourglass|busty/.test(bag)) {
-    return {
-      lora_name: pearFile,
-      lora_strength_model: 0.55,
-      lora_strength_clip: 0.55,
-      trigger_words: [],
-      note: 'body-pear',
-    };
-  }
-  if (
-    opts?.preferBody ||
-    /curvy|busty|hourglass|voluptuous|large breasts|slim waist/.test(bag)
-  ) {
-    return {
-      lora_name: bodyFile,
-      lora_strength_model: 0.55,
-      lora_strength_clip: 0.55,
-      trigger_words: [],
-      note: 'body-curvy-light',
-    };
-  }
-
-  if (/skin|pores|detail|texture/.test(bag)) {
-    return {
-      lora_name: skinFile,
-      lora_strength_model: 0.4,
-      lora_strength_clip: 0.4,
-      trigger_words: [],
-      note: 'detail-skin',
-    };
-  }
-  if (/hyperreal|aidma|ultra realistic/.test(bag)) {
-    return {
-      lora_name: hyperFile,
-      lora_strength_model: 0.5,
-      lora_strength_clip: 0.5,
-      trigger_words: [],
-      note: 'style-hyperreal',
-    };
+  } else if (/pear|wide hips|big ass|thick thighs/.test(bag)) {
+    const bodyPear = LORA_REGISTRY.find(
+      (e) => e.file.includes('body_pear') && isLoraInstalled(e.file),
+    );
+    if (bodyPear) {
+      secondary = {
+        name: bodyPear.file,
+        strength_model: bodyPear.strength,
+        strength_clip: bodyPear.strength,
+        note: 'body-pear',
+      };
+    }
+  } else if (opts?.preferDetail || /skin|pores|texture|natural skin/.test(bag)) {
+    const skin = LORA_REGISTRY.find(
+      (e) => e.file.includes('detail_skin') && !e.file.includes('nplastic') && isLoraInstalled(e.file),
+    );
+    if (skin) {
+      secondary = {
+        name: skin.file,
+        strength_model: skin.strength,
+        strength_clip: skin.strength,
+        note: 'detail-skin',
+      };
+    }
   }
 
   return {
-    lora_name: styleFile,
-    lora_strength_model: 0.55,
-    lora_strength_clip: 0.55,
-    trigger_words: [],
-    note: 'style-photoreal',
+    primary: {
+      name: primary.file,
+      strength_model: primary.strength,
+      strength_clip: primary.strength,
+      note: `style:${primary.file.split('_').slice(1, 3).join('-')}`,
+    },
+    secondary,
   };
 }
 
-/** Public plan: never request a LoRA that is not on the volume. */
+/**
+ * Backward-compatible wrapper: returns the old GirlfriendLoraPlan shape
+ * plus the new LoraPlan for callers that support loras[].
+ */
 export function resolveGirlfriendLoraPlan(
   subject: GirlfriendSubject,
   sceneId?: string,
   opts?: { preferBody?: boolean; preferOutfit?: boolean; preferNsfwPose?: boolean },
 ): GirlfriendLoraPlan {
-  const plan = resolveGirlfriendLoraPlanRaw(subject, sceneId, opts);
-  // Prefer body/style when pose/outfit missing on disk
-  const safe = sanitizeLoraForVolume(plan.lora_name, {
-    fallback: pickInstalledLora([
-      process.env.GIRLFRIEND_STYLE_LORA,
-      process.env.RUNPOD_DEFAULT_LORA,
-      'flux_style_photoreal_v1.safetensors',
-      'flux_body_curvy_v1.safetensors',
-      'flux_detail_skin_v1.safetensors',
-    ]),
+  const plan = buildLoraPlan(subject, sceneId, {
+    preferBody: opts?.preferBody,
+    preferDetail: false,
   });
-  if (!safe.changed) return plan;
+
   return {
-    ...plan,
-    lora_name: safe.lora_name,
-    note: safe.lora_name
-      ? `${plan.note}->fallback:${safe.lora_name}`
-      : `${plan.note}->no-lora`,
-    // keep strength moderate for style fallback
-    lora_strength_model: safe.lora_name?.includes('style')
-      ? Math.min(plan.lora_strength_model, 0.55)
-      : plan.lora_strength_model,
-    lora_strength_clip: safe.lora_name?.includes('style')
-      ? Math.min(plan.lora_strength_clip, 0.55)
-      : plan.lora_strength_clip,
+    lora_name: plan.primary.name,
+    lora_strength_model: plan.primary.strength_model,
+    lora_strength_clip: plan.primary.strength_clip,
+    trigger_words: [],
+    note: plan.secondary
+      ? `${plan.primary.note}+${plan.secondary.note}`
+      : plan.primary.note,
+    plan,
   };
 }

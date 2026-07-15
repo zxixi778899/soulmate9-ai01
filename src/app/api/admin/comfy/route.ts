@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   const cfg = await loadComfyConfig(admin.supabase);
 
   if (view === 'volume' || view === 'installed') {
-    const { VOLUME_INSTALLED_LORAS, getInstalledLoraSet } = await import('@/lib/runpod-loras');
+    const { getInstalledLoraSet } = await import('@/lib/runpod-loras');
     const installed = [...getInstalledLoraSet()].sort();
     return NextResponse.json({
       volume: cfg.network_volume,
@@ -55,14 +55,14 @@ export async function GET(req: NextRequest) {
       region: LORA_CATALOG.region,
       base_model: LORA_CATALOG.base_model,
       installed_loras: installed,
-      code_allowlist: [...VOLUME_INSTALLED_LORAS],
+      code_allowlist: installed,
       env_override: !!(process.env.RUNPOD_INSTALLED_LORAS || process.env.COMFY_INSTALLED_LORAS),
       paths: {
         loras: cfg.network_volume?.loras_dir || 'models/loras',
         checkpoints: cfg.network_volume?.checkpoints_dir || 'models/checkpoints',
       },
       note:
-        'installed_loras 与 Comfy LoraLoader 白名单一致；下载新文件后请更新 VOLUME_INSTALLED_LORAS 或设置 RUNPOD_INSTALLED_LORAS，并重新部署。',
+        'installed_loras 与 Comfy LoraLoader 白名单一致；下载新文件后请在 LORA_REGISTRY 中添加条目或设置 RUNPOD_INSTALLED_LORAS，并重新部署。',
     });
   }
 

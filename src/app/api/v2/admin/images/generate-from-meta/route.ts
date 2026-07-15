@@ -19,6 +19,7 @@ import {
 import {
   resolveGirlfriendLoraPlan,
   subjectFromGirlfriendRow,
+  planToLorasArray,
 } from '@/lib/prompt/girlfriend';
 
 export const runtime = 'nodejs';
@@ -394,6 +395,7 @@ export async function POST(req: NextRequest) {
     let loraStrengthClip = 0.55;
     let loraNote = 'none';
     let promptForGen = rawPrompt;
+    let loraArray: ReturnType<typeof planToLorasArray> | null = null;
 
     if (disableLora) {
       loraName = null;
@@ -438,6 +440,7 @@ export async function POST(req: NextRequest) {
         }
       }
       const plan = resolveGirlfriendLoraPlan(subjectFromGirlfriendRow(subjectRow));
+      loraArray = plan.plan ? planToLorasArray(plan.plan) : null;
       loraName = plan.lora_name;
       loraStrengthModel = plan.lora_strength_model;
       loraStrengthClip = plan.lora_strength_clip;
@@ -489,7 +492,8 @@ export async function POST(req: NextRequest) {
           scheduler: params.scheduler,
           input_image: referenceImage || undefined,
           denoising_strength: referenceImage ? denoise : undefined,
-          lora_name: loraName,
+          loras: loraArray || undefined,
+          lora_name: loraArray ? null : loraName,
           lora_strength_model: loraStrengthModel,
           lora_strength_clip: loraStrengthClip,
           on_timeout: 'pending',

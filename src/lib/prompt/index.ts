@@ -24,6 +24,8 @@ export {
   assembleGirlfriendFromRow,
   subjectFromGirlfriendRow,
   resolveGirlfriendLoraPlan,
+  planToLorasArray,
+  buildLoraPlan,
   GIRLFRIEND_BODY_FIXED,
   GIRLFRIEND_FRAMING,
   GIRLFRIEND_NEGATIVE,

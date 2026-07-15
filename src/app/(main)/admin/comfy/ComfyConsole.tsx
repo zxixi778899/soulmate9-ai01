@@ -1746,7 +1746,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         <ol className="list-decimal pl-4 space-y-1 text-slate-400">
           <li>左侧参数（文生图 / 图生图），右侧输出预览；说明固定在页面底部。</li>
           <li>LoRA 须对应网络卷 models/loras/ 真实文件名；● 盘上可调，未安装会在服务端回退。</li>
-          <li>下载：模型库导出 lora-urls.txt → RunPod downloader → 更新 VOLUME_INSTALLED_LORAS 或 env → 同步盘状态。</li>
+          <li>下载：模型库导出 lora-urls.txt → RunPod downloader → 在 LORA_REGISTRY 添加条目或设置 RUNPOD_INSTALLED_LORAS → 同步盘状态。</li>
           <li>女友模式写入 girlfriends/&#123;id&#125;/；公共模式写入 comfy-outputs。</li>
           <li>当前仅展示已接通的文生图与图生图；采样器、调度器、Steps、CFG、Seed 和 LoRA 均写入真实工作流。</li>
         </ol>
