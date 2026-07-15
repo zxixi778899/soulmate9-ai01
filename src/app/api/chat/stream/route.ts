@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuthUser } from '@/lib/supabase-server';
 import { rateLimitMiddleware, RATE_LIMITS } from '@/lib/rate-limit';
 import { analyzeAndRoute } from '@/lib/llm-router';
-import { generateText, streamTextSmart } from '@/lib/llm-service';
+import { streamTextSmart } from '@/lib/llm-service';
 import { logModelUsage, estimateTokens, estimateCost } from '@/lib/model-usage';
 import { checkAchievements } from '@/lib/achievement-checker';
 import { quickEmotion, normalizeEmotion } from '@/lib/emotion';
@@ -27,30 +28,10 @@ import {
   sanitizeAssistantReply,
   sanitizeHistoryContent,
 } from '@/lib/chat-reply-sanitize';
+import { moderateText, type ContentMode } from '@/lib/content-moderation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-// ============================================================
-//  LLM call helper (non-streaming) — uses RunPod vLLM / Together AI
-// ============================================================
-
-async function callLLM(
-  messages: { role: string; content: string }[],
-  options?: { temperature?: number },
-): Promise<string> {
-  const systemMsg = messages.find((m) => m.role === 'system');
-  const userMsg = messages.find((m) => m.role === 'user');
-  const prompt = userMsg?.content || systemMsg?.content || messages[0]?.content || '';
-  return generateText({
-    prompt,
-    systemPrompt: userMsg ? systemMsg?.content : undefined,
-    temperature: options?.temperature ?? 0.7,
-    maxTokens: 1024,
-  });
-}
-
-
 
 // Emotion detection is inlined below using quickEmotion() + LLM fallback
 // (saves ~1 LLM call per message + 2-5s latency on every chat).
@@ -58,7 +39,7 @@ async function callLLM(
 // Extract meaningful memories from user messages using LLM (replaces weak regex).
 // Falls back to keyword extraction if LLM fails.
 async function extractMemories(
-  client: any,
+  client: SupabaseClient,
   userId: string,
   girlfriendId: string,
   message: string,
@@ -101,19 +82,26 @@ async function extractMemories(
     if (inserted?.data?.id) {
       void embed(m.content).then((vec) => {
         if (vec) {
-          // pgvector embedding write — uses raw SQL via service-role client
-          void fetch('/api/admin/embed-memory', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: inserted.data.id, embedding: vec }),
-          }).catch(() => {});
+          const embeddingLiteral = `[${vec.join(',')}]`;
+          void client
+            .from('memories')
+            .update({ embedding: embeddingLiteral })
+            .eq('id', inserted.data.id)
+            .then(({ error }: { error: { message: string } | null }) => {
+              if (error) {
+                logger.warn('chat/stream: memory embedding write failed', {
+                  memoryId: inserted.data.id,
+                  error: error.message,
+                });
+              }
+            });
         }
       });
     }
   }
 }
 
-async function getLoreContext(client: any, user_id: string, girlfriend_id: string, message: string): Promise<string> {
+async function getLoreContext(client: SupabaseClient, girlfriend_id: string, message: string): Promise<string> {
   try {
     const { data: loreEntries } = await client
       .from('world_lore')
@@ -143,7 +131,7 @@ async function getLoreContext(client: any, user_id: string, girlfriend_id: strin
 }
 
 export async function POST(request: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(request);
+  const { user, client } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -165,7 +153,6 @@ export async function POST(request: NextRequest) {
   }
 
   const isFree = profile?.membership_tier === 'free';
-  const isPro = profile?.membership_tier === 'pro';
 
   // Daily message limit for free users (skip for newbie trial)
   if (isFree && !isNewbieTrial) {
@@ -231,6 +218,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const contentMode: ContentMode = process.env.CONTENT_MODE === 'adult' ? 'adult' : 'sfw';
+  const moderation = moderateText(String(message || ''), contentMode);
+  if (!moderation.allowed) {
+    logger.warn('chat/stream: message blocked by safety policy', {
+      userId: user.id,
+      reason: moderation.reason,
+      nsfwLevel: moderation.nsfwLevel,
+      contentMode,
+    });
+    return NextResponse.json(
+      {
+        error: contentMode === 'sfw'
+          ? 'This content is unavailable in the current experience.'
+          : 'This request violates the content policy.',
+        code: moderation.reason || 'CONTENT_BLOCKED',
+      },
+      { status: 422 },
+    );
+  }
+
   // Build presets object
   const presets = { mood, pose, environment };
 
@@ -259,7 +266,7 @@ export async function POST(request: NextRequest) {
   );
 
   // Run independent DB queries in parallel
-  const [girlfriendResult, intimacyResult, recentMessagesResult, memoriesResult] = await Promise.all([
+  const [girlfriendResult, intimacyResult, recentMessagesResult] = await Promise.all([
     client
       .from('girlfriends')
       .select('*')
@@ -279,13 +286,6 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(provisionalCtx),
-    client
-      .from('memories')
-      .select('content, type')
-      .eq('girlfriend_id', girlfriend_id)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(10),
   ]);
 
   const gf = girlfriendResult.data;
@@ -335,6 +335,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: `You've reached your daily message limit (${tierRoute.daily_message_limit}). Upgrade for more chats!`,
+          localized_error: chatLocale === 'zh'
+            ? `今日消息次数已用完（${tierRoute.daily_message_limit} 条），请升级套餐后继续聊天。`
+            : `You've reached your daily message limit (${tierRoute.daily_message_limit}). Upgrade for more chats!`,
+          code: 'daily_message_limit',
         },
         { status: 403 },
       );
@@ -352,7 +356,7 @@ export async function POST(request: NextRequest) {
   // Emotion: keyword-only (never block chat on a second LLM round-trip)
   const [detectedEmotion, loreContext] = await Promise.all([
     Promise.resolve(normalizeEmotion(quickEmotion(messageText) || 'neutral')),
-    getLoreContext(client, user.id, girlfriend_id, messageText),
+    getLoreContext(client, girlfriend_id, messageText),
   ]);
 
   // Build system prompt: character + hard language lock from this turn's message

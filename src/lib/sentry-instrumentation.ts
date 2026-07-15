@@ -31,9 +31,9 @@ if (dsn) {
         /RunPod.*timeout/i,
       ],
     });
-  } catch (err) {
-    // @sentry/nextjs optional — skip if package missing
-    console.warn('[sentry-instrumentation] init skipped:', (err as Error).message);
+  } catch {
+    // @sentry/nextjs is optional. Avoid importing the application logger here,
+    // because it depends on this instrumentation layer.
   }
 }
 

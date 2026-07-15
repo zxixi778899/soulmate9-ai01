@@ -15,8 +15,12 @@ async function checkSupabase(): Promise<DependencyResult> {
   const start = Date.now();
   try {
     const client = getSupabaseClient();
-    const { error } = await client.from('profiles').select('id', { count: 'exact', head: true }).limit(1);
-    if (error) return { ok: false, error: error.message };
+    const [{ error: profileError }, { error: ledgerError }] = await Promise.all([
+      client.from('profiles').select('id', { count: 'exact', head: true }).limit(1),
+      client.from('wallet_ledger').select('id', { count: 'exact', head: true }).limit(1),
+    ]);
+    if (profileError) return { ok: false, error: `database unavailable: ${profileError.message}` };
+    if (ledgerError) return { ok: false, error: `financial schema unavailable: ${ledgerError.message}` };
     return { ok: true, latencyMs: Date.now() - start };
   } catch (e) {
     // Include the URL we tried to hit so encoding / wrong-host failures
@@ -30,8 +34,9 @@ async function checkSupabase(): Promise<DependencyResult> {
 
 async function checkStripe(): Promise<DependencyResult> {
   const start = Date.now();
+  if (process.env.PAYMENT_PROVIDER !== 'stripe') return { ok: true, error: 'disabled' };
   const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return { ok: true, error: 'not configured' };
+  if (!key) return { ok: false, error: 'not configured' };
   try {
     const res = await fetch('https://api.stripe.com/v1/balance', {
       headers: { Authorization: 'Bearer ' + key },
@@ -46,7 +51,7 @@ async function checkStripe(): Promise<DependencyResult> {
 
 async function checkRunPod(): Promise<DependencyResult> {
   const start = Date.now();
-  const key = process.env.RUNPOD_API_KEY;
+  const key = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY;
   const endpoint = process.env.RUNPOD_ENDPOINT_ID;
   if (!key || !endpoint) return { ok: false, error: 'RunPod env not configured' };
   try {
@@ -64,7 +69,11 @@ async function checkRunPod(): Promise<DependencyResult> {
 async function checkUpstash(): Promise<DependencyResult> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return { ok: true, error: 'not configured (memory fallback)' };
+  if (!url || !token) {
+    return process.env.NODE_ENV === 'production'
+      ? { ok: false, error: 'not configured' }
+      : { ok: true, error: 'memory fallback' };
+  }
   const start = Date.now();
   try {
     const res = await fetch(url + '/ping', {
@@ -86,8 +95,7 @@ export async function GET(): Promise<NextResponse> {
     checkUpstash(),
   ]);
 
-  // Supabase ok
-  const allOk = supabase.ok;
+  const allOk = supabase.ok && stripe.ok && runpod.ok && upstash.ok;
   const status = allOk ? 200 : 503;
 
   if (!allOk) {
@@ -103,7 +111,12 @@ export async function GET(): Promise<NextResponse> {
       ok: allOk,
       ts: new Date().toISOString(),
       service: 'soulmate9',
-      checks: { supabase, stripe, runpod, upstash },
+      checks: {
+        supabase: { ok: supabase.ok, latencyMs: supabase.latencyMs },
+        stripe: { ok: stripe.ok, latencyMs: stripe.latencyMs },
+        runpod: { ok: runpod.ok, latencyMs: runpod.latencyMs },
+        upstash: { ok: upstash.ok, latencyMs: upstash.latencyMs },
+      },
       // 部署元信息:用于一眼判断"线上是不是最新的 commit"
       build: {
         sha: buildSha,
@@ -122,9 +135,10 @@ export async function GET(): Promise<NextResponse> {
  * HEAD  Kubernetes  readiness  / Docker HEALTHCHECK
  * 
  */
-export function HEAD(): NextResponse {
+export async function HEAD(): Promise<NextResponse> {
+  const supabase = await checkSupabase();
   return new NextResponse(null, {
-    status: 200,
+    status: supabase.ok ? 200 : 503,
     headers: { 'Cache-Control': 'no-store' },
   });
 }

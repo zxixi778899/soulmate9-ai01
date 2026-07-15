@@ -13,12 +13,13 @@ import { withPgClient, queryPgOne } from '@/storage/database/supabase-client';
 interface PurchaseBody {
   product_id: string;
   quantity?: number;
+  girlfriend_id?: string;
 }
 
 const MAX_QUANTITY = 99;
 
 export async function POST(request: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(request);
+  const { user, client } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
     if (product.type !== 'virtual') {
-      return NextResponse.json({ error: 'Only virtual products can be purchased via this endpoint' }, { status: 400 });
+      return NextResponse.json({ error: 'Membership and cash packages must use secure Stripe checkout' }, { status: 400 });
     }
     if (product.status !== 'active') {
       return NextResponse.json({ error: 'Product is not available for purchase' }, { status: 410 });
@@ -90,9 +91,13 @@ export async function POST(request: NextRequest) {
 
     // 2)  +  +  inventory +  +1
     const orderNumber = `SM-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-    const isConsumable = (product.virtual_meta as any)?.kind === 'consumable';
-    const assetType = (product.virtual_meta as any)?.kind || product.sku;
-    const assetId = (product.virtual_meta as any)?.asset_id || product.sku;
+    const kind = typeof product.virtual_meta?.kind === 'string' ? product.virtual_meta.kind : 'prop';
+    const isConsumable = kind === 'consumable' || kind === 'prop';
+    const assetType = kind;
+    const rawAssetId = typeof product.virtual_meta?.asset_id === 'string'
+      ? product.virtual_meta.asset_id
+      : product.id;
+    const assetId = rawAssetId;
     const assetPayload = product.virtual_meta || {};
 
     const result = await withPgClient(async (db) => {
@@ -125,11 +130,10 @@ export async function POST(request: NextRequest) {
         // 2.2 
         const orderRes = await db.query<{ id: string }>(
           `INSERT INTO shop_orders
-            (order_number, user_id, product_id, quantity, price_credits, price_cents,
-             status, payment_method, paid_at)
-           VALUES ($1, $2, $3, $4, $5, $6, 'paid', 'credits', NOW())
+            (user_id, product_id, quantity, credits_spent, unit_price, status, payment_method)
+           VALUES ($1, $2, $3, $4, $5, 'completed', 'credits')
            RETURNING id`,
-          [orderNumber, user.id, product.id, quantity, totalCredits, product.price_cents * quantity]
+          [user.id, product.id, quantity, totalCredits, product.price_credits]
         );
         const orderId = orderRes.rows[0].id;
 
@@ -139,23 +143,23 @@ export async function POST(request: NextRequest) {
           // 
           const invRes = await db.query<{ id: string }>(
             `INSERT INTO user_inventory
-              (user_id, product_id, asset_type, asset_id, asset_payload, quantity, source, source_ref, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, 'purchase', $7, $8)
+              (user_id, product_id, asset_type, asset_id, asset_payload, quantity, source, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, 'purchase', $7)
              ON CONFLICT (user_id, asset_type, asset_id)
              DO UPDATE SET quantity = user_inventory.quantity + EXCLUDED.quantity,
                            acquired_at = NOW()
              RETURNING id`,
-            [user.id, product.id, assetType, assetId, assetPayload, quantity, orderId, { rarity: product.rarity }]
+            [user.id, product.id, assetType, assetId, assetPayload, quantity, { rarity: product.rarity, order_id: orderId }]
           );
           inventoryId = invRes.rows[0].id;
         } else {
           const invRes = await db.query<{ id: string }>(
             `INSERT INTO user_inventory
-              (user_id, product_id, asset_type, asset_id, asset_payload, quantity, source, source_ref, metadata)
-             VALUES ($1, $2, $3, $4, $5, 1, 'purchase', $6, $7)
+              (user_id, product_id, asset_type, asset_id, asset_payload, quantity, source, metadata)
+             VALUES ($1, $2, $3, $4, $5, 1, 'purchase', $6)
              ON CONFLICT (user_id, asset_type, asset_id) DO NOTHING
              RETURNING id`,
-            [user.id, product.id, assetType, assetId, assetPayload, orderId, { rarity: product.rarity, name: product.name }]
+            [user.id, product.id, assetType, assetId, assetPayload, { rarity: product.rarity, name: product.name, order_id: orderId }]
           );
           inventoryId = invRes.rows[0]?.id ?? null;
         }
@@ -166,11 +170,19 @@ export async function POST(request: NextRequest) {
           [quantity, product.id]
         );
 
-        // 2.5 
-        if (inventoryId) {
+        if (kind === 'outfit' && body.girlfriend_id && inventoryId) {
+          const owned = await db.query<{ id: string }>(
+            'SELECT id FROM girlfriends WHERE id = $1 AND user_id = $2',
+            [body.girlfriend_id, user.id]
+          );
+          if (owned.rows.length === 0) throw new Error('GIRLFRIEND_NOT_FOUND');
           await db.query(
-            `UPDATE shop_orders SET status = 'completed', fulfilled_at = NOW(), inventory_item_id = $1 WHERE id = $2`,
-            [inventoryId, orderId]
+            `INSERT INTO girlfriend_outfits
+              (user_id, girlfriend_id, outfit_asset_id, inventory_item_id, is_equipped, equipped_at)
+             VALUES ($1, $2, $3, $4, false, NULL)
+             ON CONFLICT (girlfriend_id, outfit_asset_id)
+             DO UPDATE SET inventory_item_id = EXCLUDED.inventory_item_id`,
+            [user.id, body.girlfriend_id, assetId, inventoryId]
           );
         }
 
@@ -184,6 +196,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      new_credits_balance: result.newBalance,
+      inventory_item_id: result.inventoryId,
       order: {
         order_number: orderNumber,
         product_id: product.id,
@@ -194,13 +208,16 @@ export async function POST(request: NextRequest) {
         status: 'completed',
       },
     });
-  } catch (err: any) {
-    const msg = err?.message || 'Purchase failed';
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Purchase failed';
     if (msg === 'INSUFFICIENT_CREDITS') {
       return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 });
     }
     if (msg === 'PROFILE_NOT_FOUND') {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+    if (msg === 'GIRLFRIEND_NOT_FOUND') {
+      return NextResponse.json({ error: 'Girlfriend not found or not owned' }, { status: 404 });
     }
     logger.error('purchase failed', { userId: user.id, err: msg });
     return NextResponse.json({ error: msg }, { status: 500 });

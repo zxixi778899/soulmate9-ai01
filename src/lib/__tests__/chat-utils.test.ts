@@ -16,7 +16,7 @@ describe('formatBubbleTime', () => {
 
   it('handles invalid date gracefully', () => {
     const result = formatBubbleTime('invalid');
-    expect(result).toMatch(/Invalid|NaN/);
+    expect(result).toBe('');
   });
 });
 

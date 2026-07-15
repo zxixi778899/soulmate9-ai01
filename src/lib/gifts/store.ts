@@ -330,7 +330,7 @@ export async function deleteGift(
     if (!error) return { ok: true, source: 'db' };
   }
 
-  let existing = (await loadFromSiteSettings(supabase)) || (await loadFromFile());
+  const existing = (await loadFromSiteSettings(supabase)) || (await loadFromFile());
   const next = soft
     ? existing.map((g) => (g.id === id ? { ...g, is_active: false } : g))
     : existing.filter((g) => g.id !== id);
@@ -375,7 +375,7 @@ export async function seedDefaultGifts(
   }
 
   // Merge into fallback store
-  let existing = (await loadFromSiteSettings(supabase)) || (await loadFromFile());
+  const existing = (await loadFromSiteSettings(supabase)) || (await loadFromFile());
   const byCode = new Map(existing.map((g) => [g.code, g]));
   for (const g of DEFAULT_CHAT_GIFTS) {
     if (!byCode.has(g.code)) {

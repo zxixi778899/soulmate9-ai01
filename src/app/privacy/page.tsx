@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 export default function PrivacyPolicyPage() {
+  const privacyEmail = process.env.PRIVACY_CONTACT_EMAIL || 'privacy@soulmateai.shop';
   return (
     <div className="min-h-screen bg-background">
       {/* Background decoration */}
@@ -20,7 +21,7 @@ export default function PrivacyPolicyPage() {
             your personal information when you use SoulMate AI.
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Last updated: January 1, 2025
+            Last updated: July 14, 2026
           </p>
         </div>
 
@@ -110,38 +111,41 @@ export default function PrivacyPolicyPage() {
           <p className="text-muted-foreground leading-relaxed">
             We take reasonable administrative, technical, and physical measures to protect
             your personal information from unauthorized access, disclosure, alteration, or
-            destruction. These measures include encryption in transit (TLS 1.2+) and at rest,
-            regular security audits, and strict access controls. However, no method of
+            destruction. These measures include encryption in transit, access controls,
+            logging, and provider security controls. However, no method of
             transmission or storage is 100% secure, and we cannot guarantee absolute security.
           </p>
         </section>
 
         {/* Adult Content Storage  NSFW */}
         <section className="bg-card/40 backdrop-blur-sm border border-border/30 rounded-xl p-6 mb-6">
-          <h2 className="text-xl font-semibold mt-0 mb-3 text-foreground">Adult Content Storage</h2>
+          <h2 className="text-xl font-semibold mt-0 mb-3 text-foreground">Generated Content Storage</h2>
           <div className="border-t border-border/20 mb-4" />
           <p className="text-muted-foreground leading-relaxed">
-            The Service generates and stores adult-oriented conversational and visual content
-            featuring fictional adult characters. We take additional precautions with this content:
+            The Service may generate and store sensitive conversational, visual, audio, or video
+            content. We apply the following controls and limitations:
           </p>
           <ul className="mt-3 space-y-2 text-muted-foreground leading-relaxed list-disc pl-5">
             <li>
-              <strong>Private storage:</strong> All generated images are stored in a private
-              object storage bucket with access restricted to time-limited signed URLs. Content
-              is not publicly indexable or accessible without authentication.
+              <strong>Private and public content:</strong> Private user and chat media is stored
+              in access-controlled storage and delivered with expiring links. Content that you
+              deliberately publish or submit for public listing may be publicly accessible.
             </li>
             <li>
-              <strong>No third-party scanning:</strong> We deliberately avoid CDN providers and
-              image hosts that perform automated content moderation scanning on stored media.
+              <strong>Automated processing:</strong> Hosting, storage, safety, and AI providers
+              may automatically process content to deliver the Service, prevent abuse, and meet
+              their legal obligations.
             </li>
             <li>
-              <strong>Not used for training:</strong> Your conversations and generated content
-              are not used to train third-party AI models or shared with other users.
+              <strong>AI providers:</strong> Provider handling and retention is governed by the
+              applicable provider terms and our service configuration. Do not submit real-person
+              intimate content or information you are not authorized to share.
             </li>
             <li>
               <strong>Deletion rights:</strong> You may permanently delete your conversation
-              history and generated images at any time through your account settings. Deletion
-              is irreversible.
+              history and generated images through available account controls or a verified
+              privacy request. Limited backups, security logs, and transaction records may remain
+              for legally required retention periods.
             </li>
           </ul>
         </section>
@@ -192,8 +196,8 @@ export default function PrivacyPolicyPage() {
           </ul>
           <p className="text-muted-foreground leading-relaxed mt-3">
             To exercise any of these rights, please contact us at{' '}
-            <a href="mailto:privacy@soulmateai.shop" className="text-primary hover:underline">
-              privacy@soulmateai.shop
+            <a href={`mailto:${privacyEmail}`} className="text-primary hover:underline">
+              {privacyEmail}
             </a>
             . We will respond to your request within 30 days.
           </p>
@@ -204,12 +208,11 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-xl font-semibold mt-0 mb-3 text-foreground">Cookies</h2>
           <div className="border-t border-border/20 mb-4" />
           <p className="text-muted-foreground leading-relaxed">
-            We use only essential cookies that are necessary for the operation of the Service.
-            These include session cookies to keep you logged in and security cookies to protect
-            against fraud. We do not use tracking cookies, advertising cookies, or third-party
-            analytics cookies that require consent. You can configure your browser to block or
-            alert you about cookies, but some parts of the Service may not function properly
-            without them.
+            We use essential storage and cookies for authentication, security, language, and
+            service preferences. When analytics is enabled, we may also use analytics storage to
+            understand product usage; where required, this is subject to consent controls. You can
+            configure your browser to block or alert you about cookies, but some parts of the
+            Service may not function properly without essential storage.
           </p>
         </section>
 

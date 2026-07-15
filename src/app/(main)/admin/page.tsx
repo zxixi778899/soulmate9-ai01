@@ -1,14 +1,29 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/components/AuthProvider';
+import {
+  Activity,
+  AlertTriangle,
+  ArrowUpRight,
+  CheckSquare,
+  Coins,
+  Crown,
+  DollarSign,
+  Heart,
+  Image,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  TrendingUp,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { authedFetch } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
-import { Activity, ArrowUpRight, Brain, CheckSquare, Crown, DollarSign, Heart, Image, Loader2, ShoppingBag, TrendingUp, UserCheck, Users } from 'lucide-react';
-// icons
 
 type DashboardStats = {
   totalUsers: number;
@@ -23,8 +38,13 @@ type DashboardStats = {
   unlimitedMembers: number;
   paidMembers: number;
   totalPaidCents: number;
+  revenue7dCents: number;
   newUsers7d: number;
   images7d: number;
+  failedPayments7d: number;
+  tokenLiability: number;
+  aiCost7dCents: number;
+  llmSuccessRate7d: number;
   cacheHitRate: number;
 };
 
@@ -35,152 +55,242 @@ type RecentUser = {
   created_at: string;
 };
 
-export default function AdminDashboard() {
-  const { user } = useAuth();
-  const router = useRouter();
+type DashboardResponse = {
+  stats?: DashboardStats;
+  recentUsers?: RecentUser[];
+  generatedAt?: string;
+  error?: string;
+};
+
+const money = (cents: number): string =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+
+const integer = (value: number): string => new Intl.NumberFormat('en-US').format(value);
+
+export default function AdminDashboard(): React.JSX.Element {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadDashboard = async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await authedFetch('/api/admin/dashboard');
+      const payload = (await response.json()) as DashboardResponse;
+      if (!response.ok || !payload.stats) {
+        throw new Error(payload.error || 'Dashboard metrics are unavailable.');
+      }
+      setStats(payload.stats);
+      setRecentUsers(payload.recentUsers || []);
+      setGeneratedAt(payload.generatedAt || null);
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : 'Dashboard request failed.';
+      logger.error('admin dashboard fetch failed', { error: message });
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    authedFetch('/api/admin/dashboard')
-      .then(r => r.json())
-      .then(data => {
-        if (data.stats) setStats(data.stats);
-        if (data.recentUsers) setRecentUsers(data.recentUsers);
-      })
-      .catch((err) => logger.error('admin dashboard fetch failed', { err }))
-      .finally(() => setLoading(false));
+    void loadDashboard();
   }, []);
 
-  if (loading) {
+  if (loading && !stats) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#2563EB]" />
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-fuchsia-400" />
+      </div>
+    );
+  }
+
+  if (error && !stats) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-6">
+        <Card className="w-full max-w-lg border-rose-500/30 bg-rose-500/5">
+          <CardContent className="space-y-4 p-6 text-center">
+            <AlertTriangle className="mx-auto h-9 w-9 text-rose-400" />
+            <div>
+              <h1 className="text-lg font-semibold text-white">Dashboard unavailable</h1>
+              <p className="mt-1 text-sm text-slate-400">{error}</p>
+            </div>
+            <Button onClick={() => void loadDashboard()} variant="outline">
+              <RefreshCw className="mr-2 h-4 w-4" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   const primaryCards = [
-    { label: '总会员', value: stats?.totalUsers ?? 0, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { label: '付费会员', value: stats?.paidMembers ?? 0, icon: Crown, color: 'text-amber-500', bg: 'bg-amber-500/10',
-      sub: `Pro: ${stats?.proMembers ?? 0} / Unlimited: ${stats?.unlimitedMembers ?? 0}` },
-    { label: '付费总金额', value: `$${((stats?.totalPaidCents ?? 0) / 100).toFixed(2)}`, icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10',
-      sub: `月营收: $${((stats?.mrr_cents ?? 0) / 100).toFixed(2)}` },
-    { label: '女友总数', value: stats?.totalGirlfriends ?? 0, icon: Heart, color: 'text-rose-500', bg: 'bg-rose-500/10',
-      sub: `公开: ${stats?.publicGirlfriends ?? 0}` },
+    {
+      label: 'Monthly recurring revenue',
+      value: money(stats?.mrr_cents || 0),
+      detail: `${money(stats?.revenue7dCents || 0)} collected in 7 days`,
+      icon: DollarSign,
+      tone: 'text-emerald-300 bg-emerald-400/10',
+    },
+    {
+      label: 'Paid members',
+      value: integer(stats?.paidMembers || 0),
+      detail: `${stats?.proMembers || 0} Pro · ${stats?.unlimitedMembers || 0} Unlimited`,
+      icon: Crown,
+      tone: 'text-amber-300 bg-amber-400/10',
+    },
+    {
+      label: 'Daily active users',
+      value: integer(stats?.dau || 0),
+      detail: `${integer(stats?.wau || 0)} weekly active users`,
+      icon: Activity,
+      tone: 'text-cyan-300 bg-cyan-400/10',
+    },
+    {
+      label: 'Total users',
+      value: integer(stats?.totalUsers || 0),
+      detail: `+${integer(stats?.newUsers7d || 0)} in the last 7 days`,
+      icon: Users,
+      tone: 'text-fuchsia-300 bg-fuchsia-400/10',
+    },
   ];
 
-  const secondaryCards = [
-    { label: '日活用户 (DAU)', value: stats?.dau ?? 0, icon: Activity, color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
-    { label: '周活用户 (WAU)', value: stats?.wau ?? 0, icon: UserCheck, color: 'text-violet-500', bg: 'bg-violet-500/10' },
-    { label: '待审核', value: stats?.pendingReview ?? 0, icon: CheckSquare, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-    { label: '7日新增用户', value: stats?.newUsers7d ?? 0, icon: TrendingUp, color: 'text-pink-500', bg: 'bg-pink-500/10' },
+  const operatingCards = [
+    { label: 'Lifetime revenue', value: money(stats?.totalPaidCents || 0), icon: TrendingUp },
+    { label: 'Images generated · 7d', value: integer(stats?.images7d || 0), icon: Image },
+    { label: 'Pending reviews', value: integer(stats?.pendingReview || 0), icon: CheckSquare },
+    { label: 'Failed payments · 7d', value: integer(stats?.failedPayments7d || 0), icon: AlertTriangle },
+    { label: 'Token liability', value: integer(stats?.tokenLiability || 0), icon: Coins },
+    { label: 'AI cost · 7d', value: money(stats?.aiCost7dCents || 0), icon: Sparkles },
+    { label: 'LLM success · 7d', value: `${((stats?.llmSuccessRate7d || 0) * 100).toFixed(1)}%`, icon: Activity },
+    { label: 'Generation cache reuse', value: `${((stats?.cacheHitRate || 0) * 100).toFixed(1)}%`, icon: RefreshCw },
+  ];
+
+  const quickActions = [
+    { label: 'Review queue', href: '/admin/review', icon: CheckSquare },
+    { label: 'Users', href: '/admin/users', icon: Users },
+    { label: 'Companions & media', href: '/admin/girlfriends', icon: Heart },
+    { label: 'Creation studio', href: '/admin/studio', icon: Sparkles },
+    { label: 'Shop catalog', href: '/admin/shop', icon: Crown },
+    { label: 'Token economy', href: '/admin/tokens', icon: Coins },
   ];
 
   return (
-    <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#1E293B]">仪表盘</h1>
-        <p className="text-sm text-[#64748B] mt-1">数据概览与快捷操作</p>
-      </div>
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-fuchsia-300">Operations</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Business dashboard</h1>
+          <p className="mt-1 text-sm text-slate-400">
+            Revenue, engagement, content supply, and payment health from authoritative data.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {generatedAt && (
+            <span className="hidden text-xs text-slate-500 md:inline">
+              Updated {new Date(generatedAt).toLocaleTimeString()}
+            </span>
+          )}
+          <Button onClick={() => void loadDashboard()} disabled={loading} variant="outline" size="sm">
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </Button>
+        </div>
+      </header>
 
-      {/* Primary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {primaryCards.map((card) => (
-          <Card key={card.label} className="border-[#E2E8F0] bg-white">
+          <Card key={card.label} className="border-white/10 bg-white/[0.035] shadow-xl shadow-black/10">
             <CardContent className="p-5">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm text-[#64748B] mb-1">{card.label}</p>
-                  <p className="text-3xl font-bold text-[#1E293B]">{card.value}</p>
-                  {card.sub && <p className="text-[11px] text-[#94A3B8] mt-1">{card.sub}</p>}
+                  <p className="text-xs font-medium text-slate-400">{card.label}</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-white">{card.value}</p>
+                  <p className="mt-2 text-xs text-slate-500">{card.detail}</p>
                 </div>
-                <div className={`${card.bg} p-3 rounded-xl`}>
-                  <card.icon className={`h-5 w-5 ${card.color}`} />
+                <div className={`rounded-xl p-2.5 ${card.tone}`}>
+                  <card.icon className="h-5 w-5" />
                 </div>
               </div>
             </CardContent>
           </Card>
         ))}
-      </div>
+      </section>
 
-      {/* Secondary Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        {secondaryCards.map((card) => (
-          <Card key={card.label} className="border-[#E2E8F0] bg-white">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {operatingCards.map((card) => (
+          <Card key={card.label} className="border-white/10 bg-white/[0.025]">
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <card.icon className={`h-3.5 w-3.5 ${card.color}`} />
-                <span className="text-[11px] text-[#64748B]">{card.label}</span>
+              <div className="flex items-center gap-2 text-slate-400">
+                <card.icon className="h-4 w-4 text-fuchsia-300" />
+                <span className="text-[11px] font-medium">{card.label}</span>
               </div>
-              <p className="text-xl font-bold text-[#1E293B]">{card.value}</p>
+              <p className="mt-2 text-xl font-semibold text-white">{card.value}</p>
             </CardContent>
           </Card>
         ))}
-      </div>
+      </section>
 
-      {/* Quick Actions + Recent Users */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-[#E2E8F0] bg-white">
+      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card className="border-white/10 bg-white/[0.03]">
           <CardContent className="p-5">
-            <h2 className="font-semibold text-[#1E293B] mb-4 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-[#2563EB]" />
-              快捷操作
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-     { label: '女友与媒体', href: '/admin/girlfriends', icon: Heart },
-                { label: '创作工作台', href: '/admin/studio', icon: Image },
-                { label: '模型与 LoRA', href: '/admin/model-library', icon: Brain },
-                { label: '公共资产库', href: '/admin/assets', icon: Image },
-                { label: '商品管理', href: '/admin/shop', icon: ShoppingBag },
-                { label: '推荐/热门', href: '/admin/featured', icon: Crown },
-                { label: '审核队列', href: '/admin/review', icon: CheckSquare },
-                { label: '用户', href: '/admin/users', icon: Users },
-                { label: '代币套餐', href: '/admin/tokens', icon: DollarSign },
-                { label: '站点设置', href: '/admin/settings', icon: Activity },
-              ].map((action) => (
-                <button
-                  key={action.label}
-                  onClick={() => router.push(action.href)}
-                  className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm text-[#334155] hover:bg-[#EFF6FF] hover:border-[#BFDBFE] transition-colors text-left"
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-white">Operating shortcuts</h2>
+                <p className="mt-0.5 text-xs text-slate-500">The highest-frequency control surfaces.</p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {quickActions.map((action) => (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className="group flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-200 transition hover:border-fuchsia-400/30 hover:bg-fuchsia-400/5"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2563EB]/10">
-                    <action.icon className="h-4 w-4 text-[#2563EB]" />
-                  </div>
-                  <span>{action.label}</span>
-                  <ArrowUpRight className="ml-auto h-3.5 w-3.5 text-[#94A3B8]" />
-                </button>
+                  <span className="rounded-lg bg-fuchsia-400/10 p-2 text-fuchsia-300">
+                    <action.icon className="h-4 w-4" />
+                  </span>
+                  {action.label}
+                  <ArrowUpRight className="ml-auto h-4 w-4 text-slate-600 transition group-hover:text-fuchsia-300" />
+                </Link>
               ))}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-[#E2E8F0] bg-white">
+        <Card className="border-white/10 bg-white/[0.03]">
           <CardContent className="p-5">
-            <h2 className="font-semibold text-[#1E293B] mb-4 flex items-center gap-2">
-              <Users className="h-4 w-4 text-[#2563EB]" />
-              最近注册用户
-            </h2>
+            <div className="mb-4 flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-fuchsia-300" />
+              <div>
+                <h2 className="font-semibold text-white">Recent registrations</h2>
+                <p className="text-xs text-slate-500">Newest five accounts.</p>
+              </div>
+            </div>
             {recentUsers.length === 0 ? (
-              <p className="text-sm text-[#94A3B8] text-center py-8">暂无用户</p>
+              <p className="py-10 text-center text-sm text-slate-500">No users yet.</p>
             ) : (
-              <div className="space-y-3">
-                {recentUsers.map((u) => (
-                  <div key={u.id} className="flex items-center justify-between py-1">
-                    <div>
-                      <p className="text-sm font-medium text-[#334155]">{u.display_name || u.id.slice(0, 8)}</p>
-                      <p className="text-xs text-[#94A3B8]">{new Date(u.created_at).toLocaleDateString()}</p>
+              <div className="divide-y divide-white/5">
+                {recentUsers.map((recentUser) => (
+                  <div key={recentUser.id} className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-200">
+                        {recentUser.display_name || recentUser.id.slice(0, 8)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {new Date(recentUser.created_at).toLocaleDateString()}
+                      </p>
                     </div>
                     <Badge
-                      variant={u.membership_tier === 'unlimited' ? 'default' : u.membership_tier === 'pro' ? 'default' : 'outline'}
-                      className={`text-[10px] ${
-                        u.membership_tier === 'unlimited' ? 'bg-amber-500 hover:bg-amber-600' :
-                        u.membership_tier === 'pro' ? 'bg-blue-500 hover:bg-blue-600' : ''
-                      }`}
+                      variant="outline"
+                      className={
+                        recentUser.membership_tier === 'free'
+                          ? 'border-white/10 text-slate-400'
+                          : 'border-fuchsia-400/30 bg-fuchsia-400/10 text-fuchsia-200'
+                      }
                     >
-                      {u.membership_tier === 'pro' ? 'Pro' : u.membership_tier === 'unlimited' ? 'Unlimited' : '免费'}
+                      {recentUser.membership_tier === 'free' ? 'Free' : recentUser.membership_tier}
                     </Badge>
                   </div>
                 ))}
@@ -188,7 +298,7 @@ export default function AdminDashboard() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </section>
     </div>
   );
 }

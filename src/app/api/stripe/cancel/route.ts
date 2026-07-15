@@ -3,6 +3,9 @@ import { getStripe } from '@/lib/stripe-server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+
+const CANCEL_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
 
 /**
  * POST /api/stripe/cancel
@@ -17,6 +20,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const limit = await checkRateLimitAsync(`stripe-cancel:${user.id}`, CANCEL_LIMIT);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many cancellation attempts. Please try again later.' },
+        { status: 429, headers: rateLimitHeaders(limit, CANCEL_LIMIT) },
+      );
+    }
+
     let body: { immediate?: boolean } = {};
     try {
       body = await req.json();
@@ -26,13 +37,19 @@ export async function POST(req: NextRequest) {
     const immediate = body.immediate === true;
 
     const supabase = getSupabaseClient();
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('stripe_subscription_id, stripe_customer_id, membership_tier')
+    const { data: subscriptionRecord, error: subscriptionError } = await supabase
+      .from('subscriptions')
+      .select('stripe_subscription_id')
       .eq('user_id', user.id)
-      .single();
+      .in('status', ['active', 'trialing', 'past_due'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (profileError || !profile?.stripe_subscription_id) {
+    if (subscriptionError) {
+      throw new Error(`Failed to load subscription: ${subscriptionError.message}`);
+    }
+    if (!subscriptionRecord?.stripe_subscription_id) {
       return NextResponse.json(
         { error: 'No active subscription found' },
         { status: 404 },
@@ -40,24 +57,17 @@ export async function POST(req: NextRequest) {
     }
 
     const stripe = getStripe();
+    const subscriptionId = subscriptionRecord.stripe_subscription_id;
     let subscription;
     if (immediate) {
-      subscription = await stripe.subscriptions.cancel(profile.stripe_subscription_id as string);
+      subscription = await stripe.subscriptions.cancel(subscriptionId);
     } else {
-      subscription = await stripe.subscriptions.update(profile.stripe_subscription_id as string, {
+      subscription = await stripe.subscriptions.update(subscriptionId, {
         cancel_at_period_end: true,
       });
     }
 
-    //  cancel  webhook customer.subscription.deleted
-    await supabase
-      .from('profiles')
-      .update({
-        subscription_cancel_at_period_end: !immediate,
-        // immediate webhook 
-        ...(immediate ? { membership_tier: 'free' } : {}),
-      })
-      .eq('user_id', user.id);
+    // Stripe webhooks remain the source of truth for status and entitlements.
 
     // Stripe v2025 current_period_end  subscription.items.data[0] 
     const subAny = subscription as unknown as {

@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   // Enrich with catalog meta + girlfriend names
   const gfIds = [...new Set((rows || []).map((r) => r.girlfriend_id).filter(Boolean))];
-  let gfMap: Record<string, { id: string; name: string; portrait_url?: string | null }> = {};
+  const gfMap: Record<string, { id: string; name: string; portrait_url?: string | null }> = {};
   if (gfIds.length) {
     const { data: gfs } = await client
       .from('girlfriends')

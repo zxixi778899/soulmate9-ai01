@@ -583,10 +583,12 @@ export default function ChatPage() {
           mood: selectedMood,
           pose: selectedPose,
           environment: selectedEnvironment,
+          locale,
         }),
       });
       const data = await readResponseJson<{
         error?: string;
+        localized_error?: string;
         code?: string;
         image_url?: string;
         imageUrl?: string;
@@ -595,8 +597,10 @@ export default function ChatPage() {
       if (!res.ok) {
         const msg =
           data?.code === 'daily_limit'
-            ? (data.error || 'Daily photo limit reached. Upgrade for more.')
-            : (data?.error || 'Failed to generate image');
+            ? (data.localized_error || t('chat.imageDailyLimit'))
+            : waitZh
+              ? t('chat.imageFailed')
+              : (data?.localized_error || data?.error || t('chat.imageFailed'));
         throw new Error(msg);
       }
       setIsTyping(false);
@@ -635,9 +639,10 @@ export default function ChatPage() {
     } catch (err) {
       setIsTyping(false);
       logger.error('Generate selfie error:', { data: err });
-      const failText = err instanceof Error ? err.message : 'Failed to generate image';
+      setMessages((prev) => prev.filter((message) => message.id !== waitId));
+      const failText = err instanceof Error ? err.message : t('chat.imageFailed');
       const sorry = waitZh
-        ? `拍糊了…${failText} 哥哥再让我试一次好不好？`
+        ? `${failText} 稍后再让我试一次好不好？`
         : `Photo glitched… ${failText} Want me to try again?`;
       setMessages((prev) => [
         ...prev,
@@ -727,11 +732,21 @@ export default function ChatPage() {
       });
 
       if (!res.ok) {
-        const errBody = (await readResponseJson(res).catch(() => ({}))) as { error?: string };
+        const errBody = (await readResponseJson(res).catch(() => ({}))) as {
+          error?: string;
+          localized_error?: string;
+          code?: string;
+        };
         throw new Error(
-          typeof errBody?.error === 'string'
+          typeof errBody?.localized_error === 'string'
+            ? errBody.localized_error
+            : errBody.code === 'daily_message_limit'
+              ? t('chat.messageDailyLimit')
+              : locale === 'zh'
+                ? t('chat.sendFailed')
+                : typeof errBody?.error === 'string'
             ? errBody.error
-            : `Failed to send message (${res.status})`,
+            : `${t('chat.sendFailed')} (${res.status})`,
         );
       }
       const ch = res.headers.get('X-AI-Channel');
@@ -927,7 +942,7 @@ export default function ChatPage() {
         .catch(() => {});
     } catch (err) {
       logger.error('Send error:', { data: err });
-      const msg = err instanceof Error ? err.message : 'Failed to send message';
+      const msg = err instanceof Error ? err.message : t('chat.sendFailed');
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
       if (!opts?.silent) {
         setMessages((prev) => [
@@ -935,9 +950,11 @@ export default function ChatPage() {
           {
             id: `err-${Date.now()}`,
             role: 'assistant',
-            content: msg.includes('limit')
+            content: msg === t('chat.messageDailyLimit') || /次数已用完|daily message limit/i.test(msg)
               ? msg
-              : `I missed that for a second... ${msg}. Try sending again?`,
+              : locale === 'zh'
+                ? `${t('chat.sendFailed')} 请再发送一次。`
+                : `I missed that for a second... ${msg}. Try sending again?`,
             created_at: new Date().toISOString(),
           },
         ]);
@@ -1041,7 +1058,7 @@ export default function ChatPage() {
         const created = m.created_at || new Date().toISOString();
         const dk = dayKey(created);
         if (dk !== lastDay) {
-          out.push({ type: 'date', key: `date-${dk}-${i}`, label: dateGroupLabel(created) });
+          out.push({ type: 'date', key: `date-${dk}-${i}`, label: dateGroupLabel(created, undefined, locale) });
           lastDay = dk;
           lastRole = null;
           lastTime = 0;
@@ -1058,7 +1075,7 @@ export default function ChatPage() {
       }
     });
     return out;
-  }, [messages]);
+  }, [messages, locale]);
 
   if (invalidChatId) {
     return (
@@ -1126,7 +1143,7 @@ export default function ChatPage() {
             />
           </div>
           <span className="text-[10px] font-mono tabular-nums text-white/40 shrink-0">
-            {Math.round(intimacy.score)}pts · keep chatting to raise heat
+            {t('chat.pointsHeat', { count: Math.round(intimacy.score) })}
           </span>
         </div>
       </div>

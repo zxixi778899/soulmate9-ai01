@@ -10,7 +10,9 @@ import {
   text,
   date,
   index,
+  uniqueIndex,
   uuid,
+  numeric,
 } from "drizzle-orm/pg-core";
 
 //   
@@ -32,6 +34,7 @@ export const profiles = pgTable(
     membership_tier: varchar("membership_tier", { length: 20 }).default("free").notNull(),
     role: varchar("role", { length: 20 }).default('user').notNull(),
     credits_remaining: integer("credits_remaining").default(50).notNull(),
+    extra_girlfriend_slots: integer("extra_girlfriend_slots").default(0).notNull(),
     age_verified: boolean("age_verified").default(false).notNull(),
     age_verified_at: timestamp("age_verified_at", { withTimezone: true }),
     nsfw_enabled: boolean("nsfw_enabled").default(true).notNull(),
@@ -300,6 +303,11 @@ export const subscriptions = pgTable(
       .notNull(),
     stripe_subscription_id: varchar("stripe_subscription_id", { length: 255 }).unique(),
     stripe_customer_id: varchar("stripe_customer_id", { length: 255 }),
+    stripe_price_id: varchar("stripe_price_id", { length: 255 }),
+    unit_amount_cents: integer("unit_amount_cents"),
+    currency: varchar("currency", { length: 8 }),
+    billing_interval: varchar("billing_interval", { length: 16 }),
+    billing_interval_count: integer("billing_interval_count"),
     plan_id: varchar("plan_id", { length: 32 }).notNull(),
     status: varchar("status", { length: 32 }).notNull().default("incomplete"),
     current_period_end: timestamp("current_period_end", { withTimezone: true }),
@@ -322,6 +330,7 @@ export const purchaseHistory = pgTable(
     item_type: varchar("item_type", { length: 32 }).notNull(),
     item_id: uuid("item_id"),
     stripe_payment_intent_id: varchar("stripe_payment_intent_id", { length: 255 }),
+    payment_event_id: varchar("payment_event_id", { length: 255 }),
     amount_cents: integer("amount_cents").notNull(),
     status: varchar("status", { length: 32 }).notNull().default("completed"),
     metadata: jsonb("metadata"),
@@ -330,5 +339,30 @@ export const purchaseHistory = pgTable(
   (table) => [
     index("purchase_history_user_id_idx").on(table.user_id),
     index("purchase_history_stripe_id_idx").on(table.stripe_payment_intent_id),
+    uniqueIndex("purchase_history_payment_event_idx").on(table.payment_event_id),
   ]
+);
+
+export const aiModelUsageLogs = pgTable(
+  "ai_model_usage_logs",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    provider: text("provider").notNull(),
+    model_id: text("model_id").notNull(),
+    task_type: text("task_type").notNull(),
+    user_id: uuid("user_id"),
+    girlfriend_id: uuid("girlfriend_id"),
+    input_tokens: integer("input_tokens").notNull().default(0),
+    output_tokens: integer("output_tokens").notNull().default(0),
+    latency_ms: integer("latency_ms").notNull().default(0),
+    cost_usd: numeric("cost_usd", { precision: 14, scale: 8 }).notNull().default("0"),
+    success: boolean("success").notNull().default(true),
+    error_message: text("error_message"),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("ai_model_usage_created_idx").on(table.created_at),
+    index("ai_model_usage_model_created_idx").on(table.model_id, table.created_at),
+    index("ai_model_usage_user_created_idx").on(table.user_id, table.created_at),
+  ],
 );

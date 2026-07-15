@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
       for (const pick of picks) {
         // Prefer holiday/weekend flavors when applicable
-        let content = pick.content;
+        const content = pick.content;
         if (holiday && (pick.category === 'miss_you' || pick.category === 'busy')) {
           // keep emotional base
         }

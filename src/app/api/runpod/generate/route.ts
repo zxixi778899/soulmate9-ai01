@@ -104,27 +104,21 @@ export async function POST(req: NextRequest) {
     }
 
     // // prompt
-    const moderation = moderateText(finalPrompt);
+    const contentMode = process.env.CONTENT_MODE === 'adult' ? 'adult' : 'sfw';
+    const moderation = moderateText(finalPrompt, contentMode);
     if (!moderation.allowed) {
       logger.warn('RunPod prompt blocked by moderation', {
         userId: user.id,
         reason: moderation.reason,
-        matched: moderation.matchedPattern,
+        contentMode,
       });
       return NextResponse.json(
         { error: 'Prompt violates content policy.', reason: moderation.reason },
         { status: 400 },
       );
     }
-    if (finalNegative) {
-      const negMod = moderateText(finalNegative);
-      if (!negMod.allowed) {
-        return NextResponse.json(
-          { error: 'Negative prompt violates content policy.', reason: negMod.reason },
-          { status: 400 },
-        );
-      }
-    }
+    // Negative prompts commonly contain prohibited concepts specifically to
+    // exclude them from output, so they must not be evaluated as user intent.
 
     const width = size?.width ?? 768;
     const height = size?.height ?? 1024;

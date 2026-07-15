@@ -6,7 +6,8 @@
  *   COZE_SUPABASE_SERVICE_ROLE_KEY / SUPABASE_SERVICE_ROLE_KEY
  *
  * Optional:
- *   SUPABASE_STORAGE_BUCKET  (default: portraits)
+ *   SUPABASE_STORAGE_BUCKET          public catalog/admin assets (default: portraits)
+ *   SUPABASE_PRIVATE_STORAGE_BUCKET  private user/chat media (default: user-media)
  *
  * Deprecated / ignored for uploads:
  *   COZE_BUCKET_NAME, COZE_BUCKET_ENDPOINT_URL  (old Coze S3 proxy)
@@ -16,11 +17,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 
 const URL_CACHE: Map<string, { url: string; expiresAt: number }> = new Map();
-const URL_TTL_SEC = 30 * 24 * 60 * 60; // 30 days (for signed URLs)
+const URL_TTL_SEC = 6 * 24 * 60 * 60; // refresh before 7-day signatures expire
 const SIGNED_TTL_SEC = 7 * 24 * 60 * 60; // 7 days signed if bucket private
+const PRIVATE_KEY_PREFIX = 'private:';
 
 let _admin: SupabaseClient | null = null;
-let _bucketEnsured = false;
+const ensuredBuckets = new Set<string>();
 
 function env(...keys: string[]): string | undefined {
   for (const k of keys) {
@@ -65,6 +67,29 @@ export function resolveBucketName(): string {
   );
 }
 
+export function resolvePrivateBucketName(): string {
+  return env('SUPABASE_PRIVATE_STORAGE_BUCKET') || 'user-media';
+}
+
+function privateStoragePath(key: string): boolean {
+  return /^(?:chat[_/-]|portraits?\/|generated\/|user(?:s)?\/|wardrobe\/|memories\/|uploads\/)/i.test(key);
+}
+
+function storageLocation(value: string): { bucket: string; key: string; isPrivate: boolean } {
+  if (value.startsWith(PRIVATE_KEY_PREFIX)) {
+    return {
+      bucket: resolvePrivateBucketName(),
+      key: value.slice(PRIVATE_KEY_PREFIX.length),
+      isPrivate: true,
+    };
+  }
+  return { bucket: resolveBucketName(), key: value, isPrivate: false };
+}
+
+function storedKey(key: string, isPrivate: boolean): string {
+  return isPrivate ? `${PRIVATE_KEY_PREFIX}${key}` : key;
+}
+
 function adminClient(): SupabaseClient {
   if (_admin) return _admin;
   _admin = createClient(getSupabaseUrl(), getServiceRoleKey(), {
@@ -101,13 +126,13 @@ export const STORAGE_ALLOWED_MIME = [
   ...BINARY_MIME,
 ] as const;
 
-async function ensureBucket(bucket: string): Promise<void> {
-  if (_bucketEnsured) return;
+async function ensureBucket(bucket: string, isPublic: boolean): Promise<void> {
+  if (ensuredBuckets.has(bucket)) return;
   try {
     const { data: list } = await adminClient().storage.listBuckets();
     const exists = (list || []).some((b) => b.name === bucket);
     const bucketOpts = {
-      public: true,
+      public: isPublic,
       // Videos / SVGA gifts can be larger than stills
       fileSizeLimit: 50 * 1024 * 1024,
       allowedMimeTypes: [...STORAGE_ALLOWED_MIME],
@@ -120,7 +145,7 @@ async function ensureBucket(bucket: string): Promise<void> {
           err: error.message,
         });
       } else {
-        logger.info('[storage] created public bucket', { bucket });
+        logger.info('[storage] created bucket', { bucket, public: isPublic });
       }
     } else {
       // Best-effort: expand MIME allowlist so SVGA/audio uploads are not rejected
@@ -136,7 +161,7 @@ async function ensureBucket(bucket: string): Promise<void> {
         /* ignore — bucket may already be correct or plan-restricted */
       }
     }
-    _bucketEnsured = true;
+    ensuredBuckets.add(bucket);
   } catch (e) {
     logger.warn('[storage] ensureBucket error', {
       err: e instanceof Error ? e.message : String(e),
@@ -189,7 +214,9 @@ export function toPublicUrl(keyOrUrl: string | null | undefined): string {
   if (!keyOrUrl) return '';
   if (isDataUrl(keyOrUrl) || isHttpUrl(keyOrUrl)) return keyOrUrl;
   if (!isLikelyStorageKey(keyOrUrl)) return keyOrUrl;
-  return publicObjectUrl(resolveBucketName(), keyOrUrl.replace(/^\/+/, ''));
+  const location = storageLocation(keyOrUrl);
+  if (location.isPrivate) return '';
+  return publicObjectUrl(location.bucket, location.key.replace(/^\/+/, ''));
 }
 
 /** True if buffer starts with PNG / JPEG / WEBP magic */
@@ -314,38 +341,63 @@ export async function resolveImageUrl(value: string | null | undefined): Promise
   // Never treat a FLUX caption as an image path (was breaking admin previews)
   if (looksLikePromptText(value)) return '';
   if (isDataUrl(value)) return value;
-  if (isHttpUrl(value)) return value;
+  if (isHttpUrl(value)) {
+    try {
+      const parsed = new URL(value);
+      const match = parsed.pathname.match(
+        /\/storage\/v1\/object\/(public|sign)\/([^/]+)\/(.+)$/,
+      );
+      if (!match || match[1] === 'public') return value;
+      const bucket = decodeURIComponent(match[2]);
+      const key = decodeURIComponent(match[3]);
+      const cacheKey = `${PRIVATE_KEY_PREFIX}${key}`;
+      const cachedSigned = URL_CACHE.get(cacheKey);
+      if (cachedSigned && cachedSigned.expiresAt > Date.now()) return cachedSigned.url;
+      const { data, error } = await adminClient().storage.from(bucket).createSignedUrl(key, SIGNED_TTL_SEC);
+      if (error || !data?.signedUrl) return '';
+      URL_CACHE.set(cacheKey, {
+        url: data.signedUrl,
+        expiresAt: Date.now() + URL_TTL_SEC * 1000,
+      });
+      return data.signedUrl;
+    } catch {
+      return value;
+    }
+  }
   if (!isLikelyStorageKey(value)) return value;
 
   const cached = URL_CACHE.get(value);
   if (cached && cached.expiresAt > Date.now()) return cached.url;
 
-  const bucket = resolveBucketName();
-  // Prefer public URL (bucket is public in this project)
-  const publicUrl = publicObjectUrl(bucket, value);
-
-  try {
-    // Quick HEAD-ish: try signed URL if public fails later — for now cache public
+  const location = storageLocation(value);
+  if (!location.isPrivate) {
+    const publicUrl = publicObjectUrl(location.bucket, location.key);
     URL_CACHE.set(value, {
       url: publicUrl,
       expiresAt: Date.now() + URL_TTL_SEC * 1000,
     });
     return publicUrl;
-  } catch (err) {
-    logger.error('[storage] resolveImageUrl failed', { key: value, err });
-    try {
-      const { data, error } = await adminClient()
-        .storage.from(bucket)
-        .createSignedUrl(value, SIGNED_TTL_SEC);
-      if (error || !data?.signedUrl) return publicUrl;
-      URL_CACHE.set(value, {
-        url: data.signedUrl,
-        expiresAt: Date.now() + (SIGNED_TTL_SEC - 600) * 1000,
+  }
+
+  try {
+    const { data, error } = await adminClient()
+      .storage.from(location.bucket)
+      .createSignedUrl(location.key, SIGNED_TTL_SEC);
+    if (error || !data?.signedUrl) {
+      logger.error('[storage] private URL signing failed', {
+        key: location.key,
+        error: error?.message || 'missing signed URL',
       });
-      return data.signedUrl;
-    } catch {
-      return publicUrl;
+      return '';
     }
+    URL_CACHE.set(value, {
+      url: data.signedUrl,
+      expiresAt: Date.now() + URL_TTL_SEC * 1000,
+    });
+    return data.signedUrl;
+  } catch (error) {
+    logger.error('[storage] resolve private image URL failed', { key: location.key, error });
+    return '';
   }
 }
 
@@ -406,9 +458,6 @@ export async function uploadFile(
   contentType = 'application/octet-stream',
   folder = 'uploads',
 ): Promise<{ key: string; url: string }> {
-  const bucket = resolveBucketName();
-  await ensureBucket(bucket);
-
   const ts = Date.now();
   const rand = Math.random().toString(36).slice(2, 8);
   const safeName = fileName.replace(/[^a-zA-Z0-9._\-/]/g, '_');
@@ -419,6 +468,9 @@ export async function uploadFile(
       : safeName.includes('/')
         ? safeName
         : `uploads/${ts}_${rand}_${safeName}`;
+  const isPrivate = privateStoragePath(key);
+  const bucket = isPrivate ? resolvePrivateBucketName() : resolveBucketName();
+  await ensureBucket(bucket, !isPrivate);
 
   if (!buffer || buffer.length < 32) {
     throw new Error(`uploadFile: empty or invalid buffer (${buffer?.length ?? 0} bytes)`);
@@ -432,7 +484,7 @@ export async function uploadFile(
     const { error } = await adminClient().storage.from(bucket).upload(key, buffer, {
       contentType: ct,
       upsert: true,
-      cacheControl: 'public, max-age=31536000',
+      cacheControl: isPrivate ? 'private, max-age=604800' : 'public, max-age=31536000',
     });
     if (!error) {
       usedType = ct;
@@ -470,24 +522,25 @@ export async function uploadFile(
 
   logger.info('[storage] upload content-type', { key, contentType: usedType });
 
-  // Prefer SDK public URL (works when bucket is public)
   let url = publicObjectUrl(bucket, key);
-  try {
-    const { data: pub } = adminClient().storage.from(bucket).getPublicUrl(key);
-    if (pub?.publicUrl) url = pub.publicUrl;
-  } catch {
-    /* keep constructed */
-  }
-
-  // Optional: force signed URLs for private buckets
-  if (process.env.SUPABASE_STORAGE_SIGNED === '1') {
+  if (isPrivate) {
     try {
       const { data: signed, error: signErr } = await adminClient()
         .storage.from(bucket)
         .createSignedUrl(key, SIGNED_TTL_SEC);
-      if (!signErr && signed?.signedUrl) url = signed.signedUrl;
+      if (signErr || !signed?.signedUrl) {
+        throw new Error(signErr?.message || 'missing signed URL');
+      }
+      url = signed.signedUrl;
     } catch {
-      /* keep public */
+      throw new Error(`Upload succeeded but private URL signing failed for ${key}`);
+    }
+  } else {
+    try {
+      const { data: pub } = adminClient().storage.from(bucket).getPublicUrl(key);
+      if (pub?.publicUrl) url = pub.publicUrl;
+    } catch {
+      /* keep constructed public URL */
     }
   }
 
@@ -497,7 +550,7 @@ export async function uploadFile(
     bytes: buffer.length,
     url: url.slice(0, 100),
   });
-  return { key, url };
+  return { key: storedKey(key, isPrivate), url };
 }
 
 /**
@@ -530,9 +583,13 @@ export function extractKeyFromUrl(value: string | null | undefined): string | nu
       const u = new URL(value);
       // /storage/v1/object/public/<bucket>/<key>
       const m = u.pathname.match(
-        /\/storage\/v1\/object\/(?:public|sign)\/[^/]+\/(.+)$/,
+        /\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)$/,
       );
-      if (m?.[1]) return decodeURIComponent(m[1]);
+      if (m?.[1] && m?.[2]) {
+        const bucket = decodeURIComponent(m[1]);
+        const key = decodeURIComponent(m[2]);
+        return storedKey(key, bucket === resolvePrivateBucketName());
+      }
       const path = u.pathname.replace(/^\/+/, '');
       const legacy = path.match(
         /(girlfriends\/[^?]+|uploads\/[^?]+|images\/[^?]+|generated\/[^?]+|batch-portraits\/[^?]+|comfy-outputs\/[^?]+|portraits\/[^?]+)/,
@@ -547,8 +604,8 @@ export function extractKeyFromUrl(value: string | null | undefined): string | nu
 
 export async function deleteFile(key: string): Promise<void> {
   try {
-    const bucket = resolveBucketName();
-    const { error } = await adminClient().storage.from(bucket).remove([key]);
+    const location = storageLocation(key);
+    const { error } = await adminClient().storage.from(location.bucket).remove([location.key]);
     if (error) logger.error('[storage] deleteFile failed:', { key, err: error.message });
   } catch (err) {
     logger.error('[storage] deleteFile failed:', { key, err });
@@ -600,7 +657,7 @@ export async function createVideoSignedUpload(opts: {
   }
 
   const bucket = resolveBucketName();
-  await ensureBucket(bucket);
+  await ensureBucket(bucket, true);
 
   const ext = videoExtFromContentType(contentType, opts.fileName);
   const ts = Date.now();

@@ -3,6 +3,10 @@ import { getStripe } from '@/lib/stripe-server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
+import { getStripeCheckoutGate, stripeGateMessage } from '@/lib/payment-compliance';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+
+const CHANGE_PLAN_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
 
 /**
  * POST /api/stripe/change-plan
@@ -12,9 +16,25 @@ import { logger } from '@/lib/logger';
  */
 export async function POST(req: NextRequest) {
   try {
+    const paymentGate = getStripeCheckoutGate();
+    if (!paymentGate.allowed) {
+      return NextResponse.json(
+        { error: stripeGateMessage(paymentGate), code: paymentGate.code },
+        { status: 503 },
+      );
+    }
+
     const { user, error } = await getAuthUser(req);
     if (error || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const limit = await checkRateLimitAsync(`stripe-change-plan:${user.id}`, CHANGE_PLAN_LIMIT);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many plan changes. Please try again later.' },
+        { status: 429, headers: rateLimitHeaders(limit, CHANGE_PLAN_LIMIT) },
+      );
     }
 
     const { plan } = (await req.json()) as { plan?: string };
@@ -33,13 +53,26 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('stripe_subscription_id, membership_tier')
+      .select('membership_tier')
       .eq('user_id', user.id)
       .single();
-
-    if (!profile?.stripe_subscription_id) {
+    if (profileError) {
+      throw new Error(`Failed to load membership: ${profileError.message}`);
+    }
+    const { data: subscriptionRecord, error: subscriptionError } = await supabase
+      .from('subscriptions')
+      .select('stripe_subscription_id')
+      .eq('user_id', user.id)
+      .in('status', ['active', 'trialing', 'past_due'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (subscriptionError) {
+      throw new Error(`Failed to load subscription: ${subscriptionError.message}`);
+    }
+    if (!subscriptionRecord?.stripe_subscription_id) {
       return NextResponse.json({ error: 'No active subscription' }, { status: 404 });
     }
     if (profile.membership_tier === plan) {
@@ -47,23 +80,18 @@ export async function POST(req: NextRequest) {
     }
 
     const stripe = getStripe();
-    const sub = await stripe.subscriptions.retrieve(profile.stripe_subscription_id as string);
+    const subscriptionId = subscriptionRecord.stripe_subscription_id;
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
     const itemId = sub.items.data[0]?.id;
     if (!itemId) {
       return NextResponse.json({ error: 'Subscription item not found' }, { status: 500 });
     }
 
-    const updated = await stripe.subscriptions.update(profile.stripe_subscription_id as string, {
+    const updated = await stripe.subscriptions.update(subscriptionId, {
       items: [{ id: itemId, price: newPriceId }],
       proration_behavior: 'create_prorations',
       metadata: { user_id: user.id, plan },
     });
-
-    //  webhook 
-    await supabase
-      .from('profiles')
-      .update({ membership_tier: plan })
-      .eq('user_id', user.id);
 
     // Stripe v2025: current_period_end  items.data[0]
     const updatedAny = updated as unknown as {

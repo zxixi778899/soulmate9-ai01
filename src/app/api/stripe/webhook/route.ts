@@ -1,417 +1,441 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStripe } from '@/lib/stripe-server';
-import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
-import { grantBonusSeats } from '@/lib/companion-seats';
 import { capture, AnalyticsEvents } from '@/lib/analytics';
 import { captureException } from '@/lib/sentry';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 
-function getAdminClient(): SupabaseClient {
-  return getSupabaseClient();
+type DatabaseError = { message: string; code?: string } | null;
+type ClaimResult = { claimed: boolean; attempts: number };
+type WalletResult = { applied: boolean; balance: number; ledger_id: string };
+type SeatResult = { applied: boolean; total_bonus_seats: number };
+const WEBHOOK_EVENT_LIMIT = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
+
+function assertDatabaseSuccess(error: DatabaseError, operation: string): void {
+  if (error) throw new Error(`${operation}: ${error.message}`);
 }
 
-async function tryRecordEvent(
+function stripeId(value: string | { id: string } | null): string | null {
+  if (!value) return null;
+  return typeof value === 'string' ? value : value.id;
+}
+
+async function claimEvent(
+  admin: SupabaseClient,
+  event: Stripe.Event,
+): Promise<boolean> {
+  const { data, error } = await admin.rpc('claim_stripe_webhook_event', {
+    p_event_id: event.id,
+    p_event_type: event.type,
+  });
+  assertDatabaseSuccess(error, 'claim Stripe webhook event');
+  const result = (data as ClaimResult[] | null)?.[0];
+  if (!result) throw new Error('claim Stripe webhook event returned no result');
+  return result.claimed;
+}
+
+async function setEventComplete(admin: SupabaseClient, eventId: string): Promise<void> {
+  const { error } = await admin.rpc('complete_stripe_webhook_event', {
+    p_event_id: eventId,
+  });
+  assertDatabaseSuccess(error, 'complete Stripe webhook event');
+}
+
+async function setEventFailed(
   admin: SupabaseClient,
   eventId: string,
-  eventType: string,
-): Promise<boolean> {
-  const { error } = await admin
-    .from('stripe_webhook_events')
-    .insert({ event_id: eventId, event_type: eventType, processed_at: new Date().toISOString() });
-  if (!error) return true;
-  const msg = (error.message || '').toLowerCase();
-  if (msg.includes('duplicate') || msg.includes('unique') || error.code === '23505') {
-    return false;
+  errorMessage: string,
+): Promise<void> {
+  const { error } = await admin.rpc('fail_stripe_webhook_event', {
+    p_event_id: eventId,
+    p_error: errorMessage,
+  });
+  if (error) {
+    logger.error('stripe-webhook: failed to persist event failure', {
+      eventId,
+      error: error.message,
+    });
   }
-  if (msg.includes('does not exist') || msg.includes('not found')) {
-    logger.warn('stripe-webhook: stripe_webhook_events table missing, skipping dedupe');
-    return true;
-  }
-  logger.error('stripe-webhook: dedupe insert error', { error });
-  return true;
 }
 
-export async function POST(req: NextRequest) {
+async function recordPurchase(
+  admin: SupabaseClient,
+  eventId: string,
+  purchase: {
+    user_id: string;
+    item_type: 'tokens' | 'subscription';
+    stripe_payment_intent_id: string | null;
+    amount_cents: number;
+    metadata: Record<string, string | number | null | undefined>;
+  },
+): Promise<void> {
+  const { error } = await admin.from('purchase_history').upsert(
+    {
+      ...purchase,
+      payment_event_id: eventId,
+      status: 'completed',
+    },
+    { onConflict: 'payment_event_id', ignoreDuplicates: true },
+  );
+  assertDatabaseSuccess(error, 'record purchase history');
+}
+
+async function handleCheckoutCompleted(
+  admin: SupabaseClient,
+  event: Stripe.Event,
+): Promise<void> {
+  const session = event.data.object as Stripe.Checkout.Session & {
+    subscription_details?: { current_period_end?: number };
+  };
+  const userId = session.metadata?.user_id || session.client_reference_id;
+  if (!userId) throw new Error('checkout session is missing trusted user_id metadata');
+
+  const metaType = session.metadata?.type || 'subscription';
+  if (metaType === 'companion_seats') {
+    const seatCount = Number(session.metadata?.seats || 0);
+    if (!Number.isSafeInteger(seatCount) || seatCount <= 0) {
+      throw new Error('companion seat checkout has an invalid quantity');
+    }
+    const { data, error } = await admin.rpc('grant_companion_seats_idempotent', {
+      p_user_id: userId,
+      p_seats: seatCount,
+      p_idempotency_key: `stripe:${event.id}:companion_seats`,
+      p_metadata: {
+        session_id: session.id,
+        package_id: session.metadata?.package_id,
+      },
+    });
+    assertDatabaseSuccess(error, 'grant companion seats');
+    const result = (data as SeatResult[] | null)?.[0];
+    if (!result) throw new Error('grant companion seats returned no result');
+    logger.info('stripe-webhook: companion seats fulfilled', {
+      userId,
+      seatCount,
+      totalBonusSeats: result.total_bonus_seats,
+      applied: result.applied,
+      eventId: event.id,
+    });
+    return;
+  }
+
+  if (metaType === 'tokens') {
+    const tokenCount = Number(session.metadata?.token_count || 0);
+    if (!Number.isSafeInteger(tokenCount) || tokenCount <= 0) {
+      throw new Error('token checkout has an invalid quantity');
+    }
+    const { data, error } = await admin.rpc('apply_wallet_ledger', {
+      p_user_id: userId,
+      p_amount: tokenCount,
+      p_reason: 'Stripe token pack purchase',
+      p_reference_type: 'stripe_checkout',
+      p_reference_id: session.id,
+      p_idempotency_key: `stripe:${event.id}:tokens`,
+      p_metadata: {
+        session_id: session.id,
+        package_id: session.metadata?.package_id,
+      },
+    });
+    assertDatabaseSuccess(error, 'credit token wallet');
+    const result = (data as WalletResult[] | null)?.[0];
+    if (!result) throw new Error('credit token wallet returned no result');
+
+    await recordPurchase(admin, event.id, {
+      user_id: userId,
+      item_type: 'tokens',
+      stripe_payment_intent_id: stripeId(session.payment_intent),
+      amount_cents: session.amount_total || 0,
+      metadata: {
+        package_id: session.metadata?.package_id,
+        token_count: tokenCount,
+        session_id: session.id,
+        ledger_id: result.ledger_id,
+      },
+    });
+    logger.info('stripe-webhook: tokens fulfilled', {
+      userId,
+      tokenCount,
+      balance: result.balance,
+      applied: result.applied,
+      eventId: event.id,
+    });
+    capture(userId, AnalyticsEvents.SUBSCRIPTION_STARTED, {
+      plan: 'tokens',
+      token_count: tokenCount,
+      amount_cents: session.amount_total || 0,
+      stripe_session_id: session.id,
+      route: 'stripe-webhook',
+    });
+    return;
+  }
+
+  const plan = session.metadata?.plan || 'pro';
+  const billing = session.metadata?.billing || 'monthly';
+  const tierMap: Record<string, 'pro' | 'unlimited'> = {
+    pro: 'pro',
+    pro_yearly: 'pro',
+    premium: 'pro',
+    unlimited: 'unlimited',
+    unlimited_yearly: 'unlimited',
+  };
+  const tier = tierMap[plan];
+  if (!tier) throw new Error(`unsupported subscription plan: ${plan}`);
+  const subscriptionId = stripeId(session.subscription);
+  if (!subscriptionId) throw new Error('subscription checkout is missing subscription id');
+  const periodDays = billing === 'yearly' || plan.endsWith('_yearly') ? 365 : 30;
+  const stripeSubscription = await getStripe().subscriptions.retrieve(subscriptionId);
+  const subscriptionPrice = stripeSubscription.items.data[0]?.price;
+  const recurring = subscriptionPrice?.recurring;
+
+  const { error: profileError } = await admin
+    .from('profiles')
+    .update({ membership_tier: tier, updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  assertDatabaseSuccess(profileError, 'upgrade profile membership');
+
+  const { error: subscriptionError } = await admin.from('subscriptions').upsert(
+    {
+      user_id: userId,
+      stripe_subscription_id: subscriptionId,
+      stripe_customer_id: stripeId(session.customer),
+      stripe_price_id: subscriptionPrice?.id || null,
+      unit_amount_cents: subscriptionPrice?.unit_amount || null,
+      currency: subscriptionPrice?.currency || null,
+      billing_interval: recurring?.interval || null,
+      billing_interval_count: recurring?.interval_count || null,
+      plan_id: plan,
+      status: 'active',
+      current_period_end: session.subscription_details?.current_period_end
+        ? new Date(session.subscription_details.current_period_end * 1000).toISOString()
+        : new Date(Date.now() + periodDays * 86_400_000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'stripe_subscription_id' },
+  );
+  assertDatabaseSuccess(subscriptionError, 'upsert subscription');
+
+  await recordPurchase(admin, event.id, {
+    user_id: userId,
+    item_type: 'subscription',
+    stripe_payment_intent_id: stripeId(session.payment_intent),
+    amount_cents: session.amount_total || 0,
+    metadata: { plan, billing, session_id: session.id },
+  });
+  capture(userId, AnalyticsEvents.SUBSCRIPTION_STARTED, {
+    plan,
+    tier,
+    billing,
+    amount_cents: session.amount_total || 0,
+    stripe_session_id: session.id,
+    route: 'stripe-webhook',
+  });
+  logger.info('stripe-webhook: subscription checkout fulfilled', {
+    userId,
+    tier,
+    plan,
+    eventId: event.id,
+  });
+}
+
+async function resolveSubscriptionUser(
+  admin: SupabaseClient,
+  metadataUserId: string | undefined,
+  stripeCustomerId: string | null,
+): Promise<string | undefined> {
+  if (metadataUserId) return metadataUserId;
+  if (!stripeCustomerId) return undefined;
+  const { data, error } = await admin
+    .from('subscriptions')
+    .select('user_id')
+    .eq('stripe_customer_id', stripeCustomerId)
+    .limit(1)
+    .maybeSingle();
+  assertDatabaseSuccess(error, 'resolve subscription user');
+  return data?.user_id;
+}
+
+async function handlePaymentFailed(admin: SupabaseClient, event: Stripe.Event): Promise<void> {
+  const invoice = event.data.object as Stripe.Invoice;
+  const customerId = stripeId(invoice.customer);
+  const userId = await resolveSubscriptionUser(admin, invoice.metadata?.user_id, customerId);
+  if (!userId) {
+    logger.warn('stripe-webhook: payment failed for unresolved user', {
+      customerId,
+      invoiceId: invoice.id,
+    });
+    return;
+  }
+  if (customerId) {
+    const { error } = await admin
+      .from('subscriptions')
+      .update({ status: 'past_due', updated_at: new Date().toISOString() })
+      .eq('stripe_customer_id', customerId);
+    assertDatabaseSuccess(error, 'mark subscription past due');
+  }
+  logger.warn('stripe-webhook: payment failed; grace access retained', {
+    userId,
+    customerId,
+    invoiceId: invoice.id,
+  });
+}
+
+function tierFromSubscription(subscription: Stripe.Subscription): 'pro' | 'unlimited' {
+  const price = subscription.items.data[0]?.price;
+  const configuredUnlimited = new Set([
+    process.env.STRIPE_UNLIMITED_PRICE_ID,
+    process.env.STRIPE_UNLIMITED_YEARLY_PRICE_ID,
+    process.env.NEXT_PUBLIC_STRIPE_UNLIMITED_PRICE_ID,
+  ].filter((value): value is string => Boolean(value)));
+  const planHint = `${subscription.metadata?.plan || ''} ${price?.lookup_key || ''}`.toLowerCase();
+  return configuredUnlimited.has(price?.id || '') || planHint.includes('unlimited')
+    ? 'unlimited'
+    : 'pro';
+}
+
+async function handleSubscriptionUpdated(
+  admin: SupabaseClient,
+  event: Stripe.Event,
+): Promise<void> {
+  const subscription = event.data.object as Stripe.Subscription;
+  const customerId = stripeId(subscription.customer);
+  const userId = await resolveSubscriptionUser(admin, subscription.metadata?.user_id, customerId);
+  if (!userId) throw new Error('subscription update could not resolve user');
+
+  const tier = tierFromSubscription(subscription);
+  const shouldDowngrade = subscription.status === 'canceled' || subscription.status === 'unpaid';
+  const shouldUpgrade = subscription.status === 'active' || subscription.status === 'trialing';
+  const { error: subscriptionError } = await admin
+    .from('subscriptions')
+    .update({
+      plan_id: subscription.items.data[0]?.price?.lookup_key || subscription.items.data[0]?.price?.id || tier,
+      stripe_price_id: subscription.items.data[0]?.price?.id || null,
+      unit_amount_cents: subscription.items.data[0]?.price?.unit_amount || null,
+      currency: subscription.items.data[0]?.price?.currency || null,
+      billing_interval: subscription.items.data[0]?.price?.recurring?.interval || null,
+      billing_interval_count: subscription.items.data[0]?.price?.recurring?.interval_count || null,
+      status: subscription.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('stripe_subscription_id', subscription.id);
+  assertDatabaseSuccess(subscriptionError, 'update subscription status');
+
+  if (shouldDowngrade || shouldUpgrade) {
+    const { error: profileError } = await admin
+      .from('profiles')
+      .update({
+        membership_tier: shouldDowngrade ? 'free' : tier,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+    assertDatabaseSuccess(profileError, 'synchronize membership tier');
+  }
+  logger.info('stripe-webhook: subscription synchronized', {
+    userId,
+    subscriptionId: subscription.id,
+    status: subscription.status,
+    tier,
+  });
+}
+
+async function handleSubscriptionDeleted(
+  admin: SupabaseClient,
+  event: Stripe.Event,
+): Promise<void> {
+  const subscription = event.data.object as Stripe.Subscription;
+  const customerId = stripeId(subscription.customer);
+  const userId = await resolveSubscriptionUser(admin, subscription.metadata?.user_id, customerId);
+  if (!userId) throw new Error('deleted subscription could not resolve user');
+
+  const { error: profileError } = await admin
+    .from('profiles')
+    .update({ membership_tier: 'free', updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  assertDatabaseSuccess(profileError, 'downgrade canceled subscription');
+  const { error: subscriptionError } = await admin
+    .from('subscriptions')
+    .update({ status: 'canceled', updated_at: new Date().toISOString() })
+    .eq('stripe_subscription_id', subscription.id);
+  assertDatabaseSuccess(subscriptionError, 'mark subscription canceled');
+  capture(userId, AnalyticsEvents.SUBSCRIPTION_CANCELED, {
+    stripe_subscription_id: subscription.id,
+    route: 'stripe-webhook',
+  });
+}
+
+async function processEvent(admin: SupabaseClient, event: Stripe.Event): Promise<void> {
+  switch (event.type) {
+    case 'checkout.session.completed':
+      await handleCheckoutCompleted(admin, event);
+      break;
+    case 'invoice.payment_failed':
+      await handlePaymentFailed(admin, event);
+      break;
+    case 'customer.subscription.updated':
+      await handleSubscriptionUpdated(admin, event);
+      break;
+    case 'customer.subscription.deleted':
+      await handleSubscriptionDeleted(admin, event);
+      break;
+    default:
+      logger.info('stripe-webhook: event acknowledged without handler', {
+        eventId: event.id,
+        eventType: event.type,
+      });
+  }
+}
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const body = await req.text();
   const signature = req.headers.get('stripe-signature') || '';
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    logger.error('stripe-webhook: STRIPE_WEBHOOK_SECRET is not configured');
+    return NextResponse.json({ error: 'Webhook unavailable' }, { status: 503 });
+  }
 
-  let event;
+  let event: Stripe.Event;
   try {
-    const stripe = getStripe();
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!webhookSecret) {
-      logger.error('stripe-webhook: STRIPE_WEBHOOK_SECRET not configured, ignoring event to avoid retry storm');
-      return NextResponse.json({ received: true, ignored: true, reason: 'webhook_secret_not_configured' });
-    }
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-  } catch {
+    event = getStripe().webhooks.constructEvent(body, signature, webhookSecret);
+  } catch (error) {
+    logger.warn('stripe-webhook: invalid signature', {
+      error: error instanceof Error ? error.message : 'unknown signature error',
+    });
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
-  if (!event) {
-    return NextResponse.json({ error: 'Failed to construct event' }, { status: 400 });
+  const limit = await checkRateLimitAsync(`stripe-webhook:${event.id}`, WEBHOOK_EVENT_LIMIT);
+  if (!limit.allowed) {
+    logger.warn('stripe-webhook: event retry limit reached', { eventId: event.id });
+    return NextResponse.json(
+      { error: 'Too many webhook retries' },
+      { status: 429, headers: rateLimitHeaders(limit, WEBHOOK_EVENT_LIMIT) },
+    );
   }
 
-  const supabaseAdmin = getAdminClient();
-  const isFirst = await tryRecordEvent(supabaseAdmin, event.id, event.type);
-  if (!isFirst) {
-    logger.info('stripe-webhook: duplicate event ignored', { eventId: event.id });
-    return NextResponse.json({ received: true, duplicate: true });
+  const admin = getSupabaseClient();
+  try {
+    const claimed = await claimEvent(admin, event);
+    if (!claimed) {
+      logger.info('stripe-webhook: completed duplicate ignored', { eventId: event.id });
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+    await processEvent(admin, event);
+    await setEventComplete(admin, event.id);
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown webhook error';
+    await setEventFailed(admin, event.id, message);
+    logger.error('stripe-webhook: processing failed', {
+      eventId: event.id,
+      eventType: event.type,
+      error: message,
+    });
+    captureException(error, {
+      tags: { handler: 'stripe-webhook', eventType: event.type },
+      extra: { eventId: event.id },
+    });
+    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
-
-  if (event.type === 'checkout.session.completed') {
-    // `subscription_details.current_period_end` is present on the raw Stripe
-    // payload for subscription-mode checkout sessions but isn't always in the
-    // installed SDK's type definitions across versions, so we extend narrowly
-    // instead of casting the whole object to `any`.
-    const session = event.data.object as Stripe.Checkout.Session & {
-      subscription_details?: { current_period_end?: number };
-    };
-    const userId = session.metadata?.user_id || session.client_reference_id;
-    const metaType = session.metadata?.type || 'subscription';
-
-    if (metaType === 'companion_seats') {
-      if (!userId) {
-        logger.error('stripe-webhook: companion_seats missing user_id', { sessionId: session.id });
-        return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
-      }
-      const seatCount = Number(session.metadata?.seats || 0);
-      if (seatCount > 0) {
-        try {
-          const next = await grantBonusSeats(supabaseAdmin, userId, seatCount);
-          logger.info('stripe-webhook: companion seats granted', {
-            userId,
-            seatCount,
-            next,
-            sessionId: session.id,
-            package_id: session.metadata?.package_id,
-          });
-        } catch (err) {
-          logger.error('stripe-webhook: seat grant failed', { err: String(err), userId });
-          throw err;
-        }
-      }
-      return NextResponse.json({ received: true, type: 'companion_seats' });
-    }
-
-
-    if (!userId) {
-      logger.error('stripe-webhook: No user_id in Stripe session metadata', { sessionId: session.id });
-      return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
-    }
-
-    // ── One-time token / credit pack purchase ──────────────────────
-    if (metaType === 'tokens') {
-      const tokenCount = Number(session.metadata?.token_count || 0);
-      if (tokenCount > 0) {
-        // Prefer user_tokens balance; also bump profiles.credits_remaining for legacy UI
-        const { data: existing } = await supabaseAdmin
-          .from('user_tokens')
-          .select('balance_tokens')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (existing) {
-          await supabaseAdmin
-            .from('user_tokens')
-            .update({
-              balance_tokens: Number(existing.balance_tokens || 0) + tokenCount,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', userId);
-        } else {
-          await supabaseAdmin.from('user_tokens').insert({
-            user_id: userId,
-            balance_tokens: tokenCount,
-            updated_at: new Date().toISOString(),
-          });
-        }
-
-        const { data: profile } = await supabaseAdmin
-          .from('profiles')
-          .select('credits_remaining')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        await supabaseAdmin
-          .from('profiles')
-          .update({
-            credits_remaining: Number(profile?.credits_remaining || 0) + tokenCount,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', userId);
-
-        try {
-          await supabaseAdmin.from('token_transactions').insert({
-            user_id: userId,
-            amount: tokenCount,
-            type: 'purchase',
-            description: `Stripe pack ${session.metadata?.package_id || ''}`,
-            metadata: { session_id: session.id, package_id: session.metadata?.package_id },
-          });
-        } catch {
-          // table may not exist in older schemas — non-fatal
-        }
-
-        await supabaseAdmin.from('purchase_history').insert({
-          user_id: userId,
-          item_type: 'tokens',
-          stripe_payment_intent_id: session.payment_intent,
-          amount_cents: session.amount_total || 0,
-          status: 'completed',
-          metadata: {
-            package_id: session.metadata?.package_id,
-            token_count: tokenCount,
-            session_id: session.id,
-          },
-        });
-
-        logger.info('stripe-webhook: tokens credited', { userId, tokenCount, sessionId: session.id });
-        capture(userId, AnalyticsEvents.SUBSCRIPTION_STARTED, {
-          plan: 'tokens',
-          token_count: tokenCount,
-          amount_cents: session.amount_total || 0,
-          stripe_session_id: session.id,
-          route: 'stripe-webhook',
-        });
-      }
-    } else {
-      // ── Subscription (monthly or yearly) ─────────────────────────
-      const plan = session.metadata?.plan || 'pro';
-      const billing = session.metadata?.billing || 'monthly';
-      const tierMap: Record<string, string> = {
-        pro: 'pro',
-        pro_yearly: 'pro',
-        unlimited: 'unlimited',
-        unlimited_yearly: 'unlimited',
-        premium: 'pro',
-      };
-      const tier = tierMap[plan] || 'pro';
-      const periodDays = billing === 'yearly' || plan.endsWith('_yearly') ? 365 : 30;
-
-      await supabaseAdmin
-        .from('profiles')
-        .update({ membership_tier: tier, updated_at: new Date().toISOString() })
-        .eq('user_id', userId);
-
-      await supabaseAdmin
-        .from('subscriptions')
-        .upsert({
-          user_id: userId,
-          stripe_subscription_id: session.subscription,
-          stripe_customer_id: session.customer,
-          plan_id: plan,
-          status: 'active',
-          current_period_end: session.subscription_details?.current_period_end
-            ? new Date(session.subscription_details.current_period_end * 1000).toISOString()
-            : new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'stripe_subscription_id' });
-
-      await supabaseAdmin
-        .from('purchase_history')
-        .insert({
-          user_id: userId,
-          item_type: 'subscription',
-          stripe_payment_intent_id: session.payment_intent,
-          amount_cents: session.amount_total || 0,
-          status: 'completed',
-          metadata: { plan, billing, session_id: session.id },
-        });
-
-      logger.info('stripe-webhook: user upgraded', { userId, tier, plan, billing, sessionId: session.id });
-      capture(userId, AnalyticsEvents.SUBSCRIPTION_STARTED, {
-        plan,
-        tier,
-        billing,
-        amount_cents: session.amount_total || 0,
-        stripe_session_id: session.id,
-        route: 'stripe-webhook',
-      });
-    }
-  }
-
-  // ── invoice.payment_failed ────────────────────────────────────────
-  if (event.type === 'invoice.payment_failed') {
-    try {
-      const invoice = event.data.object as Stripe.Invoice;
-      const stripeCustomerId: string | undefined =
-        typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
-
-      // Resolve user_id: prefer subscription metadata, fall back to DB lookup
-      let userId: string | undefined = invoice.metadata?.user_id;
-      if (!userId && stripeCustomerId) {
-        const { data: sub } = await supabaseAdmin
-          .from('subscriptions')
-          .select('user_id')
-          .eq('stripe_customer_id', stripeCustomerId)
-          .limit(1)
-          .maybeSingle();
-        userId = sub?.user_id;
-      }
-
-      if (userId) {
-        await supabaseAdmin
-          .from('profiles')
-          .update({ membership_tier: 'free', updated_at: new Date().toISOString() })
-          .eq('user_id', userId);
-
-        if (stripeCustomerId) {
-          await supabaseAdmin
-            .from('subscriptions')
-            .update({ status: 'past_due', updated_at: new Date().toISOString() })
-            .eq('stripe_customer_id', stripeCustomerId);
-        }
-
-        logger.warn('[stripe-webhook] payment failed — downgraded to free', {
-          userId,
-          stripeCustomerId,
-          invoiceId: invoice.id,
-        });
-      } else {
-        logger.warn('[stripe-webhook] payment failed but could not resolve user', {
-          stripeCustomerId,
-          invoiceId: invoice.id,
-        });
-      }
-    } catch (err) {
-      logger.error('[stripe-webhook] error handling invoice.payment_failed', { error: String(err) });
-      captureException(err, { tags: { handler: 'invoice.payment_failed' } });
-    }
-  }
-
-  // ── customer.subscription.updated ─────────────────────────────────
-  if (event.type === 'customer.subscription.updated') {
-    try {
-      const subscription = event.data.object as Stripe.Subscription;
-      const previousAttributes = event.data.previous_attributes as
-        | Partial<Stripe.Subscription>
-        | undefined;
-      const stripeCustomerId: string =
-        typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
-
-      // Resolve user_id
-      let userId: string | undefined = subscription.metadata?.user_id;
-      if (!userId && stripeCustomerId) {
-        const { data: sub } = await supabaseAdmin
-          .from('subscriptions')
-          .select('user_id')
-          .eq('stripe_customer_id', stripeCustomerId)
-          .limit(1)
-          .maybeSingle();
-        userId = sub?.user_id;
-      }
-
-      const currentStatus: string = subscription.status;
-      const previousStatus: string | undefined = previousAttributes?.status ?? undefined;
-
-      // If status changed to past_due, log warning but do NOT downgrade yet
-      if (currentStatus === 'past_due') {
-        logger.warn('[stripe-webhook] subscription is now past_due — no downgrade yet', {
-          userId,
-          subscriptionId: subscription.id,
-          previousStatus,
-        });
-      }
-
-      // If the plan/price changed, update membership_tier accordingly
-      const prevItems = previousAttributes?.items?.data;
-      const currItems = subscription.items?.data;
-      const planChanged =
-        prevItems && currItems &&
-        prevItems[0]?.price?.id !== currItems[0]?.price?.id;
-
-      if (planChanged && userId) {
-        // Derive tier from the new price lookup key or product metadata
-        const newPriceId: string | undefined = currItems?.[0]?.price?.id ?? undefined;
-        const newLookupKey: string | undefined = currItems?.[0]?.price?.lookup_key ?? undefined;
-
-        const tierMap: Record<string, string> = {
-          pro: 'pro',
-          premium: 'pro',
-          unlimited: 'unlimited',
-        };
-        const newTier = tierMap[newLookupKey || ''] || 'pro';
-
-        await supabaseAdmin
-          .from('profiles')
-          .update({ membership_tier: newTier, updated_at: new Date().toISOString() })
-          .eq('user_id', userId);
-
-        await supabaseAdmin
-          .from('subscriptions')
-          .update({
-            plan_id: newLookupKey || newPriceId || 'unknown',
-            status: currentStatus,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('stripe_subscription_id', subscription.id);
-
-        logger.info('[stripe-webhook] subscription plan changed', {
-          userId,
-          newTier,
-          newPriceId,
-          subscriptionId: subscription.id,
-        });
-      }
-    } catch (err) {
-      logger.error('[stripe-webhook] error handling customer.subscription.updated', { error: String(err) });
-      captureException(err, { tags: { handler: 'customer.subscription.updated' } });
-    }
-  }
-
-  // ── customer.subscription.deleted ─────────────────────────────────
-  if (event.type === 'customer.subscription.deleted') {
-    try {
-      const subscription = event.data.object as Stripe.Subscription;
-      const stripeCustomerId: string | undefined =
-        typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
-
-      // Resolve user_id: prefer metadata, fall back to DB lookup
-      let userId: string | undefined = subscription.metadata?.user_id;
-      if (!userId && stripeCustomerId) {
-        const { data: sub } = await supabaseAdmin
-          .from('subscriptions')
-          .select('user_id')
-          .eq('stripe_customer_id', stripeCustomerId)
-          .limit(1)
-          .maybeSingle();
-        userId = sub?.user_id;
-      }
-
-      if (userId) {
-        await supabaseAdmin
-          .from('profiles')
-          .update({ membership_tier: 'free', updated_at: new Date().toISOString() })
-          .eq('user_id', userId);
-
-        await supabaseAdmin
-          .from('subscriptions')
-          .update({ status: 'canceled', updated_at: new Date().toISOString() })
-          .eq('stripe_subscription_id', subscription.id);
-
-        logger.info('[stripe-webhook] subscription deleted — downgraded to free', {
-          userId,
-          subscriptionId: subscription.id,
-        });
-
-        capture(userId, AnalyticsEvents.SUBSCRIPTION_CANCELED, {
-          stripe_subscription_id: subscription.id,
-          route: 'stripe-webhook',
-        });
-      } else {
-        logger.warn('[stripe-webhook] subscription deleted but could not resolve user', {
-          stripeCustomerId,
-          subscriptionId: subscription.id,
-        });
-      }
-    } catch (err) {
-      logger.error('[stripe-webhook] error handling customer.subscription.deleted', { error: String(err) });
-      captureException(err, { tags: { handler: 'customer.subscription.deleted' } });
-    }
-  }
-
-  return NextResponse.json({ received: true });
 }

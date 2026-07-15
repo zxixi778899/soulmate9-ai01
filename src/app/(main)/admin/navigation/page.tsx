@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { authedFetch } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,7 +104,7 @@ export default function AdminNavigation() {
   if (loading) return (
     <>
     <div className="mx-6 mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
-      导航配置已与 <a className="underline font-medium" href="/admin/pages">页面/导航</a> 合并入口（侧栏仅保留一处）。本页仍可直接编辑导航项。
+      导航配置已与 <Link className="underline font-medium" href="/admin/pages">页面/导航</Link> 合并入口（侧栏仅保留一处）。本页仍可直接编辑导航项。
     </div>
 
     <div className="flex h-full items-center justify-center p-6">

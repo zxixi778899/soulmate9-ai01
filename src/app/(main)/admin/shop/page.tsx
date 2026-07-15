@@ -2,926 +2,284 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
-import { useAuth } from '@/components/AuthProvider';
-import { readResponseJson, errorMessageFromUnknown } from '@/lib/safe-json';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Loader2,
-  Plus,
-  Pencil,
-  Trash2,
-  ShoppingBag,
-  CheckSquare,
-  Square,
-  Upload,
-  ImagePlus,
-  RefreshCw,
-  Search,
-  Tags,
-} from 'lucide-react';
 import { toast } from 'sonner';
-import Link from 'next/link';
-import { logger } from '@/lib/logger';
+import {
+  Archive, Coins, Crown, Film, ImageIcon, Loader2, Package2, Plus, RefreshCw,
+  Search, Shirt, Sparkles, Upload, WandSparkles,
+} from 'lucide-react';
 
-type Collection = 'outfit' | 'prop';
-type TabKey = 'all' | Collection;
+const COLLECTIONS = ['outfit', 'prop', 'membership', 'credits'] as const;
+type Collection = (typeof COLLECTIONS)[number];
 
-type ShopRow = {
+type ShopItem = {
   id: string;
   collection: Collection;
+  sku: string;
   name: string;
   description: string;
-  price_cents: number;
-  tier: string;
   category: string;
-  image_url: string | null;
-  intimacy_boost: number;
-  active: boolean;
-  emoji: string;
-  sort_order: number;
-  item_type: string;
-  visual_type: string;
-  is_gift: boolean;
-  is_limited: boolean;
-  created_at?: string;
-};
-
-type FormState = {
-  collection: Collection;
-  name: string;
-  emoji: string;
-  description: string;
   price_cents: number;
-  tier: string;
-  category: string;
-  visual_type: string;
-  sort_order: number;
+  price_credits: number;
+  image_url: string;
+  video_url: string;
+  effect_asset_url: string;
+  effect_type: string;
+  effect_config: Record<string, unknown>;
+  wear_prompt: string;
+  auto_generate_image: boolean;
+  auto_generate_video: boolean;
+  membership_tier: string;
+  duration_days: number;
+  token_amount: number;
+  rarity: string;
   active: boolean;
-  intimacy_boost: number;
-  item_type: string;
-  is_gift: boolean;
-  is_limited: boolean;
+  featured: boolean;
+  sort_order: number;
 };
 
-const defaultForm: FormState = {
-  collection: 'prop',
-  name: '',
-  emoji: '',
-  description: '',
-  price_cents: 0,
-  tier: 'free',
-  category: 'gift',
-  visual_type: '',
-  sort_order: 0,
-  active: true,
-  intimacy_boost: 0,
-  item_type: 'intimacy_boost',
-  is_gift: false,
-  is_limited: false,
+type FormState = Omit<ShopItem, 'id'>;
+
+const EMPTY: FormState = {
+  collection: 'outfit', sku: '', name: '', description: '', category: 'daily',
+  price_cents: 0, price_credits: 0, image_url: '', video_url: '', effect_asset_url: '',
+  effect_type: '', effect_config: {}, wear_prompt: '', auto_generate_image: true,
+  auto_generate_video: false, membership_tier: '', duration_days: 30, token_amount: 0,
+  rarity: 'common', active: true, featured: false, sort_order: 100,
 };
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'all', label: '全部' },
-  { key: 'outfit', label: '服装' },
-  { key: 'prop', label: '道具' },
-];
-
-const TIER_OPTIONS = ['free', 'pro', 'unlimited', 'premium'];
+const META: Record<Collection, { label: string; note: string; icon: typeof Shirt; color: string }> = {
+  outfit: { label: '服装', note: '赠送后进入女友衣柜，可换装并生成新立绘/视频', icon: Shirt, color: 'from-fuchsia-500 to-pink-500' },
+  prop: { label: '道具', note: '礼物、互动增益、动画与特效资源', icon: WandSparkles, color: 'from-violet-500 to-indigo-500' },
+  membership: { label: '会员', note: '会员等级、有效期与权益说明', icon: Crown, color: 'from-amber-400 to-orange-500' },
+  credits: { label: '积分', note: '积分充值包与赠送积分数量', icon: Coins, color: 'from-cyan-400 to-blue-500' },
+};
 
 function money(cents: number): string {
   return `$${(Number(cents || 0) / 100).toFixed(2)}`;
 }
 
-function rowKey(item: ShopRow): string {
-  return `${item.collection}:${item.id}`;
+function errorMessage(value: unknown): string {
+  return value instanceof Error ? value.message : '操作失败';
 }
 
 export default function AdminShopPage() {
-  const { user } = useAuth();
-  const [items, setItems] = useState<ShopRow[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [counts, setCounts] = useState<{ outfit: number; prop: number; all: number }>({
-    outfit: 0,
-    prop: 0,
-    all: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabKey>('all');
+  const [items, setItems] = useState<ShopItem[]>([]);
+  const [tab, setTab] = useState<'all' | Collection>('all');
+  const [counts, setCounts] = useState<Record<'all' | Collection, number>>({ all: 0, outfit: 0, prop: 0, membership: 0, credits: 0 });
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [bulkPrice, setBulkPrice] = useState('');
-  const [bulkCategory, setBulkCategory] = useState('');
-  const [bulkDescSuffix, setBulkDescSuffix] = useState('');
-  const [batchBusy, setBatchBusy] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<ShopRow | null>(null);
-  const [deleting, setDeleting] = useState<ShopRow | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<FormState>(defaultForm);
-  const [batchText, setBatchText] = useState('');
-  const [batchCollection, setBatchCollection] = useState<Collection>('prop');
-  const [importOpen, setImportOpen] = useState(false);
-  const batchFilesRef = useRef<HTMLInputElement>(null);
-  const rowImageRef = useRef<HTMLInputElement>(null);
-  const [imageTarget, setImageTarget] = useState<ShopRow | null>(null);
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
+  const effectInput = useRef<HTMLInputElement>(null);
+  const [uploadTarget, setUploadTarget] = useState<'image_url' | 'video_url' | 'effect_asset_url'>('image_url');
 
-  const selectedKeys = useMemo(
-    () => Object.keys(selected).filter((k) => selected[k]),
-    [selected],
-  );
-
-  const fetchItems = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const qs = new URLSearchParams();
-      qs.set('collection', tab);
-      if (search.trim()) qs.set('search', search.trim());
-      if (categoryFilter && categoryFilter !== 'all') qs.set('category', categoryFilter);
-      const res = await authedFetch(`/api/admin/shop?${qs.toString()}`);
-      const data = await readResponseJson<{
-        items?: ShopRow[];
-        categories?: string[];
-        counts?: { outfit: number; prop: number; all: number };
-        error?: string;
-      }>(res);
-      if (!res.ok) throw new Error(data.error || '加载失败');
-      setItems(Array.isArray(data.items) ? data.items : []);
-      setCategories(Array.isArray(data.categories) ? data.categories : []);
+      const query = new URLSearchParams({ collection: tab, search });
+      const response = await authedFetch(`/api/admin/shop?${query}`);
+      const data = await response.json() as { items?: ShopItem[]; counts?: typeof counts; error?: string };
+      if (!response.ok) throw new Error(data.error || '商城加载失败');
+      setItems(data.items || []);
       if (data.counts) setCounts(data.counts);
-      setSelected({});
-    } catch (err) {
-      logger.error(String(err));
-      toast.error(errorMessageFromUnknown(err) || '加载商城失败');
+    } catch (error) {
+      logger.error('admin shop load', { error: errorMessage(error) });
+      toast.error(errorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [tab, search, categoryFilter]);
+  }, [search, tab]);
 
-  useEffect(() => {
-    if (!user) return;
-    void fetchItems();
-  }, [user, fetchItems]);
+  useEffect(() => { void load(); }, [load]);
 
-  const resetForm = () => {
-    setForm({
-      ...defaultForm,
-      collection: tab === 'outfit' ? 'outfit' : 'prop',
-      category: tab === 'outfit' ? 'everyday' : 'gift',
-    });
-    setEditing(null);
+  const openCreate = (collection: Collection = tab === 'all' ? 'outfit' : tab) => {
+    setEditingId(null);
+    setForm({ ...EMPTY, collection, category: collection === 'outfit' ? 'daily' : collection });
+    setOpen(true);
   };
 
-  const openAddDialog = () => {
-    resetForm();
-    setDialogOpen(true);
+  const openEdit = (item: ShopItem) => {
+    const { id, ...rest } = item;
+    setEditingId(id);
+    setForm(rest);
+    setOpen(true);
   };
 
-  const openEditDialog = (item: ShopRow) => {
-    setEditing(item);
-    setForm({
-      collection: item.collection,
-      name: item.name || '',
-      emoji: item.emoji || '',
-      description: item.description || '',
-      price_cents: Number(item.price_cents || 0),
-      tier: item.tier || 'free',
-      category: item.category || (item.collection === 'outfit' ? 'everyday' : 'gift'),
-      visual_type: item.visual_type || '',
-      sort_order: Number(item.sort_order || 0),
-      active: item.active !== false,
-      intimacy_boost: Number(item.intimacy_boost || 0),
-      item_type: item.item_type || 'intimacy_boost',
-      is_gift: !!item.is_gift,
-      is_limited: !!item.is_limited,
-    });
-    setDialogOpen(true);
+  const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const handleSave = async () => {
-    if (!form.name.trim()) {
-      toast.error('名称不能为空');
-      return;
-    }
+  const upload = async (file: File, field: 'image_url' | 'video_url' | 'effect_asset_url') => {
+    setUploadTarget(field);
     setSaving(true);
     try {
-      const payload = {
-        id: editing?.id,
-        collection: form.collection,
-        name: form.name.trim(),
-        emoji: form.emoji,
-        description: form.description,
-        price_cents: Number(form.price_cents) || 0,
-        tier: form.tier,
-        category: form.category.trim() || (form.collection === 'outfit' ? 'everyday' : 'gift'),
-        visual_type: form.visual_type,
-        sort_order: Number(form.sort_order) || 0,
-        active: form.active,
-        intimacy_boost: Number(form.intimacy_boost) || 0,
-        item_type: form.item_type,
-        is_gift: form.is_gift,
-        is_limited: form.is_limited,
-      };
-      const res = await authedFetch('/api/admin/shop', {
-        method: editing ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await readResponseJson<{ error?: string }>(res);
-      if (!res.ok) throw new Error(data.error || '保存失败');
-      toast.success(editing ? '已更新' : '已创建');
-      setDialogOpen(false);
-      resetForm();
-      await fetchItems();
-    } catch (err) {
-      logger.error(String(err));
-      toast.error(errorMessageFromUnknown(err) || '保存失败');
+      const body = new FormData();
+      body.append('file', file);
+      const response = await authedFetch('/api/admin/shop', { method: 'POST', body });
+      const data = await response.json() as { url?: string; error?: string };
+      if (!response.ok || !data.url) throw new Error(data.error || '上传失败');
+      update(field, data.url);
+      toast.success(field === 'image_url' ? '图片已上传' : field === 'video_url' ? '视频已上传' : '特效文件已上传');
+    } catch (error) {
+      toast.error(errorMessage(error));
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!deleting) return;
+  const save = async () => {
+    if (!form.name.trim() || !form.description.trim()) {
+      toast.error('请填写商品名称和说明');
+      return;
+    }
     setSaving(true);
     try {
-      const res = await authedFetch(
-        `/api/admin/shop?id=${encodeURIComponent(deleting.id)}&collection=${deleting.collection}`,
-        { method: 'DELETE' },
-      );
-      const data = await readResponseJson<{ error?: string }>(res);
-      if (!res.ok) throw new Error(data.error || '删除失败');
-      toast.success('已删除');
-      setDeleteDialogOpen(false);
-      setDeleting(null);
-      await fetchItems();
-    } catch (err) {
-      logger.error(String(err));
-      toast.error(errorMessageFromUnknown(err) || '删除失败');
+      const response = await authedFetch('/api/admin/shop', {
+        method: editingId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, id: editingId || undefined }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || '保存失败');
+      toast.success(editingId ? '商品已更新' : '商品已创建');
+      setOpen(false);
+      await load();
+    } catch (error) {
+      logger.error('admin shop save', { error: errorMessage(error) });
+      toast.error(errorMessage(error));
     } finally {
       setSaving(false);
     }
   };
 
-  const toggleOne = (item: ShopRow) => {
-    const k = rowKey(item);
-    setSelected((prev) => ({ ...prev, [k]: !prev[k] }));
-  };
-
-  const toggleAllVisible = () => {
-    const allOn = items.length > 0 && items.every((it) => selected[rowKey(it)]);
-    if (allOn) {
-      setSelected({});
-      return;
-    }
-    const next: Record<string, boolean> = {};
-    for (const it of items) next[rowKey(it)] = true;
-    setSelected(next);
-  };
-
-  const selectedItems = useMemo(
-    () => items.filter((it) => selected[rowKey(it)]),
-    [items, selected],
-  );
-
-  const runBulkPatch = async () => {
-    if (selectedItems.length === 0) {
-      toast.error('请先勾选商品');
-      return;
-    }
-    const patch: Record<string, unknown> = {};
-    if (bulkPrice.trim() !== '') {
-      const n = Number(bulkPrice);
-      if (!Number.isFinite(n) || n < 0) {
-        toast.error('价格无效（美分）');
-        return;
-      }
-      patch.price_cents = Math.round(n);
-    }
-    if (bulkCategory.trim()) patch.category = bulkCategory.trim();
-    if (Object.keys(patch).length === 0 && !bulkDescSuffix.trim()) {
-      toast.error('请填写批量价格、分类或描述后缀');
-      return;
-    }
-    setBatchBusy(true);
+  const archive = async (item: ShopItem) => {
+    if (!window.confirm(`确定下架“${item.name}”？历史订单与用户库存不会删除。`)) return;
     try {
-      const bodyItems = selectedItems.map((it) => {
-        const row: Record<string, unknown> = {
-          id: it.id,
-          collection: it.collection,
-          ...patch,
-        };
-        if (bulkDescSuffix.trim()) {
-          row.description = `${it.description || ''}${bulkDescSuffix}`.trim();
-        }
-        return row;
-      });
-      const res = await authedFetch('/api/admin/shop', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: bodyItems }),
-      });
-      const data = await readResponseJson<{ error?: string; updated?: number }>(res);
-      if (!res.ok) throw new Error(data.error || '批量更新失败');
-      toast.success(`已更新 ${data.updated ?? selectedItems.length} 项`);
-      setBulkPrice('');
-      setBulkCategory('');
-      setBulkDescSuffix('');
-      await fetchItems();
-    } catch (err) {
-      logger.error(String(err));
-      toast.error(errorMessageFromUnknown(err) || '批量更新失败');
-    } finally {
-      setBatchBusy(false);
+      const response = await authedFetch(`/api/admin/shop?id=${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || '下架失败');
+      toast.success('商品已下架');
+      await load();
+    } catch (error) {
+      toast.error(errorMessage(error));
     }
   };
 
-  const runBulkDelete = async () => {
-    if (selectedItems.length === 0) {
-      toast.error('请先勾选商品');
-      return;
-    }
-    if (!window.confirm(`确认删除选中的 ${selectedItems.length} 个商品？`)) return;
-    setBatchBusy(true);
-    try {
-      const byCol: Record<Collection, string[]> = { outfit: [], prop: [] };
-      for (const it of selectedItems) byCol[it.collection].push(it.id);
-      for (const col of ['outfit', 'prop'] as Collection[]) {
-        if (byCol[col].length === 0) continue;
-        const res = await authedFetch(
-          `/api/admin/shop?collection=${col}&ids=${encodeURIComponent(byCol[col].join(','))}`,
-          { method: 'DELETE' },
-        );
-        const data = await readResponseJson<{ error?: string }>(res);
-        if (!res.ok) throw new Error(data.error || '批量删除失败');
-      }
-      toast.success('已批量删除');
-      await fetchItems();
-    } catch (err) {
-      logger.error(String(err));
-      toast.error(errorMessageFromUnknown(err) || '批量删除失败');
-    } finally {
-      setBatchBusy(false);
-    }
-  };
-
-  const parseBatchLines = (text: string) => {
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l && !l.startsWith('#'));
-    return lines.map((line, idx) => {
-      const parts = line.split('|').map((p) => p.trim());
-      const [name, description = '', priceRaw = '0', category = '', tier = 'free'] = parts;
-      if (!name) throw new Error(`第 ${idx + 1} 行缺少名称`);
-      const price_cents = Math.round(Number(priceRaw) || 0);
-      return {
-        collection: batchCollection,
-        name,
-        description,
-        price_cents,
-        category: category || (batchCollection === 'outfit' ? 'everyday' : 'gift'),
-        tier: tier || 'free',
-        active: true,
-        intimacy_boost: 0,
-        emoji: '',
-        item_type: 'intimacy_boost',
-      };
-    });
-  };
-
-  const handleBatchImport = async () => {
-    let parsed: ReturnType<typeof parseBatchLines>;
-    try {
-      parsed = parseBatchLines(batchText);
-    } catch (err) {
-      toast.error(errorMessageFromUnknown(err));
-      return;
-    }
-    if (parsed.length === 0) {
-      toast.error('没有可导入的行');
-      return;
-    }
-    setBatchBusy(true);
-    try {
-      const files = batchFilesRef.current?.files;
-      const fd = new FormData();
-      fd.append('items', JSON.stringify(parsed));
-      if (files && files.length > 0) {
-        Array.from(files).forEach((file, i) => {
-          fd.append(`file_${i}`, file);
-        });
-      }
-      const res = await authedFetch('/api/admin/shop', { method: 'POST', body: fd });
-      const data = await readResponseJson<{ error?: string; created?: number }>(res);
-      if (!res.ok) throw new Error(data.error || '批量导入失败');
-      toast.success(`已导入 ${data.created ?? parsed.length} 项`);
-      setImportOpen(false);
-      setBatchText('');
-      if (batchFilesRef.current) batchFilesRef.current.value = '';
-      await fetchItems();
-    } catch (err) {
-      logger.error(String(err));
-      toast.error(errorMessageFromUnknown(err) || '批量导入失败');
-    } finally {
-      setBatchBusy(false);
-    }
-  };
-
-  const uploadRowImage = async (file: File, item: ShopRow) => {
-    setBatchBusy(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('type', item.collection === 'outfit' ? 'outfit' : 'shop_item');
-      fd.append('id', item.id);
-      if (item.collection === 'outfit') fd.append('field', 'preview_url');
-      else fd.append('field', 'image_url');
-      const res = await authedFetch('/api/admin/images/upload', { method: 'POST', body: fd });
-      const data = await readResponseJson<{ error?: string; url?: string }>(res);
-      if (!res.ok) throw new Error(data.error || '图片上传失败');
-      toast.success('图片已更新');
-      await fetchItems();
-    } catch (err) {
-      logger.error(String(err));
-      toast.error(errorMessageFromUnknown(err) || '图片上传失败');
-    } finally {
-      setBatchBusy(false);
-      setImageTarget(null);
-      if (rowImageRef.current) rowImageRef.current.value = '';
-    }
-  };
-
-  const uniqueCategories = useMemo(() => {
-    const set = new Set<string>(categories);
-    for (const it of items) if (it.category) set.add(it.category);
-    return Array.from(set).sort();
-  }, [categories, items]);
+  const preview = useMemo(() => items.find((item) => item.featured) || items[0], [items]);
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-
-      <div className="mb-4 rounded-xl border border-amber-100 bg-gradient-to-r from-amber-50 to-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="min-h-screen space-y-6 bg-[#07070d] p-4 text-white md:p-6">
+      <header className="overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(217,70,239,.20),transparent_38%),linear-gradient(145deg,#12121d,#09090f)] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-5">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">商城</p>
-            <h2 className="mt-0.5 text-base font-semibold text-[#1E293B]">商品管理（服装 / 道具 / 礼物）</h2>
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[#64748B]">
-              只管理可售卖物品：媒体（静图/动图/视频）、价格与分级、分类、亲密加成与功能开关。
-              女友角色图请在「女友与媒体」；AI 出图请在「创作工作台」。
-            </p>
+            <Badge className="mb-3 border-fuchsia-400/30 bg-fuchsia-400/10 text-fuchsia-200">Commerce Studio</Badge>
+            <h1 className="text-3xl font-semibold tracking-tight">商城管理</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">统一管理服装、道具、会员和积分。媒体、价格、积分、说明、特效及换装生成参数都会保存到正式商品记录。</p>
           </div>
-          <div className="flex flex-wrap gap-2 text-[11px]">
-            <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">图片 / 视频</span>
-            <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">价格 · 分级</span>
-            <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">分类 · 排序</span>
-            <span className="rounded-full bg-white px-2.5 py-1 text-[#475569] ring-1 ring-gray-200">亲密加成 · 礼物标记</span>
+          <div className="flex gap-2">
+            <Button variant="outline" className="border-white/15 bg-white/5" onClick={() => void load()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />刷新</Button>
+            <Button className="bg-gradient-to-r from-pink-500 to-fuchsia-600" onClick={() => openCreate()}><Plus className="mr-2 h-4 w-4" />新建商品</Button>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold text-white">
-            <ShoppingBag className="h-6 w-6 text-rose-400" />
-            商城管理
-          </h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            服装 + 道具统一管理：批量改价、分类、导入、删改与配图
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => void fetchItems()} disabled={loading || batchBusy}>
-            <RefreshCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Upload className="mr-1 h-4 w-4" />
-            批量导入
-          </Button>
-          <Button size="sm" onClick={openAddDialog}>
-            <Plus className="mr-1 h-4 w-4" />
-            新建
-          </Button>
-        </div>
-      </div>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {COLLECTIONS.map((collection) => {
+          const meta = META[collection];
+          const Icon = meta.icon;
+          return <button key={collection} type="button" onClick={() => setTab(tab === collection ? 'all' : collection)} className={`rounded-2xl border p-4 text-left transition ${tab === collection ? 'border-fuchsia-400/60 bg-white/10' : 'border-white/10 bg-white/[.035] hover:bg-white/[.07]'}`}>
+            <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${meta.color}`}><Icon className="h-5 w-5" /></div>
+            <div className="flex items-center justify-between"><strong>{meta.label}</strong><span className="font-mono text-xl">{counts[collection]}</span></div>
+            <p className="mt-2 text-xs leading-5 text-zinc-500">{meta.note}</p>
+          </button>;
+        })}
+      </section>
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <Button
-            key={t.key}
-            size="sm"
-            variant={tab === t.key ? 'default' : 'outline'}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            <Badge variant="secondary" className="ml-2">
-              {t.key === 'all' ? counts.all : t.key === 'outfit' ? counts.outfit : counts.prop}
-            </Badge>
-          </Button>
-        ))}
-      </div>
-
-      <div className="grid gap-2 md:grid-cols-[1fr_200px_auto]">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-          <Input
-            className="pl-9"
-            placeholder="搜索名称 / 描述 / 分类"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void fetchItems();
-            }}
-          />
-        </div>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="分类" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部分类</SelectItem>
-            {uniqueCategories.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button variant="secondary" onClick={() => void fetchItems()} disabled={loading}>
-          筛选
-        </Button>
-      </div>
-
-      <Card className="border-white/10 bg-zinc-950/60">
-        <CardContent className="space-y-3 p-4">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-300">
-            <Tags className="h-4 w-4 text-rose-300" />
-            批量操作（已选 {selectedKeys.length}）
+      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+        <section className="rounded-3xl border border-white/10 bg-white/[.025] p-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="relative min-w-[260px] flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索名称、SKU、说明、分类" className="border-white/10 bg-black/30 pl-9 text-white" /></div>
+            <Badge variant="outline" className="border-white/10 text-zinc-400">{items.length} 个商品</Badge>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={toggleAllVisible} disabled={items.length === 0}>
-              {items.length > 0 && items.every((it) => selected[rowKey(it)]) ? (
-                <CheckSquare className="mr-1 h-4 w-4" />
-              ) : (
-                <Square className="mr-1 h-4 w-4" />
-              )}
-              全选本页
-            </Button>
-            <Input
-              className="w-36"
-              placeholder="批量价格(美分)"
-              value={bulkPrice}
-              onChange={(e) => setBulkPrice(e.target.value)}
-            />
-            <Input
-              className="w-36"
-              placeholder="批量分类"
-              value={bulkCategory}
-              onChange={(e) => setBulkCategory(e.target.value)}
-            />
-            <Input
-              className="min-w-[180px] flex-1"
-              placeholder="描述后缀（追加）"
-              value={bulkDescSuffix}
-              onChange={(e) => setBulkDescSuffix(e.target.value)}
-            />
-            <Button size="sm" onClick={() => void runBulkPatch()} disabled={batchBusy || selectedKeys.length === 0}>
-              {batchBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-              批量改价/分类
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => void runBulkDelete()}
-              disabled={batchBusy || selectedKeys.length === 0}
-            >
-              批量删除
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-20 text-zinc-400">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          加载中…
-        </div>
-      ) : items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/10 py-16 text-center text-zinc-500">
-          暂无商品，点击「新建」或「批量导入」
-        </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => {
-            const checked = !!selected[rowKey(item)];
-            return (
-              <Card key={rowKey(item)} className="relative overflow-hidden border-white/10 bg-zinc-950/70">
-                <button
-                  type="button"
-                  className="absolute left-2 top-2 z-10 rounded-md bg-black/55 p-1 text-white"
-                  onClick={() => toggleOne(item)}
-                  aria-label="选择"
-                >
-                  {checked ? <CheckSquare className="h-4 w-4 text-rose-300" /> : <Square className="h-4 w-4" />}
+          {loading ? <div className="flex justify-center py-24"><Loader2 className="h-7 w-7 animate-spin text-fuchsia-400" /></div> : items.length === 0 ? <div className="py-24 text-center text-zinc-500"><Package2 className="mx-auto mb-3 h-10 w-10" />暂无商品</div> : <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {items.map((item) => {
+              const Icon = META[item.collection].icon;
+              return <article key={item.id} className="group overflow-hidden rounded-2xl border border-white/10 bg-[#101018]">
+                <button type="button" onClick={() => openEdit(item)} className="relative block aspect-[4/3] w-full overflow-hidden bg-zinc-900 text-left">
+                  {item.video_url ? <video src={item.video_url} poster={item.image_url || undefined} muted loop playsInline className="h-full w-full object-cover" onMouseEnter={(event) => void event.currentTarget.play()} onMouseLeave={(event) => { event.currentTarget.pause(); event.currentTarget.currentTime = 0; }} /> : item.image_url ? <img src={item.image_url} alt={item.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center"><Icon className="h-12 w-12 text-zinc-700" /></div>}
+                  <div className="absolute left-3 top-3 flex gap-2"><Badge className={`border-0 bg-gradient-to-r ${META[item.collection].color}`}>{META[item.collection].label}</Badge>{item.featured && <Badge className="bg-amber-400 text-black">推荐</Badge>}</div>
+                  {item.video_url && <Film className="absolute bottom-3 right-3 h-5 w-5 rounded bg-black/60 p-1" />}
                 </button>
-                <div className="aspect-[4/3] bg-zinc-900">
-                  {item.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-4xl text-zinc-600">
-                      {item.emoji || '•'}
-                    </div>
-                  )}
+                <div className="space-y-3 p-4">
+                  <div><h3 className="font-medium">{item.name}</h3><p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">{item.description}</p></div>
+                  <div className="flex items-end justify-between"><div><p className="text-lg font-semibold text-pink-400">{item.price_credits.toLocaleString()} 积分</p><p className="text-xs text-zinc-500">{money(item.price_cents)}</p></div><div className="flex gap-1"><Button size="sm" variant="secondary" onClick={() => openEdit(item)}>编辑</Button><Button size="icon" variant="ghost" className="text-zinc-500 hover:text-red-400" onClick={() => void archive(item)}><Archive className="h-4 w-4" /></Button></div></div>
                 </div>
-                <CardContent className="space-y-2 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium text-white">{item.name}</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        <Badge variant="outline">{item.collection === 'outfit' ? '服装' : '道具'}</Badge>
-                        <Badge variant="secondary">{item.category || '未分类'}</Badge>
-                        <Badge>{item.tier || 'free'}</Badge>
-                      </div>
-                    </div>
-                    <div className="text-right text-sm font-semibold text-rose-300">{money(item.price_cents)}</div>
-                  </div>
-                  <p className="line-clamp-2 text-xs text-zinc-400">{item.description || '暂无说明'}</p>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    <Button size="sm" variant="outline" onClick={() => openEditDialog(item)}>
-                      <Pencil className="mr-1 h-3.5 w-3.5" />
-                      编辑
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setImageTarget(item);
-                        rowImageRef.current?.click();
-                      }}
-                      disabled={batchBusy}
-                    >
-                      <ImagePlus className="mr-1 h-3.5 w-3.5" />
-                      配图
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => {
-                        setDeleting(item);
-                        setDeleteDialogOpen(true);
-                      }}
-                    >
-                      <Trash2 className="mr-1 h-3.5 w-3.5" />
-                      删除
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+              </article>;
+            })}
+          </div>}
+        </section>
 
-      <input
-        ref={rowImageRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file && imageTarget) void uploadRowImage(file, imageTarget);
-        }}
-      />
+        <aside className="h-fit rounded-3xl border border-white/10 bg-gradient-to-b from-fuchsia-500/10 to-transparent p-5 xl:sticky xl:top-6">
+          <div className="mb-4 flex items-center gap-2"><Sparkles className="h-5 w-5 text-fuchsia-300" /><h2 className="font-medium">客户效果预览</h2></div>
+          {preview ? <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+            {preview.image_url ? <img src={preview.image_url} alt={preview.name} className="aspect-[3/4] w-full object-cover" /> : <div className="flex aspect-[3/4] items-center justify-center"><ImageIcon className="h-10 w-10 text-zinc-700" /></div>}
+            <div className="space-y-2 p-4"><Badge>{META[preview.collection].label}</Badge><h3 className="text-lg font-semibold">{preview.name}</h3><p className="text-sm leading-6 text-zinc-400">{preview.description}</p>{preview.collection === 'outfit' && <div className="rounded-xl border border-pink-400/20 bg-pink-400/5 p-3 text-xs leading-5 text-pink-100">赠送后自动写入所选女友衣柜；可立即生成换装立绘，并按配置处理视频。</div>}</div>
+          </div> : <p className="text-sm text-zinc-500">创建商品后显示预览。</p>}
+        </aside>
+      </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editing ? '编辑商品' : '新建商品'}</DialogTitle>
-            <DialogDescription>服装写入 outfits，道具写入 shop_items。</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3 py-2">
-            <div className="grid gap-1">
-              <Label>类型</Label>
-              <Select
-                value={form.collection}
-                onValueChange={(v) => setForm((f) => ({ ...f, collection: v as Collection }))}
-                disabled={!!editing}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="outfit">服装</SelectItem>
-                  <SelectItem value="prop">道具</SelectItem>
-                </SelectContent>
-              </Select>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto border-white/10 bg-[#101018] text-white">
+          <DialogHeader><DialogTitle>{editingId ? '编辑商品' : '新建商品'}</DialogTitle></DialogHeader>
+          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{COLLECTIONS.map((collection) => { const Icon = META[collection].icon; return <button type="button" key={collection} onClick={() => update('collection', collection)} className={`rounded-xl border p-3 text-left ${form.collection === collection ? 'border-fuchsia-400 bg-fuchsia-400/10' : 'border-white/10 bg-white/[.03]'}`}><Icon className="mb-2 h-5 w-5" /><span className="text-sm">{META[collection].label}</span></button>; })}</div>
+              <div className="grid gap-3 md:grid-cols-2"><Field label="商品名称"><Input value={form.name} onChange={(e) => update('name', e.target.value)} /></Field><Field label="SKU（留空自动生成）"><Input value={form.sku} onChange={(e) => update('sku', e.target.value)} disabled={!!editingId} /></Field></div>
+              <Field label="商品说明"><Textarea value={form.description} onChange={(e) => update('description', e.target.value)} rows={4} /></Field>
+              <div className="grid gap-3 md:grid-cols-3"><Field label="现金价格（美分）"><Input type="number" min={0} value={form.price_cents} onChange={(e) => update('price_cents', Number(e.target.value))} /></Field><Field label="积分价格"><Input type="number" min={0} value={form.price_credits} onChange={(e) => update('price_credits', Number(e.target.value))} /></Field><Field label="子分类"><Input value={form.category} onChange={(e) => update('category', e.target.value)} /></Field></div>
+              <div className="grid gap-3 md:grid-cols-3"><Field label="稀有度"><Select value={form.rarity} onValueChange={(value) => update('rarity', value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['common','rare','epic','legendary'].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field><Field label="排序"><Input type="number" value={form.sort_order} onChange={(e) => update('sort_order', Number(e.target.value))} /></Field><div className="flex items-end gap-4 pb-2"><Toggle label="上架" checked={form.active} onChange={(value) => update('active', value)} /><Toggle label="推荐" checked={form.featured} onChange={(value) => update('featured', value)} /></div></div>
+              {form.collection === 'outfit' && <div className="space-y-4 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/5 p-4"><h3 className="flex items-center gap-2 font-medium"><Shirt className="h-4 w-4" />换装生成</h3><Field label="穿搭提示词（仅描述服装，不覆盖女友脸型、发色和身材）"><Textarea value={form.wear_prompt} onChange={(e) => update('wear_prompt', e.target.value)} rows={3} /></Field><div className="flex flex-wrap gap-5"><Toggle label="赠送后自动生成立绘" checked={form.auto_generate_image} onChange={(value) => update('auto_generate_image', value)} /><Toggle label="生成/绑定换装视频" checked={form.auto_generate_video} onChange={(value) => update('auto_generate_video', value)} /></div></div>}
+              {form.collection === 'prop' && <div className="space-y-3 rounded-2xl border border-violet-400/20 bg-violet-400/5 p-4"><Field label="特效类型"><Input value={form.effect_type} onChange={(e) => update('effect_type', e.target.value)} placeholder="intimacy_boost / animation / scene_unlock" /></Field><Field label="特效参数（JSON）"><Textarea value={JSON.stringify(form.effect_config, null, 2)} onChange={(e) => { try { update('effect_config', JSON.parse(e.target.value || '{}') as Record<string, unknown>); } catch { /* allow user to finish typing via effect type and asset fields */ } }} rows={4} /></Field></div>}
+              {form.collection === 'membership' && <div className="grid gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 md:grid-cols-2"><Field label="会员等级"><Input value={form.membership_tier} onChange={(e) => update('membership_tier', e.target.value)} placeholder="pro / unlimited" /></Field><Field label="有效期（天）"><Input type="number" min={1} value={form.duration_days} onChange={(e) => update('duration_days', Number(e.target.value))} /></Field></div>}
+              {form.collection === 'credits' && <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4"><Field label="到账积分数量"><Input type="number" min={1} value={form.token_amount} onChange={(e) => update('token_amount', Number(e.target.value))} /></Field></div>}
             </div>
-            <div className="grid gap-1">
-              <Label>名称</Label>
-              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-1">
-                <Label>价格（美分）</Label>
-                <Input
-                  type="number"
-                  value={form.price_cents}
-                  onChange={(e) => setForm((f) => ({ ...f, price_cents: Number(e.target.value) || 0 }))}
-                />
-              </div>
-              <div className="grid gap-1">
-                <Label>分类</Label>
-                <Input
-                  list="shop-cat-list"
-                  value={form.category}
-                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                />
-                <datalist id="shop-cat-list">
-                  {uniqueCategories.map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-1">
-                <Label>套餐层级</Label>
-                <Select value={form.tier} onValueChange={(v) => setForm((f) => ({ ...f, tier: v }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIER_OPTIONS.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1">
-                <Label>Emoji</Label>
-                <Input value={form.emoji} onChange={(e) => setForm((f) => ({ ...f, emoji: e.target.value }))} />
-              </div>
-            </div>
-            <div className="grid gap-1">
-              <Label>说明</Label>
-              <Textarea
-                rows={3}
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-1">
-                <Label>亲密加成</Label>
-                <Input
-                  type="number"
-                  value={form.intimacy_boost}
-                  onChange={(e) => setForm((f) => ({ ...f, intimacy_boost: Number(e.target.value) || 0 }))}
-                />
-              </div>
-              <div className="grid gap-1">
-                <Label>排序</Label>
-                <Input
-                  type="number"
-                  value={form.sort_order}
-                  onChange={(e) => setForm((f) => ({ ...f, sort_order: Number(e.target.value) || 0 }))}
-                />
-              </div>
-            </div>
-            {form.collection === 'prop' && (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="grid gap-1">
-                  <Label>item_type</Label>
-                  <Input
-                    value={form.item_type}
-                    onChange={(e) => setForm((f) => ({ ...f, item_type: e.target.value }))}
-                  />
-                </div>
-                <div className="grid gap-1">
-                  <Label>visual_type</Label>
-                  <Input
-                    value={form.visual_type}
-                    onChange={(e) => setForm((f) => ({ ...f, visual_type: e.target.value }))}
-                  />
-                </div>
-              </div>
-            )}
-            <div className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2">
-              <span className="text-sm text-zinc-300">上架 / 启用</span>
-              <Switch checked={form.active} onCheckedChange={(v) => setForm((f) => ({ ...f, active: v }))} />
-            </div>
-            {form.collection === 'outfit' && (
-              <div className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2">
-                <span className="text-sm text-zinc-300">可作为礼物</span>
-                <Switch checked={form.is_gift} onCheckedChange={(v) => setForm((f) => ({ ...f, is_gift: v }))} />
-              </div>
-            )}
-            <div className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2">
-              <span className="text-sm text-zinc-300">限时</span>
-              <Switch checked={form.is_limited} onCheckedChange={(v) => setForm((f) => ({ ...f, is_limited: v }))} />
+            <div className="space-y-4">
+              <MediaBox title="商品图片" icon={ImageIcon} value={form.image_url} kind="image" onPick={() => imageInput.current?.click()} />
+              <MediaBox title="商品视频" icon={Film} value={form.video_url} kind="video" onPick={() => videoInput.current?.click()} />
+              <MediaBox title="特效文件" icon={Sparkles} value={form.effect_asset_url} kind="file" onPick={() => effectInput.current?.click()} />
+              <input ref={imageInput} hidden type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file, 'image_url'); }} />
+              <input ref={videoInput} hidden type="file" accept="video/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file, 'video_url'); }} />
+              <input ref={effectInput} hidden type="file" accept="image/*,video/*,.svga,.json" onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file, 'effect_asset_url'); }} />
+              {saving && <p className="flex items-center gap-2 text-xs text-zinc-400"><Loader2 className="h-3 w-3 animate-spin" />{uploadTarget === 'image_url' ? '正在上传图片' : uploadTarget === 'video_url' ? '正在上传视频' : '正在上传特效'}</p>}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={() => void handleSave()} disabled={saving}>
-              {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-              保存
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>确认删除</DialogTitle>
-            <DialogDescription>
-              将删除 {deleting?.name}（{deleting?.collection === 'outfit' ? '服装' : '道具'}）。此操作不可撤销。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              取消
-            </Button>
-            <Button variant="destructive" onClick={() => void handleDelete()} disabled={saving}>
-              {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-              删除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>批量导入</DialogTitle>
-            <DialogDescription>
-              每行一条：名称|说明|价格美分|分类|tier。可附带同序图片 file_0, file_1…
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <div className="grid gap-1">
-              <Label>导入到</Label>
-              <Select value={batchCollection} onValueChange={(v) => setBatchCollection(v as Collection)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="prop">道具 shop_items</SelectItem>
-                  <SelectItem value="outfit">服装 outfits</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Textarea
-              rows={8}
-              placeholder={'玫瑰花|浪漫礼物|199|gift|free\n丝质睡裙|居家服装|499|lingerie|pro'}
-              value={batchText}
-              onChange={(e) => setBatchText(e.target.value)}
-            />
-            <div className="grid gap-1">
-              <Label>可选：批量配图（顺序对应行）</Label>
-              <Input ref={batchFilesRef} type="file" accept="image/*" multiple />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setImportOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={() => void handleBatchImport()} disabled={batchBusy}>
-              {batchBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
-              开始导入
-            </Button>
-          </DialogFooter>
+          <div className="flex justify-end gap-2 border-t border-white/10 pt-4"><Button variant="ghost" onClick={() => setOpen(false)}>取消</Button><Button onClick={() => void save()} disabled={saving} className="bg-gradient-to-r from-pink-500 to-fuchsia-600">{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}保存商品</Button></div>
         </DialogContent>
       </Dialog>
     </div>
   );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="block space-y-2 text-xs text-zinc-400"><span>{label}</span>{children}</label>;
+}
+
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+  return <label className="flex items-center gap-2 text-xs text-zinc-300"><Switch checked={checked} onCheckedChange={onChange} />{label}</label>;
+}
+
+function MediaBox({ title, icon: Icon, value, kind, onPick }: { title: string; icon: typeof ImageIcon; value: string; kind: 'image' | 'video' | 'file'; onPick: () => void }) {
+  return <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/25"><div className="flex aspect-video items-center justify-center overflow-hidden bg-black/30">{kind === 'image' && value ? <img src={value} alt={title} className="h-full w-full object-cover" /> : kind === 'video' && value ? <video src={value} controls className="h-full w-full object-contain" /> : <Icon className="h-9 w-9 text-zinc-700" />}</div><div className="space-y-2 p-3"><div className="flex items-center justify-between"><span className="text-sm">{title}</span><Button size="sm" variant="secondary" onClick={onPick}><Upload className="mr-1 h-3 w-3" />上传</Button></div><Input value={value} readOnly placeholder="上传后自动写入 URL" className="text-xs" /></div></div>;
 }

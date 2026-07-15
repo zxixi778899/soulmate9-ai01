@@ -1,3 +1,5 @@
+import type { Locale } from '@/lib/i18n/types';
+
 /**
  *  UI 
  *
@@ -25,7 +27,7 @@ export function formatBubbleTime(dateStr: string): string {
 /**
  * Today / Yesterday /  / 
  */
-export function dateGroupLabel(dateStr: string, now?: Date): string {
+export function dateGroupLabel(dateStr: string, now?: Date, locale: Locale = 'en'): string {
   try {
     const date = new Date(dateStr);
     const ts = date.getTime();
@@ -33,12 +35,24 @@ export function dateGroupLabel(dateStr: string, now?: Date): string {
     const ref = now || new Date();
     const startToday = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
     const startYesterday = startToday - 86400000;
-    if (ts >= startToday) return 'Today';
-    if (ts >= startYesterday) return 'Yesterday';
+    const relativeLabels: Record<Locale, { today: string; yesterday: string }> = {
+      en: { today: 'Today', yesterday: 'Yesterday' },
+      zh: { today: '今天', yesterday: '昨天' },
+      ja: { today: '今日', yesterday: '昨日' },
+      ko: { today: '오늘', yesterday: '어제' },
+      es: { today: 'Hoy', yesterday: 'Ayer' },
+      fr: { today: "Aujourd’hui", yesterday: 'Hier' },
+      de: { today: 'Heute', yesterday: 'Gestern' },
+    };
+    const intlLocale: Record<Locale, string> = {
+      en: 'en-US', zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR', es: 'es-ES', fr: 'fr-FR', de: 'de-DE',
+    };
+    if (ts >= startToday) return relativeLabels[locale].today;
+    if (ts >= startYesterday) return relativeLabels[locale].yesterday;
     if (ref.getTime() - ts < 7 * 86400000) {
-      return date.toLocaleDateString('en-US', { weekday: 'long' });
+      return date.toLocaleDateString(intlLocale[locale], { weekday: 'long' });
     }
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString(intlLocale[locale], { month: 'short', day: 'numeric', year: 'numeric' });
   } catch {
     return '';
   }

@@ -4,113 +4,85 @@ import { loggerFromRequest } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
-  const log = loggerFromRequest(request as never);
-  const result = await requireAdmin(request);
-  if (result.error) return result.error;
-  const { supabase } = result;
+type DashboardStats = {
+  totalUsers: number;
+  totalGirlfriends: number;
+  publicGirlfriends: number;
+  pendingReview: number;
+  activeAds: number;
+  dau: number;
+  wau: number;
+  mrr_cents: number;
+  proMembers: number;
+  unlimitedMembers: number;
+  paidMembers: number;
+  totalPaidCents: number;
+  revenue7dCents: number;
+  newUsers7d: number;
+  images7d: number;
+  failedPayments7d: number;
+  tokenLiability: number;
+  aiCost7dCents: number;
+  llmSuccessRate7d: number;
+  cacheHitRate: number;
+};
+
+function normalizeStats(value: Partial<DashboardStats> | null): DashboardStats {
+  return {
+    totalUsers: Number(value?.totalUsers || 0),
+    totalGirlfriends: Number(value?.totalGirlfriends || 0),
+    publicGirlfriends: Number(value?.publicGirlfriends || 0),
+    pendingReview: Number(value?.pendingReview || 0),
+    activeAds: Number(value?.activeAds || 0),
+    dau: Number(value?.dau || 0),
+    wau: Number(value?.wau || 0),
+    mrr_cents: Number(value?.mrr_cents || 0),
+    proMembers: Number(value?.proMembers || 0),
+    unlimitedMembers: Number(value?.unlimitedMembers || 0),
+    paidMembers: Number(value?.paidMembers || 0),
+    totalPaidCents: Number(value?.totalPaidCents || 0),
+    revenue7dCents: Number(value?.revenue7dCents || 0),
+    newUsers7d: Number(value?.newUsers7d || 0),
+    images7d: Number(value?.images7d || 0),
+    failedPayments7d: Number(value?.failedPayments7d || 0),
+    tokenLiability: Number(value?.tokenLiability || 0),
+    aiCost7dCents: Number(value?.aiCost7dCents || 0),
+    llmSuccessRate7d: Number(value?.llmSuccessRate7d || 0),
+    cacheHitRate: Number(value?.cacheHitRate || 0),
+  };
+}
+
+export async function GET(request: Request): Promise<NextResponse> {
+  const log = loggerFromRequest(request);
+  const authorization = await requireAdmin(request);
+  if (authorization.error) return authorization.error;
+  const { supabase } = authorization;
 
   try {
-    const [
-      { count: userCount },
-      { count: girlfriendCount },
-      { count: publicCount },
-      { count: pendingCount },
-      { count: adCount },
-    ] = await Promise.all([
-      supabase.from('profiles').select('id', { head: true, count: 'exact' }),
-      supabase.from('girlfriends').select('id', { head: true, count: 'exact' }),
-      supabase.from('girlfriends').select('id', { head: true, count: 'exact' }).eq('is_public', true),
-      supabase.from('girlfriends').select('id', { head: true, count: 'exact' }).eq('review_status', 'pending'),
-      supabase.from('admin_ads').select('id', { head: true, count: 'exact' }).eq('active', true),
-    ]);
+    const [{ data: metrics, error: metricsError }, { data: recentUsers, error: usersError }] =
+      await Promise.all([
+        supabase.rpc('admin_dashboard_metrics'),
+        supabase
+          .from('profiles')
+          .select('id, display_name, membership_tier, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ]);
 
-    const { data: recentUsers } = await supabase
-      .from('profiles')
-      .select('id, display_name, membership_tier, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    const { count: dau } = await supabase
-      .from('chat_messages')
-      .select('user_id', { head: true, count: 'exact' })
-      .gte('created_at', since24h);
-
-    const { count: wau } = await supabase
-      .from('chat_messages')
-      .select('user_id', { head: true, count: 'exact' })
-      .gte('created_at', since7d);
-
-    const { data: activeSubs } = await supabase
-      .from('subscriptions')
-      .select('plan_id')
-      .eq('status', 'active');
-
-    const PLAN_PRICES: Record<string, number> = { pro: 999, unlimited: 1999 };
-    const mrrCents = (activeSubs || []).reduce((acc, s) => acc + (PLAN_PRICES[s.plan_id] || 0), 0);
-
-    // Paid member counts
-    const { count: proCount } = await supabase
-      .from('profiles').select('id', { head: true, count: 'exact' })
-      .eq('membership_tier', 'pro');
-    const { count: unlimitedCount } = await supabase
-      .from('profiles').select('id', { head: true, count: 'exact' })
-      .eq('membership_tier', 'unlimited');
-
-    // Total paid amount (all time from purchase_history)
-    const { data: allPurchases } = await supabase
-      .from('purchase_history')
-      .select('amount_cents')
-      .eq('status', 'completed');
-    const totalPaidCents = (allPurchases || []).reduce((acc, p) => acc + (p.amount_cents || 0), 0);
-
-    const { count: newUsers7d } = await supabase
-      .from('profiles')
-      .select('id', { head: true, count: 'exact' })
-      .gte('created_at', since7d);
-
-    const { count: images7d } = await supabase
-      .from('chat_messages')
-      .select('id', { head: true, count: 'exact' })
-      .eq('role', 'assistant')
-      .not('image_url', 'is', null)
-      .gte('created_at', since7d);
-
-    const { data: cacheStats } = await supabase
-      .from('generation_cache')
-      .select('hit_count')
-      .gte('created_at', since7d)
-      .limit(1000);
-    const totalHits = (cacheStats || []).reduce((acc, r) => acc + (r.hit_count || 0), 0);
-    const totalEntries = cacheStats?.length ?? 0;
-    const avgHitRate = totalEntries > 0 ? totalHits / totalEntries : 0;
+    if (metricsError) throw new Error(`Dashboard metrics query failed: ${metricsError.message}`);
+    if (usersError) throw new Error(`Recent users query failed: ${usersError.message}`);
 
     return NextResponse.json({
-      stats: {
-        totalUsers: userCount ?? 0,
-        totalGirlfriends: girlfriendCount ?? 0,
-        publicGirlfriends: publicCount ?? 0,
-        pendingReview: pendingCount ?? 0,
-        activeAds: adCount ?? 0,
-        dau: dau ?? 0,
-        wau: wau ?? 0,
-        mrr_cents: mrrCents,
-        proMembers: proCount ?? 0,
-        unlimitedMembers: unlimitedCount ?? 0,
-        paidMembers: (proCount ?? 0) + (unlimitedCount ?? 0),
-        totalPaidCents,
-        newUsers7d: newUsers7d ?? 0,
-        images7d: images7d ?? 0,
-        cacheHitRate: Number(avgHitRate.toFixed(2)),
-      },
+      stats: normalizeStats(metrics as Partial<DashboardStats> | null),
       recentUsers: recentUsers || [],
+      generatedAt: new Date().toISOString(),
     });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
-    log.error('admin-dashboard: failed', { err: msg });
-    return NextResponse.json({ error: msg }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown dashboard error';
+    log.error('admin-dashboard: failed', { error: message });
+    return NextResponse.json(
+      { error: 'Dashboard metrics unavailable', code: 'ADMIN_METRICS_UNAVAILABLE' },
+      { status: 500 },
+    );
   }
 }

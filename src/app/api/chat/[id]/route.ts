@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { parsePagination } from '@/lib/pagination';
+import { resolveImageUrl } from '@/lib/storage';
 
 export async function GET(
   request: NextRequest,
@@ -34,8 +35,15 @@ export async function GET(
     .eq('girlfriend_id', id)
     .eq('user_id', user.id);
 
+  const resolvedMessages = await Promise.all(
+    (messages || []).reverse().map(async (message) => ({
+      ...message,
+      media_url: message.media_url ? await resolveImageUrl(message.media_url) : message.media_url,
+    })),
+  );
+
   return NextResponse.json({
-    messages: (messages || []).reverse(),
+    messages: resolvedMessages,
     hasMore: count ? offset + limit < count : false,
     total: count || 0,
     page,

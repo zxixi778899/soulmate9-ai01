@@ -1,36 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import { getStripe } from '@/lib/stripe-server';
+import { getAuthUser } from '@/lib/supabase-server';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { getStripeCheckoutGate, stripeGateMessage } from '@/lib/payment-compliance';
+import { logger } from '@/lib/logger';
+import { captureException } from '@/lib/sentry';
+
+const CHECKOUT_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
+type CheckoutBody = {
+  type?: 'subscription' | 'tokens';
+  package_id?: string;
+};
 
 /**
- * POST /api/v2/stripe/checkout
- * Creates a Stripe Checkout Session for token purchases or subscriptions.
+ * Legacy v2 checkout endpoint. It remains for compatibility, but all prices,
+ * identity metadata and entitlements are now resolved on the server.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeKey || stripeKey.startsWith('placeholder') || stripeKey.startsWith('sk_test_placeholder')) {
+    const paymentGate = getStripeCheckoutGate();
+    if (!paymentGate.allowed) {
       return NextResponse.json(
-        { error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to .env.local' },
-        { status: 500 },
+        { error: stripeGateMessage(paymentGate), code: paymentGate.code },
+        { status: 503 },
       );
     }
 
-    const stripe = new Stripe(stripeKey);
-    const body = await req.json().catch(() => ({}));
-    const { type, package_id, price_id } = body;
+    const { user, error } = await getAuthUser(req);
+    if (error || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
+    const limit = await checkRateLimitAsync(`stripe-checkout:${user.id}`, CHECKOUT_LIMIT);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many checkout attempts. Please try again later.' },
+        { status: 429, headers: rateLimitHeaders(limit, CHECKOUT_LIMIT) },
+      );
+    }
 
-    if (type === 'subscription') {
-      if (!price_id) {
-        return NextResponse.json({ error: 'Missing price_id' }, { status: 400 });
+    const body = (await req.json().catch(() => ({}))) as CheckoutBody;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
+    const stripe = getStripe();
+
+    if (body.type === 'subscription') {
+      const subscriptionPrices: Record<string, string> = {
+        pro: process.env.STRIPE_PRO_PRICE_ID || '',
+        unlimited: process.env.STRIPE_UNLIMITED_PRICE_ID || '',
+      };
+      const priceId = body.package_id ? subscriptionPrices[body.package_id] : '';
+      if (!priceId) {
+        return NextResponse.json({ error: 'Invalid subscription package' }, { status: 400 });
       }
+
       const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
-        line_items: [{ price: price_id, quantity: 1 }],
-        success_url: `${appUrl}/profile?checkout=success`,
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/pricing?checkout=canceled`,
-        metadata: { type: 'subscription' },
+        client_reference_id: user.id,
+        customer_email: user.email || undefined,
+        metadata: { type: 'subscription', user_id: user.id, plan: body.package_id || '' },
         automatic_tax: { enabled: true },
         billing_address_collection: 'required',
         tax_id_collection: { enabled: true },
@@ -38,28 +68,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: session.url });
     }
 
-    if (type === 'tokens') {
-      if (!package_id) {
-        return NextResponse.json({ error: 'Missing package_id' }, { status: 400 });
-      }
-      // Map package_id to Stripe price
-      const tokenPrices: Record<string, string> = {
-        'tokens-100': process.env.STRIPE_TOKENS_100_PRICE_ID || '',
-        'tokens-500': process.env.STRIPE_TOKENS_500_PRICE_ID || '',
-        'tokens-1000': process.env.STRIPE_TOKENS_1000_PRICE_ID || '',
+    if (body.type === 'tokens') {
+      const tokenPackages: Record<string, { priceId: string; tokenCount: number }> = {
+        'tokens-100': { priceId: process.env.STRIPE_TOKENS_100_PRICE_ID || '', tokenCount: 100 },
+        'tokens-500': { priceId: process.env.STRIPE_TOKENS_500_PRICE_ID || '', tokenCount: 500 },
+        'tokens-1000': { priceId: process.env.STRIPE_TOKENS_1000_PRICE_ID || '', tokenCount: 1000 },
       };
-
-      const priceId = tokenPrices[package_id];
-      if (!priceId) {
+      const selected = body.package_id ? tokenPackages[body.package_id] : undefined;
+      if (!selected?.priceId) {
         return NextResponse.json({ error: 'Invalid token package' }, { status: 400 });
       }
 
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
-        line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${appUrl}/shop?checkout=success`,
+        line_items: [{ price: selected.priceId, quantity: 1 }],
+        success_url: `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/shop?checkout=canceled`,
-        metadata: { type: 'tokens', package: package_id },
+        client_reference_id: user.id,
+        customer_email: user.email || undefined,
+        metadata: {
+          type: 'tokens',
+          user_id: user.id,
+          package_id: body.package_id || '',
+          token_count: String(selected.tokenCount),
+        },
         automatic_tax: { enabled: true },
         billing_address_collection: 'required',
         tax_id_collection: { enabled: true },
@@ -67,9 +99,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: session.url });
     }
 
-    return NextResponse.json({ error: 'Invalid checkout type. Use "subscription" or "tokens".' }, { status: 400 });
-  } catch (err: any) {
-    console.error('[stripe/checkout] error:', err);
+    return NextResponse.json(
+      { error: 'Invalid checkout type. Use "subscription" or "tokens".' },
+      { status: 400 },
+    );
+  } catch (err: unknown) {
+    logger.error('[stripe/checkout-v2] checkout failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    captureException(err, { tags: { route: 'stripe-checkout-v2' } });
     return NextResponse.json({ error: 'Checkout failed' }, { status: 500 });
   }
 }

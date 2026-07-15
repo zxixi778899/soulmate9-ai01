@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
   const girlfriendId = new URL(req.url).searchParams.get('girlfriend_id');
 
   let equippedId: string | null = null;
-  let ownedIds = new Set<string>();
+  const ownedIds = new Set<string>();
   let wardrobeItems: unknown[] = [];
 
   if (girlfriendId) {

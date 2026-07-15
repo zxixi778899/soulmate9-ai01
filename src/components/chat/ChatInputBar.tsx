@@ -357,7 +357,7 @@ export function ChatInputBar(props: {
                 <Camera className="h-4 w-4" />
               )
             }
-            label="Selfie"
+            label={t('chat.selfie')}
             accent="#FF6BA6"
           />
           <ActionChip
@@ -366,7 +366,7 @@ export function ChatInputBar(props: {
               imageInputRef.current?.click();
             }}
             icon={<ImagePlus className="h-4 w-4" />}
-            label="Photo"
+            label={t('chat.photo')}
             accent="#38bdf8"
           />
           <ActionChip
@@ -376,7 +376,7 @@ export function ChatInputBar(props: {
             }}
             active={isRecording}
             icon={<Mic className="h-4 w-4" />}
-            label="Voice"
+            label={t('chat.voice')}
             accent="#a78bfa"
           />
           <ActionChip
@@ -386,7 +386,7 @@ export function ChatInputBar(props: {
               togglePresets();
             }}
             icon={<Sparkles className="h-4 w-4" />}
-            label="Mood"
+            label={t('chat.mood')}
             accent="#fbbf24"
           />
           <ActionChip
@@ -395,7 +395,7 @@ export function ChatInputBar(props: {
               onMemories?.();
             }}
             icon={<Brain className="h-4 w-4" />}
-            label="Memory"
+            label={t('chat.memory')}
             accent="#fb7185"
           />
         </div>

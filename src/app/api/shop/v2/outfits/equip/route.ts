@@ -6,15 +6,19 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { checkRateLimitAsync } from '@/lib/rate-limit';
+import { tryOnOutfit } from '@/lib/outfit-tryon';
+import { logger } from '@/lib/logger';
 
 interface EquipBody {
   girlfriend_id: string;
   outfit_asset_id: string;
   action: 'equip' | 'unequip';
+  regenerate?: boolean;
 }
 
 export async function POST(request: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(request);
+  const { user, client } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -34,6 +38,14 @@ export async function POST(request: NextRequest) {
   }
   if (body.action !== 'equip' && body.action !== 'unequip') {
     return NextResponse.json({ error: 'action must be equip or unequip' }, { status: 400 });
+  }
+
+  const limit = await checkRateLimitAsync(`wardrobe-v2-equip:${user.id}`, {
+    maxRequests: 12,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!limit.allowed) {
+    return NextResponse.json({ error: 'Too many outfit generation requests' }, { status: 429 });
   }
 
   // 
@@ -106,5 +118,51 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: upsertErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, action: 'equipped', equipped: go });
+  const { data: asset } = await client
+    .from('outfit_assets')
+    .select('name,image_url,prompt_suffix,metadata')
+    .eq('id', body.outfit_asset_id)
+    .maybeSingle();
+
+  const generated: { portrait_url?: string; warning?: string } = {};
+  if (body.regenerate !== false && asset) {
+    const result = await tryOnOutfit({
+      client,
+      userId: user.id,
+      girlfriendId: body.girlfriend_id,
+      outfitImageUrl: asset.image_url || undefined,
+      outfitText: asset.prompt_suffix || asset.name,
+      strength: 0.55,
+    });
+    if (result.ok) generated.portrait_url = result.portrait_url;
+    else {
+      generated.warning = result.error || 'Outfit saved, but portrait generation failed';
+      logger.warn('v2 outfit equipped without generated portrait', {
+        userId: user.id,
+        girlfriendId: body.girlfriend_id,
+        error: generated.warning,
+      });
+    }
+  }
+
+  const metadata = asset?.metadata && typeof asset.metadata === 'object'
+    ? asset.metadata as Record<string, unknown>
+    : {};
+  const videoUrl = typeof metadata.video_url === 'string' ? metadata.video_url : '';
+  if (videoUrl) {
+    await client
+      .from('girlfriends')
+      .update({ portrait_video_url: videoUrl })
+      .eq('id', body.girlfriend_id)
+      .eq('user_id', user.id);
+  }
+
+  return NextResponse.json({
+    success: true,
+    action: 'equipped',
+    equipped: go,
+    portrait_url: generated.portrait_url || null,
+    portrait_video_url: videoUrl || null,
+    warning: generated.warning,
+  });
 }

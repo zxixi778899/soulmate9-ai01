@@ -8,6 +8,7 @@ import {
   Loader2, Heart, Check, CheckCheck, Sparkles, Shirt, ChevronUp,
 } from 'lucide-react';
 import type { ChatGirlfriend, StreamRow } from './types';
+import { useTranslation } from '@/lib/i18n/context';
 
 function safeInitial(name?: string | null) {
   const n = (name || '?').trim();
@@ -27,6 +28,7 @@ function ChatStreamInner(props: {
   onOpenImage: (url: string) => void;
   bottomRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const { t } = useTranslation();
   const {
     scrollRef, onScroll, girlfriend, rows, isTyping,
     hasMore, loadingMore, onLoadHistory, levelColor, onOpenImage, bottomRef,
@@ -76,7 +78,7 @@ function ChatStreamInner(props: {
               className="inline-flex items-center gap-1.5 text-[11px] text-white/40 hover:text-white/80 h-8 px-3 rounded-full glass active:scale-95 transition-all"
             >
               {loadingMore ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronUp className="h-3 w-3" />}
-              Load earlier
+              {t('chat.loadEarlier')}
             </button>
           </div>
         )}
@@ -86,9 +88,9 @@ function ChatStreamInner(props: {
             <div className="h-14 w-14 rounded-full bg-gradient-to-br from-[#FF2D78]/25 to-[#C026D3]/15 ring-1 ring-[#FF2D78]/25 flex items-center justify-center mb-4">
               <Heart className="h-6 w-6 text-[#FF6BA6]" />
             </div>
-            <p className="font-display text-base text-white">Say hi to {displayName}</p>
+            <p className="font-display text-base text-white">{t('chat.sayHi', { name: displayName })}</p>
             <p className="text-xs text-white/40 mt-1.5 max-w-xs">
-              Send your first message and start building your story together.
+              {t('chat.startStory')}
             </p>
           </div>
         )}
@@ -203,18 +205,18 @@ function ChatStreamInner(props: {
                     {isUser && msg.status === 'sent' && <Check className="h-3 w-3 text-white/35" />}
                     {isUser && msg.status === 'read' && <CheckCheck className="h-3 w-3 text-[#FF6BA6]" />}
                     {isUser && msg.status === 'failed' && (
-                      <span className="text-[10px] text-red-400 font-medium">Failed</span>
+                      <span className="text-[10px] text-red-400 font-medium">{t('chat.failed')}</span>
                     )}
                     {msg.is_proactive && (
                       <span className="text-[10px] text-[#FF6BA6]/70 flex items-center gap-0.5">
                         <Sparkles className="h-2.5 w-2.5" />
-                        proactive
+                        {t('chat.proactive')}
                       </span>
                     )}
                     {isOutfit && (
                       <span className="text-[10px] text-[#FF6BA6]/70 flex items-center gap-0.5">
                         <Shirt className="h-2.5 w-2.5" />
-                        outfit
+                        {t('chat.outfit')}
                       </span>
                     )}
                   </div>

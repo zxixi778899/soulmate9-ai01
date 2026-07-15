@@ -418,8 +418,7 @@ export async function PATCH(request: NextRequest) {
         firstId: (rows || [])[0]?.id ?? null,
       });
 
-      let updated = 0;
-      const errors: string[] = [];
+      const randomizedRows: Array<{ id: string; patch: Record<string, unknown> }> = [];
       for (const row of rows || []) {
         const id = String((row as { id?: string }).id || '');
         if (!id) continue;
@@ -429,7 +428,7 @@ export async function PATCH(request: NextRequest) {
           keepHobbies: null,
         });
         // Always re-roll all trait fields
-        const patch: Record<string, unknown> = {
+        randomizedRows.push({ id, patch: {
           age: traits.age,
           base_intimacy: traits.base_intimacy,
           base_desire: traits.base_desire,
@@ -437,29 +436,21 @@ export async function PATCH(request: NextRequest) {
           base_kink: traits.base_kink,
           occupation: traits.occupation,
           hobbies: traits.hobbies,
-        };
-        const { error: upErr } = await supabase.from('girlfriends').update(patch).eq('id', id);
-        if (upErr) {
-          // Retry 1: drop occupation + hobbies (added later, may not exist on older DBs)
-          const soft1 = { ...patch };
-          delete soft1.occupation;
-          delete soft1.hobbies;
-          const { error: up2 } = await supabase.from('girlfriends').update(soft1).eq('id', id);
-          if (up2) {
-            // Retry 2: also drop age — some DBs predate migration 0007-style trait columns
-            const soft2 = { ...soft1 };
-            delete soft2.age;
-            const { error: up3 } = await supabase
-              .from('girlfriends')
-              .update(soft2)
-              .eq('id', id);
-            if (up3) {
-              errors.push(`${id}: ${up3.message}`);
-              continue;
-            }
-          }
+        } });
+      }
+
+      let updated = 0;
+      const errors: string[] = [];
+      for (let start = 0; start < randomizedRows.length; start += 20) {
+        const chunk = randomizedRows.slice(start, start + 20);
+        const results = await Promise.all(chunk.map(async ({ id, patch }) => {
+          const { error } = await supabase.from('girlfriends').update(patch).eq('id', id);
+          return { id, error };
+        }));
+        for (const result of results) {
+          if (result.error) errors.push(`${result.id}: ${result.error.message}`);
+          else updated += 1;
         }
-        updated += 1;
       }
       revalidateGirlfriendSurfaces();
       logger.info('[admin/girlfriends] randomize_traits done', { updated, errors: errors.length });

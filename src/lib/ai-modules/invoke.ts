@@ -4,7 +4,6 @@
 import type { ModelEndpoint } from './types';
 import { logger } from '@/lib/logger';
 import { estimateTokens, estimateCost, logModelUsage } from '@/lib/model-usage';
-import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 
 export interface InvokeChatOptions {
   endpoint: ModelEndpoint;
@@ -120,7 +119,9 @@ export async function invokeChat(opts: InvokeChatOptions): Promise<InvokeChatRes
   );
 
   return {
-    content: sanitizeAssistantReply(content),
+    // Language-aware sanitizing belongs at the route boundary. Sanitizing here
+    // without the UI locale used to erase valid Chinese replies as "wrong language".
+    content,
     provider: ep.provider,
     model: ep.model_id,
     latency_ms,

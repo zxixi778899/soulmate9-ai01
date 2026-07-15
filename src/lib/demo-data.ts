@@ -1,3 +1,5 @@
+import type { TranslationKey } from '@/lib/i18n/types';
+
 /**
  * Demo girlfriend data — English-first for Nordic/global EN users.
  * Chinese UI uses tagline_zh / relationship keys mapped via i18n.
@@ -61,7 +63,7 @@ export interface DemoGirl {
   locked?: boolean;
 }
 
-const REL_I18N: Record<string, string> = {
+const REL_I18N: Record<string, TranslationKey> = {
   neighbor: 'home.rel.neighbor',
   teacher: 'home.rel.teacher',
   sister: 'home.rel.sister',
@@ -91,11 +93,11 @@ const REL_I18N: Record<string, string> = {
 
 export function relationshipLabel(
   rel: string | undefined,
-  t: (key: string) => string,
+  t: (key: TranslationKey) => string,
 ): string {
   if (!rel) return t('home.rel.girlfriend');
   const key = REL_I18N[rel] || REL_I18N[rel.toLowerCase()];
-  return key ? t(key) : rel;
+  return key ? t(key as TranslationKey) : rel;
 }
 
 export function girlTagline(girl: DemoGirl, locale: string): string {

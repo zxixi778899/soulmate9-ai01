@@ -1,39 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getAuthUser } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/require-admin';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
-/**
- * POST /api/admin/embed-memory
- * Body: { id: string, embedding: number[] }
- * Writes the embedding to the memories row. Service-role protected.
- */
-export async function POST(req: NextRequest) {
-  const auth = await getAuthUser(req);
-  if (!auth.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+const EMBEDDING_WRITE_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 };
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type EmbedMemoryBody = {
+  id?: unknown;
+  embedding?: unknown;
+};
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const authorization = await requireAdmin(req);
+  if (authorization.error) return authorization.error;
+  const { user, supabase } = authorization;
+
+  const limit = await checkRateLimitAsync(`admin-embed-memory:${user.id}`, EMBEDDING_WRITE_LIMIT);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many embedding writes. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(limit, EMBEDDING_WRITE_LIMIT) },
+    );
   }
 
-  const body = await req.json().catch(() => null);
-  if (!body?.id || !Array.isArray(body?.embedding)) {
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  let body: EmbedMemoryBody;
+  try {
+    body = (await req.json()) as EmbedMemoryBody;
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const url = process.env.NEXT_PUBLIC_COZE_SUPABASE_URL;
-  const serviceKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) {
-    return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+  if (typeof body.id !== 'string' || !UUID_PATTERN.test(body.id)) {
+    return NextResponse.json({ error: 'A valid memory id is required' }, { status: 400 });
+  }
+  if (
+    !Array.isArray(body.embedding)
+    || body.embedding.length === 0
+    || body.embedding.length > 4096
+    || !body.embedding.every(
+      (value: unknown) => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1_000_000,
+    )
+  ) {
+    return NextResponse.json({ error: 'Embedding must contain 1 to 4096 finite numbers' }, { status: 400 });
   }
 
-  // Service-role client bypasses RLS
-  const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
-  const embeddingLiteral = '[' + body.embedding.join(',') + ']';
-  const { error } = await admin
-    .from('memories')
-    .update({ embedding: embeddingLiteral })
-    .eq('id', body.id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const embeddingLiteral = `[${body.embedding.join(',')}]`;
+    const { data, error } = await supabase
+      .from('memories')
+      .update({ embedding: embeddingLiteral })
+      .eq('id', body.id)
+      .select('id')
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return NextResponse.json({ error: 'Memory not found' }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown embedding write error';
+    logger.error('admin embed-memory failed', { error: message, memoryId: body.id });
+    return NextResponse.json({ error: 'Failed to update memory embedding' }, { status: 500 });
   }
-  return NextResponse.json({ ok: true });
 }

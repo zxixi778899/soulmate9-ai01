@@ -86,6 +86,12 @@ export async function POST(request: NextRequest) {
         (body as { message?: string }).message ||
         '',
     ).trim();
+    const locale = String((body as { locale?: string }).locale || 'en')
+      .toLowerCase()
+      .startsWith('zh')
+      ? 'zh'
+      : 'en';
+    const zh = locale === 'zh';
 
     const aiModules = await loadAiModules(client);
     const { data: profile } = await client
@@ -123,6 +129,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: `Daily image limit reached (${resolved.dailyLimit}). Upgrade or try again tomorrow.`,
+            localized_error: zh
+              ? `今日图片生成次数已用完（${resolved.dailyLimit} 次），请升级套餐或明天再试。`
+              : `Daily image limit reached (${resolved.dailyLimit}). Upgrade or try again tomorrow.`,
             code: 'daily_limit',
             limit: resolved.dailyLimit,
             used: count || 0,
@@ -268,8 +277,13 @@ export async function POST(request: NextRequest) {
     const generatedUrl = (await resolveImageUrl(key)) || key;
 
     const gfName = String((gf as { name?: string }).name || 'She');
-    const caption =
-      intent.kind === 'selfie'
+    const caption = zh
+      ? intent.kind === 'selfie'
+        ? `${gfName} 给你发来一张自拍 💕`
+        : intent.kind === 'body'
+          ? `${gfName} 给你发来一张只给你看的撩人照片 🔥`
+          : `${gfName} 给你发来一张照片 📸`
+      : intent.kind === 'selfie'
         ? `${gfName} sends you a selfie 💕`
         : intent.kind === 'body'
           ? `${gfName} sends you a teasing photo… just for you 🔥`

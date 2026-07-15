@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { uploadFile } from '@/lib/storage';
 import { logger } from '@/lib/logger';
+import { requireAdmin } from '@/lib/require-admin';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+
+const UPLOAD_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 };
 
 export async function POST(request: NextRequest) {
-  const { user, error: authError } = await getAuthUser(request);
+  const { user } = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -12,7 +16,11 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const folder = (formData.get('folder') as string) || 'uploads';
+    const requestedFolder = String(formData.get('folder') || 'uploads')
+      .replace(/\\/g, '/')
+      .replace(/\.\./g, '')
+      .replace(/^\/+|\/+$/g, '')
+      .slice(0, 120);
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -37,6 +45,20 @@ export async function POST(request: NextRequest) {
       ['.webm', '.ogg', '.mp3', '.m4a', '.wav', '.mp4'].includes(ext) &&
         !isImage &&
         !isSvga;
+
+    const adminFolder = /^(?:admin|gifts|girlfriends|batch-portraits)(?:\/|$)/i.test(requestedFolder);
+    if (adminFolder || isSvga) {
+      const admin = await requireAdmin(request);
+      if (admin.error) return admin.error;
+    }
+
+    const limit = await checkRateLimitAsync(`media-upload:${user.id}`, UPLOAD_LIMIT);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many uploads. Please try again later.' },
+        { status: 429, headers: rateLimitHeaders(limit, UPLOAD_LIMIT) },
+      );
+    }
 
     if (!isImage && !isAudio && !isSvga) {
       return NextResponse.json(
@@ -66,11 +88,13 @@ export async function POST(request: NextRequest) {
     const safeName = isSvga && !fileName.toLowerCase().endsWith('.svga')
       ? `${fileName}.svga`
       : fileName;
-    const uploadFolder = isSvga
-      ? folder.includes('gift')
-        ? folder
-        : 'gifts/svga'
-      : folder;
+    const uploadFolder = adminFolder || isSvga
+      ? isSvga
+        ? requestedFolder.includes('gift')
+          ? requestedFolder
+          : 'gifts/svga'
+        : requestedFolder
+      : `users/${user.id}/${isAudio ? 'voice' : 'images'}`;
     const result = await uploadFile(buffer, safeName, contentType, uploadFolder);
 
     return NextResponse.json({

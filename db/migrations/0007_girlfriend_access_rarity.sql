@@ -51,6 +51,11 @@ CREATE TABLE IF NOT EXISTS user_girlfriend_unlocks (
   UNIQUE (user_id, girlfriend_id)
 );
 
+-- This table is queried through trusted server routes with the service role.
+-- Keep direct Data API access closed unless explicit user-scoped policies are
+-- added later.
+ALTER TABLE user_girlfriend_unlocks ENABLE ROW LEVEL SECURITY;
+
 CREATE INDEX IF NOT EXISTS idx_user_gf_unlocks_user
   ON user_girlfriend_unlocks (user_id, created_at DESC);
 

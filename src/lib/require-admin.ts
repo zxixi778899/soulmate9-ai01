@@ -1,6 +1,10 @@
 import { getAuthUser } from './supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { NextResponse } from 'next/server';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
+
+const ADMIN_WRITE_LIMIT = { maxRequests: 300, windowMs: 60 * 60 * 1000 };
 
 /**
  * Admin roles (higher includes lower privileges)
@@ -80,13 +84,23 @@ export async function requireAdmin(request: Request, minRole: AdminRole = 'admin
   let isAdmin = meetsRole(role, minRole);
 
   // Email whitelist bootstrap (production + development)
-  if (!isAdmin) {
+  if (!isAdmin && minRole !== 'superadmin') {
     const email = (user.email || profile?.email || '').toLowerCase();
     if (isWhitelistedAdminEmail(email)) {
       isAdmin = true;
-      // Treat whitelist as full admin for route access
+      // Email bootstrap grants admin, never superadmin.
       if (!meetsRole(role, minRole)) role = minRole;
     }
+  }
+
+  if (profileError && !isWhitelistedAdminEmail(user.email)) {
+    logger.error('admin authorization profile lookup failed', {
+      userId: user.id,
+      error: profileError.message,
+    });
+    return {
+      error: NextResponse.json({ error: 'Authorization service unavailable' }, { status: 503 }),
+    };
   }
 
   if (!isAdmin) {
@@ -94,14 +108,25 @@ export async function requireAdmin(request: Request, minRole: AdminRole = 'admin
       error: NextResponse.json(
         {
           error: 'Forbidden: Admin access required',
-          hint:
-            'Set profiles.role = admin in Supabase for your user, or add your email to ALLOWED_ADMIN_EMAILS on Vercel and redeploy.',
-          hasProfile: !!profile,
-          profileError: profileError?.message || null,
+          code: 'ADMIN_REQUIRED',
         },
         { status: 403 },
       ),
     };
+  }
+
+
+  const method = request.method.toUpperCase();
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const limit = await checkRateLimitAsync(`admin-write:${user.id}`, ADMIN_WRITE_LIMIT);
+    if (!limit.allowed) {
+      return {
+        error: NextResponse.json(
+          { error: 'Too many admin write requests. Please try again later.' },
+          { status: 429, headers: rateLimitHeaders(limit, ADMIN_WRITE_LIMIT) },
+        ),
+      };
+    }
   }
 
   return { user, profile: profile || { role, email: user.email }, supabase };

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe-server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { getStripeCheckoutGate, stripeGateMessage } from '@/lib/payment-compliance';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+
+const CHECKOUT_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
 
 /**
  * POST /api/stripe/checkout
@@ -8,9 +12,25 @@ import { getAuthUser } from '@/lib/supabase-server';
  */
 export async function POST(req: NextRequest) {
   try {
+    const paymentGate = getStripeCheckoutGate();
+    if (!paymentGate.allowed) {
+      return NextResponse.json(
+        { error: stripeGateMessage(paymentGate), code: paymentGate.code },
+        { status: 503 },
+      );
+    }
+
     const { user } = await getAuthUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const limit = await checkRateLimitAsync(`stripe-checkout:${user.id}`, CHECKOUT_LIMIT);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many checkout attempts. Please try again later.' },
+        { status: 429, headers: rateLimitHeaders(limit, CHECKOUT_LIMIT) },
+      );
     }
 
     const body = (await req.json().catch(() => ({}))) as {
@@ -48,14 +68,16 @@ export async function POST(req: NextRequest) {
     };
 
     const priceKey = billing === 'yearly' ? `${plan}_yearly` : plan;
-    let priceId = priceMap[priceKey] || '';
+    const priceId = priceMap[priceKey] || '';
 
-    // Fallback: if yearly price missing, use monthly (Stripe still works; discount not applied server-side)
-    if (!priceId && billing === 'yearly') {
-      priceId = priceMap[plan] || '';
+    if (!priceId && process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: `Stripe price is not configured for ${priceKey}` },
+        { status: 503 },
+      );
     }
 
-    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
+    const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
     const stripe = getStripe();
 
     // Dynamic price_data when Price IDs are not configured (dev / bootstrap)

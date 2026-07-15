@@ -281,6 +281,7 @@ function AdminGirlfriendsMediaPageInner() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [randomizing, setRandomizing] = useState(false);
+  const [randomizeConfirmOpen, setRandomizeConfirmOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [videoUploading, setVideoUploading] = useState<VideoField | null>(null);
   const [imageUploading, setImageUploading] = useState<'portrait' | 'avatar' | 'card' | null>(null);
@@ -410,13 +411,7 @@ function AdminGirlfriendsMediaPageInner() {
   };
 
   const handleRandomizeAll = async () => {
-    if (
-      !window.confirm(
-        '将为所有现有女友随机分配：年龄、亲密值、职业、兴趣爱好、热情值、开发值、变态值。是否继续？',
-      )
-    ) {
-      return;
-    }
+    setRandomizeConfirmOpen(false);
     setRandomizing(true);
     try {
       const res = await authedFetch('/api/admin/girlfriends', {
@@ -427,10 +422,16 @@ function AdminGirlfriendsMediaPageInner() {
       const data = await readResponseJson<{
         error?: string;
         updated?: number;
+        total?: number;
+        errors?: string[];
         message?: string;
       }>(res);
       if (!res.ok) throw new Error(data.error || '随机分配失败');
-      toast.success(data.message || `已更新 ${data.updated ?? 0} 位女友`);
+      if ((data.errors?.length ?? 0) > 0) {
+        toast.warning(`已更新 ${data.updated ?? 0}/${data.total ?? 0} 位，部分记录失败`);
+      } else {
+        toast.success(data.message || `已更新 ${data.updated ?? 0} 位女友`);
+      }
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '随机分配失败');
@@ -731,7 +732,7 @@ function AdminGirlfriendsMediaPageInner() {
               <Button
                 variant="outline"
                 className="border-amber-400/40 bg-amber-500/10 text-amber-100"
-                onClick={() => void handleRandomizeAll()}
+                onClick={() => setRandomizeConfirmOpen(true)}
                 disabled={randomizing}
               >
                 {randomizing ? (
@@ -1284,6 +1285,28 @@ function AdminGirlfriendsMediaPageInner() {
                 保存
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={randomizeConfirmOpen} onOpenChange={setRandomizeConfirmOpen}>
+        <DialogContent className="border-amber-400/30 bg-slate-950 text-slate-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>随机分配全部数值？</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              将重新生成全部 {total} 位女友的年龄、亲密值、职业、兴趣爱好、热情值、开发值和变态值。此操作会直接保存。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setRandomizeConfirmOpen(false)}>取消</Button>
+            <Button
+              className="bg-amber-500 text-slate-950 hover:bg-amber-400"
+              onClick={() => void handleRandomizeAll()}
+              disabled={randomizing}
+            >
+              {randomizing && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              确认随机分配
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

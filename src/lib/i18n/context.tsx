@@ -1,19 +1,19 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Locale } from './types';
+import { isSupportedLocale, type Locale, type TranslationKey } from './types';
 import { getTranslation, detectBrowserLocale } from './translations';
 
 interface I18nContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: string, params?: Record<string, string | number>) => string;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }
 
 const I18nContext = createContext<I18nContextType>({
   locale: 'en',
   setLocale: () => {},
-  t: (key: string, _params?: Record<string, string | number>) => key,
+  t: (key: TranslationKey) => key,
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -22,17 +22,17 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Never force Chinese on admin path for front locale storage —
     // admin layout sets zh-CN on document separately.
-    const stored = localStorage.getItem('soulmate_locale') as Locale | null;
+    const stored = localStorage.getItem('soulmate_locale');
     let targetLocale: Locale;
-    if (stored === 'en' || stored === 'zh') {
+    if (isSupportedLocale(stored)) {
       targetLocale = stored;
     } else {
       const detected = detectBrowserLocale();
-      targetLocale = detected === 'zh' ? 'zh' : 'en';
+      targetLocale = isSupportedLocale(detected) ? detected : 'en';
     }
     setLocaleState(targetLocale);
     // Nordic / EU browsers (sv, no, da, fi, de, …) → en UI, lang=en
-    document.documentElement.lang = targetLocale === 'zh' ? 'zh-CN' : 'en';
+    document.documentElement.lang = targetLocale;
   }, []);
 
   const setLocale = (newLocale: Locale) => {
@@ -43,7 +43,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const t = (key: string, params?: Record<string, string | number>): string => {
+  const t = (key: TranslationKey, params?: Record<string, string | number>): string => {
     return getTranslation(key, locale, params);
   };
 

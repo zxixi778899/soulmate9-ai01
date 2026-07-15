@@ -3,6 +3,7 @@
 import { Component, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 interface Props {
   children: ReactNode;
@@ -29,9 +30,11 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // Log to console in dev; in production this would go to Sentry
-    console.error('ErrorBoundary caught:', error, info.componentStack);
+  componentDidCatch(error: Error, info: React.ErrorInfo): void {
+    logger.error('React error boundary caught a render failure', {
+      error: error.message,
+      componentStack: info.componentStack,
+    });
   }
 
   render() {

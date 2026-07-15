@@ -7,6 +7,7 @@ import type { ChatGirlfriend, IntimacyData } from './types';
 import { HEAT_UNLOCK_HINTS } from '@/lib/constants';
 import type { INTIMACY_LEVELS } from '@/lib/constants';
 import { traitLabelFor } from '@/lib/girlfriend-traits';
+import { useTranslation } from '@/lib/i18n/context';
 
 type LevelInfo = (typeof INTIMACY_LEVELS)[number];
 
@@ -25,10 +26,11 @@ export function ChatAppBar(props: {
   isGenerating: boolean;
   onMemories: () => void;
 }) {
+  const { t, locale } = useTranslation();
   const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories } = props;
   const name = girlfriend?.name?.trim() || 'Companion';
   const color = levelInfo?.color || '#ff2e88';
-  const title = levelInfo?.title || 'Chat';
+  const title = locale === 'zh' ? ['初识', '心动', '暧昧', '亲密', '热恋'][Math.max(0, Math.min(4, (intimacy?.level ?? 1) - 1))] : levelInfo?.title || 'Chat';
   const level = intimacy?.level ?? 1;
   const score = Math.round(intimacy?.score ?? 0);
 
@@ -42,7 +44,7 @@ export function ChatAppBar(props: {
           type="button"
           onClick={onBack}
           className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white transition-all active:scale-95 touch-manipulation"
-          aria-label="Back"
+          aria-label={t('general.back')}
         >
           <ChevronDown className="h-5 w-5 rotate-90" />
         </button>
@@ -85,7 +87,7 @@ export function ChatAppBar(props: {
           </div>
           <div className="text-[11px] mt-0.5 truncate">
             {isTyping ? (
-              <span className="text-[#FF6BA6] font-medium">typing…</span>
+              <span className="text-[#FF6BA6] font-medium">{t('chat.thinking')}</span>
             ) : (
               <span className="text-white/45">
                 {girlfriend?.occupation
@@ -95,7 +97,7 @@ export function ChatAppBar(props: {
                 {typeof girlfriend?.base_desire === 'number' ? (
                   <span className="text-white/35">
                     {' '}
-                    · {traitLabelFor('desire', girlfriend.base_desire, false)}
+                    · {traitLabelFor('desire', girlfriend.base_desire, locale === 'zh')}
                   </span>
                 ) : null}
               </span>
@@ -108,30 +110,32 @@ export function ChatAppBar(props: {
           onClick={onSelfie}
           disabled={isGenerating}
           className="inline-flex items-center justify-center gap-1 h-11 w-11 sm:w-auto sm:px-3.5 rounded-full text-xs font-medium text-white glass active:scale-95 disabled:opacity-50 transition-all touch-manipulation"
-          aria-label="Selfie"
+          aria-label={t('chat.selfie')}
         >
           <ImageIcon className="h-4 w-4" />
-          <span className="hidden sm:inline">Selfie</span>
+          <span className="hidden sm:inline">{t('chat.selfie')}</span>
         </button>
         <button
           type="button"
           onClick={onMemories}
           className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white active:scale-95 transition-all touch-manipulation"
-          aria-label="Memories"
+          aria-label={t('chat.memory')}
         >
           <Brain className="h-5 w-5" />
         </button>
         <Link
           href="/"
           className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white touch-manipulation active:scale-95"
-          aria-label="Home"
+          aria-label={t('home.title')}
         >
           <Home className="h-4 w-4" />
         </Link>
       </div>
       {!isTyping && (
         <div className="px-3 sm:px-4 pb-2 text-[10px] text-[#ff6ba6]/90 truncate">
-          {HEAT_UNLOCK_HINTS.find((h) => h.level === level)?.hint || 'Build heat together'}
+          {locale === 'zh'
+            ? '继续聊天可提升亲密热度并解锁更多互动'
+            : HEAT_UNLOCK_HINTS.find((h) => h.level === level)?.hint || 'Build heat together'}
         </div>
       )}
     </header>

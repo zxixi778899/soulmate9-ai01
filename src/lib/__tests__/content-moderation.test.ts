@@ -44,6 +44,20 @@ describe('content-moderation: moderateText', () => {
     expect(moderateText('MINOR character').allowed).toBe(false);
     expect(moderateText('Minor').allowed).toBe(false);
   });
+
+  it('blocks sexual content in SFW mode but permits it in adult mode', () => {
+    const sfw = moderateText('Send me a nude photo', 'sfw');
+    expect(sfw.allowed).toBe(false);
+    expect(sfw.reason).toBe('explicit_content_disabled');
+    expect(moderateText('Send me a nude photo', 'adult')).toEqual({
+      allowed: true,
+      nsfwLevel: 'explicit',
+    });
+  });
+
+  it('does not treat every adult student reference as a minor', () => {
+    expect(moderateText('I am a university student studying physics').allowed).toBe(true);
+  });
 });
 
 describe('content-moderation: inferNsfwLevel', () => {
