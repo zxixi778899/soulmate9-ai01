@@ -1,36 +1,75 @@
+/**
+ * GET /api/shop — Legacy shop items endpoint
+ * Now queries the products table instead of hardcoded data.
+ * Prefer /api/shop/v2/products for new code.
+ */
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { logger } from '@/lib/logger';
 
-const SHOP_ITEMS = [
-  // Gifts - Free tier
-  { id: 'rose-bouquet', name: 'Rose Bouquet', description: 'A beautiful bouquet of red roses. Simple yet heartfelt.', price_cents: 150, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 15 }, category: 'gifts', tier: 'free', emoji: '', intimacy_boost: 15 },
-  { id: 'chocolate-box', name: 'Chocolate Box', description: 'Premium Belgian chocolates. Sweet and irresistible.', price_cents: 300, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 30 }, category: 'gifts', tier: 'free', emoji: '', intimacy_boost: 30 },
-  { id: 'teddy-bear', name: 'Teddy Bear', description: 'A soft, huggable teddy bear she can cuddle at night.', price_cents: 500, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 50 }, category: 'gifts', tier: 'free', emoji: '', intimacy_boost: 50 },
-
-  // Gifts - Premium tier
-  { id: 'perfume-bottle', name: 'Designer Perfume', description: 'A seductive fragrance that lingers all day. She\'ll think of you every time she wears it.', price_cents: 800, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 80 }, category: 'gifts', tier: 'premium', emoji: '', intimacy_boost: 80 },
-  { id: 'lingerie-set', name: 'Silk Lingerie Set', description: 'Premium silk lingerie. She\'ll send you a thank-you photo~ ', price_cents: 1200, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 150 }, category: 'gifts', tier: 'premium', emoji: '', intimacy_boost: 150 },
-
-  // Outfits - shop only (not in base outfits)
-  { id: 'school-uniform', name: 'School Uniform', description: 'A classic schoolgirl outfit. Brings out her playful side.', price_cents: 500, item_type: 'outfit', effect_value: { outfit_id: 'school-uniform' }, category: 'outfits', tier: 'free', emoji: '', intimacy_boost: 0 },
-  { id: 'maid-costume', name: 'French Maid', description: 'Adorable maid dress with lace trim. "Welcome home, Master~"', price_cents: 800, item_type: 'outfit', effect_value: { outfit_id: 'maid-costume' }, category: 'outfits', tier: 'premium', emoji: '', intimacy_boost: 0 },
-  { id: 'evening-gown-sapphire', name: 'Sapphire Evening Gown', description: 'Stunning midnight blue gown with crystal embellishments.', price_cents: 1500, item_type: 'outfit', effect_value: { outfit_id: 'evening-gown-sapphire' }, category: 'outfits', tier: 'premium', emoji: '', intimacy_boost: 0 },
-
-  // Boosters
-  { id: 'double-intimacy', name: 'Double Intimacy Boost', description: 'All intimacy gains doubled for the next 24 hours!', price_cents: 600, item_type: 'cap_unlock', effect_value: { effect_type: 'double_intimacy', duration_hours: 24 }, category: 'boosts', tier: 'free', is_limited: false, emoji: '', intimacy_boost: 0 },
-  { id: 'unlimited-msg', name: 'Unlimited Messages', description: 'No daily message limit for 48 hours. Talk all you want!', price_cents: 1000, item_type: 'cap_unlock', effect_value: { effect_type: 'unlimited_messages', duration_hours: 48 }, category: 'boosts', tier: 'premium', is_limited: false, emoji: '', intimacy_boost: 0 },
-
-  // Limited
-  { id: 'valentine-special', name: ' Valentine\'s Special Box', description: 'Limited edition gift box with exclusive chat scenes and massive intimacy boost!', price_cents: 2000, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 300 }, category: 'limited', tier: 'premium', is_limited: true, weekly_purchase_limit: 1, emoji: '', intimacy_boost: 300 },
-];
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get('category');
   const tier = searchParams.get('tier');
 
-  let items = [...SHOP_ITEMS];
-  if (category) items = items.filter(i => i.category === category);
-  if (tier) items = items.filter(i => i.tier === tier);
+  try {
+    const supabase = getSupabaseClient();
 
-  return NextResponse.json({ items, total: items.length });
+    let query = supabase
+      .from('products')
+      .select('id, name, description, category, price_credits, price_cents, rarity, virtual_meta, is_featured, status')
+      .eq('status', 'active')
+      .eq('type', 'virtual')
+      .order('is_featured', { ascending: false })
+      .order('display_order', { ascending: true })
+      .limit(60);
+
+    if (category) {
+      // Map legacy category names to DB categories
+      const categoryMap: Record<string, string> = {
+        gifts: 'prop',
+        outfits: 'outfit',
+        boosts: 'membership',
+        limited: 'outfit',
+      };
+      query = query.eq('category', categoryMap[category] || category);
+    }
+
+    const { data: products, error } = await query;
+    if (error) {
+      logger.warn('[shop] products query failed', { err: error.message });
+      return NextResponse.json({ items: [], total: 0 });
+    }
+
+    // Map DB products to legacy ShopItem shape for backward compatibility
+    const items = (products || []).map((p) => {
+      const meta = (p.virtual_meta || {}) as Record<string, unknown>;
+      const rarity = p.rarity || 'common';
+      const isPremium = rarity === 'epic' || rarity === 'legendary';
+
+      return {
+        id: p.id,
+        name: p.name,
+        description: p.description || '',
+        price_cents: Number(p.price_credits || p.price_cents || 0),
+        item_type: p.category === 'outfit' ? 'outfit' : p.category === 'prop' ? 'intimacy_boost' : 'cap_unlock',
+        effect_value: meta,
+        category: p.category,
+        tier: isPremium ? 'premium' : 'free',
+        is_limited: p.is_featured || false,
+        emoji: p.category === 'outfit' ? '👗' : p.category === 'prop' ? '🎁' : '⚡',
+        intimacy_boost: Number(meta.intimacy_boost || 0),
+      };
+    });
+
+    // Apply tier filter if specified
+    const filtered = tier ? items.filter((i) => i.tier === tier) : items;
+
+    return NextResponse.json({ items: filtered, total: filtered.length });
+  } catch (e) {
+    logger.error('[shop] GET failed', { err: e instanceof Error ? e.message : String(e) });
+    return NextResponse.json({ items: [], total: 0 });
+  }
 }

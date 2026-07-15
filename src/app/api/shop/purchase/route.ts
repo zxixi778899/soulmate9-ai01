@@ -16,24 +16,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Get shop items (same data as GET)
-    const SHOP_ITEMS = [
-      { id: 'rose-bouquet', name: 'Rose Bouquet', price_cents: 150, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 15 }, tier: 'free', emoji: '' },
-      { id: 'chocolate-box', name: 'Chocolate Box', price_cents: 300, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 30 }, tier: 'free', emoji: '' },
-      { id: 'teddy-bear', name: 'Teddy Bear', price_cents: 500, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 50 }, tier: 'free', emoji: '' },
-      { id: 'perfume-bottle', name: 'Designer Perfume', price_cents: 800, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 80 }, tier: 'premium', emoji: '' },
-      { id: 'lingerie-set', name: 'Silk Lingerie Set', price_cents: 1200, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 150 }, tier: 'premium', emoji: '' },
-      { id: 'school-uniform', name: 'School Uniform', price_cents: 500, item_type: 'outfit', tier: 'free' },
-      { id: 'maid-costume', name: 'French Maid', price_cents: 800, item_type: 'outfit', tier: 'premium' },
-      { id: 'evening-gown-sapphire', name: 'Sapphire Evening Gown', price_cents: 1500, item_type: 'outfit', tier: 'premium' },
-      { id: 'double-intimacy', name: 'Double Intimacy Boost', price_cents: 600, item_type: 'cap_unlock', effect_value: { effect_type: 'double_intimacy', duration_hours: 24 }, tier: 'free' },
-      { id: 'unlimited-msg', name: 'Unlimited Messages', price_cents: 1000, item_type: 'cap_unlock', effect_value: { effect_type: 'unlimited_messages', duration_hours: 48 }, tier: 'premium' },
-      { id: 'valentine-special', name: "Valentine's Special Box", price_cents: 2000, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 300 }, tier: 'premium', is_limited: true },
-    ];
+    // Look up product from database
+    const { data: item, error: itemError } = await supabase
+      .from('products')
+      .select('id, name, description, category, price_credits, price_cents, rarity, virtual_meta, status')
+      .eq('id', itemId)
+      .eq('status', 'active')
+      .single();
 
-    const item = SHOP_ITEMS.find(i => i.id === itemId);
-    if (!item) {
-      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+    if (itemError || !item) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
     // M8  girlfriend 
@@ -50,8 +42,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: girlfriend does not belong to you' }, { status: 403 });
     }
 
-    // M7 DB 
-    if (item.item_type === 'outfit') {
+    // M7 DB  — check wardrobe duplicate for outfit purchases
+    if (item.category === 'outfit') {
       const { data: existing } = await supabase
         .from('wardrobe')
         .select('id')
@@ -80,24 +72,25 @@ export async function POST(req: NextRequest) {
     }
 
     // Premium items check - must have premium membership or credits
-    if (item.tier === 'premium' && profile.membership_tier === 'free') {
+    const isPremiumItem = item.rarity === 'epic' || item.rarity === 'legendary';
+    if (isPremiumItem && profile.membership_tier === 'free') {
       // Allow purchasing with credits for premium items even on free tier
-      if (item.price_cents > 0 && (profile.credits_remaining ?? 0) < item.price_cents) {
+      if (item.price_credits > 0 && (profile.credits_remaining ?? 0) < item.price_credits) {
         return NextResponse.json({ error: 'Insufficient credits. Please upgrade your plan to purchase premium items.', code: 'INSUFFICIENT_CREDITS' }, { status: 402 });
       }
     }
 
-    if ((profile.credits_remaining ?? 0) < item.price_cents) {
+    if ((profile.credits_remaining ?? 0) < item.price_credits) {
       return NextResponse.json({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }, { status: 402 });
     }
 
     // Deduct credits atomically using conditional update to prevent race conditions
-    const newCredits = (profile.credits_remaining ?? 0) - item.price_cents;
+    const newCredits = (profile.credits_remaining ?? 0) - item.price_credits;
     const { error: deductError, count: updatedCount } = await supabase
       .from('profiles')
       .update({ credits_remaining: newCredits })
       .eq('user_id', user.id)
-      .gte('credits_remaining', item.price_cents) // Atomic check: only update if credits >= price
+      .gte('credits_remaining', item.price_credits) // Atomic check: only update if credits >= price
       .select();
 
     if (deductError) {
@@ -109,10 +102,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Insufficient credits (concurrent request)', code: 'INSUFFICIENT_CREDITS' }, { status: 402 });
     }
 
-    // Apply effect
-    if (item.item_type === 'intimacy_boost') {
+    // Apply effect based on product category
+    const meta = (item.virtual_meta ?? {}) as Record<string, unknown>;
+
+    if (item.category === 'prop' && typeof meta.intimacy_boost === 'number') {
       // Update intimacy score
-      const boost = item.effect_value?.intimacy_boost || 0;
+      const boost = (meta.intimacy_boost as number) || 0;
       const { data: existingIntimacy } = await supabase
         .from('intimacy_scores')
         .select('score')
@@ -133,7 +128,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (item.item_type === 'outfit') {
+    if (item.category === 'outfit') {
       // Add outfit to wardrobe
       const outfitId = item.id;
       await supabase
@@ -146,10 +141,10 @@ export async function POST(req: NextRequest) {
         });
     }
 
-    if (item.item_type === 'cap_unlock') {
+    if (meta.effect_type || item.category === 'membership') {
       // Add active item
-      const effectType = item.effect_value?.effect_type || 'double_intimacy';
-      const durationHours = item.effect_value?.duration_hours || 24;
+      const effectType = (meta.effect_type as string) || 'double_intimacy';
+      const durationHours = (meta.duration_hours as number) || 24;
       const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
 
       await supabase
@@ -165,8 +160,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       item: item.name,
-      remaining_credits: profile.credits_remaining - item.price_cents,
-      effect: item.item_type,
+      remaining_credits: profile.credits_remaining - item.price_credits,
+      effect: item.category,
     });
 
   } catch (err) {

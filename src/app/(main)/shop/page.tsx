@@ -15,7 +15,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Coins, Heart, Sparkles, Lock, Star, Shirt, Gift, Zap, Users } from 'lucide-react';
+import { Coins, Heart, Sparkles, Lock, Star, Shirt, Gift, Zap, Users, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import {
@@ -35,6 +35,7 @@ type ShopItem = {
   tier: string;
   is_limited?: boolean;
   skin?: string;
+  preview_url?: string;
 };
 
 type Girlfriend = { id: string; name: string };
@@ -47,23 +48,14 @@ type TokenPackage = {
   price_cents: number;
 };
 
-const SKINS: ShopItem[] = [
-  { id: 'classic-dress', name: '经典裙装', emoji: '👗', description: '日常约会默认皮肤', price_cents: 200, item_type: 'outfit', effect_value: { intimacy_boost: 5 }, tier: 'free', skin: 'from-rose-400 to-pink-600' },
-  { id: 'beach-bikini', name: '夏日泳装', emoji: '👙', description: '限定海滩皮肤', price_cents: 800, item_type: 'outfit', effect_value: { intimacy_boost: 25 }, tier: 'premium', skin: 'from-cyan-400 to-blue-600' },
-  { id: 'evening-gown', name: '晚宴礼服', emoji: '✨', description: '红毯传说级皮肤', price_cents: 1500, item_type: 'outfit', effect_value: { intimacy_boost: 50 }, tier: 'premium', skin: 'from-amber-300 to-rose-600' },
-  { id: 'silk-lingerie', name: '丝绸私语', emoji: '💫', description: '亲密度传说皮肤', price_cents: 3000, item_type: 'outfit', effect_value: { intimacy_boost: 100 }, tier: 'premium', is_limited: true, skin: 'from-fuchsia-500 to-purple-800' },
-  { id: 'nurse-costume', name: '白衣天使', emoji: '💉', description: '角色扮演皮肤', price_cents: 2000, item_type: 'outfit', effect_value: { intimacy_boost: 80 }, tier: 'premium', skin: 'from-white to-rose-400' },
-  { id: 'maid-costume', name: '法式女仆', emoji: '🎀', description: '经典幻想皮肤', price_cents: 2500, item_type: 'outfit', effect_value: { intimacy_boost: 90 }, tier: 'premium', skin: 'from-zinc-200 to-zinc-800' },
-];
-
-const GIFTS: ShopItem[] = [
-  { id: 'rose-bouquet', name: '红玫瑰', emoji: '🌹', description: '温暖她的心', price_cents: 150, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 15 }, tier: 'free' },
-  { id: 'chocolate-box', name: '巧克力礼盒', emoji: '🍫', description: '甜蜜惊喜', price_cents: 300, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 30 }, tier: 'free' },
-  { id: 'teddy-bear', name: '巨型玩偶', emoji: '🧸', description: '拥抱时刻', price_cents: 500, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 50 }, tier: 'free' },
-  { id: 'perfume-bottle', name: '设计师香水', emoji: '🧴', description: '高级感礼物', price_cents: 800, item_type: 'intimacy_boost', effect_value: { intimacy_boost: 80 }, tier: 'premium' },
-  { id: 'double-intimacy', name: '双倍亲密度', emoji: '⚡', description: '24 小时增益', price_cents: 600, item_type: 'cap_unlock', effect_value: { effect_type: 'double_intimacy', duration_hours: 24 }, tier: 'free' },
-  { id: 'unlimited-msg', name: '无限消息卡', emoji: '💬', description: '48 小时无限聊', price_cents: 1000, item_type: 'cap_unlock', effect_value: { effect_type: 'unlimited_messages', duration_hours: 48 }, tier: 'premium' },
-];
+function gradientFromRarity(rarity?: string): string {
+  switch (rarity) {
+    case 'legendary': return 'from-fuchsia-500 to-purple-800';
+    case 'epic': return 'from-amber-300 to-rose-600';
+    case 'rare': return 'from-cyan-400 to-blue-600';
+    default: return 'from-rose-400 to-pink-600';
+  }
+}
 
 export default function ShopPage() {
   const { t } = useTranslation();
@@ -80,6 +72,9 @@ export default function ShopPage() {
   const [seatPackages, setSeatPackages] = useState<Array<{ id: string; name: string; seats: number; price_cents: number }>>([]);
   const [seatStatus, setSeatStatus] = useState<{ used: number; effectiveLimit: number; bonusSeats: number; remaining: number | null; canAdd: boolean } | null>(null);
   const [buyingSeats, setBuyingSeats] = useState<string | null>(null);
+  const [skins, setSkins] = useState<ShopItem[]>([]);
+  const [gifts, setGifts] = useState<ShopItem[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   useEffect(() => {
     authedFetch('/api/shop/credits').then((r) => r.json()).then(setCredits).catch(() => {});
@@ -104,6 +99,46 @@ export default function ShopPage() {
         setSeatStatus(d.seats || null);
       })
       .catch(() => {});
+
+    // Fetch skins (outfit products from DB)
+    authedFetch('/api/shop/v2/products?category=outfit&limit=60')
+      .then((r) => r.json())
+      .then((d) => {
+        const products = (d.products || []).map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          name: p.name as string,
+          emoji: p.category === 'outfit' ? '👗' : '🎁',
+          description: (p.description as string) || '',
+          price_cents: Number(p.price_credits || p.price_cents || 0),
+          item_type: 'outfit',
+          effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
+          tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
+          is_limited: (p.is_featured as boolean) || false,
+          skin: gradientFromRarity(p.rarity as string),
+          preview_url: (p.preview_url as string) || '',
+        }));
+        setSkins(products);
+      })
+      .catch(() => {});
+
+    // Fetch gifts (prop products from DB)
+    authedFetch('/api/shop/v2/products?category=prop&limit=60')
+      .then((r) => r.json())
+      .then((d) => {
+        const products = (d.products || []).map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          name: p.name as string,
+          emoji: '🎁',
+          description: (p.description as string) || '',
+          price_cents: Number(p.price_credits || p.price_cents || 0),
+          item_type: 'intimacy_boost',
+          effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
+          tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
+        }));
+        setGifts(products);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingProducts(false));
 
     if (params.get('checkout') === 'success') {
       if (params.get('seats')) {
@@ -163,10 +198,10 @@ const handleBuy = async () => {
     if (!buying || !selectedGF) return;
     setPurchasing(true);
     try {
-      const res = await authedFetch('/api/shop/purchase', {
+      const res = await authedFetch('/api/shop/v2/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: buying.id, girlfriendId: selectedGF }),
+        body: JSON.stringify({ product_id: buying.id, girlfriend_id: selectedGF }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -342,76 +377,96 @@ const handleBuy = async () => {
               title="传说皮肤"
               subtitle="王者级货架 · 选中后装备给她"
             />
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {SKINS.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setBuying(item)}
-                  className="group relative rounded-2xl overflow-hidden border border-white/10 text-left active:scale-[0.98] transition-transform"
-                >
-                  <div className={cn('aspect-[4/5] bg-gradient-to-br relative', item.skin)}>
-                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
-                    <div className="absolute inset-0 flex items-center justify-center text-6xl drop-shadow-lg">
-                      {item.emoji}
-                    </div>
-                    {item.is_limited && (
-                      <span className="absolute top-2 left-2 text-[9px] font-black tracking-wider bg-black/60 text-[#ffd700] px-2 py-0.5 rounded">
-                        LIMITED
-                      </span>
-                    )}
-                    {item.tier === 'premium' && (
-                      <Lock className="absolute top-2 right-2 h-4 w-4 text-white/70" />
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
-                      <div className="font-bold text-sm">{item.name}</div>
-                      <div className="text-[11px] text-white/55 line-clamp-1">{item.description}</div>
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-amber-300 text-xs font-bold">
-                          <Coins className="h-3.5 w-3.5" />
-                          {item.price_cents}
+            {loadingProducts ? (
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" /></div>
+            ) : skins.length === 0 ? (
+              <div className="text-center py-12 text-white/40">
+                <Shirt className="mx-auto mb-3 h-10 w-10 text-white/20" />
+                <p>暂无皮肤商品</p>
+                <p className="text-xs mt-1">管理员可在后台商城添加商品</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {skins.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setBuying(item)}
+                    className="group relative rounded-2xl overflow-hidden border border-white/10 text-left active:scale-[0.98] transition-transform"
+                  >
+                    <div className={cn('aspect-[4/5] bg-gradient-to-br relative', item.skin)}>
+                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+                      <div className="absolute inset-0 flex items-center justify-center text-6xl drop-shadow-lg">
+                        {item.emoji}
+                      </div>
+                      {item.is_limited && (
+                        <span className="absolute top-2 left-2 text-[9px] font-black tracking-wider bg-black/60 text-[#ffd700] px-2 py-0.5 rounded">
+                          LIMITED
                         </span>
-                        <span className="text-[10px] text-[#ff6ba6]">
-                          +{item.effect_value?.intimacy_boost} 亲密度
-                        </span>
+                      )}
+                      {item.tier === 'premium' && (
+                        <Lock className="absolute top-2 right-2 h-4 w-4 text-white/70" />
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
+                        <div className="font-bold text-sm">{item.name}</div>
+                        <div className="text-[11px] text-white/55 line-clamp-1">{item.description}</div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="flex items-center gap-1 text-amber-300 text-xs font-bold">
+                            <Coins className="h-3.5 w-3.5" />
+                            {item.price_cents}
+                          </span>
+                          <span className="text-[10px] text-[#ff6ba6]">
+                            +{item.effect_value?.intimacy_boost} 亲密度
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
         {tab === 'gifts' && (
           <section>
             <GameSectionTitle eyebrow="ITEMS" title="道具与增益" subtitle="送礼 · 双倍 · 限时卡" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {GIFTS.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setBuying(item)}
-                  className="game-panel p-4 text-left hover:border-[#ff2e88]/40 transition-all active:scale-[0.98]"
-                >
-                  <div className="text-4xl mb-2">{item.emoji}</div>
-                  <div className="font-semibold text-sm">{item.name}</div>
-                  <div className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{item.description}</div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-amber-300 text-xs font-bold flex items-center gap-1">
-                      <Coins className="h-3.5 w-3.5" /> {item.price_cents}
-                    </span>
-                    {item.item_type === 'intimacy_boost' ? (
-                      <span className="text-[10px] text-[#ff6ba6] flex items-center gap-0.5">
-                        <Heart className="h-3 w-3" /> +{item.effect_value?.intimacy_boost}
+            {loadingProducts ? (
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" /></div>
+            ) : gifts.length === 0 ? (
+              <div className="text-center py-12 text-white/40">
+                <Gift className="mx-auto mb-3 h-10 w-10 text-white/20" />
+                <p>暂无道具商品</p>
+                <p className="text-xs mt-1">管理员可在后台商城添加商品</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {gifts.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setBuying(item)}
+                    className="game-panel p-4 text-left hover:border-[#ff2e88]/40 transition-all active:scale-[0.98]"
+                  >
+                    <div className="text-4xl mb-2">{item.emoji}</div>
+                    <div className="font-semibold text-sm">{item.name}</div>
+                    <div className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{item.description}</div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-amber-300 text-xs font-bold flex items-center gap-1">
+                        <Coins className="h-3.5 w-3.5" /> {item.price_cents}
                       </span>
-                    ) : (
-                      <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
-                        <Zap className="h-3 w-3" /> {item.effect_value?.duration_hours}h
-                      </span>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
+                      {item.item_type === 'intimacy_boost' ? (
+                        <span className="text-[10px] text-[#ff6ba6] flex items-center gap-0.5">
+                          <Heart className="h-3 w-3" /> +{item.effect_value?.intimacy_boost}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
+                          <Zap className="h-3 w-3" /> {item.effect_value?.duration_hours}h
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
         )}
       </div>
