@@ -35,14 +35,14 @@ import {
  * Keep short; avoid stacking camera spam that collapses faces.
  */
 export const GIRLFRIEND_QUALITY_PREFIX =
-  'stunningly beautiful, seductive and alluring, soft glamorous makeup, glossy lips, bedroom eyes, flawless glowing skin, photorealistic editorial beauty photo, crisp detailed eyes, natural skin texture with pores, detailed flowing hair, high-resolution 8K detail, sharp focus on face, intimate and captivating, professional studio lighting, magazine cover quality, RAW photo, masterpiece'
+  'breathtakingly gorgeous, irresistibly sexy, sultry and seductive, dewy glowing skin with natural sheen, plump glossy lips, heavy-lidded bedroom eyes, long thick lashes, photorealistic editorial beauty photo, crisp detailed eyes with catchlights, natural skin texture with visible pores, flowing voluminous hair, high-resolution 8K detail, sharp focus on face, intimate and captivating mood, professional lighting, magazine cover quality, RAW photo, masterpiece, award-winning portrait'
 
 /**
  * Soft figure hint — keep short so face/pose still dominate.
- * Avoid fixed lingerie / same body spam that collapses variety.
+ * Enhanced for more sex appeal while staying natural.
  */
 export const GIRLFRIEND_BODY_FIXED =
-  'sexy feminine silhouette, graceful waist and hips, attractive figure, realistic anatomy and proportions'
+  'sexy feminine hourglass silhouette, toned waist and full curves, long legs, collarbones visible, attractive proportions, realistic anatomy'
 
 /** Default framing for companion cards: face the viewer (not back/side template). */
 export const GIRLFRIEND_FRAMING =
@@ -381,6 +381,101 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
   },
 ];
 
+// ─── Global Variety Pools (20 each) ────────────────────────
+// Mixed with scene-specific options to prevent uniform output.
+
+const GLOBAL_LIGHTS: string[] = [
+  'bright soft window light flooding in, illuminating face and body evenly',
+  'warm golden hour sunlight wrapping around her curves, lens flare accents',
+  'dramatic Rembrandt lighting, one side of face lit, moody shadows on body',
+  'neon pink and blue city glow reflecting off skin, cinematic night light',
+  'overhead softbox beauty lighting, flawless skin highlights, magazine quality',
+  'candlelight warmth casting intimate glow on collarbones and face',
+  'backlit silhouette rim light outlining her figure, face softly fill-lit',
+  'harsh midday sun creating defined shadows, high-contrast fashion editorial',
+  'soft diffused overcast daylight, even exposure, natural beauty',
+  'ring light catchlights in eyes, beauty vlogger style, bright and clean',
+  'sunset side-lighting, warm amber glow on skin, long soft shadows',
+  'cool blue moonlight through window, subtle highlights on shoulders',
+  'vanity mirror bulbs creating even beauty lighting, no harsh shadows',
+  'dappled sunlight through leaves, light patterns on skin, dreamy natural',
+  'neon sign glow from behind, colored rim light, urban nightlife vibe',
+  'fireplace warm flickering light, cozy intimate atmosphere on skin',
+  'studio butterfly lighting, symmetrical beauty, sharp eye catchlights',
+  'split lighting with warm key and cool fill, dramatic editorial portrait',
+  'bright bathroom fluorescent, clean sharp light, realistic selfie look',
+  'fairy lights bokeh in background, soft warm key light on face',
+];
+
+const GLOBAL_ENVS: string[] = [
+  'luxury penthouse with floor-to-ceiling windows and city skyline',
+  'cozy bedroom with rumpled white sheets and warm bedside lamp',
+  'modern minimalist living room with plush velvet sofa',
+  'rooftop infinity pool overlooking neon-lit cityscape at night',
+  'sunlit balcony with trailing plants and ocean view',
+  'upscale hotel suite with king bed and marble bathroom visible',
+  'dimly lit jazz bar with leather booths and amber lighting',
+  'tropical beach at sunset, wet sand reflecting golden sky',
+  'private yoga studio with mirrors and soft ambient lighting',
+  'walk-in closet full of designer clothes, full-length mirror',
+  'rainy city street at night, neon reflections on wet pavement',
+  'luxury bathroom with freestanding tub and candle arrangement',
+  'botanical garden greenhouse, lush greenery and dappled light',
+  'vintage record store with warm lighting and vinyl walls',
+  'modern kitchen island with marble countertop and pendant lights',
+  'art gallery with white walls and dramatic spotlighting',
+  'private jet cabin interior, cream leather seats, soft lighting',
+  'Japanese onsen garden, bamboo and stone, steam rising',
+  'convertible car on coastal highway, wind in hair, sunset',
+  ' Parisian cafe terrace at dusk, string lights and cobblestones',
+];
+
+const GLOBAL_POSES: string[] = [
+  'arched back with hands running through hair, sensual expression, full body',
+  'lying on side propped on elbow, legs slightly bent, inviting gaze',
+  'sitting backwards on chair straddling it, chin on arms, playful eye contact',
+  'standing with one leg raised on surface, showing off figure, confident pose',
+  'kneeling and looking up at camera, parted lips, sultry expression',
+  'bending forward slightly adjusting shoe, showcasing curves, candid moment',
+  'stretching arms above head, torso elongated, relaxed morning stretch',
+  'leaning against wall with one foot up, casual yet alluring stance',
+  'sitting on edge of surface with legs spread slightly, hands between knees',
+  'twisting torso to look back at camera, hip popped, three-quarter view',
+  'reclining with one knee up, hand trailing down thigh, relaxed sensuality',
+  'pulling strap off shoulder, mid-motion candid, playful undressing',
+  'standing in doorway with hand on frame, body language inviting',
+  'sitting cross-legged then leaning forward, intimate close angle',
+  'arms behind head, elbows out, chest forward, power pose full body',
+  'hugging own shoulders, looking down then up at camera, shy but sexy',
+  'running hands down own body from neck to waist, sensual self-touch',
+  'perched on counter with legs dangling, casual yet provocative',
+  'lying on back with one arm behind head, looking at camera from below',
+  'standing close to camera, slightly cropped, intimate selfie distance',
+];
+
+const GLOBAL_OUTFITS: string[] = [
+  'sheer lace bodysuit over bare skin, delicate and provocative',
+  'cropped leather jacket over nothing but a bikini top, edgy sexy',
+  'silk robe barely tied, slipping off one shoulder, luxurious',
+  'high-waisted bikini with gold chain belt, beach goddess',
+  'form-fitting latex mini dress, glossy and figure-hugging',
+  'oversized white shirt unbuttoned to mid-chest, no pants visible',
+  'strappy cutout bodycon dress showing midriff and hip',
+  'mesh crop top over bralette, high-waisted leather shorts',
+  'off-shoulder knit sweater falling to reveal one breast curve, micro shorts',
+  'satin slip dress with thin straps, clinging to every curve',
+  'bunny suit with fishnet stockings and heels, classic pin-up',
+  'sports bra and tiny booty shorts, gym-ready and toned',
+  'corset top with garter belt and thigh-high stockings',
+  'wet white t-shirt clinging transparent to body, denim cutoffs',
+  'velvet bralette and matching high-slit maxi skirt',
+  'backless sequin halter top with micro mini skirt, party glam',
+  'sheer kimono over lingerie set, flowing and exotic',
+  'crop hoodie unzipped over string bikini top, streetwear meets beach',
+  'bandage dress in deep V neckline, sculpting every curve',
+  'lace-trimmed camisole and silk shorts, boudoir chic',
+];
+
 function normalizeTags(tags?: string[] | string): string[] {
   if (!tags) return [];
   if (Array.isArray(tags)) return tags.map(String).filter(Boolean);
@@ -407,11 +502,11 @@ function pickFromList(seed: string, list: string[], salt = ''): string {
   return list[hashPick(`${seed}|${salt}`, list.length)] || list[0];
 }
 
-/** Per-character variety: pose + wardrobe from scene pools (not one fixed template). */
+/** Per-character variety: mix scene-specific + global pools for maximum diversity. */
 export function pickScenePoseAndOutfit(
   subject: GirlfriendSubject,
   scene: SceneRecipe,
-): { pose: string; outfit: string } {
+): { pose: string; outfit: string; light: string; env: string } {
   const seed = [
     subject.name || '',
     subject.hairColor || '',
@@ -420,11 +515,32 @@ export function pickScenePoseAndOutfit(
     subject.personality || '',
     subject.outfit || '',
   ].join('|');
-  const pose = pickFromList(seed, scene.poses, `pose|${scene.id}`);
+
+  // 40% chance to use scene-specific, 60% global pool — ensures variety across characters
+  const useGlobalPose = hashPick(`${seed}|pose-decide|${scene.id}`, 10) >= 4;
+  const useGlobalOutfit = hashPick(`${seed}|outfit-decide|${scene.id}`, 10) >= 4;
+  const useGlobalLight = hashPick(`${seed}|light-decide|${scene.id}`, 10) >= 4;
+  const useGlobalEnv = hashPick(`${seed}|env-decide|${scene.id}`, 10) >= 5; // 50% global env
+
+  const pose = useGlobalPose
+    ? pickFromList(seed, GLOBAL_POSES, `gpose|${scene.id}`)
+    : pickFromList(seed, scene.poses, `pose|${scene.id}`);
+
   const outfit =
     (subject.outfit && subject.outfit.trim()) ||
-    pickFromList(seed, scene.outfits, `outfit|${scene.id}`);
-  return { pose, outfit };
+    (useGlobalOutfit
+      ? pickFromList(seed, GLOBAL_OUTFITS, `goutfit|${scene.id}`)
+      : pickFromList(seed, scene.outfits, `outfit|${scene.id}`));
+
+  const light = useGlobalLight
+    ? pickFromList(seed, GLOBAL_LIGHTS, `glight|${scene.id}`)
+    : (scene.light || 'soft flattering key light on her face, natural skin tone');
+
+  const env = useGlobalEnv
+    ? pickFromList(seed, GLOBAL_ENVS, `genv|${scene.id}`)
+    : scene.env;
+
+  return { pose, outfit, light, env };
 }
 
 
@@ -435,14 +551,22 @@ export function pickScenePoseAndOutfit(
 export function buildFaceIdentityClause(subject: GirlfriendSubject): string {
   const seed = `${subject.name || ''}|${subject.hairColor || ''}|${subject.eyes || ''}|${subject.race || ''}`;
   const faces = [
-    'pretty oval face, soft cheekbones, natural freckles, light makeup',
-    'heart-shaped pretty face, defined but natural jaw, soft liner, glossy lips',
-    'round youthful pretty face, full cheeks, dewy skin, soft pink makeup',
-    'long pretty face, high cheekbones, clean brows, minimal glam',
-    'diamond face, almond eyes, subtle contour, nude lips',
-    'soft square jaw, thick lashes, light freckles, healthy glow',
-    'narrow chin, wide-set eyes, baby hairs, fresh no-foundation look',
-    'soft angular face, beauty mark near lip, soft smoky eye',
+    'pretty oval face, soft cheekbones, natural freckles, light dewy makeup',
+    'heart-shaped pretty face, defined but natural jaw, soft liner, glossy plump lips',
+    'round youthful pretty face, full cheeks, dewy glass skin, soft pink makeup',
+    'long pretty face, high cheekbones, clean brows, minimal glam, natural beauty',
+    'diamond face, almond eyes, subtle contour, nude lips, elegant bone structure',
+    'soft square jaw, thick lashes, light freckles, healthy golden glow',
+    'narrow chin, wide-set doe eyes, baby hairs framing face, fresh no-makeup look',
+    'soft angular face, beauty mark near lip, soft smoky eye, sculpted cheeks',
+    'petite features, button nose, big expressive eyes, flushed rosy cheeks',
+    'sharp jawline, fox eyes, arched brows, bold red lip, striking features',
+    'soft round face, dimples when smiling, warm brown eyes, natural glow',
+    'elongated face, graceful neck, hooded eyes, subtle shimmer makeup',
+    'wide cheekbones, cat-eye shape, full bottom lip, bronzed sun-kissed skin',
+    'delicate features, porcelain skin, sparse freckles across nose, rosy tint',
+    'strong brow ridge, deep-set eyes, chiseled cheekbones, editorial intensity',
+    'soft V-shape face, double eyelids, cherry lips, K-beauty glass skin',
   ];
   return faces[hashPick(seed || 'face', faces.length)];
 }
@@ -499,26 +623,26 @@ export function pickGirlfriendScene(
 
 export function buildExpressionClause(subject: GirlfriendSubject, scene: SceneRecipe): string {
   const p = (subject.personality || subject.mood || '').toLowerCase();
-  if (/shy|soft|gentle|innocent/.test(p)) return 'gentle pretty smile, warm eyes'
-  if (/playful|brat|tease|flirty/.test(p)) return 'playful smile, lively eyes'
-  if (/dominant|confident|queen|bold/.test(p)) return 'confident smile, calm eyes'
-  if (/romantic|caring|sweet/.test(p)) return 'warm smile, kind eyes'
+  if (/shy|soft|gentle|innocent/.test(p)) return 'soft parted lips, doe eyes gazing up, slight blush, gentle pretty smile'
+  if (/playful|brat|tease|flirty/.test(p)) return 'biting lower lip playfully, mischievous spark in eyes, flirty pout'
+  if (/dominant|confident|queen|bold/.test(p)) return 'smoldering gaze, confident half-smile, chin slightly tilted down, intense eye contact'
+  if (/romantic|caring|sweet/.test(p)) return 'warm inviting smile, soft glowing eyes, lips slightly parted, intimate look'
 
   const byScene: Record<string, string> = {
-    mirror_selfie: 'flirty pout, seductive eyes, glamorous selfie makeup',
-    rooftop_night: 'sexy glamorous smile, bedroom eyes, polished makeup',
-    pink_bedroom: 'sexy bright smile, seductive eyes, glossy lips',
-    gothic_throne: 'seductive parted lips, dark glamorous makeup, intense eyes',
-    window_sunlight: 'pretty soft smile, beauty makeup, luminous eyes',
-    cafe_day: 'pretty candid smile, polished casual glam',
-    car_night: 'intimate flirty smile, glamorous night makeup',
-    beach_breeze: 'bright sexy smile, sun-kissed glam, pretty face',
-    kitchen_morning: 'soft pretty smile, fresh beauty makeup',
-    studio_clean: 'magazine beauty smile, seductive eyes, flawless makeup',
-    golden_hour: 'warm sexy smile, golden-hour beauty glow',
-    city_apartment: 'calm seductive smile, pretty eyes, polished makeup',
+    mirror_selfie: 'sultry pout, heavy-lidded eyes staring into lens, wet glossy lips, seductive selfie makeup',
+    rooftop_night: 'sexy knowing smile, bedroom eyes with smoky liner, wind-blown hair across face',
+    pink_bedroom: 'inviting parted lips, dewy bedroom eyes, flushed cheeks, just-woke-up sexy look',
+    gothic_throne: 'dark seductive stare, deep burgundy lips, smoldering intensity, mysterious allure',
+    window_sunlight: 'dreamy soft smile, sun-kissed glow on skin, eyes half-closed in warmth',
+    cafe_day: 'flirty over-the-cup gaze, lipstick on rim, playful wink energy',
+    car_night: 'intimate late-night look, smudged eyeliner, lips glistening, come-here expression',
+    beach_breeze: 'sun-bright smile, salt-kissed lips, wind-tousled hair, carefree sexy energy',
+    kitchen_morning: 'sleepy sexy smile, bedhead hair, bare shoulders showing, cozy intimate gaze',
+    studio_clean: 'magnetic stare, perfect teeth, editorial pout, high-fashion intensity',
+    golden_hour: 'warm radiant smile, golden light catching eyelashes, honey-glow skin',
+    city_apartment: 'relaxed sultry smile, eyes drawing you in, natural beauty with subtle glam',
   };
-  return byScene[scene.id] || 'natural pretty smile, alive eyes'
+  return byScene[scene.id] || 'alluring parted lips, captivating eyes, magnetic presence'
 }
 
 /**
@@ -616,7 +740,7 @@ export function subjectFromGirlfriendRow(row: Record<string, unknown>): Girlfrie
   };
 }
 
-function trimPrompt(positive: string, max = 650): string {
+function trimPrompt(positive: string, max = 850): string {
   let out = positive
     .replace(/\s*,\s*,+/g, ', ')
     .replace(/\s{2,}/g, ' ')
@@ -670,7 +794,7 @@ export function assembleGirlfriendPrompt(
       ? rawStripped.slice(0, 140)
       : '';
 
-  const { pose, outfit } = pickScenePoseAndOutfit(fixedSubject, scene);
+  const { pose, outfit, light, env } = pickScenePoseAndOutfit(fixedSubject, scene);
 
   // ── 1) 主角 ──
   const hair = [fixedSubject.hairColor, fixedSubject.hair].filter(Boolean).join(' ').trim();
@@ -691,25 +815,24 @@ export function assembleGirlfriendPrompt(
   const person = trimPrompt(conciseIdentity || subjectClause, 260);
 
   // ── 2) 在干嘛 ──
-  const light = scene.light || 'soft flattering key light on her face, natural skin tone';
   const generatedAction = joinParts([
     pose,
     `wearing ${outfit}`,
-    `in ${scene.env}`,
+    `in ${env}`,
     light,
     expression,
     GIRLFRIEND_FRAMING,
   ]);
   // Prefer admin/custom action text when present; otherwise scene recipe.
   const actionCore = extra || generatedAction;
-  const action = trimPrompt(actionCore.replace(/^[Ss]he is\s+/i, '').replace(/[.]$/, ''), 280);
+  const action = trimPrompt(actionCore.replace(/^[Ss]he is\s+/i, '').replace(/[.]$/, ''), 380);
 
   // ── 3) 质量词 ──
   const quality = GIRLFRIEND_QUALITY_PREFIX;
 
   const positive = trimPrompt(
     `${person}. She is ${action}. ${quality}.`,
-    700,
+    900,
   );
 
   // Default: short anti-underexposure negative (user issue: dark muddy faces).
