@@ -83,10 +83,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (authLoading || (user && isAdmin === null && !denyReason)) {
     return (
-      <div className="admin-layout flex h-screen items-center justify-center bg-[#F5F7FA]">
+      <div className="admin-layout flex h-screen items-center justify-center bg-[#0f0f17]">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-[#2563EB]" />
-          <p className="text-xs text-[#64748B]">验证管理员权限…</p>
+          <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+          <p className="text-xs text-slate-500">验证管理员权限…</p>
         </div>
       </div>
     );
@@ -94,22 +94,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!user || isAdmin === false) {
     return (
-      <div className="admin-layout flex min-h-screen items-center justify-center bg-[#F5F7FA] p-6">
-        <div className="max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm text-center">
-          <h1 className="text-lg font-bold text-[#1E293B]">无法进入后台</h1>
-          <p className="mt-3 text-sm text-[#64748B] leading-relaxed">
+      <div className="admin-layout flex min-h-screen items-center justify-center bg-[#0f0f17] p-6">
+        <div className="max-w-md rounded-2xl border border-white/[0.08] bg-[#1a1a28] p-6 shadow-sm text-center">
+          <h1 className="text-lg font-bold text-slate-100">无法进入后台</h1>
+          <p className="mt-3 text-sm text-slate-400 leading-relaxed">
             {denyReason || '请先登录管理员账号。'}
           </p>
           <div className="mt-5 flex flex-col sm:flex-row gap-2 justify-center">
-            <Button onClick={() => router.push('/login?next=/admin')} className="bg-[#2563EB]">
+            <Button onClick={() => router.push('/login?next=/admin')} className="bg-purple-600 hover:bg-purple-700">
               去登录
             </Button>
             <Button variant="outline" onClick={() => router.push('/')}>
               返回首页
             </Button>
           </div>
-          <p className="mt-4 text-[11px] text-left text-[#94A3B8] bg-slate-50 rounded-lg p-3">
-            <b className="text-[#64748B]">快速开通管理员：</b>
+          <p className="mt-4 text-[11px] text-left text-slate-500 bg-white/[0.03] rounded-lg p-3">
+            <b className="text-slate-400">快速开通管理员：</b>
             <br />
             1) Vercel 环境变量增加
             <code className="mx-1 text-[10px]">ALLOWED_ADMIN_EMAILS=你的邮箱</code>
@@ -127,9 +127,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="admin-layout flex h-full min-h-screen bg-[#F5F7FA]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="admin-layout flex h-full min-h-screen bg-[#0f0f17]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       <button
-        className="fixed bottom-6 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-[#2563EB] shadow-lg text-white lg:hidden"
+        className="fixed bottom-6 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-purple-600 shadow-lg text-white lg:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
         aria-label="菜单"
       >
@@ -142,18 +142,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 w-64 transform border-r border-[#E2E8F0] bg-white transition-transform duration-200 lg:relative lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 w-64 transform border-r border-white/[0.08] bg-[#16161f] transition-transform duration-200 lg:relative lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex h-14 items-center justify-between border-b border-[#E2E8F0] px-5">
+        <div className="flex h-14 items-center justify-between border-b border-white/[0.08] px-5">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2563EB]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-600">
               <LayoutDashboard className="h-4 w-4 text-white" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-[#1E293B]">SoulMate 后台</div>
-              <div className="text-[10px] text-[#94A3B8] uppercase tracking-wide">{role}</div>
+              <div className="text-sm font-semibold text-slate-100">SoulMate 后台</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide">{role}</div>
             </div>
           </div>
         </div>
@@ -163,11 +163,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {ADMIN_NAV_GROUPS.map((group) => (
               <div key={group.title}>
                 <div className="px-3 mb-1">
-                  <div className="text-[10px] font-bold tracking-wider text-[#94A3B8] uppercase">
+                  <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
                     {group.title}
                   </div>
                   {group.description ? (
-                    <div className="mt-0.5 text-[10px] leading-snug text-[#CBD5E1]">{group.description}</div>
+                    <div className="mt-0.5 text-[10px] leading-snug text-slate-600">{group.description}</div>
                   ) : null}
                 </div>
                 <div className="flex flex-col gap-0.5">
@@ -182,15 +182,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         className={cn(
                           'flex items-start gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                           active
-                            ? 'bg-[#EFF6FF] text-[#2563EB]'
-                            : 'text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#1E293B]',
+                            ? 'bg-[#1e1e2e] text-[#a78bfa]'
+                            : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200',
                         )}
                       >
                         <item.icon className="mt-0.5 h-4 w-4 shrink-0" />
                         <span className="min-w-0">
                           <span className="block leading-tight">{item.label}</span>
                           {item.hint ? (
-                            <span className={cn('mt-0.5 block text-[10px] font-normal leading-snug', active ? 'text-blue-400' : 'text-[#94A3B8]')}>
+                            <span className={cn('mt-0.5 block text-[10px] font-normal leading-snug', active ? 'text-purple-400' : 'text-slate-600')}>
                               {item.hint}
                             </span>
                           ) : null}
@@ -204,11 +204,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </nav>
         </ScrollArea>
 
-        <div className="absolute bottom-0 left-0 right-0 border-t border-[#E2E8F0] p-3 bg-white">
+        <div className="absolute bottom-0 left-0 right-0 border-t border-white/[0.08] p-3 bg-[#16161f]">
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start text-[#64748B]"
+            className="w-full justify-start text-slate-400"
             onClick={() => router.push('/')}
           >
             <ChevronLeft className="mr-2 h-4 w-4" />

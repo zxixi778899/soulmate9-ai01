@@ -26,7 +26,7 @@ import {
  * Keep short; avoid stacking camera spam that collapses faces.
  */
 export const GIRLFRIEND_QUALITY_PREFIX =
-  'stunningly beautiful, seductive and alluring, soft glamorous makeup, glossy lips, bedroom eyes, flawless glowing skin, photorealistic editorial beauty photo, crisp eyes, natural skin texture, detailed hair, high-resolution detail, sharp focus, intimate and captivating'
+  'stunningly beautiful, seductive and alluring, soft glamorous makeup, glossy lips, bedroom eyes, flawless glowing skin, photorealistic editorial beauty photo, crisp detailed eyes, natural skin texture with pores, detailed flowing hair, high-resolution 8K detail, sharp focus on face, intimate and captivating, professional studio lighting, magazine cover quality, RAW photo, masterpiece'
 
 /**
  * Soft figure hint — keep short so face/pose still dominate.
@@ -112,6 +112,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'sitting on outdoor lounge chair facing camera, legs naturally crossed, lifestyle night date look',
       'standing mid-conversation pose, weight on back leg, one hand holding a drink, full body',
       'walking past railing toward camera mid-step, natural arm swing, candid nightlife photo',
+      'standing at rooftop bar holding cocktail glass, one hand in pocket, candid night selfie',
+      'sitting on rooftop bench, phone selfie angle, city skyline behind her',
     ],
     outfits: [
       'fitted black top and tailored trousers, date-night chic',
@@ -132,6 +134,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'mirror selfie slightly high angle, both feet visible, natural standing, playful smile',
       'leaning toward mirror for closer selfie, shoulders relaxed, three-quarter crop',
       'mirror selfie after getting ready, one hand on sink edge, candid pose',
+      'sitting on bed taking mirror selfie, phone slightly above face, cozy pose',
+      'full length mirror selfie in hallway, one hip popped, confident stance',
     ],
     outfits: [
       'everyday crop tee and jeans',
@@ -152,6 +156,9 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'standing in living room holding a mug, casual weight shift, full body',
       'kneeling on floor by coffee table arranging items, candid lifestyle',
       'leaning on sofa back facing camera, soft smile, three-quarter body',
+      'lying on sofa scrolling phone, legs up on armrest, candid home selfie',
+      'sitting at dining table with wine glass, relaxed evening selfie angle',
+      'kneeling on couch looking over backrest at camera, playful pose',
     ],
     outfits: [
       'soft sweater and jeans',
@@ -172,6 +179,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'sitting on window ledge, knees up casually, lifestyle portrait',
       'leaning back on window frame, arms loosely crossed, full body',
       'holding curtain lightly, subtle smile, balanced natural three-quarter pose',
+      'sitting cross-legged on floor by window, phone selfie in sunlight',
+      'standing at balcony door, morning coffee in hand, natural light selfie',
     ],
     outfits: [
       'white linen shirt and jeans',
@@ -192,6 +201,9 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'lying on stomach on bed, chin on hands, playful but natural',
       'sitting cross-legged on bed scrolling phone, candid',
       'standing beside bed putting on earring, full body getting-ready pose',
+      'lying on bed holding phone above for overhead selfie, hair spread on pillow',
+      'sitting on floor leaning against bed, casual bedroom selfie',
+      'kneeling on bed fixing hair in vanity mirror, candid getting-ready selfie',
     ],
     outfits: [
       'silk pajama set',
@@ -212,6 +224,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'standing beside chair, hand resting on backrest, full body editorial',
       'sitting sideways on chair, looking to camera, fashion story pose',
       'leaning on chair with both hands, confident but natural stance',
+      'reclining in ornate chair, one leg draped over armrest, dark editorial selfie',
+      'standing before dark mirror, adjusting jewelry, moody reflection selfie',
     ],
     outfits: [
       'black evening dress',
@@ -232,6 +246,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'turning in chair toward camera, candid laugh, lifestyle crop',
       'standing by counter waiting for order, full body casual',
       'leaning on table with forearms, easy smile, natural pose',
+      'sitting at cafe table with latte art, phone selfie with coffee cup in foreground',
+      'standing outside cafe holding takeout cup, street style selfie',
     ],
     outfits: [
       'jeans and nice top',
@@ -252,6 +268,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'driver seat, one hand on wheel, candid night drive look',
       'standing by open car door, full body street night photo',
       'leaning on car door frame, relaxed conversation pose',
+      'in passenger seat taking selfie with phone, neon lights reflecting in window',
+      'leaning out car window, night street selfie with city lights',
     ],
     outfits: [
       'date-night top and jeans',
@@ -272,6 +290,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'standing barefoot, hands in pockets of cover-up, natural smile',
       'sitting on towel, knees bent, lifestyle vacation crop',
       'looking back while walking but face still mostly to camera, candid',
+      'sitting on beach towel, phone selfie with ocean behind her, hair in breeze',
+      'standing in shallow water, sunset selfie with wet skin glow',
     ],
     outfits: [
       'summer sundress',
@@ -292,6 +312,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'opening fridge door candidly, full body morning routine',
       'sitting on counter edge briefly, relaxed home pose',
       'buttering toast at counter, lifestyle action pose',
+      'sitting on kitchen counter eating fruit, casual morning selfie',
+      'standing at sink with morning coffee, sleepy cute selfie angle',
     ],
     outfits: [
       'oversized morning shirt and shorts',
@@ -312,6 +334,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'slight step forward, soft smile, full body lookbook but natural',
       'seated on simple stool, hands on thighs, three-quarter body',
       'hands lightly clasped in front, commercial but human posture',
+      'sitting on studio stool, one knee up, casual portrait selfie angle',
+      'leaning against studio wall, arms crossed, minimal backdrop selfie',
     ],
     outfits: [
       'simple elegant dress',
@@ -332,6 +356,8 @@ export const GIRLFRIEND_SCENE_RECIPES: SceneRecipe[] = [
       'standing and turning torso to camera, hair in breeze, three-quarter body',
       'sitting on outdoor steps, elbows on knees, candid smile',
       'holding phone taking a photo of scenery, lifestyle moment',
+      'sitting on park bench, golden light selfie with warm bokeh background',
+      'lying in grass looking up at camera, golden hour glow on face',
     ],
     outfits: [
       'flowy day dress',
@@ -493,7 +519,7 @@ export function buildSubjectClause(s: GirlfriendSubject): string {
   const name = resolvePersonName(s.name, 'a beautiful young woman');
   const parts: string[] = [
     name,
-    'beautiful young adult woman 23-28',
+    'beautiful young adult woman 18-25',
     buildFaceIdentityClause(s),
   ];
 
@@ -507,6 +533,7 @@ export function buildSubjectClause(s: GirlfriendSubject): string {
   if (s.style && !looksLikeFluxPrompt(s.style)) {
     parts.push(String(s.style).slice(0, 60));
   }
+  if (s.occupation) parts.push(`${s.occupation}`);
   if (s.appearance && !looksLikeFluxPrompt(s.appearance)) {
     const a = sanitizeBlurKeywords(s.appearance);
     if (a) parts.push(a.slice(0, 100));
@@ -644,12 +671,13 @@ export function assembleGirlfriendPrompt(
       : '';
   const conciseIdentity = joinParts([
     fixedSubject.name,
-    'a stunningly beautiful seductive adult AI girlfriend, age 23-28',
+    'a stunningly beautiful seductive adult AI girlfriend, age 18-25',
     fixedSubject.race ? `${fixedSubject.race} features` : '',
     hair ? (/\bhair\b/i.test(hair) ? hair : `${hair} hair`) : '',
     fixedSubject.eyes ? `${fixedSubject.eyes} eyes` : '',
     fixedSubject.body ? `${fixedSubject.body} figure` : GIRLFRIEND_BODY_FIXED,
     personalityHint ? `${personalityHint} vibe` : '',
+    fixedSubject.occupation ? `${fixedSubject.occupation}` : '',
   ]);
   const person = trimPrompt(conciseIdentity || subjectClause, 260);
 

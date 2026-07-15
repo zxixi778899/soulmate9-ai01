@@ -6,26 +6,26 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ===== Admin Panel Theme (Light / Finance Style) — UNCHANGED ===== */
+/* ===== Admin Panel Theme (Dark) ===== */
 @theme inline {
-  --color-admin-bg: #F5F7FA;
-  --color-admin-card: #FFFFFF;
-  --color-admin-primary: #2563EB;
-  --color-admin-primary-hover: #1D4ED8;
+  --color-admin-bg: #0f0f17;
+  --color-admin-card: #1a1a28;
+  --color-admin-primary: #a78bfa;
+  --color-admin-primary-hover: #8b5cf6;
   --color-admin-success: #10B981;
   --color-admin-warning: #F59E0B;
   --color-admin-error: #EF4444;
-  --color-admin-text: #1E293B;
-  --color-admin-text-secondary: #64748B;
-  --color-admin-border: #E2E8F0;
-  --color-admin-surface-container: #F1F5F9;
-  --color-admin-surface-container-high: #E2E8F0;
-  --color-admin-surface-container-highest: #CBD5E1;
-  --color-admin-progress-bg: #E2E8F0;
-  --color-admin-progress-fill: #2563EB;
-  --shadow-admin-card: 0 2px 8px rgba(0,0,0,0.06);
-  --shadow-admin-float: 0 10px 25px rgba(0,0,0,0.08);
-  --shadow-admin-dialog: 0 25px 50px rgba(0,0,0,0.12);
+  --color-admin-text: #e2e8f0;
+  --color-admin-text-secondary: #94a3b8;
+  --color-admin-border: rgba(255,255,255,0.08);
+  --color-admin-surface-container: #16161f;
+  --color-admin-surface-container-high: #1e1e2e;
+  --color-admin-surface-container-highest: #2a2a3a;
+  --color-admin-progress-bg: #1e1e2e;
+  --color-admin-progress-fill: #a78bfa;
+  --shadow-admin-card: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-admin-float: 0 10px 25px rgba(0,0,0,0.4);
+  --shadow-admin-dialog: 0 25px 50px rgba(0,0,0,0.5);
 }
 
 /* ===== SoulMate Dark Starry Theme ===== */
@@ -175,47 +175,47 @@
   }
 }
 
-/* ===== Admin Layout: Light/Finance Theme Override ===== */
+/* ===== Admin Layout: Dark Theme Variables ===== */
 .admin-layout {
-  --background: oklch(0.97 0 0);
-  --foreground: #1E293B;
-  --card: #FFFFFF;
-  --card-foreground: #1E293B;
-  --popover: #FFFFFF;
-  --popover-foreground: #1E293B;
-  --primary: #2563EB;
-  --primary-foreground: #FFFFFF;
-  --secondary: #F1F5F9;
-  --secondary-foreground: #1E293B;
-  --muted: #F1F5F9;
-  --muted-foreground: #64748B;
-  --accent: #EFF6FF;
-  --accent-foreground: #2563EB;
-  --destructive: #EF4444;
-  --destructive-foreground: #FFFFFF;
-  --border: #E2E8F0;
-  --input: #E2E8F0;
-  --ring: rgba(37, 99, 235, 0.3);
-  --chart-1: #2563EB;
+  --background: #0f0f17;
+  --foreground: #e2e8f0;
+  --card: #1a1a28;
+  --card-foreground: #e2e8f0;
+  --popover: #1a1a28;
+  --popover-foreground: #e2e8f0;
+  --primary: #a78bfa;
+  --primary-foreground: #0f0f17;
+  --secondary: #1e1e2e;
+  --secondary-foreground: #e2e8f0;
+  --muted: #16161f;
+  --muted-foreground: #94a3b8;
+  --accent: #1e1e2e;
+  --accent-foreground: #e2e8f0;
+  --destructive: #ef4444;
+  --destructive-foreground: #fff;
+  --border: rgba(255,255,255,0.08);
+  --input: rgba(255,255,255,0.08);
+  --ring: #a78bfa;
+  --chart-1: #a78bfa;
   --chart-2: #10B981;
   --chart-3: #F59E0B;
   --chart-4: #EF4444;
   --chart-5: #8B5CF6;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #1E293B;
-  --sidebar-primary: #2563EB;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F1F5F9;
-  --sidebar-accent-foreground: #2563EB;
-  --sidebar-border: #E2E8F0;
-  --sidebar-ring: rgba(37, 99, 235, 0.3);
+  --sidebar: #16161f;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #a78bfa;
+  --sidebar-primary-foreground: #0f0f17;
+  --sidebar-accent: #1e1e2e;
+  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-ring: rgba(167,139,250,0.3);
   --radius: 0.5rem;
   --success: #10B981;
   --warning: #F59E0B;
-  --primary-container: #DBEAFE;
-  --surface-container-lowest: #FFFFFF;
-  --surface-container-high: #F1F5F9;
-  --surface-container-highest: #E2E8F0;
+  --primary-container: #2e1065;
+  --surface-container-lowest: #0f0f17;
+  --surface-container-high: #16161f;
+  --surface-container-highest: #1e1e2e;
 }
 
 /* ===== Starry background — multi-layer gradient + drifting stars + aurora ===== */
@@ -1115,64 +1115,19 @@ html {
   animation: ambientFloat var(--duration, 12s) var(--delay, 0s) ease-in-out infinite;
 }
 
-/* ─── Admin Panel Light Theme Overrides ─── */
+/* ─── Admin Panel Dark Theme Overrides ─── */
 .admin-layout {
-  color: #1E293B;
+  color: #e2e8f0;
 }
-.admin-layout h1,
-.admin-layout h2,
-.admin-layout h3,
-.admin-layout h4 {
-  color: #1E293B !important;
-}
-.admin-layout p,
-.admin-layout span,
-.admin-layout label,
-.admin-layout td,
-.admin-layout th {
-  color: inherit;
-}
-/* Override dark text colors used in admin pages */
-.admin-layout .text-white { color: #1E293B !important; }
-.admin-layout .text-\[\#F0F0F5\] { color: #1E293B !important; }
-.admin-layout .text-\[\#8B8BA3\] { color: #64748B !important; }
-.admin-layout .text-\[white\] { color: #1E293B !important; }
-/* Override dark backgrounds */
-.admin-layout .bg-\[\#07070F\] { background-color: transparent !important; }
-.admin-layout .bg-\[\#0E0E1A\] { background-color: #fff !important; }
-.admin-layout .bg-card\/40,
-.admin-layout .bg-card\/50 { background-color: #fff !important; }
-.admin-layout .bg-white\/\[0\.03\],
-.admin-layout .bg-white\/\[0\.04\],
-.admin-layout .bg-white\/\[0\.06\] { background-color: #fff !important; }
-/* Override borders */
-.admin-layout .border-white\/\[0\.05\],
-.admin-layout .border-white\/\[0\.06\],
-.admin-layout .border-white\/\[0\.08\],
-.admin-layout .border-white\/\[0\.1\] { border-color: #E2E8F0 !important; }
-/* Override Card component in admin */
-.admin-layout [class*="border-white"] { border-color: #E2E8F0 !important; }
-/* Keep accent colors intact */
-.admin-layout .text-\[\#FF2D78\] { color: #2563EB !important; }
-.admin-layout .bg-\[\#FF2D78\] { background-color: #2563EB !important; }
-.admin-layout .text-\[\#FF6BA6\] { color: #3B82F6 !important; }
-/* Gradient text fix */
+/* Map pink accent to purple */
+.admin-layout .text-\[\#FF2D78\] { color: #a78bfa !important; }
+.admin-layout .bg-\[\#FF2D78\] { background-color: #a78bfa !important; }
+.admin-layout .text-\[\#FF6BA6\] { color: #c4b5fd !important; }
+/* Gradient text fix for dark theme */
 .admin-layout .gradient-text {
-  background: linear-gradient(135deg, #2563EB, #7C3AED) !important;
+  background: linear-gradient(135deg, #a78bfa, #c084fc) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
-}
-/* Input/Select fixes */
-.admin-layout input,
-.admin-layout select,
-.admin-layout textarea {
-  color: #1E293B !important;
-  background-color: #fff !important;
-  border-color: #E2E8F0 !important;
-}
-.admin-layout input::placeholder,
-.admin-layout textarea::placeholder {
-  color: #94A3B8 !important;
 }
 
 /* ===== Game Hub UI — AI girlfriend cultivation theme ===== */

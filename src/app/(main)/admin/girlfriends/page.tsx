@@ -271,7 +271,7 @@ function AdminGirlfriendsMediaPageInner() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const limit = 48;
+  const limit = 60;
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all');
   const [rarity, setRarity] = useState('all');
@@ -716,7 +716,7 @@ function AdminGirlfriendsMediaPageInner() {
   return (
     <div className="min-h-screen bg-[#0b0b12] text-slate-100">
       <div className="border-b border-white/10 bg-gradient-to-r from-rose-950/50 via-slate-950 to-violet-950/40 px-4 py-5 md:px-6">
-        <div className="mx-auto max-w-[1600px]">
+        <div className="mx-auto max-w-[1920px]">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300/80">站内 CMS</p>
@@ -803,11 +803,11 @@ function AdminGirlfriendsMediaPageInner() {
               </SelectContent>
             </Select>
           </div>
-          <p className="mt-2 text-xs text-slate-500">共 {total} 条 · 本页筛选后 {filtered.length} 张 · 一排约 8 卡</p>
+          <p className="mt-2 text-xs text-slate-500">共 {total} 条 · 本页筛选后 {filtered.length} 张</p>
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1600px] px-3 py-4 md:px-5">
+      <div className="mx-auto max-w-[1920px] px-3 py-4 md:px-5">
         {loading ? (
           <div className="flex h-48 items-center justify-center text-slate-400">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" /> 加载中…
@@ -817,7 +817,7 @@ function AdminGirlfriendsMediaPageInner() {
             没有匹配的女友。可新建，或清空筛选。
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {filtered.map((g) => {
               const cover = coverOf(g);
               return (
@@ -905,7 +905,7 @@ function AdminGirlfriendsMediaPageInner() {
       </div>
       <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) closeDialog(); }}>
         <DialogContent
-          className="h-[92vh] w-[94vw] max-w-[94vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-white/10 bg-[#12121c] text-slate-100 sm:max-w-[94vw] xl:max-w-[1600px]"
+          className="h-[92vh] w-[94vw] max-w-[94vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-white/10 bg-[#12121c] text-slate-100 sm:max-w-[94vw] xl:max-w-[1920px]"
         >
           <DialogHeader>
             <DialogTitle>{creating ? '新建女友' : `编辑 · ${selected?.name || ''}`}</DialogTitle>
