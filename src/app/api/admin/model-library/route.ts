@@ -157,8 +157,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'action required' }, { status: 400 });
   }
 
-  const lib = await loadModelLibrary(admin.supabase);
-  const action = String(body.action);
+  try {
+    const lib = await loadModelLibrary(admin.supabase);
+    const action = String(body.action);
 
   if (action === 'add_civitai') {
     const rl = await checkRateLimitAsync(`civitai-add:${admin.user!.id}`, RL);
@@ -369,4 +370,17 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '操作失败';
+    logger.error('[model-library] POST failed', { action: body.action, err: msg });
+    // Distinguish DB/filesystem errors from validation errors
+    if (/保存失败|EROFS|EACCES|upsert|site_settings/i.test(msg)) {
+      return NextResponse.json(
+        { error: `保存失败：${msg}。请检查 Supabase site_settings 表是否存在。` },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

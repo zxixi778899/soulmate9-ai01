@@ -119,6 +119,14 @@ function normalizeLibrary(raw: Partial<ModelLibrary> | null): ModelLibrary {
   };
 }
 
+function fallbackPath(): string {
+  // Vercel / serverless: process.cwd() is read-only. Use /tmp for writes.
+  if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+    return '/tmp/model-library.json';
+  }
+  return filePath();
+}
+
 export async function saveModelLibrary(
   lib: ModelLibrary,
   supabase?: { from: (t: string) => any },
@@ -127,6 +135,8 @@ export async function saveModelLibrary(
     ...lib,
     updated_at: new Date().toISOString(),
   };
+
+  // Primary: Supabase DB
   if (supabase) {
     try {
       const { error } = await supabase.from('site_settings').upsert(
@@ -134,17 +144,33 @@ export async function saveModelLibrary(
         { onConflict: 'key' },
       );
       if (!error) {
-        await mkdir(path.dirname(filePath()), { recursive: true }).catch(() => undefined);
-        await writeFile(filePath(), JSON.stringify(next, null, 2), 'utf8').catch(() => undefined);
+        // Best-effort local backup (skip silently on read-only fs)
+        const localPath = fallbackPath();
+        await mkdir(path.dirname(localPath), { recursive: true }).catch(() => undefined);
+        await writeFile(localPath, JSON.stringify(next, null, 2), 'utf8').catch(() => undefined);
         return { source: 'db' };
       }
+      // Log the actual DB error so we can diagnose
+      logger.error('[model-library] supabase upsert error', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      });
     } catch (e) {
-      logger.warn('[model-library] db save failed', { err: String(e) });
+      logger.error('[model-library] db save exception', { err: String(e) });
     }
   }
-  await mkdir(path.dirname(filePath()), { recursive: true });
-  await writeFile(filePath(), JSON.stringify(next, null, 2), 'utf8');
-  return { source: 'file' };
+
+  // Fallback: file write (works locally, /tmp on serverless)
+  const target = fallbackPath();
+  try {
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, JSON.stringify(next, null, 2), 'utf8');
+    return { source: 'file' };
+  } catch (e) {
+    logger.error('[model-library] file save failed', { path: target, err: String(e) });
+    throw new Error(`模型库保存失败：DB 和文件均不可用。请检查 Supabase 连接或 site_settings 表。`);
+  }
 }
 
 export function libraryItemFromCivitai(
