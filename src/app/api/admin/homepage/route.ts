@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { invalidateHomepage } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+    invalidateHomepage();
     return NextResponse.json({ module: data }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unknown' }, { status: 500 });
@@ -108,6 +110,7 @@ export async function PATCH(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+    invalidateHomepage();
     return NextResponse.json({ module: data });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unknown' }, { status: 500 });
@@ -134,5 +137,6 @@ export async function DELETE(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  invalidateHomepage();
   return NextResponse.json({ success: true });
 }

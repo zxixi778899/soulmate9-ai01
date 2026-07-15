@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/require-admin';
 import { uploadFile } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { invalidateShop } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 
@@ -226,6 +227,7 @@ export async function POST(request: NextRequest) {
       asset = createdAsset as Record<string, unknown>;
       await supabase.from('products').update({ virtual_meta: { ...meta, asset_id: createdAsset.id } }).eq('id', product.id);
     }
+    invalidateShop();
     return NextResponse.json({ item: mapProduct(product as Record<string, unknown>, asset) });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Create failed';
@@ -284,6 +286,7 @@ export async function PATCH(request: NextRequest) {
         await supabase.from('products').update({ virtual_meta: { ...virtualMeta(input, collection, currentMeta), asset_id: result.data.id } }).eq('id', input.id);
       }
     }
+    invalidateShop();
     return NextResponse.json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Update failed';
@@ -300,6 +303,7 @@ export async function DELETE(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
     const { error } = await guarded.admin!.supabase.from('products').update({ status: 'archived', is_active: false }).eq('id', id);
     if (error) throw error;
+    invalidateShop();
     return NextResponse.json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Archive failed';

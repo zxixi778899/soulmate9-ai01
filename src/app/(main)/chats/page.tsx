@@ -6,7 +6,8 @@
 
 import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
-import { useState, useEffect, useMemo, type MouseEvent } from 'react';
+import { useState, useEffect, useMemo, useCallback, type MouseEvent } from 'react';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Loader2, MessageCircle, Plus, Search, X, Trash2 } from 'lucide-react';
@@ -64,44 +65,47 @@ export default function MessagesPage() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    Promise.all([
+  const loadData = useCallback(async () => {
+    const [gfData, msgData, intData] = await Promise.all([
       authedFetch('/api/girlfriends').then((r) => r.json()),
       authedFetch('/api/chat/last-messages').then((r) => r.json()),
       authedFetch('/api/intimacy').then((r) => r.json()).catch(() => ({ scores: [] })),
-    ])
-      .then(([gfData, msgData, intData]) => {
-        setGirlfriends(gfData.girlfriends || []);
-        const msgMap: Record<string, LastMessage> = {};
-        (msgData.messages || []).forEach((m: LastMessage) => {
-          msgMap[m.girlfriend_id] = m;
-        });
-        // Overlay last message from local chat cache if newer
-        (gfData.girlfriends || []).forEach((g: Girlfriend) => {
-          const cache = loadChatCache(g.id);
-          const last = cache?.messages?.[cache.messages.length - 1];
-          if (last) {
-            const existing = msgMap[g.id];
-            if (!existing || new Date(last.created_at) > new Date(existing.created_at)) {
-              msgMap[g.id] = {
-                girlfriend_id: g.id,
-                content: last.content,
-                created_at: last.created_at,
-                role: last.role,
-              };
-            }
-          }
-        });
-        setLastMessages(msgMap);
+    ]);
+    setGirlfriends(gfData.girlfriends || []);
+    const msgMap: Record<string, LastMessage> = {};
+    (msgData.messages || []).forEach((m: LastMessage) => {
+      msgMap[m.girlfriend_id] = m;
+    });
+    // Overlay last message from local chat cache if newer
+    (gfData.girlfriends || []).forEach((g: Girlfriend) => {
+      const cache = loadChatCache(g.id);
+      const last = cache?.messages?.[cache.messages.length - 1];
+      if (last) {
+        const existing = msgMap[g.id];
+        if (!existing || new Date(last.created_at) > new Date(existing.created_at)) {
+          msgMap[g.id] = {
+            girlfriend_id: g.id,
+            content: last.content,
+            created_at: last.created_at,
+            role: last.role,
+          };
+        }
+      }
+    });
+    setLastMessages(msgMap);
 
-        const iMap: Record<string, number> = {};
-        (intData.scores || []).forEach((s: IntimacyRow) => {
-          iMap[s.girlfriend_id] = s.score;
-        });
-        setIntimacyMap(iMap);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const iMap: Record<string, number> = {};
+    (intData.scores || []).forEach((s: IntimacyRow) => {
+      iMap[s.girlfriend_id] = s.score;
+    });
+    setIntimacyMap(iMap);
+    setLoading(false);
+  }, []);
+
+  useAutoRefresh(loadData);
+
+  useEffect(() => {
+    loadData().catch(() => setLoading(false));
 
     // Daily re-engagement: girlfriends send 1–3 emotional check-ins
     void authedFetch('/api/proactive/check', {
@@ -127,7 +131,7 @@ export default function MessagesPage() {
         });
       })
       .catch(() => {});
-  }, []);
+  }, [loadData]);
 
 
   const deleteFriend = async (gf: Girlfriend, e: MouseEvent) => {

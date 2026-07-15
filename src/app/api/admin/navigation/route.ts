@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { invalidateHomepage } from '@/lib/revalidate';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
       method: 'DELETE',
       headers,
     });
+    invalidateHomepage();
     return NextResponse.json({ success: true });
   }
 
@@ -39,6 +41,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({ sort_order: item.sort_order }),
       });
     }
+    invalidateHomepage();
     return NextResponse.json({ success: true });
   }
 
@@ -51,6 +54,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(updateData),
     });
     const data = await res.json();
+    invalidateHomepage();
     return NextResponse.json(data);
   }
 
@@ -61,6 +65,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify(body),
   });
   const data = await res.json();
+  invalidateHomepage();
   return NextResponse.json(data, { status: 201 });
 }
 
@@ -79,6 +84,7 @@ export async function PATCH(req: NextRequest) {
     body: JSON.stringify(body),
   });
   const data = await res.json();
+  invalidateHomepage();
   return NextResponse.json(data);
 }
 
@@ -94,5 +100,6 @@ export async function DELETE(req: NextRequest) {
     method: 'DELETE',
     headers,
   });
+  invalidateHomepage();
   return NextResponse.json({ success: true });
 }

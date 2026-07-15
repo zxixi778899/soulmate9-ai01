@@ -8,6 +8,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useAuth } from '@/components/AuthProvider';
 import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
@@ -107,6 +108,13 @@ export default function ShopV2Page() {
       loadBalance();
     }
   }, [user, loadProducts, loadBalance]);
+
+  useAutoRefresh(useCallback(() => {
+    if (user) {
+      loadProducts();
+      loadBalance();
+    }
+  }, [user, loadProducts, loadBalance]));
 
   const handlePurchase = async (product: Product) => {
     if (balance < product.price_credits) {

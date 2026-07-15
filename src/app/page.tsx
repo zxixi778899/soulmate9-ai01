@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useRouter } from 'next/navigation';
 import {
   MessageCircle, ShoppingBag, Wand2, Crown, ChevronLeft, ChevronRight,
@@ -118,24 +119,28 @@ export default function HomePage() {
   const [paused, setPaused] = useState(false);
   const [bonding, setBonding] = useState(false);
 
+  const loadData = useCallback(async () => {
+    const r = await fetchCompanionCatalog(24);
+    if (r.girls.length) {
+      setCatalog(r.girls);
+      setCatalogSource(r.source);
+    } else {
+      // hard empty — keep UI from crashing
+      setCatalog(GIRLS.slice(0, 8));
+      setCatalogSource('demo');
+    }
+    setCatalogReady(true);
+  }, []);
+
+  useAutoRefresh(loadData);
+
   useEffect(() => {
     let cancelled = false;
-    fetchCompanionCatalog(24).then((r) => {
-      if (cancelled) return;
-      if (r.girls.length) {
-        setCatalog(r.girls);
-        setCatalogSource(r.source);
-      } else {
-        // hard empty — keep UI from crashing
-        setCatalog(GIRLS.slice(0, 8));
-        setCatalogSource('demo');
-      }
-      setCatalogReady(true);
-    });
+    loadData().catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadData]);
 
   // 主视觉轮播：后台推荐(featured)优先，不足再用热门/公开补齐
   const roster = useMemo(() => {

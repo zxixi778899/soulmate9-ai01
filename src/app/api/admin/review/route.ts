@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { invalidateGirlfriends } from '@/lib/revalidate';
 
 export async function GET(request: NextRequest) {
   const adminCheck = await requireAdmin(request);
@@ -45,6 +46,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    invalidateGirlfriends(data?.slug);
     return NextResponse.json({ girlfriend: data });
   }
 

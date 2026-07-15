@@ -4,7 +4,8 @@
  * Card Pool — gacha / card-game style companion library
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Sparkles, Heart, Star, Loader2, Filter } from 'lucide-react';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
@@ -36,19 +37,21 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(true);
   const [rarityFilter, setRarityFilter] = useState<string | null>(null);
 
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    const result = await fetchCompanionCatalog(60);
+    setCatalog(result.girls);
+    setSource(result.source);
+    setLoading(false);
+  }, []);
+
+  useAutoRefresh(loadData);
+
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const result = await fetchCompanionCatalog(60);
-      if (!cancelled) {
-        setCatalog(result.girls);
-        setSource(result.source);
-        setLoading(false);
-      }
-    })();
+    loadData().catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [loadData]);
 
   const girls = useMemo(() => {
     let arr = [...catalog];

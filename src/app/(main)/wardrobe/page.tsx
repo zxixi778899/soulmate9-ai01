@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useRouter } from 'next/navigation';
 import { authedFetch } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,7 @@ export default function WardrobePage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useAutoRefresh(load);
 
   const equip = async () => {
     if (!girlId || !outfitId) {

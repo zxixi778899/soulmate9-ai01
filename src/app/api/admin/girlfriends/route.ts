@@ -1,30 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/require-admin';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
+import { invalidateGirlfriends } from '@/lib/revalidate';
 import {
   clampTrait,
   randomizeGirlfriendTraits,
 } from '@/lib/girlfriend-traits';
 
 export const dynamic = 'force-dynamic';
-
-/** Bust ISR + soft-refresh public marketing surfaces after admin writes. */
-function revalidateGirlfriendSurfaces(slug?: string | null) {
-  try {
-    revalidatePath('/');
-    revalidatePath('/explore');
-    revalidatePath('/summon');
-    if (slug) revalidatePath(`/girlfriend/${slug}`);
-  } catch (err) {
-    logger.warn('[admin/girlfriends] revalidatePath failed', {
-      err: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
 
 async function syncFeaturedFromGirlfriend(
   supabase: SupabaseClient,
@@ -374,7 +360,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    revalidateGirlfriendSurfaces(slug);
+    invalidateGirlfriends(slug);
     return NextResponse.json({ girlfriend: data });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -452,7 +438,7 @@ export async function PATCH(request: NextRequest) {
           else updated += 1;
         }
       }
-      revalidateGirlfriendSurfaces();
+      invalidateGirlfriends();
       logger.info('[admin/girlfriends] randomize_traits done', { updated, errors: errors.length });
       return NextResponse.json({
         ok: true,
@@ -600,7 +586,7 @@ export async function PATCH(request: NextRequest) {
     const slug =
       (girlfriend?.slug as string | undefined) ||
       (typeof appliedUpdates.slug === 'string' ? appliedUpdates.slug : null);
-    revalidateGirlfriendSurfaces(slug);
+    invalidateGirlfriends(slug);
 
     return NextResponse.json({ success: true, girlfriend, skipped_fields: skippedFields });
   } catch (e) {
@@ -646,7 +632,7 @@ export async function DELETE(request: NextRequest) {
 
     const { error: deleteErr } = await supabase.from('girlfriends').delete().eq('id', id);
     if (deleteErr) throw deleteErr;
-    revalidateGirlfriendSurfaces(slug);
+    invalidateGirlfriends(slug);
     return NextResponse.json({ success: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';

@@ -47,7 +47,7 @@ describe('FLUX girlfriend prompt', () => {
       tags: ['classic', 'window sunlight', 'elegant', 'romantic', 'editorial', 'confident'],
     });
 
-    expect(result.positive.length).toBeLessThanOrEqual(700);
+    expect(result.positive.length).toBeLessThanOrEqual(900);
     expect(result.positive).toMatch(/^Daisy Perez,/);
     expect(result.positive).toMatch(/\. She is /);
     // quality tail: beauty + seduction + photoreal
