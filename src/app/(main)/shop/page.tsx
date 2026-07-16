@@ -398,10 +398,24 @@ const handleBuy = async () => {
                     className="group relative rounded-2xl overflow-hidden border border-white/10 text-left active:scale-[0.98] transition-transform"
                   >
                     <div className={cn('aspect-[4/5] bg-gradient-to-br relative', item.skin)}>
-                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
-                      <div className="absolute inset-0 flex items-center justify-center text-6xl drop-shadow-lg">
-                        {item.emoji}
-                      </div>
+                      {item.preview_url ? (
+                        <img
+                          src={item.preview_url}
+                          alt={item.name}
+                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <>
+                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+                          <div className="absolute inset-0 flex items-center justify-center text-6xl drop-shadow-lg">
+                            {item.emoji}
+                          </div>
+                        </>
+                      )}
+                      {item.preview_url && (
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+                      )}
                       {item.is_limited && (
                         <span className="absolute top-2 left-2 text-[9px] font-black tracking-wider bg-black/60 text-[#ffd700] px-2 py-0.5 rounded">
                           LIMITED
@@ -450,7 +464,18 @@ const handleBuy = async () => {
                     onClick={() => setBuying(item)}
                     className="game-panel p-4 text-left hover:border-[#ff2e88]/40 transition-all active:scale-[0.98]"
                   >
-                    <div className="text-4xl mb-2">{item.emoji}</div>
+                    {item.preview_url ? (
+                      <div className="aspect-square rounded-lg overflow-hidden mb-2">
+                        <img
+                          src={item.preview_url}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-4xl mb-2">{item.emoji}</div>
+                    )}
                     <div className="font-semibold text-sm">{item.name}</div>
                     <div className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{item.description}</div>
                     <div className="mt-3 flex items-center justify-between">
