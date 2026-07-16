@@ -11,8 +11,8 @@ export async function POST(req: NextRequest) {
     const user = auth.user;
     const supabase = auth.client!;
 
-    const { itemId, girlfriendId } = await req.json();
-    if (!itemId || !girlfriendId) {
+    const { itemId } = await req.json();
+    if (!itemId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -26,37 +26,6 @@ export async function POST(req: NextRequest) {
 
     if (itemError || !item) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-    }
-
-    // M8  girlfriend 
-    const { data: girlfriendOwn, error: gfErr } = await supabase
-      .from('girlfriends')
-      .select('id, user_id')
-      .eq('id', girlfriendId)
-      .single();
-
-    if (gfErr || !girlfriendOwn) {
-      return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
-    }
-    if (girlfriendOwn.user_id !== user.id) {
-      return NextResponse.json({ error: 'Forbidden: girlfriend does not belong to you' }, { status: 403 });
-    }
-
-    // M7 DB  — check wardrobe duplicate for outfit purchases
-    if (item.category === 'outfit') {
-      const { data: existing } = await supabase
-        .from('wardrobe')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('girlfriend_id', girlfriendId)
-        .eq('outfit_id', item.id)
-        .maybeSingle();
-      if (existing) {
-        return NextResponse.json(
-          { error: 'You already own this outfit for this character', code: 'DUPLICATE_PURCHASE' },
-          { status: 409 },
-        );
-      }
     }
 
     // Check user credits and deduct atomically using RPC or conditional update
@@ -102,47 +71,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Insufficient credits (concurrent request)', code: 'INSUFFICIENT_CREDITS' }, { status: 402 });
     }
 
-    // Apply effect based on product category
-    const meta = (item.virtual_meta ?? {}) as Record<string, unknown>;
+    // Add to user backpack (not wardrobe)
+    const { data: existing } = await supabase
+      .from('user_backpack')
+      .select('id, quantity')
+      .eq('user_id', user.id)
+      .eq('product_id', item.id)
+      .maybeSingle();
 
-    if (item.category === 'prop' && typeof meta.intimacy_boost === 'number') {
-      // Update intimacy score
-      const boost = (meta.intimacy_boost as number) || 0;
-      const { data: existingIntimacy } = await supabase
-        .from('intimacy_scores')
-        .select('score')
-        .eq('user_id', user.id)
-        .eq('girlfriend_id', girlfriendId)
-        .single();
+    let backpackItemId: string;
 
-      if (existingIntimacy) {
-        await supabase
-          .from('intimacy_scores')
-          .update({ score: Math.min((existingIntimacy.score || 0) + boost, 100) })
-          .eq('user_id', user.id)
-          .eq('girlfriend_id', girlfriendId);
-      } else {
-        await supabase
-          .from('intimacy_scores')
-          .insert({ user_id: user.id, girlfriend_id: girlfriendId, score: boost, level: 1 });
-      }
-    }
-
-    if (item.category === 'outfit') {
-      // Add outfit to wardrobe
-      const outfitId = item.id;
+    if (existing) {
+      // Stack quantity
       await supabase
-        .from('wardrobe')
+        .from('user_backpack')
+        .update({ quantity: existing.quantity + 1 })
+        .eq('id', existing.id);
+      backpackItemId = existing.id;
+    } else {
+      const { data: inserted } = await supabase
+        .from('user_backpack')
         .insert({
           user_id: user.id,
-          girlfriend_id: girlfriendId,
-          outfit_id: outfitId,
-          is_equipped: false,
-        });
+          product_id: item.id,
+          quantity: 1,
+          source: 'purchase',
+          metadata: { rarity: item.rarity, name: item.name, category: item.category },
+        })
+        .select('id')
+        .single();
+      backpackItemId = inserted?.id ?? '';
     }
 
+    // Apply consumable/effect items
+    const meta = (item.virtual_meta ?? {}) as Record<string, unknown>;
+
     if (meta.effect_type || item.category === 'membership') {
-      // Add active item
+      // Add active item (no girlfriend binding at purchase time)
       const effectType = (meta.effect_type as string) || 'double_intimacy';
       const durationHours = (meta.duration_hours as number) || 24;
       const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
@@ -151,7 +116,6 @@ export async function POST(req: NextRequest) {
         .from('user_active_items')
         .insert({
           user_id: user.id,
-          girlfriend_id: girlfriendId,
           effect_type: effectType,
           expires_at: expiresAt,
         });
@@ -162,6 +126,7 @@ export async function POST(req: NextRequest) {
       item: item.name,
       remaining_credits: profile.credits_remaining - item.price_credits,
       effect: item.category,
+      backpack_item_id: backpackItemId,
     });
 
   } catch (err) {
