@@ -12,9 +12,6 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { Coins, Heart, Sparkles, Lock, Star, Shirt, Gift, Zap, Users, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
@@ -39,7 +36,6 @@ type ShopItem = {
   video_url?: string;
 };
 
-type Girlfriend = { id: string; name: string };
 type CreditsInfo = { credits_remaining: number; membership_tier: string };
 type TokenPackage = {
   id: string;
@@ -62,9 +58,7 @@ export default function ShopPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const [credits, setCredits] = useState<CreditsInfo | null>(null);
-  const [girlfriends, setGirlfriends] = useState<Girlfriend[]>([]);
   const [buying, setBuying] = useState<ShopItem | null>(null);
-  const [selectedGF, setSelectedGF] = useState('');
   const [purchasing, setPurchasing] = useState(false);
   const [tokenPackages, setTokenPackages] = useState<TokenPackage[]>([]);
   const [tokenBalance, setTokenBalance] = useState(0);
@@ -79,7 +73,6 @@ export default function ShopPage() {
 
   useEffect(() => {
     authedFetch('/api/shop/credits').then((r) => r.json()).then(setCredits).catch(() => {});
-    authedFetch('/api/girlfriends').then((r) => r.json()).then((d) => setGirlfriends(d.girlfriends || [])).catch(() => {});
     authedFetch('/api/v2/shop/tokens')
       .then((r) => r.json())
       .then((d) => {
@@ -204,19 +197,18 @@ export default function ShopPage() {
   };
 
 const handleBuy = async () => {
-    if (!buying || !selectedGF) return;
+    if (!buying) return;
     setPurchasing(true);
     try {
-      const res = await authedFetch('/api/shop/v2/purchase', {
+      const res = await authedFetch('/api/shop/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product_id: buying.id, girlfriend_id: selectedGF }),
+        body: JSON.stringify({ itemId: buying.id }),
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(`${buying.emoji} ${buying.name} 已装备！`);
+        toast.success(`${buying.emoji} ${buying.name} 已放入背包！`);
         setBuying(null);
-        setSelectedGF('');
         const c = await authedFetch('/api/shop/credits').then((r) => r.json());
         setCredits(c);
       } else if (res.status === 402) {
@@ -533,26 +525,10 @@ const handleBuy = async () => {
               {buying?.description} · 消耗 {buying?.price_cents} 代币
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <label className="text-xs text-white/40">装备给</label>
-            <Select value={selectedGF} onValueChange={setSelectedGF}>
-              <SelectTrigger className="bg-white/5 border-white/10">
-                <SelectValue placeholder="选择女友" />
-              </SelectTrigger>
-              <SelectContent>
-                {girlfriends.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!girlfriends.length && (
-              <p className="text-xs text-amber-400">还没有女友，先去卡池或捏脸创建吧。</p>
-            )}
-          </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setBuying(null)}>取消</Button>
             <Button
-              disabled={!selectedGF || purchasing}
+              disabled={purchasing}
               onClick={handleBuy}
               className="bg-gradient-to-r from-[#ffd700] to-[#ff2e88] text-black font-bold"
             >

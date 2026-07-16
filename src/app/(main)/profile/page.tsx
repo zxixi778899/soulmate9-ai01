@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Heart, Crown, MessageCircle, LogOut, Star, ShoppingBag, Shirt,
   Settings, Package, CreditCard, Sparkles, Loader2, Check, Trophy,
-  Bell, ExternalLink, Users, Activity,
+  Bell, ExternalLink, Users, Activity, Gift,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
@@ -23,6 +23,9 @@ import {
   GameShell, GamePanel, GamePrimaryButton, GameSectionTitle,
 } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
 interface UserStats {
@@ -50,6 +53,26 @@ interface AssetItem {
   equipped: boolean;
 }
 
+interface BackpackItem {
+  id: string;
+  quantity: number;
+  product: {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    preview_url: string;
+    price_credits: number;
+    rarity: string;
+  };
+}
+
+interface GirlfriendOption {
+  id: string;
+  name: string;
+  portrait_url: string;
+}
+
 type Tab = 'dashboard' | 'assets' | 'settings';
 
 const TIER_META: Record<string, { label: string; color: string }> = {
@@ -71,12 +94,18 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState(user?.user_metadata?.display_name || '');
   const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [backpackItems, setBackpackItems] = useState<BackpackItem[]>([]);
+  const [girlfriends, setGirlfriends] = useState<GirlfriendOption[]>([]);
+  const [giftingItem, setGiftingItem] = useState<string | null>(null);
+  const [giftTarget, setGiftTarget] = useState('');
 
   const fetchProfile = useCallback(async () => {
-    const [memData, wardrobeData, notifData] = await Promise.all([
+    const [memData, wardrobeData, notifData, backpackData, girlfriendsData] = await Promise.all([
       authedFetch('/api/membership').then((r) => r.json()),
       authedFetch('/api/wardrobe').then((r) => r.json()).catch(() => ({ items: [] })),
       authedFetch('/api/notifications').then((r) => r.json()).catch(() => ({ notifications: [] })),
+      authedFetch('/api/backpack').then((r) => r.json()).catch(() => ({ items: [] })),
+      authedFetch('/api/girlfriends').then((r) => r.json()).catch(() => ({ girlfriends: [] })),
     ]);
     if (memData.usage) {
       setStats({
@@ -98,6 +127,8 @@ export default function ProfilePage() {
       })),
     );
     setNotifications(notifData.notifications || []);
+    setBackpackItems((backpackData.items || []) as BackpackItem[]);
+    setGirlfriends((girlfriendsData.girlfriends || []) as GirlfriendOption[]);
     setLoading(false);
   }, []);
 
@@ -121,6 +152,28 @@ export default function ProfilePage() {
       toast.error('网络错误');
     }
     setSaving(false);
+  };
+
+  const handleGift = async (productId: string): Promise<void> => {
+    if (!giftTarget) return;
+    try {
+      const res = await authedFetch('/api/backpack/gift', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: productId, girlfriend_id: giftTarget }),
+      });
+      if (!res.ok) throw new Error('Gift failed');
+      toast.success('赠送成功！');
+      setGiftingItem(null);
+      setGiftTarget('');
+      // Refresh backpack
+      authedFetch('/api/backpack')
+        .then((r) => r.json())
+        .then((d) => setBackpackItems((d.items || []) as BackpackItem[]))
+        .catch(() => {});
+    } catch {
+      toast.error('赠送失败');
+    }
   };
 
   const tier = TIER_META[membershipTier] || TIER_META.free;
@@ -272,10 +325,11 @@ export default function ProfilePage() {
 
         {activeTab === 'assets' && (
           <>
+            {/* Wardrobe / skins section */}
             <GameSectionTitle title="我的皮肤与道具" subtitle={`${assets.length} 件`} eyebrow="INVENTORY" />
             {assets.length === 0 ? (
               <GamePanel className="p-10 text-center text-white/40 text-sm">
-                背包空空 · 去商城挑选皮肤吧
+                暂无皮肤 · 去商城挑选吧
                 <div className="mt-4">
                   <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/shop')}>
                     打开商城
@@ -300,6 +354,68 @@ export default function ProfilePage() {
                 ))}
               </div>
             )}
+
+            {/* Backpack items section */}
+            <div className="mt-6">
+              <GameSectionTitle title="背包道具" subtitle={`${backpackItems.length} 种`} eyebrow="BACKPACK" />
+              {backpackItems.length === 0 ? (
+                <GamePanel className="p-10 text-center text-white/40 text-sm">
+                  背包是空的，去商城逛逛吧
+                  <div className="mt-4">
+                    <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/shop')}>
+                      打开商城
+                    </GamePrimaryButton>
+                  </div>
+                </GamePanel>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {backpackItems.map((item) => (
+                    <GamePanel key={item.id} className="p-3 relative group">
+                      {/* Quantity badge */}
+                      <div className="absolute top-2 right-2 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-[#FF2D78] text-[10px] font-bold text-white px-1.5">
+                        x{item.quantity}
+                      </div>
+                      {/* Rarity indicator */}
+                      <div className={cn(
+                        'absolute top-2 left-2 h-1.5 w-8 rounded-full',
+                        item.product.rarity === 'legendary' && 'bg-amber-400',
+                        item.product.rarity === 'epic' && 'bg-purple-500',
+                        item.product.rarity === 'rare' && 'bg-blue-500',
+                        item.product.rarity === 'common' && 'bg-white/20',
+                      )} />
+                      {/* Item preview */}
+                      <div className="mt-3 mb-2">
+                        {item.product.preview_url ? (
+                          <img
+                            src={item.product.preview_url}
+                            alt={item.product.name}
+                            className="w-full h-20 object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="w-full h-20 rounded-lg bg-white/[0.04] flex items-center justify-center">
+                            <Package className="h-8 w-8 text-white/20" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-sm font-medium truncate">{item.product.name}</div>
+                      <div className="text-[10px] text-white/40 mt-0.5 line-clamp-2 min-h-[28px]">
+                        {item.product.description}
+                      </div>
+                      {/* Gift button */}
+                      <button
+                        onClick={() => {
+                          setGiftingItem(item.product.id);
+                          setGiftTarget('');
+                        }}
+                        className="mt-2 w-full flex items-center justify-center gap-1 h-7 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs text-white/60 hover:text-white hover:bg-[#FF2D78]/20 hover:border-[#FF2D78]/40 transition-all"
+                      >
+                        <Gift className="h-3 w-3" /> 赠送
+                      </button>
+                    </GamePanel>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -336,6 +452,67 @@ export default function ProfilePage() {
           </>
         )}
       </div>
+
+      {/* Gift dialog — select target girlfriend */}
+      <Sheet open={!!giftingItem} onOpenChange={(open) => { if (!open) { setGiftingItem(null); setGiftTarget(''); } }}>
+        <SheetContent side="bottom" className="rounded-t-2xl bg-[#12121a] border-white/[0.08] max-h-[70vh]">
+          <SheetHeader className="px-5 pt-5 pb-2">
+            <SheetTitle className="text-base text-white flex items-center gap-2">
+              <Gift className="h-4 w-4 text-[#ff6ba6]" />
+              选择赠送对象
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-5 pb-2 space-y-1.5">
+            {girlfriends.length === 0 ? (
+              <div className="py-8 text-center text-white/40 text-sm">
+                还没有女友，快去创建一位吧
+              </div>
+            ) : (
+              girlfriends.map((gf) => (
+                <button
+                  key={gf.id}
+                  onClick={() => setGiftTarget(gf.id)}
+                  className={cn(
+                    'w-full flex items-center gap-3 p-3 rounded-xl transition-all',
+                    giftTarget === gf.id
+                      ? 'bg-[#FF2D78]/20 border border-[#FF2D78]/50'
+                      : 'bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.08]',
+                  )}
+                >
+                  <div className="relative shrink-0">
+                    {gf.portrait_url ? (
+                      <img
+                        src={gf.portrait_url}
+                        alt={gf.name}
+                        className="h-10 w-10 rounded-full object-cover ring-2 ring-white/10"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] flex items-center justify-center text-sm font-bold text-white">
+                        {gf.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm font-medium truncate">{gf.name}</span>
+                  {giftTarget === gf.id && (
+                    <Check className="h-4 w-4 text-[#ff6ba6] ml-auto shrink-0" />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="p-5 pt-3">
+            <GamePrimaryButton
+              className="w-full h-11 disabled:opacity-40"
+              disabled={!giftTarget}
+              onClick={() => { if (giftingItem) void handleGift(giftingItem); }}
+            >
+              <Gift className="h-4 w-4" /> 确认赠送
+            </GamePrimaryButton>
+          </div>
+        </SheetContent>
+      </Sheet>
     </GameShell>
   );
 }
