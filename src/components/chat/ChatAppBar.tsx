@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Image as ImageIcon, Brain, ChevronDown, Home } from 'lucide-react';
+import { Image as ImageIcon, Brain, ChevronDown, Home, Camera } from 'lucide-react';
 import type { ChatGirlfriend, IntimacyData } from './types';
 import { HEAT_UNLOCK_HINTS } from '@/lib/constants';
 import type { INTIMACY_LEVELS } from '@/lib/constants';
@@ -25,9 +25,10 @@ export function ChatAppBar(props: {
   onSelfie: () => void;
   isGenerating: boolean;
   onMemories: () => void;
+  onAlbum: () => void;
 }) {
   const { t, locale } = useTranslation();
-  const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories } = props;
+  const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories, onAlbum } = props;
   const name = girlfriend?.name?.trim() || 'Companion';
   const color = levelInfo?.color || '#ff2e88';
   const title = locale === 'zh' ? ['初识', '心动', '暧昧', '亲密', '热恋'][Math.max(0, Math.min(4, (intimacy?.level ?? 1) - 1))] : levelInfo?.title || 'Chat';
@@ -114,6 +115,14 @@ export function ChatAppBar(props: {
         >
           <ImageIcon className="h-4 w-4" />
           <span className="hidden sm:inline">{t('chat.selfie')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onAlbum}
+          className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white active:scale-95 transition-all touch-manipulation"
+          aria-label="相册"
+        >
+          <Camera className="h-5 w-5" />
         </button>
         <button
           type="button"

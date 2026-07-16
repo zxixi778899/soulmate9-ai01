@@ -20,6 +20,7 @@ import {
   ChevronDown,
   X,
   Crown,
+  Camera,
 } from 'lucide-react';
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
@@ -93,6 +94,7 @@ export default function ChatPage() {
   const giftComboRef = useRef(0);
   const giftComboTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showMemories, setShowMemories] = useState(false);
+  const [showAlbum, setShowAlbum] = useState(false);
   const [showLightbox, setShowLightbox] = useState<string | null>(null);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
 
@@ -1147,6 +1149,7 @@ export default function ChatPage() {
         onSelfie={generateSelfie}
         isGenerating={isGenerating}
         onMemories={() => setShowMemories(true)}
+        onAlbum={() => setShowAlbum(true)}
       />
 
       {/* Compact intimacy strip — full IntimacyProgress was crowding the dialog */}
@@ -1328,6 +1331,66 @@ export default function ChatPage() {
                 </div>
               ))
             )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Album Sheet — gallery of all media from this conversation */}
+      <Sheet open={showAlbum} onOpenChange={setShowAlbum}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-sm bg-[#0E0E1A]/95 backdrop-blur-2xl border-l border-white/[0.08]"
+        >
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2 text-base font-display">
+              <Camera className="h-4 w-4 text-[#FF2D78]" />
+              相册 · {girlfriend?.name || "her"}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 overflow-y-auto max-h-[calc(100vh-8rem)] pb-8 pr-1">
+            {(() => {
+              const mediaItems = messages.filter(
+                (m) => m.media_url && m.media_url.startsWith('http')
+              );
+              if (mediaItems.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Camera className="h-8 w-8 text-[#8B8BA3]/30 mb-3" />
+                    <p className="text-xs text-[#8B8BA3]">
+                      还没有相册内容，聊天中生成的图片和视频会保存在这里
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {mediaItems.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => { setShowLightbox(m.media_url!); setShowAlbum(false); }}
+                      className="aspect-square rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors"
+                    >
+                      {m.media_type === 'video' ? (
+                        <video
+                          src={m.media_url!}
+                          className="h-full w-full object-cover"
+                          muted
+                          preload="metadata"
+                        />
+                      ) : (
+                        <img
+                          src={m.media_url!}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </SheetContent>
       </Sheet>
