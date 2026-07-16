@@ -59,3 +59,20 @@ export function estimateCost(
 ): number {
   return (inputTokens / 1000) * costPer1kInput + (outputTokens / 1000) * costPer1kOutput;
 }
+
+/** Estimate RunPod cost from execution time or a blended per-image rate. */
+export function estimateRunpodImageCost(
+  executionTimeMs: number | null | undefined,
+  imageCount = 1,
+): number {
+  const count = Math.max(1, Math.floor(imageCount));
+  const perImage = Number(process.env.RUNPOD_IMAGE_COST_USD || 0);
+  if (Number.isFinite(perImage) && perImage > 0) return perImage * count;
+
+  const perSecond = Number(process.env.RUNPOD_GPU_COST_PER_SECOND_USD || 0);
+  const durationMs = Number(executionTimeMs || 0);
+  if (!Number.isFinite(perSecond) || perSecond <= 0 || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return 0;
+  }
+  return (durationMs / 1000) * perSecond;
+}

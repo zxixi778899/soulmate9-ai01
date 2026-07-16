@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
       images: input.image_url ? [{ key: input.image_url }] : [],
       virtual_meta: meta,
       rarity: input.rarity || 'common',
-      type: collection === 'membership' ? 'subscription' : 'virtual',
+      type: 'virtual',
       status: input.active === false ? 'draft' : 'active',
       is_active: input.active !== false,
       is_featured: input.featured === true,
@@ -244,46 +244,83 @@ export async function PATCH(request: NextRequest) {
   try {
     const input = (await request.json()) as ProductInput;
     if (!input.id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
-    const collection = parseCollection(input.collection);
-    const { data: existing, error: findError } = await supabase.from('products').select('virtual_meta,sku').eq('id', input.id).single();
+
+    // --- Fetch existing product for partial merge ---
+    const { data: existing, error: findError } = await supabase
+      .from('products')
+      .select('virtual_meta, sku, category, subcategory')
+      .eq('id', input.id)
+      .single();
     if (findError) throw findError;
     const currentMeta = (existing.virtual_meta || {}) as Record<string, unknown>;
+
+    // --- Determine collection (use existing if not provided) ---
+    const existingCollection = collectionFromProduct(existing as unknown as Record<string, unknown>);
+    const collection = input.collection !== undefined ? parseCollection(input.collection) : existingCollection;
+
+    // --- Build sparse updates: only include fields that are present in input ---
     const updates: Record<string, unknown> = {
-      name: input.name,
-      description: input.description,
-      category: dbCategory(collection),
-      subcategory: input.category || collection,
-      price_credits: Math.max(0, Number(input.price_credits || 0)),
-      price_cents: Math.max(0, Number(input.price_cents || 0)),
-      virtual_meta: virtualMeta(input, collection, currentMeta),
-      rarity: input.rarity || 'common',
-      type: collection === 'membership' ? 'subscription' : 'virtual',
-      status: input.active === false ? 'draft' : 'active',
-      is_active: input.active !== false,
-      is_featured: input.featured === true,
-      display_order: Number(input.sort_order || 100),
       updated_at: new Date().toISOString(),
     };
+
+    if (input.name !== undefined) updates.name = input.name;
+    if (input.description !== undefined) updates.description = input.description;
+
+    // Only recompute category/collection if collection was explicitly sent
+    if (input.collection !== undefined) {
+      updates.category = dbCategory(collection);
+      updates.subcategory = input.category || collection;
+      updates.type = collection === 'membership' ? 'virtual' : 'virtual';
+    }
+    if (input.category !== undefined) {
+      updates.subcategory = input.category;
+    }
+
+    if (input.price_credits !== undefined) updates.price_credits = Math.max(0, Number(input.price_credits));
+    if (input.price_cents !== undefined) updates.price_cents = Math.max(0, Number(input.price_cents));
+    if (input.rarity !== undefined) updates.rarity = input.rarity;
+    if (input.sort_order !== undefined) updates.display_order = Number(input.sort_order);
+    if (input.featured !== undefined) updates.is_featured = input.featured;
+    if (input.active !== undefined) {
+      updates.is_active = input.active;
+      updates.status = input.active ? 'active' : 'draft';
+    }
+
+    // Merge virtual_meta only with provided fields (preserve existing keys)
+    if (input.collection !== undefined || input.video_url !== undefined || input.effect_asset_url !== undefined ||
+        input.effect_type !== undefined || input.effect_config !== undefined || input.wear_prompt !== undefined ||
+        input.auto_generate_image !== undefined || input.auto_generate_video !== undefined ||
+        input.membership_tier !== undefined || input.duration_days !== undefined || input.token_amount !== undefined) {
+      updates.virtual_meta = virtualMeta(input, collection, currentMeta);
+    }
+
     if (input.image_url !== undefined) updates.images = input.image_url ? [{ key: input.image_url }] : [];
+
     const { error } = await supabase.from('products').update(updates).eq('id', input.id);
     if (error) throw error;
 
-    if (collection === 'outfit') {
+    // Update outfit_assets only if collection is outfit AND relevant fields were sent
+    if (collection === 'outfit' && (input.image_url !== undefined || input.wear_prompt !== undefined || input.name !== undefined || input.video_url !== undefined || input.effect_asset_url !== undefined)) {
       const assetId = String(currentMeta.asset_id || '');
-      const assetPayload = {
+      const assetPayload: Record<string, unknown> = {
         product_id: input.id,
         asset_key: String(existing.sku),
-        name: input.name || String(existing.sku),
-        image_url: input.image_url || null,
-        prompt_suffix: input.wear_prompt || null,
-        metadata: { video_url: input.video_url || null, effect_asset_url: input.effect_asset_url || null },
       };
+      if (input.name !== undefined) assetPayload.name = input.name;
+      if (input.image_url !== undefined) assetPayload.image_url = input.image_url || null;
+      if (input.wear_prompt !== undefined) assetPayload.prompt_suffix = input.wear_prompt || null;
+      if (input.video_url !== undefined || input.effect_asset_url !== undefined) {
+        assetPayload.metadata = {
+          video_url: input.video_url || null,
+          effect_asset_url: input.effect_asset_url || null,
+        };
+      }
       const result = assetId
         ? await supabase.from('outfit_assets').update(assetPayload).eq('id', assetId).select().maybeSingle()
-        : await supabase.from('outfit_assets').insert(assetPayload).select().single();
+        : await supabase.from('outfit_assets').insert({ ...assetPayload, name: input.name || String(existing.sku), image_url: input.image_url || null }).select().single();
       if (result.error) throw result.error;
       if (!assetId && result.data) {
-        await supabase.from('products').update({ virtual_meta: { ...virtualMeta(input, collection, currentMeta), asset_id: result.data.id } }).eq('id', input.id);
+        await supabase.from('products').update({ virtual_meta: { ...currentMeta, asset_id: result.data.id } }).eq('id', input.id);
       }
     }
     invalidateShop();
