@@ -36,6 +36,7 @@ type ShopItem = {
   is_limited?: boolean;
   skin?: string;
   preview_url?: string;
+  video_url?: string;
 };
 
 type Girlfriend = { id: string; name: string };
@@ -111,19 +112,23 @@ export default function ShopPage() {
 
         const outfitProducts = allProducts
           .filter((p) => p.category === 'outfit')
-          .map((p) => ({
-            id: p.id as string,
-            name: p.name as string,
-            emoji: '👗',
-            description: (p.description as string) || '',
-            price_cents: Number(p.price_credits || p.price_cents || 0),
-            item_type: 'outfit',
-            effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
-            tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
-            is_limited: (p.is_featured as boolean) || false,
-            skin: gradientFromRarity(p.rarity as string),
-            preview_url: (p.preview_url as string) || '',
-          }));
+          .map((p) => {
+            const meta = (p.virtual_meta || {}) as Record<string, unknown>;
+            return {
+              id: p.id as string,
+              name: p.name as string,
+              emoji: '👗',
+              description: (p.description as string) || '',
+              price_cents: Number(p.price_credits || p.price_cents || 0),
+              item_type: 'outfit',
+              effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
+              tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
+              is_limited: (p.is_featured as boolean) || false,
+              skin: gradientFromRarity(p.rarity as string),
+              preview_url: (p.preview_url as string) || '',
+              video_url: (meta.video_url as string) || '',
+            };
+          });
 
         const giftProducts = allProducts
           .filter((p) => p.category !== 'outfit')
@@ -399,12 +404,29 @@ const handleBuy = async () => {
                   >
                     <div className={cn('aspect-[4/5] bg-gradient-to-br relative', item.skin)}>
                       {item.preview_url ? (
-                        <img
-                          src={item.preview_url}
-                          alt={item.name}
-                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                          loading="lazy"
-                        />
+                        <>
+                          <img
+                            src={item.preview_url}
+                            alt={item.name}
+                            className={cn(
+                              'absolute inset-0 h-full w-full object-cover transition-all duration-500',
+                              item.video_url ? 'group-hover:opacity-0' : 'group-hover:scale-110',
+                            )}
+                            loading="lazy"
+                          />
+                          {item.video_url && (
+                            <video
+                              src={item.video_url}
+                              muted
+                              loop
+                              playsInline
+                              preload="none"
+                              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                              onMouseEnter={(e) => { e.currentTarget.play().catch(() => {}); }}
+                              onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                            />
+                          )}
+                        </>
                       ) : (
                         <>
                           <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
