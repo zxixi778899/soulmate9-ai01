@@ -10,7 +10,7 @@
   "crons": [
     { "path": "/api/cron/subscription-reminder", "schedule": "0 9 * * *" },
     { "path": "/api/cron/re-engagement", "schedule": "0 14 * * *" },
-    { "path": "/api/cron/daily-proactive", "schedule": "0 8,14,20 * * *" },
+    { "path": "/api/cron/daily-proactive", "schedule": "0 8 * * *" },
     { "path": "/api/cron/cleanup-cache", "schedule": "0 3 * * *" }
   ]
 }

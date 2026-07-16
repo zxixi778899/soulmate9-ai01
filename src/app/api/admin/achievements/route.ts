@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/require-admin';
 import { checkRateLimitAsync } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { HEAT_ACHIEVEMENT_DEFS } from '@/lib/heat-achievements';
+import { invalidateAchievements } from '@/lib/revalidate';
 
 /**
  * GET  /api/admin/achievements — list DB achievements + seed catalog
@@ -90,6 +91,8 @@ export async function POST(request: NextRequest) {
   logger.info('[admin/achievements] seed_heat', {
     data: { upserted, attempted: HEAT_ACHIEVEMENT_DEFS.length },
   });
+
+  invalidateAchievements();
 
   return NextResponse.json({
     ok: errors.length === 0,

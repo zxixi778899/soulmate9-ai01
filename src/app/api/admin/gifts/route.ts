@@ -18,6 +18,7 @@ import {
   updateGift,
 } from '@/lib/gifts/store';
 import { ensureChatGiftsTable } from '@/lib/gifts/ensure-table';
+import { invalidateGifts } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 
@@ -143,6 +144,7 @@ export async function POST(request: NextRequest) {
           { status: 500 },
         );
       }
+      invalidateGifts();
       return NextResponse.json({
         success: true,
         seeded: result.seeded,
@@ -160,6 +162,7 @@ export async function POST(request: NextRequest) {
       logger.error('[admin/gifts] create failed', { err: result.error });
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
+    invalidateGifts();
     return NextResponse.json({
       success: true,
       gift: result.gift,
@@ -194,6 +197,7 @@ export async function PATCH(request: NextRequest) {
     if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
+    invalidateGifts();
     return NextResponse.json({
       success: true,
       gift: result.gift,
@@ -229,6 +233,7 @@ export async function DELETE(request: NextRequest) {
     if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
+    invalidateGifts();
     return NextResponse.json({ success: true, source: result.source, soft });
   } catch (e) {
     return NextResponse.json(

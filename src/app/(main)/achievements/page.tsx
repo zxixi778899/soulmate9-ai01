@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { GameShell } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 
 interface Achievement {
   id: string;
@@ -73,6 +74,8 @@ export default function AchievementsPage() {
     }
     setLoading(false);
   };
+
+  useAutoRefresh(loadAchievements);
 
   const filtered = category === 'all'
     ? achievements

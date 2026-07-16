@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { invalidateSettings } from '@/lib/revalidate';
 import fs from 'fs';
 import path from 'path';
 
@@ -121,6 +122,8 @@ export async function POST(req: NextRequest) {
   presets.push(newPreset);
   savePresets(presets);
 
+  invalidateSettings();
+
   return NextResponse.json({ preset: newPreset });
 }
 
@@ -139,6 +142,8 @@ export async function DELETE(req: NextRequest) {
   let presets = loadPresets();
   presets = presets.filter((p) => p.id !== id);
   savePresets(presets);
+
+  invalidateSettings();
 
   return NextResponse.json({ success: true });
 }

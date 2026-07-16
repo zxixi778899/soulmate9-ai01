@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { invalidateSettings, invalidateTokens } from '@/lib/revalidate';
 
 export async function GET(request: Request) {
   try {
@@ -93,6 +94,9 @@ export async function PATCH(request: Request) {
         link_url: '/profile',
       });
 
+      invalidateSettings();
+      invalidateTokens();
+
       return NextResponse.json({ success: true });
     }
 
@@ -106,6 +110,8 @@ export async function PATCH(request: Request) {
         .eq('id', id);
 
       if (updateErr) throw updateErr;
+
+      invalidateSettings();
 
       return NextResponse.json({ success: true });
     }

@@ -16,8 +16,9 @@ import {
   Bell, ExternalLink, Users, Activity,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
   GameShell, GamePanel, GamePrimaryButton, GameSectionTitle,
 } from '@/components/game/GameShell';
@@ -71,37 +72,40 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  useEffect(() => {
-    Promise.all([
+  const fetchProfile = useCallback(async () => {
+    const [memData, wardrobeData, notifData] = await Promise.all([
       authedFetch('/api/membership').then((r) => r.json()),
       authedFetch('/api/wardrobe').then((r) => r.json()).catch(() => ({ items: [] })),
       authedFetch('/api/notifications').then((r) => r.json()).catch(() => ({ notifications: [] })),
-    ])
-      .then(([memData, wardrobeData, notifData]) => {
-        if (memData.usage) {
-          setStats({
-            girlfriendCount: memData.usage.total_girlfriends || 0,
-            messagesToday: memData.usage.messages_sent_today || 0,
-            avgIntimacy: memData.usage.highest_intimacy || 0,
-          });
-        }
-        setMembershipTier(memData.tier || 'free');
-        setCredits(memData.credits_remaining || 0);
-        setAssets(
-          ((wardrobeData.items || []) as Array<Record<string, unknown>>).map((w) => ({
-            id: String(w.id),
-            type: 'outfit',
-            name: String((w.outfit as { name?: string })?.name || w.outfit_name || 'Outfit'),
-            icon: String((w.outfit as { emoji?: string })?.emoji || '👗'),
-            tier: String((w.outfit as { tier?: string })?.tier || 'free'),
-            equipped: Boolean(w.is_equipped),
-          })),
-        );
-        setNotifications(notifData.notifications || []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    ]);
+    if (memData.usage) {
+      setStats({
+        girlfriendCount: memData.usage.total_girlfriends || 0,
+        messagesToday: memData.usage.messages_sent_today || 0,
+        avgIntimacy: memData.usage.highest_intimacy || 0,
+      });
+    }
+    setMembershipTier(memData.tier || 'free');
+    setCredits(memData.credits_remaining || 0);
+    setAssets(
+      ((wardrobeData.items || []) as Array<Record<string, unknown>>).map((w) => ({
+        id: String(w.id),
+        type: 'outfit',
+        name: String((w.outfit as { name?: string })?.name || w.outfit_name || 'Outfit'),
+        icon: String((w.outfit as { emoji?: string })?.emoji || '👗'),
+        tier: String((w.outfit as { tier?: string })?.tier || 'free'),
+        equipped: Boolean(w.is_equipped),
+      })),
+    );
+    setNotifications(notifData.notifications || []);
+    setLoading(false);
   }, []);
+
+  useAutoRefresh(fetchProfile);
+
+  useEffect(() => {
+    void fetchProfile();
+  }, [fetchProfile]);
 
   const saveProfile = async () => {
     setSaving(true);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { invalidateAds } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertErr) throw insertErr;
+    invalidateAds();
     return NextResponse.json({ ad: data });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -75,6 +77,7 @@ export async function PATCH(request: NextRequest) {
       .eq('id', id);
 
     if (updateErr) throw updateErr;
+    invalidateAds();
     return NextResponse.json({ success: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -96,6 +99,7 @@ export async function DELETE(request: NextRequest) {
 
     const { error: deleteErr } = await supabase.from('admin_ads').delete().eq('id', id);
     if (deleteErr) throw deleteErr;
+    invalidateAds();
     return NextResponse.json({ success: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';

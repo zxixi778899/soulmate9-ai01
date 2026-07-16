@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { writeFile, readFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { invalidateSettings } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 
@@ -108,6 +109,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     await saveSettings(next);
+    invalidateSettings();
     return NextResponse.json({ success: true, settings: next });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Save failed';

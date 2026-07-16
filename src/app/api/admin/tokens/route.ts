@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { invalidateTokens } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+    invalidateTokens();
     return NextResponse.json({ package: data, bonus_tokens });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Create failed';
@@ -94,6 +96,7 @@ export async function PATCH(request: NextRequest) {
 
     const { error } = await supabase.from('token_packages').update(updates).eq('id', id);
     if (error) throw error;
+    invalidateTokens();
     return NextResponse.json({ success: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Update failed';
@@ -117,6 +120,7 @@ export async function DELETE(request: NextRequest) {
       .update({ is_active: false })
       .eq('id', id);
     if (error) throw error;
+    invalidateTokens();
     return NextResponse.json({ success: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Delete failed';

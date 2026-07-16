@@ -14,6 +14,12 @@ export const TAG = {
   wardrobe: 'wardrobe',
   explore: 'explore',
   summon: 'summon',
+  gifts: 'gifts',
+  settings: 'settings',
+  lore: 'lore',
+  tokens: 'tokens',
+  ads: 'ads',
+  achievements: 'achievements',
 } as const;
 
 export type CacheTag = (typeof TAG)[keyof typeof TAG];
@@ -61,4 +67,80 @@ export function invalidateShop(): void {
 export function invalidateHomepage(): void {
   revalidatePath('/');
   invalidateTag([TAG.homepage, TAG.featured]);
+}
+
+/**
+ * Invalidate paths + tags for gift catalog changes.
+ * Gifts are consumed in the chat UI — invalidate the chat data path.
+ */
+export function invalidateGifts(): void {
+  revalidatePath('/api/gifts');
+  invalidateTag([TAG.gifts]);
+}
+
+/**
+ * Invalidate paths + tags for site-wide settings changes.
+ * Settings affect footer, pricing, and multiple pages.
+ */
+export function invalidateSettings(): void {
+  revalidatePath('/');
+  revalidatePath('/pricing');
+  revalidatePath('/achievements');
+  invalidateTag([TAG.settings, TAG.homepage]);
+}
+
+/**
+ * Invalidate lore data for a specific girlfriend.
+ * Lore is consumed server-side during chat prompt construction.
+ */
+export function invalidateLore(girlfriendId?: string): void {
+  invalidateTag([TAG.lore]);
+  if (girlfriendId) {
+    revalidatePath(`/api/lore?girlfriend_id=${girlfriendId}`);
+  }
+}
+
+/**
+ * Invalidate token package / pricing changes.
+ * Consumed on the pricing / recharge page.
+ */
+export function invalidateTokens(): void {
+  revalidatePath('/pricing');
+  revalidatePath('/api/v2/shop/tokens');
+  invalidateTag([TAG.tokens]);
+}
+
+/**
+ * Invalidate ad banner changes.
+ * Ads are displayed on the homepage and explore page.
+ */
+export function invalidateAds(): void {
+  revalidatePath('/');
+  revalidatePath('/explore');
+  invalidateTag([TAG.ads, TAG.homepage]);
+}
+
+/**
+ * Invalidate achievement definition changes.
+ */
+export function invalidateAchievements(): void {
+  revalidatePath('/achievements');
+  invalidateTag([TAG.achievements]);
+}
+
+/**
+ * Nuclear option — invalidate ALL cache tags and paths.
+ * Useful after major config changes or database migrations.
+ */
+export function invalidateAll(): void {
+  const allTags = Object.values(TAG);
+  invalidateTag(allTags);
+  const paths = [
+    '/', '/explore', '/summon', '/shop', '/shop-v2', '/wardrobe',
+    '/pricing', '/achievements', '/api/gifts', '/api/v2/shop/tokens',
+  ];
+  for (const p of paths) {
+    try { revalidatePath(p); } catch { /* ignore */ }
+  }
+  logger.info('[revalidate] ALL cache invalidated');
 }

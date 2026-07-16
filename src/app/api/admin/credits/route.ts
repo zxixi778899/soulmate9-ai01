@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import { invalidateSettings } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +71,8 @@ export async function PATCH(request: NextRequest) {
 
       if (updateErr) throw updateErr;
     }
+
+    invalidateSettings();
 
     return NextResponse.json({ success: true });
   } catch (e) {

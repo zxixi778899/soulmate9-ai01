@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/require-admin';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
+import { invalidateGirlfriends } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -301,6 +302,8 @@ export async function POST(request: NextRequest) {
 
     const created = await insertRes.json();
     logger.info('admin/girlfriends/batch: created', { count: created.length, userId });
+
+    invalidateGirlfriends();
 
     return NextResponse.json({
       success: true,

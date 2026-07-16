@@ -12,6 +12,7 @@ import { readResponseJson, errorMessageFromUnknown } from '@/lib/safe-json';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
   Save, ArrowLeft, ArrowRight, Wand2, Loader2, Sparkles, Check, User2,
 } from 'lucide-react';
@@ -120,15 +121,22 @@ export default function CreatePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    authedFetch('/api/outfits')
-      .then(async (r) => {
-        const data = await readResponseJson<{ outfits?: { id: string; name: string; tier: string }[] }>(r);
-        setOutfits(data.outfits || []);
-        if (data.outfits?.[0]) setSelectedOutfit(data.outfits[0].id);
-      })
-      .catch(() => {});
+  const fetchOutfits = useCallback(async () => {
+    try {
+      const r = await authedFetch('/api/outfits');
+      const data = await readResponseJson<{ outfits?: { id: string; name: string; tier: string }[] }>(r);
+      setOutfits(data.outfits || []);
+      if (data.outfits?.[0]) setSelectedOutfit(data.outfits[0].id);
+    } catch {
+      // ignore
+    }
   }, []);
+
+  useAutoRefresh(fetchOutfits);
+
+  useEffect(() => {
+    void fetchOutfits();
+  }, [fetchOutfits]);
 
   const toggleTag = useCallback((tag: string) => {
     setSelectedTags((prev) =>
