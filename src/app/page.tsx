@@ -125,9 +125,8 @@ export default function HomePage() {
       setCatalog(r.girls);
       setCatalogSource(r.source);
     } else {
-      // hard empty — keep UI from crashing
-      setCatalog(GIRLS.slice(0, 8));
-      setCatalogSource('demo');
+      setCatalog([]);
+      setCatalogSource(r.source);
     }
     setCatalogReady(true);
   }, []);

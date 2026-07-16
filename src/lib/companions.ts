@@ -304,11 +304,11 @@ export async function fetchCompanionCatalog(limit = 48): Promise<CompanionCatalo
     /* fall through */
   }
 
-  // 3) Demo fallback so the product never shows an empty lobby
+  // 3) No data available — return empty instead of demo fallback
   return {
-    girls: GIRLS.slice(0, limit),
+    girls: [],
     source: 'demo',
-    total: GIRLS.length,
+    total: 0,
   };
 }
 

@@ -32,7 +32,7 @@ export default function ExplorePage() {
   const [sort, setSort] = useState<SortKey>('rarity');
   const [selected, setSelected] = useState<DemoGirl | null>(null);
   const [selecting, setSelecting] = useState(false);
-  const [catalog, setCatalog] = useState<DemoGirl[]>(GIRLS);
+  const [catalog, setCatalog] = useState<DemoGirl[]>([]);
   const [source, setSource] = useState<'api' | 'demo'>('demo');
   const [loading, setLoading] = useState(true);
   const [rarityFilter, setRarityFilter] = useState<string | null>(null);
