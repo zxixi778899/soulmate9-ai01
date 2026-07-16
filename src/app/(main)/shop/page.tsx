@@ -100,42 +100,46 @@ export default function ShopPage() {
       })
       .catch(() => {});
 
-    // Fetch skins (outfit products from DB)
-    authedFetch('/api/shop/v2/products?category=outfit&limit=60')
+    // Fetch ALL products from DB and split into skins (outfit) and gifts (everything else)
+    authedFetch('/api/shop/v2/products?limit=60')
       .then((r) => r.json())
       .then((d) => {
-        const products = (d.products || []).map((p: Record<string, unknown>) => ({
-          id: p.id as string,
-          name: p.name as string,
-          emoji: p.category === 'outfit' ? '👗' : '🎁',
-          description: (p.description as string) || '',
-          price_cents: Number(p.price_credits || p.price_cents || 0),
-          item_type: 'outfit',
-          effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
-          tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
-          is_limited: (p.is_featured as boolean) || false,
-          skin: gradientFromRarity(p.rarity as string),
-          preview_url: (p.preview_url as string) || '',
-        }));
-        setSkins(products);
-      })
-      .catch(() => {});
+        const allProducts: Record<string, unknown>[] = d.products || [];
+        const emojiMap: Record<string, string> = {
+          outfit: '👗', effect: '✨', consumable: '🎁', voice_pack: '🎙️', background: '🖼️',
+        };
 
-    // Fetch gifts (prop products from DB)
-    authedFetch('/api/shop/v2/products?category=prop&limit=60')
-      .then((r) => r.json())
-      .then((d) => {
-        const products = (d.products || []).map((p: Record<string, unknown>) => ({
-          id: p.id as string,
-          name: p.name as string,
-          emoji: '🎁',
-          description: (p.description as string) || '',
-          price_cents: Number(p.price_credits || p.price_cents || 0),
-          item_type: 'intimacy_boost',
-          effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
-          tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
-        }));
-        setGifts(products);
+        const outfitProducts = allProducts
+          .filter((p) => p.category === 'outfit')
+          .map((p) => ({
+            id: p.id as string,
+            name: p.name as string,
+            emoji: '👗',
+            description: (p.description as string) || '',
+            price_cents: Number(p.price_credits || p.price_cents || 0),
+            item_type: 'outfit',
+            effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
+            tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
+            is_limited: (p.is_featured as boolean) || false,
+            skin: gradientFromRarity(p.rarity as string),
+            preview_url: (p.preview_url as string) || '',
+          }));
+
+        const giftProducts = allProducts
+          .filter((p) => p.category !== 'outfit')
+          .map((p) => ({
+            id: p.id as string,
+            name: p.name as string,
+            emoji: emojiMap[(p.category as string)] || '🎁',
+            description: (p.description as string) || '',
+            price_cents: Number(p.price_credits || p.price_cents || 0),
+            item_type: 'intimacy_boost',
+            effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
+            tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
+          }));
+
+        setSkins(outfitProducts);
+        setGifts(giftProducts);
       })
       .catch(() => {})
       .finally(() => setLoadingProducts(false));
