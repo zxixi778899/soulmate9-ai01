@@ -2,12 +2,13 @@
  *  v2  
  * GET /api/shop/v2/inventory
  *
- *  pg 
+ *  Supabase REST
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { queryPgMany } from '@/storage/database/supabase-client';
 import { resolveImageUrl } from '@/lib/storage';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(req);
@@ -18,46 +19,41 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const assetType = searchParams.get('asset_type');
 
-  const conditions: string[] = ['i.user_id = $1'];
-  const params: unknown[] = [user.id];
+  // Fetch inventory items via REST
+  let query = client
+    .from('user_inventory')
+    .select('id, product_id, asset_type, asset_id, asset_payload, quantity, acquired_at, source, metadata')
+    .eq('user_id', user.id)
+    .order('acquired_at', { ascending: false })
+    .limit(200);
 
-  if (assetType) {
-    params.push(assetType);
-    conditions.push(`i.asset_type = $${params.length}`);
+  if (assetType) query = query.eq('asset_type', assetType);
+
+  const { data: items, error } = await query;
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  const where = 'WHERE ' + conditions.join(' AND ');
 
-  const sql = `
-    SELECT
-      i.id, i.product_id, i.asset_type, i.asset_id, i.asset_payload,
-      i.quantity, i.acquired_at, i.source, i.metadata,
-      jsonb_build_object(
-        'id', p.id,
-        'name', p.name,
-        'description', p.description,
-        'category', p.category,
-        'subcategory', p.subcategory,
-        'images', p.images,
-        'rarity', p.rarity,
-        'price_credits', p.price_credits,
-        'virtual_meta', p.virtual_meta
-      ) AS products
-    FROM user_inventory i
-    LEFT JOIN products p ON p.id = i.product_id
-    ${where}
-    ORDER BY i.acquired_at DESC
-    LIMIT 200
-  `;
-  const rows = await queryPgMany(sql, params);
+  // Fetch related products in a separate query
+  const productIds = [...new Set((items || []).map((i) => i.product_id).filter(Boolean))];
+  let productsMap = new Map<string, Record<string, unknown>>();
+  if (productIds.length > 0) {
+    const { data: products } = await client
+      .from('products')
+      .select('id, name, description, category, subcategory, images, rarity, price_credits, virtual_meta')
+      .in('id', productIds);
+    productsMap = new Map((products || []).map((p) => [String(p.id), p as Record<string, unknown>]));
+  }
 
-  const items = await Promise.all(
-    rows.map(async (item: any) => {
-      const product = item.products;
+  // Merge and resolve images
+  const enriched = await Promise.all(
+    (items || []).map(async (item) => {
+      const product = productsMap.get(String(item.product_id)) || null;
       let preview_url = '';
       if (product?.images) {
-        const images = typeof product.images === 'string' ? JSON.parse(product.images) : product.images;
+        const images = (typeof product.images === 'string' ? JSON.parse(product.images as string) : product.images) as Array<{ key: string }>;
         if (Array.isArray(images) && images.length > 0) {
-          preview_url = await resolveImageUrl(images[0]?.key);
+          preview_url = await resolveImageUrl(images[0].key);
         }
       }
       return {
@@ -67,12 +63,12 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  const grouped: Record<string, typeof items> = {};
-  for (const item of items) {
-    const t = (item as any).asset_type as string;
+  const grouped: Record<string, typeof enriched> = {};
+  for (const item of enriched) {
+    const t = item.asset_type as string;
     if (!grouped[t]) grouped[t] = [];
     grouped[t].push(item);
   }
 
-  return NextResponse.json({ items, grouped, total: items.length });
+  return NextResponse.json({ items: enriched, grouped, total: enriched.length });
 }

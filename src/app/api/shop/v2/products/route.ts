@@ -2,15 +2,15 @@
  *  v2  
  * GET /api/shop/v2/products
  *
- *  pg  Postgres PostgREST cache
- *  Vercel env: COZE_SUPABASE_DB_URL
+ *  Supabase REST (bypass PostgREST cache with force-dynamic)
+ *  Vercel env: COZE_SUPABASE_URL + COZE_SUPABASE_SERVICE_ROLE_KEY
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { queryPgMany } from '@/storage/database/supabase-client';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { resolveImageUrl } from '@/lib/storage';
 import { parsePagination } from '@/lib/pagination';
 
-export const revalidate = 120; // 2  ISR
+export const dynamic = 'force-dynamic';
 
 interface ProductRow {
   id: string;
@@ -23,12 +23,13 @@ interface ProductRow {
   price_cents: number;
   compare_at_price_cents: number | null;
   images: Array<{ key: string; alt?: string }> | string;
-  tags: string[];
+  tags: string[] | null;
   virtual_meta: Record<string, unknown>;
   rarity: string;
   is_featured: boolean;
   is_new: boolean;
   sales_count: number;
+  display_order: number;
   created_at: string;
 }
 
@@ -38,56 +39,41 @@ export async function GET(req: NextRequest) {
   const rarity = searchParams.get('rarity');
   const featured = searchParams.get('featured');
   const search = searchParams.get('search');
-  const { page, limit, from, to } = parsePagination(req, {
+  const { page, limit } = parsePagination(req, {
     maxLimit: 60,
     defaultLimit: 24,
   });
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
 
-  // Build WHERE clause dynamically
-  const conditions: string[] = ["type = 'virtual'", "status = 'active'"];
-  const params: unknown[] = [];
+  const sb = getSupabaseClient();
 
-  if (category) {
-    params.push(category);
-    conditions.push(`category = $${params.length}`);
+  // Build query with filters
+  let query = sb
+    .from('products')
+    .select('*', { count: 'exact' })
+    .eq('type', 'virtual')
+    .eq('status', 'active')
+    .order('is_featured', { ascending: false })
+    .order('display_order', { ascending: true })
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (category) query = query.eq('category', category);
+  if (rarity) query = query.eq('rarity', rarity);
+  if (featured === 'true') query = query.eq('is_featured', true);
+  if (search) query = query.ilike('name', `%${search.slice(0, 50)}%`);
+
+  const { data: rows, error, count } = await query;
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  if (rarity) {
-    params.push(rarity);
-    conditions.push(`rarity = $${params.length}`);
-  }
-  if (featured === 'true') {
-    conditions.push('is_featured = true');
-  }
-  if (search) {
-    params.push(`%${search.slice(0, 50)}%`);
-    conditions.push(`name ILIKE $${params.length}`);
-  }
 
-  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
-
-  // Count + page rows
-  const countSql = `SELECT COUNT(*)::int AS total FROM products ${where}`;
-  const countRes = await queryPgMany<{ total: number }>(countSql, params);
-  const total = countRes[0]?.total ?? 0;
-
-  params.push(limit);
-  params.push(from);
-  const rowsSql = `
-    SELECT id, sku, name, description, category, subcategory,
-           price_credits, price_cents, compare_at_price_cents,
-           images, tags, virtual_meta, rarity, is_featured, is_new,
-           sales_count, created_at
-    FROM products
-    ${where}
-    ORDER BY is_featured DESC, display_order ASC, sales_count DESC, created_at DESC
-    LIMIT $${params.length - 1} OFFSET $${params.length}
-  `;
-  const rows = await queryPgMany<ProductRow>(rowsSql, params);
-
-  //  URL
+  const total = count ?? 0;
   const products = await Promise.all(
-    rows.map(async (p) => {
-      const rawImages = (typeof p.images === 'string' ? JSON.parse(p.images) : p.images || []) as Array<{ key: string; alt?: string }>;
+    (rows || []).map(async (p) => {
+      const row = p as unknown as ProductRow;
+      const rawImages = (typeof row.images === 'string' ? JSON.parse(row.images) : row.images || []) as Array<{ key: string; alt?: string }>;
       const image_urls = await Promise.all(
         rawImages.map(async (img: { key: string; alt?: string }) => ({
           ...img,
@@ -96,10 +82,10 @@ export async function GET(req: NextRequest) {
       );
       const preview_url = image_urls[0]?.url || '';
       return {
-        ...p,
+        ...row,
         image_urls,
         preview_url,
-        is_on_sale: !!(p.compare_at_price_cents && p.compare_at_price_cents > p.price_cents),
+        is_on_sale: !!(row.compare_at_price_cents && row.compare_at_price_cents > row.price_cents),
       };
     })
   );
