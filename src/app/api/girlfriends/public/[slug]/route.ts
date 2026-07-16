@@ -23,10 +23,15 @@ export async function GET(
   const gf = girlfriend as Record<string, unknown> & {
     portrait_url?: string | null;
     avatar_url?: string | null;
+    card_url?: string | null;
+    portrait_video_url?: string | null;
+    avatar_video_url?: string | null;
   };
-  const raw = gf.portrait_url || gf.avatar_url || null;
+  const raw = gf.portrait_url || gf.avatar_url || gf.card_url || null;
   const image_url = await resolveImageUrl(raw);
-  const enriched = { ...gf, image_url };
+  const portrait_video_url = await resolveImageUrl(gf.portrait_video_url || null);
+  const avatar_video_url = await resolveImageUrl(gf.avatar_video_url || null);
+  const enriched = { ...gf, image_url, portrait_video_url: portrait_video_url || gf.portrait_video_url || '', avatar_video_url: avatar_video_url || gf.avatar_video_url || '' };
 
   return NextResponse.json({ girlfriend: enriched });
 }

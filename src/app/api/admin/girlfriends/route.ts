@@ -5,12 +5,35 @@ import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
 import { invalidateGirlfriends } from '@/lib/revalidate';
+import { resolveImageUrl } from '@/lib/storage';
 import {
   clampTrait,
   randomizeGirlfriendTraits,
 } from '@/lib/girlfriend-traits';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Resolve raw storage keys to browser-usable URLs for admin display.
+ * This ensures the admin page shows the same images as the frontend.
+ */
+async function resolveGirlfriendMedia(g: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const portrait_url = await resolveImageUrl(g.portrait_url as string | null | undefined);
+  const avatar_url = await resolveImageUrl(g.avatar_url as string | null | undefined);
+  const card_url = await resolveImageUrl(g.card_url as string | null | undefined);
+  const portrait_video_url = await resolveImageUrl(g.portrait_video_url as string | null | undefined);
+  const avatar_video_url = await resolveImageUrl(g.avatar_video_url as string | null | undefined);
+  const image_url = portrait_url || avatar_url || card_url || '';
+  return {
+    ...g,
+    portrait_url: portrait_url || g.portrait_url || '',
+    avatar_url: avatar_url || g.avatar_url || '',
+    card_url: card_url || g.card_url || '',
+    portrait_video_url: portrait_video_url || g.portrait_video_url || '',
+    avatar_video_url: avatar_video_url || g.avatar_video_url || '',
+    image_url,
+  };
+}
 
 async function syncFeaturedFromGirlfriend(
   supabase: SupabaseClient,
@@ -193,10 +216,14 @@ export async function GET(request: NextRequest) {
         .eq('id', id)
         .maybeSingle();
       if (oneErr) throw oneErr;
+      if (!data) {
+        return NextResponse.json({ girlfriend: null, girlfriends: [], total: 0 });
+      }
+      const resolved = await resolveGirlfriendMedia(data as Record<string, unknown>);
       return NextResponse.json({
-        girlfriend: data,
-        girlfriends: data ? [data] : [],
-        total: data ? 1 : 0,
+        girlfriend: resolved,
+        girlfriends: [resolved],
+        total: 1,
       });
     }
 
@@ -225,8 +252,11 @@ export async function GET(request: NextRequest) {
       .range(from, to);
 
     if (queryErr) throw queryErr;
+    const resolved = await Promise.all(
+      (data || []).map((g) => resolveGirlfriendMedia(g as Record<string, unknown>))
+    );
     return NextResponse.json({
-      girlfriends: data || [],
+      girlfriends: resolved,
       total: count ?? 0,
       page,
       limit,
