@@ -314,20 +314,28 @@ export default function ChatsPage() {
   // ── Delete friend ──
   const deleteFriend = async (gf: Friend, e: MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    if (!window.confirm(`Remove ${gf.name} from friends? Intimacy will reset to 0.`)) return;
+    const zh = locale === 'zh';
+    const confirmMsg = zh
+      ? `确定要移除「${gf.name}」吗？好友关系将解除，亲密值归零。此操作不可撤销。`
+      : `Remove "${gf.name}" from friends? The friendship will be removed and intimacy will reset to 0. This cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
     setDeletingId(gf.id);
     try {
       const res = await authedFetch(`/api/girlfriends?id=${encodeURIComponent(gf.id)}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error((data as { error?: string }).error || 'Delete failed'); return; }
+      if (!res.ok) {
+        const errMsg = (data as { error?: string }).error || (zh ? '删除失败' : 'Delete failed');
+        toast.error(errMsg);
+        return;
+      }
       setFriends((prev) => prev.filter((g) => g.id !== gf.id));
       setLastMessages((prev) => { const n = { ...prev }; delete n[gf.id]; return n; });
       setIntimacyMap((prev) => { const n = { ...prev }; delete n[gf.id]; return n; });
       if (selectedId === gf.id) { setSelectedId(null); setGirlfriend(null); setMessages([]); }
-      toast.success('Friend removed · intimacy reset');
+      toast.success(zh ? '已移除好友' : 'Friend removed');
       notifyDataChange('girlfriends');
       notifyDataChange('chat');
-    } catch { toast.error('Network error'); }
+    } catch { toast.error(zh ? '网络错误' : 'Network error'); }
     finally { setDeletingId(null); }
   };
 

@@ -295,6 +295,33 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 });
   }
 
+  // Verify the girlfriend exists and belongs to this user (protect system characters)
+  const { data: gf, error: gfError } = await client
+    .from('girlfriends')
+    .select('id, user_id, name')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (gfError || !gf) {
+    return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
+  }
+
+  // System girlfriends (user_id IS NULL) cannot be deleted
+  if (!gf.user_id) {
+    return NextResponse.json(
+      { error: 'System characters cannot be deleted' },
+      { status: 403 },
+    );
+  }
+
+  // Ensure the girlfriend belongs to the requesting user
+  if (gf.user_id !== user.id) {
+    return NextResponse.json(
+      { error: 'Cannot delete a character you do not own' },
+      { status: 403 },
+    );
+  }
+
   // Reset intimacy so re-adding this companion starts from 0.
   try {
     await client

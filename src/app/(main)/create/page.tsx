@@ -516,6 +516,16 @@ export default function CreatePage() {
                         {t('creator.fromScratchHint') || (zh ? '完全自定义每一个选项' : 'Customize every detail yourself')}
                       </div>
                     </button>
+
+                    {/* Inline skip button */}
+                    <div className="flex justify-end pt-2">
+                      <GamePrimaryButton
+                        className="h-11 px-6 touch-manipulation"
+                        onClick={() => setStep(1)}
+                      >
+                        {t('creator.skipToCustomize') || (zh ? '开始自定义' : 'Customize')} <ArrowRight className="h-4 w-4" />
+                      </GamePrimaryButton>
+                    </div>
                   </>
                 )}
               </motion.div>
@@ -679,6 +689,24 @@ export default function CreatePage() {
                     className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
                   />
                 </Section>
+
+                {/* Inline step navigation */}
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep(0)}
+                    className="h-11 min-w-[5.5rem] px-5 rounded-full border border-white/10 text-sm text-white/70 hover:bg-white/[0.04] flex items-center justify-center gap-1 touch-manipulation"
+                  >
+                    <ArrowLeft className="h-4 w-4" /> {t('creator.back') || (zh ? '上一步' : 'Back')}
+                  </button>
+                  <GamePrimaryButton
+                    className="h-11 px-6 touch-manipulation"
+                    disabled={!stepValid}
+                    onClick={() => setStep(2)}
+                  >
+                    {t('creator.next') || (zh ? '下一步' : 'Next')} <ArrowRight className="h-4 w-4" />
+                  </GamePrimaryButton>
+                </div>
               </motion.div>
             )}
 
@@ -815,6 +843,25 @@ export default function CreatePage() {
                 )}
 
                 {error && <p className="text-sm text-red-400">{error}</p>}
+
+                {/* Inline step navigation */}
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="h-11 min-w-[5.5rem] px-5 rounded-full border border-white/10 text-sm text-white/70 hover:bg-white/[0.04] flex items-center justify-center gap-1 touch-manipulation"
+                  >
+                    <ArrowLeft className="h-4 w-4" /> {t('creator.back') || (zh ? '上一步' : 'Back')}
+                  </button>
+                  <GamePrimaryButton
+                    className="h-11 px-6 touch-manipulation"
+                    disabled={!stepValid || saving}
+                    onClick={handleSubmit}
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {t('creator.create') || (zh ? '创建' : 'Create')}
+                  </GamePrimaryButton>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
