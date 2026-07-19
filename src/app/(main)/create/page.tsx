@@ -439,7 +439,7 @@ export default function CreatePage() {
 
       {/* Scrollable content */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-3 pb-32">
-        <div className="mx-auto max-w-2xl space-y-6">
+        <div className="mx-auto max-w-5xl">
           <AnimatePresence mode="wait">
 
             {/* ─── Step 0: Preset Selection ─────────────────────────────── */}
@@ -539,173 +539,180 @@ export default function CreatePage() {
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -24 }}
-                className="space-y-6"
+                className="flex flex-col md:flex-row gap-6"
               >
-                {/* Portrait Preview Card */}
-                <div className="relative mx-auto w-full max-w-[260px]">
-                  <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent group">
-                    {portraitUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={portraitUrl} alt="portrait" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="h-full w-full flex flex-col items-center justify-center gap-2">
-                        <div className="h-16 w-16 rounded-full bg-white/[0.04] flex items-center justify-center">
-                          <User2 className="h-8 w-8 text-white/15" />
+                {/* Left: Portrait Preview */}
+                <div className="md:w-[300px] md:shrink-0">
+                  <div className="sticky top-4">
+                    <div className="relative mx-auto w-full max-w-[260px] md:max-w-none">
+                      <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent group">
+                        {portraitUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={portraitUrl} alt="portrait" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex flex-col items-center justify-center gap-2">
+                            <div className="h-16 w-16 rounded-full bg-white/[0.04] flex items-center justify-center">
+                              <User2 className="h-8 w-8 text-white/15" />
+                            </div>
+                            <span className="text-[10px] text-white/20">{visualStyle} · {ethnicity}</span>
+                          </div>
+                        )}
+                        {/* Gradient overlay at bottom */}
+                        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                        <div className="absolute bottom-2.5 left-3 right-3 flex items-end justify-between">
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-white/90 truncate">{name || (zh ? '未命名' : 'Unnamed')}</div>
+                            <div className="text-[10px] text-white/50 truncate">{hairStyle} · {eyeColor} · {bodyType}</div>
+                          </div>
+                          <span className="h-5 w-5 rounded-full border border-white/20 shrink-0 ml-2" style={{ background: hairColor }} />
                         </div>
-                        <span className="text-[10px] text-white/20">{visualStyle} · {ethnicity}</span>
                       </div>
-                    )}
-                    {/* Gradient overlay at bottom */}
-                    <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                    <div className="absolute bottom-2.5 left-3 right-3 flex items-end justify-between">
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-white/90 truncate">{name || (zh ? '未命名' : 'Unnamed')}</div>
-                        <div className="text-[10px] text-white/50 truncate">{hairStyle} · {eyeColor} · {bodyType}</div>
-                      </div>
-                      <span className="h-5 w-5 rounded-full border border-white/20 shrink-0 ml-2" style={{ background: hairColor }} />
+                      <GamePrimaryButton
+                        className="absolute bottom-3 right-3 !h-8 !px-2.5 text-[10px] shadow-lg"
+                        disabled={generatingPortrait}
+                        onClick={handleGeneratePortrait}
+                      >
+                        {generatingPortrait ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                        {t('creator.genPortrait') || (zh ? 'AI头像' : 'AI')}
+                      </GamePrimaryButton>
                     </div>
                   </div>
-                  <GamePrimaryButton
-                    className="absolute bottom-3 right-3 !h-8 !px-2.5 text-[10px] shadow-lg"
-                    disabled={generatingPortrait}
-                    onClick={handleGeneratePortrait}
-                  >
-                    {generatingPortrait ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-                    {t('creator.genPortrait') || (zh ? 'AI头像' : 'AI')}
-                  </GamePrimaryButton>
                 </div>
 
-                {/* Visual Style */}
-                <Section title={t('creator.visualStyle') || (zh ? '画风' : 'Visual Style')}>
-                  <div className="grid grid-cols-2 gap-2">
-                    {getOpts('visual_style').map((v) => (
-                      <button
-                        key={v.value}
-                        type="button"
-                        onClick={() => setVisualStyle(v.value)}
-                        className={cn(
-                          'rounded-xl border p-3 text-left transition-all',
-                          visualStyle === v.value
-                            ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
-                            : 'border-white/10 bg-white/[0.03]',
-                        )}
-                      >
-                        <div className="font-semibold text-sm">{getLabel(v, locale)}</div>
-                        <div className="text-[11px] text-white/40 mt-0.5">{getExtra(v, 'desc', locale)}</div>
-                      </button>
-                    ))}
+                {/* Right: Options */}
+                <div className="flex-1 space-y-6">
+                  {/* Visual Style */}
+                  <Section title={t('creator.visualStyle') || (zh ? '画风' : 'Visual Style')}>
+                    <div className="grid grid-cols-2 gap-2">
+                      {getOpts('visual_style').map((v) => (
+                        <button
+                          key={v.value}
+                          type="button"
+                          onClick={() => setVisualStyle(v.value)}
+                          className={cn(
+                            'rounded-xl border p-3 text-left transition-all',
+                            visualStyle === v.value
+                              ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
+                              : 'border-white/10 bg-white/[0.03]',
+                          )}
+                        >
+                          <div className="font-semibold text-sm">{getLabel(v, locale)}</div>
+                          <div className="text-[11px] text-white/40 mt-0.5">{getExtra(v, 'desc', locale)}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Gender */}
+                  <Section title={t('creator.gender') || (zh ? '性别气质' : 'Gender')}>
+                    <div className="flex flex-wrap gap-2">
+                      {getOpts('gender').map((g) => (
+                        <Pill key={g.value} active={gender === g.value} onClick={() => setGender(g.value)}>{getLabel(g, locale)}</Pill>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Ethnicity */}
+                  <Section title={t('creator.ethnicity') || (zh ? '种族 / 血统' : 'Ethnicity')}>
+                    <div className="flex flex-wrap gap-2">
+                      {getOpts('ethnicity').map((e) => (
+                        <Pill key={e.value} active={ethnicity === e.value} onClick={() => setEthnicity(e.value)}>{getLabel(e, locale)}</Pill>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Face Shape */}
+                  <Section title={t('creator.faceShape') || (zh ? '脸型' : 'Face Shape')}>
+                    <div className="flex flex-wrap gap-2">
+                      {getOpts('face_shape').map((f) => (
+                        <Pill key={f.value} active={faceShape === f.value} onClick={() => setFaceShape(f.value)}>{getLabel(f, locale)}</Pill>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Body Type */}
+                  <Section title={t('creator.bodyType') || (zh ? '体型' : 'Body Type')}>
+                    <div className="flex flex-wrap gap-2">
+                      {getOpts('body_type').map((b) => (
+                        <Pill key={b.value} active={bodyType === b.value} onClick={() => setBodyType(b.value)}>{getLabel(b, locale)}</Pill>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Hair Style */}
+                  <Section title={t('creator.hairStyle') || (zh ? '发型' : 'Hair Style')}>
+                    <div className="flex flex-wrap gap-2">
+                      {getOpts('hair_style').map((h) => (
+                        <Pill key={h.value} active={hairStyle === h.value} onClick={() => setHairStyle(h.value)}>{getLabel(h, locale)}</Pill>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Hair Color */}
+                  <Section title={t('creator.hairColor') || (zh ? '发色' : 'Hair Color')}>
+                    <div className="flex flex-wrap gap-2">
+                      {getOpts('hair_color').map((c) => (
+                        <button
+                          key={c.value}
+                          type="button"
+                          title={getLabel(c, locale)}
+                          onClick={() => setHairColor(c.value)}
+                          className={cn(
+                            'h-9 w-9 rounded-full border-2 transition-transform',
+                            hairColor === c.value ? 'border-white scale-110 ring-2 ring-[#FF2D78]' : 'border-white/20',
+                          )}
+                          style={{ background: c.value }}
+                        />
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Eye Color */}
+                  <Section title={t('creator.eyeColor') || (zh ? '瞳色' : 'Eye Color')}>
+                    <div className="flex flex-wrap gap-2">
+                      {getOpts('eye_color').map((e) => (
+                        <Pill key={e.value} active={eyeColor === e.value} onClick={() => setEyeColor(e.value)}>{getLabel(e, locale)}</Pill>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Fashion Style */}
+                  <Section title={t('creator.fashionStyle') || (zh ? '服装风格' : 'Fashion Style')}>
+                    <div className="flex flex-wrap gap-2">
+                      {getOpts('fashion_style').map((f) => (
+                        <Pill key={f.value} active={fashionStyle === f.value} onClick={() => setFashionStyle(f.value)}>{getLabel(f, locale)}</Pill>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Extra notes */}
+                  <Section title={t('creator.extraNotes') || (zh ? '补充描述（可选）' : 'Extra Notes (optional)')}>
+                    <textarea
+                      value={appearancePrompt}
+                      onChange={(e) => setAppearancePrompt(e.target.value)}
+                      placeholder={t('creator.extraNotesPlaceholder') || (zh ? '例如：酒窝、右眼泪痣、雀斑' : 'e.g. dimples, freckles, beauty mark')}
+                      rows={2}
+                      className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
+                    />
+                  </Section>
+
+                  {/* Inline step navigation */}
+                  <div className="flex items-center justify-between gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep(0)}
+                      className="h-11 min-w-[5.5rem] px-5 rounded-full border border-white/10 text-sm text-white/70 hover:bg-white/[0.04] flex items-center justify-center gap-1 touch-manipulation"
+                    >
+                      <ArrowLeft className="h-4 w-4" /> {t('creator.back') || (zh ? '上一步' : 'Back')}
+                    </button>
+                    <GamePrimaryButton
+                      className="h-11 px-6 touch-manipulation"
+                      disabled={!stepValid}
+                      onClick={() => setStep(2)}
+                    >
+                      {t('creator.next') || (zh ? '下一步' : 'Next')} <ArrowRight className="h-4 w-4" />
+                    </GamePrimaryButton>
                   </div>
-                </Section>
-
-                {/* Gender */}
-                <Section title={t('creator.gender') || (zh ? '性别气质' : 'Gender')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('gender').map((g) => (
-                      <Pill key={g.value} active={gender === g.value} onClick={() => setGender(g.value)}>{getLabel(g, locale)}</Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Ethnicity */}
-                <Section title={t('creator.ethnicity') || (zh ? '种族 / 血统' : 'Ethnicity')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('ethnicity').map((e) => (
-                      <Pill key={e.value} active={ethnicity === e.value} onClick={() => setEthnicity(e.value)}>{getLabel(e, locale)}</Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Face Shape */}
-                <Section title={t('creator.faceShape') || (zh ? '脸型' : 'Face Shape')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('face_shape').map((f) => (
-                      <Pill key={f.value} active={faceShape === f.value} onClick={() => setFaceShape(f.value)}>{getLabel(f, locale)}</Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Body Type */}
-                <Section title={t('creator.bodyType') || (zh ? '体型' : 'Body Type')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('body_type').map((b) => (
-                      <Pill key={b.value} active={bodyType === b.value} onClick={() => setBodyType(b.value)}>{getLabel(b, locale)}</Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Hair Style */}
-                <Section title={t('creator.hairStyle') || (zh ? '发型' : 'Hair Style')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('hair_style').map((h) => (
-                      <Pill key={h.value} active={hairStyle === h.value} onClick={() => setHairStyle(h.value)}>{getLabel(h, locale)}</Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Hair Color */}
-                <Section title={t('creator.hairColor') || (zh ? '发色' : 'Hair Color')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('hair_color').map((c) => (
-                      <button
-                        key={c.value}
-                        type="button"
-                        title={getLabel(c, locale)}
-                        onClick={() => setHairColor(c.value)}
-                        className={cn(
-                          'h-9 w-9 rounded-full border-2 transition-transform',
-                          hairColor === c.value ? 'border-white scale-110 ring-2 ring-[#FF2D78]' : 'border-white/20',
-                        )}
-                        style={{ background: c.value }}
-                      />
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Eye Color */}
-                <Section title={t('creator.eyeColor') || (zh ? '瞳色' : 'Eye Color')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('eye_color').map((e) => (
-                      <Pill key={e.value} active={eyeColor === e.value} onClick={() => setEyeColor(e.value)}>{getLabel(e, locale)}</Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Fashion Style */}
-                <Section title={t('creator.fashionStyle') || (zh ? '服装风格' : 'Fashion Style')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('fashion_style').map((f) => (
-                      <Pill key={f.value} active={fashionStyle === f.value} onClick={() => setFashionStyle(f.value)}>{getLabel(f, locale)}</Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Extra notes */}
-                <Section title={t('creator.extraNotes') || (zh ? '补充描述（可选）' : 'Extra Notes (optional)')}>
-                  <textarea
-                    value={appearancePrompt}
-                    onChange={(e) => setAppearancePrompt(e.target.value)}
-                    placeholder={t('creator.extraNotesPlaceholder') || (zh ? '例如：酒窝、右眼泪痣、雀斑' : 'e.g. dimples, freckles, beauty mark')}
-                    rows={2}
-                    className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
-                  />
-                </Section>
-
-                {/* Inline step navigation */}
-                <div className="flex items-center justify-between gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setStep(0)}
-                    className="h-11 min-w-[5.5rem] px-5 rounded-full border border-white/10 text-sm text-white/70 hover:bg-white/[0.04] flex items-center justify-center gap-1 touch-manipulation"
-                  >
-                    <ArrowLeft className="h-4 w-4" /> {t('creator.back') || (zh ? '上一步' : 'Back')}
-                  </button>
-                  <GamePrimaryButton
-                    className="h-11 px-6 touch-manipulation"
-                    disabled={!stepValid}
-                    onClick={() => setStep(2)}
-                  >
-                    {t('creator.next') || (zh ? '下一步' : 'Next')} <ArrowRight className="h-4 w-4" />
-                  </GamePrimaryButton>
                 </div>
               </motion.div>
             )}
@@ -717,8 +724,48 @@ export default function CreatePage() {
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -24 }}
-                className="space-y-6"
+                className="flex flex-col md:flex-row gap-6"
               >
+                {/* Left: Portrait Preview */}
+                <div className="md:w-[300px] md:shrink-0">
+                  <div className="sticky top-4">
+                    <div className="relative mx-auto w-full max-w-[260px] md:max-w-none">
+                      <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent group">
+                        {portraitUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={portraitUrl} alt="portrait" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex flex-col items-center justify-center gap-2">
+                            <div className="h-16 w-16 rounded-full bg-white/[0.04] flex items-center justify-center">
+                              <User2 className="h-8 w-8 text-white/15" />
+                            </div>
+                            <span className="text-[10px] text-white/20">{visualStyle} · {ethnicity}</span>
+                          </div>
+                        )}
+                        {/* Gradient overlay at bottom */}
+                        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                        <div className="absolute bottom-2.5 left-3 right-3 flex items-end justify-between">
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-white/90 truncate">{name || (zh ? '未命名' : 'Unnamed')}</div>
+                            <div className="text-[10px] text-white/50 truncate">{selectedTags.slice(0, 2).join(', ')} · {occupation}</div>
+                          </div>
+                          <span className="h-5 w-5 rounded-full border border-white/20 shrink-0 ml-2" style={{ background: hairColor }} />
+                        </div>
+                      </div>
+                      <GamePrimaryButton
+                        className="absolute bottom-3 right-3 !h-8 !px-2.5 text-[10px] shadow-lg"
+                        disabled={generatingPortrait}
+                        onClick={handleGeneratePortrait}
+                      >
+                        {generatingPortrait ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                        {t('creator.genPortrait') || (zh ? 'AI头像' : 'AI')}
+                      </GamePrimaryButton>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Options */}
+                <div className="flex-1 space-y-6">
                 {/* Personality Tags */}
                 <Section title={`${t('creator.personality') || (zh ? '性格标签' : 'Personality Tags')} (${selectedTags.length}/8)`}>
                   <div className="flex flex-wrap gap-2">
@@ -877,6 +924,7 @@ export default function CreatePage() {
                       : (zh ? '请完善必填信息' : 'Please complete required fields')}
                   </p>
                 )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

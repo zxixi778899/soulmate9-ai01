@@ -122,12 +122,12 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
   const isDraft = reviewStatus === 'draft' || reviewStatus === 'rejected';
 
   return (
-    <li className="relative group">
+    <li className="relative group flex items-center">
       <button
         type="button"
         onClick={onClick}
         className={cn(
-          'flex w-full items-center gap-3 px-3 sm:px-4 py-3.5 pr-20 text-left active:bg-white/[0.06] touch-manipulation min-h-[72px] transition-colors',
+          'flex flex-1 min-w-0 items-center gap-3 px-3 sm:px-4 py-3.5 text-left active:bg-white/[0.06] touch-manipulation min-h-[72px] transition-colors',
           selected && 'bg-white/[0.06]',
         )}
       >
@@ -152,13 +152,13 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           </div>
         </div>
       </button>
-      {/* Action buttons */}
-      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+      {/* Action buttons — in-flow, colored backgrounds */}
+      <div className="flex items-center gap-1.5 pr-2 shrink-0">
         <button
           type="button"
           aria-label="Album"
           onClick={(e) => onAlbum(friend, e)}
-          className="h-8 w-8 rounded-full glass flex items-center justify-center text-white/40 hover:text-sky-400 hover:bg-sky-500/10 touch-manipulation"
+          className="h-8 w-8 rounded-lg bg-sky-500/15 flex items-center justify-center text-sky-400 hover:bg-sky-500/25 touch-manipulation transition-colors"
         >
           <ImageIcon className="h-3.5 w-3.5" />
         </button>
@@ -166,7 +166,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           type="button"
           aria-label="Wardrobe"
           onClick={(e) => onWardrobe(friend, e)}
-          className="h-8 w-8 rounded-full glass flex items-center justify-center text-white/40 hover:text-violet-400 hover:bg-violet-500/10 touch-manipulation"
+          className="h-8 w-8 rounded-lg bg-violet-500/15 flex items-center justify-center text-violet-400 hover:bg-violet-500/25 touch-manipulation transition-colors"
         >
           <Shirt className="h-3.5 w-3.5" />
         </button>
@@ -176,7 +176,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
             aria-label="Submit for review"
             disabled={submitting}
             onClick={(e) => onSubmit(friend, e)}
-            className="h-8 w-8 rounded-full glass flex items-center justify-center text-white/40 hover:text-emerald-400 hover:bg-emerald-500/10 touch-manipulation disabled:opacity-50"
+            className="h-8 w-8 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/25 touch-manipulation transition-colors disabled:opacity-50"
           >
             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
           </button>
@@ -186,7 +186,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           aria-label="Delete friend"
           disabled={deleting}
           onClick={(e) => onDelete(friend, e)}
-          className="h-8 w-8 rounded-full glass flex items-center justify-center text-white/40 hover:text-rose-400 hover:bg-rose-500/10 touch-manipulation disabled:opacity-50"
+          className="h-8 w-8 rounded-lg bg-rose-500/15 flex items-center justify-center text-rose-400 hover:bg-rose-500/25 touch-manipulation transition-colors disabled:opacity-50"
         >
           {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
