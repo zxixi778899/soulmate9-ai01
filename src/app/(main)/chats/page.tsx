@@ -23,6 +23,7 @@ import {
 import {
   Loader2, MessageCircle, Plus, Search, X, Trash2,
   Heart, BrainCircuit, ChevronDown, Camera, Crown, Globe, Send,
+  Image as ImageIcon, Shirt,
 } from 'lucide-react';
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
@@ -97,7 +98,7 @@ function computeProgress(score: number, level: number): number {
 
 // ─── Friend Row ──────────────────────────────────────────────────────────────
 
-function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, onDelete, onSubmit, onClick }: {
+function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, onDelete, onSubmit, onAlbum, onWardrobe, onClick }: {
   friend: Friend;
   lastMsg?: LastMessage;
   score: number;
@@ -107,6 +108,8 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
   tick: number;
   onDelete: (gf: Friend, e: MouseEvent) => void;
   onSubmit: (gf: Friend, e: MouseEvent) => void;
+  onAlbum: (gf: Friend, e: MouseEvent) => void;
+  onWardrobe: (gf: Friend, e: MouseEvent) => void;
   onClick: () => void;
 }) {
   const mood = deriveMood(lastMsg?.content || (tick % 2 === 0 ? friend.personality || '' : ''), score);
@@ -151,13 +154,29 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
       </button>
       {/* Action buttons */}
       <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+        <button
+          type="button"
+          aria-label="Album"
+          onClick={(e) => onAlbum(friend, e)}
+          className="h-8 w-8 rounded-full glass flex items-center justify-center text-white/40 hover:text-sky-400 hover:bg-sky-500/10 touch-manipulation"
+        >
+          <ImageIcon className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="Wardrobe"
+          onClick={(e) => onWardrobe(friend, e)}
+          className="h-8 w-8 rounded-full glass flex items-center justify-center text-white/40 hover:text-violet-400 hover:bg-violet-500/10 touch-manipulation"
+        >
+          <Shirt className="h-3.5 w-3.5" />
+        </button>
         {isDraft && (
           <button
             type="button"
             aria-label="Submit for review"
             disabled={submitting}
             onClick={(e) => onSubmit(friend, e)}
-            className="h-9 w-9 rounded-full glass flex items-center justify-center text-white/40 hover:text-emerald-400 hover:bg-emerald-500/10 touch-manipulation disabled:opacity-50"
+            className="h-8 w-8 rounded-full glass flex items-center justify-center text-white/40 hover:text-emerald-400 hover:bg-emerald-500/10 touch-manipulation disabled:opacity-50"
           >
             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
           </button>
@@ -167,7 +186,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           aria-label="Delete friend"
           disabled={deleting}
           onClick={(e) => onDelete(friend, e)}
-          className="h-9 w-9 rounded-full glass flex items-center justify-center text-white/40 hover:text-rose-400 hover:bg-rose-500/10 touch-manipulation disabled:opacity-50"
+          className="h-8 w-8 rounded-full glass flex items-center justify-center text-white/40 hover:text-rose-400 hover:bg-rose-500/10 touch-manipulation disabled:opacity-50"
         >
           {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
@@ -337,6 +356,17 @@ export default function ChatsPage() {
       notifyDataChange('chat');
     } catch { toast.error(zh ? '网络错误' : 'Network error'); }
     finally { setDeletingId(null); }
+  };
+
+  // ── Album & Wardrobe shortcuts ──
+  const handleAlbumClick = (gf: Friend, e: MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setSelectedId(gf.id);
+    setShowAlbum(true);
+  };
+  const handleWardrobeClick = (gf: Friend, e: MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    router.push('/wardrobe');
   };
 
   // ── Submit friend for public review ──
@@ -702,7 +732,7 @@ export default function ChatsPage() {
       {/* ──── Left sidebar: Friend list ──── */}
       <aside className={cn(
         'flex flex-col border-r border-white/[0.06] bg-[#0e0e18]',
-        'w-full md:w-[340px] md:min-w-[340px] md:max-w-[340px]',
+        'w-full md:w-[380px] md:min-w-[380px] md:max-w-[380px]',
         selectedId ? 'hidden md:flex' : 'flex',
       )}>
         {/* Header */}
@@ -755,6 +785,8 @@ export default function ChatsPage() {
                   tick={tick}
                   onDelete={(g, e) => void deleteFriend(g, e)}
                   onSubmit={(g, e) => void submitForReview(g, e)}
+                  onAlbum={handleAlbumClick}
+                  onWardrobe={handleWardrobeClick}
                   onClick={() => setSelectedId(gf.id)}
                 />
               ))}

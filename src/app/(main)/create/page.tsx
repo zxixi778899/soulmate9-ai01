@@ -160,6 +160,7 @@ export default function CreatePage() {
   const [outfits, setOutfits] = useState<{ id: string; name: string; tier: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shakeInvalid, setShakeInvalid] = useState(false);
 
   // ─── Data Fetching ───────────────────────────────────────────────────────
 
@@ -540,38 +541,37 @@ export default function CreatePage() {
                 exit={{ opacity: 0, x: -24 }}
                 className="space-y-6"
               >
-                {/* Preview strip */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                  <div className="h-16 w-16 rounded-lg overflow-hidden bg-black/40 border border-white/10 shrink-0">
+                {/* Portrait Preview Card */}
+                <div className="relative mx-auto w-full max-w-[260px]">
+                  <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent group">
                     {portraitUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={portraitUrl} alt="preview" className="h-full w-full object-cover" />
+                      <img src={portraitUrl} alt="portrait" className="h-full w-full object-cover" />
                     ) : (
-                      <div className="h-full w-full flex items-center justify-center text-white/20">
-                        <User2 className="h-6 w-6" />
+                      <div className="h-full w-full flex flex-col items-center justify-center gap-2">
+                        <div className="h-16 w-16 rounded-full bg-white/[0.04] flex items-center justify-center">
+                          <User2 className="h-8 w-8 text-white/15" />
+                        </div>
+                        <span className="text-[10px] text-white/20">{visualStyle} · {ethnicity}</span>
                       </div>
                     )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] tracking-[0.15em] text-white/30 font-bold mb-1">
-                      {t('creator.preview') || (zh ? '预览' : 'PREVIEW')}
-                    </div>
-                    <div className="text-xs text-white/70 truncate">
-                      {visualStyle} · {gender} · {ethnicity}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[11px] text-white/50">{hairStyle}</span>
-                      <span className="h-2.5 w-2.5 rounded-full border border-white/20" style={{ background: hairColor }} />
-                      <span className="text-[11px] text-white/50">{eyeColor} · {bodyType}</span>
+                    {/* Gradient overlay at bottom */}
+                    <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                    <div className="absolute bottom-2.5 left-3 right-3 flex items-end justify-between">
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white/90 truncate">{name || (zh ? '未命名' : 'Unnamed')}</div>
+                        <div className="text-[10px] text-white/50 truncate">{hairStyle} · {eyeColor} · {bodyType}</div>
+                      </div>
+                      <span className="h-5 w-5 rounded-full border border-white/20 shrink-0 ml-2" style={{ background: hairColor }} />
                     </div>
                   </div>
                   <GamePrimaryButton
-                    className="!h-9 !px-3 text-[10px] shrink-0"
+                    className="absolute bottom-3 right-3 !h-8 !px-2.5 text-[10px] shadow-lg"
                     disabled={generatingPortrait}
                     onClick={handleGeneratePortrait}
                   >
-                    {generatingPortrait ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                    {t('creator.genPortrait') || (zh ? 'AI头像' : 'AI Portrait')}
+                    {generatingPortrait ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                    {t('creator.genPortrait') || (zh ? 'AI头像' : 'AI')}
                   </GamePrimaryButton>
                 </div>
 
@@ -845,7 +845,7 @@ export default function CreatePage() {
                 {error && <p className="text-sm text-red-400">{error}</p>}
 
                 {/* Inline step navigation */}
-                <div className="flex items-center justify-between gap-3 pt-2">
+                <div className={cn('flex items-center justify-between gap-3 pt-2', shakeInvalid && 'animate-shake')}>
                   <button
                     type="button"
                     onClick={() => setStep(1)}
@@ -853,15 +853,30 @@ export default function CreatePage() {
                   >
                     <ArrowLeft className="h-4 w-4" /> {t('creator.back') || (zh ? '上一步' : 'Back')}
                   </button>
-                  <GamePrimaryButton
-                    className="h-11 px-6 touch-manipulation"
-                    disabled={!stepValid || saving}
-                    onClick={handleSubmit}
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      if (!stepValid) {
+                        setShakeInvalid(true);
+                        setTimeout(() => setShakeInvalid(false), 600);
+                        return;
+                      }
+                      handleSubmit();
+                    }}
+                    className="h-11 px-6 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white text-sm font-bold flex items-center gap-1.5 touch-manipulation shadow-[0_0_16px_rgba(255,45,120,0.3)] disabled:opacity-50 active:scale-95 transition-all"
                   >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                     {t('creator.create') || (zh ? '创建' : 'Create')}
-                  </GamePrimaryButton>
+                  </button>
                 </div>
+                {!stepValid && step === 2 && (
+                  <p className="text-[11px] text-white/30 text-center">
+                    {name.trim().length < 2
+                      ? (zh ? '请输入角色名字（至少2个字符）' : 'Enter a name (at least 2 characters)')
+                      : (zh ? '请完善必填信息' : 'Please complete required fields')}
+                  </p>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -900,14 +915,22 @@ export default function CreatePage() {
             </GamePrimaryButton>
           )
         ) : (
-          <GamePrimaryButton
-            className="h-11 px-6 touch-manipulation"
-            disabled={!stepValid || saving}
-            onClick={handleSubmit}
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              if (!stepValid) {
+                setShakeInvalid(true);
+                setTimeout(() => setShakeInvalid(false), 600);
+                return;
+              }
+              handleSubmit();
+            }}
+            className="h-11 px-6 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white text-sm font-bold flex items-center gap-1.5 touch-manipulation shadow-[0_0_16px_rgba(255,45,120,0.3)] disabled:opacity-50 active:scale-95 transition-all"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {t('creator.create') || (zh ? '创建' : 'Create')}
-          </GamePrimaryButton>
+          </button>
         )}
       </div>
     </GameShell>

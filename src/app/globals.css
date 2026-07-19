@@ -1514,3 +1514,13 @@ body {
   animation: giftComboPop 0.45s cubic-bezier(0.2, 1.2, 0.3, 1) both;
   display: inline-block;
 }
+
+/* Shake animation for invalid form submit */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%, 45%, 75% { transform: translateX(-4px); }
+  30%, 60%, 90% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
