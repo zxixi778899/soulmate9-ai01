@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
+import { invalidateSettings } from '@/lib/revalidate';
 
 export const runtime = 'nodejs';
 
@@ -90,6 +91,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     amount: reward,
   });
   if (rpcErr) logger.warn('grant_credits rpc failed', { err: rpcErr.message });
+
+  // Sync: credit balance changed — invalidate cached profile/settings views
+  invalidateSettings();
 
   return NextResponse.json({ ok: true, reward, streak: newStreak });
 }

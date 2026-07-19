@@ -17,24 +17,39 @@ export async function logModelUsage(params: {
   cost_usd?: number;
   success?: boolean;
   error_message?: string;
+  membership_tier?: string;
+  scene?: string;
+  route_reason?: string;
+  endpoint_id?: string;
+  fallback_count?: number;
+  time_to_first_token_ms?: number;
+  queue_ms?: number;
+  quality_score?: number;
+  reference_similarity?: number;
+  estimated_cost_usd?: number;
 }): Promise<void> {
   try {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('ai_model_usage_logs').insert({
-      provider: params.provider,
-      model_id: params.model_id,
-      task_type: params.task_type,
-      user_id: params.user_id || null,
-      girlfriend_id: params.girlfriend_id || null,
-      input_tokens: params.input_tokens || 0,
-      output_tokens: params.output_tokens || 0,
-      latency_ms: params.latency_ms || 0,
-      cost_usd: params.cost_usd || 0,
-      success: params.success !== false,
-      error_message: params.error_message || null,
-    });
+    const legacy = {
+      provider: params.provider, model_id: params.model_id, task_type: params.task_type,
+      user_id: params.user_id || null, girlfriend_id: params.girlfriend_id || null,
+      input_tokens: params.input_tokens || 0, output_tokens: params.output_tokens || 0,
+      latency_ms: params.latency_ms || 0, cost_usd: params.cost_usd || 0,
+      success: params.success !== false, error_message: params.error_message || null,
+    };
+    const extended = {
+      ...legacy, membership_tier: params.membership_tier || null, scene: params.scene || null,
+      route_reason: params.route_reason || null, endpoint_id: params.endpoint_id || null,
+      fallback_count: params.fallback_count || 0, time_to_first_token_ms: params.time_to_first_token_ms || null,
+      queue_ms: params.queue_ms || null, quality_score: params.quality_score || null,
+      reference_similarity: params.reference_similarity || null,
+      estimated_cost_usd: params.estimated_cost_usd ?? params.cost_usd ?? 0,
+    };
+    const { error } = await supabase.from('ai_model_usage_logs').insert(extended);
     if (error) {
-      logger.warn('[model-usage] insert failed', { error: error.message });
+      // v1 databases remain usable during a rolling deploy before the migration lands.
+      const { error: legacyError } = await supabase.from('ai_model_usage_logs').insert(legacy);
+      if (legacyError) logger.warn('[model-usage] insert failed', { error: legacyError.message });
     }
   } catch (err) {
     logger.warn('[model-usage] unexpected error', { err: String(err) });

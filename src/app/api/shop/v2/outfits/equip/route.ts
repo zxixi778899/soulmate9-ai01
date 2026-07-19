@@ -9,6 +9,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { checkRateLimitAsync } from '@/lib/rate-limit';
 import { tryOnOutfit } from '@/lib/outfit-tryon';
 import { logger } from '@/lib/logger';
+import { invalidateShop } from '@/lib/revalidate';
 
 interface EquipBody {
   girlfriend_id: string;
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
       .eq('girlfriend_id', body.girlfriend_id)
       .eq('is_equipped', true);
 
+    invalidateShop();
     return NextResponse.json({ success: true, action: 'unequipped' });
   }
 
@@ -156,6 +158,8 @@ export async function POST(request: NextRequest) {
       .eq('id', body.girlfriend_id)
       .eq('user_id', user.id);
   }
+
+  invalidateShop();
 
   return NextResponse.json({
     success: true,

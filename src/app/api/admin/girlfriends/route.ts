@@ -647,17 +647,27 @@ export async function DELETE(request: NextRequest) {
 
     // Best-effort slug for ISR bust before delete
     let slug: string | null = null;
+    let gfName: string | null = null;
     try {
-      const { data: row } = await supabase.from('girlfriends').select('slug').eq('id', id).maybeSingle();
+      const { data: row } = await supabase.from('girlfriends').select('slug, name').eq('id', id).maybeSingle();
       slug = (row?.slug as string) || null;
+      gfName = (row?.name as string) || null;
     } catch {
       /* ignore */
     }
 
+    // Clean up featured_girlfriends: match by base_girlfriend_id AND by name
+    // (name fallback handles cases where featured row has a different base ID)
     try {
       await supabase.from('featured_girlfriends').delete().eq('base_girlfriend_id', id);
-    } catch {
-      /* optional table */
+      if (gfName) {
+        await supabase.from('featured_girlfriends').delete().eq('name', gfName);
+      }
+    } catch (featuredErr) {
+      logger.warn('[admin/girlfriends] featured cleanup failed (non-critical)', {
+        err: featuredErr instanceof Error ? featuredErr.message : String(featuredErr),
+        id,
+      });
     }
 
     const { error: deleteErr } = await supabase.from('girlfriends').delete().eq('id', id);

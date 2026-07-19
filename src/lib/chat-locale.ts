@@ -1,10 +1,8 @@
 /**
  * Detect which language the girlfriend should reply in.
  *
- * Default product rule (2026): **follow page UI language**
- * - Chinese UI → Simplified Chinese replies
- * - English UI → English replies
- * Message-script auto-detect is opt-in only (autoDetect: true).
+ * Product rule: follow the latest detectable message language; for media or
+ * emoji-only turns, fall back to the page/profile language.
  */
 
 export type ReplyLocale = 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr' | 'de' | 'pt' | 'ru';
@@ -124,10 +122,10 @@ export function languageLockInstruction(locale: ReplyLocale): string {
   switch (locale) {
     case 'zh':
       return (
-        '[LANGUAGE LOCK — CRITICAL — PAGE UI = 中文]\n' +
-        '本页界面语言是中文。你必须全程只用简体中文回复。\n' +
+        '[LANGUAGE LOCK — CRITICAL — REPLY LANGUAGE = 中文]\n' +
+        '本轮回复语言已解析为中文。你必须全程只用简体中文回复。\n' +
         '禁止英文整句、禁止中英夹杂段落、禁止双语对照。\n' +
-        '动作 *可以简短*，对白必须是中文。用户用英文打字也要用中文回（界面是中文）。\n' +
+        '动作 *可以简短*，对白必须是中文。\n' +
         '不要输出乱码、特殊标记、思考过程。'
       );
     case 'ja':
@@ -168,10 +166,9 @@ export function languageLockInstruction(locale: ReplyLocale): string {
     case 'en':
     default:
       return (
-        '[LANGUAGE LOCK — CRITICAL — PAGE UI = English]\n' +
-        'The app UI language is English. Reply in natural modern English ONLY.\n' +
+        '[LANGUAGE LOCK — CRITICAL — REPLY LANGUAGE = English]\n' +
+        'This turn resolved to English. Reply in natural modern English ONLY.\n' +
         'Do NOT use any Chinese characters (汉字). Zero Chinese, Japanese, or Korean body text.\n' +
-        'Even if the user types Chinese, still reply in English (UI is English).\n' +
         'No bilingual mixing. No garble, special tokens, or chain-of-thought.'
       );
   }

@@ -8,6 +8,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { notifyDataChange } from '@/hooks/useDataSync';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useAuth } from '@/components/AuthProvider';
 import { authedFetch } from '@/lib/supabase';
@@ -140,6 +141,8 @@ export default function ShopV2Page() {
 
       showToast('success', ` ${product.name} added to your inventory!`);
       setBalance(data.new_credits_balance);
+      notifyDataChange('shop');
+      notifyDataChange('membership');
       // 
     } catch (e) {
       showToast('error', 'Network error');

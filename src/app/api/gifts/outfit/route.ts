@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { getOutfitById, type OutfitCatalogItem } from '@/lib/outfit-catalog';
 import { equipOutfitOnGirlfriend } from '@/lib/wardrobe-equip';
+import { invalidateShop, invalidateGirlfriends } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -271,7 +272,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       imageQueued,
     });
 
-    // 9. Return success
+    // 9. Sync caches: gift changes wardrobe + girlfriend portrait + credits
+    invalidateShop();
+    invalidateGirlfriends();
+
+    // 10. Return success
     return NextResponse.json({
       success: true,
       message: reactionMsg,

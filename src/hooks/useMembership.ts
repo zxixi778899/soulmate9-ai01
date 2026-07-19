@@ -107,6 +107,28 @@ export function useMembership(): MembershipState {
     fetchState();
   }, [fetchState]);
 
+  // Refresh membership when tab becomes visible (Stripe webhook, checkin, etc.)
+  useEffect(() => {
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'visible') {
+        fetchState();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [fetchState]);
+
+  // Cross-tab sync: listen for storage events from other tabs' mutations
+  useEffect(() => {
+    const onStorage = (e: StorageEvent): void => {
+      if (e.key === 'sm:membership_changed' || e.key === 'sm:data_sync') {
+        fetchState();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [fetchState]);
+
   const capabilities = MEMBERSHIP_LIMITS[tier] || MEMBERSHIP_LIMITS.free;
   const remainingFreeMessages = Number.isFinite(capabilities.dailyMessageLimit)
     ? Math.max(0, capabilities.dailyMessageLimit - todayCount)

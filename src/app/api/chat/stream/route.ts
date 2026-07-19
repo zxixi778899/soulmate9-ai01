@@ -301,6 +301,18 @@ export async function POST(request: NextRequest) {
 
   const messageText = String(message ?? '').trim() || (mediaUrl ? '[media]' : '');
 
+  const usageDayStart = new Date();
+  usageDayStart.setUTCHours(0, 0, 0, 0);
+  const { data: dailyUsageRows } = await client
+    .from('ai_model_usage_logs')
+    .select('cost_usd')
+    .eq('user_id', user.id)
+    .gte('created_at', usageDayStart.toISOString())
+    .limit(1000);
+  const dailyCostUsd = (dailyUsageRows || []).reduce(
+    (sum: number, row: { cost_usd?: number | string | null }) => sum + Number(row.cost_usd || 0), 0,
+  );
+
   // Reply language follows PAGE UI locale (zh UI → Chinese, en UI → English).
   // Do NOT auto-detect from message content — that caused mixed/garbled bilingual replies.
   const chatLocale: ReplyLocale = resolveReplyLocale({
@@ -309,10 +321,11 @@ export async function POST(request: NextRequest) {
     profileLocale:
       (profileAny?.preferred_locale as string) || (profileAny?.locale as string) || null,
     defaultLocale: aiModules.language.default_locale || 'en',
-    autoDetect: false,
+    // Detectable message language wins; media/emoji-only turns use page locale.
+    autoDetect: true,
   });
 
-  const chatResolved = resolveChatCall(aiModules, {
+  let chatResolved = resolveChatCall(aiModules, {
     tier: membershipTier,
     intimacyLevel,
     message: messageText,
@@ -352,6 +365,14 @@ export async function POST(request: NextRequest) {
   // RAG: pull top-5 most relevant memories for this user message
   const { retrieveMemories } = await import('@/lib/memory-rag');
   const memories = await retrieveMemories(client, user.id, girlfriend_id, messageText, 5);
+
+  // Re-resolve after memory retrieval so long-term continuity can upgrade the model.
+  chatResolved = resolveChatCall(aiModules, {
+    tier: membershipTier, userId: user.id,
+    rolloutPercent: Number(process.env.AI_GATEWAY_V2_ROLLOUT_PERCENT || 10), intimacyLevel, message: messageText, locale: chatLocale,
+    memoryCount: memories.length, contextMessageCount: recentMessages.length, dailyCostUsd,
+    adultCharacterVerified: Number((gf as { age?: number | string } | null)?.age || 18) >= 18,
+  });
 
   // Emotion: keyword-only (never block chat on a second LLM round-trip)
   const [detectedEmotion, loreContext] = await Promise.all([
@@ -415,7 +436,10 @@ export async function POST(request: NextRequest) {
     .slice()
     .reverse()
     .map((m: { role: string; content: string }) => {
-      const content = sanitizeHistoryContent(m.role, m.content);
+      const content =
+        m.role === 'assistant'
+          ? sanitizeAssistantReply(m.content, { preferZh: zhChat })
+          : sanitizeHistoryContent(m.role, m.content);
       if (!content) return null;
       const role = m.role === 'assistant' ? 'assistant' : 'user';
       return { role: role as 'user' | 'assistant', content };
@@ -478,6 +502,10 @@ export async function POST(request: NextRequest) {
             userId: user.id,
             girlfriendId: girlfriend_id,
             taskType: chatResolved.channel === 'nsfw' ? 'nsfw_chat' : routing.taskType || 'chat',
+            membershipTier,
+            scene: chatResolved.channel === 'nsfw' ? 'adult_roleplay' : 'chat',
+            routeReason: chatResolved.routeReason,
+            locale: chatLocale,
           });
           response = invoked.response;
           provider = invoked.provider;
@@ -533,7 +561,6 @@ export async function POST(request: NextRequest) {
               const delta = parsed?.choices?.[0]?.delta?.content;
               if (typeof delta === 'string' && delta.length) {
                 fullResponse += delta;
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: delta })}\n\n`));
               }
             } catch { /* skip malformed */ }
           }
@@ -541,22 +568,12 @@ export async function POST(request: NextRequest) {
 
         // Final sanitize (tokens / mojibake / empty garbage / wrong-language blocks)
         const cleaned = sanitizeAssistantReply(fullResponse, { preferZh: zhChat });
-        if (cleaned && cleaned !== fullResponse) {
-          // Tell client the cleaned full text so UI replaces garble / mixed language
-          fullResponse = cleaned;
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ content: '', replace: cleaned })}\n\n`),
-          );
-        } else if (cleaned) {
-          fullResponse = cleaned;
-        } else {
-          fullResponse = sanitizeAssistantReply(fullResponse || '…', { preferZh: zhChat });
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({ content: '', replace: fullResponse })}\n\n`,
-            ),
-          );
-        }
+        fullResponse = cleaned || sanitizeAssistantReply(fullResponse || '…', { preferZh: zhChat });
+        // Never stream unvalidated model tokens to the browser. Emit only the
+        // fully language-checked reply so garbage cannot flash or persist.
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ content: '', replace: fullResponse })}\n\n`),
+        );
 
         // Save assistant message
         if (fullResponse) {
@@ -585,9 +602,16 @@ export async function POST(request: NextRequest) {
           success: true,
         }).catch(() => {});
 
-        // Extract memories from user message (fire and forget)
+        // Extract and persist memories before the stream closes.
         if (messageText && messageText !== '[media]') {
-          extractMemories(client, user.id, girlfriend_id, messageText, gf.name).catch(() => {});
+          // Await persistence before a serverless runtime can freeze after stream close.
+          await extractMemories(client, user.id, girlfriend_id, messageText, gf.name).catch(
+            (memoryError: unknown) => {
+              logger.warn('chat/stream: memory extraction failed', {
+                err: memoryError instanceof Error ? memoryError.message : String(memoryError),
+              });
+            },
+          );
         }
 
         // Check achievements (fire and forget)

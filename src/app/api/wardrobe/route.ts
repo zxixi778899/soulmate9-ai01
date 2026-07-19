@@ -5,6 +5,7 @@ import {
   equipOutfitOnGirlfriend,
   unequipOutfitOnGirlfriend,
 } from '@/lib/wardrobe-equip';
+import { invalidateShop } from '@/lib/revalidate';
 
 /**
  * GET /api/wardrobe
@@ -131,6 +132,7 @@ export async function PATCH(req: NextRequest) {
       restoreBasePortrait: true,
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    invalidateShop();
     return NextResponse.json({ item: result.wardrobe_item || item, girlfriend: result.girlfriend });
   }
 
@@ -147,6 +149,8 @@ export async function PATCH(req: NextRequest) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
+
+  invalidateShop();
 
   return NextResponse.json({
     item: result.wardrobe_item,

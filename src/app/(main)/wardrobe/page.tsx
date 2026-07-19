@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { notifyDataChange } from '@/hooks/useDataSync';
 import { useRouter } from 'next/navigation';
 import { authedFetch } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -95,6 +96,8 @@ export default function WardrobePage() {
         portrait_video_url: data.portrait_video_url || girl.portrait_video_url,
       } : girl));
       toast.success(data.portrait_url ? '换装完成，新立绘已保存' : '服装已穿戴');
+      notifyDataChange('wardrobe');
+      notifyDataChange('girlfriends');
       if (data.warning) toast.warning(data.warning);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '换装失败');

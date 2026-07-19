@@ -10,6 +10,22 @@ function filePath() {
 
 let memoryCache: { config: AiModulesConfig; at: number } | null = null;
 const CACHE_MS = 15_000;
+/** Read v1 safely while activating the production-safe v2 routes. */
+function normalizeAiModules(raw: Partial<AiModulesConfig>): AiModulesConfig {
+  const defaults = createDefaultAiModules();
+  const merged = deepMerge(defaults as unknown as Record<string, unknown>, raw as unknown as Record<string, unknown>) as unknown as AiModulesConfig;
+  const customEndpoints = Array.isArray(raw.endpoints) ? raw.endpoints : [];
+  merged.endpoints = [
+    ...customEndpoints,
+    ...defaults.endpoints.filter((candidate) => !customEndpoints.some((item) => item.id === candidate.id)),
+  ];
+  if ((raw.version || 1) < 2) {
+    merged.version = 2;
+    merged.chat = { ...merged.chat, ...defaults.chat, global_system_suffix: merged.chat.global_system_suffix || defaults.chat.global_system_suffix };
+    merged.image.scenes = Object.fromEntries(Object.entries(defaults.image.scenes).map(([scene, config]) => [scene, { ...config, ...(merged.image.scenes[scene as keyof typeof merged.image.scenes] || {}) }])) as typeof merged.image.scenes;
+  }
+  return merged;
+}
 
 function deepMerge<T extends Record<string, unknown>>(base: T, patch: Partial<T>): T {
   const out = { ...base };
@@ -27,7 +43,7 @@ export async function loadAiModulesFromFile(): Promise<AiModulesConfig> {
   try {
     const raw = await readFile(filePath(), 'utf8');
     const parsed = JSON.parse(raw) as Partial<AiModulesConfig>;
-    return deepMerge(createDefaultAiModules() as any, parsed as any) as AiModulesConfig;
+    return normalizeAiModules(parsed);
   } catch {
     return createDefaultAiModules();
   }
@@ -59,7 +75,7 @@ export async function loadAiModules(supabase?: {
         .maybeSingle();
       if (!error && data?.value) {
         const value = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        const merged = deepMerge(createDefaultAiModules() as any, value as any) as AiModulesConfig;
+        const merged = normalizeAiModules(value as Partial<AiModulesConfig>);
         memoryCache = { config: merged, at: Date.now() };
         return merged;
       }
@@ -79,7 +95,7 @@ export async function saveAiModules(
 ): Promise<{ source: 'db' | 'file' }> {
   const next = {
     ...config,
-    version: config.version || 1,
+    version: 2,
     updated_at: new Date().toISOString(),
   };
 

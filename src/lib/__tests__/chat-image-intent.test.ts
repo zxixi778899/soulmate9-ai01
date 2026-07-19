@@ -1,28 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { parseChatImageIntent } from '../chat-image-intent';
+import { buildImageActionFromChat, parseChatImageIntent } from '../chat-image-intent';
 
-describe('parseChatImageIntent', () => {
-  it('detects English selfie requests', () => {
-    const r = parseChatImageIntent('send me a sexy selfie baby');
-    expect(r.wantsImage).toBe(true);
-    expect(r.kind).toBe('selfie');
-    expect(r.action.length).toBeGreaterThan(10);
+describe('chat image intent', () => {
+  it.each(['看看你', '拍照', '拍一张', '发张自拍给我'])('recognizes Chinese photo request: %s', (text) => expect(parseChatImageIntent(text).wantsImage).toBe(true));
+  it('recognizes English selfie requests', () => expect(parseChatImageIntent('send me a sexy selfie baby').kind).toBe('selfie'));
+  it('uses recent context for scene and time', () => {
+    const result = buildImageActionFromChat('看看你', [{ role: 'user', content: '你不是说正在海边散步吗？' }, { role: 'assistant', content: '嗯，晚上的海风很舒服。' }]);
+    expect(result.action).toMatch(/beach/);
+    expect(result.action).toMatch(/evening/);
+    expect(result.action).toMatch(/not a copy/);
   });
-
-  it('maps body part requests into FLUX action', () => {
-    const r = parseChatImageIntent('show me your ass');
-    expect(r.wantsImage).toBe(true);
-    expect(r.kind).toBe('body');
-    expect(r.action).toMatch(/hips|butt|ass/i);
-  });
-
-  it('detects Chinese photo requests', () => {
-    const r = parseChatImageIntent('发张自拍给我');
-    expect(r.wantsImage).toBe(true);
-  });
-
-  it('ignores normal chat', () => {
-    const r = parseChatImageIntent('how was your day today?');
-    expect(r.wantsImage).toBe(false);
-  });
+  it('ignores ordinary chat', () => expect(parseChatImageIntent('今天过得好吗？').wantsImage).toBe(false));
 });

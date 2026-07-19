@@ -28,7 +28,7 @@ async function optionalSelectFragment(): Promise<string> {
     return '';
   }
   _optionalCols =
-    ', rarity, access_status, unlock_price_tokens, base_intimacy, base_desire, base_development, base_kink, occupation, hobbies';
+    ', rarity, access_status, unlock_price_tokens, base_intimacy, base_desire, base_development, base_kink, occupation, hobbies, is_active, is_hot, is_featured, hot_score, sort_order';
   return _optionalCols;
 }
 
@@ -135,6 +135,11 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
     .order('created_at', { ascending: false })
     .limit(limit);
 
+  // Hide deactivated / soft-deleted girlfriends when the column exists
+  if (opt.includes('is_active') || select.includes('is_active')) {
+    q = q.eq('is_active', true);
+  }
+
   // If access_status exists, hide closed
   if (opt.includes('access_status')) {
     q = q.or('access_status.is.null,access_status.neq.closed');
@@ -205,76 +210,60 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
 export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[]> {
   try {
     const sb = getSupabaseClient();
+    // Only fetch featured whose base girlfriend still exists (prevents orphans)
     const { data, error } = await sb
       .from('featured_girlfriends')
-      .select('*')
+      .select('*, girlfriends!inner(id, name, age, slug, tags, short_description, personality, portrait_url, avatar_url, card_url, portrait_video_url, avatar_video_url)')
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .limit(limit);
-    if (error || !data?.length) return [];
+    if (error || !data?.length) {
+      // Fallback: if join syntax fails, query without join and filter orphans manually
+      if (error) {
+        logger.warn('[public-companions] featured JOIN failed, falling back', { err: error.message });
+      }
+      if (!data?.length) return [];
+    }
 
     const out: PublicCompanionRow[] = [];
     for (const f of data as Record<string, unknown>[]) {
-      const avatar = String(f.avatar_url || '');
-      // Skip marketing placeholders without real storage URLs
-      const image_url = await resolvePortrait(avatar, null);
-      if (!image_url || image_url.startsWith('/avatars/')) {
-        // try join base girlfriend
-        if (f.base_girlfriend_id) {
-          const { data: base } = await sb
-            .from('girlfriends')
-            .select(CORE_SELECT)
-            .eq('id', f.base_girlfriend_id)
-            .maybeSingle();
-          if (base) {
-            const img = await resolvePortrait(
-              (base as { portrait_url?: string }).portrait_url,
-              (base as { avatar_url?: string }).avatar_url,
-              (base as { card_url?: string }).card_url,
-            );
-            if (img) {
-              out.push({
-                id: String((base as { id: string }).id),
-                name: sanitizeName(
-                  String(f.name || (base as { name?: string }).name || ''),
-                  (base as { slug?: string }).slug,
-                ),
-                age: (base as { age?: number }).age ?? null,
-                slug: (base as { slug?: string }).slug ?? null,
-                tags:
-                  (f.personality_tags as string[]) ||
-                  ((base as { tags?: string[] }).tags ?? null),
-                short_description:
-                  (f.description as string) ||
-                  (base as { short_description?: string }).short_description ||
-                  null,
-                portrait_url: img,
-                avatar_url: img,
-                image_url: img,
-                personality: (base as { personality?: string }).personality ?? null,
-                access_status: 'open',
-                is_demo: false,
-                list_kind: 'featured',
-                is_featured: true,
-                sort_order: Number(f.sort_order ?? 0) || 0,
-                hot_score: 1000 - (Number(f.sort_order ?? 0) || 0) + Number(f.click_count ?? 0),
-              });
-            }
-          }
-        }
-        continue;
-      }
+      // With !inner join, 'girlfriends' field contains the matched base record
+      const base = (f.girlfriends as Record<string, unknown>) || null;
+      if (!base) continue; // orphan — skip
+
+      const img = await resolvePortrait(
+        (base.portrait_url as string) || (f.avatar_url as string) || null,
+        (base.avatar_url as string) || null,
+        (base.card_url as string) || null,
+      );
+      if (!img) continue; // no usable image
+
+      const videoUrl = await resolveMediaUrl(
+        (base.portrait_video_url as string) || null,
+        (base.avatar_video_url as string) || null,
+      );
+
       out.push({
-        id: String(f.base_girlfriend_id || f.id),
-        name: sanitizeName(String(f.name || 'Companion')),
-        age: null,
-        slug: null,
-        tags: (f.personality_tags as string[]) || null,
-        short_description: (f.description as string) || (f.subtitle as string) || null,
-        portrait_url: image_url,
-        avatar_url: image_url,
-        image_url,
-        personality: (f.subtitle as string) || null,
+        id: String(base.id),
+        name: sanitizeName(
+          String(base.name || f.name || ''),
+          (base.slug as string) || null,
+        ),
+        age: (base.age as number) ?? null,
+        slug: (base.slug as string) ?? null,
+        tags:
+          (f.personality_tags as string[]) ||
+          ((base.tags as string[] | null)) || null,
+        short_description:
+          (f.description as string) ||
+          (base.short_description as string) ||
+          null,
+        portrait_url: img,
+        avatar_url: img,
+        image_url: img,
+        video_url: videoUrl || null,
+        portrait_video_url: videoUrl || null,
+        personality: (base.personality as string) ?? (f.subtitle as string) ?? null,
         access_status: 'open',
         is_demo: false,
         list_kind: 'featured',
@@ -334,9 +323,10 @@ export async function loadCatalogCompanions(limit = 48): Promise<{
     const sb = getSupabaseClient();
     const { data: hotRows, error: hotErr } = await sb
       .from('girlfriends')
-      .select('id, is_hot, hot_score, sort_order, is_featured')
+      .select('id, is_hot, hot_score, sort_order, is_featured, is_active')
       .eq('is_public', true)
       .eq('review_status', 'approved')
+      .eq('is_active', true)
       .or('is_hot.eq.true,is_featured.eq.true,hot_score.gt.0')
       .order('hot_score', { ascending: false })
       .limit(60);

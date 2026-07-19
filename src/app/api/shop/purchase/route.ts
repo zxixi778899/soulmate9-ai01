@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
+import { invalidateShop } from '@/lib/revalidate';
 
 export async function POST(req: NextRequest) {
   try {
@@ -120,6 +121,8 @@ export async function POST(req: NextRequest) {
           expires_at: expiresAt,
         });
     }
+
+    invalidateShop();
 
     return NextResponse.json({
       success: true,

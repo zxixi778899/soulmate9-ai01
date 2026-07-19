@@ -6,6 +6,7 @@ import {
 } from '@/lib/wardrobe-equip';
 import { OUTFIT_CATALOG } from '@/lib/outfit-catalog';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { invalidateShop } from '@/lib/revalidate';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
+    invalidateShop();
     return NextResponse.json({
       success: true,
       action: 'unequip',
@@ -78,6 +80,8 @@ export async function POST(req: NextRequest) {
     const status = result.error?.includes('do not own') ? 403 : 400;
     return NextResponse.json({ error: result.error }, { status });
   }
+
+  invalidateShop();
 
   return NextResponse.json({
     success: true,

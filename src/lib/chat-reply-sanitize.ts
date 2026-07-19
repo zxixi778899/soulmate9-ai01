@@ -18,6 +18,10 @@ const LEAKED_WRAPPER_RE =
 /** Repeated garbage runs (same char 8+ times, excluding ellipsis dots) */
 const REPEATED_JUNK_RE = /([^\s.…·•.])\1{7,}/g;
 
+/** Template variables occasionally leaked by small roleplay models. */
+const TEMPLATE_PLACEHOLDER_RE =
+  /\b(?:tableName|characterName|userName|assistantName|undefined|null)\b/gi;
+
 const SOFT_FALLBACK_EN =
   "Mmm… my mind blanked for a second. Say that again for me, baby? I want to answer you properly~";
 const SOFT_FALLBACK_ZH =
@@ -64,12 +68,28 @@ export function isGarbageReply(text: string): boolean {
  * - preferEn: drop lines that are mostly Han characters
  */
 function stripWrongLanguageBlocks(text: string, preferZh?: boolean): string {
-  const lines = text.split('\n');
+  const lines = text.split('\n').map((line) => {
+    if (!preferZh) return line;
+    // Remove inline English roleplay beats as well as full English lines.
+    // Small models often emit: "中文。 Takes a sip and smiles" on one line.
+    return line
+      .replace(/\*[^*\n]*[A-Za-z][^*\n]*\*/g, ' ')
+      .replace(
+        /(?:[A-Za-z][A-Za-z'’.-]*)(?:[\s,;:—-]+[A-Za-z][A-Za-z'’.-]*){2,}(?:[.!?~…]+|$)?/g,
+        ' ',
+      )
+      .replace(/[A-Za-z][A-Za-z'’.-]*/g, ' ')
+      .replace(/[\u0400-\u04ff]+/g, ' ')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
+  });
   const kept = lines.filter((line) => {
     const s = line.trim();
     if (!s) return true;
-    // Keep short action beats *...*
-    if (/^\*[^*]{1,120}\*$/.test(s)) return true;
+    // Keep short action beats only when they use the requested language.
+    if (/^\*[^*]{1,120}\*$/.test(s)) {
+      return preferZh ? /[\u4e00-\u9fff]/.test(s) : !/[\u4e00-\u9fff]/.test(s);
+    }
 
     const han = (s.match(/[\u4e00-\u9fff]/g) || []).length;
     const latin = (s.match(/[A-Za-z]/g) || []).length;
@@ -109,6 +129,7 @@ export function sanitizeAssistantReply(
   t = t.replace(CONTROL_CHARS_RE, '');
   t = t.replace(REPLACEMENT_CHAR_RE, '');
   t = t.replace(REPEATED_JUNK_RE, '$1$1$1');
+  t = t.replace(TEMPLATE_PLACEHOLDER_RE, '');
 
   // Strip leading assistant labels the model sometimes emits
   t = t.replace(
@@ -127,6 +148,14 @@ export function sanitizeAssistantReply(
   }
 
   t = stripWrongLanguageBlocks(t, opts?.preferZh);
+
+  if (opts?.preferZh) {
+    const han = (t.match(/[\u4e00-\u9fff]/g) || []).length;
+    const latin = (t.match(/[A-Za-z]/g) || []).length;
+    const cyrillic = (t.match(/[\u0400-\u04ff]/g) || []).length;
+    // Never show an English-dominant response in a Chinese turn.
+    if (han < 2 || latin > 0 || cyrillic > 0) return SOFT_FALLBACK_ZH;
+  }
 
   if (isGarbageReply(t)) {
     return opts?.preferZh ? SOFT_FALLBACK_ZH : SOFT_FALLBACK_EN;

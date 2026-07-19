@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { notifyDataChange } from '@/hooks/useDataSync';
 import {
   GameShell, GamePanel, GamePrimaryButton, GameSectionTitle,
 } from '@/components/game/GameShell';
@@ -146,8 +147,10 @@ export default function ProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: displayName }),
       });
-      if (res.ok) toast.success('已保存');
-      else toast.error('保存失败');
+      if (res.ok) {
+        toast.success('已保存');
+        notifyDataChange('membership');
+      } else toast.error('保存失败');
     } catch {
       toast.error('网络错误');
     }
@@ -166,6 +169,8 @@ export default function ProfilePage() {
       toast.success('赠送成功！');
       setGiftingItem(null);
       setGiftTarget('');
+      notifyDataChange('girlfriends');
+      notifyDataChange('wardrobe');
       // Refresh backpack
       authedFetch('/api/backpack')
         .then((r) => r.json())

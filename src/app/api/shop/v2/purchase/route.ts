@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     // 2)  +  +  inventory +  +1
     const orderNumber = `SM-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const kind = typeof product.virtual_meta?.kind === 'string' ? product.virtual_meta.kind : 'prop';
-    const isConsumable = kind === 'consumable' || kind === 'prop';
+    const isConsumable = kind === 'consumable' || kind === 'prop' || kind === 'creation_card';
     const assetType = kind;
     const rawAssetId = typeof product.virtual_meta?.asset_id === 'string'
       ? product.virtual_meta.asset_id
@@ -183,6 +183,16 @@ export async function POST(request: NextRequest) {
              ON CONFLICT (girlfriend_id, outfit_asset_id)
              DO UPDATE SET inventory_item_id = EXCLUDED.inventory_item_id`,
             [user.id, body.girlfriend_id, assetId, inventoryId]
+          );
+        }
+
+        // 2.5 Creation cards — directly increment profiles.creation_cards
+        if (kind === 'creation_card') {
+          const cardAmount = Number(product.virtual_meta?.card_amount) || 1;
+          const totalCards = cardAmount * quantity;
+          await db.query(
+            'UPDATE profiles SET creation_cards = COALESCE(creation_cards, 0) + $1 WHERE user_id = $2',
+            [totalCards, user.id]
           );
         }
 

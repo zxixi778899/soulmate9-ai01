@@ -10,14 +10,14 @@ export function createDefaultAiModules(): AiModulesConfig {
   const now = new Date().toISOString();
 
   return {
-    version: 1,
+    version: 2,
     updated_at: now,
     endpoints: [
       {
-        id: 'together-llama-8b',
-        label: 'Together Llama 3.1 8B (Free SFW)',
+        id: 'together-qwen35-9b',
+        label: 'Together Qwen3.5 9B (Economy)',
         provider: 'together',
-        model_id: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+        model_id: 'Qwen/Qwen3.5-9B',
         api_base_url: 'https://api.together.xyz/v1',
         api_key_env: 'TOGETHER_API_KEY',
         temperature: 0.85,
@@ -28,25 +28,26 @@ export function createDefaultAiModules(): AiModulesConfig {
         notes: 'Cheap SFW chat for free tier',
       },
       {
-        id: 'together-llama-70b',
-        label: 'Together Llama 3.3 70B (Pro SFW)',
+        id: 'together-qwen3-235b',
+        label: 'Together Qwen3 235B-A22B (Quality)',
         provider: 'together',
-        model_id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+        model_id: 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
         api_base_url: 'https://api.together.xyz/v1',
         api_key_env: 'TOGETHER_API_KEY',
         temperature: 0.85,
         max_tokens: 1536,
-        cost_per_1k_input: 0.00088,
-        cost_per_1k_output: 0.00088,
+        cost_per_1k_input: 0.0002,
+        cost_per_1k_output: 0.0006,
         nsfw_capable: false,
         notes: 'High quality SFW roleplay',
       },
       {
-        id: 'runpod-lumimaid-8b',
-        label: 'RunPod Lumimaid 8B (NSFW)',
+        id: 'runpod-qwen35-9b-abliterated',
+        label: 'RunPod Qwen3.5 9B Abliterated (NSFW)',
         provider: 'runpod',
-        model_id: 'lumimaid-8b',
-        api_base_url: null, // RUNPOD_VLLM_URL
+        model_id: 'soulmate-qwen35-9b-nsfw',
+        api_base_url: null,
+        api_base_env: 'RUNPOD_PRO_CHAT_URL',
         api_key_env: 'RUNPOD_VLLM_API_KEY',
         temperature: 0.9,
         max_tokens: 1024,
@@ -56,11 +57,12 @@ export function createDefaultAiModules(): AiModulesConfig {
         notes: 'Uncensored NSFW RP · GPU second billing',
       },
       {
-        id: 'runpod-noromaid-12b',
-        label: 'RunPod Noromaid 12B (Unlimited NSFW)',
+        id: 'runpod-qwen3-30b-roleplay',
+        label: 'RunPod Qwen3 30B-A3B Roleplay (NSFW)',
         provider: 'runpod',
-        model_id: 'noromaid-12b',
+        model_id: 'soulmate-qwen3-30b-roleplay',
         api_base_url: null,
+        api_base_env: 'RUNPOD_UNLIMITED_CHAT_URL',
         api_key_env: 'RUNPOD_VLLM_API_KEY',
         temperature: 0.9,
         max_tokens: 1536,
@@ -70,10 +72,28 @@ export function createDefaultAiModules(): AiModulesConfig {
         notes: 'Higher quality NSFW for Unlimited',
       },
       {
-        id: 'together-mini-emotion',
-        label: 'Together 8B Emotion/Meta',
+        id: 'together-kimi-k26', label: 'Together Kimi K2.6 (Long memory)', provider: 'together',
+        model_id: 'moonshotai/Kimi-K2.6', api_base_url: 'https://api.together.xyz/v1', api_key_env: 'TOGETHER_API_KEY',
+        temperature: 0.8, max_tokens: 2048, cost_per_1k_input: 0.0012, cost_per_1k_output: 0.0045,
+        nsfw_capable: false, capabilities: ['chat', 'long_context'], quality_tier: 'premium', priority: 30,
+        timeout_ms: 45000, retry_count: 1, fallback_ids: ['together-qwen3-235b'], circuit_breaker: { failure_threshold: 3, reset_ms: 60000 },
+      },
+      {
+        id: 'together-gpt-oss-20b', label: 'Together GPT-OSS 20B (Fallback)', provider: 'together',
+        model_id: 'openai/gpt-oss-20b', api_base_url: 'https://api.together.xyz/v1', api_key_env: 'TOGETHER_API_KEY',
+        temperature: 0.8, max_tokens: 1024, cost_per_1k_input: 0.00005, cost_per_1k_output: 0.0002,
+        nsfw_capable: false, capabilities: ['chat'], quality_tier: 'economy', priority: 90, timeout_ms: 30000,
+      },
+      {
+        id: 'together-gpt-oss-120b', label: 'Together GPT-OSS 120B (Fallback)', provider: 'together',
+        model_id: 'openai/gpt-oss-120b', api_base_url: 'https://api.together.xyz/v1', api_key_env: 'TOGETHER_API_KEY',
+        temperature: 0.8, max_tokens: 1536, cost_per_1k_input: 0.00015, cost_per_1k_output: 0.0006,
+        nsfw_capable: false, capabilities: ['chat'], quality_tier: 'standard', priority: 90, timeout_ms: 35000,
+      },      {
+        id: 'together-qwen35-classifier',
+        label: 'Together Qwen3.5 9B Classifier',
         provider: 'together',
-        model_id: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+        model_id: 'Qwen/Qwen3.5-9B',
         api_base_url: 'https://api.together.xyz/v1',
         api_key_env: 'TOGETHER_API_KEY',
         temperature: 0.15,
@@ -100,26 +120,27 @@ export function createDefaultAiModules(): AiModulesConfig {
     ],
     chat: {
       enabled: true,
+      classifier_endpoint_id: 'together-qwen35-classifier',
+      complexity_threshold: 5,
       nsfw_min_intimacy: 3,
       nsfw_detection: 'keywords',
-      // Prefer RunPod self-host when Together key is absent (resolve.ts also auto-skips dead endpoints).
-      fallback_endpoint_id: 'runpod-lumimaid-8b',
+      // The current RunPod chat worker has a mismatched model/tokenizer and can
+      // emit multilingual garbage. Keep it out of normal chat routing.
+      fallback_endpoint_id: 'together-gpt-oss-20b',
       global_system_suffix:
         'Stay in character as the girlfriend. Never break role. Never claim to be an AI assistant. When the intimate/NSFW channel is active, lean into consensual adult desire with sensory detail and end replies with a hook that invites the next message. Refuse underage content. Match language rules (English sessions: English only, no Chinese).',
       tiers: {
         free: {
-          // Self-host first so local/prod works without TOGETHER_API_KEY.
-          // If Together is configured later, admin can switch this back in AI modules UI.
-          sfw_endpoint_id: 'runpod-lumimaid-8b',
-          nsfw_endpoint_id: null,
-          max_tokens: 512,
-          context_messages: 10,
-          daily_message_limit: 40,
-          allow_nsfw: false,
+          sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: null,
+          default_endpoint_id: 'together-qwen35-9b', complex_endpoint_id: 'together-qwen35-9b',
+          fallback_endpoint_ids: ['together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.08,
+          max_tokens: 512, context_messages: 10, daily_message_limit: 40, allow_nsfw: false,
         },
         pro: {
-          sfw_endpoint_id: 'runpod-lumimaid-8b',
-          nsfw_endpoint_id: 'runpod-lumimaid-8b',
+          sfw_endpoint_id: 'together-qwen3-235b',
+          nsfw_endpoint_id: 'runpod-qwen35-9b-abliterated',
+          default_endpoint_id: 'together-qwen3-235b', complex_endpoint_id: 'together-qwen3-235b',
+          fallback_endpoint_ids: ['together-gpt-oss-120b', 'together-qwen35-9b'], daily_cost_soft_limit_usd: 0.75,
           max_tokens: 1024,
           context_messages: 24,
           // Competitor-aligned Pro chat cap (not marketing "unlimited")
@@ -127,8 +148,10 @@ export function createDefaultAiModules(): AiModulesConfig {
           allow_nsfw: true,
         },
         unlimited: {
-          sfw_endpoint_id: 'runpod-lumimaid-8b',
-          nsfw_endpoint_id: 'runpod-noromaid-12b',
+          sfw_endpoint_id: 'together-qwen3-235b',
+          nsfw_endpoint_id: 'runpod-qwen3-30b-roleplay',
+          default_endpoint_id: 'together-qwen3-235b', complex_endpoint_id: 'together-kimi-k26',
+          fallback_endpoint_ids: ['together-qwen3-235b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
           max_tokens: 1536,
           context_messages: 40,
           // Unlimited chat (null = no daily cap); images/TTS remain cost levers
@@ -161,6 +184,11 @@ export function createDefaultAiModules(): AiModulesConfig {
         },
         chat_selfie: {
           endpoint_id: 'flux-portrait',
+          tier_endpoint_ids: { free: 'together-flux1-schnell', pro: 'runpod-flux2-klein-4b', unlimited: 'bfl-flux2-quality' },
+          adult_endpoint_ids: { pro: 'runpod-flux2-klein-adult', unlimited: 'runpod-flux2-premium-adult' },
+          fallback_endpoint_ids: ['runpod-flux2-klein-4b'],
+          quality_tier: 'standard', reference_mode: 'multi', max_references: 3, adult_capable: true,
+          retry_policy: { max_attempts: 2, lower_quality_on_retry: true, similarity_retry: true },
           width: 704,
           height: 960,
           steps: 16,

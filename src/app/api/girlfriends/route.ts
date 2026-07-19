@@ -4,7 +4,9 @@ import { ensureImageKey, resolveImageUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
 import { assertCanAddCompanion } from '@/lib/companion-seats';
+import { consumeCreationCard, getCreationCardStatus } from '@/lib/creation-cards';
 import { logger } from '@/lib/logger';
+import { invalidateGirlfriends } from '@/lib/revalidate';
 
 const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
 
@@ -133,6 +135,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Consume a creation card
+  const cardResult = await consumeCreationCard(client, user.id);
+  if (!cardResult.ok) {
+    return NextResponse.json(
+      {
+        error: 'No creation cards remaining. Purchase more in the shop.',
+        code: 'NO_CARDS',
+      },
+      { status: 403 },
+    );
+  }
+
   // base64 data URL  OSS key
   const avatarKey = await ensureImageKey(avatar_url, 'girlfriends');
   const portraitKey = await ensureImageKey(portrait_url, 'girlfriends');
@@ -199,18 +213,21 @@ export async function POST(request: NextRequest) {
       });
   }
 
-  // Create initial intimacy score
+  // Create initial intimacy score — V3 (Heat) for user-created girlfriends
   await client
     .from('intimacy_scores')
     .insert({
       user_id: user.id,
       girlfriend_id: girlfriend.id,
-      score: 0,
-      level: 1,
+      score: 40,
+      level: 3,
       last_daily_reset: new Date().toISOString().split('T')[0],
     });
 
-  return NextResponse.json({ girlfriend });
+  // Sync: invalidate cached girlfriend lists so other tabs/pages see the new companion
+  invalidateGirlfriends();
+
+  return NextResponse.json({ girlfriend, cards_remaining: cardResult.remaining });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -259,6 +276,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Sync: invalidate cached girlfriend lists so edits propagate
+  invalidateGirlfriends();
+
   return NextResponse.json({ girlfriend });
 }
 
@@ -304,6 +324,9 @@ export async function DELETE(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Sync: invalidate cached girlfriend lists so deletion propagates
+  invalidateGirlfriends();
 
   return NextResponse.json({ success: true, intimacy_reset: true });
 }

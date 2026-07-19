@@ -105,9 +105,15 @@ export async function retrieveMemories(
     .order('created_at', { ascending: false })
     .limit(50);
   if (error || !Array.isArray(data)) return [];
-  return data
+  const ranked = data
     .map((r: any) => ({ ...r, score: keywordScore(query, r.content) }))
     .filter((r: MemoryHit) => r.score > 0)
     .sort((a: MemoryHit, b: MemoryHit) => b.score - a.score)
     .slice(0, k);
+
+  if (ranked.length > 0) return ranked;
+
+  // Vague follow-ups often have no keyword overlap. Inject recent durable
+  // memories so saved facts still influence the girlfriend's reply.
+  return data.slice(0, k).map((r: any) => ({ ...r, score: 0.05 }));
 }

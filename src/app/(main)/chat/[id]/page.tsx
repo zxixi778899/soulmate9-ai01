@@ -3,6 +3,7 @@ import { useTranslation } from '@/lib/i18n/context';
 import { dateGroupLabel, dayKey } from '@/lib/chat-utils';
 import { authedFetch } from '@/lib/supabase';
 import { readResponseJson } from '@/lib/safe-json';
+import { notifyDataChange } from '@/hooks/useDataSync';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -36,6 +37,7 @@ import { parseChatImageIntent } from '@/lib/chat-image-intent';
 import { DEFAULT_CHAT_GIFTS, type ChatGift } from '@/lib/gifts/catalog';
 import { GiftEffectOverlay, type GiftBurstState } from '@/components/chat/GiftEffectOverlay';
 import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
+import { detectMessageLocale } from '@/lib/chat-locale';
 
 
 type OutfitItem = {
@@ -546,8 +548,8 @@ export default function ChatPage() {
       /[\u4e00-\u9fff]/.test(req) ||
       String(locale || '').toLowerCase().startsWith('zh');
     const waitText = waitZh
-      ? '哥哥我正在拍照哦，要换衣服、化妆需要点时间，请哥哥耐心等待，拍好了我会发给哥哥哦！'
-      : "Babe I'm taking a photo for you~ need a moment to change and do my makeup. Be patient for me — I'll send it as soon as it's ready 💕";
+      ? '我正在为你拍一张全新的照片哦，稍等我换个姿势和场景，拍好就发给你 💕'
+      : "I'm taking a brand-new photo for you—give me a moment to change the pose and scene 💕";
     const waitId = `selfie-wait-${Date.now()}`;
     setMessages((prev) => [
       ...prev,
@@ -560,10 +562,10 @@ export default function ChatPage() {
     ]);
     setIsTyping(true);
     setAutoScroll(true);
-    toast.message(waitZh ? '她正在拍照…' : 'She is taking a photo…', {
+    toast.message(waitZh ? '她正在拍一张新照片…' : 'She is taking a new photo…', {
       description: waitZh
-        ? '换装化妆中，请稍候（GPU 冷启动可能 20–90 秒）'
-        : 'Changing & makeup · GPU may take 20–90s if cold',
+        ? '正在根据聊天内容更换场景和姿势，请稍候。'
+        : 'Matching the scene and pose to your conversation.',
     });
 
     try {
@@ -611,8 +613,8 @@ export default function ChatPage() {
       setIsTyping(false);
       if (data.image_url || data.imageUrl) {
         const readyText = waitZh
-          ? data.message || '拍好啦～给哥哥看 💕'
-          : data.message || "Here's a photo just for you 💕";
+          ? data.message || '拍好啦～这是专门为你拍的新照片 💕'
+          : data.message || "Here's a brand-new photo just for you 💕";
         const newMsg: Message = {
           id: `selfie-${Date.now()}`,
           role: 'assistant',
@@ -720,6 +722,10 @@ export default function ChatPage() {
     ]);
 
     const wantsPhoto = parseChatImageIntent(text).wantsImage;
+    const detectedTurnLocale = detectMessageLocale(text);
+    const replyPreferZh =
+      detectedTurnLocale === 'zh' ||
+      (detectedTurnLocale == null && String(locale || '').toLowerCase().startsWith('zh'));
 
     try {
       const res = await authedFetch('/api/chat/stream', {
@@ -825,7 +831,7 @@ export default function ChatPage() {
             // Server final sanitize may replace the whole reply
             if (typeof json.replace === 'string' && json.replace.length) {
               fullContent = sanitizeAssistantReply(json.replace, {
-                preferZh: /[\u4e00-\u9fff]/.test(json.replace),
+                preferZh: replyPreferZh,
               });
               pushAssist(fullContent);
               continue;
@@ -843,9 +849,7 @@ export default function ChatPage() {
       // Client-side sanitize as last line of defense
       if (fullContent) {
         const cleaned = sanitizeAssistantReply(fullContent, {
-          preferZh:
-            /[\u4e00-\u9fff]/.test(fullContent) ||
-            String(locale || '').toLowerCase().startsWith('zh'),
+          preferZh: replyPreferZh,
         });
         if (cleaned !== fullContent) {
           fullContent = cleaned;
@@ -923,6 +927,8 @@ export default function ChatPage() {
         .catch(() => {});
 
       void membership.refresh();
+      notifyDataChange('chat');
+      notifyDataChange('membership');
 
       void authedFetch('/api/v2/user/achievements')
         .then((r) => readResponseJson(r).catch(() => ({})))

@@ -11,6 +11,7 @@ import { authedFetch } from '@/lib/supabase';
 import { readResponseJson } from '@/lib/safe-json';
 import { useState, useEffect, useMemo, useCallback, useRef, type MouseEvent } from 'react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { useDataSync, notifyDataChange } from '@/hooks/useDataSync';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useMembership } from '@/hooks/useMembership';
@@ -21,7 +22,7 @@ import {
 } from '@/components/ui/sheet';
 import {
   Loader2, MessageCircle, Plus, Search, X, Trash2,
-  Heart, BrainCircuit, ChevronDown, Camera, Crown,
+  Heart, BrainCircuit, ChevronDown, Camera, Crown, Globe, Send,
 } from 'lucide-react';
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
@@ -49,6 +50,8 @@ type Friend = {
   name: string;
   avatar_url: string | null;
   personality: string | null;
+  review_status?: string | null;
+  is_public?: boolean;
 };
 type LastMessage = {
   girlfriend_id: string;
@@ -94,20 +97,26 @@ function computeProgress(score: number, level: number): number {
 
 // ─── Friend Row ──────────────────────────────────────────────────────────────
 
-function FriendRow({ friend, lastMsg, score, selected, deleting, tick, onDelete, onClick }: {
+function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, onDelete, onSubmit, onClick }: {
   friend: Friend;
   lastMsg?: LastMessage;
   score: number;
   selected: boolean;
   deleting: boolean;
+  submitting: boolean;
   tick: number;
   onDelete: (gf: Friend, e: MouseEvent) => void;
+  onSubmit: (gf: Friend, e: MouseEvent) => void;
   onClick: () => void;
 }) {
   const mood = deriveMood(lastMsg?.content || (tick % 2 === 0 ? friend.personality || '' : ''), score);
   const preview = lastMsg?.content
     ? lastMsg.role === 'user' ? `你: ${lastMsg.content}` : lastMsg.content
     : '还没有消息 · 点进来聊聊';
+  const reviewStatus = friend.review_status || 'draft';
+  const isPublished = friend.is_public && reviewStatus === 'approved';
+  const isPending = reviewStatus === 'pending';
+  const isDraft = reviewStatus === 'draft' || reviewStatus === 'rejected';
 
   return (
     <li className="relative group">
@@ -115,7 +124,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, tick, onDelete,
         type="button"
         onClick={onClick}
         className={cn(
-          'flex w-full items-center gap-3 px-3 sm:px-4 py-3.5 pr-14 text-left active:bg-white/[0.06] touch-manipulation min-h-[72px] transition-colors',
+          'flex w-full items-center gap-3 px-3 sm:px-4 py-3.5 pr-20 text-left active:bg-white/[0.06] touch-manipulation min-h-[72px] transition-colors',
           selected && 'bg-white/[0.06]',
         )}
       >
@@ -134,19 +143,35 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, tick, onDelete,
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className={cn('text-[11px] font-medium shrink-0', mood.tone)}>{mood.emoji} {mood.label}</span>
+            {isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">Public</span>}
+            {isPending && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">Reviewing</span>}
             <span className="text-[12px] text-white/35 truncate">· {preview}</span>
           </div>
         </div>
       </button>
-      <button
-        type="button"
-        aria-label="Delete friend"
-        disabled={deleting}
-        onClick={(e) => onDelete(friend, e)}
-        className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full glass flex items-center justify-center text-white/40 hover:text-rose-400 hover:bg-rose-500/10 touch-manipulation disabled:opacity-50"
-      >
-        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-      </button>
+      {/* Action buttons */}
+      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+        {isDraft && (
+          <button
+            type="button"
+            aria-label="Submit for review"
+            disabled={submitting}
+            onClick={(e) => onSubmit(friend, e)}
+            className="h-9 w-9 rounded-full glass flex items-center justify-center text-white/40 hover:text-emerald-400 hover:bg-emerald-500/10 touch-manipulation disabled:opacity-50"
+          >
+            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Delete friend"
+          disabled={deleting}
+          onClick={(e) => onDelete(friend, e)}
+          className="h-9 w-9 rounded-full glass flex items-center justify-center text-white/40 hover:text-rose-400 hover:bg-rose-500/10 touch-manipulation disabled:opacity-50"
+        >
+          {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+        </button>
+      </div>
     </li>
   );
 }
@@ -166,6 +191,7 @@ export default function ChatsPage() {
   const [listLoading, setListLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -242,6 +268,7 @@ export default function ChatsPage() {
   }, []);
 
   useAutoRefresh(loadList);
+  useDataSync(loadList, ['girlfriends', 'chat']);
 
   useEffect(() => {
     loadList().catch(() => setListLoading(false));
@@ -298,8 +325,31 @@ export default function ChatsPage() {
       setIntimacyMap((prev) => { const n = { ...prev }; delete n[gf.id]; return n; });
       if (selectedId === gf.id) { setSelectedId(null); setGirlfriend(null); setMessages([]); }
       toast.success('Friend removed · intimacy reset');
+      notifyDataChange('girlfriends');
+      notifyDataChange('chat');
     } catch { toast.error('Network error'); }
     finally { setDeletingId(null); }
+  };
+
+  // ── Submit friend for public review ──
+  const submitForReview = async (gf: Friend, e: MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const zh = locale === 'zh';
+    if (!window.confirm(zh ? `将「${gf.name}」提交公开审核？` : `Submit "${gf.name}" for public review?`)) return;
+    setSubmittingId(gf.id);
+    try {
+      const res = await authedFetch('/api/girlfriends', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: gf.id, review_status: 'pending', submitted_at: new Date().toISOString() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error((data as { error?: string }).error || 'Submit failed'); return; }
+      setFriends((prev) => prev.map((g) => g.id === gf.id ? { ...g, review_status: 'pending', submitted_at: new Date().toISOString() } : g));
+      toast.success(zh ? '已提交审核' : 'Submitted for review');
+      notifyDataChange('girlfriends');
+    } catch { toast.error('Network error'); }
+    finally { setSubmittingId(null); }
   };
 
   // ── Load chat for selected friend ──
@@ -693,8 +743,10 @@ export default function ChatsPage() {
                   score={intimacyMap[gf.id] || loadChatCache(gf.id)?.intimacy?.score || 0}
                   selected={gf.id === selectedId}
                   deleting={deletingId === gf.id}
+                  submitting={submittingId === gf.id}
                   tick={tick}
                   onDelete={(g, e) => void deleteFriend(g, e)}
+                  onSubmit={(g, e) => void submitForReview(g, e)}
                   onClick={() => setSelectedId(gf.id)}
                 />
               ))}

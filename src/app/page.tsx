@@ -11,6 +11,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { useDataSync } from '@/hooks/useDataSync';
 import { useRouter } from 'next/navigation';
 import {
   MessageCircle, ShoppingBag, Wand2, Crown, ChevronLeft, ChevronRight,
@@ -132,6 +133,7 @@ export default function HomePage() {
   }, []);
 
   useAutoRefresh(loadData);
+  useDataSync(loadData, ['girlfriends']);
 
   useEffect(() => {
     let cancelled = false;

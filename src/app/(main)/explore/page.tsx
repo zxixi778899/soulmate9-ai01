@@ -6,6 +6,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { useDataSync } from '@/hooks/useDataSync';
 import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Sparkles, Heart, Star, Loader2, Filter } from 'lucide-react';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
@@ -46,6 +47,7 @@ export default function ExplorePage() {
   }, []);
 
   useAutoRefresh(loadData);
+  useDataSync(loadData, ['girlfriends']);
 
   useEffect(() => {
     let cancelled = false;
