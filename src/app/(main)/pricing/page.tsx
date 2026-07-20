@@ -16,18 +16,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, ExternalLink, Wallet, Bitcoin, Coins, AlertCircle } from 'lucide-react';
+import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, ExternalLink, Wallet, Bitcoin, Coins, AlertCircle, Zap, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
-type BillingCycle = 'monthly' | 'yearly';
+type BillingCycle = 'monthly' | 'quarterly' | 'yearly';
 
 const PLANS = [
   {
     id: 'free',
     name: 'Free',
     priceMonthly: '$0',
+    priceQuarterly: '$0',
     priceYearly: '$0',
     periodMonthly: 'forever',
+    periodQuarterly: 'forever',
     periodYearly: 'forever',
     color: 'text-muted-foreground',
     border: 'border-border/40',
@@ -41,13 +43,39 @@ const PLANS = [
     ],
   },
   {
+    id: 'basic',
+    name: 'Basic',
+    priceMonthly: '$9.99',
+    priceQuarterly: '$25.47',
+    priceYearly: '$83.92',
+    periodMonthly: '/month',
+    periodQuarterly: '/quarter',
+    periodYearly: '/year',
+    quarterlyNote: 'Save 15% · $8.49/mo',
+    yearlyNote: 'Save 30% · $6.99/mo',
+    color: 'text-sky-400',
+    border: 'border-sky-500/30',
+    features: [
+      '150 messages per day',
+      '5 image generations/day',
+      '15 voice messages/day',
+      'Intimacy up to Level 5',
+      'Up to 8 companions',
+      'Standard memory depth',
+      'Standard outfit access',
+    ],
+  },
+  {
     id: 'pro',
     name: 'Pro',
     priceMonthly: '$19.99',
-    priceYearly: '$199',
+    priceQuarterly: '$50.97',
+    priceYearly: '$167.92',
     periodMonthly: '/month',
+    periodQuarterly: '/quarter',
     periodYearly: '/year',
-    yearlyNote: 'Save 17% · $16.58/mo',
+    quarterlyNote: 'Save 15% · $16.99/mo',
+    yearlyNote: 'Save 30% · $13.99/mo',
     color: 'text-purple-400',
     border: 'border-purple-500/30',
     popular: true,
@@ -65,11 +93,14 @@ const PLANS = [
   {
     id: 'unlimited',
     name: 'Unlimited',
-    priceMonthly: '$39.99',
-    priceYearly: '$399',
+    priceMonthly: '$29.99',
+    priceQuarterly: '$76.47',
+    priceYearly: '$251.92',
     periodMonthly: '/month',
+    periodQuarterly: '/quarter',
     periodYearly: '/year',
-    yearlyNote: 'Save 17% · $33.25/mo',
+    quarterlyNote: 'Save 15% · $25.49/mo',
+    yearlyNote: 'Save 30% · $20.99/mo',
     color: 'text-amber-400',
     border: 'border-amber-500/30',
     features: [
@@ -97,12 +128,17 @@ const CRYPTO_CURRENCIES = [
   { id: 'ETH', name: 'Ethereum', network: 'ERC-20', icon: '', placeholder: 'ETH tx hash...' },
 ];
 
+function getPlanPrice(planId: string): string {
+  const prices: Record<string, string> = { basic: '$9.99', pro: '$19.99', unlimited: '$29.99' };
+  return prices[planId] || '$9.99';
+}
+
 function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const canceled = searchParams.get('canceled') === 'true';
   const [loading, setLoading] = useState<string | null>(null);
-  const [billing, setBilling] = useState<BillingCycle>('yearly');
+  const [billing, setBilling] = useState<BillingCycle>('quarterly');
   const [liveCount, setLiveCount] = useState(12847);
 
   // Crypto payment state
@@ -224,7 +260,7 @@ function PricingContent() {
         <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
       </div>
 
-      <div className="relative max-w-5xl mx-auto">
+      <div className="relative max-w-6xl mx-auto">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
@@ -252,13 +288,22 @@ function PricingContent() {
               Monthly
             </button>
             <button
+              onClick={() => setBilling('quarterly')}
+              className={`px-4 py-1.5 rounded-full text-sm transition-all flex items-center gap-1.5 ${
+                billing === 'quarterly' ? 'bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-semibold' : 'text-muted-foreground'
+              }`}
+            >
+              Quarterly
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px] px-1.5">Save 15%</Badge>
+            </button>
+            <button
               onClick={() => setBilling('yearly')}
               className={`px-4 py-1.5 rounded-full text-sm transition-all flex items-center gap-1.5 ${
                 billing === 'yearly' ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white font-semibold' : 'text-muted-foreground'
               }`}
             >
               Yearly
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px] px-1.5">Save 17%</Badge>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px] px-1.5">Save 30%</Badge>
             </button>
           </div>
         </div>
@@ -278,7 +323,7 @@ function PricingContent() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
           {PLANS.map((plan) => (
             <Card
               key={plan.id}
@@ -299,27 +344,32 @@ function PricingContent() {
               <CardHeader className="pb-4">
                 <CardTitle className={`text-lg font-semibold ${plan.color}`}>
                   <div className="flex items-center gap-2">
+                    {plan.id === 'free' && <Heart className="h-4 w-4" />}
+                    {plan.id === 'basic' && <Zap className="h-4 w-4" />}
                     {plan.id === 'pro' && <Crown className="h-4 w-4" />}
                     {plan.id === 'unlimited' && <Star className="h-4 w-4" />}
-                    {plan.id === 'free' && <Heart className="h-4 w-4" />}
                     {plan.name}
                   </div>
                 </CardTitle>
                 <div className="mt-2">
                   <span className="text-3xl font-bold">
-                    {billing === 'yearly' ? plan.priceYearly : plan.priceMonthly}
+                    {billing === 'yearly' ? plan.priceYearly : billing === 'quarterly' ? plan.priceQuarterly : plan.priceMonthly}
                   </span>
                   <span className="text-sm text-muted-foreground ml-1">
-                    {billing === 'yearly' ? plan.periodYearly : plan.periodMonthly}
+                    {billing === 'yearly' ? plan.periodYearly : billing === 'quarterly' ? plan.periodQuarterly : plan.periodMonthly}
                   </span>
                 </div>
                 {billing === 'yearly' && plan.yearlyNote && (
                   <p className="text-[11px] text-emerald-400 mt-1">{plan.yearlyNote}</p>
                 )}
+                {billing === 'quarterly' && plan.quarterlyNote && (
+                  <p className="text-[11px] text-emerald-400 mt-1">{plan.quarterlyNote}</p>
+                )}
                 <CardDescription className="text-xs text-muted-foreground/60">
+                  {plan.id === 'free' && 'Get started free'}
+                  {plan.id === 'basic' && 'Great value to start'}
                   {plan.id === 'pro' && 'For serious connections'}
                   {plan.id === 'unlimited' && 'The ultimate experience'}
-                  {plan.id === 'free' && 'Get started free'}
                 </CardDescription>
               </CardHeader>
 
@@ -327,6 +377,7 @@ function PricingContent() {
                 {plan.features.map((feature) => (
                   <div key={feature} className="flex items-start gap-2 text-sm">
                     <Check className={`h-4 w-4 shrink-0 mt-0.5 ${
+                      plan.id === 'basic' ? 'text-sky-400' :
                       plan.id === 'pro' ? 'text-purple-400' :
                       plan.id === 'unlimited' ? 'text-amber-400' :
                       'text-muted-foreground'
@@ -340,7 +391,9 @@ function PricingContent() {
                 <Button
                   onClick={() => handleUpgrade(plan.id)}
                   className={`w-full h-11 text-sm font-medium ${
-                    plan.id === 'pro'
+                    plan.id === 'basic'
+                      ? 'bg-gradient-to-r from-sky-500 to-cyan-600 text-white hover:opacity-90'
+                      : plan.id === 'pro'
                       ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white hover:opacity-90'
                       : plan.id === 'unlimited'
                       ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-90'
@@ -369,6 +422,19 @@ function PricingContent() {
                     Pay with Crypto
                   </Button>
                 )}
+                {plan.id !== 'free' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-9 text-xs gap-1.5"
+                    onClick={() => {
+                      toast.info('NexaPay (LATAM) coming soon!');
+                    }}
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    Pay with LATAM
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           ))}
@@ -376,9 +442,9 @@ function PricingContent() {
 
         <div className="mt-12 text-center space-y-4">
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">🔒 Secure checkout</span>
             <span className="flex items-center gap-1">💳 Card · Stripe</span>
-            <span className="flex items-center gap-1">₿ Crypto</span>
+            <span className="flex items-center gap-1">₿ NOWPayments</span>
+            <span className="flex items-center gap-1">🌎 NexaPay (LATAM)</span>
             <span className="flex items-center gap-1">↩ 7-day support guarantee</span>
             <span className="flex items-center gap-1">✕ Cancel anytime</span>
           </div>
@@ -433,7 +499,7 @@ function PricingContent() {
                       <div className="text-xs text-muted-foreground">{c.network} Network</div>
                     </div>
                     <span className="text-sm text-muted-foreground">
-                      {cryptoPlan === 'pro' ? '$19.99' : '$39.99'}
+                      {getPlanPrice(cryptoPlan!)}
                     </span>
                   </button>
                 ))}
@@ -461,7 +527,7 @@ function PricingContent() {
                 </DialogTitle>
                 <DialogDescription>
                   Send exactly <strong className="text-foreground">
-                    {cryptoPlan === 'pro' ? '$19.99' : '$39.99'} worth of {cryptoCurrency}
+                    {getPlanPrice(cryptoPlan!)} worth of {cryptoCurrency}
                   </strong> to the address below on the {cryptoNetwork} network.
                 </DialogDescription>
               </DialogHeader>
@@ -568,7 +634,7 @@ function PricingContent() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Amount</span>
-                    <span className="font-semibold">{cryptoPlan === 'pro' ? '$19.99' : '$39.99'}</span>
+                    <span className="font-semibold">{getPlanPrice(cryptoPlan!)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Currency</span>

@@ -10,8 +10,10 @@ export const PRIVACY_EMAIL = 'privacy@soulmateai.shop';
 
 /**
  * Membership quotas (competitor-aligned + cost-aware).
- * Free: trial taste · Pro: high daily chat cap · Unlimited: unlimited chat, capped GPU images/TTS.
+ * Free: trial taste · Basic: moderate · Pro: high daily chat cap · Unlimited: unlimited chat, capped GPU images/TTS.
  * Prices tax-exclusive; customer pays tax at checkout.
+ *
+ * Billing discounts: quarterly = 15% off, annual = 30% off.
  */
 export const MEMBERSHIP_TIERS = {
   free: {
@@ -24,6 +26,17 @@ export const MEMBERSHIP_TIERS = {
     memory_depth: 'shallow' as const,
     max_girlfriends: 3,
     outfit_access: 'basic' as const,
+  },
+  basic: {
+    name: 'Basic',
+    price_cents: 999,
+    messages_per_day: 150,
+    image_gen_per_day: 5,
+    tts_per_day: 15,
+    video_gen: false,
+    memory_depth: 'standard' as const,
+    max_girlfriends: 8,
+    outfit_access: 'standard' as const,
   },
   pro: {
     name: 'Pro',
@@ -38,7 +51,7 @@ export const MEMBERSHIP_TIERS = {
   },
   unlimited: {
     name: 'Unlimited',
-    price_cents: 3999,
+    price_cents: 2999,
     messages_per_day: -1,
     image_gen_per_day: 50,
     tts_per_day: 200,
@@ -48,6 +61,24 @@ export const MEMBERSHIP_TIERS = {
     outfit_access: 'all' as const,
   },
 } as const;
+
+/** Billing cycle discount rates */
+export const BILLING_DISCOUNTS = {
+  monthly: 1.0,
+  quarterly: 0.85, // 15% off
+  yearly: 0.70,    // 30% off
+} as const;
+
+export type BillingCycle = 'monthly' | 'quarterly' | 'yearly';
+
+/** Calculate price in cents for a given tier and billing cycle */
+export function getPriceCents(tier: keyof typeof MEMBERSHIP_TIERS, billing: BillingCycle): number {
+  const base = MEMBERSHIP_TIERS[tier]?.price_cents ?? 0;
+  if (base === 0) return 0;
+  const discount = BILLING_DISCOUNTS[billing];
+  const multiplier = billing === 'monthly' ? 1 : billing === 'quarterly' ? 3 : 12;
+  return Math.round(base * multiplier * discount);
+}
 
 
 /** Permanent companion seat packs (USD, tax-exclusive). Stack with tier base seats. */
@@ -60,6 +91,7 @@ export const COMPANION_SEAT_PACKAGES = [
 export function baseCompanionSeatLimit(tier: string): number {
   if (tier === 'unlimited' || tier === 'admin') return -1;
   if (tier === 'pro') return MEMBERSHIP_TIERS.pro.max_girlfriends;
+  if (tier === 'basic') return MEMBERSHIP_TIERS.basic.max_girlfriends;
   return MEMBERSHIP_TIERS.free.max_girlfriends;
 }
 
@@ -101,6 +133,7 @@ export const DEFAULT_PROACTIVE_TEMPLATES = [
 export const API_BASE = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
 
 export const STRIPE_PRICE_IDS = {
+  basic: process.env.NEXT_PUBLIC_STRIPE_BASIC_PRICE_ID || '',
   pro: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || '',
   unlimited: process.env.NEXT_PUBLIC_STRIPE_UNLIMITED_PRICE_ID || '',
 } as const;

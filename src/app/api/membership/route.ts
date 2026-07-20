@@ -62,6 +62,23 @@ export async function GET(req: NextRequest) {
         'Basic chat',
       ],
     },
+    basic: {
+      name: 'Basic',
+      price_cents: 999,
+      messages_per_day: 150,
+      image_gen_per_day: 5,
+      tts_per_day: 15,
+      max_intimacy_level: 5,
+      max_girlfriends: 8,
+      features: [
+        '150 messages/day',
+        '5 AI images/day',
+        '15 voice messages/day',
+        'Intimacy up to Level 5 (Lover)',
+        'Up to 8 companions',
+        'Standard memory depth',
+      ],
+    },
     pro: {
       name: 'Pro',
       price_cents: 1999,
@@ -82,7 +99,7 @@ export async function GET(req: NextRequest) {
     },
     unlimited: {
       name: 'Unlimited',
-      price_cents: 3999,
+      price_cents: 2999,
       messages_per_day: -1,
       image_gen_per_day: 50,
       tts_per_day: 200,
@@ -128,7 +145,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { plan } = body; // 'pro' | 'unlimited'
 
-  if (!plan || !['pro', 'unlimited'].includes(plan)) {
+  if (!plan || !['basic', 'pro', 'unlimited'].includes(plan)) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
   }
 

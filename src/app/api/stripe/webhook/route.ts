@@ -173,18 +173,23 @@ async function handleCheckoutCompleted(
 
   const plan = session.metadata?.plan || 'pro';
   const billing = session.metadata?.billing || 'monthly';
-  const tierMap: Record<string, 'pro' | 'unlimited'> = {
+  const tierMap: Record<string, 'basic' | 'pro' | 'unlimited'> = {
+    basic: 'basic',
+    basic_quarterly: 'basic',
+    basic_yearly: 'basic',
     pro: 'pro',
+    pro_quarterly: 'pro',
     pro_yearly: 'pro',
     premium: 'pro',
     unlimited: 'unlimited',
+    unlimited_quarterly: 'unlimited',
     unlimited_yearly: 'unlimited',
   };
   const tier = tierMap[plan];
   if (!tier) throw new Error(`unsupported subscription plan: ${plan}`);
   const subscriptionId = stripeId(session.subscription);
   if (!subscriptionId) throw new Error('subscription checkout is missing subscription id');
-  const periodDays = billing === 'yearly' || plan.endsWith('_yearly') ? 365 : 30;
+  const periodDays = billing === 'yearly' || plan.endsWith('_yearly') ? 365 : billing === 'quarterly' || plan.endsWith('_quarterly') ? 90 : 30;
   const stripeSubscription = await getStripe().subscriptions.retrieve(subscriptionId);
   const subscriptionPrice = stripeSubscription.items.data[0]?.price;
   const recurring = subscriptionPrice?.recurring;
@@ -281,17 +286,22 @@ async function handlePaymentFailed(admin: SupabaseClient, event: Stripe.Event): 
   });
 }
 
-function tierFromSubscription(subscription: Stripe.Subscription): 'pro' | 'unlimited' {
+function tierFromSubscription(subscription: Stripe.Subscription): 'basic' | 'pro' | 'unlimited' {
   const price = subscription.items.data[0]?.price;
   const configuredUnlimited = new Set([
     process.env.STRIPE_UNLIMITED_PRICE_ID,
     process.env.STRIPE_UNLIMITED_YEARLY_PRICE_ID,
     process.env.NEXT_PUBLIC_STRIPE_UNLIMITED_PRICE_ID,
   ].filter((value): value is string => Boolean(value)));
+  const configuredBasic = new Set([
+    process.env.STRIPE_BASIC_PRICE_ID,
+    process.env.STRIPE_BASIC_YEARLY_PRICE_ID,
+    process.env.NEXT_PUBLIC_STRIPE_BASIC_PRICE_ID,
+  ].filter((value): value is string => Boolean(value)));
   const planHint = `${subscription.metadata?.plan || ''} ${price?.lookup_key || ''}`.toLowerCase();
-  return configuredUnlimited.has(price?.id || '') || planHint.includes('unlimited')
-    ? 'unlimited'
-    : 'pro';
+  if (configuredUnlimited.has(price?.id || '') || planHint.includes('unlimited')) return 'unlimited';
+  if (configuredBasic.has(price?.id || '') || planHint.includes('basic')) return 'basic';
+  return 'pro';
 }
 
 async function handleSubscriptionUpdated(

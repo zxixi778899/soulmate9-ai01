@@ -21,12 +21,12 @@ export function getStripeCheckoutGate(env: PaymentEnvironment = process.env): St
     return { allowed: false, code: 'invalid_content_mode' };
   }
 
-  if (provider && provider !== 'stripe') {
+  if (provider && !['stripe', 'nowpayments', 'nexapay', 'multi'].includes(provider)) {
     return { allowed: false, code: 'provider_disabled' };
   }
 
   if (isProduction) {
-    if (provider !== 'stripe') return { allowed: false, code: 'provider_disabled' };
+    if (!['stripe', 'nowpayments', 'nexapay', 'multi'].includes(provider)) return { allowed: false, code: 'provider_disabled' };
     if (!(env.PAYMENT_PROVIDER_APPROVAL_REF || '').trim()) {
       return { allowed: false, code: 'missing_approval' };
     }

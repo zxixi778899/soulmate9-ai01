@@ -24,7 +24,7 @@ export default function TermsOfServicePage() {
             you agree to be bound by these terms.
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Last updated: July 14, 2026
+            Last updated: July 20, 2026
           </p>
         </div>
 
@@ -73,19 +73,29 @@ export default function TermsOfServicePage() {
           <div className="border-t border-border/20 mb-4" />
           <p className="text-muted-foreground leading-relaxed">
             SoulMate AI offers several subscription tiers: <strong>Free</strong>,{' '}
-            <strong>Pro</strong>, and <strong>Unlimited</strong>. The Free tier provides limited
-            access to features. Pro and Unlimited tiers require a recurring subscription fee.
+            <strong>Basic</strong> ($9.99/mo), <strong>Pro</strong> ($19.99/mo), and{' '}
+            <strong>Unlimited</strong> ($29.99/mo). The Free tier provides limited
+            access to features. Paid tiers require a recurring subscription fee.
           </p>
           <p className="text-muted-foreground leading-relaxed mt-3">
-            All payments are billed in advance on a monthly or annual basis, as selected during
-            checkout. Subscriptions automatically renew unless cancelled at least 24 hours before
-            the end of the current billing period. You may cancel at any time through your
-            account settings, and cancellation will take effect at the end of the current billing
+            All payments are billed in advance on a monthly, quarterly (15% discount),
+            or annual basis (30% discount), as selected during checkout. Subscriptions
+            automatically renew unless cancelled at least 24 hours before the end of the
+            current billing period. You may cancel at any time through your account
+            settings, and cancellation will take effect at the end of the current billing
             period. We do not provide refunds for partial billing periods.
           </p>
           <p className="text-muted-foreground leading-relaxed mt-3">
-            Prices are subject to change with 30 days&rsquo; notice. Continued use after a price
-            change constitutes acceptance of the new price.
+            We accept payments via credit/debit card (processed by Stripe), cryptocurrency
+            (processed by NOWPayments), and select local payment methods in Latin America
+            (processed by NexaPay). Prices are subject to change with 30 days&rsquo; notice.
+            Continued use after a price change constitutes acceptance of the new price.
+          </p>
+          <p className="text-muted-foreground leading-relaxed mt-3">
+            All prices are listed in US Dollars (USD) and are exclusive of applicable taxes.
+            Tax is calculated at checkout based on your billing address and added to the
+            final price. For cryptocurrency payments, the amount is converted at the
+            prevailing exchange rate at the time of payment.
           </p>
         </section>
 

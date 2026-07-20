@@ -13,7 +13,7 @@ const plans = [
     period: 'forever',
     description: 'Get a taste of companionship',
     features: [
-      '1 companion',
+      '3 companions',
       '40 messages / day',
       '3 AI images / day',
       '3 voice / day',
@@ -27,12 +27,31 @@ const plans = [
     icon: Zap,
   },
   {
+    name: 'Basic',
+    price: '$9.99',
+    period: '/ month',
+    description: 'A meaningful connection',
+    features: [
+      '8 companions',
+      '150 messages / day',
+      '5 AI images / day',
+      '15 voice / day',
+      'Intimacy up to Level 5',
+      'Standard memory depth',
+      'Standard outfits',
+    ],
+    cta: 'Go Basic',
+    color: '#38bdf8',
+    highlighted: false,
+    icon: Zap,
+  },
+  {
     name: 'Pro',
     price: '$19.99',
     period: '/ month',
     description: 'The full experience',
     features: [
-      '5 companions',
+      '15 companions',
       '300 messages / day',
       'Full intimacy levels',
       'Advanced AI personality',
@@ -49,7 +68,7 @@ const plans = [
   },
   {
     name: 'Unlimited',
-    price: '$39.99',
+    price: '$29.99',
     period: '/ month',
     description: 'No limits, no boundaries',
     features: [
@@ -59,6 +78,7 @@ const plans = [
       'Exclusive personality models',
       '4K portrait generation',
       'Voice messages',
+      'Video generation',
       'VIP support',
     ],
     cta: 'Go Unlimited',
@@ -94,7 +114,7 @@ export function PricingPreview() {
         </motion.div>
 
         {/* Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
           {plans.map((plan, i) => (
             <motion.div
               key={plan.name}

@@ -132,6 +132,19 @@ export async function getCryptoAmountLive(usdCents: number, currencyId: string):
  * Plan pricing in cents
  */
 export const PLAN_PRICES: Record<string, number> = {
-  pro: 1999,       // $19.99
-  unlimited: 3999, // $39.99
+  basic: 999,     // $9.99
+  pro: 1999,      // $19.99
+  unlimited: 2999, // $29.99
 };
+
+export const BILLING_MULTIPLIER: Record<string, { multiplier: number; discount: number }> = {
+  monthly: { multiplier: 1, discount: 1.0 },
+  quarterly: { multiplier: 3, discount: 0.85 },
+  yearly: { multiplier: 12, discount: 0.70 },
+};
+
+export function getPlanPriceCents(plan: string, billing: string): number {
+  const base = PLAN_PRICES[plan] ?? 0;
+  const cycle = BILLING_MULTIPLIER[billing] ?? BILLING_MULTIPLIER.monthly;
+  return Math.round(base * cycle.multiplier * cycle.discount);
+}
