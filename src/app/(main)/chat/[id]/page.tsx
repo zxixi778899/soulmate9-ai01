@@ -22,6 +22,9 @@ import {
   X,
   Crown,
   Camera,
+  Download,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
@@ -98,6 +101,11 @@ export default function ChatPage() {
   const [showMemories, setShowMemories] = useState(false);
   const [showAlbum, setShowAlbum] = useState(false);
   const [showLightbox, setShowLightbox] = useState<string | null>(null);
+  // Image-gen UX: cancel flag, session counter, resume-once guard, last request (for retry)
+  const cancelGenRef = useRef(false);
+  const genSessionRef = useRef(0);
+  const resumedGenRef = useRef(false);
+  const lastSelfieReqRef = useRef<string>('send me a sexy selfie');
   const [albumMedia, setAlbumMedia] = useState<Array<{ id: string; url: string; media_type: string; created_at?: string }>>([]);
   const [albumLoading, setAlbumLoading] = useState(false);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
@@ -446,6 +454,80 @@ export default function ChatPage() {
       .finally(() => setAlbumLoading(false));
   }, [showAlbum, id]);
 
+  // Resume an in-flight generation job after page refresh / re-enter
+  useEffect(() => {
+    if (invalidChatId || !id || isLoading || resumedGenRef.current) return;
+    let raw: string | null = null;
+    try { raw = localStorage.getItem(`soulmate_gen_job_${id}`); } catch { return; }
+    if (!raw) return;
+    let job: { job_id?: string; startedAt?: number; req?: string } = {};
+    try { job = JSON.parse(raw); } catch { job = {}; }
+    const age = Date.now() - (job.startedAt || 0);
+    if (!job.job_id || age > 4 * 60 * 1000) {
+      clearGenJob(id);
+      return;
+    }
+    resumedGenRef.current = true;
+    const zh = String(locale || '').toLowerCase().startsWith('zh');
+    const waitId = `selfie-wait-${job.startedAt}`;
+    cancelGenRef.current = false;
+    const session = ++genSessionRef.current;
+    setIsGenerating(true);
+    setAutoScroll(true);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: waitId,
+        role: 'assistant',
+        content: zh
+          ? '刚刚的照片还在生成中，我帮你接着等… 💕'
+          : 'Your photo is still developing — picking up where we left off… 💕',
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    let stopped = false;
+    (async () => {
+      const remaining = Math.max(5, Math.floor((4 * 60 * 1000 - age) / 3000));
+      for (let p = 0; p < remaining; p++) {
+        if (stopped || cancelGenRef.current || genSessionRef.current !== session) break;
+        await new Promise((r) => setTimeout(r, 3000));
+        if (stopped || cancelGenRef.current || genSessionRef.current !== session) break;
+        try {
+          const res = await authedFetch(
+            `/api/runpod/status?job_id=${encodeURIComponent(job.job_id!)}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`,
+          );
+          const data = await readResponseJson<{ status?: string; images?: string[] }>(res);
+          if (data.status === 'COMPLETED' && data.images?.length) {
+            const doneUrl = data.images[0];
+            setMessages((prev) => [
+              ...prev.filter((m) => m.id !== waitId),
+              {
+                id: `selfie-${Date.now()}`,
+                role: 'assistant',
+                content: zh ? '拍好啦～这是专门为你拍的新照片 💕' : "Here's a brand-new photo just for you 💕",
+                created_at: new Date().toISOString(),
+                media_url: doneUrl,
+                media_type: 'image',
+              },
+            ]);
+            break;
+          }
+          if (data.status === 'FAILED') break;
+        } catch {
+          /* transient — keep polling */
+        }
+      }
+      if (stopped) return; // unmounted — keep job so next visit can resume
+      setMessages((prev) => prev.filter((m) => m.id !== waitId));
+      if (genSessionRef.current === session) {
+        clearGenJob(id);
+        setIsGenerating(false);
+      }
+    })();
+    return () => { stopped = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isLoading]);
+
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -553,14 +635,48 @@ export default function ChatPage() {
     }
   };
 
+  /* ---------- generation job persistence (resume after refresh) ---------- */
+  const saveGenJob = (gid: string, job: { job_id: string; startedAt: number; req: string }) => {
+    try { localStorage.setItem(`soulmate_gen_job_${gid}`, JSON.stringify(job)); } catch { /* ignore */ }
+  };
+  const clearGenJob = (gid: string) => {
+    try { localStorage.removeItem(`soulmate_gen_job_${gid}`); } catch { /* ignore */ }
+  };
+
+  /** User pressed X on the generating card — stop polling & clean up */
+  const handleCancelGeneration = () => {
+    if (cancelGenRef.current) return;
+    cancelGenRef.current = true;
+    setIsTyping(false);
+    setMessages((prev) =>
+      prev.filter(
+        (m) =>
+          !String(m.id).startsWith('selfie-wait-') &&
+          !String(m.id).startsWith('video-wait-'),
+      ),
+    );
+    clearGenJob(id);
+    const zh = String(locale || '').toLowerCase().startsWith('zh');
+    toast.message(zh ? '已取消，照片不拍了～' : 'Cancelled — no photo this time');
+  };
+
   /** Generate a photo of the girlfriend from optional user request (auto or button). */
   const generateSelfie = async (
     userRequest?: string,
     extraContext?: Array<{ role: string; content: string }>,
   ) => {
-    if (isGenerating) return;
+    if (isGenerating) {
+      const busyZh =
+        /[\u4e00-\u9fff]/.test(userRequest || '') ||
+        String(locale || '').toLowerCase().startsWith('zh');
+      toast.message(busyZh ? '她已经在拍照了，稍等一下…' : 'She is already taking a photo, hold on…');
+      return;
+    }
+    cancelGenRef.current = false;
+    const session = ++genSessionRef.current;
     setIsGenerating(true);
     const req = (userRequest || 'send me a sexy selfie').trim();
+    lastSelfieReqRef.current = req;
 
     // Girlfriend "I'm taking a photo" wait message — match user language
     const waitZh =
@@ -640,9 +756,12 @@ export default function ChatPage() {
         let jobId = data.job_id;
         let retried = false;
         let falAttempted = false;
-        const pollStatus = async (jid: string): Promise<{ url?: string; failed?: boolean; error?: string }> => {
+        saveGenJob(id, { job_id: jobId, startedAt: Date.now(), req });
+        const pollStatus = async (jid: string): Promise<{ url?: string; failed?: boolean; error?: string; cancelled?: boolean }> => {
           for (let p = 0; p < 80; p++) {
+            if (cancelGenRef.current || genSessionRef.current !== session) return { cancelled: true };
             await new Promise((r) => setTimeout(r, 3000));
+            if (cancelGenRef.current || genSessionRef.current !== session) return { cancelled: true };
             try {
               const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jid)}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`);
               const pollData = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(pollRes);
@@ -698,8 +817,16 @@ export default function ChatPage() {
 
         let result = await pollStatus(jobId);
 
+        // User cancelled mid-generation — cleanup already done in handleCancelGeneration
+        if (result.cancelled) {
+          clearGenJob(id);
+          setIsTyping(false);
+          if (genSessionRef.current === session) setIsGenerating(false);
+          return;
+        }
+
         // Auto-retry once on failure
-        if (result.failed && !retried) {
+        if (result.failed && !retried && !cancelGenRef.current && genSessionRef.current === session) {
           retried = true;
           setMessages((prev) => prev.map((m) => m.id === waitId ? {
             ...m,
@@ -725,7 +852,14 @@ export default function ChatPage() {
               result = { url: retryData.image_url || retryData.imageUrl };
             } else if (retryData.pending && retryData.job_id) {
               jobId = retryData.job_id;
+              saveGenJob(id, { job_id: jobId, startedAt: Date.now(), req });
               result = await pollStatus(jobId);
+              if (result.cancelled) {
+                clearGenJob(id);
+                setIsTyping(false);
+                if (genSessionRef.current === session) setIsGenerating(false);
+                return;
+              }
             }
           } catch {
             // Retry submit failed — fall through to error
@@ -734,6 +868,7 @@ export default function ChatPage() {
 
         if (result.url) {
           imageUrl = result.url;
+          clearGenJob(id);
           caption = waitZh ? '拍好啦～这是专门为你拍的新照片 💕' : "Here's a brand-new photo just for you 💕";
         } else {
           throw new Error(waitZh ? 'GPU 排队超时，请稍后再试' : 'GPU queue timeout, please try again');
@@ -775,6 +910,7 @@ export default function ChatPage() {
       }
     } catch (err) {
       setIsTyping(false);
+      clearGenJob(id);
       logger.error('Generate selfie error:', { data: err });
       setMessages((prev) => prev.filter((message) => message.id !== waitId));
       const failText = err instanceof Error ? err.message : t('chat.imageFailed');
@@ -796,7 +932,15 @@ export default function ChatPage() {
 
   /** Generate a short video: first create an image, then animate it via RunPod SVD */
   const generateVideo = async (userRequest?: string) => {
-    if (isGenerating) return;
+    if (isGenerating) {
+      const busyZh =
+        /[\u4e00-\u9fff]/.test(userRequest || '') ||
+        String(locale || '').toLowerCase().startsWith('zh');
+      toast.message(busyZh ? '她正在生成中，稍等一下…' : 'She is already generating something, hold on…');
+      return;
+    }
+    cancelGenRef.current = false;
+    const session = ++genSessionRef.current;
     setIsGenerating(true);
     const waitZh = /[\u4e00-\u9fff]/.test(userRequest || '') || String(locale || '').toLowerCase().startsWith('zh');
     const waitText = waitZh
@@ -819,7 +963,17 @@ export default function ChatPage() {
       // Handle pending image
       if (!imageUrl && imgData.pending && imgData.job_id) {
         for (let p = 0; p < 60; p++) {
+          if (cancelGenRef.current || genSessionRef.current !== session) {
+            if (genSessionRef.current === session) setIsGenerating(false);
+            return;
+          }
           await new Promise((r) => setTimeout(r, 3000));
+          if (p === 5) {
+            setMessages((prev) => prev.map((m) => m.id === waitId ? {
+              ...m,
+              content: waitZh ? '照片还在排队中，GPU 正在热身… 💕' : 'Photo still in queue, GPU is warming up… 💕',
+            } : m));
+          }
           const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(imgData.job_id)}`);
           const pollData = await readResponseJson<{ status?: string; images?: string[] }>(pollRes);
           if (pollData.status === 'COMPLETED' && pollData.images?.length) { imageUrl = pollData.images[0]; break; }
@@ -841,7 +995,23 @@ export default function ChatPage() {
       // Handle pending video
       if (!videoUrl && vidData.pending && vidData.job_id) {
         for (let p = 0; p < 60; p++) {
+          if (cancelGenRef.current || genSessionRef.current !== session) {
+            if (genSessionRef.current === session) setIsGenerating(false);
+            return;
+          }
           await new Promise((r) => setTimeout(r, 3000));
+          if (p === 3) {
+            setMessages((prev) => prev.map((m) => m.id === waitId ? {
+              ...m,
+              content: waitZh ? '照片拍好了，正在让它动起来… 🎬' : 'Photo ready, now animating it… 🎬',
+            } : m));
+          }
+          if (p === 15) {
+            setMessages((prev) => prev.map((m) => m.id === waitId ? {
+              ...m,
+              content: waitZh ? '视频渲染中，马上就好… 💕' : 'Rendering video, almost there… 💕',
+            } : m));
+          }
           const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(vidData.job_id)}`);
           const pollData = await readResponseJson<{ status?: string; images?: string[] }>(pollRes);
           if (pollData.status === 'COMPLETED' && pollData.images?.length) { videoUrl = pollData.images[0]; break; }
@@ -1185,6 +1355,17 @@ export default function ChatPage() {
     if (!opts?.silent) setIsSending(false);
   };
 
+  /** Retry chip on selfie failure bubble — re-run last photo request */
+  const handleRetrySelfie = () => {
+    void generateSelfie(lastSelfieReqRef.current);
+  };
+
+  /** Retry a failed user message — drop the failed bubble and resend */
+  const handleRetryMessage = (msg: Message) => {
+    setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+    void sendMessage(msg.content);
+  };
+
   const clearGiftBurst = useCallback(() => {
     setGiftBurst(null);
   }, []);
@@ -1298,6 +1479,49 @@ export default function ChatPage() {
     return out;
   }, [messages, locale]);
 
+  // Lightbox: ordered list of chat images for prev/next navigation
+  const lightboxImages = useMemo(
+    () =>
+      (Array.isArray(messages) ? messages : [])
+        .filter(
+          (m) =>
+            m.media_url &&
+            String(m.media_url).startsWith('http') &&
+            m.media_type !== 'video' &&
+            m.media_type !== 'audio',
+        )
+        .map((m) => String(m.media_url)),
+    [messages],
+  );
+
+  const navLightbox = (dir: 1 | -1) => {
+    if (!showLightbox || lightboxImages.length < 2) return;
+    const idx = lightboxImages.indexOf(showLightbox);
+    const next = (idx + dir + lightboxImages.length) % lightboxImages.length;
+    setShowLightbox(lightboxImages[next]);
+  };
+
+  const downloadLightboxImage = async () => {
+    if (!showLightbox) return;
+    const zh = String(locale || '').toLowerCase().startsWith('zh');
+    try {
+      const res = await fetch(showLightbox);
+      const blob = await res.blob();
+      const ext = (blob.type || '').includes('png') ? 'png' : 'jpg';
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = `ozmate-photo-${Date.now()}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+      toast.success(zh ? '照片已保存' : 'Photo saved');
+    } catch {
+      window.open(showLightbox, '_blank');
+    }
+  };
+
   if (invalidChatId) {
     return (
       <div className="flex min-h-[50dvh] items-center justify-center bg-[#0b0b12] px-6">
@@ -1399,6 +1623,9 @@ export default function ChatPage() {
         levelColor={levelInfo.color}
         onOpenImage={setShowLightbox}
         bottomRef={bottomRef}
+        onCancelGeneration={handleCancelGeneration}
+        onRetrySelfie={handleRetrySelfie}
+        onRetryMessage={handleRetryMessage}
       />
 
       {showScrollDown && (
@@ -1625,23 +1852,49 @@ export default function ChatPage() {
 
       <GiftEffectOverlay burst={giftBurst} onDone={clearGiftBurst} />
 
-      {/* Image Lightbox — no nested <button> (invalid HTML → React hydration issues) */}
+      {/* Image Lightbox — download + prev/next navigation */}
       {showLightbox && (
         <div
           role="dialog"
           aria-modal="true"
           className="fixed inset-0 z-[100] bg-black/92 flex items-center justify-center p-4"
           onClick={() => setShowLightbox(null)}
-          onKeyDown={(e) => e.key === 'Escape' && setShowLightbox(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowLightbox(null);
+            if (e.key === 'ArrowRight') navLightbox(1);
+            if (e.key === 'ArrowLeft') navLightbox(-1);
+          }}
         >
           <button
             type="button"
-            className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-white z-10"
+            className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10 transition-colors"
             aria-label="Close"
             onClick={() => setShowLightbox(null)}
           >
             <X className="h-5 w-5" />
           </button>
+
+          {lightboxImages.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10 transition-colors"
+                aria-label="Previous"
+                onClick={(e) => { e.stopPropagation(); navLightbox(-1); }}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10 transition-colors"
+                aria-label="Next"
+                onClick={(e) => { e.stopPropagation(); navLightbox(1); }}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </>
+          )}
+
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={showLightbox}
@@ -1649,6 +1902,26 @@ export default function ChatPage() {
             className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
+
+          {/* Bottom action bar: counter + download */}
+          <div
+            className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-full bg-white/10 backdrop-blur-md px-4 py-2 z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {lightboxImages.length > 1 && (
+              <span className="text-[11px] font-mono tabular-nums text-white/70">
+                {Math.max(1, lightboxImages.indexOf(showLightbox) + 1)}/{lightboxImages.length}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => void downloadLightboxImage()}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-[0_2px_10px_rgba(255,45,120,0.35)] hover:opacity-90 active:scale-95 transition-all"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {t('chat.download')}
+            </button>
+          </div>
         </div>
       )}
     </div>

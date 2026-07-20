@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -16,8 +15,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, ExternalLink, Wallet, Bitcoin, Coins, AlertCircle, Zap, Globe } from 'lucide-react';
+import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, Wallet, AlertCircle, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import { useMembership } from '@/hooks/useMembership';
+import { useAuth } from '@/components/AuthProvider';
 
 type BillingCycle = 'monthly' | 'quarterly' | 'yearly';
 
@@ -115,13 +116,6 @@ const PLANS = [
   },
 ];
 
-const SOCIAL_PROOF = [
-  { label: 'Active members', value: '12,400+' },
-  { label: 'Avg. rating', value: '4.8★' },
-  { label: 'Messages today', value: '180k+' },
-  { label: 'Cancel anytime', value: '100%' },
-];
-
 const CRYPTO_CURRENCIES = [
   { id: 'USDT', name: 'USDT', network: 'TRC-20', icon: '', placeholder: 'TRC-20 tx hash...' },
   { id: 'BTC', name: 'Bitcoin', network: 'Bitcoin', icon: '', placeholder: 'BTC tx hash...' },
@@ -139,7 +133,6 @@ function PricingContent() {
   const canceled = searchParams.get('canceled') === 'true';
   const [loading, setLoading] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingCycle>('quarterly');
-  const [liveCount, setLiveCount] = useState(12847);
 
   // Crypto payment state
   const [cryptoPlan, setCryptoPlan] = useState<string | null>(null);
@@ -157,15 +150,17 @@ function PricingContent() {
     }
   }, [canceled]);
 
-  useEffect(() => {
-    const t = setInterval(() => {
-      setLiveCount((n) => n + Math.floor(Math.random() * 3));
-    }, 8000);
-    return () => clearInterval(t);
-  }, []);
+  const { tier } = useMembership();
+  const { user } = useAuth();
+  const TIER_ORDER: Record<string, number> = { free: 0, basic: 1, pro: 2, unlimited: 3, admin: 4 };
+  const currentRank = TIER_ORDER[tier] ?? 0;
 
   const handleUpgrade = async (planId: string) => {
     if (planId === 'free') return;
+    if (!user) {
+      router.push('/register?next=/pricing');
+      return;
+    }
     setLoading(planId);
 
     try {
@@ -274,7 +269,7 @@ function PricingContent() {
             <h1 className="text-3xl font-bold">Unlock Full Experience</h1>
           </div>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Join {liveCount.toLocaleString()}+ members. Upgrade anytime — cancel anytime.
+            Upgrade anytime — cancel anytime. Secure checkout via Stripe or crypto.
           </p>
 
           {/* Billing toggle */}
@@ -308,21 +303,6 @@ function PricingContent() {
           </div>
         </div>
 
-        {/* Social proof strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-          {SOCIAL_PROOF.map((s) => (
-            <div
-              key={s.label}
-              className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-center"
-            >
-              <div className="text-lg font-bold text-white">
-                {s.label === 'Active members' ? `${liveCount.toLocaleString()}+` : s.value}
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">{s.label}</div>
-            </div>
-          ))}
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
           {PLANS.map((plan) => (
             <Card
@@ -333,13 +313,19 @@ function PricingContent() {
                   : plan.border
               } bg-card/50 backdrop-blur-xl transition-all hover:border-opacity-60`}
             >
-              {plan.popular && (
+              {plan.id === tier ? (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-0 px-4 py-0.5 text-[10px] font-semibold">
+                    <Check className="h-3 w-3 mr-1" /> Current Plan
+                  </Badge>
+                </div>
+              ) : plan.popular ? (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <Badge className="bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white border-0 px-4 py-0.5 text-[10px] font-semibold">
                     <Sparkles className="h-3 w-3 mr-1" /> Most Popular
                   </Badge>
                 </div>
-              )}
+              ) : null}
 
               <CardHeader className="pb-4">
                 <CardTitle className={`text-lg font-semibold ${plan.color}`}>
@@ -399,11 +385,19 @@ function PricingContent() {
                       ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-90'
                       : ''
                   }`}
-                  variant={plan.id === 'free' ? 'outline' : 'default'}
-                  disabled={loading === plan.id}
+                  variant={plan.id === 'free' || plan.id === tier || (TIER_ORDER[plan.id] ?? 0) <= currentRank ? 'outline' : 'default'}
+                  disabled={loading === plan.id || plan.id === tier || plan.id === 'free' || (TIER_ORDER[plan.id] ?? 0) <= currentRank}
                 >
                   {loading === plan.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {plan.id === 'free' ? 'Current Plan' : ' Pay with Card'}
+                  {plan.id === tier
+                    ? 'Current Plan'
+                    : plan.id === 'free'
+                    ? 'Free Forever'
+                    : (TIER_ORDER[plan.id] ?? 0) <= currentRank
+                    ? 'Included in Your Plan'
+                    : !user
+                    ? 'Sign Up to Subscribe'
+                    : ' Pay with Card'}
                 </Button>
                 {plan.id !== 'free' && (
                   <Button
@@ -422,19 +416,6 @@ function PricingContent() {
                     Pay with Crypto
                   </Button>
                 )}
-                {plan.id !== 'free' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-9 text-xs gap-1.5"
-                    onClick={() => {
-                      toast.info('NexaPay (LATAM) coming soon!');
-                    }}
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                    Pay with LATAM
-                  </Button>
-                )}
               </CardFooter>
             </Card>
           ))}
@@ -443,14 +424,13 @@ function PricingContent() {
         <div className="mt-12 text-center space-y-4">
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">💳 Card · Stripe</span>
-            <span className="flex items-center gap-1">₿ NOWPayments</span>
-            <span className="flex items-center gap-1">🌎 NexaPay (LATAM)</span>
-            <span className="flex items-center gap-1">↩ 7-day support guarantee</span>
+            <span className="flex items-center gap-1">₿ Crypto · NOWPayments</span>
+            <span className="flex items-center gap-1">🔒 Secure checkout</span>
             <span className="flex items-center gap-1">✕ Cancel anytime</span>
           </div>
           <p className="text-[11px] text-muted-foreground/50 max-w-lg mx-auto">
-            &ldquo;Finally an AI companion that remembers me.&rdquo; — verified member reviews.
-            Subscriptions auto-renew; manage or cancel anytime in Profile. Prices exclude applicable taxes; tax is calculated at checkout and paid by the customer.
+            Subscriptions auto-renew until canceled; manage or cancel anytime in Profile. Refunds are handled per our{' '}
+            <a href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms of Service</a>. Prices exclude applicable taxes; tax is calculated at checkout.
           </p>
         </div>
       </div>

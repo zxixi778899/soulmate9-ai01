@@ -6,6 +6,7 @@ import { I18nProvider } from '@/lib/i18n/context';
 import BottomNav from '@/components/BottomNav';
 import GlobalTopNav from '@/components/GlobalTopNav';
 import SupportAgent from '@/components/SupportAgent';
+import { AgeVerification } from '@/components/AgeVerification';
 import { PostHogProvider } from '@/components/PostHogProvider';
 import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
 import { Toaster } from '@/components/ui/sonner';
@@ -111,6 +112,7 @@ export default function RootLayout({
         <PostHogProvider>
           <AuthProvider>
             <I18nProvider>
+              <AgeVerification />
               <GlobalTopNav />
               <ErrorBoundary>
                 {children}

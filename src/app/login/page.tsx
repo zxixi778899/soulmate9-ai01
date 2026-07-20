@@ -33,7 +33,8 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      window.location.href = "/explore";
+      const next = new URLSearchParams(window.location.search).get("next");
+      window.location.href = next && next.startsWith("/") && !next.startsWith("//") ? next : "/explore";
     } catch {
       setError(t('common.error'));
       setLoading(false);

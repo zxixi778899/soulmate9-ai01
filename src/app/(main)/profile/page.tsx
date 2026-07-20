@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Heart, Crown, MessageCircle, LogOut, Star, ShoppingBag, Shirt,
   Settings, Package, CreditCard, Sparkles, Loader2, Check, Trophy,
-  Bell, ExternalLink, Users, Activity, Gift,
+  Bell, ExternalLink, Users, Activity, Gift, AlertTriangle, Trash2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
@@ -99,6 +99,8 @@ export default function ProfilePage() {
   const [girlfriends, setGirlfriends] = useState<GirlfriendOption[]>([]);
   const [giftingItem, setGiftingItem] = useState<string | null>(null);
   const [giftTarget, setGiftTarget] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     const [memData, wardrobeData, notifData, backpackData, girlfriendsData] = await Promise.all([
@@ -155,6 +157,29 @@ export default function ProfilePage() {
       toast.error('网络错误');
     }
     setSaving(false);
+  };
+
+  const handleDeleteAccount = async (): Promise<void> => {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    try {
+      const res = await authedFetch('/api/account/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'all' }),
+      });
+      if (res.ok) {
+        toast.success('Account deletion requested');
+        await signOut();
+        window.location.href = '/';
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error((d as { error?: string }).error || 'Deletion failed');
+      }
+    } catch {
+      toast.error('网络错误');
+    }
+    setDeleting(false);
   };
 
   const handleGift = async (productId: string): Promise<void> => {
@@ -444,6 +469,59 @@ export default function ProfilePage() {
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 保存
               </GamePrimaryButton>
+            </GamePanel>
+
+            <GameSectionTitle title="订阅" eyebrow="VIP" />
+            <GamePanel className="p-5 flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#ffd700]/20 to-[#ff2e88]/20 border border-[#ffd700]/30 flex items-center justify-center shrink-0">
+                <Crown className={cn('h-5 w-5', tier.color)} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={cn('font-bold text-sm flex items-center gap-1.5', tier.color)}>
+                  {tier.label}
+                  {membershipTier === 'free' && (
+                    <span className="text-[10px] text-white/40 font-normal">· {credits} 代币</span>
+                  )}
+                </div>
+                <div className="text-xs text-white/40 mt-0.5">
+                  {membershipTier === 'free'
+                    ? '升级解锁 NSFW、AI 生图与无限密语'
+                    : '随时管理或取消你的订阅'}
+                </div>
+              </div>
+              <GamePrimaryButton className="!h-10 !px-4 text-xs shrink-0" onClick={() => router.push('/pricing')}>
+                {membershipTier === 'free' ? '升级' : '管理'}
+              </GamePrimaryButton>
+            </GamePanel>
+
+            <GameSectionTitle title="危险区域" eyebrow="DANGER" />
+            <GamePanel className="p-5 border-red-500/20 space-y-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-red-300">注销账号</div>
+                  <div className="text-xs text-white/40 mt-0.5">
+                    永久删除你的账号、伴侣、聊天记录与消费数据，此操作不可撤销。
+                  </div>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.checked)}
+                  className="rounded border-red-500/40 bg-white/[0.06] accent-red-500"
+                />
+                <span className="text-xs text-white/50">我理解此操作永久且不可恢复</span>
+              </label>
+              <button
+                onClick={() => void handleDeleteAccount()}
+                disabled={!deleteConfirm || deleting}
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                永久注销我的账号
+              </button>
             </GamePanel>
 
             <GamePanel className="p-4">

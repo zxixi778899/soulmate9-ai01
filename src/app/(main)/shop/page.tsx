@@ -282,15 +282,14 @@ const handleBuy = async () => {
         {tab === 'tokens' && (
           <section>
             <GameSectionTitle title="充值点券" subtitle="Stripe 安全支付 · 即时到账" eyebrow="TOP UP" />
+            {tokenPackages.length === 0 ? (
+              <div className="text-center py-12 text-white/40">
+                <Coins className="mx-auto mb-3 h-10 w-10 text-white/20" />
+                <p>暂无代币套餐</p>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {(tokenPackages.length
-                ? tokenPackages
-                : [
-                    { id: 'tokens-100', name: '入门包', token_count: 100, bonus_tokens: 0, price_cents: 499 },
-                    { id: 'tokens-500', name: '热门包', token_count: 500, bonus_tokens: 50, price_cents: 1999 },
-                    { id: 'tokens-1000', name: '至尊包', token_count: 1000, bonus_tokens: 200, price_cents: 3499 },
-                  ]
-              ).map((pkg, i) => {
+              {tokenPackages.map((pkg, i) => {
                 const total = Number(pkg.token_count) + Number(pkg.bonus_tokens || 0);
                 return (
                   <GamePanel key={pkg.id} glow={i === 1} className="p-5">
@@ -316,6 +315,7 @@ const handleBuy = async () => {
                 );
               })}
             </div>
+            )}
           </section>
         )}
 
@@ -337,15 +337,14 @@ const handleBuy = async () => {
                 {seatStatus.remaining != null ? ` · ${seatStatus.remaining} free` : ''}
               </div>
             )}
+            {seatPackages.length === 0 ? (
+              <div className="text-center py-12 text-white/40">
+                <Users className="mx-auto mb-3 h-10 w-10 text-white/20" />
+                <p>No seat packages available yet</p>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {(seatPackages.length
-                ? seatPackages
-                : [
-                    { id: 'seats-1', name: '1 Companion Seat', seats: 1, price_cents: 490 },
-                    { id: 'seats-5', name: '5 Companion Seats', seats: 5, price_cents: 990 },
-                    { id: 'seats-20', name: '20 Companion Seats', seats: 20, price_cents: 1990 },
-                  ]
-              ).map((pkg, i) => (
+              {seatPackages.map((pkg, i) => (
                 <GamePanel key={pkg.id} glow={i === 1} className="p-5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-lg">{pkg.name}</span>
@@ -368,6 +367,7 @@ const handleBuy = async () => {
                 </GamePanel>
               ))}
             </div>
+            )}
           </section>
         )}
 

@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [agree, setAgree] = useState(false);
+  const [ageConfirm, setAgeConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +45,8 @@ export default function RegisterPage() {
           });
         }
       }
-      window.location.href = "/explore";
+      const next = new URLSearchParams(window.location.search).get("next");
+      window.location.href = next && next.startsWith("/") && !next.startsWith("//") ? next : "/explore";
     } catch {
       setError(t('common.error'));
       setLoading(false);
@@ -53,6 +55,9 @@ export default function RegisterPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 bg-[#07070F]">
+      <div className="fixed top-4 right-4 z-50 glass rounded-full px-1.5 py-1">
+        <LanguageSwitcher variant="compact" />
+      </div>
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="font-display text-3xl font-bold gradient-text mb-1">{t('auth.register')}</h1>
@@ -103,6 +108,15 @@ export default function RegisterPage() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
+              checked={ageConfirm}
+              onChange={(ev) => setAgeConfirm(ev.target.checked)}
+              className="rounded border-white/20 bg-white/[0.06] accent-[#FF2D78]"
+            />
+            <span className="text-xs text-white/40">{t('auth.ageConfirm')}</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
               checked={agree}
               onChange={(ev) => setAgree(ev.target.checked)}
               className="rounded border-white/20 bg-white/[0.06] accent-[#FF2D78]"
@@ -113,7 +127,7 @@ export default function RegisterPage() {
           </label>
           <button
             type="submit"
-            disabled={!agree || loading}
+            disabled={!agree || !ageConfirm || loading}
             className="w-full p-3 rounded-lg bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white font-heading font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-all flex items-center justify-center gap-2"
           >
             {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('common.loading')}...</> : t('auth.register')}

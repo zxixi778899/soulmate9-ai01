@@ -1,18 +1,145 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ChatMarkdown } from '@/components/chat/ChatMarkdown';
 import { formatBubbleTime } from '@/lib/chat-utils';
 import {
-  Loader2, Heart, Check, CheckCheck, Sparkles, Shirt, ChevronUp, RefreshCw,
+  Loader2, Heart, Check, CheckCheck, Sparkles, Shirt, ChevronUp, RefreshCw, Camera, Video, X,
 } from 'lucide-react';
-import type { ChatGirlfriend, StreamRow } from './types';
+import type { ChatGirlfriend, ChatMessage, StreamRow } from './types';
 import { useTranslation } from '@/lib/i18n/context';
 
 function safeInitial(name?: string | null) {
   const n = (name || '?').trim();
   return n.charAt(0).toUpperCase() || '?';
+}
+
+/* ------------------------------------------------------------------ */
+/* Generating card — rich "developing photo" placeholder (Candy-style) */
+/* ------------------------------------------------------------------ */
+
+function GeneratingCard({
+  msg,
+  onCancel,
+}: {
+  msg: ChatMessage;
+  onCancel?: () => void;
+}) {
+  const { t } = useTranslation();
+  const isVideo = msg.id.startsWith('video-wait-');
+
+  // Start timestamp is embedded in the message id: selfie-wait-172123… / video-wait-…
+  const startTs = useMemo(() => {
+    const m = /(?:selfie|video)-wait-(\d+)/.exec(msg.id);
+    return m ? Number(m[1]) : Date.now();
+  }, [msg.id]);
+
+  const [elapsed, setElapsed] = useState(() =>
+    Math.max(0, Math.floor((Date.now() - startTs) / 1000)),
+  );
+  useEffect(() => {
+    const iv = setInterval(
+      () => setElapsed(Math.max(0, Math.floor((Date.now() - startTs) / 1000))),
+      1000,
+    );
+    return () => clearInterval(iv);
+  }, [startTs]);
+
+  const mm = Math.floor(elapsed / 60);
+  const ss = String(elapsed % 60).padStart(2, '0');
+
+  return (
+    <div className="w-[240px] sm:w-[260px] mt-2 rounded-2xl overflow-hidden border border-white/[0.10] bg-white/[0.04] shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
+      {/* Developing area — shimmer sweep + pulsing icon */}
+      <div className="relative aspect-[3/4] bg-gradient-to-br from-[#1a1025] via-[#150c1e] to-[#0e0816] overflow-hidden">
+        {/* soft color blobs for depth */}
+        <div className="absolute -top-8 -left-8 h-32 w-32 rounded-full bg-[#FF2D78]/[0.13] blur-2xl animate-pulse" />
+        <div className="absolute -bottom-10 -right-6 h-36 w-36 rounded-full bg-[#C026D3]/[0.13] blur-2xl animate-pulse [animation-delay:700ms]" />
+        {/* shimmer sweep */}
+        <div className="absolute inset-0 game-shimmer" />
+        {/* center icon */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative">
+            <span className="absolute inset-0 rounded-full bg-[#FF2D78]/25 game-pulse-ring" />
+            <div className="relative h-14 w-14 rounded-full bg-gradient-to-br from-[#FF2D78]/30 to-[#C026D3]/25 ring-1 ring-[#FF2D78]/40 flex items-center justify-center">
+              {isVideo ? (
+                <Video className="h-6 w-6 text-[#FF6BA6] animate-pulse" />
+              ) : (
+                <Camera className="h-6 w-6 text-[#FF6BA6] animate-pulse" />
+              )}
+            </div>
+          </div>
+        </div>
+        {/* elapsed chip */}
+        <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/45 backdrop-blur-sm px-2 py-0.5">
+          <Loader2 className="h-3 w-3 animate-spin text-[#FF6BA6]" />
+          <span className="text-[10px] font-mono tabular-nums text-white/80">
+            {mm > 0 ? `${mm}:${ss}` : `${ss}s`}
+          </span>
+        </div>
+      </div>
+      {/* Status + cancel */}
+      <div className="px-3 py-2.5 flex items-start gap-2">
+        <p className="flex-1 text-[12px] leading-snug text-white/75">{msg.content}</p>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.10] active:scale-90 transition-all"
+            title={t('chat.genCancel')}
+            aria-label={t('chat.genCancel')}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------- */
+/* Chat image — skeleton shimmer until loaded, fade-in  */
+/* ---------------------------------------------------- */
+
+function ChatImage({ url, onOpen }: { url: string; onOpen: (url: string) => void }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-[12px] text-white/40">
+        <Camera className="h-4 w-4 shrink-0" />
+        Image unavailable
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(url)}
+      className="block mt-2 rounded-xl overflow-hidden border border-white/10 max-w-full active:scale-[0.98] transition-transform"
+    >
+      <div className="relative">
+        {!loaded && (
+          <div className="absolute inset-0 min-h-[160px] w-full bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-white/[0.06]">
+            <div className="absolute inset-0 game-shimmer" />
+          </div>
+        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt=""
+          className={`w-full h-auto max-h-[280px] object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+        />
+      </div>
+    </button>
+  );
 }
 
 function ChatStreamInner(props: {
@@ -27,11 +154,15 @@ function ChatStreamInner(props: {
   levelColor: string;
   onOpenImage: (url: string) => void;
   bottomRef: React.RefObject<HTMLDivElement | null>;
+  onCancelGeneration?: () => void;
+  onRetrySelfie?: () => void;
+  onRetryMessage?: (msg: ChatMessage) => void;
 }) {
   const { t } = useTranslation();
   const {
     scrollRef, onScroll, girlfriend, rows, isTyping,
     hasMore, loadingMore, onLoadHistory, levelColor, onOpenImage, bottomRef,
+    onCancelGeneration, onRetrySelfie, onRetryMessage,
   } = props;
 
   const portrait =
@@ -110,9 +241,38 @@ function ChatStreamInner(props: {
             const isUser = msg.role === 'user';
             const isAssistant = !isUser;
             const isOutfit = String(msg.id || '').startsWith('outfit-');
+            const isGenWait =
+              String(msg.id || '').startsWith('selfie-wait-') ||
+              String(msg.id || '').startsWith('video-wait-');
+            const isSelfieErr = String(msg.id || '').startsWith('selfie-err-');
             const isSending = msg.status === 'sending';
             const isFailed = msg.status === 'failed';
             const body = typeof msg.content === 'string' ? msg.content : msg.content != null ? String(msg.content) : '';
+
+            /* --- Generating card row (replaces plain wait bubble) --- */
+            if (isGenWait) {
+              return (
+                <div
+                  key={row.key}
+                  className="group flex gap-2 items-end animate-in fade-in slide-in-from-bottom-2 duration-300 mt-2.5"
+                >
+                  <div className="w-8 shrink-0">
+                    {showAvatar ? (
+                      <Avatar className="h-8 w-8 ring-1 ring-white/10">
+                        {girlfriend?.avatar_url ? (
+                          <AvatarImage src={girlfriend.avatar_url} alt={displayName} className="object-cover" />
+                        ) : (
+                          <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">
+                            {safeInitial(displayName)}
+                          </AvatarFallback>
+                        )}
+                      </Avatar>
+                    ) : null}
+                  </div>
+                  <GeneratingCard msg={msg} onCancel={onCancelGeneration} />
+                </div>
+              );
+            }
 
             return (
               <div
@@ -178,21 +338,19 @@ function ChatStreamInner(props: {
                           preload="metadata"
                         />
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => onOpenImage(msg.media_url!)}
-                          className="block mt-2 rounded-xl overflow-hidden border border-white/10 max-w-full active:scale-[0.98] transition-transform"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={msg.media_url}
-                            alt=""
-                            className="w-full h-auto max-h-[280px] object-cover"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </button>
+                        <ChatImage url={msg.media_url} onOpen={onOpenImage} />
                       ))}
+                    {/* Actionable retry chip on selfie failure bubbles */}
+                    {isSelfieErr && onRetrySelfie && (
+                      <button
+                        type="button"
+                        onClick={onRetrySelfie}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#FF2D78]/20 to-[#C026D3]/20 ring-1 ring-[#FF2D78]/35 px-3 py-1.5 text-[12px] font-medium text-[#FF9EC4] hover:from-[#FF2D78]/30 hover:to-[#C026D3]/30 active:scale-95 transition-all"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        {t('chat.genRetry')}
+                      </button>
+                    )}
                   </div>
 
                   <div className={`flex items-center gap-1.5 mt-0.5 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -210,7 +368,8 @@ function ChatStreamInner(props: {
                         <button
                           type="button"
                           className="text-rose-400 hover:text-rose-300 active:scale-95 transition-all flex items-center gap-0.5"
-                          title="Retry"
+                          title={t('chat.genRetry')}
+                          onClick={() => onRetryMessage?.(msg)}
                         >
                           <RefreshCw className="h-3 w-3" />
                         </button>
