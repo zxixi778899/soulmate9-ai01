@@ -72,11 +72,13 @@ async function generateAndUpload(
   params: Record<string, unknown>,
 ): Promise<{
   name: string;
-  imageUrl: string;
+  imageUrl?: string;
   id?: string;
   lora: string | null;
   loraStrength: number;
   loraNote: string;
+  pending?: boolean;
+  job_id?: string;
 }> {
   const name = String(char.name || 'Character');
   const { positive, negative } = buildBatchPrompt(char);
@@ -172,7 +174,21 @@ async function generateAndUpload(
     lora_name: loraArray ? null : loraPlan.lora_name,
     lora_strength_model: loraPlan.lora_strength_model,
     lora_strength_clip: loraPlan.lora_strength_clip,
+    throw_on_pending: false,
   });
+
+  // If pending, return job_id for later polling
+  if (result.pending) {
+    return {
+      name,
+      pending: true,
+      job_id: result.job_id,
+      id: char.id ? String(char.id) : undefined,
+      lora: loraPlan.lora_name,
+      loraStrength: loraPlan.lora_strength_model,
+      loraNote: loraPlan.note,
+    };
+  }
 
   if (!result.images?.length) {
     throw new Error('RunPod 未返回图片');

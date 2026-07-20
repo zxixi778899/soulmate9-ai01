@@ -845,6 +845,7 @@ if (body.action === 'generate') {
         lora_strength_clip: loraStrength,
         loras: normalizedLoras,
         endpoint_id: endpointId,
+        throw_on_pending: false,
       };
       let result;
       try {
@@ -863,6 +864,17 @@ if (body.action === 'generate') {
           ...generationOptions,
           lora_name: null,
           loras: [],
+        });
+      }
+
+      // If still pending, return job_id for client-side polling
+      if (result.pending) {
+        return NextResponse.json({
+          success: true,
+          pending: true,
+          job_id: result.job_id,
+          status: result.status || 'IN_QUEUE',
+          message: 'Generation in queue. Poll /api/runpod/status?job_id=' + result.job_id,
         });
       }
 

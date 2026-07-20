@@ -176,7 +176,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     const { data: recentUsers, error: usersError } = await supabase
       .from('profiles')
-      .select('id, display_name, membership_tier, created_at')
+      .select('id, username, membership_tier, created_at')
       .order('created_at', { ascending: false })
       .limit(5);
 

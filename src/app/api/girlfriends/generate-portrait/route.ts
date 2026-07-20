@@ -125,7 +125,7 @@ function buildWorkflow(prompt: string): Record<string, unknown> {
   };
 }
 
-async function generateImage(prompt: string): Promise<string> {
+async function generateImage(prompt: string): Promise<{ image?: string; jobId?: string; pending?: boolean }> {
   if (!RUNPOD_API_KEY || !RUNPOD_ENDPOINT_ID) {
     throw new Error('RunPod is not configured');
   }
@@ -143,7 +143,9 @@ async function generateImage(prompt: string): Promise<string> {
   const jobId = submitData.id;
   if (!jobId) throw new Error('No RunPod job ID');
 
-  for (let i = 0; i < 200; i++) {
+  // Poll for up to 140s (35 polls * 4s) — stay under Vercel's 180s serverless timeout
+  const maxPolls = 35;
+  for (let i = 0; i < maxPolls; i++) {
     await new Promise((r) => setTimeout(r, 4000));
     const statusRes = await fetch(`${RUNPOD_BASE_URL}/status/${jobId}`, {
       headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
@@ -158,13 +160,14 @@ async function generateImage(prompt: string): Promise<string> {
       const images = status.output?.images || [];
       if (!images.length) throw new Error('No images in output');
       const first = images[0];
-      if (typeof first === 'string') return first;
-      if (first?.data) return first.data;
+      if (typeof first === 'string') return { image: first, jobId };
+      if (first?.data) return { image: first.data, jobId };
       throw new Error('Invalid image payload');
     }
     if (status.status === 'FAILED') throw new Error(`RunPod error: ${status.error || 'unknown'}`);
   }
-  throw new Error('RunPod timeout');
+  // Still pending — return job_id for client-side polling
+  return { jobId, pending: true };
 }
 
 async function uploadToStorage(base64Data: string, name: string): Promise<string> {
@@ -215,8 +218,19 @@ export async function POST(request: NextRequest) {
     });
 
     logger.info('[Generate Portrait] Generating', { name, promptLen: prompt.length });
-    const base64 = await generateImage(prompt);
-    const imageUrl = await uploadToStorage(base64, name);
+    const result = await generateImage(prompt);
+
+    // If still pending, return job_id for client-side polling
+    if (result.pending || !result.image) {
+      return NextResponse.json({
+        success: true,
+        pending: true,
+        job_id: result.jobId,
+        message: 'Portrait is being generated. Poll /api/runpod/status?job_id=' + result.jobId,
+      });
+    }
+
+    const imageUrl = await uploadToStorage(result.image, name);
 
     return NextResponse.json({
       success: true,

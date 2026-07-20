@@ -266,7 +266,20 @@ export async function POST(request: NextRequest) {
       lora_strength_clip: sceneCfg.lora_strength_clip,
       sampler_name: sceneCfg.sampler_name || undefined,
       scheduler: sceneCfg.scheduler || undefined,
+      throw_on_pending: false,
     });
+
+    // If still pending, return job_id for client-side polling
+    if (gen.pending) {
+      return NextResponse.json({
+        pending: true,
+        job_id: gen.job_id,
+        status: gen.status || 'IN_QUEUE',
+        scene: 'chat_selfie',
+        message: 'Image is being generated. Poll /api/runpod/status?job_id=' + gen.job_id,
+      });
+    }
+
     const base64 = gen.images[0];
     if (!base64) throw new Error('Failed to generate image');
 

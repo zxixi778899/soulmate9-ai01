@@ -513,7 +513,7 @@ class RunPodClient {
     const pollIntervalMs = Math.max(1000, opts.poll_interval_ms ?? 2000);
     const pollBudgetMs = Math.max(
       15_000,
-      Math.min(Number(opts.poll_budget_ms) || Number(process.env.RUNPOD_POLL_MS) || 240_000, 270_000),
+      Math.min(Number(opts.poll_budget_ms) || Number(process.env.RUNPOD_POLL_MS) || 150_000, 150_000),
     );
     const maxAttempts = Math.max(1, Math.floor(pollBudgetMs / pollIntervalMs));
     const onTimeout = opts.on_timeout || 'pending';
@@ -759,8 +759,8 @@ class RunPodClient {
     const pollBudgetMs = Math.max(
       60_000,
       Math.min(
-        Number(process.env.RUNPOD_POLL_MS) || 270_000,
-        270_000, // ~4.5 min leave headroom for upload + response
+        Number(process.env.RUNPOD_POLL_MS) || 150_000,
+        150_000, // ~2.5 min — leave headroom for Vercel 180s serverless timeout
       ),
     );
     const maxAttempts = Math.max(1, Math.floor(pollBudgetMs / pollIntervalMs));

@@ -159,7 +159,19 @@ export async function POST(request: NextRequest) {
       sampler_name: sceneCfg.sampler_name || undefined,
       scheduler: sceneCfg.scheduler || undefined,
       num_images: count,
+      throw_on_pending: false,
     });
+
+    // If still pending, return job_id for client-side polling
+    if (result.pending) {
+      return NextResponse.json({
+        pending: true,
+        job_id: result.job_id,
+        status: result.status || 'IN_QUEUE',
+        scene,
+        message: 'Image is being generated. Poll /api/runpod/status?job_id=' + result.job_id,
+      });
+    }
 
     const images = await Promise.all(
       result.images.map(async (base64Data) => {
