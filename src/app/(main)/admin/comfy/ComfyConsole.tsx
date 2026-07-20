@@ -519,7 +519,26 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         });
         const data = await readResponseJson(res).catch(() => ({} as Any));
         if (!res.ok) throw new Error(data.error || '生成失败');
-        generatedAssets.push(...(Array.isArray(data.assets) ? data.assets : []));
+
+        // Handle async pending — poll until done
+        if (data.pending && data.job_id) {
+          const jobId = String(data.job_id);
+          let done = false;
+          for (let p = 0; p < 60; p++) {
+            await new Promise((r) => setTimeout(r, 3000));
+            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}`);
+            const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
+            if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
+              generatedAssets.push(...pollData.images.map((url: string) => ({ url, storage_key: '', id: null })));
+              done = true;
+              break;
+            }
+            if (pollData.status === 'FAILED') throw new Error(pollData.error || 'RunPod 任务失败');
+          }
+          if (!done) throw new Error('GPU 排队超时');
+        } else {
+          generatedAssets.push(...(Array.isArray(data.assets) ? data.assets : []));
+        }
         succeeded += 1;
         setBatchProgress((items) => items.map((item) => item.id === id ? { ...item, status: 'success' } : item));
       } catch (error) {
@@ -577,6 +596,41 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       });
       const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '生成失败');
+
+      // Handle async pending response — poll until job completes
+      if (data.pending && data.job_id) {
+        toast.message('GPU 排队中，等待出图…');
+        const jobId = String(data.job_id);
+        const maxPolls = 60; // 60 × 3s = 3 min max
+        let completed = false;
+        for (let i = 0; i < maxPolls; i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          try {
+            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}`);
+            const pollData = await readResponseJson(pollRes).catch(() => ({} as any));
+            if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
+              const polledAssets = pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));
+              setLastResult(polledAssets);
+              toast.success(`生成成功 ${polledAssets.length} 张`);
+              if (tab === 'library') loadAssets();
+              completed = true;
+              break;
+            }
+            if (pollData.status === 'FAILED') {
+              throw new Error(pollData.error || 'RunPod 任务失败');
+            }
+            // Still pending — continue polling
+          } catch (pollErr) {
+            if (pollErr instanceof Error && pollErr.message.includes('RunPod')) throw pollErr;
+            // Network hiccup — keep polling
+          }
+        }
+        if (!completed) {
+          throw new Error('GPU 排队超时（3 分钟），请稍后重试');
+        }
+        return;
+      }
+
       const assets = (data.assets || []).map((a: Any) => {
         let url = String(a.url || '').trim();
         // Bare storage key → public URL (never leave prompt text as src)

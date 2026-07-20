@@ -600,6 +600,9 @@ export default function ChatPage() {
         image_url?: string;
         imageUrl?: string;
         message?: string;
+        pending?: boolean;
+        job_id?: string;
+        status?: string;
       }>(res);
       if (!res.ok) {
         const msg =
@@ -610,17 +613,43 @@ export default function ChatPage() {
               : (data?.localized_error || data?.error || t('chat.imageFailed'));
         throw new Error(msg);
       }
+
+      // Handle async pending — poll until GPU finishes
+      let imageUrl = data.image_url || data.imageUrl;
+      let caption = data.message;
+      if (data.pending && data.job_id) {
+        const jobId = data.job_id;
+        for (let p = 0; p < 60; p++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          try {
+            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}`);
+            const pollData = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(pollRes);
+            if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
+              imageUrl = pollData.images[0];
+              caption = waitZh ? '拍好啦～这是专门为你拍的新照片 💕' : "Here's a brand-new photo just for you 💕";
+              break;
+            }
+            if (pollData.status === 'FAILED') {
+              throw new Error(pollData.error || 'Image generation failed');
+            }
+          } catch (pollErr) {
+            if (pollErr instanceof Error && (pollErr.message.includes('failed') || pollErr.message.includes('FAILED'))) throw pollErr;
+          }
+        }
+        if (!imageUrl) throw new Error(waitZh ? 'GPU 排队超时，请稍后再试' : 'GPU queue timeout, please try again');
+      }
+
       setIsTyping(false);
-      if (data.image_url || data.imageUrl) {
-        const readyText = waitZh
-          ? data.message || '拍好啦～这是专门为你拍的新照片 💕'
-          : data.message || "Here's a brand-new photo just for you 💕";
+      if (imageUrl) {
+        const readyText = caption || (waitZh
+          ? '拍好啦～这是专门为你拍的新照片 💕'
+          : "Here's a brand-new photo just for you 💕");
         const newMsg: Message = {
           id: `selfie-${Date.now()}`,
           role: 'assistant',
           content: readyText,
           created_at: new Date().toISOString(),
-          media_url: data.image_url || data.imageUrl,
+          media_url: imageUrl,
           media_type: 'image',
         };
         setMessages((prev) => [...prev, newMsg]);
