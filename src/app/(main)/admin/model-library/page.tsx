@@ -249,36 +249,71 @@ export default function AdminModelLibraryPage() {
         'VOLUME_DIR="${VOLUME_DIR:-/runpod-volume/models/loras}"',
         'TOKEN="${CIVITAI_API_TOKEN:-}"',
         '',
-        'mkdir -p "$VOLUME_DIR"',
-        'cd "$VOLUME_DIR"',
+        '# 检查 token',
+        'if [ -z "$TOKEN" ]; then',
+        '  echo "❌ 错误: 请先设置 CIVITAI_API_TOKEN"',
+        '  echo "   export CIVITAI_API_TOKEN=你的token"',
+        '  exit 1',
+        'fi',
         '',
-        '# 下载函数（支持断点续传）',
+        'mkdir -p "$VOLUME_DIR"',
+        'cd "$VOLUME_DIR" || exit 1',
+        'echo "📂 下载目录: $(pwd)"',
+        'echo ""',
+        '',
+        '# 下载函数（断点续传 + 大小校验 + 重试）',
         'download_file() {',
         '  local filename="$1"',
         '  local url="$2"',
+        '  local min_size=102400  # 100KB — 小于此大小视为失败',
+        '',
         '  if [ -f "$filename" ]; then',
-        '    echo "[SKIP] $filename 已存在"',
-        '    return 0',
+        '    local existing_size=$(stat -c%s "$filename" 2>/dev/null || stat -f%z "$filename" 2>/dev/null || echo 0)',
+        '    if [ "$existing_size" -gt "$min_size" ]; then',
+        '      echo "[SKIP] $filename ($(numfmt --to=iec $existing_size 2>/dev/null || echo ${existing_size}B))"',
+        '      return 0',
+        '    else',
+        '      echo "[RETRY] $filename 文件过小(${existing_size}B)，重新下载"',
+        '      rm -f "$filename"',
+        '    fi',
         '  fi',
+        '',
         '  echo "[DOWN] $filename"',
-        '  if [ -n "$TOKEN" ]; then',
-        '    wget -c --header="Authorization: Bearer $TOKEN" -O "$filename" "$url" 2>/dev/null',
-        '  else',
-        '    wget -c -O "$filename" "$url" 2>/dev/null',
-        '  fi',
-        '  if [ $? -eq 0 ]; then',
-        '    echo "[OK] $filename"',
-        '  else',
-        '    echo "[FAIL] $filename"',
-        '  fi',
+        '  local attempt=0',
+        '  local max_attempts=2',
+        '  while [ $attempt -lt $max_attempts ]; do',
+        '    attempt=$((attempt + 1))',
+        '    wget -c --progress=bar:force --header="Authorization: Bearer $TOKEN" -O "$filename" "$url"',
+        '    local wget_status=$?',
+        '    if [ $wget_status -eq 0 ]; then',
+        '      local fsize=$(stat -c%s "$filename" 2>/dev/null || stat -f%z "$filename" 2>/dev/null || echo 0)',
+        '      if [ "$fsize" -gt "$min_size" ]; then',
+        '        echo "[OK] $filename ($(numfmt --to=iec $fsize 2>/dev/null || echo ${fsize}B))"',
+        '        return 0',
+        '      else',
+        '        echo "[WARN] 文件过小(${fsize}B)，可能是下载错误，重试..."',
+        '        rm -f "$filename"',
+        '      fi',
+        '    else',
+        '      echo "[WARN] wget 退出码 $wget_status，重试($attempt/$max_attempts)..."',
+        '      rm -f "$filename"',
+        '    fi',
+        '    sleep 2',
+        '  done',
+        '  echo "[FAIL] $filename — 下载失败"',
+        '  return 1',
         '}',
         '',
       ];
 
       for (const line of lines) {
-        const [filename, url] = line.split('|');
-        if (filename && url) {
-          script.push(`download_file "${filename}" "${url}"`);
+        const pipeIdx = line.indexOf('|');
+        if (pipeIdx > 0) {
+          const filename = line.slice(0, pipeIdx);
+          const url = line.slice(pipeIdx + 1);
+          if (filename && url) {
+            script.push(`download_file "${filename}" "${url}"`);
+          }
         }
       }
 
@@ -286,8 +321,13 @@ export default function AdminModelLibraryPage() {
         '',
         'echo ""',
         'echo "===== 下载完成 ====="',
-        'echo "文件位置: $VOLUME_DIR"',
-        'ls -lh "$VOLUME_DIR"/*.safetensors 2>/dev/null | wc -l | xargs -I{} echo "共 {} 个 safetensors 文件"',
+        'echo "📂 文件位置: $VOLUME_DIR"',
+        'echo ""',
+        'echo "已下载的 safetensors 文件:"',
+        'ls -lhS "$VOLUME_DIR"/*.safetensors 2>/dev/null || echo "  (无)"',
+        'echo ""',
+        'total=$(ls "$VOLUME_DIR"/*.safetensors 2>/dev/null | wc -l)',
+        'echo "共 $total 个 LoRA 文件"',
       );
 
       setExportScript(script.join('\n'));
