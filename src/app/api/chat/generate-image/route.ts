@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { loadAiModules, resolveImageCall, type MembershipTier } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
 import { assembleGirlfriendFromRow, GIRLFRIEND_NEGATIVE_FLUX } from '@/lib/prompt/girlfriend';
+import { falGenerate, isFalConfigured } from '@/lib/fal-client';
 import {
   buildImageActionFromChat,
   type ChatContextLine,
@@ -248,6 +249,58 @@ export async function POST(request: NextRequest) {
 
     const sceneCfg = resolved.config;
     const generationSeed = Math.floor(Math.random() * 2 ** 32);
+
+    // --- fal.ai fast path (fallback when RunPod is busy) ---
+    const requestedProvider = String((body as { provider?: string }).provider || 'runpod');
+    if (requestedProvider === 'fal' && isFalConfigured()) {
+      try {
+        const falResult = await falGenerate({
+          prompt,
+          negative_prompt: negativePrompt,
+          width: sceneCfg.width || 704,
+          height: sceneCfg.height || 960,
+          num_inference_steps: 28,
+          guidance_scale: 3.5,
+          seed: generationSeed,
+          image_url: useConsistency ? referenceImage : undefined,
+          strength: useConsistency ? 0.75 : undefined,
+          model: 'dev',
+        });
+        const falUrl = falResult.images[0];
+        if (falUrl) {
+          // Persist to chat_messages + chat_media
+          const gfName = String((gf as { name?: string }).name || 'She');
+          const caption = zh ? `${gfName} 给你发来一张全新自拍 💕` : `${gfName} sends you a brand-new selfie 💕`;
+          await client.from('chat_messages').insert({
+            user_id: user.id, girlfriend_id, role: 'assistant',
+            content: caption, media_url: falUrl, media_type: 'image',
+          });
+          await client.from('chat_media').insert({
+            user_id: user.id, girlfriend_id, media_type: 'image',
+            url: falUrl, metadata: { provider: 'fal', seed: generationSeed },
+          }).then(({ error: mediaErr }) => {
+            if (mediaErr) logger.warn('[Chat Generate Image] chat_media insert failed', { err: mediaErr.message });
+          });
+          void logModelUsage({
+            provider: 'fal', model_id: 'flux-dev', task_type: 'image_generation',
+            user_id: user.id, girlfriend_id, latency_ms: Date.now() - started,
+            cost_usd: 0.025, success: true,
+          });
+          return NextResponse.json({
+            imageUrl: falUrl, image_url: falUrl, message: caption,
+            scene: 'chat_selfie', provider: 'fal',
+            prompt_preview: prompt.slice(0, 220),
+          });
+        }
+      } catch (falErr) {
+        logger.warn('[Chat Generate Image] fal.ai failed, falling back to RunPod', {
+          error: falErr instanceof Error ? falErr.message : String(falErr),
+        });
+        // Fall through to RunPod below
+      }
+    }
+
+    // --- RunPod path (primary, has LoRA for character consistency) ---
     const gen = await runpodClient.generate({
       prompt,
       negative_prompt: negativePrompt,

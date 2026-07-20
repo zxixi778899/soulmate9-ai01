@@ -639,6 +639,7 @@ export default function ChatPage() {
       if (data.pending && data.job_id) {
         let jobId = data.job_id;
         let retried = false;
+        let falAttempted = false;
         const pollStatus = async (jid: string): Promise<{ url?: string; failed?: boolean; error?: string }> => {
           for (let p = 0; p < 80; p++) {
             await new Promise((r) => setTimeout(r, 3000));
@@ -651,14 +652,38 @@ export default function ChatPage() {
               if (pollData.status === 'FAILED') {
                 return { failed: true, error: pollData.error || 'Image generation failed' };
               }
-              // Update wait message with progress
+              // After 30s in queue, try fal.ai fast fallback
+              if (p === 10 && !falAttempted) {
+                falAttempted = true;
+                setMessages((prev) => prev.map((m) => m.id === waitId ? {
+                  ...m,
+                  content: waitZh ? 'GPU 有点忙，我换个更快的方式给你拍… ⚡' : 'GPU is busy, switching to a faster method… ⚡',
+                } : m));
+                try {
+                  const falRes = await authedFetch('/api/chat/generate-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      girlfriend_id: id, user_request: req, message: req,
+                      chat_context, mood: selectedMood, pose: selectedPose,
+                      environment: selectedEnvironment, locale, provider: 'fal',
+                    }),
+                  });
+                  const falData = await readResponseJson<{ image_url?: string; imageUrl?: string; error?: string }>(falRes);
+                  const falUrl = falData.image_url || falData.imageUrl;
+                  if (falUrl) return { url: falUrl };
+                } catch {
+                  // fal.ai not available — continue polling RunPod
+                }
+              }
+              // Progress updates
               if (p === 5) {
                 setMessages((prev) => prev.map((m) => m.id === waitId ? {
                   ...m,
                   content: waitZh ? '还在排队中，GPU 正在热身…再等我一小会儿 💕' : 'Still in queue, GPU is warming up… just a little longer 💕',
                 } : m));
               }
-              if (p === 15) {
+              if (p === 20) {
                 setMessages((prev) => prev.map((m) => m.id === waitId ? {
                   ...m,
                   content: waitZh ? '正在生成中，马上就好… 📸' : 'Generating now, almost there… 📸',
