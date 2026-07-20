@@ -33,11 +33,35 @@ export interface LoraEntry {
 }
 
 /**
- * Source of truth: only LoRAs physically present on the RunPod volume.
+ * Source of truth: LoRAs physically present on the RunPod volume.
  * Add new entries here after downloading to the volume.
+ * NOTE: sanitizeLoraForVolume also accepts any .safetensors filename directly
+ * (permissive mode) — the registry is for metadata/strength defaults only.
  */
 export const LORA_REGISTRY: readonly LoraEntry[] = [
-  // ── Style ──
+  // ── Civitai LoRAs (actual files on volume) ──
+  {
+    file: 'AIDILETTA © - 2.0 - FLUX.safetensors',
+    category: 'style',
+    strength: 0.7,
+    label: 'AIDILETTA 2.0 (character)',
+    trigger_words: [],
+  },
+  {
+    file: 'flux see through lingenie 512X768.safetensors',
+    category: 'style',
+    strength: 0.6,
+    label: 'See-through lingerie',
+    trigger_words: [],
+  },
+  {
+    file: 'ZIT see through lingerie outfit V2.safetensors',
+    category: 'style',
+    strength: 0.6,
+    label: 'ZIT lingerie V2',
+    trigger_words: [],
+  },
+  // ── Legacy / generic ──
   {
     file: 'flux_style_photoreal_v1.safetensors',
     category: 'style',
@@ -174,6 +198,12 @@ export function sanitizeLoraForVolume(
   const base = raw.split(/[/\\]/).pop() || raw;
   if (installed.has(base)) {
     return { lora_name: base, changed: base !== raw, reason: 'basename' };
+  }
+
+  // Permissive mode: accept any .safetensors filename directly
+  // (admin knows what's on the volume — don't block unknown LoRAs)
+  if (base.endsWith('.safetensors')) {
+    return { lora_name: base, changed: base !== raw, reason: 'permissive' };
   }
 
   // Fallback chain
