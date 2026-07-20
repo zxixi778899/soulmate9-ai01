@@ -33,7 +33,7 @@ import { ChatStream } from '@/components/chat/ChatStream';
 import { ChatInputBar, type PendingMedia } from '@/components/chat/ChatInputBar';
 import type { ChatMessage as Message, ChatGirlfriend as Girlfriend, IntimacyData } from '@/components/chat/types';
 import { loadChatCache, saveChatCache, mergeMessages, deriveMood } from '@/lib/chat-cache';
-import { parseChatImageIntent } from '@/lib/chat-image-intent';
+import { parseChatImageIntent, parseVideoIntent } from '@/lib/chat-image-intent';
 import { DEFAULT_CHAT_GIFTS, type ChatGift } from '@/lib/gifts/catalog';
 import { GiftEffectOverlay, type GiftBurstState } from '@/components/chat/GiftEffectOverlay';
 import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
@@ -98,6 +98,8 @@ export default function ChatPage() {
   const [showMemories, setShowMemories] = useState(false);
   const [showAlbum, setShowAlbum] = useState(false);
   const [showLightbox, setShowLightbox] = useState<string | null>(null);
+  const [albumMedia, setAlbumMedia] = useState<Array<{ id: string; url: string; media_type: string; created_at?: string }>>([]);
+  const [albumLoading, setAlbumLoading] = useState(false);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
 
   // Presets (for chat & selfie)
@@ -218,6 +220,7 @@ export default function ChatPage() {
           ...gf,
           avatar_url: gf.avatar_url || gf.portrait_url || gf.image_url || null,
           portrait_url: gf.portrait_url || gf.avatar_url || gf.image_url || null,
+          card_url: (gf as Record<string, unknown>).card_url as string || gf.portrait_url || null,
         });
       }
 
@@ -426,6 +429,22 @@ export default function ChatPage() {
       bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [messages, isTyping, autoScroll]);
+
+  // Fetch album media when album is opened
+  useEffect(() => {
+    if (!showAlbum || !id) return;
+    setAlbumLoading(true);
+    authedFetch(`/api/chat/${id}/media`)
+      .then((res) => readResponseJson(res).catch(() => ({})))
+      .then((data) => {
+        const items = Array.isArray((data as { media?: unknown[] }).media)
+          ? ((data as { media: Array<{ id: string; url: string; media_type: string; created_at?: string }> }).media)
+          : [];
+        setAlbumMedia(items.filter((m) => m.url && m.url.startsWith('http')));
+      })
+      .catch(() => setAlbumMedia([]))
+      .finally(() => setAlbumLoading(false));
+  }, [showAlbum, id]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -693,6 +712,80 @@ export default function ChatPage() {
     setIsGenerating(false);
   };
 
+  /** Generate a short video: first create an image, then animate it via RunPod SVD */
+  const generateVideo = async (userRequest?: string) => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    const waitZh = /[\u4e00-\u9fff]/.test(userRequest || '') || String(locale || '').toLowerCase().startsWith('zh');
+    const waitText = waitZh
+      ? '我正在为你录一段小视频哦，先拍张照片再让它动起来，稍等 💕'
+      : "I'm making a short video for you—taking a photo first, then animating it. Hold on 💕";
+    const waitId = `video-wait-${Date.now()}`;
+    setMessages((prev) => [...prev, { id: waitId, role: 'assistant', content: waitText, created_at: new Date().toISOString() }]);
+
+    try {
+      // Step 1: Generate an image first
+      const imgRes = await authedFetch('/api/chat/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ girlfriend_id: id, user_request: userRequest || 'send me a selfie', locale }),
+      });
+      const imgData = await readResponseJson<{ image_url?: string; imageUrl?: string; pending?: boolean; job_id?: string; error?: string }>(imgRes);
+      if (!imgRes.ok) throw new Error(imgData.error || 'Image generation failed');
+
+      let imageUrl = imgData.image_url || imgData.imageUrl;
+      // Handle pending image
+      if (!imageUrl && imgData.pending && imgData.job_id) {
+        for (let p = 0; p < 60; p++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(imgData.job_id)}`);
+          const pollData = await readResponseJson<{ status?: string; images?: string[] }>(pollRes);
+          if (pollData.status === 'COMPLETED' && pollData.images?.length) { imageUrl = pollData.images[0]; break; }
+          if (pollData.status === 'FAILED') throw new Error('Image generation failed');
+        }
+      }
+      if (!imageUrl) throw new Error('No image generated for video');
+
+      // Step 2: Generate video from the image
+      const vidRes = await authedFetch('/api/generate-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input_image: imageUrl, girlfriend_id: id }),
+      });
+      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; error?: string }>(vidRes);
+      if (!vidRes.ok) throw new Error(vidData.error || 'Video generation failed');
+
+      let videoUrl = vidData.video_url;
+      // Handle pending video
+      if (!videoUrl && vidData.pending && vidData.job_id) {
+        for (let p = 0; p < 60; p++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(vidData.job_id)}`);
+          const pollData = await readResponseJson<{ status?: string; images?: string[] }>(pollRes);
+          if (pollData.status === 'COMPLETED' && pollData.images?.length) { videoUrl = pollData.images[0]; break; }
+          if (pollData.status === 'FAILED') throw new Error('Video generation failed');
+        }
+      }
+      if (!videoUrl) throw new Error(waitZh ? '视频生成超时' : 'Video generation timed out');
+
+      // Show video in chat
+      const caption = waitZh ? '给你录了一段小视频～看看我动起来的样子 💕' : "Here's a little video just for you～ see me move 💕";
+      setMessages((prev) => [
+        ...prev.filter((m) => m.id !== waitId),
+        { id: `video-${Date.now()}`, role: 'assistant', content: caption, created_at: new Date().toISOString(), media_url: videoUrl, media_type: 'video' },
+      ]);
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== waitId));
+      const failText = err instanceof Error ? err.message : 'Video failed';
+      setMessages((prev) => [...prev, {
+        id: `video-err-${Date.now()}`, role: 'assistant',
+        content: waitZh ? `视频生成失败了… ${failText} 稍后再试好不好？` : `Video glitched… ${failText} Want me to try again?`,
+        created_at: new Date().toISOString(),
+      }]);
+    }
+    setIsGenerating(false);
+  };
+
   const sendMessage = async (
     overrideText?: string,
     opts?: { /** Gift path: never lock UI / never wait on the gift panel */ silent?: boolean },
@@ -751,6 +844,7 @@ export default function ChatPage() {
     ]);
 
     const wantsPhoto = parseChatImageIntent(text).wantsImage;
+    const wantsVideo = parseVideoIntent(text);
     const detectedTurnLocale = detectMessageLocale(text);
     const replyPreferZh =
       detectedTurnLocale === 'zh' ||
@@ -900,6 +994,11 @@ export default function ChatPage() {
           { role: 'user', content: text },
           ...(fullContent ? [{ role: 'assistant', content: fullContent.slice(0, 400) }] : []),
         ]);
+      }
+
+      // Auto-trigger video generation when user asked for a video/animation
+      if (wantsVideo && text) {
+        void generateVideo(text);
       }
 
       const intRes = await authedFetch('/api/intimacy', {
@@ -1158,12 +1257,12 @@ export default function ChatPage() {
 
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#0b0b12] text-white">
-      {/* Girlfriend portrait background at low opacity */}
-      {girlfriend?.portrait_url && (
+      {/* Girlfriend standing portrait background at 30% opacity */}
+      {(girlfriend?.card_url || girlfriend?.portrait_url) && (
         <div
-          className="pointer-events-none absolute inset-0 z-0 opacity-[0.08]"
+          className="pointer-events-none absolute inset-0 z-0 opacity-30"
           style={{
-            backgroundImage: `url(${girlfriend.portrait_url})`,
+            backgroundImage: `url(${girlfriend.card_url || girlfriend.portrait_url})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center top',
             backgroundRepeat: 'no-repeat',
@@ -1370,7 +1469,7 @@ export default function ChatPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Album Sheet — gallery of all media from this conversation */}
+      {/* Album Sheet — gallery of all media from this conversation + stored media */}
       <Sheet open={showAlbum} onOpenChange={setShowAlbum}>
         <SheetContent
           side="right"
@@ -1384,10 +1483,22 @@ export default function ChatPage() {
           </SheetHeader>
           <div className="mt-4 overflow-y-auto max-h-[calc(100vh-8rem)] pb-8 pr-1">
             {(() => {
-              const mediaItems = messages.filter(
-                (m) => m.media_url && m.media_url.startsWith('http')
-              );
-              if (mediaItems.length === 0) {
+              // Combine message media + stored album media, deduplicate by URL
+              const msgMedia = messages
+                .filter((m) => m.media_url && m.media_url.startsWith('http'))
+                .map((m) => ({ id: m.id, url: m.media_url!, media_type: m.media_type || 'image' }));
+              const seen = new Set(msgMedia.map((m) => m.url));
+              const extraMedia = albumMedia.filter((m) => !seen.has(m.url));
+              const allMedia = [...msgMedia, ...extraMedia];
+
+              if (albumLoading) {
+                return (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]/60" />
+                  </div>
+                );
+              }
+              if (allMedia.length === 0) {
                 return (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <Camera className="h-8 w-8 text-[#8B8BA3]/30 mb-3" />
@@ -1399,23 +1510,23 @@ export default function ChatPage() {
               }
               return (
                 <div className="grid grid-cols-3 gap-1.5">
-                  {mediaItems.map((m) => (
+                  {allMedia.map((m) => (
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => { setShowLightbox(m.media_url!); setShowAlbum(false); }}
+                      onClick={() => { setShowLightbox(m.url); setShowAlbum(false); }}
                       className="aspect-square rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors"
                     >
                       {m.media_type === 'video' ? (
                         <video
-                          src={m.media_url!}
+                          src={m.url}
                           className="h-full w-full object-cover"
                           muted
                           preload="metadata"
                         />
                       ) : (
                         <img
-                          src={m.media_url!}
+                          src={m.url}
                           alt=""
                           className="h-full w-full object-cover"
                           loading="lazy"

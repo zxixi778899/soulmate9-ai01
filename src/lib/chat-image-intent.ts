@@ -37,6 +37,19 @@ export function parseChatImageIntent(message: string): ChatImageIntent {
 
 export function isChatImageRequest(message: string): boolean { return parseChatImageIntent(message).wantsImage }
 
+/** Detect video requests in chat messages */
+const VIDEO_PATTERNS: RegExp[] = [
+  /(?:视频|短视频|动态|动图|发个视频|拍个视频|给我视频)/i,
+  /(?:video|clip|animation|moving|send.*video|make.*video|record)/i,
+  /(?:动起来|动一下|让我看你动|live photo)/i,
+];
+
+export function parseVideoIntent(message: string): boolean {
+  const text = String(message || '').trim();
+  if (!text) return false;
+  return VIDEO_PATTERNS.some((re) => re.test(text));
+}
+
 export function buildImageActionFromChat(userRequest: string, recent?: ChatContextLine[] | null): ChatImageIntent {
   const base = parseChatImageIntent(userRequest || 'send me a selfie');
   const blob = [...(recent || []).slice(-10).map((line) => String(line.content || '').replace(/\*[^*]{0,120}\*/g, ' ')), userRequest].join(' ').slice(-2200);

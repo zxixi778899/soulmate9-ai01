@@ -18,7 +18,7 @@ import {
   Loader2, Play, Trash2, RefreshCw, HardDrive, Workflow, ImageIcon,
   Settings2, BookOpen, Save, RotateCcw, Sparkles, Layers, ExternalLink,
   Zap, Upload, Download, CheckSquare, Square, Copy, ImagePlus, FileImage,
-  Users, Search,
+  Users, Search, Shuffle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -357,6 +357,52 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       return false;
     }
   }
+
+  /** 随机 AI 提示词：保持人物特性 + 随机画面/动作/环境 */
+  const randomizePrompt = useCallback(() => {
+    const actions = [
+      'leaning against a window with soft morning light, gazing at the viewer with a gentle smile',
+      'sitting on a cozy couch, tucking her legs under, holding a warm cup of tea',
+      'standing in a sunlit garden, wind blowing through her hair, laughing naturally',
+      'lying on silk sheets, propping herself up on one elbow, looking up invitingly',
+      'walking along a moonlit beach, barefoot, dress flowing in the breeze',
+      'stretching lazily in bed, hair tousled, giving a sleepy seductive glance',
+      'dancing alone in a dimly lit room, eyes closed, lost in the music',
+      'sitting at a vanity mirror, applying lipstick, catching the viewer in the reflection',
+      'standing under a cherry blossom tree, petals falling, turning to look over her shoulder',
+      'lounging by a pool, sunglasses on, sipping a cocktail with a playful smirk',
+      'cooking in a kitchen, wearing an oversized shirt, tasting from a wooden spoon',
+      'reading a book in a window seat, curling up, glancing up with warm eyes',
+      'taking a mirror selfie in a stylish outfit, pouting at the camera',
+      'standing in the rain under an umbrella, looking up at the sky with a peaceful expression',
+      'sitting on a motorcycle, leather jacket, looking back with a confident grin',
+    ];
+    const qualities = [
+      'photorealistic, 8k, raw photo, natural skin texture, film grain',
+      'masterpiece, best quality, ultra detailed, soft lighting, bokeh background',
+      'editorial photography, Vogue style, dramatic lighting, sharp focus',
+      'candid shot, natural lighting, shallow depth of field, warm tones',
+    ];
+    const action = actions[Math.floor(Math.random() * actions.length)];
+    const quality = qualities[Math.floor(Math.random() * qualities.length)];
+
+    // If a girlfriend is selected, preserve her character traits
+    const gf = scopedGirlfriend;
+    if (gf) {
+      try {
+        const assembled = assembleGirlfriendFromRow(gf as Record<string, unknown>, action, {
+          useEmptyNegative: false,
+        });
+        setPrompt(`${assembled.positive}, ${quality}`);
+        if (assembled.negative) setNegative(assembled.negative);
+      } catch {
+        setPrompt(`${action}, ${quality}`);
+      }
+    } else {
+      setPrompt(`A beautiful young woman, ${action}, ${quality}`);
+    }
+    toast.success('已生成随机提示词');
+  }, [scopedGirlfriend]);
 
   /** 一键调用：选中 LoRA + 强度 + 触发词写入提示词 */
   function applyLora(lora: Any, opts?: { appendTriggers?: boolean; goGenerate?: boolean }) {
@@ -1023,7 +1069,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <h2 className="text-sm font-bold text-white">正向提示词 · 人物 + 做什么</h2>
                 <p className="text-[11px] text-slate-300">使用自然语言描述成年 AI 女友及她正在进行的性感、妩媚或亲密动作。</p>
               </div>
-              <Badge className="border-violet-400/40 bg-violet-500/15 text-violet-100">{prompt.length} 字符</Badge>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-7 gap-1 border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10" onClick={randomizePrompt} title="随机生成提示词（保持人物特性）">
+                  <Shuffle className="h-3.5 w-3.5" />
+                  随机
+                </Button>
+                <Badge className="border-violet-400/40 bg-violet-500/15 text-violet-100">{prompt.length} 字符</Badge>
+              </div>
             </div>
             <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px]">
               <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-500 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年女友。她正倚在床边，用妩媚的眼神邀请观众靠近。" />

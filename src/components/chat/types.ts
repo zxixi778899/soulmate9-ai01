@@ -15,6 +15,7 @@ export type ChatGirlfriend = {
   name: string;
   avatar_url: string | null;
   portrait_url?: string | null;
+  card_url?: string | null;
   image_url?: string | null;
   personality: string | null;
   backstory?: string | null;

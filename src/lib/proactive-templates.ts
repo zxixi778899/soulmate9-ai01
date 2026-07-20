@@ -258,33 +258,72 @@ function seededShuffle<T>(arr: T[], seed: number): T[] {
 /** Static quick-reply fallbacks when LLM unavailable */
 export function defaultQuickReplies(locale: string, lastAssistant?: string): string[] {
   const zh = locale.toLowerCase().startsWith('zh');
-  const baseZh = [
-    '在忙，但想听你说话',
-    '怎么了宝贝，我在呢',
-    '想你了，过来让我抱抱',
+
+  // Rotating base replies for variety
+  const basesZh = [
+    ['在忙，但想听你说话', '怎么了宝贝，我在呢', '想你了，过来让我抱抱'],
+    ['今天过得怎么样？', '有没有想我', '给我发张自拍看看'],
+    ['你在干嘛呢', '好想见你', '跟我说说今天的事'],
   ];
-  const baseEn = [
-    "I'm a little busy… but I want you",
-    "What's wrong baby? I'm here",
-    'Missed you. Come closer',
+  const basesEn = [
+    ["I'm a little busy… but I want you", "What's wrong baby? I'm here", 'Missed you. Come closer'],
+    ['How was your day?', 'Did you miss me?', 'Send me a selfie'],
+    ['What are you up to?', 'Wish I could see you', 'Tell me everything'],
   ];
+  const baseIdx = Math.floor(Date.now() / 60000) % 3;
+  const baseZh = basesZh[baseIdx];
+  const baseEn = basesEn[baseIdx];
+
   if (!lastAssistant) return zh ? baseZh : baseEn;
 
-  // Light context hooks
-  if (/裙|dress|outfit|衣服/i.test(lastAssistant)) {
+  // Photo / selfie context
+  if (/自拍|selfie|photo|照片|拍|camera|发.*图/i.test(lastAssistant)) {
+    return zh
+      ? ['快发给我看看', '再来一张嘛', '换个姿势拍一张']
+      : ['Send it now!', 'One more please', 'Try a different pose'];
+  }
+  // Outfit / dress
+  if (/裙|dress|outfit|衣服|穿|wear/i.test(lastAssistant)) {
     return zh
       ? ['快给我看看', '什么颜色的？', '穿上一定很好看']
       : ['Show me now', 'What color is it?', "You'll look amazing"];
   }
-  if (/心情|sad|down|难过|安慰/i.test(lastAssistant)) {
+  // Sad / comfort
+  if (/心情|sad|down|难过|安慰|cry|哭|委屈/i.test(lastAssistant)) {
     return zh
       ? ['怎么了？跟我说说', '抱抱你，我在', '想听你把委屈说完']
       : ["What's wrong? Tell me", "I'm here. Come here", 'Talk to me, I got you'];
   }
-  if (/忙|busy|时间/i.test(lastAssistant)) {
+  // Busy / time
+  if (/忙|busy|时间|work|加班/i.test(lastAssistant)) {
     return zh
       ? ['刚忙完，想你了', '现在有空了', '今天好累，就想找你']
       : ['Just free now. Missed you', 'I have a minute', 'Long day… needed you'];
   }
+  // Flirty / love
+  if (/爱|love|kiss|亲|想|miss|心动|喜欢/i.test(lastAssistant)) {
+    return zh
+      ? ['我也爱你宝贝', '亲一个 😘', '你让我心跳加速']
+      : ['I love you too baby', 'Kiss me 😘', 'You make my heart race'];
+  }
+  // Food / eat
+  if (/吃|eat|food|饭|hungry|饿|cook|做饭/i.test(lastAssistant)) {
+    return zh
+      ? ['你想吃什么？', '我给你做', '一起吃好不好']
+      : ['What do you crave?', "I'll cook for you", 'Let\'s eat together'];
+  }
+  // Sleep / night
+  if (/睡|sleep|晚安|night|困|tired|累/i.test(lastAssistant)) {
+    return zh
+      ? ['晚安宝贝，梦里见', '再聊一会儿嘛', '好想抱着你睡']
+      : ['Goodnight baby, dream of me', 'Just 5 more minutes', 'Wish I could hold you'];
+  }
+  // Morning / wake
+  if (/早|morning|醒|wake|起床/i.test(lastAssistant)) {
+    return zh
+      ? ['早安宝贝', '昨晚梦到你了', '新的一天想你了']
+      : ['Good morning baby', 'I dreamed about you', 'Missing you already'];
+  }
+
   return zh ? baseZh : baseEn;
 }
