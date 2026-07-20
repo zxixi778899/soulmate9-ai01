@@ -174,7 +174,7 @@ async function generateAndUpload(
     lora_name: loraArray ? null : loraPlan.lora_name,
     lora_strength_model: loraPlan.lora_strength_model,
     lora_strength_clip: loraPlan.lora_strength_clip,
-    throw_on_pending: false,
+    submit_only: true,
   });
 
   // If pending, return job_id for later polling

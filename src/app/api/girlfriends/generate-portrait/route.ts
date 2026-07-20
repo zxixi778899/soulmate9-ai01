@@ -143,30 +143,7 @@ async function generateImage(prompt: string): Promise<{ image?: string; jobId?: 
   const jobId = submitData.id;
   if (!jobId) throw new Error('No RunPod job ID');
 
-  // Poll for up to 140s (35 polls * 4s) — stay under Vercel's 180s serverless timeout
-  const maxPolls = 35;
-  for (let i = 0; i < maxPolls; i++) {
-    await new Promise((r) => setTimeout(r, 4000));
-    const statusRes = await fetch(`${RUNPOD_BASE_URL}/status/${jobId}`, {
-      headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
-    });
-    if (!statusRes.ok) continue;
-    const status = (await statusRes.json()) as {
-      status?: string;
-      error?: string;
-      output?: { images?: Array<string | { data?: string }> };
-    };
-    if (status.status === 'COMPLETED') {
-      const images = status.output?.images || [];
-      if (!images.length) throw new Error('No images in output');
-      const first = images[0];
-      if (typeof first === 'string') return { image: first, jobId };
-      if (first?.data) return { image: first.data, jobId };
-      throw new Error('Invalid image payload');
-    }
-    if (status.status === 'FAILED') throw new Error(`RunPod error: ${status.error || 'unknown'}`);
-  }
-  // Still pending — return job_id for client-side polling
+  // Submit-only: return immediately — client polls /api/runpod/status
   return { jobId, pending: true };
 }
 

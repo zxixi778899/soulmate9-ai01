@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
       sampler_name: sceneCfg.sampler_name || undefined,
       scheduler: sceneCfg.scheduler || undefined,
       num_images: count,
-      throw_on_pending: false,
+      submit_only: true,
     });
 
     // If still pending, return job_id for client-side polling

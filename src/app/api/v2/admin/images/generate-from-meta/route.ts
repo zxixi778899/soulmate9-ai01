@@ -291,7 +291,7 @@ export async function POST(req: NextRequest) {
           job_id: resumeJobId,
           on_timeout: 'pending',
           throw_on_pending: false,
-          poll_budget_ms: 240_000,
+          poll_budget_ms: 10_000,
         });
         if (result.pending || !result.images?.length) {
           return NextResponse.json({
@@ -496,9 +496,7 @@ export async function POST(req: NextRequest) {
           lora_name: loraArray ? null : loraName,
           lora_strength_model: loraStrengthModel,
           lora_strength_clip: loraStrengthClip,
-          on_timeout: 'pending',
-          throw_on_pending: false,
-          poll_budget_ms: 240_000,
+          submit_only: true,
         });
       } catch (err) {
         if (err instanceof RunPodPendingError) {

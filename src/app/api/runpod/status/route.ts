@@ -5,13 +5,13 @@ import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 
 /**
- * GET /api/runpod/status?job_id=xxx
+ * GET /api/runpod/status?job_id=xxx[&girlfriend_id=yyy&scene=chat_selfie]
  * Poll a RunPod job status and return images if completed.
- * Used for async image generation flow.
+ * When girlfriend_id is provided, persists the image to chat_messages + chat_media on completion.
  */
 export async function GET(req: NextRequest) {
   try {
-    const { user } = await getAuthUser(req);
+    const { user, client } = await getAuthUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -21,9 +21,11 @@ export async function GET(req: NextRequest) {
     if (!jobId) {
       return NextResponse.json({ error: 'job_id is required' }, { status: 400 });
     }
+    const girlfriendId = searchParams.get('girlfriend_id') || undefined;
+    const scene = searchParams.get('scene') || 'chat_selfie';
 
     const result = await runpodClient.pollJob(jobId, {
-      poll_budget_ms: 30000, // Short poll — 30s max per request
+      poll_budget_ms: 8000, // Quick check — client polls every 3s anyway
       on_timeout: 'pending',
     });
 
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest) {
             const dataUrl = base64Data.startsWith('data:')
               ? base64Data
               : `data:image/png;base64,${base64Data}`;
-            const key = await uploadDataUrl(dataUrl, 'generated-images');
+            const key = await uploadDataUrl(dataUrl, girlfriendId ? `chat_photos/${girlfriendId}` : 'generated-images');
             return (await resolveImageUrl(key)) || key;
           } catch (e) {
             logger.error('[runpod/status] upload failed', { error: e });
@@ -45,9 +47,37 @@ export async function GET(req: NextRequest) {
           }
         }),
       );
+      const validUrls = urls.filter(Boolean);
+
+      // Persist to chat_messages + chat_media when girlfriend context is provided
+      if (girlfriendId && client && validUrls.length > 0) {
+        const caption = scene === 'chat_selfie'
+          ? '拍好啦～这是专门为你拍的新照片 💕'
+          : '新的照片来啦 📸';
+        try {
+          await client.from('chat_messages').insert({
+            user_id: user.id,
+            girlfriend_id: girlfriendId,
+            role: 'assistant',
+            content: caption,
+            media_url: validUrls[0],
+            media_type: 'image',
+          });
+          await client.from('chat_media').insert({
+            user_id: user.id,
+            girlfriend_id: girlfriendId,
+            media_type: 'image',
+            url: validUrls[0],
+            metadata: { job_id: jobId, scene },
+          });
+        } catch (e) {
+          logger.warn('[runpod/status] chat persist failed', { error: e });
+        }
+      }
+
       return NextResponse.json({
         status: 'COMPLETED',
-        images: urls.filter(Boolean),
+        images: validUrls,
         job_id: jobId,
       });
     }

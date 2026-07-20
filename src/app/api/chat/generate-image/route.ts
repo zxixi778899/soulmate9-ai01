@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
       lora_strength_clip: sceneCfg.lora_strength_clip,
       sampler_name: sceneCfg.sampler_name || undefined,
       scheduler: sceneCfg.scheduler || undefined,
-      throw_on_pending: false,
+      submit_only: true,
     });
 
     // If still pending, return job_id for client-side polling

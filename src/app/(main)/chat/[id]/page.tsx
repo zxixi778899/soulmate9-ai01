@@ -637,25 +637,82 @@ export default function ChatPage() {
       let imageUrl = data.image_url || data.imageUrl;
       let caption = data.message;
       if (data.pending && data.job_id) {
-        const jobId = data.job_id;
-        for (let p = 0; p < 60; p++) {
-          await new Promise((r) => setTimeout(r, 3000));
+        let jobId = data.job_id;
+        let retried = false;
+        const pollStatus = async (jid: string): Promise<{ url?: string; failed?: boolean; error?: string }> => {
+          for (let p = 0; p < 80; p++) {
+            await new Promise((r) => setTimeout(r, 3000));
+            try {
+              const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jid)}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`);
+              const pollData = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(pollRes);
+              if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
+                return { url: pollData.images[0] };
+              }
+              if (pollData.status === 'FAILED') {
+                return { failed: true, error: pollData.error || 'Image generation failed' };
+              }
+              // Update wait message with progress
+              if (p === 5) {
+                setMessages((prev) => prev.map((m) => m.id === waitId ? {
+                  ...m,
+                  content: waitZh ? '还在排队中，GPU 正在热身…再等我一小会儿 💕' : 'Still in queue, GPU is warming up… just a little longer 💕',
+                } : m));
+              }
+              if (p === 15) {
+                setMessages((prev) => prev.map((m) => m.id === waitId ? {
+                  ...m,
+                  content: waitZh ? '正在生成中，马上就好… 📸' : 'Generating now, almost there… 📸',
+                } : m));
+              }
+            } catch {
+              // Transient network error — keep polling
+            }
+          }
+          return { failed: true, error: 'timeout' };
+        };
+
+        let result = await pollStatus(jobId);
+
+        // Auto-retry once on failure
+        if (result.failed && !retried) {
+          retried = true;
+          setMessages((prev) => prev.map((m) => m.id === waitId ? {
+            ...m,
+            content: waitZh ? '第一次没成功，我再试一次… 💪' : 'First attempt failed, trying again… 💪',
+          } : m));
           try {
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}`);
-            const pollData = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(pollRes);
-            if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-              imageUrl = pollData.images[0];
-              caption = waitZh ? '拍好啦～这是专门为你拍的新照片 💕' : "Here's a brand-new photo just for you 💕";
-              break;
+            const retryRes = await authedFetch('/api/chat/generate-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                girlfriend_id: id,
+                user_request: req,
+                message: req,
+                chat_context,
+                mood: selectedMood,
+                pose: selectedPose,
+                environment: selectedEnvironment,
+                locale,
+              }),
+            });
+            const retryData = await readResponseJson<{ pending?: boolean; job_id?: string; image_url?: string; imageUrl?: string }>(retryRes);
+            if (retryData.image_url || retryData.imageUrl) {
+              result = { url: retryData.image_url || retryData.imageUrl };
+            } else if (retryData.pending && retryData.job_id) {
+              jobId = retryData.job_id;
+              result = await pollStatus(jobId);
             }
-            if (pollData.status === 'FAILED') {
-              throw new Error(pollData.error || 'Image generation failed');
-            }
-          } catch (pollErr) {
-            if (pollErr instanceof Error && (pollErr.message.includes('failed') || pollErr.message.includes('FAILED'))) throw pollErr;
+          } catch {
+            // Retry submit failed — fall through to error
           }
         }
-        if (!imageUrl) throw new Error(waitZh ? 'GPU 排队超时，请稍后再试' : 'GPU queue timeout, please try again');
+
+        if (result.url) {
+          imageUrl = result.url;
+          caption = waitZh ? '拍好啦～这是专门为你拍的新照片 💕' : "Here's a brand-new photo just for you 💕";
+        } else {
+          throw new Error(waitZh ? 'GPU 排队超时，请稍后再试' : 'GPU queue timeout, please try again');
+        }
       }
 
       setIsTyping(false);

@@ -326,6 +326,11 @@ export interface RunPodGenerateOptions {
   on_timeout?: 'pending' | 'cancel';
   /** If true, generate() throws RunPodPendingError instead of returning pending payload. */
   throw_on_pending?: boolean;
+  /**
+   * When true, submit the job and return immediately with job_id (no polling).
+   * Eliminates Vercel serverless timeout risk entirely — client polls /api/runpod/status.
+   */
+  submit_only?: boolean;
 }
 
 export interface RunPodGenerateResult {
@@ -794,6 +799,23 @@ class RunPodClient {
         if (!id) {
           errors.push(`${strategy.name}: no job id`);
           continue;
+        }
+
+        // submit_only: return immediately — client will poll /api/runpod/status
+        if (options.submit_only) {
+          logger.info('[runpod] job submitted (submit_only) — client will poll', {
+            id,
+            strategy: strategy.name,
+          });
+          return {
+            images: [],
+            job_id: id,
+            pending: true,
+            status: 'IN_QUEUE',
+            endpoint_id: endpointId,
+            waited_ms: 0,
+            strategy: strategy.name,
+          };
         }
 
         logger.info('[runpod] job submitted — waiting (queue may be 2–5 min)', {

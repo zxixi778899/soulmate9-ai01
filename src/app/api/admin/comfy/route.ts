@@ -845,7 +845,7 @@ if (body.action === 'generate') {
         lora_strength_clip: loraStrength,
         loras: normalizedLoras,
         endpoint_id: endpointId,
-        throw_on_pending: false,
+        submit_only: true,
       };
       let result;
       try {
