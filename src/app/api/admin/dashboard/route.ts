@@ -14,6 +14,7 @@ type DashboardStats = {
   wau: number;
   mrr_cents: number;
   proMembers: number;
+  basicMembers: number;
   unlimitedMembers: number;
   paidMembers: number;
   totalPaidCents: number;
@@ -38,6 +39,7 @@ function normalizeStats(value: Partial<DashboardStats> | null): DashboardStats {
     wau: Number(value?.wau || 0),
     mrr_cents: Number(value?.mrr_cents || 0),
     proMembers: Number(value?.proMembers || 0),
+    basicMembers: Number(value?.basicMembers || 0),
     unlimitedMembers: Number(value?.unlimitedMembers || 0),
     paidMembers: Number(value?.paidMembers || 0),
     totalPaidCents: Number(value?.totalPaidCents || 0),
@@ -59,21 +61,131 @@ export async function GET(request: Request): Promise<NextResponse> {
   const { supabase } = authorization;
 
   try {
-    const [{ data: metrics, error: metricsError }, { data: recentUsers, error: usersError }] =
-      await Promise.all([
-        supabase.rpc('admin_dashboard_metrics'),
-        supabase
-          .from('profiles')
-          .select('id, display_name, membership_tier, created_at')
-          .order('created_at', { ascending: false })
-          .limit(5),
-      ]);
+    const queries = {
+      totalUsers: (async () => {
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+        return count || 0;
+      })(),
+      totalGirlfriends: (async () => {
+        const { count } = await supabase.from('girlfriends').select('*', { count: 'exact', head: true });
+        return count || 0;
+      })(),
+      publicGirlfriends: (async () => {
+        const { count } = await supabase.from('girlfriends').select('*', { count: 'exact', head: true }).eq('is_public', true);
+        return count || 0;
+      })(),
+      pendingReview: (async () => {
+        const { count } = await supabase.from('girlfriends').select('*', { count: 'exact', head: true }).eq('review_status', 'pending');
+        return count || 0;
+      })(),
+      activeAds: (async () => {
+        const { count } = await supabase.from('admin_ads').select('*', { count: 'exact', head: true }).eq('active', true);
+        return count || 0;
+      })(),
+      dau: (async () => {
+        const today = new Date().toISOString().split('T')[0];
+        const { count } = await supabase.from('chat_messages').select('*', { count: 'exact', head: true }).eq('role', 'user').gte('created_at', today);
+        return count || 0;
+      })(),
+      wau: (async () => {
+        const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+        const { data } = await supabase.from('chat_messages').select('user_id').eq('role', 'user').gte('created_at', weekAgo);
+        return new Set((data || []).map(m => m.user_id)).size;
+      })(),
+      mrr_cents: (async () => {
+        const { data } = await supabase.from('subscriptions').select('unit_amount_cents').eq('status', 'active');
+        return (data || []).reduce((sum, s) => sum + (s.unit_amount_cents || 0), 0);
+      })(),
+      proMembers: (async () => {
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('membership_tier', 'pro');
+        return count || 0;
+      })(),
+      basicMembers: (async () => {
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('membership_tier', 'basic');
+        return count || 0;
+      })(),
+      unlimitedMembers: (async () => {
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('membership_tier', 'unlimited');
+        return count || 0;
+      })(),
+      paidMembers: (async () => {
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).in('membership_tier', ['basic', 'pro', 'unlimited']);
+        return count || 0;
+      })(),
+      totalPaidCents: (async () => {
+        const { data } = await supabase.from('purchase_history').select('amount_cents').eq('status', 'completed');
+        return (data || []).reduce((sum, p) => sum + (p.amount_cents || 0), 0);
+      })(),
+      revenue7dCents: (async () => {
+        const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+        const { data } = await supabase.from('purchase_history').select('amount_cents').eq('status', 'completed').gte('created_at', weekAgo);
+        return (data || []).reduce((sum, p) => sum + (p.amount_cents || 0), 0);
+      })(),
+      newUsers7d: (async () => {
+        const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo);
+        return count || 0;
+      })(),
+      images7d: (async () => {
+        const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+        const { count } = await supabase.from('chat_messages').select('*', { count: 'exact', head: true }).eq('role', 'assistant').like('content', '%image%').gte('created_at', weekAgo);
+        return count || 0;
+      })(),
+      failedPayments7d: (async () => {
+        const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+        const { count } = await supabase.from('stripe_webhook_events').select('*', { count: 'exact', head: true }).eq('status', 'failed').gte('created_at', weekAgo);
+        return count || 0;
+      })(),
+      tokenLiability: (async () => {
+        const { data } = await supabase.from('user_tokens').select('balance_tokens');
+        return (data || []).reduce((sum, t) => sum + (t.balance_tokens || 0), 0);
+      })(),
+      aiCost7dCents: (async () => {
+        const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+        const { data } = await supabase.from('ai_model_usage_logs').select('cost_cents').gte('created_at', weekAgo);
+        return (data || []).reduce((sum, l) => sum + (l.cost_cents || 0), 0);
+      })(),
+      llmSuccessRate7d: (async () => {
+        const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+        const { data } = await supabase.from('ai_model_usage_logs').select('success').gte('created_at', weekAgo);
+        if (!data || data.length === 0) return 0;
+        const successes = data.filter(l => l.success).length;
+        return Math.round((successes / data.length) * 100);
+      })(),
+      cacheHitRate: (async () => {
+        const { data } = await supabase.from('generation_cache').select('hit_count, miss_count');
+        if (!data || data.length === 0) return 0;
+        const hits = data.reduce((sum, c) => sum + (c.hit_count || 0), 0);
+        const misses = data.reduce((sum, c) => sum + (c.miss_count || 0), 0);
+        const total = hits + misses;
+        return total === 0 ? 0 : Math.round((hits / total) * 100);
+      })(),
+    };
 
-    if (metricsError) throw new Error(`Dashboard metrics query failed: ${metricsError.message}`);
-    if (usersError) throw new Error(`Recent users query failed: ${usersError.message}`);
+    const keys = Object.keys(queries) as (keyof DashboardStats)[];
+    const results = await Promise.allSettled(Object.values(queries));
+
+    const rawStats: Partial<DashboardStats> = {};
+    for (let i = 0; i < keys.length; i++) {
+      const result = results[i];
+      rawStats[keys[i]] = result.status === 'fulfilled' ? result.value : 0;
+      if (result.status === 'rejected') {
+        log.warn(`admin-dashboard: metric "${keys[i]}" failed`, { error: String(result.reason) });
+      }
+    }
+
+    const { data: recentUsers, error: usersError } = await supabase
+      .from('profiles')
+      .select('id, display_name, membership_tier, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (usersError) {
+      log.warn('admin-dashboard: recent users query failed', { error: usersError.message });
+    }
 
     return NextResponse.json({
-      stats: normalizeStats(metrics as Partial<DashboardStats> | null),
+      stats: normalizeStats(rawStats),
       recentUsers: recentUsers || [],
       generatedAt: new Date().toISOString(),
     });

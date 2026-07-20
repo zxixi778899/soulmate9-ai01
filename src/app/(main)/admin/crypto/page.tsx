@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { authedFetch } from '@/lib/supabase';
-import { Loader2, Search, CheckCircle, XCircle, Clock, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react';
+import { Loader2, Search, CheckCircle, XCircle, Clock, AlertCircle, ExternalLink, RefreshCw, DollarSign, Users, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -40,10 +40,25 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   rejected: { label: 'Rejected', color: 'bg-red-500/10 text-red-400 border-red-500/20', icon: XCircle },
 };
 
+const PROVIDER_CONFIG: Record<string, { label: string; color: string }> = {
+  NowPayments: { label: 'NOWPayments', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  NexaPay: { label: 'NexaPay', color: 'bg-sky-500/10 text-sky-400 border-sky-500/20' },
+  Stripe: { label: 'Stripe', color: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
+  Crypto: { label: 'Crypto', color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+};
+
+function getProvider(payment: CryptoPayment): string {
+  if (payment.tx_hash?.startsWith('np_')) return 'NowPayments';
+  if (payment.tx_hash?.startsWith('nxp_')) return 'NexaPay';
+  if (payment.tx_hash?.startsWith('stripe_') || payment.tx_hash?.startsWith('cs_')) return 'Stripe';
+  return 'Crypto';
+}
+
 export default function AdminCryptoPage() {
   const [payments, setPayments] = useState<CryptoPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [providerFilter, setProviderFilter] = useState<string | null>(null);
   const [actionDialog, setActionDialog] = useState<{
     payment: CryptoPayment;
     action: 'confirm' | 'reject';
@@ -56,20 +71,30 @@ export default function AdminCryptoPage() {
     try {
       const params = new URLSearchParams();
       if (statusFilter) params.set('status', statusFilter);
+      if (providerFilter) params.set('provider', providerFilter);
       const res = await authedFetch(`/api/admin/crypto?${params}`);
       const data = await res.json();
       if (data.success) {
         setPayments(data.payments);
       }
     } catch {
-      toast.error('Failed to load crypto payments');
+      toast.error('Failed to load payments');
     }
     setLoading(false);
-  }, [statusFilter]);
+  }, [statusFilter, providerFilter]);
 
   useEffect(() => {
     fetchPayments();
   }, [fetchPayments]);
+
+  // Compute stats from loaded payments
+  const stats = useMemo(() => {
+    const total = payments.length;
+    const pending = payments.filter(p => p.status === 'pending_verification' || p.status === 'awaiting_payment').length;
+    const confirmed = payments.filter(p => p.status === 'confirmed').length;
+    const revenue = payments.filter(p => p.status === 'confirmed').reduce((sum, p) => sum + (p.amount_usd || 0), 0);
+    return { total, pending, confirmed, revenue };
+  }, [payments]);
 
   const handleConfirm = async () => {
     if (!actionDialog) return;
@@ -79,9 +104,9 @@ export default function AdminCryptoPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          paymentId: actionDialog.payment.id,
+          id: actionDialog.payment.id,
           action: actionDialog.action,
-          adminNotes: adminNotes || null,
+          admin_notes: adminNotes || null,
         }),
       });
       const data = await res.json();
@@ -103,7 +128,7 @@ export default function AdminCryptoPage() {
     setActionLoading(false);
   };
 
-  const formatAmount = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const formatAmount = (usd: number) => `$${usd.toFixed(2)}`;
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString('en-US', {
       month: 'short',
@@ -112,7 +137,7 @@ export default function AdminCryptoPage() {
       minute: '2-digit',
     });
 
-  const filterTabs = [
+  const statusTabs = [
     { label: 'All', value: null },
     { label: 'Pending', value: 'pending_verification' },
     { label: 'Awaiting', value: 'awaiting_payment' },
@@ -120,13 +145,21 @@ export default function AdminCryptoPage() {
     { label: 'Rejected', value: 'rejected' },
   ];
 
+  const providerTabs = [
+    { label: 'All', value: null },
+    { label: 'Crypto', value: 'crypto' },
+    { label: 'NOWPayments', value: 'nowpayments' },
+    { label: 'NexaPay', value: 'nexapay' },
+    { label: 'Stripe', value: 'stripe' },
+  ];
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Crypto Payments</h1>
+          <h1 className="text-2xl font-bold">Payment Management</h1>
           <p className="text-sm text-[#8B8BA3] mt-1">
-            Manage cryptocurrency payment verifications
+            Manage all payment verifications — Crypto, NOWPayments, NexaPay, Stripe
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchPayments} disabled={loading}>
@@ -135,9 +168,71 @@ export default function AdminCryptoPage() {
         </Button>
       </div>
 
-      {/* Status filters */}
+      {/* Stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="bg-white/[0.04] border-white/[0.06]">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
+              <CreditCard className="h-5 w-5 text-white/60" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{stats.total}</div>
+              <div className="text-[11px] text-[#8B8BA3]">Total Payments</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white/[0.04] border-white/[0.06]">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-yellow-500/10 flex items-center justify-center">
+              <Clock className="h-5 w-5 text-yellow-400" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{stats.pending}</div>
+              <div className="text-[11px] text-[#8B8BA3]">Pending</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white/[0.04] border-white/[0.06]">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+              <CheckCircle className="h-5 w-5 text-green-400" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{stats.confirmed}</div>
+              <div className="text-[11px] text-[#8B8BA3]">Confirmed</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white/[0.04] border-white/[0.06]">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+              <DollarSign className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">${stats.revenue.toFixed(0)}</div>
+              <div className="text-[11px] text-[#8B8BA3]">Revenue</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Provider filter */}
       <div className="flex gap-2 flex-wrap">
-        {filterTabs.map((tab) => (
+        {providerTabs.map((tab) => (
+          <Button
+            key={tab.label}
+            variant={providerFilter === tab.value ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setProviderFilter(tab.value)}
+          >
+            {tab.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* Status filter */}
+      <div className="flex gap-2 flex-wrap">
+        {statusTabs.map((tab) => (
           <Button
             key={tab.label}
             variant={statusFilter === tab.value ? 'default' : 'outline'}
@@ -158,7 +253,7 @@ export default function AdminCryptoPage() {
         <Card>
           <CardContent className="py-16 text-center">
             <Search className="h-12 w-12 mx-auto mb-4 text-[#8B8BA3]/40" />
-            <p className="text-[#8B8BA3]">No crypto payments found</p>
+            <p className="text-[#8B8BA3]">No payments found</p>
           </CardContent>
         </Card>
       ) : (
@@ -166,19 +261,25 @@ export default function AdminCryptoPage() {
           {payments.map((payment) => {
             const statusCfg = STATUS_CONFIG[payment.status] || STATUS_CONFIG.awaiting_payment;
             const StatusIcon = statusCfg.icon;
+            const provider = getProvider(payment);
+            const providerCfg = PROVIDER_CONFIG[provider] || PROVIDER_CONFIG.Crypto;
 
             return (
               <Card key={payment.id} className="bg-white/[0.04] backdrop-blur-xl border-white/[0.06]">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="font-semibold capitalize">{payment.plan_id}</span>
-                        <span className="text-[#8B8BA3]"></span>
                         <span className="text-sm text-[#8B8BA3]">
                           {formatAmount(payment.amount_usd)}
                         </span>
-                        <span className="text-[#8B8BA3]"></span>
+                        <Badge
+                          variant="outline"
+                          className={`${providerCfg.color} border text-[10px] px-2 py-0`}
+                        >
+                          {providerCfg.label}
+                        </Badge>
                         <Badge
                           variant="outline"
                           className={`${statusCfg.color} border text-[10px] px-2 py-0`}
@@ -202,9 +303,9 @@ export default function AdminCryptoPage() {
                           <span>{formatDate(payment.created_at)}</span>
                         </div>
                         {payment.tx_hash && (
-                          <div className="col-span-2">
+                          <div>
                             <span className="text-[#8B8BA3]">TX: </span>
-                            <span className="font-mono text-xs">{payment.tx_hash}</span>
+                            <span className="font-mono text-xs">{payment.tx_hash.slice(0, 20)}...</span>
                           </div>
                         )}
                       </div>
@@ -217,7 +318,7 @@ export default function AdminCryptoPage() {
                     </div>
 
                     {/* Actions */}
-                    {payment.status === 'pending_verification' && (
+                    {(payment.status === 'pending_verification' || payment.status === 'awaiting_payment') && (
                       <div className="flex gap-2 shrink-0">
                         <Button
                           size="sm"
@@ -275,6 +376,10 @@ export default function AdminCryptoPage() {
                 <span className="font-semibold">
                   {formatAmount(actionDialog.payment.amount_usd)} ({actionDialog.payment.currency})
                 </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#8B8BA3]">Provider:</span>
+                <span>{getProvider(actionDialog.payment)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#8B8BA3]">TX Hash:</span>

@@ -10,6 +10,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || '';
+    const provider = searchParams.get('provider') || '';
 
     let query = supabase
       .from('crypto_payments')
@@ -20,10 +21,25 @@ export async function GET(request: Request) {
       query = query.eq('status', status);
     }
 
+    // Filter by payment provider based on tx_hash prefix
+    if (provider === 'nowpayments') {
+      query = query.like('tx_hash', 'np_%');
+    } else if (provider === 'nexapay') {
+      query = query.like('tx_hash', 'nxp_%');
+    } else if (provider === 'stripe') {
+      query = query.or('tx_hash.like.stripe_%,tx_hash.like.cs_%');
+    } else if (provider === 'crypto') {
+      query = query.not('tx_hash', 'is', null)
+        .not('tx_hash', 'like', 'np_%')
+        .not('tx_hash', 'like', 'nxp_%')
+        .not('tx_hash', 'like', 'stripe_%')
+        .not('tx_hash', 'like', 'cs_%');
+    }
+
     const { data, error } = await query;
     if (error) throw error;
 
-    return NextResponse.json({ orders: data || [] });
+    return NextResponse.json({ success: true, payments: data || [] });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -36,7 +52,10 @@ export async function PATCH(request: Request) {
     if (adminCheck.error) return adminCheck.error;
     const { supabase } = adminCheck;
 
-    const { id, action, admin_notes } = await request.json();
+    const body = await request.json();
+    const id = body.id || body.paymentId;
+    const action = body.action;
+    const admin_notes = body.admin_notes || body.adminNotes || null;
 
     if (!id || !action) {
       return NextResponse.json({ error: 'id and action are required' }, { status: 400 });
@@ -69,7 +88,10 @@ export async function PATCH(request: Request) {
       // Set membership tier based on plan
       let membershipTier = 'free';
       let credits = 0;
-      if (payment.plan_id === 'pro') {
+      if (payment.plan_id === 'basic') {
+        membershipTier = 'basic';
+        credits = 200;
+      } else if (payment.plan_id === 'pro') {
         membershipTier = 'pro';
         credits = 500;
       } else if (payment.plan_id === 'unlimited') {
