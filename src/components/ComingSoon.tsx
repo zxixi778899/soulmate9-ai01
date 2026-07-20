@@ -25,9 +25,9 @@ export default function ComingSoon({
   return (
     <div className="flex min-h-[60vh] w-full flex-col items-center justify-center gap-6 px-6 py-12 text-center">
       <div className="relative">
-        <div className="absolute inset-0 -z-10 animate-pulse rounded-full bg-gradient-to-br from-rose-500/20 to-fuchsia-500/20 blur-2xl" />
+        <div className="absolute inset-0 -z-10 animate-pulse rounded-full bg-gradient-to-br from-[#FF2D78]/20 to-fuchsia-500/20 blur-2xl" />
         <div className="rounded-full border border-border/40 bg-card/60 p-5 backdrop-blur-xl">
-          <Sparkles className="h-10 w-10 text-rose-400" />
+          <Sparkles className="h-10 w-10 text-[#ff6ba6]" />
         </div>
       </div>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">{title}</h1>

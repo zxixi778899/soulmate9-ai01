@@ -169,7 +169,7 @@ export default function ShopPage() {
       }
       window.location.href = data.url;
     } catch {
-      toast.error('网络错误');
+      toast.error(t('shop.networkError'));
     } finally {
       setBuyingTokens(null);
     }
@@ -207,19 +207,19 @@ const handleBuy = async () => {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(`${buying.emoji} ${buying.name} 已放入背包！`);
+        toast.success(`${buying.emoji} ${buying.name} ${t('shop.addedToBag')}`);
         setBuying(null);
         const c = await authedFetch('/api/shop/credits').then((r) => r.json());
         setCredits(c);
       } else if (res.status === 402) {
-        toast.error('代币不足', {
-          action: { label: '充值', onClick: () => setTab('tokens') },
+        toast.error(t('shop.insufficient'), {
+          action: { label: t('shop.topup'), onClick: () => setTab('tokens') },
         });
       } else {
-        toast.error(data.error || '购买失败');
+        toast.error(data.error || t('shop.buyFailed'));
       }
     } catch {
-      toast.error('网络错误');
+      toast.error(t('shop.networkError'));
     }
     setPurchasing(false);
   };
@@ -230,8 +230,8 @@ const handleBuy = async () => {
     <GameShell className="skin-shelf min-h-[100dvh] pb-6 md:pb-12">
       <PageHeader
         eyebrow="ARMORY"
-        title="皮肤橱窗"
-        subtitle="王者级货架 · 顶栏可返回选角或跳转密语"
+        title={t('shop.armoryTitle')}
+        subtitle={t('shop.armorySubtitle')}
         backHref="/"
         sticky={false}
         actions={
@@ -281,7 +281,7 @@ const handleBuy = async () => {
       <div className="mx-auto max-w-6xl px-4 sm:px-8 py-6">
         {tab === 'tokens' && (
           <section>
-            <GameSectionTitle title="充值点券" subtitle="Stripe 安全支付 · 即时到账" eyebrow="TOP UP" />
+            <GameSectionTitle title={t('shop.topupTitle')} subtitle={t('shop.topupSubtitle')} eyebrow="TOP UP" />
             {tokenPackages.length === 0 ? (
               <div className="text-center py-12 text-white/40">
                 <Coins className="mx-auto mb-3 h-10 w-10 text-white/20" />
@@ -308,7 +308,7 @@ const handleBuy = async () => {
                         disabled={buyingTokens === pkg.id}
                         onClick={() => buyTokenPack(pkg.id)}
                       >
-                        {buyingTokens === pkg.id ? '…' : '购买'}
+                        {buyingTokens === pkg.id ? '…' : t('shop.buy')}
                       </GamePrimaryButton>
                     </div>
                   </GamePanel>
@@ -375,16 +375,16 @@ const handleBuy = async () => {
           <section>
             <GameSectionTitle
               eyebrow="SKINS"
-              title="传说皮肤"
-              subtitle="王者级货架 · 选中后装备给她"
+              title={t('shop.skinsTitle')}
+              subtitle={t('shop.skinsSubtitle')}
             />
             {loadingProducts ? (
               <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" /></div>
             ) : skins.length === 0 ? (
               <div className="text-center py-12 text-white/40">
                 <Shirt className="mx-auto mb-3 h-10 w-10 text-white/20" />
-                <p>暂无皮肤商品</p>
-                <p className="text-xs mt-1">管理员可在后台商城添加商品</p>
+                <p>{t('shop.noSkins')}</p>
+                <p className="text-xs mt-1">{t('shop.noProductsHint')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -447,7 +447,7 @@ const handleBuy = async () => {
                             {item.price_cents}
                           </span>
                           <span className="text-[10px] text-[#ff6ba6]">
-                            +{item.effect_value?.intimacy_boost} 亲密度
+                            +{item.effect_value?.intimacy_boost} {t('shop.intimacyUnit')}
                           </span>
                         </div>
                       </div>
@@ -461,14 +461,14 @@ const handleBuy = async () => {
 
         {tab === 'gifts' && (
           <section>
-            <GameSectionTitle eyebrow="ITEMS" title="道具与增益" subtitle="送礼 · 双倍 · 限时卡" />
+            <GameSectionTitle eyebrow="ITEMS" title={t('shop.giftsTitle')} subtitle={t('shop.giftsSubtitle')} />
             {loadingProducts ? (
               <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" /></div>
             ) : gifts.length === 0 ? (
               <div className="text-center py-12 text-white/40">
                 <Gift className="mx-auto mb-3 h-10 w-10 text-white/20" />
-                <p>暂无道具商品</p>
-                <p className="text-xs mt-1">管理员可在后台商城添加商品</p>
+                <p>{t('shop.noGifts')}</p>
+                <p className="text-xs mt-1">{t('shop.noProductsHint')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -522,17 +522,17 @@ const handleBuy = async () => {
               {buying?.name}
             </DialogTitle>
             <DialogDescription className="text-white/50">
-              {buying?.description} · 消耗 {buying?.price_cents} 代币
+              {buying?.description} · {t('shop.costs')} {buying?.price_cents} {t('shop.tokensUnit')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setBuying(null)}>取消</Button>
+            <Button variant="outline" onClick={() => setBuying(null)}>{t('shop.cancel')}</Button>
             <Button
               disabled={purchasing}
               onClick={handleBuy}
               className="bg-gradient-to-r from-[#ffd700] to-[#ff2e88] text-black font-bold"
             >
-              {purchasing ? '…' : '确认购买'}
+              {purchasing ? '…' : t('shop.confirmBuy')}
             </Button>
           </DialogFooter>
         </DialogContent>

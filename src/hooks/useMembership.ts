@@ -7,7 +7,7 @@ import { authedFetch } from '@/lib/supabase';
  * Membership tier used across UI + checkout flows.
  * Canonical names: free / pro / unlimited / admin
  */
-export type MembershipTier = 'free' | 'pro' | 'unlimited' | 'admin';
+export type MembershipTier = 'free' | 'basic' | 'pro' | 'unlimited' | 'admin';
 
 /**
  * Soft limits surfaced in UI. Hard enforcement lives on the server
@@ -18,19 +18,26 @@ export const MEMBERSHIP_LIMITS = {
     dailyMessageLimit: 40,
     maxIntimacyLevel: 3,
     maxGirlfriends: 3,
-    canGenerateImages: false,
+    canGenerateImages: true,
+    canUsePremiumOutfits: false,
+  },
+  basic: {
+    dailyMessageLimit: 150,
+    maxIntimacyLevel: 5,
+    maxGirlfriends: 8,
+    canGenerateImages: true,
     canUsePremiumOutfits: false,
   },
   pro: {
-    dailyMessageLimit: Number.POSITIVE_INFINITY,
-    maxIntimacyLevel: 5,
+    dailyMessageLimit: 300,
+    maxIntimacyLevel: 6,
     maxGirlfriends: 15,
     canGenerateImages: true,
     canUsePremiumOutfits: true,
   },
   unlimited: {
     dailyMessageLimit: Number.POSITIVE_INFINITY,
-    maxIntimacyLevel: 10,
+    maxIntimacyLevel: 6,
     maxGirlfriends: Number.POSITIVE_INFINITY,
     canGenerateImages: true,
     canUsePremiumOutfits: true,
@@ -55,7 +62,7 @@ export interface MembershipState {
   refresh: () => Promise<void>;
 }
 
-const VALID_TIERS = new Set<MembershipTier>(['free', 'pro', 'unlimited', 'admin']);
+const VALID_TIERS = new Set<MembershipTier>(['free', 'basic', 'pro', 'unlimited', 'admin']);
 
 function normalizeTier(raw: unknown): MembershipTier {
   // API historically mixed "premium" / "pro" — normalize both to pro.

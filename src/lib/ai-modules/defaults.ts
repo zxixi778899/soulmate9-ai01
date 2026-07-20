@@ -136,6 +136,12 @@ export function createDefaultAiModules(): AiModulesConfig {
           fallback_endpoint_ids: ['together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.08,
           max_tokens: 512, context_messages: 10, daily_message_limit: 40, allow_nsfw: false,
         },
+        basic: {
+          sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: null,
+          default_endpoint_id: 'together-qwen35-9b', complex_endpoint_id: 'together-qwen35-9b',
+          fallback_endpoint_ids: ['together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.15,
+          max_tokens: 768, context_messages: 16, daily_message_limit: 150, allow_nsfw: false,
+        },
         pro: {
           sfw_endpoint_id: 'together-qwen3-235b',
           nsfw_endpoint_id: 'runpod-qwen35-9b-abliterated',

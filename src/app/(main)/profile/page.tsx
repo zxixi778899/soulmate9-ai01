@@ -78,6 +78,7 @@ type Tab = 'dashboard' | 'assets' | 'settings';
 
 const TIER_META: Record<string, { label: string; color: string }> = {
   free: { label: 'Free', color: 'text-white/50' },
+  basic: { label: 'Basic', color: 'text-sky-400' },
   pro: { label: 'Pro', color: 'text-purple-400' },
   unlimited: { label: 'Unlimited', color: 'text-amber-400' },
 };
@@ -150,11 +151,11 @@ export default function ProfilePage() {
         body: JSON.stringify({ display_name: displayName }),
       });
       if (res.ok) {
-        toast.success('已保存');
+        toast.success(t('profile.saved'));
         notifyDataChange('membership');
-      } else toast.error('保存失败');
+      } else toast.error(t('profile.saveFailed'));
     } catch {
-      toast.error('网络错误');
+      toast.error(t('profile.networkError'));
     }
     setSaving(false);
   };
@@ -177,7 +178,7 @@ export default function ProfilePage() {
         toast.error((d as { error?: string }).error || 'Deletion failed');
       }
     } catch {
-      toast.error('网络错误');
+      toast.error(t('profile.networkError'));
     }
     setDeleting(false);
   };
@@ -191,7 +192,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ product_id: productId, girlfriend_id: giftTarget }),
       });
       if (!res.ok) throw new Error('Gift failed');
-      toast.success('赠送成功！');
+      toast.success(t('profile.giftSuccess'));
       setGiftingItem(null);
       setGiftTarget('');
       notifyDataChange('girlfriends');
@@ -202,7 +203,7 @@ export default function ProfilePage() {
         .then((d) => setBackpackItems((d.items || []) as BackpackItem[]))
         .catch(() => {});
     } catch {
-      toast.error('赠送失败');
+      toast.error(t('profile.giftFailed'));
     }
   };
 
@@ -220,13 +221,13 @@ export default function ProfilePage() {
     <GameShell className="pb-28 md:pb-12 min-h-full">
       <PageHeader
         eyebrow="PLAYER"
-        title="我的账号"
-        subtitle="背包 · 设置 · 顶栏随时跳转其他模块"
+        title={t('profile.title')}
+        subtitle={t('profile.subtitle')}
         backHref="/"
         sticky={false}
         actions={
           <GamePrimaryButton className="!h-10 !px-4 text-xs" onClick={() => router.push('/pricing')}>
-            <Crown className="h-3.5 w-3.5" /> 升级
+            <Crown className="h-3.5 w-3.5" /> {t('profile.upgrade')}
           </GamePrimaryButton>
         }
       />
@@ -254,7 +255,7 @@ export default function ProfilePage() {
                     <Crown className="h-3.5 w-3.5" /> {tier.label}
                   </span>
                   <span className="text-xs text-amber-300 flex items-center gap-1">
-                    · {credits} 代币
+                    · {credits} {t('profile.creditsUnit')}
                   </span>
                 </div>
               </div>
@@ -262,9 +263,9 @@ export default function ProfilePage() {
 
             <div className="mt-5 grid grid-cols-3 gap-2">
               {[
-                { icon: Users, label: '女友', value: stats?.girlfriendCount ?? 0 },
-                { icon: MessageCircle, label: '今日密语', value: stats?.messagesToday ?? 0 },
-                { icon: Heart, label: '最高亲密', value: stats?.avgIntimacy ?? 0 },
+                { icon: Users, label: t('profile.statGirlfriends'), value: stats?.girlfriendCount ?? 0 },
+                { icon: MessageCircle, label: t('profile.statMessages'), value: stats?.messagesToday ?? 0 },
+                { icon: Heart, label: t('profile.statIntimacy'), value: stats?.avgIntimacy ?? 0 },
               ].map((s) => (
                 <div key={s.label} className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-3 text-center">
                   <s.icon className="h-4 w-4 mx-auto text-[#ff6ba6] mb-1" />
@@ -281,9 +282,9 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-3xl px-4 sm:px-8 mt-5">
         <div className="flex gap-1 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
           {([
-            { id: 'dashboard', label: '主页', icon: Activity },
-            { id: 'assets', label: '背包', icon: Package },
-            { id: 'settings', label: '设置', icon: Settings },
+            { id: 'dashboard', label: t('profile.tabHome'), icon: Activity },
+            { id: 'assets', label: t('profile.tabBag'), icon: Package },
+            { id: 'settings', label: t('profile.tabSettings'), icon: Settings },
           ] as const).map((tab) => (
             <button
               key={tab.id}
@@ -305,18 +306,18 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-3xl px-4 sm:px-8 py-6 space-y-4">
         {activeTab === 'dashboard' && (
           <>
-            <GameSectionTitle title="快捷入口" eyebrow="HUB" />
+            <GameSectionTitle title={t('profile.shortcuts')} eyebrow="HUB" />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { href: '/chats', icon: MessageCircle, label: '密语' },
-                { href: '/explore', icon: Sparkles, label: '卡池' },
-                { href: '/shop', icon: ShoppingBag, label: '商城' },
-                { href: '/quest', icon: Trophy, label: '任务' },
-                { href: '/wardrobe', icon: Shirt, label: '衣柜' },
-                { href: '/achievements', icon: Star, label: '成就' },
-                { href: '/purchases', icon: CreditCard, label: '订单' },
-                { href: '/pricing', icon: Crown, label: '会员' },
-                { href: '/admin', icon: Settings, label: '管理后台' },
+                { href: '/chats', icon: MessageCircle, label: t('profile.qChats') },
+                { href: '/explore', icon: Sparkles, label: t('profile.qPool') },
+                { href: '/shop', icon: ShoppingBag, label: t('profile.qShop') },
+                { href: '/quest', icon: Trophy, label: t('profile.qQuest') },
+                { href: '/wardrobe', icon: Shirt, label: t('profile.qWardrobe') },
+                { href: '/achievements', icon: Star, label: t('profile.qAchieve') },
+                { href: '/purchases', icon: CreditCard, label: t('profile.qOrders') },
+                { href: '/pricing', icon: Crown, label: t('profile.qVip') },
+                { href: '/admin', icon: Settings, label: t('profile.qAdmin') },
               ].map((l) => (
                 <button
                   key={l.href}
@@ -331,7 +332,7 @@ export default function ProfilePage() {
 
             {notifications.length > 0 && (
               <>
-                <GameSectionTitle title="通知" eyebrow="MAIL" />
+                <GameSectionTitle title={t('profile.notifications')} eyebrow="MAIL" />
                 <div className="space-y-2">
                   {notifications.slice(0, 5).map((n) => (
                     <GamePanel key={n.id} className="p-3 flex gap-3 items-start">
@@ -356,13 +357,13 @@ export default function ProfilePage() {
         {activeTab === 'assets' && (
           <>
             {/* Wardrobe / skins section */}
-            <GameSectionTitle title="我的皮肤与道具" subtitle={`${assets.length} 件`} eyebrow="INVENTORY" />
+            <GameSectionTitle title={t('profile.skinsTitle')} subtitle={`${assets.length} ${t('profile.items')}`} eyebrow="INVENTORY" />
             {assets.length === 0 ? (
               <GamePanel className="p-10 text-center text-white/40 text-sm">
-                暂无皮肤 · 去商城挑选吧
+                {t('profile.noSkins')}
                 <div className="mt-4">
                   <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/shop')}>
-                    打开商城
+                    {t('profile.openShop')}
                   </GamePrimaryButton>
                 </div>
               </GamePanel>
@@ -387,13 +388,13 @@ export default function ProfilePage() {
 
             {/* Backpack items section */}
             <div className="mt-6">
-              <GameSectionTitle title="背包道具" subtitle={`${backpackItems.length} 种`} eyebrow="BACKPACK" />
+              <GameSectionTitle title={t('profile.bagTitle')} subtitle={`${backpackItems.length} ${t('profile.items')}`} eyebrow="BACKPACK" />
               {backpackItems.length === 0 ? (
                 <GamePanel className="p-10 text-center text-white/40 text-sm">
-                  背包是空的，去商城逛逛吧
+                  {t('profile.emptyBag')}
                   <div className="mt-4">
                     <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/shop')}>
-                      打开商城
+                      {t('profile.openShop')}
                     </GamePrimaryButton>
                   </div>
                 </GamePanel>
@@ -439,7 +440,7 @@ export default function ProfilePage() {
                         }}
                         className="mt-2 w-full flex items-center justify-center gap-1 h-7 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs text-white/60 hover:text-white hover:bg-[#FF2D78]/20 hover:border-[#FF2D78]/40 transition-all"
                       >
-                        <Gift className="h-3 w-3" /> 赠送
+                        <Gift className="h-3 w-3" /> {t('profile.gift')}
                       </button>
                     </GamePanel>
                   ))}
@@ -451,10 +452,10 @@ export default function ProfilePage() {
 
         {activeTab === 'settings' && (
           <>
-            <GameSectionTitle title="账号设置" eyebrow="SETTINGS" />
+            <GameSectionTitle title={t('profile.settingsTitle')} eyebrow="SETTINGS" />
             <GamePanel className="p-5 space-y-4">
               <div>
-                <label className="text-xs text-white/40 mb-1.5 block">显示名称</label>
+                <label className="text-xs text-white/40 mb-1.5 block">{t('profile.displayName')}</label>
                 <Input
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
@@ -462,16 +463,16 @@ export default function ProfilePage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-white/40 mb-1.5 block">邮箱</label>
+                <label className="text-xs text-white/40 mb-1.5 block">{t('profile.email')}</label>
                 <Input value={user?.email || ''} disabled className="bg-white/5 border-white/10 opacity-60" />
               </div>
               <GamePrimaryButton className="w-full h-11" disabled={saving} onClick={saveProfile}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                保存
+                {t('profile.save')}
               </GamePrimaryButton>
             </GamePanel>
 
-            <GameSectionTitle title="订阅" eyebrow="VIP" />
+            <GameSectionTitle title={t('profile.subscription')} eyebrow="VIP" />
             <GamePanel className="p-5 flex items-center gap-4">
               <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#ffd700]/20 to-[#ff2e88]/20 border border-[#ffd700]/30 flex items-center justify-center shrink-0">
                 <Crown className={cn('h-5 w-5', tier.color)} />
@@ -480,28 +481,28 @@ export default function ProfilePage() {
                 <div className={cn('font-bold text-sm flex items-center gap-1.5', tier.color)}>
                   {tier.label}
                   {membershipTier === 'free' && (
-                    <span className="text-[10px] text-white/40 font-normal">· {credits} 代币</span>
+                    <span className="text-[10px] text-white/40 font-normal">· {credits} {t('profile.creditsUnit')}</span>
                   )}
                 </div>
                 <div className="text-xs text-white/40 mt-0.5">
                   {membershipTier === 'free'
-                    ? '升级解锁 NSFW、AI 生图与无限密语'
-                    : '随时管理或取消你的订阅'}
+                    ? t('profile.subFreeHint')
+                    : t('profile.subPaidHint')}
                 </div>
               </div>
               <GamePrimaryButton className="!h-10 !px-4 text-xs shrink-0" onClick={() => router.push('/pricing')}>
-                {membershipTier === 'free' ? '升级' : '管理'}
+                {membershipTier === 'free' ? t('profile.upgrade') : t('profile.manage')}
               </GamePrimaryButton>
             </GamePanel>
 
-            <GameSectionTitle title="危险区域" eyebrow="DANGER" />
+            <GameSectionTitle title={t('profile.dangerTitle')} eyebrow="DANGER" />
             <GamePanel className="p-5 border-red-500/20 space-y-3">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <div className="text-sm font-semibold text-red-300">注销账号</div>
+                  <div className="text-sm font-semibold text-red-300">{t('profile.deleteTitle')}</div>
                   <div className="text-xs text-white/40 mt-0.5">
-                    永久删除你的账号、伴侣、聊天记录与消费数据，此操作不可撤销。
+                    {t('profile.deleteDesc')}
                   </div>
                 </div>
               </div>
@@ -512,7 +513,7 @@ export default function ProfilePage() {
                   onChange={(e) => setDeleteConfirm(e.target.checked)}
                   className="rounded border-red-500/40 bg-white/[0.06] accent-red-500"
                 />
-                <span className="text-xs text-white/50">我理解此操作永久且不可恢复</span>
+                <span className="text-xs text-white/50">{t('profile.deleteConfirm')}</span>
               </label>
               <button
                 onClick={() => void handleDeleteAccount()}
@@ -520,7 +521,7 @@ export default function ProfilePage() {
                 className="w-full flex items-center justify-center gap-2 h-11 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                永久注销我的账号
+                {t('profile.deleteCta')}
               </button>
             </GamePanel>
 
@@ -529,7 +530,7 @@ export default function ProfilePage() {
                 onClick={() => signOut()}
                 className="w-full flex items-center justify-center gap-2 h-11 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm font-medium"
               >
-                <LogOut className="h-4 w-4" /> 退出登录
+                <LogOut className="h-4 w-4" /> {t('profile.signOut')}
               </button>
             </GamePanel>
           </>
@@ -542,14 +543,14 @@ export default function ProfilePage() {
           <SheetHeader className="px-5 pt-5 pb-2">
             <SheetTitle className="text-base text-white flex items-center gap-2">
               <Gift className="h-4 w-4 text-[#ff6ba6]" />
-              选择赠送对象
+              {t('profile.giftChoose')}
             </SheetTitle>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto px-5 pb-2 space-y-1.5">
             {girlfriends.length === 0 ? (
               <div className="py-8 text-center text-white/40 text-sm">
-                还没有女友，快去创建一位吧
+                {t('profile.giftNone')}
               </div>
             ) : (
               girlfriends.map((gf) => (
@@ -591,7 +592,7 @@ export default function ProfilePage() {
               disabled={!giftTarget}
               onClick={() => { if (giftingItem) void handleGift(giftingItem); }}
             >
-              <Gift className="h-4 w-4" /> 确认赠送
+              <Gift className="h-4 w-4" /> {t('profile.giftConfirm')}
             </GamePrimaryButton>
           </div>
         </SheetContent>

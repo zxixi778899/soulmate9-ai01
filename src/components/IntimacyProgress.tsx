@@ -71,7 +71,7 @@ export function IntimacyProgress({
           </div>
           <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-pink-500 to-rose-400 rounded-full transition-all duration-500"
+              className="h-full bg-gradient-to-r from-[#FF2D78] to-[#ff6ba6] rounded-full transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             />
           </div>

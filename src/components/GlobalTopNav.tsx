@@ -5,12 +5,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import {
   Menu, X, User, LogOut, Crown, Flame, ArrowLeft,
-  Heart, MessageCircle, ShoppingBag, Wand2, Home,
+  Heart, MessageCircle, ShoppingBag, Wand2, Home, Coins,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { cn } from '@/lib/utils';
+import { authedFetch } from '@/lib/supabase';
 
 /**
  * Site-wide top navigation — always available (except admin / chat room).
@@ -21,6 +22,18 @@ export default function GlobalTopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
+
+  const [balance, setBalance] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user) {
+      setBalance(null);
+      return;
+    }
+    authedFetch('/api/shop/credits')
+      .then((r) => r.json())
+      .then((d) => setBalance(Number((d as { credits_remaining?: number }).credits_remaining) || 0))
+      .catch(() => {});
+  }, [user]);
 
   // Hooks must run unconditionally — hide admin/chat chrome only after all hooks.
   const hideChrome =
@@ -120,6 +133,14 @@ export default function GlobalTopNav() {
           <LanguageSwitcher variant="compact" />
           {user ? (
             <>
+              <Link
+                href="/shop?tab=tokens"
+                className="glass h-9 sm:h-10 px-2 sm:px-3 rounded-full text-xs flex items-center gap-1 text-amber-300 touch-manipulation shrink-0"
+                aria-label="Tokens"
+              >
+                <Coins className="h-3.5 w-3.5 text-amber-400" />
+                <span className="tabular-nums font-semibold">{balance ?? '…'}</span>
+              </Link>
               <Link
                 href="/pricing"
                 className="glass h-9 sm:h-10 px-2 sm:px-3 rounded-full text-xs flex items-center gap-1 text-[#ffd700] touch-manipulation shrink-0"

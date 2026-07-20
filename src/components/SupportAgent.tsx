@@ -162,7 +162,7 @@ export default function SupportAgent() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-20 right-4 z-50 group"
+          className="fixed bottom-[max(5rem,env(safe-area-inset-bottom))] right-4 z-50 group"
           aria-label={title}
         >
           {/* Ping animation */}
@@ -178,7 +178,7 @@ export default function SupportAgent() {
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-20 right-4 z-50 w-[360px] h-[520px] flex flex-col rounded-2xl border border-zinc-700/50 bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-fuchsia-500/10 overflow-hidden">
+        <div className="fixed bottom-[max(5rem,env(safe-area-inset-bottom))] left-4 right-4 sm:left-auto sm:right-4 z-50 w-auto sm:w-[360px] h-[min(520px,calc(100dvh-7rem))] flex flex-col rounded-2xl border border-zinc-700/50 bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-fuchsia-500/10 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-fuchsia-600/20 to-violet-600/20 border-b border-zinc-700/50">
             <div className="flex items-center gap-2">

@@ -33,6 +33,7 @@ import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/Locke
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
+import { useAuth } from '@/components/AuthProvider';
 import { HEAT_UNLOCK_HINTS, INTIMACY_LEVELS } from '@/lib/constants';
 
 
@@ -52,6 +53,7 @@ const FOOTER_LINKS = {
 export default function HomePage() {
   const router = useRouter();
   const { t, locale } = useTranslation();
+  const { user } = useAuth();
   const modules = useMemo(
     () => [
       {
@@ -318,6 +320,23 @@ export default function HomePage() {
             <span className="hidden sm:inline">{t('home.share')}</span>
           </button>
         </div>
+
+        {/* Guest conversion strip */}
+        {!user && (
+          <div className="flex items-center gap-3 rounded-2xl border border-[#ff2e88]/30 bg-gradient-to-r from-[#FF2D78]/[0.16] via-transparent to-[#C026D3]/[0.16] px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold truncate">{t('home.guestTitle')}</p>
+              <p className="text-[11px] text-white/50 truncate">{t('home.guestCta')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push('/register')}
+              className="shrink-0 h-9 px-4 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] text-xs font-bold shadow-[0_2px_14px_rgba(255,45,120,0.4)] hover:opacity-90 active:scale-95 transition-all"
+            >
+              {t('home.guestJoin')}
+            </button>
+          </div>
+        )}
 
         {/* ═══════════ HERO: tall portrait + right panel ═══════════ */}
         <section

@@ -83,9 +83,8 @@ const PLANS = [
     features: [
       '300 messages per day',
       'All intimacy levels (Soulmate)',
-      'Unlimited companions',
+      'Up to 15 companions',
       'NSFW content',
-      'Voice messages',
       '10 image generations/day',
       '40 voice messages/day',
       'Priority support',
@@ -107,6 +106,7 @@ const PLANS = [
     features: [
       'Everything in Pro',
       'Unlimited messages',
+      'Unlimited companions',
       '50 image generations/day',
       '200 voice messages/day',
       'Video generation',

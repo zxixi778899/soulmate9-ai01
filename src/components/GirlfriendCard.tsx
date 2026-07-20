@@ -38,7 +38,7 @@ export default function GirlfriendCard({ girl, onSelect }: { girl: Girl; onSelec
   const rarityStyles = {
     R: 'border-blue-400/70',
     SR: 'border-purple-500/80',
-    SSR: 'border-rose-500 shadow-[0_0_30px_#ff0088]',
+    SSR: 'border-[#FF2D78] shadow-[0_0_30px_#ff0088]',
   }[girl.rarity];
 
   return (
@@ -60,9 +60,9 @@ export default function GirlfriendCard({ girl, onSelect }: { girl: Girl; onSelec
       <div className="p-5 space-y-3">
         <div className="flex justify-between items-start">
           <h3 className="text-2xl font-bold tracking-tighter text-white">OOXX • {girl.name}</h3>
-          <span className={`text-xs px-3 py-1 rounded-full font-mono ${girl.rarity === 'SSR' ? 'text-rose-400' : 'text-purple-400'}`}>{girl.rarity}</span>
+          <span className={`text-xs px-3 py-1 rounded-full font-mono ${girl.rarity === 'SSR' ? 'text-[#ff6ba6]' : 'text-purple-400'}`}>{girl.rarity}</span>
         </div>
-        <p className="text-sm text-rose-300/90 line-clamp-2">{girl.tagline}</p>
+        <p className="text-sm text-[#ff6ba6]/90 line-clamp-2">{girl.tagline}</p>
         <div className="flex flex-wrap gap-1.5">
           {(Array.isArray(girl.tags) ? girl.tags : []).slice(0, 3).map((tag) => (
             <span key={tag} className="text-[10px] px-2.5 py-0.5 bg-white/10 rounded-full text-zinc-300">{tag}</span>
@@ -71,11 +71,11 @@ export default function GirlfriendCard({ girl, onSelect }: { girl: Girl; onSelec
         <div className="pt-2">
           <div className="flex justify-between text-xs mb-1 text-zinc-400">
             <span>{t('chat.intimacy')}</span>
-            <span className="text-rose-400 font-medium">{girl.intimacy}%</span>
+            <span className="text-[#ff6ba6] font-medium">{girl.intimacy}%</span>
           </div>
           <div className="h-1.5 bg-zinc-900 rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-gradient-to-r from-rose-500 via-fuchsia-500 to-purple-500"
+              className="h-full bg-gradient-to-r from-[#FF2D78] via-fuchsia-500 to-purple-500"
               initial={{ width: '30%' }}
               animate={{ width: `${girl.intimacy}%` }}
               transition={{ duration: 0.6 }}
@@ -87,7 +87,7 @@ export default function GirlfriendCard({ girl, onSelect }: { girl: Girl; onSelec
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-[86%]">
         <button
           onClick={(e) => { e.stopPropagation(); onSelect(girl); }}
-          className="w-full py-3 text-sm font-semibold tracking-[2px] rounded-2xl bg-gradient-to-r from-rose-600 via-purple-600 to-fuchsia-600 hover:brightness-110 active:scale-95 shadow-2xl shadow-rose-500/50 transition-all"
+          className="w-full py-3 text-sm font-semibold tracking-[2px] rounded-2xl bg-gradient-to-r from-[#FF2D78] via-purple-600 to-[#C026D3] hover:brightness-110 active:scale-95 shadow-2xl shadow-[#FF2D78]/50 transition-all"
         >
           UNLEASH DESIRE
         </button>

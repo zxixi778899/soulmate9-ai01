@@ -42,7 +42,7 @@ export default function AvatarViewer({ avatar }: { avatar: string }) {
   };
 
   return (
-    <div className="w-full h-[520px] bg-black rounded-3xl overflow-hidden border border-rose-500/30 relative select-none touch-none">
+    <div className="w-full h-[520px] bg-black rounded-3xl overflow-hidden border border-[#ff2e88]/30 relative select-none touch-none">
       <div
         className="absolute inset-0 cursor-grab active:cursor-grabbing"
         onPointerDown={onPointerDown}

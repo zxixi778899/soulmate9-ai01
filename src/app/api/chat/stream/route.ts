@@ -164,7 +164,8 @@ export async function POST(request: NextRequest) {
       .eq('role', 'user')
       .gte('created_at', today);
 
-    const FREE_DAILY_LIMIT = 50;
+    // Aligned with MEMBERSHIP_TIERS.free.messages_per_day and ai-modules defaults
+    const FREE_DAILY_LIMIT = 40;
     if (count && count >= FREE_DAILY_LIMIT) {
       return NextResponse.json({
         error: `You've reached your daily message limit (${FREE_DAILY_LIMIT}). Upgrade to Pro for unlimited chats!`
@@ -251,6 +252,7 @@ export async function POST(request: NextRequest) {
   if (membershipRaw.includes('unlimit') || membershipRaw === 'admin') membershipTier = 'unlimited';
   else if (membershipRaw.includes('pro') || membershipRaw.includes('plus') || membershipRaw.includes('premium'))
     membershipTier = 'pro';
+  else if (membershipRaw.includes('basic') || membershipRaw.includes('starter')) membershipTier = 'basic';
 
   // Legacy router kept for task logging / image intent
   const routing = analyzeAndRoute(String(message || ''), {
@@ -334,7 +336,7 @@ export async function POST(request: NextRequest) {
 
   // Apply configured daily limit from modules (override hard-coded free limit when present)
   const tierRoute = aiModules.chat.tiers[
-    membershipTier === 'unlimited' ? 'unlimited' : membershipTier === 'pro' ? 'pro' : 'free'
+    membershipTier === 'unlimited' ? 'unlimited' : membershipTier === 'pro' ? 'pro' : membershipTier === 'basic' ? 'basic' : 'free'
   ];
   if (tierRoute.daily_message_limit != null && !isNewbieTrial) {
     const today = new Date().toISOString().split('T')[0];

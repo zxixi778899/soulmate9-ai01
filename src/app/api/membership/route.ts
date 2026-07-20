@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         '40 messages/day',
         '3 AI images/day',
         '3 voice messages/day',
-        'Intimacy up to Level 3 (Friend)',
+        'Intimacy up to Level 3 (Heat)',
         'Up to 3 companions',
         'Basic chat',
       ],
@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
       features: [
         '300 messages/day',
         'All intimacy levels (Soulmate)',
-        'Unlimited companions',
+        'Up to 15 companions',
         'NSFW content',
         '10 AI images/day',
         '40 voice messages/day',

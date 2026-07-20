@@ -367,7 +367,7 @@ function ChatStreamInner(props: {
                         {t('chat.failed')}
                         <button
                           type="button"
-                          className="text-rose-400 hover:text-rose-300 active:scale-95 transition-all flex items-center gap-0.5"
+                          className="text-[#ff6ba6] hover:text-[#ffb3cd] active:scale-95 transition-all flex items-center gap-0.5"
                           title={t('chat.genRetry')}
                           onClick={() => onRetryMessage?.(msg)}
                         >

@@ -186,7 +186,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           aria-label="Delete friend"
           disabled={deleting}
           onClick={(e) => onDelete(friend, e)}
-          className="h-8 w-8 rounded-lg bg-rose-500/15 flex items-center justify-center text-rose-400 hover:bg-rose-500/25 touch-manipulation transition-colors disabled:opacity-50"
+          className="h-8 w-8 rounded-lg bg-[#FF2D78]/15 flex items-center justify-center text-[#ff6ba6] hover:bg-[#FF2D78]/25 touch-manipulation transition-colors disabled:opacity-50"
         >
           {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>

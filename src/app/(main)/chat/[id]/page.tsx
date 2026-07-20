@@ -39,6 +39,7 @@ import { loadChatCache, saveChatCache, mergeMessages, deriveMood } from '@/lib/c
 import { parseChatImageIntent, parseVideoIntent } from '@/lib/chat-image-intent';
 import { DEFAULT_CHAT_GIFTS, type ChatGift } from '@/lib/gifts/catalog';
 import { GiftEffectOverlay, type GiftBurstState } from '@/components/chat/GiftEffectOverlay';
+import UpgradeModal from '@/components/UpgradeModal';
 import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 import { detectMessageLocale } from '@/lib/chat-locale';
 
@@ -101,6 +102,8 @@ export default function ChatPage() {
   const [showMemories, setShowMemories] = useState(false);
   const [showAlbum, setShowAlbum] = useState(false);
   const [showLightbox, setShowLightbox] = useState<string | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<'message_limit' | 'image_limit'>('message_limit');
   // Image-gen UX: cancel flag, session counter, resume-once guard, last request (for retry)
   const cancelGenRef = useRef(false);
   const genSessionRef = useRef(0);
@@ -740,6 +743,10 @@ export default function ChatPage() {
         status?: string;
       }>(res);
       if (!res.ok) {
+        if (data?.code === 'daily_limit') {
+          setUpgradeReason('image_limit');
+          setUpgradeOpen(true);
+        }
         const msg =
           data?.code === 'daily_limit'
             ? (data.localized_error || t('chat.imageDailyLimit'))
@@ -1123,6 +1130,10 @@ export default function ChatPage() {
           localized_error?: string;
           code?: string;
         };
+        if (errBody.code === 'daily_message_limit') {
+          setUpgradeReason('message_limit');
+          setUpgradeOpen(true);
+        }
         throw new Error(
           typeof errBody?.localized_error === 'string'
             ? errBody.localized_error
@@ -1557,6 +1568,11 @@ export default function ChatPage() {
     );
   }
 
+  const quotaLimit = Number.isFinite(membership.capabilities.dailyMessageLimit)
+    ? (membership.capabilities.dailyMessageLimit as number)
+    : 40;
+  const quotaWarnAt = Math.ceil(quotaLimit * 0.6);
+
   const usageText = String(t('chat.usageWarning') || '')
     .replace(/\{count\}/g, String(membership.todayMessagesCount ?? 0))
     .replace(/\{limit\}/g, String(membership.capabilities?.dailyMessageLimit === Number.POSITIVE_INFINITY ? '∞' : (membership.capabilities?.dailyMessageLimit || 40)));
@@ -1651,26 +1667,26 @@ export default function ChatPage() {
         </div>
       )}
 
-      {membership.tier === 'free' && !membership.loading && (
+      {(membership.tier === 'free' || membership.tier === 'basic') && !membership.loading && (
         <div className="mx-3 sm:mx-6 mb-1 space-y-1">
           <div className="flex items-center gap-2 px-1">
             <div className="flex-1 h-1 rounded-full bg-white/[0.08] overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
-                  width: `${Math.min(100, ((Number(membership.todayMessagesCount) || 0) / 40) * 100)}%`,
+                  width: `${Math.min(100, ((Number(membership.todayMessagesCount) || 0) / quotaLimit) * 100)}%`,
                   background:
-                    (Number(membership.todayMessagesCount) || 0) >= 24
+                    (Number(membership.todayMessagesCount) || 0) >= quotaWarnAt
                       ? 'linear-gradient(90deg, #F59E0B, #EF4444)'
                       : 'linear-gradient(90deg, #FF2D78, #C026D3)',
                 }}
               />
             </div>
             <span className="text-[10px] tabular-nums text-[#8B8BA3] shrink-0">
-              {Number(membership.todayMessagesCount) || 0}/40
+              {Number(membership.todayMessagesCount) || 0}/{quotaLimit}
             </span>
           </div>
-          {!usageBannerDismissed && (Number(membership.todayMessagesCount) || 0) >= 24 && (
+          {!usageBannerDismissed && (Number(membership.todayMessagesCount) || 0) >= quotaWarnAt && (
             <div className="flex items-center gap-3 rounded-2xl glass px-4 py-2.5">
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-white/90 leading-snug">{usageText}</p>
@@ -1678,7 +1694,7 @@ export default function ChatPage() {
               <Button
                 size="sm"
                 onClick={() => router.push('/pricing')}
-                className="shrink-0 h-7 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] text-white text-[11px] font-semibold px-3 shadow-[0_2px_10px_rgba(255,45,120,0.35)] hover:opacity-90 active:scale-95 transition-all border-0"
+                className="shrink-0 h-8 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] text-white text-[11px] font-semibold px-4 shadow-[0_2px_10px_rgba(255,45,120,0.35)] hover:opacity-90 active:scale-95 transition-all border-0"
               >
                 <Crown className="h-3 w-3 mr-1" />
                 Upgrade
@@ -1851,6 +1867,8 @@ export default function ChatPage() {
       </Sheet>
 
       <GiftEffectOverlay burst={giftBurst} onDone={clearGiftBurst} />
+
+      <UpgradeModal open={upgradeOpen} reason={upgradeReason} onClose={() => setUpgradeOpen(false)} />
 
       {/* Image Lightbox — download + prev/next navigation */}
       {showLightbox && (
