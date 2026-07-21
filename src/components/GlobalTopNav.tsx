@@ -37,7 +37,9 @@ export default function GlobalTopNav() {
 
   // Hooks must run unconditionally — hide admin/chat chrome only after all hooks.
   const hideChrome =
-    Boolean(pathname?.startsWith('/admin')) || Boolean(pathname?.startsWith('/chat/'));
+    Boolean(pathname?.startsWith('/admin')) ||
+    Boolean(pathname?.startsWith('/chat/')) ||
+    Boolean(pathname?.startsWith('/create'));
 
   // Close sheet on route change
   useEffect(() => {
