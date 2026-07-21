@@ -129,7 +129,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     title: '运营与系统',
     items: [
-      { label: '用户', href: '/admin/users', icon: Users },
+      { label: '用户管理', href: '/admin/users', icon: Users, hint: '账户 · 积分 · 会员 · 代币套餐', aliases: ['/admin/tokens', '/admin/credits'] },
       { label: '全站模块', href: '/admin/homepage', icon: Home },
       { label: '页面/导航', href: '/admin/pages', icon: LayoutTemplate, aliases: ['/admin/navigation'] },
       { label: 'AI 对话模型', href: '/admin/models', icon: Brain },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getStripe } from '@/lib/stripe-server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 
 /** Built-in packages when token_packages table is empty / missing. */
@@ -48,8 +49,38 @@ export async function GET(req: NextRequest) {
       .eq('user_id', auth.user.id)
       .maybeSingle();
 
+        // Also fetch credit products from admin shop (products table, category=credits)
+    let creditProducts: Array<{ id: string; name: string; token_count: number; bonus_tokens: number; price_cents: number; sort_order: number; is_active: boolean }> = [];
+    try {
+      const sbAdmin = getSupabaseClient();
+      const { data: cpRows } = await sbAdmin
+        .from('products')
+        .select('id, name, price_cents, virtual_meta, display_order, status')
+        .eq('type', 'virtual')
+        .eq('category', 'credits')
+        .eq('status', 'active')
+        .order('display_order', { ascending: true });
+      if (cpRows?.length) {
+        creditProducts = cpRows.map((r: Record<string, unknown>) => {
+          const meta = (r.virtual_meta || {}) as Record<string, unknown>;
+          return {
+            id: String(r.id),
+            name: String(r.name || 'Credit Pack'),
+            token_count: Number(meta.token_amount || meta.credits || 1000),
+            bonus_tokens: Number(meta.bonus_tokens || 0),
+            price_cents: Number(r.price_cents || 0),
+            sort_order: Number(r.display_order || 0),
+            is_active: true,
+          };
+        });
+      }
+    } catch { /* non-critical */ }
+
+    // Merge: credit products from admin shop take priority over token_packages
+    const mergedPackages = creditProducts.length > 0 ? creditProducts : packages;
+
     return NextResponse.json({
-      packages,
+      packages: mergedPackages,
       user_balance: userTokens?.balance_tokens ?? profile?.credits_remaining ?? 0,
     });
   } catch (err: unknown) {
