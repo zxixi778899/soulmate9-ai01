@@ -25,12 +25,8 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleDownload = useCallback(async () => {
-    if (!cardRef.current) return;
-
     try {
-      // Use canvas to capture the card as PNG
       const canvas = document.createElement('canvas');
-      const card = cardRef.current;
       const width = 600;
       const height = 800;
       canvas.width = width;
@@ -39,180 +35,123 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Background gradient
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, '#0a0a0f');
-      gradient.addColorStop(0.5, '#1a0a14');
-      gradient.addColorStop(1, '#0a0a0f');
-      ctx.fillStyle = gradient;
+      // Background
+      ctx.fillStyle = '#0a0a0f';
       ctx.fillRect(0, 0, width, height);
 
-      // Decorative border glow
-      ctx.shadowColor = 'rgba(225, 29, 72, 0.3)';
-      ctx.shadowBlur = 40;
-      ctx.strokeStyle = 'rgba(225, 29, 72, 0.4)';
-      ctx.lineWidth = 2;
-      ctx.roundRect(20, 20, width - 40, height - 40, 24);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Top gradient bar
-      const topGrad = ctx.createLinearGradient(0, 0, width, 0);
-      topGrad.addColorStop(0, '#e11d48');
-      topGrad.addColorStop(1, '#d946ef');
-      ctx.fillStyle = topGrad;
-      ctx.beginPath();
-      ctx.roundRect(20, 20, width - 40, 6, 3);
-      ctx.fill();
-
-      // Avatar circle
-      const centerX = width / 2;
-      const avatarY = 140;
-      const radius = 80;
-
-      ctx.shadowColor = 'rgba(225, 29, 72, 0.4)';
-      ctx.shadowBlur = 30;
-      ctx.beginPath();
-      ctx.arc(centerX, avatarY, radius + 4, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(225, 29, 72, 0.2)';
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      ctx.beginPath();
-      ctx.arc(centerX, avatarY, radius, 0, Math.PI * 2);
-      ctx.fillStyle = '#1a0a14';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(225, 29, 72, 0.5)';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
-      // Heart icon in avatar
-      ctx.fillStyle = '#e11d48';
-      ctx.font = '48px serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('', centerX, avatarY + 4);
-
-      // Try to draw portrait if available
+      // Draw full portrait (cover fit, top aligned)
       if (girlfriend.portrait_url) {
         try {
           const img = new Image();
           img.crossOrigin = 'anonymous';
           const imgLoaded = new Promise<void>((resolve) => {
-            img.onload = () => {
-              ctx.save();
-              ctx.beginPath();
-              ctx.arc(centerX, avatarY, radius, 0, Math.PI * 2);
-              ctx.clip();
-              ctx.drawImage(img, centerX - radius, avatarY - radius, radius * 2, radius * 2);
-              ctx.restore();
-              resolve();
-            };
+            img.onload = () => resolve();
             img.onerror = () => resolve();
+            img.src = girlfriend.portrait_url!;
           });
-          img.src = girlfriend.portrait_url;
           await imgLoaded;
-        } catch {}
+
+          if (img.naturalWidth > 0) {
+            const scale = Math.max(width / img.naturalWidth, height / img.naturalHeight);
+            const drawW = img.naturalWidth * scale;
+            const drawH = img.naturalHeight * scale;
+            const dx = (width - drawW) / 2;
+            const dy = 0; // top aligned to show face
+            ctx.drawImage(img, dx, dy, drawW, drawH);
+          }
+        } catch { /* fallback to gradient bg */ }
+      } else {
+        // Decorative gradient when no image
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#0a0a0f');
+        gradient.addColorStop(0.5, '#1a0a14');
+        gradient.addColorStop(1, '#0a0a0f');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // Heart in center
+        ctx.fillStyle = 'rgba(225, 29, 72, 0.3)';
+        ctx.font = '120px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('\u2665', width / 2, height / 2 - 80);
       }
 
-      // Name
+      // Bottom gradient overlay (transparent -> dark)
+      const overlayH = 320;
+      const grad = ctx.createLinearGradient(0, height - overlayH, 0, height);
+      grad.addColorStop(0, 'rgba(5, 5, 10, 0)');
+      grad.addColorStop(0.4, 'rgba(5, 5, 10, 0.55)');
+      grad.addColorStop(1, 'rgba(5, 5, 10, 0.92)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, height - overlayH, width, overlayH);
+
+      const centerX = width / 2;
+      let y = height - 240;
+
+      // Name + age
       ctx.fillStyle = '#fafafa';
-      ctx.font = 'bold 40px Inter, sans-serif';
+      ctx.font = 'bold 42px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${girlfriend.name}${girlfriend.age ? `, ${girlfriend.age}` : ''}`, centerX, 280);
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 8;
+      ctx.fillText(`${girlfriend.name}${girlfriend.age ? `, ${girlfriend.age}` : ''}`, centerX, y);
+      ctx.shadowBlur = 0;
+      y += 40;
 
-      // Online indicator
-      ctx.fillStyle = '#22c55e';
+      // Online status
+      ctx.fillStyle = '#4ade80';
       ctx.beginPath();
-      ctx.arc(centerX - 70, 280, 6, 0, Math.PI * 2);
+      ctx.arc(centerX - 52, y, 5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#22c55e';
-      ctx.font = '18px Inter, sans-serif';
+      ctx.font = '16px Inter, system-ui, sans-serif';
       ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('Online Now', centerX - 58, 280);
+      ctx.fillText('Online Now', centerX - 40, y);
+      ctx.textAlign = 'center';
+      y += 38;
 
       // Tags
       if (girlfriend.tags && girlfriend.tags.length > 0) {
-        const tagY = 330;
         const tags = girlfriend.tags.slice(0, 4);
-        let tagX = centerX - ((tags.length * 80 + (tags.length - 1) * 8) / 2);
+        ctx.font = '14px Inter, system-ui, sans-serif';
+        const tagWidths = tags.map((t) => ctx.measureText(t).width + 28);
+        const totalW = tagWidths.reduce((a, b) => a + b, 0) + (tags.length - 1) * 10;
+        let tx = centerX - totalW / 2;
 
-        ctx.font = '14px Inter, sans-serif';
-        for (const tag of tags) {
-          const metrics = ctx.measureText(tag);
-          const tagWidth = metrics.width + 24;
-          const tagHeight = 30;
-
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+        for (let i = 0; i < tags.length; i++) {
+          const tw = tagWidths[i];
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
           ctx.beginPath();
-          ctx.roundRect(tagX, tagY - tagHeight / 2, tagWidth, tagHeight, 15);
+          ctx.roundRect(tx, y - 15, tw, 30, 15);
           ctx.fill();
-
-          ctx.fillStyle = '#a1a1aa';
+          ctx.fillStyle = '#e4e4e7';
           ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(tag, tagX + tagWidth / 2, tagY);
-
-          tagX += tagWidth + 8;
+          ctx.fillText(tags[i], tx + tw / 2, y + 1);
+          tx += tw + 10;
         }
+        y += 40;
       }
 
-      // Description
-      const desc = girlfriend.short_description || 'A unique AI companion waiting to meet you.';
-      ctx.fillStyle = '#a1a1aa';
-      ctx.font = '16px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      // Word wrap
-      const maxWidth = 480;
-      const words = desc.split(' ');
-      let lines: string[] = [];
-      let currentLine = '';
-      for (const word of words) {
-        const test = currentLine + word + ' ';
-        if (ctx.measureText(test).width > maxWidth && currentLine) {
-          lines.push(currentLine.trim());
-          currentLine = word + ' ';
-        } else {
-          currentLine = test;
-        }
-      }
-      if (currentLine.trim()) lines.push(currentLine.trim());
-      lines = lines.slice(0, 3);
-
-      const descY = 400;
-      for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], centerX, descY + i * 28);
-      }
-
-      // Bottom bar - intimacy glow
-      ctx.fillStyle = 'rgba(225, 29, 72, 0.15)';
-      ctx.beginPath();
-      ctx.roundRect(centerX - 200, height - 160, 400, 100, 16);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(225, 29, 72, 0.5)';
-      ctx.font = '14px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(' AI Companion  Made with SoulMate', centerX, height - 80);
-
-      // Personality trait
+      // Personality
       if (girlfriend.personality) {
-        ctx.fillStyle = '#fafafa';
-        ctx.font = '18px Inter, sans-serif';
-        ctx.fillText(personalityIcon(girlfriend.personality), centerX, height - 115);
+        ctx.fillStyle = 'rgba(217, 70, 239, 0.9)';
+        ctx.font = '15px Inter, system-ui, sans-serif';
+        ctx.fillText(`\u2726 ${personalityLabel(girlfriend.personality)}`, centerX, y);
+        y += 36;
       }
 
-      // Brand
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.font = '12px Inter, sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText('SoulMate AI', width - 50, height - 50);
+      // Branding pill
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+      const pillW = 220;
+      ctx.beginPath();
+      ctx.roundRect(centerX - pillW / 2, height - 64, pillW, 36, 18);
+      ctx.fill();
+      ctx.fillStyle = '#a1a1aa';
+      ctx.font = '13px Inter, system-ui, sans-serif';
+      ctx.fillText('\u2665 Made with SoulMate AI', centerX, height - 45);
 
-      // Convert to blob and download
+      // Download
       canvas.toBlob((blob) => {
         if (!blob) return;
         const url = URL.createObjectURL(blob);
@@ -235,7 +174,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
           text: `Meet ${girlfriend.name}${girlfriend.age ? `, ${girlfriend.age}` : ''}! ${girlfriend.short_description || ''}`,
           url: window.location.href,
         });
-      } catch {}
+      } catch { /* user cancelled */ }
     }
   }, [girlfriend]);
 
@@ -267,56 +206,53 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
           </div>
         </DialogHeader>
 
-        {/* Card Preview */}
+        {/* Card Preview — full portrait with floating bottom info */}
         <div className="px-6 pb-4">
           <div
             ref={cardRef}
             className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden border border-white/10"
-            style={{
-              background: 'linear-gradient(180deg, #0a0a0f 0%, #1a0a14 50%, #0a0a0f 100%)',
-            }}
           >
-            {/* Decorative glow */}
-            <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#e11d48]/10 blur-3xl rounded-full" />
-            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-[#d946ef]/10 blur-3xl rounded-full" />
-
-            {/* Top border glow */}
-            <div className="absolute top-3 left-3 right-3 h-1.5 rounded-full bg-gradient-to-r from-[#e11d48] to-[#d946ef]" />
-
-            {/* Avatar */}
-            <div className="flex flex-col items-center pt-12">
-              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-[#e11d48]/20 to-[#d946ef]/20 flex items-center justify-center border-2 border-[#e11d48]/40 shadow-lg shadow-[#e11d48]/20">
-                {girlfriend.portrait_url ? (
-                  <img
-                    src={girlfriend.portrait_url}
-                    alt={girlfriend.name}
-                    className="w-full h-full rounded-full object-cover"
-                    crossOrigin="anonymous"
-                  />
-                ) : (
-                  <Heart className="w-10 h-10 text-[#e11d48] fill-[#e11d48]/30" />
-                )}
+            {/* Full portrait */}
+            {girlfriend.portrait_url ? (
+              <img
+                src={girlfriend.portrait_url}
+                alt={girlfriend.name}
+                className="absolute inset-0 w-full h-full object-cover object-top"
+                crossOrigin="anonymous"
+              />
+            ) : (
+              <div
+                className="absolute inset-0 flex items-center justify-center"
+                style={{ background: 'linear-gradient(180deg, #0a0a0f 0%, #1a0a14 50%, #0a0a0f 100%)' }}
+              >
+                <Heart className="w-20 h-20 text-[#e11d48]/30 fill-[#e11d48]/20" />
               </div>
+            )}
 
-              {/* Name */}
-              <h2 className="mt-4 text-2xl font-bold text-[#fafafa]">
+            {/* Bottom gradient overlay */}
+            <div className="absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />
+
+            {/* Floating info at bottom */}
+            <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pb-5 px-6">
+              {/* Name + age */}
+              <h2 className="text-2xl font-bold text-white drop-shadow-lg">
                 {girlfriend.name}
-                {girlfriend.age ? <span className="text-[#a1a1aa] font-normal">, {girlfriend.age}</span> : null}
+                {girlfriend.age ? <span className="text-white/60 font-normal">, {girlfriend.age}</span> : null}
               </h2>
 
               {/* Online */}
               <div className="flex items-center gap-1.5 mt-1">
-                <span className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-green-400 text-sm">Online Now</span>
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-green-400 text-sm drop-shadow">Online Now</span>
               </div>
 
               {/* Tags */}
               {girlfriend.tags && girlfriend.tags.length > 0 && (
-                <div className="flex flex-wrap justify-center gap-2 mt-4 px-6">
+                <div className="flex flex-wrap justify-center gap-2 mt-3">
                   {girlfriend.tags.slice(0, 4).map((tag) => (
                     <span
                       key={tag}
-                      className="text-xs text-[#a1a1aa] bg-white/[0.06] px-3 py-1 rounded-full"
+                      className="text-xs text-zinc-200 bg-white/10 backdrop-blur-sm px-3 py-1 rounded-full border border-white/10"
                     >
                       {tag}
                     </span>
@@ -324,27 +260,18 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
                 </div>
               )}
 
-              {/* Description */}
-              <p className="mt-4 text-sm text-[#a1a1aa] text-center px-8 leading-relaxed line-clamp-3">
-                {girlfriend.short_description || 'A unique AI companion waiting to meet you.'}
-              </p>
-
               {/* Personality */}
               {girlfriend.personality && (
-                <div className="mt-4 flex items-center gap-2 text-sm text-[#fafafa] bg-white/[0.04] px-4 py-2 rounded-full">
-                  <Sparkles className="w-3.5 h-3.5 text-[#d946ef]" />
+                <div className="mt-2.5 flex items-center gap-1.5 text-sm text-fuchsia-300/90 drop-shadow">
+                  <Sparkles className="w-3.5 h-3.5" />
                   {personalityLabel(girlfriend.personality)}
                 </div>
               )}
-            </div>
 
-            {/* Bottom branding */}
-            <div className="absolute bottom-6 left-0 right-0 text-center">
-              <div className="inline-block bg-white/[0.04] backdrop-blur-sm px-6 py-2 rounded-full border border-white/[0.06]">
-                <div className="flex items-center gap-1.5 text-xs text-[#a1a1aa]">
-                  <Heart className="w-3 h-3 text-[#e11d48] fill-[#e11d48]" />
-                  Made with SoulMate AI
-                </div>
+              {/* Branding */}
+              <div className="mt-3 inline-flex items-center gap-1.5 bg-white/[0.06] backdrop-blur-md px-5 py-1.5 rounded-full border border-white/10">
+                <Heart className="w-3 h-3 text-[#e11d48] fill-[#e11d48]" />
+                <span className="text-xs text-zinc-400">Made with SoulMate AI</span>
               </div>
             </div>
           </div>
@@ -373,17 +300,6 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
       </DialogContent>
     </Dialog>
   );
-}
-
-function personalityIcon(personality: string): string {
-  const p = personality.toLowerCase();
-  if (p.includes('warm') || p.includes('caring')) return '';
-  if (p.includes('playful') || p.includes('fun')) return '';
-  if (p.includes('mysterious') || p.includes('quiet')) return '';
-  if (p.includes('passionate') || p.includes('intense')) return '';
-  if (p.includes('sweet') || p.includes('gentle')) return '';
-  if (p.includes('smart') || p.includes('witty')) return '';
-  return '';
 }
 
 function personalityLabel(personality: string): string {

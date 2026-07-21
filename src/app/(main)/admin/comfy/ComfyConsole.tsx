@@ -18,7 +18,7 @@ import {
   Loader2, Play, Trash2, RefreshCw, HardDrive, Workflow, ImageIcon,
   Settings2, BookOpen, Save, RotateCcw, Sparkles, Layers, ExternalLink,
   Zap, Upload, Download, CheckSquare, Square, Copy, ImagePlus, FileImage,
-  Users, Search, Shuffle,
+  Users, Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -43,14 +43,22 @@ const CAT_LABEL: Record<string, string> = {
 
 const CAT_ORDER = ['body', 'action', 'outfit', 'prop', 'detail'];
 
+type GenPreset = {
+  id: string; name: string; desc: string; prompt: string; negative: string;
+  width: number; height: number; steps: number; cfg: number; nsfw?: boolean;
+};
+
+const NEG_SFW = 'blurry, deformed, plastic skin, underexposed, from behind, watermark, text, child, underage';
+const NEG_NSFW = 'gore, violence, child, underage, blurry, deformed, bad anatomy, underexposed, watermark, text';
+
 /** Civitai-style generation presets (中文说明 + 可一键应用) */
-const CIVITAI_PRESETS = [
+const CIVITAI_PRESETS: GenPreset[] = [
+  // ── SFW (10) ──
   {
     id: 'portrait-soft',
     name: '窗边人像',
     desc: '3/4 构图 · 明亮侧光 · 适合主页卡',
-    prompt:
-      'She is leaning against a bright apartment window, turning toward the viewer with relaxed shoulders and a teasing smile.',
+    prompt: 'She is leaning against a bright apartment window, turning toward the viewer with relaxed shoulders and a teasing smile.',
     negative: 'blurry, deformed, underexposed, from behind, face-only close-up, plastic skin, child, underage, watermark, text',
     width: 832, height: 1216, steps: 28, cfg: 1,
   },
@@ -58,26 +66,15 @@ const CIVITAI_PRESETS = [
     id: 'fullbody-glam',
     name: '夜景全身',
     desc: '大长腿 · 站姿变化 · 城市夜景',
-    prompt:
-      'She is posing beside a rooftop railing in a fitted evening dress, resting her weight on one hip and seductively looking at the viewer.',
+    prompt: 'She is posing beside a rooftop railing in a fitted evening dress, resting her weight on one hip and seductively looking at the viewer.',
     negative: 'blurry, cropped head, bad anatomy, underexposed, from behind, same face, watermark, child, underage',
     width: 768, height: 1344, steps: 28, cfg: 1,
-  },
-  {
-    id: 'nsfw-intimate',
-    name: '卧室私密',
-    desc: '3/4 身材展示 · 暧昧光 · 成人氛围',
-    prompt:
-      'She is reclining naturally on a bed in sensual lingerie, arching slightly toward the viewer with inviting eye contact.',
-    negative: 'gore, violence, child, underage, blurry, deformed, underexposed, from behind only, watermark',
-    width: 832, height: 1216, steps: 28, cfg: 1,
   },
   {
     id: 'selfie-flash',
     name: '镜面自拍',
     desc: '自拍角度 · 闪光 · 自然身体语言',
-    prompt:
-      'She is taking a playful bathroom mirror selfie in a crop top, holding her phone in one hand while naturally shifting one hip.',
+    prompt: 'She is taking a playful bathroom mirror selfie in a crop top, holding her phone in one hand while naturally shifting one hip.',
     negative: 'studio softbox only, plastic skin, underexposed, face-only, child, underage, watermark',
     width: 832, height: 1216, steps: 26, cfg: 1,
   },
@@ -85,10 +82,218 @@ const CIVITAI_PRESETS = [
     id: 'cafe-day',
     name: '咖啡馆日景',
     desc: '日常甜美 · 明亮 · 表情生动',
-    prompt:
-      'She is sitting beside a cafe window with her chin resting on one hand, smiling warmly and flirtatiously at the viewer.',
-    negative: 'blurry, deformed, plastic skin, underexposed, from behind, watermark, text, child, underage',
+    prompt: 'She is sitting beside a cafe window with her chin resting on one hand, smiling warmly and flirtatiously at the viewer.',
+    negative: NEG_SFW,
     width: 832, height: 1216, steps: 26, cfg: 1,
+  },
+  {
+    id: 'sakura-glance',
+    name: '樱花回眸',
+    desc: '花瓣飘落 · 回头一笑 · 春日氛围',
+    prompt: 'She is standing under a cherry blossom tree, petals drifting around her, turning to look over her shoulder with a warm inviting smile.',
+    negative: NEG_SFW,
+    width: 832, height: 1216, steps: 26, cfg: 1,
+  },
+  {
+    id: 'pool-lounge',
+    name: '泳池慵懒',
+    desc: '比基尼 · 日光浴 · 度假感',
+    prompt: 'She is lounging on a poolside deck chair in a stylish bikini, sunglasses pushed up, sipping a cocktail while playfully eyeing the viewer.',
+    negative: NEG_SFW,
+    width: 832, height: 1216, steps: 26, cfg: 1,
+  },
+  {
+    id: 'kitchen-morning',
+    name: '厨房清晨',
+    desc: '居家感 · oversize衬衫 · 温暖晨光',
+    prompt: 'She is in a bright kitchen wearing an oversized shirt, standing on tiptoes to reach a shelf, glancing back with a sleepy cute smile.',
+    negative: NEG_SFW,
+    width: 832, height: 1216, steps: 26, cfg: 1,
+  },
+  {
+    id: 'rainy-stroll',
+    name: '雨天伞下',
+    desc: '湿润氛围 · 透明伞 · 安静美感',
+    prompt: 'She is walking in light rain under a clear umbrella, raindrops bokeh in the background, looking up at the viewer with gentle eyes.',
+    negative: NEG_SFW,
+    width: 832, height: 1216, steps: 26, cfg: 1,
+  },
+  {
+    id: 'couch-read',
+    name: '沙发阅读',
+    desc: '蜷缩姿态 · 居家慵懒 · 柔和灯光',
+    prompt: 'She is curled up on a plush couch with a book, legs tucked under a soft blanket, glancing up at the viewer with warm affectionate eyes.',
+    negative: NEG_SFW,
+    width: 832, height: 1216, steps: 26, cfg: 1,
+  },
+  {
+    id: 'moto-jacket',
+    name: '机车皮衣',
+    desc: '帅气反差 · 街头感 · 自信回眸',
+    prompt: 'She is sitting on a motorcycle in a fitted leather jacket, looking back over her shoulder with a confident flirty grin.',
+    negative: NEG_SFW,
+    width: 832, height: 1216, steps: 26, cfg: 1,
+  },
+  // ── NSFW (20) ──
+  {
+    id: 'nsfw-intimate',
+    name: '卧室私密',
+    desc: '3/4 身材展示 · 暧昧光 · 成人氛围',
+    prompt: 'She is reclining naturally on a bed in sensual lingerie, arching slightly toward the viewer with inviting eye contact.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'bed-stretch',
+    name: '床上伸展',
+    desc: '慵懒伸展 · 肩颈线条 · 清晨诱惑',
+    prompt: 'She is stretching lazily on messy silk sheets, arching her back with arms overhead, hair tousled, giving the viewer a sleepy seductive glance.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'steam-bath',
+    name: '浴室水雾',
+    desc: '蒸汽朦胧 · 水珠肌肤 · 若隐若现',
+    prompt: 'She is in a steamy glass shower, water droplets running down her bare skin, pressing one hand to the glass while looking at the viewer through the mist.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'lace-robe',
+    name: '蕾丝晨袍',
+    desc: '半透蕾丝 · 肩带滑落 · 私密晨间',
+    prompt: 'She is standing by the bedroom window in a sheer lace robe slipping off one shoulder, backlit by morning light, turning toward the viewer with a knowing smile.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'couch-seduce',
+    name: '沙发诱惑',
+    desc: '跪坐姿态 · 低胸装 · 暧昧灯光',
+    prompt: 'She is kneeling on a velvet couch in a low-cut dress, leaning forward toward the viewer with parted lips and heavy-lidded eyes.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'night-window',
+    name: '落地窗夜',
+    desc: '城市夜景 · 剪影光 · 背部线条',
+    prompt: 'She is standing before a floor-to-ceiling window at night, city lights behind her, wearing only a silk slip, looking back at the viewer over her bare shoulder.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'wet-pool',
+    name: '泳池湿身',
+    desc: '湿发贴身 · 出水瞬间 · 身体曲线',
+    prompt: 'She is emerging from a pool at night, wet hair clinging to her shoulders, swimsuit soaked and clinging, water streaming down her curves as she locks eyes with the viewer.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'yoga-flex',
+    name: '瑜伽体式',
+    desc: '柔韧身体 · 紧身衣 · 曲线张力',
+    prompt: 'She is holding a deep yoga stretch in tight leggings and a sports bra, back arched, glancing at the viewer from between her arms with a teasing expression.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'fitting-room',
+    name: '试衣间',
+    desc: '镜前换装 · 半拉帘 · 偷看视角',
+    prompt: 'She is in a boutique fitting room, curtain half drawn, caught mid-change in lacy underwear, meeting the viewer\u2019s gaze in the mirror without shame.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'office-desk',
+    name: '办公室秘密',
+    desc: '桌面坐姿 · 包臀裙 · 禁忌感',
+    prompt: 'She is sitting on the edge of an office desk after hours, skirt hiked slightly, blouse unbuttoned low, toying with her glasses while staring at the viewer.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'car-night',
+    name: '车内暧昧',
+    desc: '后座氛围 · 霓虹透窗 · 私密空间',
+    prompt: 'She is reclining in a car backseat at night, neon light washing over her, one stocking-clad leg resting on the seat, beckoning the viewer closer.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'balcony-night',
+    name: '阳台夜色',
+    desc: '晚风轻拂 · 薄纱睡裙 · 城市灯火',
+    prompt: 'She is leaning over a balcony railing at night in a sheer nightgown, breeze lifting the fabric, turning to catch the viewer staring with an amused smirk.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'silk-slip',
+    name: '丝绸睡裙',
+    desc: '吊带滑落 · 侧卧曲线 · 午夜蓝调',
+    prompt: 'She is lying on her side on dark silk sheets in a thin slip nightgown, one strap fallen, tracing her own collarbone while holding the viewer\u2019s gaze.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'massage-oil',
+    name: '精油按摩',
+    desc: '俯卧曲线 · 油光肌肤 · 烛光氛围',
+    prompt: 'She is lying face down on a massage table by candlelight, glistening oil on her bare back, lifting her chin to give the viewer a heavy-lidded look.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'dance-private',
+    name: '舞娘私语',
+    desc: '慢舞身姿 · 昏暗灯光 · 挑逗节奏',
+    prompt: 'She is dancing slowly in a dim neon-lit room, hips swaying, fingertips trailing down her own body, eyes locked on the viewer.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'library-corner',
+    name: '图书馆角落',
+    desc: '书架之间 · 短裙俯身 · 安静禁忌',
+    prompt: 'She is bending to pick up a book in a quiet library aisle, skirt riding up, glancing back at the viewer with a shy but willing expression.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'hot-spring',
+    name: '温泉雾气',
+    desc: '水面之上 · 蒸汽遮掩 · 湿润红晕',
+    prompt: 'She is soaking in a steaming outdoor hot spring at dusk, bare shoulders above the waterline, face flushed, watching the viewer approach through the mist.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'gym-flex',
+    name: '健身私教',
+    desc: '汗水光泽 · 运动内衣 · 力量曲线',
+    prompt: 'She is bent over a gym bench in a sports bra and shorts, skin glistening with sweat, looking back at the viewer with a challenging smirk.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'vanity-mirror',
+    name: '化妆台',
+    desc: '镜前梳妆 · 口红 · 吊带背影',
+    prompt: 'She is sitting at a vanity in a silk camisole, applying lipstick in the mirror, catching the viewer\u2019s reflection and smiling slowly.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
+  },
+  {
+    id: 'red-dress',
+    name: '红裙晚宴',
+    desc: '高开叉 · 深V · 晚宴尤物',
+    prompt: 'She is posing in a slit red evening gown, one leg revealed, neckline plunging, tilting her chin down and staring up at the viewer with smoldering eyes.',
+    negative: NEG_NSFW,
+    width: 832, height: 1216, steps: 28, cfg: 1, nsfw: true,
   },
 ];
 
@@ -358,15 +563,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
   }
 
-  /** 随机 AI 提示词：保持人物特性 + 随机画面/动作/环境 */
+  /** AI 优化提示词：随机画面/动作/环境（含 NSFW），保持人物特性 */
   const randomizePrompt = useCallback(() => {
-    const actions = [
+    const sfwActions = [
       'leaning against a window with soft morning light, gazing at the viewer with a gentle smile',
       'sitting on a cozy couch, tucking her legs under, holding a warm cup of tea',
       'standing in a sunlit garden, wind blowing through her hair, laughing naturally',
-      'lying on silk sheets, propping herself up on one elbow, looking up invitingly',
       'walking along a moonlit beach, barefoot, dress flowing in the breeze',
-      'stretching lazily in bed, hair tousled, giving a sleepy seductive glance',
       'dancing alone in a dimly lit room, eyes closed, lost in the music',
       'sitting at a vanity mirror, applying lipstick, catching the viewer in the reflection',
       'standing under a cherry blossom tree, petals falling, turning to look over her shoulder',
@@ -377,13 +580,33 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       'standing in the rain under an umbrella, looking up at the sky with a peaceful expression',
       'sitting on a motorcycle, leather jacket, looking back with a confident grin',
     ];
+    const nsfwActions = [
+      'lying on silk sheets in sheer lingerie, arching her back toward the viewer with inviting eyes',
+      'kneeling on the bed in an oversized shirt, biting her lip playfully',
+      'standing in a steamy shower, hands on the glass, water running down her bare body',
+      'bending over the kitchen counter in a lace apron, glancing back seductively',
+      'straddling a velvet armchair in stockings, beckoning the viewer with one finger',
+      'crawling across the bed toward the camera, hair falling forward, eyes locked on the viewer',
+      'sitting in a bubble bath, knees drawn up, candlelight flickering on wet skin',
+      'lying face down on silk sheets, bare back glistening, looking back over her shoulder',
+      'standing by the window at night in a see-through nightgown, city lights silhouetting her body',
+      'on all fours on a plush rug, chin tilted up, lips parted, waiting',
+      'playing with the strap of her bra under an open blazer, sitting on a desk',
+      'emerging from a hot spring, steam curling around her bare shoulders, blushing',
+      'dancing in lace underwear under warm lamplight, hands sliding down her hips',
+      'reclining on a couch in a silk robe falling open, one leg draped over the armrest',
+      'unzipping a fitted catsuit in a dim neon room, holding steady eye contact',
+    ];
     const qualities = [
       'photorealistic, 8k, raw photo, natural skin texture, film grain',
       'masterpiece, best quality, ultra detailed, soft lighting, bokeh background',
       'editorial photography, Vogue style, dramatic lighting, sharp focus',
       'candid shot, natural lighting, shallow depth of field, warm tones',
+      'boudoir photography, intimate mood, golden hour glow, rich contrast',
+      'sensual atmosphere, cinematic color grading, fine art aesthetic, dramatic shadows',
     ];
-    const action = actions[Math.floor(Math.random() * actions.length)];
+    const pool = [...sfwActions, ...nsfwActions];
+    const action = pool[Math.floor(Math.random() * pool.length)];
     const quality = qualities[Math.floor(Math.random() * qualities.length)];
 
     // If a girlfriend is selected, preserve her character traits
@@ -401,7 +624,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     } else {
       setPrompt(`A beautiful young woman, ${action}, ${quality}`);
     }
-    toast.success('已生成随机提示词');
+    toast.success('已生成 AI 优化提示词');
   }, [scopedGirlfriend]);
 
   /** 一键调用：选中 LoRA + 强度 + 触发词写入提示词 */
@@ -1070,9 +1293,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <p className="text-[11px] text-slate-300">使用自然语言描述成年 AI 女友及她正在进行的性感、妩媚或亲密动作。</p>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-7 gap-1 border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10" onClick={randomizePrompt} title="随机生成提示词（保持人物特性）">
-                  <Shuffle className="h-3.5 w-3.5" />
-                  随机
+                <Button variant="outline" size="sm" className="h-7 gap-1 border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10" onClick={randomizePrompt} title="随机生成优化提示词（保持人物特性，含 NSFW）">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  AI优化提示词
                 </Button>
                 <Badge className="border-violet-400/40 bg-violet-500/15 text-violet-100">{prompt.length} 字符</Badge>
               </div>
@@ -1190,11 +1413,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <Input value={presetName} onChange={(e) => setPresetName(e.target.value)} className="h-8 border-slate-600 bg-slate-950 text-xs text-white" placeholder="新预设名称" />
                 <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 border-slate-500 text-white" onClick={saveCurrentPreset}>保存当前</Button>
               </div>
-              <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto">
+              <div className="grid grid-cols-1 gap-1.5 max-h-80 overflow-y-auto">
                 {[...CIVITAI_PRESETS, ...customPresets].map((pr) => (
                   <div key={pr.id} className="flex items-stretch rounded-lg border border-slate-600 bg-slate-950 hover:border-pink-400">
                     <button type="button" onClick={() => applyPreset(pr)} className="min-w-0 flex-1 px-3 py-2 text-left transition-colors hover:bg-slate-800">
-                      <div className="text-[11px] font-semibold text-pink-100">{pr.name}</div>
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-pink-100">
+                        {pr.name}
+                        {pr.nsfw ? <span className="rounded bg-rose-500/25 px-1 text-[9px] font-bold leading-4 text-rose-300">18+</span> : null}
+                      </div>
                       <div className="text-[11px] text-slate-100">{pr.desc}</div>
                     </button>
                     {pr.id.startsWith('custom-') && (
