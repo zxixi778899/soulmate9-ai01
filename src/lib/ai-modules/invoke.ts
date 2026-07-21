@@ -8,25 +8,50 @@ export interface InvokeChatOptions {
   membershipTier?: MembershipTier; scene?: string; routeReason?: string; locale?: string;
 }
 export interface InvokeChatResult { content: string; provider: string; model: string; endpoint_id: string; fallback_count: number; latency_ms: number; input_tokens: number; output_tokens: number; cost_usd: number; }
-interface CircuitState { failures: number; openedAt: number | null; }
+interface CircuitState { failures: number; openedAt: number | null; resetMs?: number; }
 const circuits = new Map<string, CircuitState>();
 function key(ep: ModelEndpoint): string { return ep.api_key_env ? process.env[ep.api_key_env] || '' : ep.provider === 'together' ? process.env.TOGETHER_API_KEY || '' : ep.provider === 'runpod' ? process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY || '' : ep.provider === 'openai' ? process.env.OPENAI_API_KEY || '' : ''; }
 function base(ep: ModelEndpoint): string { return (ep.api_base_url || (ep.api_base_env ? process.env[ep.api_base_env] || '' : '') || (ep.provider === 'runpod' ? process.env.RUNPOD_VLLM_URL || '' : ep.provider === 'together' ? 'https://api.together.xyz/v1' : ep.provider === 'openai' ? 'https://api.openai.com/v1' : '')).replace(/\/$/, ''); }
-function circuitOpen(ep: ModelEndpoint): boolean { const state = circuits.get(ep.id); if (!state?.openedAt) return false; if (Date.now() - state.openedAt >= (ep.circuit_breaker?.reset_ms || 60000)) { circuits.delete(ep.id); return false; } return true; }
-function recordFailure(ep: ModelEndpoint): void { const state = circuits.get(ep.id) || { failures: 0, openedAt: null }; state.failures += 1; if (state.failures >= (ep.circuit_breaker?.failure_threshold || 3)) state.openedAt = Date.now(); circuits.set(ep.id, state); }
+function circuitOpen(ep: ModelEndpoint): boolean { const state = circuits.get(ep.id); if (!state?.openedAt) return false; if (Date.now() - state.openedAt >= (state.resetMs || ep.circuit_breaker?.reset_ms || 60000)) { circuits.delete(ep.id); return false; } return true; }
+function recordFailure(ep: ModelEndpoint, error?: unknown): void {
+  const state = circuits.get(ep.id) || { failures: 0, openedAt: null };
+  state.failures += 1;
+  // Persistent errors (dead endpoint / expired key) → open immediately for 15 min
+  // so every chat request doesn't burn a round-trip on a corpse.
+  const msg = error instanceof Error ? error.message : String(error || '');
+  if (/HTTP (401|403|404)/.test(msg)) { state.openedAt = Date.now(); state.resetMs = 900000; }
+  else if (state.failures >= (ep.circuit_breaker?.failure_threshold || 3)) { state.openedAt = Date.now(); state.resetMs = ep.circuit_breaker?.reset_ms || 60000; }
+  circuits.set(ep.id, state);
+}
 function recordSuccess(ep: ModelEndpoint): void { circuits.delete(ep.id); }
 async function completion(ep: ModelEndpoint, messages: Array<{ role: string; content: string }>, temperature: number, maxTokens: number): Promise<string> {
   const apiBase = base(ep); const apiKey = key(ep); if (!apiBase) throw new Error(`api_base_url missing for ${ep.id}`); if (!apiKey) throw new Error(`API key missing for ${ep.id}`);
-  const response = await fetch(`${apiBase}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: ep.model_id, messages, max_tokens: maxTokens, temperature }), signal: AbortSignal.timeout(ep.timeout_ms || 30000) });
+  const doFetch = (thinkingOff: boolean) => fetch(`${apiBase}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: ep.model_id, messages, max_tokens: maxTokens, temperature, ...(thinkingOff ? { enable_thinking: false, chat_template_kwargs: { enable_thinking: false } } : {}) }), signal: AbortSignal.timeout(ep.timeout_ms || 30000) });
+  // Qwen3-family models default to thinking mode on vLLM servers; the reasoning
+  // trace can eat the whole max_tokens budget and leave `content` empty.
+  const isQwen3 = /qwen3/i.test(ep.model_id);
+  let response = await doFetch(isQwen3);
   if (!response.ok) { const body = await response.text().catch(() => ''); throw new Error(`${ep.provider} HTTP ${response.status}: ${body.slice(0, 160)}`); }
-  const data: unknown = await response.json();
+  let data: unknown = await response.json();
   if (!data || typeof data !== 'object' || !('choices' in data)) throw new Error(`${ep.provider} invalid response`);
-  const choices = (data as { choices?: Array<{ message?: { content?: string } }> }).choices; const content = choices?.[0]?.message?.content?.trim(); if (!content) throw new Error(`${ep.provider} empty content`); return content;
+  let choices = (data as { choices?: Array<{ message?: { content?: string; reasoning_content?: string; reasoning?: string } }> }).choices;
+  let content = choices?.[0]?.message?.content?.trim();
+  // Empty content with a reasoning trace → thinking mode consumed the budget.
+  // Retry once with thinking explicitly disabled.
+  if (!content && !isQwen3 && (choices?.[0]?.message?.reasoning_content || choices?.[0]?.message?.reasoning)) {
+    response = await doFetch(true);
+    if (!response.ok) { const body = await response.text().catch(() => ''); throw new Error(`${ep.provider} HTTP ${response.status}: ${body.slice(0, 160)}`); }
+    data = await response.json();
+    if (!data || typeof data !== 'object' || !('choices' in data)) throw new Error(`${ep.provider} invalid response`);
+    choices = (data as { choices?: Array<{ message?: { content?: string } }> }).choices;
+    content = choices?.[0]?.message?.content?.trim();
+  }
+  if (!content) throw new Error(`${ep.provider} empty content`); return content;
 }
 async function callWithRetry(ep: ModelEndpoint, opts: InvokeChatOptions): Promise<string> {
   if (circuitOpen(ep)) throw new Error(`circuit_open:${ep.id}`); const attempts = Math.max(1, (ep.retry_count ?? 1) + 1); let last: unknown;
   for (let i = 0; i < attempts; i += 1) { try { const value = await completion(ep, opts.messages, opts.temperature ?? ep.temperature, opts.maxTokens ?? ep.max_tokens); recordSuccess(ep); return value; } catch (error) { last = error; if (i + 1 < attempts) continue; } }
-  recordFailure(ep); throw last instanceof Error ? last : new Error(String(last));
+  recordFailure(ep, last); throw last instanceof Error ? last : new Error(String(last));
 }
 export async function invokeChat(opts: InvokeChatOptions): Promise<InvokeChatResult> {
   const candidates = [opts.endpoint, ...(opts.fallbackEndpoints || [])].filter((item, index, all) => all.findIndex((v) => v.id === item.id) === index); const started = Date.now(); const inputTokens = estimateTokens(opts.messages.map((message) => message.content).join('\n')); let last: unknown;

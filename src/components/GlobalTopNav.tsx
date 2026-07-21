@@ -134,7 +134,7 @@ export default function GlobalTopNav() {
           {user ? (
             <>
               <Link
-                href="/shop?tab=tokens"
+                href="/wallet"
                 className="glass h-9 sm:h-10 px-2 sm:px-3 rounded-full text-xs flex items-center gap-1 text-amber-300 touch-manipulation shrink-0"
                 aria-label="Tokens"
               >

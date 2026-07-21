@@ -29,6 +29,7 @@ import {
   sanitizeHistoryContent,
 } from '@/lib/chat-reply-sanitize';
 import { moderateText, type ContentMode } from '@/lib/content-moderation';
+import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -152,10 +153,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const isFree = profile?.membership_tier === 'free';
+  // ─── Daily message limit + credit overflow ───────────────────────────────────
+  const tier = String(profile?.membership_tier || 'free').toLowerCase();
+  const TIER_LIMITS: Record<string, number> = { free: 40, basic: 150, pro: 300, unlimited: -1 };
+  const dailyLimit = TIER_LIMITS[tier] ?? 40;
 
-  // Daily message limit for free users (skip for newbie trial)
-  if (isFree && !isNewbieTrial) {
+  if (!isNewbieTrial && dailyLimit > 0) {
     const today = new Date().toISOString().split('T')[0];
     const { count } = await client
       .from('chat_messages')
@@ -164,12 +167,25 @@ export async function POST(request: NextRequest) {
       .eq('role', 'user')
       .gte('created_at', today);
 
-    // Aligned with MEMBERSHIP_TIERS.free.messages_per_day and ai-modules defaults
-    const FREE_DAILY_LIMIT = 40;
-    if (count && count >= FREE_DAILY_LIMIT) {
-      return NextResponse.json({
-        error: `You've reached your daily message limit (${FREE_DAILY_LIMIT}). Upgrade to Pro for unlimited chats!`
-      }, { status: 403 });
+    if (count && count >= dailyLimit) {
+      // Over limit → deduct credits instead of blocking
+      const cost = CREDIT_COSTS.chat_message_extra;
+      const balance = profile?.credits_remaining ?? 0;
+      if (balance < cost) {
+        return NextResponse.json({
+          error: 'Daily message limit reached. Insufficient credits (need ' + cost + '). Buy credits or upgrade!',
+          code: 'insufficient_credits',
+          required: cost,
+          balance,
+        }, { status: 403 });
+      }
+      const deductResult = await deductCredits(client, user.id, cost, 'chat_extra');
+      if (!deductResult.ok) {
+        return NextResponse.json({
+          error: 'Failed to deduct credits. Please try again.',
+          code: 'credit_deduct_failed',
+        }, { status: 500 });
+      }
     }
   }
 
@@ -385,6 +401,13 @@ export async function POST(request: NextRequest) {
   // Build system prompt: character + hard language lock from this turn's message
   const zhChat = chatLocale === 'zh';
   const langLock = languageLockInstruction(chatLocale);
+  // Soft time awareness — server clock is UTC, so frame it as approximate.
+  const nowUtc = new Date();
+  const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const hhmm = `${String(nowUtc.getUTCHours()).padStart(2, '0')}:${String(nowUtc.getUTCMinutes()).padStart(2, '0')}`;
+  const timeContext = zhChat
+    ? `[时间感] 现在大约是${weekdayNames[nowUtc.getUTCDay()]} ${hhmm}（UTC，他的当地时间可能不同）。可自然带出时段氛围（深夜、清晨、周末），但别武断地说「早上好」之类，除非他先提到。`
+    : `[TIME SENSE] It is roughly ${weekdayNames[nowUtc.getUTCDay()]} ${hhmm} UTC (his local time may differ). You can lean into the time-of-day vibe (late night, weekend), but never assert "good morning"-style greetings unless he mentions it first.`;
   const systemPrompt =
     buildCharacterPrompt({
       gf,
@@ -398,6 +421,7 @@ export async function POST(request: NextRequest) {
       nsfwChannel: chatResolved.channel === 'nsfw',
     }) +
     `\n\n${langLock}` +
+    `\n\n${timeContext}` +
     (chatResolved.systemLanguageSuffix ? `\n\n${chatResolved.systemLanguageSuffix}` : '');
 
   const MAX_USER_MESSAGE_LENGTH = 4000;
@@ -498,6 +522,7 @@ export async function POST(request: NextRequest) {
         try {
           const invoked = await invokeChatAsSseStream({
             endpoint: chatResolved.endpoint,
+            fallbackEndpoints: chatResolved.fallbackChain,
             messages: llmMessages,
             temperature: chatResolved.temperature,
             maxTokens: chatResolved.maxTokens,

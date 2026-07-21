@@ -26,6 +26,26 @@ export async function GET(req: NextRequest) {
     card_url?: string | null;
   };
 
+  /**
+   * Resolve every media field to a displayable URL. Clients read
+   * portrait_url / card_url directly (e.g. chat page 30% background portrait),
+   * so returning raw storage keys there breaks the image.
+   */
+  async function resolveRowMedia(row: Row): Promise<Row> {
+    const [avatar, portrait, card] = await Promise.all([
+      resolveImageUrl(row.avatar_url || null),
+      resolveImageUrl(row.portrait_url || null),
+      resolveImageUrl(row.card_url || null),
+    ]);
+    return {
+      ...row,
+      avatar_url: avatar || row.avatar_url || null,
+      portrait_url: portrait || row.portrait_url || null,
+      card_url: card || row.card_url || null,
+      image_url: portrait || avatar || card || null,
+    };
+  }
+
   // Single-id fetch: own first, then public catalog (for chat open / deep links)
   if (id) {
     const { data: owned, error: ownedErr } = await client
@@ -59,10 +79,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ girlfriends: [], total: 0 });
     }
 
-    const raw = row.portrait_url || row.avatar_url || row.card_url || null;
-    const image_url = await resolveImageUrl(raw);
+    const resolved = await resolveRowMedia(row);
     return NextResponse.json({
-      girlfriends: [{ ...row, image_url }],
+      girlfriends: [resolved],
       total: 1,
     });
   }
@@ -84,13 +103,7 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = (girlfriends || []) as Row[];
-  const enriched = await Promise.all(
-    rows.map(async (g) => {
-      const raw = g.portrait_url || g.avatar_url || g.card_url || null;
-      const image_url = await resolveImageUrl(raw);
-      return { ...g, image_url };
-    }),
-  );
+  const enriched = await Promise.all(rows.map((g) => resolveRowMedia(g)));
 
   return NextResponse.json({ girlfriends: enriched });
 }

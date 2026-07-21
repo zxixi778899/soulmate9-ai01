@@ -11,6 +11,7 @@ import {
   type ImageModuleConfig,
 } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
+import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
 
 const HOURLY_HARD_CAP = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
 
@@ -99,14 +100,32 @@ export async function POST(request: NextRequest) {
         .eq('success', true)
         .gte('created_at', dayStart.toISOString());
       if ((count || 0) >= resolved.dailyLimit) {
-        return NextResponse.json(
-          {
-            error: `Daily image limit reached (${resolved.dailyLimit}). Upgrade or try again tomorrow.`,
-            code: 'daily_limit',
-            limit: resolved.dailyLimit,
-          },
-          { status: 403 },
-        );
+        // Over daily limit -> deduct credits instead of blocking
+        const cost = CREDIT_COSTS.image_gen_extra;
+        const { data: balProfile } = await client
+          .from('profiles')
+          .select('credits_remaining')
+          .eq('user_id', user.id)
+          .single();
+        const balance = balProfile?.credits_remaining ?? 0;
+        if (balance < cost) {
+          return NextResponse.json(
+            {
+              error: 'Daily image limit reached. Insufficient credits (need ' + cost + '). Buy credits or upgrade!',
+              code: 'insufficient_credits',
+              required: cost,
+              balance,
+            },
+            { status: 403 },
+          );
+        }
+        const deductResult = await deductCredits(client, user.id, cost, 'image_gen_extra');
+        if (!deductResult.ok) {
+          return NextResponse.json(
+            { error: 'Failed to deduct credits.', code: 'credit_deduct_failed' },
+            { status: 500 },
+          );
+        }
       }
     }
 

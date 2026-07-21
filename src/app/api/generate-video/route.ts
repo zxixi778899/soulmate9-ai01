@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
+import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

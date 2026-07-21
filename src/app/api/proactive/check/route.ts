@@ -13,8 +13,9 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/proactive/check
- * For each of the user's girlfriends, send 1–3 daily re-engagement
- * messages (emotional check-ins, weekend/holiday greetings).
+ * For each of the user's girlfriends, send exactly 2 daily re-engagement
+ * messages with random content; the 2nd lands 2–6h after the 1st so they
+ * feel like natural check-ins, never back-to-back spam.
  *
  * Body: { girlfriend_id?: string, locale?: string, force?: boolean }
  * - girlfriend_id: only check one chat (current room)
@@ -71,8 +72,9 @@ export async function POST(request: NextRequest) {
     }> = [];
 
     for (const gf of girlfriends) {
-      // How many proactive msgs already today for this pair
+      // How many proactive msgs already today for this pair + when the last went out
       let already = 0;
+      let lastSentAt: string | null = null;
       try {
         const { count } = await client
           .from('proactive_message_log')
@@ -81,14 +83,31 @@ export async function POST(request: NextRequest) {
           .eq('girlfriend_id', gf.id)
           .gte('sent_at', `${dayKey}T00:00:00.000Z`);
         already = count || 0;
+        const { data: lastRow } = await client
+          .from('proactive_message_log')
+          .select('sent_at')
+          .eq('user_id', user.id)
+          .eq('girlfriend_id', gf.id)
+          .gte('sent_at', `${dayKey}T00:00:00.000Z`)
+          .order('sent_at', { ascending: false })
+          .limit(1);
+        lastSentAt = lastRow?.[0]?.sent_at || null;
       } catch {
         // log table may be missing — still allow send, track in-memory only
         already = 0;
       }
 
-      // Target 1–3 per day (stable per user+gf+day)
-      const target = force ? 1 : dailyTargetCount(`${user.id}:${gf.id}:${dayKey}`);
+      // Fixed target: 2 per day (random content, staggered timing)
+      const target = force ? 1 : DAILY_PROACTIVE_TARGET;
       if (!force && already >= target) continue;
+
+      // Stagger: the 2nd message lands 2–6h after the 1st (stable per pair+day,
+      // varies day to day) so they never arrive back-to-back.
+      if (!force && already > 0 && lastSentAt) {
+        const gapHours = 2 + (dailyHash(`${user.id}:${gf.id}:${dayKey}`) % 5); // 2..6h
+        const elapsedH = (Date.now() - new Date(lastSentAt).getTime()) / 3600000;
+        if (elapsedH < gapHours) continue;
+      }
 
       // Skip if user chatted very recently (< 90 min) — avoid spam while active
       if (!force) {
@@ -112,15 +131,32 @@ export async function POST(request: NextRequest) {
       ) as { score?: number; level?: number } | undefined;
       const intimacyScore = Number(scoreRow?.score) || 0;
 
-      const need = force ? 1 : Math.max(0, target - already);
-      if (need <= 0) continue;
+      // Never repeat content already sent today
+      let excludeContents: string[] = [];
+      try {
+        const { data: sentToday } = await client
+          .from('chat_messages')
+          .select('content')
+          .eq('user_id', user.id)
+          .eq('girlfriend_id', gf.id)
+          .eq('is_proactive', true)
+          .gte('created_at', `${dayKey}T00:00:00.000Z`)
+          .limit(10);
+        excludeContents = (sentToday || []).map(
+          (r: { content?: string }) => r.content || '',
+        );
+      } catch {
+        excludeContents = [];
+      }
 
+      // One message per check, true-random template pick
       const picks = pickDailyTemplates({
-        count: need,
+        count: 1,
         intimacyScore,
         locale,
         now,
-        seed: `${user.id}:${gf.id}:${dayKey}:${already}`,
+        randomize: true,
+        excludeContents,
       });
 
       for (const pick of picks) {
@@ -193,9 +229,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** 1–3 messages/day, stable for seed */
-function dailyTargetCount(seed: string): number {
+/** Fixed daily quota: exactly 2 proactive messages per companion per day. */
+const DAILY_PROACTIVE_TARGET = 2;
+
+/** Stable per-seed hash → used to vary the 2nd-message gap (2–6h) day to day. */
+function dailyHash(seed: string): number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return 1 + (Math.abs(h) % 3); // 1, 2, or 3
+  return Math.abs(h);
 }

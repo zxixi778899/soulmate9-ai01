@@ -1381,8 +1381,27 @@ export default function ChatPage() {
     setGiftBurst(null);
   }, []);
 
-  const handleSendGift = (gift: ChatGift) => {
-    // 1) Instant FX — never wait for chat stream or gift panel
+  const handleSendGift = async (gift: ChatGift) => {
+    // 1) Server-side credit deduction
+    try {
+      const res = await authedFetch('/api/gifts/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gift_code: gift.code, girlfriend_id: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to send gift', {
+          description: data.code === 'insufficient_credits' ? 'Buy more credits in the shop!' : undefined,
+        });
+        return;
+      }
+    } catch {
+      toast.error('Network error sending gift');
+      return;
+    }
+
+    // 2) Instant FX
     const next = giftComboRef.current + 1;
     giftComboRef.current = next;
     const isSvga =
@@ -1398,11 +1417,6 @@ export default function ChatPage() {
     });
 
     if (giftComboTimer.current) clearTimeout(giftComboTimer.current);
-    // Combo reset timer: only zeroes the combo counter, does NOT unmount the
-    // burst overlay. Unmounting is driven by GiftEffectOverlay's onDone,
-    // which fires when SvgaPlayer.onFinished (or the fallback timer inside
-    // the overlay) completes — so SVGA animations are allowed to play out
-    // fully instead of being truncated at duration + 1200ms.
     giftComboTimer.current = setTimeout(() => {
       giftComboRef.current = 0;
     }, duration + 1200);
@@ -1411,7 +1425,7 @@ export default function ChatPage() {
       description: `+${gift.intimacy_boost * next} intimacy`,
     });
 
-    // 2) Background chat line — silent = no isSending lock, gift panel stays usable for combo
+    // 3) Background chat line
     void sendMessage(`*sends a gift: ${gift.emoji} ${gift.name}*`, { silent: true });
   };
 
@@ -1580,17 +1594,25 @@ export default function ChatPage() {
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#0b0b12] text-white">
       {/* Girlfriend standing portrait background at 30% opacity */}
-      {(girlfriend?.card_url || girlfriend?.portrait_url) && (
-        <div
-          className="pointer-events-none absolute inset-0 z-0 opacity-30"
-          style={{
-            backgroundImage: `url(${girlfriend.card_url || girlfriend.portrait_url})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center top',
-            backgroundRepeat: 'no-repeat',
-          }}
-        />
-      )}
+      {(() => {
+        const bgPortrait =
+          girlfriend?.card_url ||
+          girlfriend?.portrait_url ||
+          girlfriend?.image_url ||
+          girlfriend?.avatar_url ||
+          null;
+        return bgPortrait ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-0 opacity-30"
+            style={{
+              backgroundImage: `url(${bgPortrait})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center top',
+              backgroundRepeat: 'no-repeat',
+            }}
+          />
+        ) : null;
+      })()}
       {/* Dark gradient overlay for readability */}
       <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0b0b12]/70 via-[#0b0b12]/50 to-[#0b0b12]/90" />
 

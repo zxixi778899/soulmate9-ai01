@@ -119,11 +119,13 @@ export function GiftEffectOverlay({
   // Always build CSS particles as instant feedback; keep under SVGA while it loads
   const particles = useMemo(() => {
     if (!burst) return [];
+    // Mobile gets a denser stage — the effect should feel full-screen immersive
+    const mobileStage = typeof window !== 'undefined' && window.innerWidth < 640;
     return buildParticles(
       type === 'svga' ? 'combo_burst' : type,
       emoji,
       colors,
-      intensity * (1 + Math.min(combo, 8) * 0.08),
+      intensity * (1 + Math.min(combo, 8) * 0.08) * (mobileStage ? 1.3 : 1),
       gift?.effect_config?.particle_count,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,11 +178,13 @@ export function GiftEffectOverlay({
             'radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.28) 100%)',
         }}
       />
+      {/* Mobile: deeper dim → full-screen takeover feel */}
+      <div className="absolute inset-0 bg-black/45 sm:hidden animate-in fade-in duration-150" />
 
       {/* Douyin left banner */}
       <div
         className={cn(
-          'absolute left-2 sm:left-4 top-[16%] z-20 w-[min(92vw,320px)] transition-all duration-300 ease-out',
+          'absolute left-2 sm:left-4 top-[12%] sm:top-[16%] z-20 w-[min(92vw,320px)] transition-all duration-300 ease-out',
           bannerIn ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-full',
         )}
       >
@@ -265,13 +269,13 @@ export function GiftEffectOverlay({
                 className="text-center z-20"
                 style={{ animation: 'giftFxFloat 2.2s ease-out forwards' }}
               >
-                <div className="text-[6.5rem] leading-none drop-shadow-[0_0_36px_rgba(255,45,120,0.85)]">
+                <div className="text-[8.5rem] sm:text-[6.5rem] leading-none drop-shadow-[0_0_36px_rgba(255,45,120,0.85)]">
                   {gift.icon_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={gift.icon_url}
                       alt=""
-                      className="mx-auto h-32 w-32 object-contain"
+                      className="mx-auto h-44 w-44 sm:h-32 sm:w-32 object-contain"
                     />
                   ) : type === 'crown' ? (
                     '👑'
@@ -292,14 +296,14 @@ export function GiftEffectOverlay({
           <img
             src={asset}
             alt=""
-            className="absolute max-h-[70vh] max-w-[85vw] object-contain drop-shadow-[0_0_40px_rgba(255,45,120,0.5)] z-30"
+            className="absolute max-h-[82dvh] max-w-[94vw] sm:max-h-[70vh] sm:max-w-[85vw] object-contain drop-shadow-[0_0_40px_rgba(255,45,120,0.5)] z-30"
             style={{ animation: 'giftFxFloat 2.4s ease-out forwards' }}
           />
         )}
 
         {useSvga && asset && (
           <div
-            className="absolute z-40 h-[min(88vh,720px)] w-[min(96vw,560px)]"
+            className="absolute z-40 h-full w-full sm:h-[min(88vh,720px)] sm:w-[min(96vw,560px)]"
             style={{ opacity: svgaReady ? 1 : 0, transition: 'opacity 0.15s ease' }}
           >
             <SvgaPlayer

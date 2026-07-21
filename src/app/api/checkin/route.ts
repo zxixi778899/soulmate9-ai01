@@ -2,22 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
 import { invalidateSettings } from '@/lib/revalidate';
+import { DAILY_CHECKIN_REWARD, grantCredits } from '@/lib/credit-system';
 
 export const runtime = 'nodejs';
 
 /**
- *  API
- * GET  /api/checkin   last_checkin_at / streak / today_claimed
- * POST /api/checkin    N 
+ *  Daily Check-in API
+ * GET  /api/checkin   → streak / today_claimed / next_reward
+ * POST /api/checkin   → claim daily reward (flat 10 credits)
  *
- * profiles  last_checkin_at(timestamptz) / checkin_streak(int)
- * 
- *   ALTER TABLE profiles
- *     ADD COLUMN IF NOT EXISTS last_checkin_at timestamptz,
- *     ADD COLUMN IF NOT EXISTS checkin_streak  int  DEFAULT 0;
+ * profiles columns: last_checkin_at(timestamptz) / checkin_streak(int)
  */
-
-const DAILY_REWARDS = [10, 15, 20, 30, 40, 50, 80]; // 1~7 
 
 function startOfUtcDay(d: Date): number {
   return Math.floor(d.getTime() / 86_400_000);
@@ -30,7 +25,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const { data } = await supabase
     .from('profiles')
-    .select('last_checkin_at, checkin_streak')
+    .select('last_checkin_at, checkin_streak, credits_remaining')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -43,8 +38,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     streak,
     claimed_today: claimedToday,
-    next_reward: DAILY_REWARDS[Math.min(streak, DAILY_REWARDS.length - 1)],
-    rewards: DAILY_REWARDS,
+    next_reward: DAILY_CHECKIN_REWARD,
+    reward_per_day: DAILY_CHECKIN_REWARD,
+    credits_remaining: data?.credits_remaining ?? 0,
   });
 }
 
@@ -67,11 +63,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (lastDay === today) {
     return NextResponse.json({ error: 'Already claimed today' }, { status: 409 });
   }
-  //   streak+1 1
-  const newStreak = lastDay === today - 1 ? oldStreak + 1 : 1;
-  const reward = DAILY_REWARDS[Math.min(newStreak - 1, DAILY_REWARDS.length - 1)];
 
-  //  last_checkin_at 
+  // Consecutive day → streak+1, otherwise reset to 1
+  const newStreak = lastDay === today - 1 ? oldStreak + 1 : 1;
+
+  // Optimistic lock on last_checkin_at to prevent double-claim
   const lastCondition = lastAt ? lastAt.toISOString() : null;
   let updateQuery = supabase
     .from('profiles')
@@ -85,15 +81,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Already claimed today' }, { status: 409 });
   }
 
-  //  SQL function grant_credits(uid uuid, amount int)
-  const { error: rpcErr } = await supabase.rpc('grant_credits', {
-    uid: user.id,
-    amount: reward,
-  });
-  if (rpcErr) logger.warn('grant_credits rpc failed', { err: rpcErr.message });
+  // Grant flat 10 credits via unified credit system
+  const result = await grantCredits(supabase, user.id, DAILY_CHECKIN_REWARD, 'daily_checkin');
+  if (!result.ok) {
+    logger.warn('checkin grant_credits failed', { err: result.error });
+  }
 
-  // Sync: credit balance changed — invalidate cached profile/settings views
   invalidateSettings();
 
-  return NextResponse.json({ ok: true, reward, streak: newStreak });
+  return NextResponse.json({
+    ok: true,
+    reward: DAILY_CHECKIN_REWARD,
+    streak: newStreak,
+    balance_after: result.ok ? result.balance_after : undefined,
+  });
 }

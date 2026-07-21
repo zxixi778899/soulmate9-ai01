@@ -5,9 +5,10 @@ import { logger } from '@/lib/logger';
 
 /** Built-in packages when token_packages table is empty / missing. */
 const FALLBACK_PACKAGES = [
-  { id: 'tokens-100', name: 'Starter', token_count: 100, bonus_tokens: 0, price_cents: 499, sort_order: 1, is_active: true },
-  { id: 'tokens-500', name: 'Popular', token_count: 500, bonus_tokens: 50, price_cents: 1999, sort_order: 2, is_active: true },
-  { id: 'tokens-1000', name: 'Best Value', token_count: 1000, bonus_tokens: 200, price_cents: 3499, sort_order: 3, is_active: true },
+  { id: 'credits-500', name: 'Starter', token_count: 500, bonus_tokens: 0, price_cents: 499, sort_order: 1, is_active: true },
+  { id: 'credits-1000', name: 'Popular', token_count: 1000, bonus_tokens: 100, price_cents: 999, sort_order: 2, is_active: true },
+  { id: 'credits-2500', name: 'Best Value', token_count: 2500, bonus_tokens: 500, price_cents: 2499, sort_order: 3, is_active: true },
+  { id: 'credits-5000', name: 'Mega', token_count: 5000, bonus_tokens: 1500, price_cents: 4999, sort_order: 4, is_active: true },
 ];
 
 /**

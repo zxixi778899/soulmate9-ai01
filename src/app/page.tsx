@@ -50,6 +50,55 @@ const FOOTER_LINKS = {
   email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@soulmateai.shop',
 };
 
+/** Hot-12 卡片：移动端轮播与桌面网格共用 */
+function HotCard({
+  g,
+  rank,
+  className,
+  onOpen,
+}: {
+  g: DemoGirl;
+  rank: number;
+  className?: string;
+  onOpen: (g: DemoGirl) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      data-hotcard
+      onClick={() => onOpen(g)}
+      className={cn(
+        'relative overflow-hidden text-left active:scale-[0.98] transition-transform ring-1 ring-white/10 hover:ring-[#ff2e88]/45 hover:shadow-[0_0_24px_rgba(255,46,136,0.25)]',
+        `game-rarity-${String(g.rarity || 'R').toLowerCase()}`,
+        className,
+      )}
+    >
+      <div className="relative aspect-[3/4]">
+        <CardMedia
+          src={g.portrait || g.avatar}
+          alt={g.name}
+          hoverPlay={false}
+          forcePlay={false}
+          showBadge={false}
+          imgClassName={lockedImageClass(g.locked)}
+        />
+        {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-sm" />}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent z-[1]" />
+        <span className="absolute top-1.5 left-1.5 z-[2] text-[9px] font-black px-1.5 py-0.5 rounded bg-black/55 text-[#ffd700]">
+          #{rank}
+        </span>
+        <div className="absolute bottom-0 left-0 right-0 p-2 z-[2]">
+          <div className="text-xs sm:text-sm font-bold truncate">{g.name}</div>
+          <div className="text-[9px] sm:text-[10px] text-white/50 truncate">
+            {relationshipLabel(g.relationship, t)} · {g.rarity}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { t, locale } = useTranslation();
@@ -223,6 +272,18 @@ export default function HomePage() {
     if (featured) setDetail(featured);
   }, [featured]);
 
+  // 移动端 Hot-12 轮播：记录当前居中卡片索引（用于 n/12 指示器）
+  const hotScrollRef = useRef<HTMLDivElement>(null);
+  const [hotIndex, setHotIndex] = useState(0);
+  const onHotScroll = useCallback(() => {
+    const el = hotScrollRef.current;
+    if (!el) return;
+    const first = el.querySelector<HTMLElement>('[data-hotcard]');
+    const cardW = first ? first.offsetWidth + 12 : el.clientWidth * 0.66; // 12 = gap-3
+    const idx = Math.round(el.scrollLeft / cardW);
+    setHotIndex(Math.max(0, Math.min(hotList.length - 1, idx)));
+  }, [hotList.length]);
+
   const enterBond = async (girl: DemoGirl = featured!) => {
     if (!girl) return;
     setBonding(true);
@@ -374,7 +435,7 @@ export default function HomePage() {
                 key={featured.id}
                 className={cn(
                   'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation',
-                  'aspect-[3/4] max-h-[min(58dvh,480px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
+                  'aspect-[3/4] max-h-[min(52dvh,440px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
                   `game-rarity-${String(featured.rarity || 'R').toLowerCase()}`,
                 )}
                 style={{
@@ -430,15 +491,15 @@ export default function HomePage() {
               <div className="flex-1 rounded-xl sm:rounded-2xl bg-black/25 border border-white/[0.07] p-4 sm:p-5 flex flex-col">
                 <div className="text-[10px] tracking-[0.25em] text-[#ff6ba6] font-bold">FEATURED</div>
                 <h2 className="mt-1 text-2xl sm:text-3xl font-black seduce-glow leading-none">{featured.name}</h2>
-                <p className="mt-2 text-sm text-white/55 line-clamp-3 leading-relaxed">{girlTagline(featured, locale)}</p>
+                <p className="mt-2 text-sm text-white/55 line-clamp-2 sm:line-clamp-3 leading-relaxed">{girlTagline(featured, locale)}</p>
 
-                <div className="mt-4 space-y-2.5">
+                <div className="mt-4 space-y-2.5 hidden sm:block">
                   <Meter label={t('home.meterDesire')} value={featured.desire ?? featured.intimacy} color="#ff2e88" />
                   <Meter label={t('home.meterDev')} value={featured.development ?? Math.floor(featured.intimacy * 0.85)} color="#a855f7" />
                   <Meter label={t('home.meterKink')} value={featured.kink ?? Math.floor(featured.intimacy * 0.7)} color="#f59e0b" />
                 </div>
 
-                <div className="mt-3 rounded-xl border border-[#ff2e88]/25 bg-gradient-to-r from-[#ff2e88]/15 via-black/20 to-[#a855f7]/10 px-3 py-2.5">
+                <div className="mt-3 rounded-xl border border-[#ff2e88]/25 bg-gradient-to-r from-[#ff2e88]/15 via-black/20 to-[#a855f7]/10 px-3 py-2.5 hidden sm:block">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-bold tracking-[0.2em] text-[#ff6ba6]">HEAT PATH</span>
                     <span className="text-[10px] text-white/50">
@@ -519,6 +580,62 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ═══════════ Hot 12：移动端左右滑动轮播 / 桌面 3×4 网格 ═══════════ */}
+        <section>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <div className="game-chip mb-1">
+                <Flame className="h-3 w-3" /> HOT · 3×4
+              </div>
+              <h3 className="text-lg font-bold">{t('home.hotTitle')}</h3>
+              <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push('/explore')}
+              className="glass-btn !h-10 !px-4 text-xs flex items-center gap-1 shrink-0"
+            >
+              {t('home.moreGirls')} <ChevR className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          {/* 移动端：左右滑动浏览（居中一张，两侧露出下一张/上一张） */}
+          <div
+            ref={hotScrollRef}
+            onScroll={onHotScroll}
+            className="sm:hidden -mx-3 px-4 flex gap-3 overflow-x-auto overscroll-x-contain scrollbar-hide snap-x snap-mandatory touch-pan-x pb-1"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
+            {hotList.map((g, i) => (
+              <HotCard
+                key={g.id}
+                g={g}
+                rank={i + 1}
+                onOpen={(girl) => setDetail(girl)}
+                className="snap-center shrink-0 w-[62vw] max-w-[250px] rounded-xl"
+              />
+            ))}
+          </div>
+          <div className="sm:hidden mt-2 flex items-center justify-center gap-1.5 text-[10px] text-white/40">
+            <ChevronLeft className="h-3 w-3" />
+            <span className="tabular-nums">{hotIndex + 1}/{hotList.length}</span>
+            <ChevronRight className="h-3 w-3" />
+          </div>
+
+          {/* 桌面端：4 列网格 */}
+          <div className="hidden sm:grid sm:grid-cols-4 gap-3">
+            {hotList.map((g, i) => (
+              <HotCard
+                key={g.id}
+                g={g}
+                rank={i + 1}
+                onOpen={(girl) => setDetail(girl)}
+                className="rounded-xl sm:rounded-2xl"
+              />
+            ))}
+          </div>
+        </section>
+
 
         {/* ═══════════ Modules: 2 rows × 3 cols ═══════════ */}
         <section>
@@ -528,7 +645,7 @@ export default function HomePage() {
               <h3 className="text-lg font-bold">{t('home.modulesTitle')}</h3>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
             {modules.map((m) => {
               const Icon = m.icon;
               return (
@@ -536,17 +653,17 @@ export default function HomePage() {
                   key={m.href}
                   type="button"
                   onClick={() => router.push(m.href)}
-                  className="glass-strong rounded-2xl p-4 text-left group active:scale-[0.98] hover:border-[#ff2e88]/35 transition-all flex gap-3.5 items-start min-h-[108px]"
+                  className="glass-strong rounded-2xl p-3 sm:p-4 text-left group active:scale-[0.98] hover:border-[#ff2e88]/35 transition-all flex gap-2.5 sm:gap-3.5 items-start min-h-[88px] sm:min-h-[108px]"
                 >
-                  <div className={cn('h-12 w-12 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0 shadow-lg', m.tone)}>
+                  <div className={cn('h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0 shadow-lg', m.tone)}>
                     <Icon className="h-5 w-5 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-[9px] font-bold tracking-[0.2em] text-white/35">{m.en}</div>
-                    <div className="text-base font-bold group-hover:text-[#ff6ba6] transition-colors mt-0.5">{m.title}</div>
-                    <div className="text-[12px] text-white/50 mt-1 leading-snug">{m.desc}</div>
-                    <div className="mt-2 text-[10px] text-[#ffb3cd]/70 flex items-center gap-1">
-                      <span className="inline-block h-1 w-1 rounded-full bg-[#ff6ba6]" /> {m.tip}
+                    <div className="text-sm sm:text-base font-bold group-hover:text-[#ff6ba6] transition-colors mt-0.5">{m.title}</div>
+                    <div className="hidden sm:block text-[12px] text-white/50 mt-1 leading-snug">{m.desc}</div>
+                    <div className="mt-1.5 sm:mt-2 text-[10px] text-[#ffb3cd]/70 flex items-center gap-1">
+                      <span className="inline-block h-1 w-1 rounded-full bg-[#ff6ba6]" /> <span className="truncate">{m.tip}</span>
                       <ChevR className="h-3 w-3 ml-auto opacity-50 group-hover:opacity-100" />
                     </div>
                   </div>
@@ -578,62 +695,6 @@ export default function HomePage() {
             desc={t('home.promoQuestDesc')}
             glow="from-[#ff2e88]/20"
           />
-        </section>
-
-        {/* ═══════════ Hot 12: 3 rows × 4 cols ═══════════ */}
-        <section>
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div>
-              <div className="game-chip mb-1">
-                <Flame className="h-3 w-3" /> HOT · 3×4
-              </div>
-              <h3 className="text-lg font-bold">{t('home.hotTitle')}</h3>
-              <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => router.push('/explore')}
-              className="glass-btn !h-10 !px-4 text-xs flex items-center gap-1 shrink-0"
-            >
-              {t('home.moreGirls')} <ChevR className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          {/* Always 4 columns → 3 rows for 12 cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-            {hotList.map((g, i) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => setDetail(g)}
-                className={cn(
-                  'relative rounded-xl sm:rounded-2xl overflow-hidden text-left active:scale-[0.98] transition-transform ring-1 ring-white/10 hover:ring-[#ff2e88]/45 hover:shadow-[0_0_24px_rgba(255,46,136,0.25)]',
-                  `game-rarity-${String(g.rarity || 'R').toLowerCase()}`,
-                )}
-              >
-                <div className="relative aspect-[3/4]">
-                  <CardMedia
-                    src={g.portrait || g.avatar}
-                    alt={g.name}
-                    hoverPlay={false}
-                    forcePlay={false}
-                    showBadge={false}
-                    imgClassName={lockedImageClass(g.locked)}
-                  />
-                  {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-sm" />}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent z-[1]" />
-                  <span className="absolute top-1.5 left-1.5 z-[2] text-[9px] font-black px-1.5 py-0.5 rounded bg-black/55 text-[#ffd700]">
-                    #{i + 1}
-                  </span>
-                  <div className="absolute bottom-0 left-0 right-0 p-2 z-[2]">
-                    <div className="text-xs sm:text-sm font-bold truncate">{g.name}</div>
-                    <div className="text-[9px] sm:text-[10px] text-white/50 truncate">
-                      {relationshipLabel(g.relationship, t)} · {g.rarity}
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
         </section>
 
         {/* Daily */}

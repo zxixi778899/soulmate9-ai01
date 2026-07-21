@@ -190,6 +190,8 @@ export function fillTemplate(tpl: string, name: string): string {
 /**
  * Pick n unique templates for a girlfriend today.
  * Weighted toward emotional re-engagement + time/holiday.
+ * - `randomize`: true-random pick (content varies per send, not stable per day)
+ * - `excludeContents`: content strings already sent today → skipped for variety
  */
 export function pickDailyTemplates(opts: {
   count: number;
@@ -197,6 +199,8 @@ export function pickDailyTemplates(opts: {
   locale?: string;
   now?: Date;
   seed?: string;
+  randomize?: boolean;
+  excludeContents?: string[];
 }): Array<{ category: ProactiveCategory; content: string }> {
   const now = opts.now || new Date();
   const zh = (opts.locale || 'en').toLowerCase().startsWith('zh');
@@ -217,15 +221,22 @@ export function pickDailyTemplates(opts: {
   if (weekend) preferred.unshift('weekend');
   if (holiday) preferred.unshift(holiday);
 
-  const pool = PROACTIVE_TEMPLATES.filter((t) => t.min_intimacy <= score);
+  let pool = PROACTIVE_TEMPLATES.filter((t) => t.min_intimacy <= score);
+  const excluded = new Set((opts.excludeContents || []).filter(Boolean));
+  if (excluded.size > 0) {
+    const remaining = pool.filter((t) => !excluded.has(t.zh) && !excluded.has(t.en));
+    if (remaining.length > 0) pool = remaining;
+  }
   const ranked = [
     ...pool.filter((t) => preferred.includes(t.category)),
     ...pool.filter((t) => !preferred.includes(t.category)),
   ];
 
-  // Deterministic shuffle by seed for stable-ish daily picks
-  const seed = hashSeed(opts.seed || `${now.toISOString().slice(0, 10)}`);
-  const shuffled = seededShuffle(ranked, seed);
+  // Deterministic shuffle by seed for stable-ish daily picks,
+  // or true-random when `randomize` is set (2/day random-content mode).
+  const shuffled = opts.randomize
+    ? randomShuffle(ranked)
+    : seededShuffle(ranked, hashSeed(opts.seed || `${now.toISOString().slice(0, 10)}`));
 
   const n = Math.min(Math.max(1, opts.count), 3, shuffled.length);
   const picked = shuffled.slice(0, n);
@@ -242,6 +253,15 @@ function hashSeed(s: string): number {
     h = Math.imul(h, 16777619);
   }
   return h >>> 0;
+}
+
+function randomShuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 function seededShuffle<T>(arr: T[], seed: number): T[] {

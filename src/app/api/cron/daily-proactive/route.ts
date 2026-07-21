@@ -1,7 +1,8 @@
 /**
- * Cron: daily girlfriend re-engagement messages (1–3 per companion).
+ * Cron: daily girlfriend re-engagement messages (fixed 2 per companion per day).
  * Secure with CRON_SECRET Bearer token.
- * Suggested schedule: every 4–6 hours (proactive/check also self-throttles).
+ * Sends at most 1 per run per pair — multiple runs across the day naturally
+ * stagger the two messages; content is random and never repeats within a day.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -96,7 +97,7 @@ export async function GET(req: NextRequest) {
         already = 0;
       }
 
-      const target = 1 + (Math.abs(hash(`${pair.user_id}:${pair.girlfriend_id}:${dayKey}`)) % 3);
+      const target = 2;
       if (already >= target) {
         skipped++;
         continue;
@@ -109,13 +110,13 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      const need = target - already;
+      // One message per cron run; random content each time
       const picks = pickDailyTemplates({
-        count: need,
+        count: 1,
         intimacyScore: 10,
         locale: 'en',
         now,
-        seed: `${pair.user_id}:${pair.girlfriend_id}:${dayKey}:cron`,
+        randomize: true,
       });
 
       for (const pick of picks) {
@@ -181,10 +182,4 @@ export async function GET(req: NextRequest) {
     log.error('cron daily-proactive failed', { err: msg });
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
-}
-
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return h;
 }
