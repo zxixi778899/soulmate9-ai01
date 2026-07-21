@@ -761,6 +761,31 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     kind,
   });
 
+  // 轮询任务完成后调后端 finalize：把图片搬到正确目录并写入 generation_assets
+  const finalizeAssets = async (
+    jobId: string,
+    images: string[],
+    overrides?: { girlfriendId?: string; prompt?: string; negative?: string },
+  ): Promise<Any[] | null> => {
+    try {
+      const res = await authedFetch('/api/admin/comfy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...generationBody(overrides),
+          action: 'finalize',
+          job_id: jobId,
+          images,
+        }),
+      });
+      const data = await readResponseJson(res).catch(() => ({} as Any));
+      if (res.ok && Array.isArray(data.assets) && data.assets.length > 0) {
+        return data.assets as Any[];
+      }
+    } catch { /* 保存失败不影响预览 */ }
+    return null;
+  };
+
   const runBatchGeneration = async () => {
     const selected = batchGirlfriends.filter((item) => batchSelectedIds.includes(String(item.id)));
     if (!selected.length) return toast.error('请先选择需要生成的女友');
@@ -798,7 +823,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}`);
             const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-              generatedAssets.push(...pollData.images.map((url: string) => ({ url, storage_key: '', id: null })));
+              let polled: Any[] = pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));
+              const saved = await finalizeAssets(jobId, pollData.images, {
+                girlfriendId: id,
+                prompt: assembled.positive,
+                negative: assembled.negative,
+              });
+              if (saved) polled = saved;
+              generatedAssets.push(...polled);
               done = true;
               break;
             }
@@ -878,7 +910,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}`);
             const pollData = await readResponseJson(pollRes).catch(() => ({} as any));
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-              const polledAssets = pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));
+              let polledAssets: Any[] = pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));
+              const saved = await finalizeAssets(jobId, pollData.images);
+              if (saved) polledAssets = saved;
               setLastResult(polledAssets);
               toast.success(`生成成功 ${polledAssets.length} 张`);
               if (tab === 'library') loadAssets();

@@ -687,6 +687,104 @@ export async function POST(req: NextRequest) {
     });
   }
 
+if (body.action === 'finalize') {
+    // submit_only 架构下 generate 的保存分支不会触发，ComfyConsole 轮询
+    // /api/runpod/status 到 COMPLETED 后调用本接口补存：把图片从临时
+    // generated-images 目录搬到正确资产目录，并写入 generation_assets。
+    const jobId = String(body.job_id || '');
+    const imageUrls: string[] = Array.isArray(body.images)
+      ? (body.images as unknown[]).filter(
+          (u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u),
+        )
+      : [];
+    if (!imageUrls.length) {
+      return NextResponse.json({ error: 'images required' }, { status: 400 });
+    }
+
+    const girlfriendId = String(body.girlfriend_id || body.girlfriendId || '').trim() || null;
+    const folder = assetFolder(girlfriendId);
+    const kind = String(body.kind || 'custom');
+
+    const cfg = await loadComfyConfig(admin.supabase);
+    const ckpt = cfg.checkpoints.find((c) => c.id === String(body.ckpt_id || '')) || null;
+    const loraNames: string[] = Array.isArray(body.loras)
+      ? (body.loras as Array<Record<string, unknown>>)
+          .map((item) => cfg.loras.find((l) => l.id === String(item?.id || ''))?.filename)
+          .filter((name): name is string => !!name)
+      : [];
+    if (!loraNames.length && body.lora_id) {
+      const single = cfg.loras.find((l) => l.id === String(body.lora_id));
+      if (single?.filename) loraNames.push(single.filename);
+    }
+
+    const assets: Array<Record<string, unknown>> = [];
+    for (const imageUrl of imageUrls.slice(0, 4)) {
+      try {
+        const resp = await fetch(imageUrl);
+        if (!resp.ok) throw new Error(`download ${resp.status}`);
+        const contentType = resp.headers.get('content-type') || 'image/png';
+        const b64 = `data:${contentType};base64,${Buffer.from(await resp.arrayBuffer()).toString('base64')}`;
+        const { key, url } = await uploadImageBase64(b64, folder, contentType);
+
+        const row = {
+          created_by: admin.user!.id,
+          kind,
+          girlfriend_id: girlfriendId,
+          storage_key: key,
+          url,
+          prompt: String(body.prompt || ''),
+          negative_prompt: String(body.negative || ''),
+          workflow_id: body.workflow_id || null,
+          endpoint_id: body.endpoint_id || null,
+          ckpt_name: body.ckpt_name || ckpt?.filename || null,
+          lora_name: loraNames.length ? loraNames.join(',') : null,
+          width: body.width != null ? Number(body.width) : null,
+          height: body.height != null ? Number(body.height) : null,
+          steps: body.steps != null ? Number(body.steps) : null,
+          cfg: body.cfg != null ? Number(body.cfg) : null,
+          seed: body.seed != null && Number(body.seed) >= 0 ? Number(body.seed) : null,
+          meta: {
+            job_id: jobId,
+            finalized: true,
+            ...(body.meta && typeof body.meta === 'object' ? (body.meta as object) : {}),
+          },
+        };
+
+        const { data: saved, error: insErr } = await admin.supabase
+          .from('generation_assets')
+          .insert(row)
+          .select('*')
+          .single();
+
+        if (insErr) {
+          logger.warn('[comfy] finalize insert failed', { err: insErr.message });
+          assets.push({ ...row, id: null, warning: insErr.message });
+        } else {
+          assets.push(saved);
+          // 清理 status 端点上传的临时文件
+          const tempKey = extractKeyFromUrl(imageUrl);
+          if (tempKey && tempKey.startsWith('generated-images/') && tempKey !== key) {
+            try { await deleteFile(tempKey); } catch { /* best effort */ }
+          }
+        }
+      } catch (e) {
+        logger.warn('[comfy] finalize image failed', {
+          url: imageUrl,
+          e: e instanceof Error ? e.message : String(e),
+        });
+        // 保底：至少保留轮询拿到的 URL，不至于丢图
+        assets.push({
+          id: null,
+          url: imageUrl,
+          storage_key: extractKeyFromUrl(imageUrl) || '',
+          warning: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    return NextResponse.json({ success: true, assets, job_id: jobId });
+  }
+
 if (body.action === 'generate') {
     const rl = await checkRateLimitAsync(`comfy-gen:${admin.user!.id}`, GEN_LIMIT);
     if (!rl.allowed) {
