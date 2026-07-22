@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStripe } from '@/lib/stripe-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { grantCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from '@/lib/analytics';
 import { captureException } from '@/lib/sentry';
@@ -10,7 +11,6 @@ import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 
 type DatabaseError = { message: string; code?: string } | null;
 type ClaimResult = { claimed: boolean; attempts: number };
-type WalletResult = { applied: boolean; balance: number; ledger_id: string };
 type SeatResult = { applied: boolean; total_bonus_seats: number };
 const WEBHOOK_EVENT_LIMIT = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
 
@@ -126,21 +126,29 @@ async function handleCheckoutCompleted(
     if (!Number.isSafeInteger(tokenCount) || tokenCount <= 0) {
       throw new Error('token checkout has an invalid quantity');
     }
-    const { data, error } = await admin.rpc('apply_wallet_ledger', {
-      p_user_id: userId,
-      p_amount: tokenCount,
-      p_reason: 'Stripe token pack purchase',
-      p_reference_type: 'stripe_checkout',
-      p_reference_id: session.id,
-      p_idempotency_key: `stripe:${event.id}:tokens`,
-      p_metadata: {
-        session_id: session.id,
-        package_id: session.metadata?.package_id,
+
+    // Grant via the unified credit system (canonical profiles.credits_remaining + ledger).
+    // The old apply_wallet_ledger RPC does not exist, so paid packs were never credited.
+    const grant = await grantCredits(admin, userId, tokenCount, 'token_purchase', session.id);
+    if (!grant.ok) {
+      throw new Error(`credit token wallet: ${grant.error}`);
+    }
+
+    // Keep the legacy user_tokens mirror in sync (shop balance reads it first).
+    const { error: mirrorErr } = await admin.from('user_tokens').upsert(
+      {
+        user_id: userId,
+        balance_tokens: grant.balance_after,
+        last_updated_at: new Date().toISOString(),
       },
-    });
-    assertDatabaseSuccess(error, 'credit token wallet');
-    const result = (data as WalletResult[] | null)?.[0];
-    if (!result) throw new Error('credit token wallet returned no result');
+      { onConflict: 'user_id' },
+    );
+    if (mirrorErr) {
+      logger.error('stripe-webhook: user_tokens mirror sync failed', {
+        userId,
+        error: mirrorErr.message,
+      });
+    }
 
     await recordPurchase(admin, event.id, {
       user_id: userId,
@@ -151,14 +159,13 @@ async function handleCheckoutCompleted(
         package_id: session.metadata?.package_id,
         token_count: tokenCount,
         session_id: session.id,
-        ledger_id: result.ledger_id,
+        balance_after: grant.balance_after,
       },
     });
     logger.info('stripe-webhook: tokens fulfilled', {
       userId,
       tokenCount,
-      balance: result.balance,
-      applied: result.applied,
+      balance: grant.balance_after,
       eventId: event.id,
     });
     capture(userId, AnalyticsEvents.SUBSCRIPTION_STARTED, {

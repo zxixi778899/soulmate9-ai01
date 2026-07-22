@@ -16,7 +16,6 @@ import {
   FolderOpen,
   ShoppingBag,
   Gift,
-  Coins,
   Bitcoin,
   Image as ImageIcon,
   Users,
@@ -107,12 +106,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: '/admin/gifts',
         icon: Gift,
         hint: '对话送礼 · 全屏特效配置',
-      },
-      {
-        label: '代币与积分',
-        href: '/admin/tokens',
-        icon: Coins,
-        aliases: ['/admin/credits'],
       },
       {
         label: '加密货币',

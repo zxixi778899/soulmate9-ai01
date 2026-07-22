@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { authedFetch } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,10 +26,13 @@ type UserData = {
   user_id: string;
   display_name: string | null;
   email: string;
+  role?: string;
   membership_tier: string;
   credits: number;
+  credits_remaining?: number;
   avatar_url: string | null;
   created_at: string;
+  last_sign_in_at?: string | null;
   is_disabled: boolean;
 };
 
@@ -58,7 +62,10 @@ const emptyTokenForm = {
 
 export default function AdminUsersPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<'users' | 'tokens'>('users');
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<'users' | 'tokens'>(
+    searchParams?.get('tab') === 'tokens' ? 'tokens' : 'users',
+  );
 
   // Users Tab State
   const [users, setUsers] = useState<UserData[]>([]);
@@ -99,7 +106,11 @@ export default function AdminUsersPage() {
       const res = await authedFetch(`/api/admin/users?${params.toString()}`);
       const data = await res.json();
       if (data.users) setUsers(data.users);
-      if (data.totalPages) setTotalPages(data.totalPages);
+      if (data.totalPages != null) {
+        setTotalPages(Math.max(1, data.totalPages));
+      } else if (data.total != null) {
+        setTotalPages(Math.max(1, Math.ceil(data.total / 20)));
+      }
     } catch (err) {
       logger.error(String(err));
       toast.error('Failed to load users');
@@ -135,7 +146,7 @@ export default function AdminUsersPage() {
   const openUserDialog = (u: UserData) => {
     setSelectedUser(u);
     setEditTier(u.membership_tier);
-    setEditCredits(String(u.credits));
+    setEditCredits(String(u.credits_remaining ?? u.credits ?? 0));
     setNewPassword('');
     setDialogOpen(true);
   };
@@ -145,7 +156,7 @@ export default function AdminUsersPage() {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
-        id: selectedUser.id,
+        userId: selectedUser.user_id || selectedUser.id,
         membership_tier: editTier,
         credits: parseInt(editCredits, 10) || 0,
       };
@@ -340,7 +351,7 @@ export default function AdminUsersPage() {
                           </td>
                           <td className="px-4 py-3 text-sm text-[#8B8BA3]">{u.email}</td>
                           <td className="px-4 py-3"><Badge variant={u.membership_tier === 'unlimited' ? 'default' : 'outline'} className="text-[10px] capitalize">{u.membership_tier}</Badge></td>
-                          <td className="px-4 py-3 text-sm font-mono text-amber-400">{u.credits}</td>
+                          <td className="px-4 py-3 text-sm font-mono text-amber-400">{u.credits_remaining ?? u.credits ?? 0}</td>
                           <td className="px-4 py-3"><Badge variant={u.is_disabled ? 'destructive' : 'default'} className="text-[10px]">{u.is_disabled ? '禁用' : '正常'}</Badge></td>
                           <td className="px-4 py-3 text-sm text-[#8B8BA3]">{new Date(u.created_at).toLocaleDateString()}</td>
                           <td className="px-4 py-3">
@@ -351,7 +362,7 @@ export default function AdminUsersPage() {
                                   e.stopPropagation();
                                   if (!confirm(u.is_disabled ? '启用此用户?' : '禁用此用户?')) return;
                                   try {
-                                    const res = await authedFetch('/api/admin/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: u.id, is_disabled: !u.is_disabled }) });
+                                    const res = await authedFetch('/api/admin/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: u.user_id || u.id, is_disabled: !u.is_disabled }) });
                                     if (!res.ok) throw new Error('Failed');
                                     fetchUsers();
                                   } catch { toast.error('操作失败'); }

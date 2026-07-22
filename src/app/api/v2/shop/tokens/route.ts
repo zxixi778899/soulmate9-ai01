@@ -57,8 +57,8 @@ export async function GET(req: NextRequest) {
         .from('products')
         .select('id, name, price_cents, virtual_meta, display_order, status')
         .eq('type', 'virtual')
-        .eq('category', 'credits')
         .eq('status', 'active')
+        .filter('virtual_meta->>kind', 'eq', 'credits')
         .order('display_order', { ascending: true });
       if (cpRows?.length) {
         creditProducts = cpRows.map((r: Record<string, unknown>) => {
@@ -113,6 +113,35 @@ export async function POST(req: NextRequest) {
 
     if (dbPkg) {
       tokenPackage = dbPkg as typeof FALLBACK_PACKAGES[number];
+    }
+
+    // Fallback: admin-shop credit packs live in the products table (product UUIDs),
+    // not token_packages. Without this, purchasing them returns 404.
+    if (!tokenPackage) {
+      try {
+        const sbAdmin = getSupabaseClient();
+        const { data: prod } = await sbAdmin
+          .from('products')
+          .select('id, name, price_cents, virtual_meta, status')
+          .eq('id', packageId)
+          .maybeSingle();
+        if (prod && prod.status === 'active') {
+          const meta = (prod.virtual_meta || {}) as Record<string, unknown>;
+          if (meta.kind === 'credits') {
+            tokenPackage = {
+              id: String(prod.id),
+              name: String(prod.name || 'Credit Pack'),
+              token_count: Number(meta.token_amount || meta.credits || 0),
+              bonus_tokens: Number(meta.bonus_tokens || 0),
+              price_cents: Number(prod.price_cents || 0),
+              sort_order: 0,
+              is_active: true,
+            };
+          }
+        }
+      } catch {
+        // non-critical — fall through to 404 below
+      }
     }
 
     if (!tokenPackage) {

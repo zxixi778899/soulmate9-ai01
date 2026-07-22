@@ -125,6 +125,10 @@ export default function ShopPage() {
 
         const giftProducts = allProducts
           .filter((p) => p.category !== 'outfit')
+          .filter((p) => {
+            const meta = (p.virtual_meta || {}) as Record<string, unknown>;
+            return meta.kind !== 'credits' && p.subcategory !== 'credits';
+          })
           .map((p) => ({
             id: p.id as string,
             name: p.name as string,
