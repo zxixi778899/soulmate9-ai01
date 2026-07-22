@@ -6,8 +6,9 @@ import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { loadAiModules, resolveImageCall, type MembershipTier } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
-import { assembleGirlfriendFromRow, GIRLFRIEND_NEGATIVE_FLUX } from '@/lib/prompt/girlfriend';
+import { assembleGirlfriendFromRow, detectGenderStyle, GIRLFRIEND_NEGATIVE_FLUX } from '@/lib/prompt/girlfriend';
 import { falGenerate, isFalConfigured } from '@/lib/fal-client';
+import { resolveImageGenerationProfile } from '@/lib/image-generation-profile';
 import {
   buildImageActionFromChat,
   type ChatContextLine,
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle();
     const tier = membershipFromProfile((profile as Record<string, unknown>) || null);
-    const adultRequested = /\\b(nude|naked|nsfw|explicit|sex|lingerie)\\b/i.test(userRequest);
+    const adultRequested = /\b(nude|naked|nsfw|explicit|sex|sexy|lingerie|fuck|cock|pussy|dick|cum|orgasm|blowjob|anal|breast|nipple|horny|moan|undress|strip|bdsm|spank|ride|aroused|climax|erotic|hardcore|fetish|kink|threesome|oral|deepthroat|creampie|facial|bondage|dominat|submiss|collar|leash|whip|gag|choker|thigh.?high|garter|corset|bustier|negligee|see.?through|topless|bottomless|spread|bent.?over|on.?knees|suck|lick|tease|seduce)\b/i.test(userRequest);
     const resolved = resolveImageCall(aiModules, { scene: 'chat_selfie', tier, adult: adultRequested });
 
     if (!resolved.enabled) {
@@ -209,20 +210,24 @@ export async function POST(request: NextRequest) {
     const intent = buildImageActionFromChat(userRequest || 'send me a selfie', chatContext);
     const actionBits = [intent.action, poseTag, envTag, moodTag].filter(Boolean).join(', ');
 
+    const genderStyle = detectGenderStyle(gf as Record<string, unknown>);
+    const generationProfile = resolveImageGenerationProfile(genderStyle, adultRequested);
     // Character-consistent NL: identity + what they talked about + quality
     const assembled = assembleGirlfriendFromRow(
       gf as Record<string, unknown>,
       actionBits ||
         'taking a flirty intimate selfie for her boyfriend matching their chat, looking at camera',
+      { gender: genderStyle, adult: adultRequested },
     );
 
-    const prompt = assembled.positive;
-    const negativePrompt =
+    const prompt = `${assembled.positive}, ${generationProfile.promptSuffix}`;
+    const baseNegativePrompt =
       typeof (body as { negative_prompt?: string }).negative_prompt === 'string' &&
       (body as { negative_prompt: string }).negative_prompt.trim()
         ? (body as { negative_prompt: string }).negative_prompt
         : assembled.negative || resolved.defaultNegative || GIRLFRIEND_NEGATIVE_FLUX;
 
+    const negativePrompt = `${baseNegativePrompt}, ${generationProfile.negativePrompt}`;
     // Face / body reference for character consistency
     const refCandidates = [
       (gf as { face_reference_url?: string }).face_reference_url,
@@ -313,10 +318,14 @@ export async function POST(request: NextRequest) {
       num_inference_steps: sceneCfg.steps || 20,
       guidance_scale: Math.min(Math.max(sceneCfg.cfg || 2.5, 1.0), 3.5),
       endpoint_id: resolved.endpointId || undefined,
-      ckpt_name: sceneCfg.ckpt_name || undefined,
-      lora_name: sceneCfg.lora_name || undefined,
-      lora_strength_model: sceneCfg.lora_strength_model,
-      lora_strength_clip: sceneCfg.lora_strength_clip,
+      ckpt_name: sceneCfg.ckpt_name || generationProfile.checkpoint,
+      loras: sceneCfg.lora_name
+        ? [{
+            name: sceneCfg.lora_name,
+            strength_model: sceneCfg.lora_strength_model,
+            strength_clip: sceneCfg.lora_strength_clip,
+          }]
+        : generationProfile.loras,
       sampler_name: sceneCfg.sampler_name || undefined,
       scheduler: sceneCfg.scheduler || undefined,
       submit_only: true,
