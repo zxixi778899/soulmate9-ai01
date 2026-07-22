@@ -54,6 +54,16 @@ function gradientFromRarity(rarity?: string): string {
   }
 }
 
+/** Crypto options offered at checkout (NOWPayments). */
+const CRYPTO_PAY_OPTIONS = [
+  { id: 'usdttrc20', label: 'USDT', network: 'TRC-20' },
+  { id: 'btc', label: 'BTC', network: 'Bitcoin' },
+  { id: 'eth', label: 'ETH', network: 'ERC-20' },
+  { id: 'ltc', label: 'LTC', network: 'Litecoin' },
+  { id: 'sol', label: 'SOL', network: 'Solana' },
+  { id: 'trx', label: 'TRX', network: 'TRC-20' },
+] as const;
+
 export default function ShopPage() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -62,7 +72,11 @@ export default function ShopPage() {
   const [purchasing, setPurchasing] = useState(false);
   const [tokenPackages, setTokenPackages] = useState<TokenPackage[]>([]);
   const [tokenBalance, setTokenBalance] = useState(0);
-  const [buyingTokens, setBuyingTokens] = useState<string | null>(null);
+  const [payPkg, setPayPkg] = useState<TokenPackage | null>(null);
+  const [payOpen, setPayOpen] = useState(false);
+  const [payStep, setPayStep] = useState<'method' | 'crypto' | 'wallet'>('method');
+  const [processingPay, setProcessingPay] = useState(false);
+  const [payWallet, setPayWallet] = useState<{ address: string; amount: number; currency: string; network?: string } | null>(null);
   const [tab, setTab] = useState<'skins' | 'gifts' | 'tokens' | 'seats'>('skins');
   const [seatPackages, setSeatPackages] = useState<Array<{ id: string; name: string; seats: number; price_cents: number }>>([]);
   const [seatStatus, setSeatStatus] = useState<{ used: number; effectiveLimit: number; bonusSeats: number; remaining: number | null; canAdd: boolean } | null>(null);
@@ -158,24 +172,52 @@ export default function ShopPage() {
   }, []);
 
 
-  const buyTokenPack = async (packageId: string) => {
-    setBuyingTokens(packageId);
+  const buyTokenPack = (packageId: string) => {
+    const pkg = tokenPackages.find((p) => p.id === packageId) || null;
+    setPayPkg(pkg || { id: packageId, name: 'Credit Pack', token_count: 0, price_cents: 0 });
+    setPayStep('method');
+    setPayWallet(null);
+    setPayOpen(true);
+  };
+
+  const confirmTokenPay = async (provider: 'nowpayments' | 'nexapay', extra?: string) => {
+    if (!payPkg) return;
+    setProcessingPay(true);
     try {
+      const payload: Record<string, string> = { package_id: payPkg.id, provider };
+      if (provider === 'nowpayments') payload.currency = extra || 'usdttrc20';
+      else payload.payment_method = extra || 'card_latam';
+
       const res = await authedFetch('/api/v2/shop/tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package_id: packageId }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok || !data.url) {
+      if (!res.ok) {
         toast.error(data.error || 'Checkout failed');
         return;
       }
-      window.location.href = data.url;
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      if (data.payAddress) {
+        // Hosted invoice unavailable → direct deposit address flow
+        setPayWallet({
+          address: data.payAddress,
+          amount: data.payAmount,
+          currency: data.payCurrency,
+          network: data.network,
+        });
+        setPayStep('wallet');
+        return;
+      }
+      toast.error('Checkout failed');
     } catch {
       toast.error(t('shop.networkError'));
     } finally {
-      setBuyingTokens(null);
+      setProcessingPay(false);
     }
   };
 
@@ -309,10 +351,9 @@ const handleBuy = async () => {
                       <span className="text-xl font-bold">${(pkg.price_cents / 100).toFixed(2)}</span>
                       <GamePrimaryButton
                         className="h-10 px-5"
-                        disabled={buyingTokens === pkg.id}
                         onClick={() => buyTokenPack(pkg.id)}
                       >
-                        {buyingTokens === pkg.id ? '…' : t('shop.buy')}
+                        {t('shop.buy')}
                       </GamePrimaryButton>
                     </div>
                   </GamePanel>
@@ -539,6 +580,113 @@ const handleBuy = async () => {
               {purchasing ? '…' : t('shop.confirmBuy')}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Credit-pack payment method dialog */}
+      <Dialog open={payOpen} onOpenChange={(o) => !o && setPayOpen(false)}>
+        <DialogContent className="bg-[#120a18] border-white/10 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Coins className="h-5 w-5 text-[#ffd700]" />
+              {payStep === 'wallet' ? 'Crypto Payment' : t('shop.topupTitle')}
+            </DialogTitle>
+            {payPkg && payStep !== 'wallet' && (
+              <DialogDescription className="text-white/50">
+                {payPkg.name} · {Number(payPkg.token_count) + Number(payPkg.bonus_tokens || 0)} tokens · ${(payPkg.price_cents / 100).toFixed(2)}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          {payStep === 'method' && (
+            <div className="space-y-3 py-2">
+              <button
+                type="button"
+                disabled={processingPay}
+                onClick={() => setPayStep('crypto')}
+                className="w-full flex items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3.5 hover:border-[#ffd700]/60 hover:bg-white/10 transition text-left"
+              >
+                <span>
+                  <span className="block font-bold">₿ Crypto</span>
+                  <span className="block text-xs text-white/45">USDT · BTC · ETH · SOL — via NOWPayments</span>
+                </span>
+                <span className="text-white/40">›</span>
+              </button>
+              <button
+                type="button"
+                disabled={processingPay}
+                onClick={() => void confirmTokenPay('nexapay', 'card_latam')}
+                className="w-full flex items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3.5 hover:border-[#ff2e88]/60 hover:bg-white/10 transition text-left"
+              >
+                <span>
+                  <span className="block font-bold">💳 Credit Card</span>
+                  <span className="block text-xs text-white/45">LATAM cards · BRL — via NexaPay</span>
+                </span>
+                <span className="text-white/40">›</span>
+              </button>
+              {processingPay && (
+                <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-1">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
+                </div>
+              )}
+            </div>
+          )}
+
+          {payStep === 'crypto' && (
+            <div className="py-2">
+              <p className="text-xs text-white/45 mb-3">Select a coin to pay ${(payPkg ? (payPkg.price_cents / 100).toFixed(2) : '0.00')}:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {CRYPTO_PAY_OPTIONS.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={processingPay}
+                    onClick={() => void confirmTokenPay('nowpayments', c.id)}
+                    className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:border-[#ffd700]/60 hover:bg-white/10 transition text-left"
+                  >
+                    <span className="block font-bold">{c.label}</span>
+                    <span className="block text-[11px] text-white/40">{c.network}</span>
+                  </button>
+                ))}
+              </div>
+              {processingPay && (
+                <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-3">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setPayStep('method')}
+                className="mt-3 text-xs text-white/40 hover:text-white/70"
+              >
+                ← {t('shop.cancel')}
+              </button>
+            </div>
+          )}
+
+          {payStep === 'wallet' && payWallet && (
+            <div className="py-2 space-y-3">
+              <p className="text-sm text-white/60">
+                Send exactly <span className="font-bold text-[#ffd700]">{payWallet.amount} {payWallet.currency}</span>
+                {payWallet.network ? ` on ${payWallet.network}` : ''} to the address below. Your credits are added automatically after confirmation.
+              </p>
+              <div className="rounded-xl border border-white/15 bg-black/40 p-3 break-all font-mono text-sm text-[#ffd700]">
+                {payWallet.address}
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setPayOpen(false)}>{t('shop.cancel')}</Button>
+                <Button
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(payWallet.address);
+                    toast.success('Address copied');
+                  }}
+                  className="bg-gradient-to-r from-[#ffd700] to-[#ff2e88] text-black font-bold"
+                >
+                  Copy Address
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </GameShell>

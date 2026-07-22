@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyNexaPayWebhook } from '@/lib/nexapay-server';
+import { grantCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { createClient } from '@supabase/supabase-js';
 
@@ -26,7 +27,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Status noted but not processed' });
     }
 
-    // Extract user_id from order_id (format: nxp_{userId}_{plan}_{billing}_{timestamp})
+    // order_id formats:
+    //   membership: nxp_{userId}_{plan}_{billing}_{timestamp}
+    //   credit pack: nxp_{userId}_tokens_{totalTokens}_{timestamp}
     const orderParts = (order_id || '').split('_');
     if (orderParts.length < 4 || orderParts[0] !== 'nxp') {
       logger.error('[nexapay/webhook] Invalid order_id format', { order_id });
@@ -34,6 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = orderParts[1];
+    const isTokenPurchase = orderParts[2] === 'tokens';
     const plan = orderParts[2];
     const billing = orderParts[3];
 
@@ -59,6 +63,51 @@ export async function POST(req: NextRequest) {
       .from('crypto_payments')
       .update({ status: 'confirmed', amount_received: amount_usd })
       .eq('tx_hash', payment_id);
+
+    // ── Credit pack purchase: grant credits ─────────────────────────────────
+    if (isTokenPurchase) {
+      const totalTokens = parseInt(orderParts[3], 10);
+      if (!Number.isSafeInteger(totalTokens) || totalTokens <= 0) {
+        logger.error('[nexapay/webhook] Invalid token amount in order_id', { order_id });
+        return NextResponse.json({ error: 'Invalid token amount' }, { status: 400 });
+      }
+
+      const { data: payRow } = await supabase
+        .from('crypto_payments')
+        .select('plan_id')
+        .eq('tx_hash', payment_id)
+        .maybeSingle();
+      const packageId = payRow?.plan_id || null;
+
+      const grant = await grantCredits(supabase, userId, totalTokens, 'token_purchase', payment_id);
+      if (!grant.ok) throw new Error(`credit token wallet: ${grant.error}`);
+
+      // Keep the legacy user_tokens mirror in sync (shop balance reads it first)
+      await supabase.from('user_tokens').upsert(
+        { user_id: userId, balance_tokens: grant.balance_after, last_updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' },
+      );
+
+      await supabase.from('purchase_history').insert({
+        user_id: userId,
+        item_type: 'tokens',
+        item_id: packageId,
+        stripe_payment_intent_id: payment_id,
+        payment_event_id: `nexapay_${payment_id}`,
+        amount_cents: Math.round((amount_usd || 0) * 100),
+        status: 'completed',
+        metadata: {
+          provider: 'nexapay',
+          payment_method,
+          amount_brl: amount_brl || null,
+          token_count: totalTokens,
+          balance_after: grant.balance_after,
+        },
+      });
+
+      logger.info('[nexapay/webhook] Credits granted', { payment_id, userId, totalTokens, balance: grant.balance_after });
+      return NextResponse.json({ success: true });
+    }
 
     // Grant membership
     if (['basic', 'pro', 'unlimited'].includes(plan)) {

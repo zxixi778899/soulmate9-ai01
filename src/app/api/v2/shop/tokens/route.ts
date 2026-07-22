@@ -3,6 +3,12 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { getStripe } from '@/lib/stripe-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
+import {
+  nowPaymentsCreateInvoice,
+  nowPaymentsCreatePayment,
+  NOWPAYMENTS_CURRENCIES,
+} from '@/lib/nowpayments-server';
+import { createNexaPayPayment, NEXAPAY_PAYMENT_METHODS } from '@/lib/nexapay-server';
 
 /** Built-in packages when token_packages table is empty / missing. */
 const FALLBACK_PACKAGES = [
@@ -155,6 +161,128 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid package pricing' }, { status: 400 });
     }
 
+    const provider = (body.provider as string | undefined) || 'stripe';
+    const origin =
+      req.headers.get('origin') ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      'http://localhost:5000';
+
+    // ── NOWPayments (crypto) ────────────────────────────────────────────────
+    if (provider === 'nowpayments') {
+      const currency = (body.currency as string | undefined) || 'usdttrc20';
+      if (!NOWPAYMENTS_CURRENCIES.some((c) => c.id === currency)) {
+        return NextResponse.json({ error: 'Unsupported currency' }, { status: 400 });
+      }
+      // order_id encodes the grant amount: np_{userId}_tokens_{totalTokens}_{ts}
+      const orderId = `np_${auth.user.id}_tokens_${totalTokens}_${Date.now()}`;
+      const description = `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} credits`;
+
+      try {
+        const invoice = await nowPaymentsCreateInvoice({
+          price_amount: priceCents / 100,
+          price_currency: 'usd',
+          pay_currency: currency,
+          order_id: orderId,
+          order_description: description,
+          ipn_callback_url: `${origin}/api/nowpayments/ipn`,
+          success_url: `${origin}/shop?checkout=success&tokens=${totalTokens}&tab=tokens`,
+          cancel_url: `${origin}/shop?checkout=canceled&tab=tokens`,
+        });
+
+        await auth.client.from('crypto_payments').insert({
+          user_id: auth.user.id,
+          plan_id: packageId,
+          amount_usd: priceCents / 100,
+          currency: currency.toUpperCase(),
+          tx_hash: invoice.id,
+          status: 'awaiting_payment',
+        });
+
+        return NextResponse.json({
+          status: 'checkout_created',
+          provider: 'nowpayments',
+          url: invoice.invoice_url,
+          package: tokenPackage,
+          token_count: totalTokens,
+        });
+      } catch (invoiceErr) {
+        // Hosted invoice unavailable → fall back to a direct payment (wallet address)
+        logger.warn('[shop/tokens] NOWPayments invoice failed, using direct payment', { err: String(invoiceErr) });
+        const payment = await nowPaymentsCreatePayment({
+          price_amount: priceCents / 100,
+          price_currency: 'usd',
+          pay_currency: currency,
+          order_id: orderId,
+          order_description: description,
+          ipn_callback_url: `${origin}/api/nowpayments/ipn`,
+        });
+
+        await auth.client.from('crypto_payments').insert({
+          user_id: auth.user.id,
+          plan_id: packageId,
+          amount_usd: priceCents / 100,
+          currency: currency.toUpperCase(),
+          wallet_address: payment.pay_address,
+          tx_hash: payment.payment_id,
+          status: 'awaiting_payment',
+        });
+
+        return NextResponse.json({
+          status: 'checkout_created',
+          provider: 'nowpayments',
+          type: 'payment',
+          url: null,
+          payAddress: payment.pay_address,
+          payAmount: payment.pay_amount,
+          payCurrency: payment.pay_currency,
+          network: payment.network,
+          package: tokenPackage,
+          token_count: totalTokens,
+        });
+      }
+    }
+
+    // ── NexaPay (credit card / LATAM) ───────────────────────────────────────
+    if (provider === 'nexapay') {
+      const paymentMethod = (body.payment_method as string | undefined) || 'card_latam';
+      if (!NEXAPAY_PAYMENT_METHODS.some((m) => m.id === paymentMethod)) {
+        return NextResponse.json({ error: 'Unsupported payment method' }, { status: 400 });
+      }
+      // order_id encodes the grant amount: nxp_{userId}_tokens_{totalTokens}_{ts}
+      const orderId = `nxp_${auth.user.id}_tokens_${totalTokens}_${Date.now()}`;
+
+      const payment = await createNexaPayPayment({
+        amount_cents: priceCents,
+        currency: 'USD',
+        payment_method: paymentMethod as never,
+        order_id: orderId,
+        description: `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} credits`,
+        customer_email: auth.user.email || '',
+        success_url: `${origin}/shop?checkout=success&tokens=${totalTokens}&tab=tokens`,
+        cancel_url: `${origin}/shop?checkout=canceled&tab=tokens`,
+        webhook_url: `${origin}/api/nexapay/webhook`,
+      });
+
+      await auth.client.from('crypto_payments').insert({
+        user_id: auth.user.id,
+        plan_id: packageId,
+        amount_usd: priceCents / 100,
+        currency: 'BRL',
+        tx_hash: payment.payment_id,
+        status: 'awaiting_payment',
+      });
+
+      return NextResponse.json({
+        status: 'checkout_created',
+        provider: 'nexapay',
+        url: payment.payment_url,
+        amountBrl: payment.amount_brl,
+        package: tokenPackage,
+        token_count: totalTokens,
+      });
+    }
+
+    // ── Stripe (default / fallback) ─────────────────────────────────────────
     // Prefer env-mapped Stripe Price IDs when present; else dynamic price_data.
     const envPriceMap: Record<string, string> = {
       'tokens-100': process.env.STRIPE_TOKENS_100_PRICE_ID || '',
@@ -162,11 +290,6 @@ export async function POST(req: NextRequest) {
       'tokens-1000': process.env.STRIPE_TOKENS_1000_PRICE_ID || '',
     };
     const configuredPriceId = envPriceMap[packageId] || '';
-
-    const origin =
-      req.headers.get('origin') ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:5000';
 
     const stripe = getStripe();
     const lineItems = configuredPriceId
