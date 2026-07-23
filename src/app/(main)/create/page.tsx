@@ -133,6 +133,7 @@ export default function CreatePage() {
 
   // Form state
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [presetGenderFilter, setPresetGenderFilter] = useState<'all' | 'Female' | 'Male' | 'Transgender'>('all');
   const [visualStyle, setVisualStyle] = useState('realistic');
   const [gender, setGender] = useState('Female');
   const [ethnicity, setEthnicity] = useState('Asian');
@@ -206,6 +207,18 @@ export default function CreatePage() {
   const getOpts = useCallback((category: string): OptionItem[] => {
     return options[category] || [];
   }, [options]);
+
+  const filteredPresets = useMemo(() => {
+    if (presetGenderFilter === 'all') return presets;
+    return presets.filter((p) => p.gender === presetGenderFilter);
+  }, [presets, presetGenderFilter]);
+
+  const genderTabs: { key: 'all' | 'Female' | 'Male' | 'Transgender'; label: string; icon: string }[] = [
+    { key: 'all', label: zh ? '全部' : 'All', icon: '✦' },
+    { key: 'Female', label: zh ? '女性' : 'Female', icon: '♀' },
+    { key: 'Male', label: zh ? '男性' : 'Male', icon: '♂' },
+    { key: 'Transgender', label: zh ? '跨性别' : 'Trans', icon: '⚧' },
+  ];
 
   // ─── Preset Selection ───────────────────────────────────────────────────
 
@@ -312,7 +325,7 @@ export default function CreatePage() {
     try {
       const relOpts = getOpts('relationship');
       const relMeta = relOpts.find(r => r.value === relationship);
-      const relLabel = relMeta ? getLabel(relMeta, locale) : (zh ? '女友' : 'Girlfriend');
+      const relLabel = relMeta ? getLabel(relMeta, locale) : (zh ? '伴侣' : 'Girlfriend');
       const relDesc = relMeta ? getExtra(relMeta, 'desc', locale) : '';
 
       const fullCharacterCard = [
@@ -484,42 +497,93 @@ export default function CreatePage() {
                   </div>
                 ) : (
                   <>
-                    {/* Preset cards */}
+                    {/* Gender category tabs */}
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      {genderTabs.map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setPresetGenderFilter(tab.key)}
+                          className={cn(
+                            'flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold border transition-all touch-manipulation',
+                            presetGenderFilter === tab.key
+                              ? 'bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white border-transparent shadow-[0_0_16px_rgba(255,45,120,0.35)]'
+                              : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-[#FF2D78]/40 hover:text-white',
+                          )}
+                        >
+                          <span className="text-sm">{tab.icon}</span>
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Preset cards with image preview */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {presets.map((preset) => (
+                      {filteredPresets.map((preset) => (
                         <button
                           key={preset.id}
                           type="button"
                           onClick={() => { applyPreset(preset); setStep(1); }}
                           className={cn(
-                            'group relative rounded-2xl border p-4 text-left transition-all overflow-hidden',
+                            'group relative rounded-2xl border text-left transition-all overflow-hidden',
                             selectedPreset === preset.id
-                              ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
-                              : 'border-white/10 bg-white/[0.03] hover:border-[#FF2D78]/30 hover:bg-white/[0.05]',
+                              ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10 shadow-[0_0_24px_rgba(255,45,120,0.2)]'
+                              : 'border-white/10 bg-white/[0.03] hover:border-[#FF2D78]/30 hover:bg-white/[0.05] hover:shadow-[0_0_20px_rgba(139,92,246,0.15)]',
                           )}
                         >
-                          {/* Thumbnail or gradient */}
-                          <div className="h-24 rounded-xl mb-3 overflow-hidden bg-gradient-to-br from-[#FF2D78]/20 to-[#8b5cf6]/20 flex items-center justify-center">
+                          {/* Image preview area */}
+                          <div className="relative h-40 overflow-hidden bg-gradient-to-br from-[#FF2D78]/20 via-[#8b5cf6]/15 to-[#3b82f6]/10">
                             {preset.thumbnail_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={preset.thumbnail_url} alt={preset.name} className="h-full w-full object-cover" />
+                              <img
+                                src={preset.thumbnail_url}
+                                alt={preset.name}
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              />
                             ) : (
-                              <Palette className="h-8 w-8 text-white/20" />
+                              <div className="h-full w-full flex flex-col items-center justify-center gap-2">
+                                <div className="h-16 w-16 rounded-full bg-white/[0.06] flex items-center justify-center text-2xl">
+                                  {preset.gender === 'Male' ? '👨' : preset.gender === 'Transgender' ? '🧑‍🎤' : '👩'}
+                                </div>
+                                <span className="text-[10px] text-white/30">{preset.visual_style}</span>
+                              </div>
                             )}
+                            {/* Gender badge */}
+                            <div className="absolute top-2 left-2">
+                              <span className={cn(
+                                'px-2 py-0.5 rounded-full text-[9px] font-bold backdrop-blur-sm',
+                                preset.gender === 'Male' && 'bg-blue-500/30 text-blue-200 border border-blue-400/30',
+                                preset.gender === 'Female' && 'bg-pink-500/30 text-pink-200 border border-pink-400/30',
+                                preset.gender === 'Transgender' && 'bg-purple-500/30 text-purple-200 border border-purple-400/30',
+                              )}>
+                                {preset.gender === 'Male' ? (zh ? '男性' : 'Male') : preset.gender === 'Transgender' ? (zh ? '跨性别' : 'Trans') : (zh ? '女性' : 'Female')}
+                              </span>
+                            </div>
+                            {/* Bottom gradient */}
+                            <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/70 to-transparent" />
                           </div>
-                          <div className="text-sm font-bold text-white/90">{preset.name}</div>
-                          <div className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{preset.description}</div>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {(preset.personality_tags || []).slice(0, 3).map(tag => (
-                              <span key={tag} className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] text-white/50">{tag}</span>
-                            ))}
-                          </div>
-                          <div className="text-[10px] text-white/30 mt-2">
-                            {preset.age} · {preset.occupation} · {preset.ethnicity}
+                          {/* Info */}
+                          <div className="p-3.5">
+                            <div className="text-sm font-bold text-white/90">{preset.name}</div>
+                            <div className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{preset.description}</div>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {(preset.personality_tags || []).slice(0, 3).map(tag => (
+                                <span key={tag} className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] text-white/50">{tag}</span>
+                              ))}
+                            </div>
+                            <div className="text-[10px] text-white/30 mt-2">
+                              {preset.age} · {preset.occupation} · {preset.ethnicity}
+                            </div>
                           </div>
                         </button>
                       ))}
                     </div>
+
+                    {filteredPresets.length === 0 && (
+                      <div className="text-center py-8 text-white/30 text-sm">
+                        {zh ? '该分类暂无预设模板' : 'No presets in this category yet'}
+                      </div>
+                    )}
 
                     {/* Start from scratch */}
                     <button

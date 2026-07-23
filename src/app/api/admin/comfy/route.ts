@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
+import { sanitizeLoraForVolume, verifyLoraHealth, checkLoraAuthenticity } from '@/lib/runpod-loras';
 import { requireAdmin } from '@/lib/require-admin';
 import {
   loadComfyConfig,
@@ -21,7 +21,8 @@ import {
 import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
-import { assembleGirlfriendFromRow } from '@/lib/prompt/girlfriend';
+import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
+import { COMPACT_ADULT_NEGATIVE, HIGH_NSFW_PROMPT } from '@/lib/companion-category';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -47,8 +48,8 @@ export async function GET(req: NextRequest) {
   const cfg = await loadComfyConfig(admin.supabase);
 
   if (view === 'volume' || view === 'installed') {
-    const { getInstalledLoraSet } = await import('@/lib/runpod-loras');
-    const installed = [...getInstalledLoraSet()].sort();
+    const { getVerifiedInstalledLoraSet } = await import('@/lib/runpod-loras');
+    const installed = [...getVerifiedInstalledLoraSet()].sort();
     return NextResponse.json({
       volume: cfg.network_volume,
       target_volume: LORA_CATALOG.target_volume,
@@ -56,13 +57,14 @@ export async function GET(req: NextRequest) {
       base_model: LORA_CATALOG.base_model,
       installed_loras: installed,
       code_allowlist: installed,
+      inventory_source: installed.length ? 'runtime-volume' : 'unavailable',
       env_override: !!(process.env.RUNPOD_INSTALLED_LORAS || process.env.COMFY_INSTALLED_LORAS),
       paths: {
         loras: cfg.network_volume?.loras_dir || 'models/loras',
         checkpoints: cfg.network_volume?.checkpoints_dir || 'models/checkpoints',
       },
       note:
-        'installed_loras 与 Comfy LoraLoader 白名单一致；下载新文件后请在 LORA_REGISTRY 中添加条目或设置 RUNPOD_INSTALLED_LORAS，并重新部署。',
+        '只有 RUNPOD_INSTALLED_LORAS 提供的运行卷清单会标记为真实盘上；注册表仅用于配置和回退。',
     });
   }
 
@@ -785,7 +787,22 @@ if (body.action === 'finalize') {
     return NextResponse.json({ success: true, assets, job_id: jobId });
   }
 
-if (body.action === 'generate') {
+if (body.action === 'verify_loras') {
+    const report = verifyLoraHealth();
+    // If specific files requested, check each
+    const files: string[] = Array.isArray(body.files) ? body.files : [];
+    const fileChecks = files.map((f) => ({
+      file: f,
+      issue: checkLoraAuthenticity(f),
+    }));
+    return NextResponse.json({
+      success: true,
+      health: report,
+      file_checks: fileChecks.length ? fileChecks : undefined,
+    });
+  }
+
+  if (body.action === 'generate') {
     const rl = await checkRateLimitAsync(`comfy-gen:${admin.user!.id}`, GEN_LIMIT);
     if (!rl.allowed) {
       return NextResponse.json(
@@ -843,7 +860,7 @@ if (body.action === 'generate') {
         : body.input_image
           ? Number(wf?.defaults.denoise ?? 0.55)
           : 1;
-    const negative = String(
+    let negative = String(
       body.negative || wf?.defaults.negative || 'blurry, low quality, watermark',
     );
     const kind = body.kind || wf?.kind || 'custom';
@@ -862,12 +879,23 @@ if (body.action === 'generate') {
           error: girlfriendError.message,
         });
       } else if (girlfriend) {
-        prompt = assembleGirlfriendFromRow(girlfriend, prompt).positive;
+        const companionPrompt = buildCompanionGenerationPrompt(girlfriend, {
+          action: prompt,
+          adult: true,
+        });
+        prompt = companionPrompt.positive;
+        negative = companionPrompt.negative;
         consistencyReference = String(
           girlfriend.portrait_url || girlfriend.avatar_url || girlfriend.card_url || '',
         ).trim();
       }
     }
+    if (!prompt.includes('high-NSFW erotic composition')) {
+      prompt = `${prompt}, ${HIGH_NSFW_PROMPT}`;
+    }
+    // Keep this below FLUX's negative-length cutoff so the worker actually uses it.
+    negative = COMPACT_ADULT_NEGATIVE;
+
     const effectiveInputImage = String(body.input_image || consistencyReference || '').trim() || undefined;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency ? Math.min(0.45, denoise) : denoise

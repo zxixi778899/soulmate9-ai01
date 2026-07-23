@@ -38,7 +38,7 @@ function mapGirlfriend(gf: Record<string, unknown>) {
   const displayName = safeDisplayName(
     rawName,
     extractPersonName(String(gf.image_prompt || '')) ||
-      safeDisplayName(cardTitle, '未命名女友'),
+      safeDisplayName(cardTitle, '未命名伴侣'),
   );
 
   return {

@@ -35,9 +35,9 @@ type SiteModule = {
 
 const PAGE_LABELS: Record<string, string> = {
   '/': '🏠 落地页',
-  '/explore': '💃 女友展馆',
+  '/explore': '💃 伴侣展馆',
   '/chat': '💬 聊天室',
-  '/create': '✨ 创建女友',
+  '/create': '✨ 创建伴侣',
   '/pricing': '💰 定价页',
   '/profile': '👤 个人中心',
   '/shop': '🛍️ 商城',

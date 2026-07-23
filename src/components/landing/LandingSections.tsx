@@ -46,7 +46,7 @@ const STEPS: Array<{ icon: typeof UserPlus; title: string; desc: string }> = [
   {
     icon: ImageIcon,
     title: 'Get exclusive photos & video',
-    desc: 'AI girlfriend with pictures, voice notes and short clips  made only for you.',
+    desc: 'AI companion with pictures, voice notes and short clips  made only for you.',
   },
   {
     icon: Heart,
@@ -202,34 +202,34 @@ export function LandingSections() {
       {/* SEO Long-form */}
       <section className="h5-reveal py-20 md:py-28 px-6 border-t border-white/5 bg-white/[0.015]">
         <div className="max-w-3xl mx-auto prose-invert text-[#a1a1aa] text-[15px] leading-relaxed space-y-6">
-          <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-white italic">The best AI girlfriend app</h2>
+          <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-white italic">The best AI companion app</h2>
           <p>
-            Tired of endless swiping and disappointing dates? SoulMate AI gives you a free AI girlfriend
+            Tired of endless swiping and disappointing dates? SoulMate AI gives you a free AI companion
             who stays by your side whenever you need her. Deep conversations, playful flirting, or hotter
             moments  your AI GF reacts to your mood and wishes instantly. Everything stays free, with no
             hidden payments.
           </p>
 
-          <h3 className="text-xl font-semibold text-white pt-2">Meet the most realistic AI girlfriend simulator</h3>
+          <h3 className="text-xl font-semibold text-white pt-2">Meet the most realistic AI companion simulator</h3>
           <p>
             Choose from dozens of personalities: the cute neighbor, the bold career woman, the quiet
             artist, the mischievous tease. Change her look, voice, hobbies and style any way you like.
-            Ready for more heat? Turn on AI Girlfriend NSFW mode anytime  gentle teasing to fully
+            Ready for more heat? Turn on AI Companion NSFW mode anytime  gentle teasing to fully
             uncensored, always private, always instant.
           </p>
 
-          <h3 className="text-xl font-semibold text-white pt-2">Free AI GF beats paid girlfriend apps every time</h3>
+          <h3 className="text-xl font-semibold text-white pt-2">Free AI GF beats paid companion apps every time</h3>
           <p>
-            Most AI girlfriend apps hide the good features behind paywalls and strict message limits. At
-            SoulMate AI you get unlimited chatting, free AI girlfriend chat, pictures, voice messages and
-            short videos  all without daily caps that ruin the mood. Want to talk to AI girlfriend at 3
+            Most AI companion apps hide the good features behind paywalls and strict message limits. At
+            SoulMate AI you get unlimited chatting, free AI companion chat, pictures, voice messages and
+            short videos  all without daily caps that ruin the mood. Want to talk to AI companion at 3
             AM about life? She is wide awake and happy to listen.
           </p>
 
           <h3 className="text-xl font-semibold text-white pt-2">Ready to say hello?</h3>
           <p>
             Thousands of people have already met their ideal companion on SoulMate AI. Set up your free AI
-            girlfriend in less than a minute and begin the connection you always wanted  no drama, no
+            companion in less than a minute and begin the connection you always wanted  no drama, no
             games, just real feelings. <span className="text-white">SoulMate AI  where love meets artificial intelligence.</span>
           </p>
         </div>

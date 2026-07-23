@@ -210,7 +210,7 @@ export default function AdminShopPage() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-fuchsia-300/80">Commerce</p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">商城管理</h1>
               <p className="mt-1 max-w-3xl text-sm text-slate-400">
-                统一管理服装、道具、会员和积分商品。参数同步到前台商城与女友衣柜。
+                统一管理服装、道具、会员和积分商品。参数同步到前台商城与伴侣衣柜。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -470,7 +470,7 @@ export default function AdminShopPage() {
                   <h3 className="flex items-center gap-2 text-sm font-medium text-fuchsia-200">
                     <Shirt className="h-4 w-4" /> 换装生成
                   </h3>
-                  <Field label="穿搭提示词（仅描述服装，不覆盖女友脸型、发色和身材）">
+                  <Field label="穿搭提示词（仅描述服装，不覆盖伴侣脸型、发色和身材）">
                     <Textarea value={form.wear_prompt} onChange={(e) => update('wear_prompt', e.target.value)} rows={3} className="border-white/10 bg-black/30" />
                   </Field>
                   <div className="flex flex-wrap gap-5">

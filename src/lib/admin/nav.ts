@@ -2,7 +2,7 @@
 
 /**
  * 后台导航信息架构（中文）
- * 1. 女友资源库：卡片资料 + 图/视频/音频绑定（无生图）
+ * 1. 伴侣资源库：卡片资料 + 图/视频/音频绑定（无生图）
  * 2. 创作中心：Comfy 出图/出视频 + Civitai 模型/LoRA + 公共资产
  * 3. 商城：服装/道具/礼物
  * 其余：运营 / 用户与权限 / 系统
@@ -48,11 +48,11 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     items: [{ label: '仪表盘', href: '/admin', icon: LayoutDashboard }],
   },
   {
-    title: '女友资源库',
-    description: '站内女友卡片 · 图/视频/音频绑定 · 不含生图',
+    title: '伴侣资源库',
+    description: '站内伴侣卡片 · 图/视频/音频绑定 · 不含生图',
     items: [
       {
-        label: '女友与媒体',
+        label: '伴侣与媒体',
         href: '/admin/girlfriends',
         icon: Heart,
         hint: '资料 + 头像/肖像/视频/音频',
@@ -74,7 +74,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         label: '创作工作台',
         href: '/admin/studio',
         icon: Sparkles,
-        hint: '出图 / 出视频 / 音频 · 按女友归档',
+        hint: '出图 / 出视频 / 音频 · 按伴侣归档',
         aliases: ['/admin/comfy', '/admin/generate-cards'],
       },
       {
@@ -87,7 +87,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         label: '公共资产库',
         href: '/admin/assets',
         icon: FolderOpen,
-        hint: '生成结果保留 · 选用到女友',
+        hint: '生成结果保留 · 选用到伴侣',
       },
     ],
   },

@@ -31,6 +31,7 @@ export interface DemoGirl {
   id: string;
   name: string;
   age: number;
+  category?: 'female' | 'male' | 'transgender' | 'anime';
   /** English tagline (default / EN) */
   tagline: string;
   /** Optional Simplified Chinese tagline */
@@ -85,7 +86,7 @@ const REL_I18N: Record<string, TranslationKey> = {
   上司: 'home.rel.boss',
   青梅竹马: 'home.rel.childhood',
   陌生人: 'home.rel.stranger',
-  女友: 'home.rel.girlfriend',
+  伴侣: 'home.rel.girlfriend',
   妻子: 'home.rel.wife',
   女仆: 'home.rel.maid',
   宿敌: 'home.rel.rival',
@@ -111,7 +112,7 @@ export const GIRLS: DemoGirl[] = [
   {
     id: 'g1', name: 'Nova', age: 23,
     tagline: 'Synthwave girlfriend — soft on the surface, fire underneath.',
-    tagline_zh: 'Synthwave 女友，外表柔软，暗处有火。',
+    tagline_zh: 'Synthwave 伴侣，外表柔软，暗处有火。',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop',
     portrait: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&h=900&fit=crop',
     rarity: 'SSR', tags: ['mysterious', 'romantic', 'playful'], element: 'fire',

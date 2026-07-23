@@ -17,7 +17,7 @@ interface Stats {
 
 const STAT_CARDS = [
   { key: 'totalUsers', label: '总用户', icon: Users, accent: 'from-blue-500/30 to-cyan-500/10', iconColor: 'text-blue-300' },
-  { key: 'totalGirlfriends', label: 'AI 女友', icon: Sparkles, accent: 'from-pink-500/30 to-rose-500/10', iconColor: 'text-pink-300' },
+  { key: 'totalGirlfriends', label: 'AI 伴侣', icon: Sparkles, accent: 'from-pink-500/30 to-rose-500/10', iconColor: 'text-pink-300' },
   { key: 'totalMessages', label: '消息数', icon: MessageCircle, accent: 'from-violet-500/30 to-purple-500/10', iconColor: 'text-violet-300' },
   { key: 'imagesGenerated', label: '生图数', icon: ImageIcon, accent: 'from-amber-500/30 to-orange-500/10', iconColor: 'text-amber-300' },
   { key: 'activeToday', label: '今日活跃', icon: Activity, accent: 'from-emerald-500/30 to-green-500/10', iconColor: 'text-emerald-300' },

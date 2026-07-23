@@ -1,5 +1,5 @@
 /**
- * Admin 图库 · 女友卡批量/单张生成用的 LoRA 选项（中文说明）。
+ * Admin 图库 · 伴侣卡批量/单张生成用的 LoRA 选项（中文说明）。
  * 与盘上 models/loras 文件名对齐；一次只挂 1 个 LoRA（Comfy LoraLoader）。
  */
 export type GirlfriendLoraOption = {
@@ -46,7 +46,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     labelZh: '[风格] 写实摄影风',
     filename: 'flux_style_photoreal_v1.safetensors',
     defaultStrength: 0.55,
-    effectZh: '提升整体写实感、皮肤与光影，减少塑料 AI 脸。女友卡默认推荐。',
+    effectZh: '提升整体写实感、皮肤与光影，减少塑料 AI 脸。伴侣卡默认推荐。',
     ruleZh: '强度建议 0.45–0.65。过高会抹掉角色五官差异。与 body LoRA 二选一（当前图一次只挂 1 个）。',
     coreOnVolume: true,
   },
@@ -91,7 +91,7 @@ export const GIRLFRIEND_LORA_OPTIONS: GirlfriendLoraOption[] = [
     labelZh: '[身材] 丰满曲线',
     filename: 'flux_body_curvy_v1.safetensors',
     defaultStrength: 0.55,
-    effectZh: '加强胸腰臀曲线，适合展示身材的 3/4 身女友卡。',
+    effectZh: '加强胸腰臀曲线，适合展示身材的 3/4 身伴侣卡。',
     ruleZh: '强度 0.45–0.7。过高会比例夸张。提示词里仍要写清楚 pose/framing。',
     coreOnVolume: true,
     nsfw: true,

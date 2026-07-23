@@ -18,7 +18,7 @@ import {
   type ModelLibrary,
 } from '@/lib/model-library';
 import { LORA_CATALOG, groupLorasByCategory } from '@/lib/comfy-console/lora-catalog';
-import { getInstalledLoraSet } from '@/lib/runpod-loras';
+import { getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
 import { FLUX_PARAM_PRESETS, FLUX_SCENE_PRESETS } from '@/lib/prompt/flux-presets';
 
 export const dynamic = 'force-dynamic';
@@ -337,7 +337,13 @@ export async function POST(req: NextRequest) {
 
   if (action === 'sync_installed') {
     const lib = await loadModelLibrary(admin.supabase);
-    const installed = getInstalledLoraSet();
+    const installed = getVerifiedInstalledLoraSet();
+    if (!installed.size) {
+      return NextResponse.json(
+        { error: 'RunPod volume inventory unavailable. Set RUNPOD_INSTALLED_LORAS from models/loras before syncing.' },
+        { status: 409 },
+      );
+    }
     let updated = 0;
     const now = new Date().toISOString();
     for (const it of lib.items) {

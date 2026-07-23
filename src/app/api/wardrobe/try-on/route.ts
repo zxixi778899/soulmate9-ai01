@@ -11,7 +11,7 @@ const LIMIT = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
 
 /**
  * POST /api/wardrobe/try-on
- * Simple workflow: 女友图 + 服装 = 换装图
+ * Simple workflow: 伴侣图 + 服装 = 换装图
  *
  * Body:
  * {
@@ -74,10 +74,10 @@ export async function POST(req: NextRequest) {
 /** GET catalog for simple UI */
 export async function GET() {
   return NextResponse.json({
-    formula: '女友肖像图 + 服装(目录/描述/图) = 换装结果图',
+    formula: '伴侣肖像图 + 服装(目录/描述/图) = 换装结果图',
     catalog: OUTFIT_CATALOG,
     howto: {
-      step1: '选女友（用她的 portrait 做人脸/身材参考）',
+      step1: '选伴侣（用她的 portrait 做人脸/身材参考）',
       step2: '选一套服装或贴服装图 URL',
       step3: 'POST /api/wardrobe/try-on',
       step4: '新图写回 girlfriend.portrait_url',

@@ -176,7 +176,7 @@ export function Sidebar() {
               </div>
               <div>
                 <p className="text-sm font-medium text-white/80">还没有伴侣</p>
-                <p className="text-xs text-white/40 mt-1">创建你的第一个 AI 女友</p>
+                <p className="text-xs text-white/40 mt-1">创建你的第一个 AI 伴侣</p>
               </div>
               <button
                 onClick={() => router.push('/create')}

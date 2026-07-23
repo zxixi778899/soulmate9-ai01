@@ -293,8 +293,8 @@ export async function POST(req: NextRequest) {
         send('log', {
           type: 'info',
           message: forceAll
-            ? '库中没有女友记录，无需生成'
-            : '没有缺失肖像的女友（portrait_url 与 avatar_url 都为空才算缺图）。若要强制重生成请传 force:true',
+            ? '库中没有伴侣记录，无需生成'
+            : '没有缺失肖像的伴侣（portrait_url 与 avatar_url 都为空才算缺图）。若要强制重生成请传 force:true',
         });
         send('start', { total: 0 });
         send('done', { completed: 0, failed: 0, total: 0 });

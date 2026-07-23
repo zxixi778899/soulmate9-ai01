@@ -150,7 +150,7 @@ export const QUICK_REPLIES_EN = [
 ];
 
 export const QUICK_REPLIES_ZH = [
-  '怎么创建AI女友？',
+  '怎么创建AI伴侣？',
   '有哪些会员套餐？',
   '积分怎么用？',
   '忘记密码了',

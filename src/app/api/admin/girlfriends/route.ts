@@ -10,6 +10,7 @@ import {
   clampTrait,
   randomizeGirlfriendTraits,
 } from '@/lib/girlfriend-traits';
+import { generateText } from '@/lib/llm-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,6 +103,7 @@ const ADMIN_GF_WRITE_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 }; // 6
 const ALLOWED_PATCH_FIELDS = new Set<string>([
   'name',
   'age',
+  'gender',
   'slug',
   'personality',
   'tags',
@@ -285,7 +287,7 @@ export async function POST(request: NextRequest) {
 
     //  Batch create via LLM 
     if (body.batch) {
-      return await handleBatchCreate(supabase, user, body.count);
+      return await handleBatchCreate(supabase, user, body.count, body.gender);
     }
 
     //  age 18+ 
@@ -312,6 +314,7 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       name: body.name,
       age: ageCheck.age,
+      gender: ['Female', 'Male', 'Transgender'].includes(String(body.gender)) ? body.gender : 'Female',
       slug,
       personality: body.personality || '',
       tags: body.tags || [],
@@ -475,7 +478,7 @@ export async function PATCH(request: NextRequest) {
         updated,
         total: (rows || []).length,
         errors: errors.slice(0, 10),
-        message: `已为 ${updated} 位女友随机分配年龄/亲密/职业/爱好/热情/开发/变态值`,
+        message: `已为 ${updated} 位伴侣随机分配年龄/亲密/职业/爱好/热情/开发/变态值`,
       });
     }
 
@@ -681,18 +684,26 @@ export async function DELETE(request: NextRequest) {
 }
 
 //  Build image prompt for character consistency 
-function buildImagePrompt(profile: GeneratedProfile): string {
+function buildImagePrompt(profile: GeneratedProfile, gender = 'Female'): string {
   const appearance = profile.appearance;
   const parts: string[] = [];
 
   // Base quality tags
   parts.push('masterpiece', 'best quality', 'ultra detailed', 'professional photography');
 
-  // Character description
-  parts.push(`1girl, solo, ${profile.name || 'young woman'}`);
+  // Gender-aware character description
+  if (gender === 'Male') {
+    parts.push(`1boy, solo, handsome man, ${profile.name || 'young man'}`);
+  } else if (gender === 'Transgender') {
+    parts.push(`1girl, solo, transgender woman, ${profile.name || 'young woman'}`);
+  } else {
+    parts.push(`1girl, solo, ${profile.name || 'young woman'}`);
+  }
 
   // Race/ethnicity
-  if (appearance?.race) parts.push(`${appearance.race} woman`);
+  if (appearance?.race) {
+    parts.push(gender === 'Male' ? `${appearance.race} man` : `${appearance.race} woman`);
+  }
 
   // Age
   if (profile.age) parts.push(`${profile.age} years old`);
@@ -731,28 +742,46 @@ function buildImagePrompt(profile: GeneratedProfile): string {
 }
 
 //  Batch create handler 
-async function handleBatchCreate(supabase: any, user: { id: string }, rawCount: number) {
+async function handleBatchCreate(supabase: any, user: { id: string }, rawCount: number, rawGender?: string) {
   const count = Math.min(Math.max(Number(rawCount) || 3, 1), 10);
+  const gender = ['Female', 'Male', 'Transgender'].includes(String(rawGender)) ? String(rawGender) : 'Female';
 
-  // LLM generates random girlfriend profiles optimized for Western market
+  // Gender-aware LLM prompt
+  const genderInstruction = gender === 'Male'
+    ? `Generate diverse, compelling MALE companion characters (boyfriends) with rich personalities and detailed appearances.
+Each character MUST have a male first name, masculine appearance details, and male-appropriate descriptions.`
+    : gender === 'Transgender'
+      ? `Generate diverse, compelling transgender companion characters with rich personalities and detailed appearances.
+Each character MUST have a feminine name, feminine appearance with tall graceful proportions, and confident authentic presentation.`
+      : `Generate diverse, compelling girlfriend characters with rich personalities and detailed appearances.`;
+
+  const nameInstruction = gender === 'Male'
+    ? '- name: Unique English male first name (2-10 letters, NO duplicates)'
+    : '- name: Unique English female first name (2-8 letters, NO duplicates)';
+
+  const bodyOptions = gender === 'Male'
+    ? '- body: One of [Lean muscular, Athletic, Broad-shouldered, Slim, Tall and lean, Swimmer build, Boxer physique, V-taper, Powerful, Well-proportioned]'
+    : '- body: One of [Petite, Slim, Athletic, Curvy, Busty, Hourglass, Tall and lean]';
+
   const systemPrompt = `You are an expert character designer for a premium AI companion platform targeting Western audiences (18+).
-Generate diverse, compelling girlfriend characters with rich personalities and detailed appearances.
+${genderInstruction}
 
 Return ONLY valid JSON: {"girlfriends": [...]}
 Each character MUST have:
-- name: Unique English female first name (2-8 letters, NO duplicates)
+${nameInstruction}
 - age: Integer 19-32
-- personality: 2-3 sentences. Include her communication style, quirks, what makes her unique in conversation
+- gender: "${gender}"
+- personality: 2-3 sentences. Include their communication style, quirks, what makes them unique in conversation
 - tags: Array of 4-6 descriptive English tags (e.g., "Sultry", "Bookworm", "Adventurous", "Flirty", "Artistic")
-- short_description: One captivating sentence that makes someone want to talk to her
-- backstory: 2-3 sentences. Where she's from, what she does, a hint of mystery
+- short_description: One captivating sentence that makes someone want to talk to them
+- backstory: 2-3 sentences. Where they're from, what they do, a hint of mystery
 - appearance: Object with these EXACT keys:
-  - race: One of [Caucasian, Asian, Latina, Ebony, Arab, Indian, Mixed, Slavic, Mediterranean, Nordic]
-  - hair: Specific style (e.g., "Long wavy", "Pixie cut", "Twin braids", "Messy bun", "Straight bob")
-  - hair_color: Specific color (e.g., "Platinum blonde", "Raven black", "Copper red", "Ash brown", "Pastel pink")
-  - eyes: Specific eye description (e.g., "Deep emerald green", "Honey brown", "Ice blue", "Hazel with gold flecks")
-  - body: One of [Petite, Slim, Athletic, Curvy, Busty, Hourglass, Tall and lean]
-  - style: Fashion style (e.g., "Boho chic", "Minimalist elegance", "Streetwear", "Classic feminine", "Edgy alternative", "Cozy academic")
+  - race: One of [Caucasian, Asian, Latino/Latina, Ebony, Arab, Indian, Mixed, Slavic, Mediterranean, Nordic]
+  - hair: Specific style (e.g., ${gender === 'Male' ? '"Short cropped", "Textured fade", "Slicked back", "Messy quiff", "Undercut"' : '"Long wavy", "Pixie cut", "Twin braids", "Messy bun", "Straight bob"'})
+  - hair_color: Specific color (e.g., "Platinum blonde", "Raven black", "Copper red", "Ash brown", "Dark brown")
+  - eyes: Specific eye description (e.g., "Deep emerald green", "Honey brown", "Ice blue", "Steel gray")
+${bodyOptions}
+  - style: Fashion style (e.g., ${gender === 'Male' ? '"Suited and sharp", "Casual masculine", "Streetwear", "Sporty athletic", "Classic gentleman", "Edgy rock"' : '"Boho chic", "Minimalist elegance", "Streetwear", "Classic feminine", "Edgy alternative", "Cozy academic"'})
 
 DIVERSITY RULES - each batch MUST include:
 - At least 3 different races
@@ -770,59 +799,22 @@ STYLE RULES:
 
 Generate EXACTLY ${count} characters. Use ONLY English.`;
 
-  const userPrompt = `Generate ${count} unique, diverse girlfriend characters. Make each one unforgettable.`;
+  const userPrompt = `Generate ${count} unique, diverse ${gender === 'Male' ? 'male companion' : gender === 'Transgender' ? 'transgender companion' : 'girlfriend'} characters. Make each one unforgettable.`;
 
-  // Direct HTTP LLM call (bypass SDK to avoid "Missing credentials" issue)
-  const API_BASE = process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn';
-  const API_KEY = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || '';
-  if (!API_KEY) {
-    return NextResponse.json({ error: 'LLM credentials not configured' }, { status: 500 });
-  }
-
-  const llmRes = await fetch(`${API_BASE}/api/v3/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'doubao-seed-2-0-pro-260215',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+  // Use shared LLM service (RunPod vLLM primary, Together fallback)
+  let text = '';
+  try {
+    text = await generateText({
+      systemPrompt,
+      prompt: userPrompt,
       temperature: 0.95,
-      max_tokens: 2048,
-      stream: false,
-    }),
-  });
-
-  if (!llmRes.ok) {
-    const errText = await llmRes.text().catch(() => 'unknown');
-    return NextResponse.json({ error: `[LLM_DIRECT] LLM API error (${llmRes.status}): ${errText}` }, { status: 500 });
+      maxTokens: 2048,
+    });
+  } catch (llmErr) {
+    const msg = llmErr instanceof Error ? llmErr.message : String(llmErr);
+    logger.error('[admin/girlfriends] batch LLM generation failed', { err: msg });
+    return NextResponse.json({ error: `LLM generation failed: ${msg}` }, { status: 500 });
   }
-
-  // Parse SSE response
-  const reader = llmRes.body?.getReader();
-  if (!reader) return NextResponse.json({ error: 'No response body' }, { status: 500 });
-  const decoder = new TextDecoder();
-  let fullContent = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    for (const line of chunk.split('\n')) {
-      if (line.startsWith('data: ')) {
-        try {
-          const parsed = JSON.parse(line.slice(6));
-          const delta = parsed?.choices?.[0]?.delta?.content;
-          if (delta) fullContent += delta;
-        } catch { /* skip non-JSON lines */ }
-      }
-    }
-  }
-
-  const text = fullContent.trim();
 
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
@@ -859,6 +851,7 @@ Generate EXACTLY ${count} characters. Use ONLY English.`;
         user_id: user.id,
         name: safeName,
         age: safeAge,
+        gender,
         slug,
         personality: String(profile.personality || ''),
         tags: Array.isArray(profile.tags) ? profile.tags : [],
@@ -872,7 +865,7 @@ Generate EXACTLY ${count} characters. Use ONLY English.`;
         appearance_eyes: String(profile.appearance?.eyes || ''),
         appearance_body: String(profile.appearance?.body || ''),
         appearance_style: String(profile.appearance?.style || ''),
-        image_prompt: buildImagePrompt(profile),
+        image_prompt: buildImagePrompt(profile, gender),
         is_public: false,
         review_status: 'draft',
         age_verified: true,

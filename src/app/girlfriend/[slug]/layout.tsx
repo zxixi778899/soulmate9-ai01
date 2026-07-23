@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: `${gf.name}  ${APP_NAME}`,
     description: `${gf.name}: ${gf.description}`,
-    keywords: [...gf.tags, 'AI companion', 'AI girlfriend', 'virtual relationship', 'NSFW AI chat', slug],
+    keywords: [...gf.tags, 'AI companion', 'virtual companion', 'virtual relationship', 'NSFW AI chat', slug],
     openGraph: {
       title: `${gf.name}  ${APP_NAME}`,
       description: gf.description,

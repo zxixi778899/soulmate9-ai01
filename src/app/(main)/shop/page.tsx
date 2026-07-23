@@ -1,39 +1,52 @@
 'use client';
 
 /**
- * Armory / Skin Shop — Honor-of-Kings style skins & items
+ * Boutique / Showcase (橱窗)
+ * Collections mirror the admin shop: outfit · prop · membership · credits (+ companion seats).
+ * All catalog data comes from the admin-managed products table via /api/shop/v2/products.
+ *
+ * UI consistency: every collection renders the same 3/4 portrait ShelfCard in the same grid.
  */
 
 import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import { Coins, Heart, Sparkles, Lock, Star, Shirt, Gift, Zap, Users, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { logger } from '@/lib/logger';
 import {
-  GameShell, GameSectionTitle, GamePrimaryButton, GamePanel,
+  Coins, Heart, Crown, Star, Shirt, Gift, Zap, Users, Loader2, Sparkles,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  GameShell, GameSectionTitle,
 } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
+import { notifyDataChange } from '@/hooks/useDataSync';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { cn } from '@/lib/utils';
 
-type ShopItem = {
+type Collection = 'outfit' | 'prop' | 'membership' | 'credits';
+type TabId = Collection | 'seats';
+
+type Product = {
   id: string;
   name: string;
-  emoji: string;
   description: string;
+  collection: Collection;
+  category: string;
+  subcategory: string | null;
+  price_credits: number;
   price_cents: number;
-  item_type: string;
-  effect_value?: Record<string, string | number>;
-  tier: string;
-  is_limited?: boolean;
-  skin?: string;
-  preview_url?: string;
-  video_url?: string;
+  preview_url: string;
+  rarity: string;
+  is_featured: boolean;
+  is_new: boolean;
+  sales_count: number;
+  virtual_meta: Record<string, unknown>;
 };
 
 type CreditsInfo = { credits_remaining: number; membership_tier: string };
@@ -45,14 +58,36 @@ type TokenPackage = {
   price_cents: number;
 };
 
-function gradientFromRarity(rarity?: string): string {
-  switch (rarity) {
-    case 'legendary': return 'from-fuchsia-500 to-purple-800';
-    case 'epic': return 'from-amber-300 to-rose-600';
-    case 'rare': return 'from-cyan-400 to-blue-600';
-    default: return 'from-rose-400 to-pink-600';
-  }
-}
+const COLLECTION_EMOJI: Record<Collection | 'seats', string> = {
+  outfit: '👗', prop: '🎁', membership: '👑', credits: '💎', seats: '👥',
+};
+
+const RARITY_GRADIENT: Record<string, string> = {
+  legendary: 'from-fuchsia-500 to-purple-800',
+  epic: 'from-amber-300 to-rose-600',
+  rare: 'from-cyan-400 to-blue-600',
+  common: 'from-rose-400 to-pink-600',
+};
+
+const RARITY_CHIP: Record<string, string> = {
+  legendary: 'bg-gradient-to-r from-[#ffd700] to-[#f59e0b] text-black',
+  epic: 'bg-gradient-to-r from-[#ff2e88] to-[#c026d3] text-white',
+  rare: 'bg-gradient-to-r from-[#00e5ff] to-[#3b82f6] text-black',
+  common: 'bg-white/15 text-white/80',
+};
+
+/** Membership tier → card gradient (reuses the rarity palette). */
+const TIER_GRADIENT: Record<string, string> = {
+  unlimited: RARITY_GRADIENT.legendary,
+  pro: RARITY_GRADIENT.epic,
+  basic: RARITY_GRADIENT.rare,
+};
+
+const CREDITS_GRADIENT = 'from-amber-400 to-orange-600';
+const SEATS_GRADIENT = 'from-cyan-500 to-blue-700';
+
+/** Unified shelf grid — identical across every collection. */
+const GRID = 'grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4';
 
 /** Crypto options offered at checkout (NOWPayments). */
 const CRYPTO_PAY_OPTIONS = [
@@ -64,12 +99,181 @@ const CRYPTO_PAY_OPTIONS = [
   { id: 'trx', label: 'TRX', network: 'TRC-20' },
 ] as const;
 
+/** Legacy ?tab= values → new collection tabs */
+const TAB_ALIAS: Record<string, TabId> = {
+  outfit: 'outfit', prop: 'prop', membership: 'membership', credits: 'credits', seats: 'seats',
+  skins: 'outfit', gifts: 'prop', tokens: 'credits',
+};
+
+function intimacyBoost(p: Product): number {
+  const raw = Number(p.virtual_meta?.intimacy_boost || 0);
+  if (raw > 0) return Math.min(100, raw);
+  return Math.min(100, Math.floor(Number(p.price_credits || 0) / 30));
+}
+
+function videoUrl(p: Product): string {
+  return String(p.virtual_meta?.video_url || '');
+}
+
+function isCreationCard(p: Product): boolean {
+  return p.subcategory === 'creation_card' || String(p.virtual_meta?.kind || '') === 'creation_card';
+}
+
+function cardAmount(p: Product): number {
+  return Math.max(1, Number(p.virtual_meta?.card_amount || 1));
+}
+
+/* ── shared shelf-card primitives ─────────────────────────────────────── */
+
+function ShelfCard({
+  image, video, gradient, emoji, title, subtitle,
+  topLeft, topRight, price, meta, onClick,
+}: {
+  image?: string;
+  video?: string;
+  gradient: string;
+  emoji: string;
+  title: string;
+  subtitle?: string;
+  topLeft?: ReactNode;
+  topRight?: ReactNode;
+  price: ReactNode;
+  meta?: ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group relative rounded-2xl overflow-hidden border border-white/10 text-left active:scale-[0.98] transition-all duration-300 hover:border-white/25 hover:shadow-[0_0_28px_rgba(255,46,136,0.18)]"
+    >
+      <div className={cn('aspect-[3/4] bg-gradient-to-br relative', gradient)}>
+        {image ? (
+          <>
+            <img
+              src={image}
+              alt={title}
+              className={cn(
+                'absolute inset-0 h-full w-full object-cover transition-all duration-500',
+                video ? 'group-hover:opacity-0' : 'group-hover:scale-110',
+              )}
+              loading="lazy"
+            />
+            {video && (
+              <video
+                src={video}
+                muted
+                loop
+                playsInline
+                preload="none"
+                className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                onMouseEnter={(e) => { e.currentTarget.play().catch(() => {}); }}
+                onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+            <div className="absolute inset-0 flex items-center justify-center text-6xl drop-shadow-lg">
+              {emoji}
+            </div>
+          </>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent pointer-events-none" />
+
+        {topLeft && <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">{topLeft}</div>}
+        {topRight}
+
+        <div className="absolute bottom-0 left-0 right-0 p-3">
+          <div className="font-bold text-sm truncate">{title}</div>
+          {subtitle && <div className="text-[11px] text-white/55 line-clamp-1">{subtitle}</div>}
+          <div className="mt-2 flex items-center justify-between">
+            {price}
+            {meta}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function FeaturedBadge({ label }: { label: string }) {
+  return (
+    <span className="flex items-center gap-0.5 text-[9px] font-black tracking-wider bg-gradient-to-r from-[#ffd700] to-[#f59e0b] text-black px-2 py-0.5 rounded shadow">
+      <Star className="h-2.5 w-2.5 fill-black" /> {label}
+    </span>
+  );
+}
+
+function NewBadge({ label }: { label: string }) {
+  return (
+    <span className="text-[9px] font-black tracking-wider bg-[#ff2e88] text-white px-2 py-0.5 rounded shadow">
+      {label}
+    </span>
+  );
+}
+
+function CurrentBadge({ label }: { label: string }) {
+  return (
+    <span className="text-[9px] font-black tracking-wider bg-emerald-500 text-white px-2 py-0.5 rounded shadow">
+      {label}
+    </span>
+  );
+}
+
+function CornerChip({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <span className={cn('absolute top-2 right-2 text-[9px] font-black tracking-wider px-2 py-0.5 rounded shadow', className)}>
+      {children}
+    </span>
+  );
+}
+
+function CreditPrice({ value }: { value: number }) {
+  return (
+    <span className="flex items-center gap-1 text-amber-300 text-xs font-bold">
+      <Coins className="h-3.5 w-3.5" /> {value}
+    </span>
+  );
+}
+
+function UsdPrice({ cents }: { cents: number }) {
+  return <span className="text-amber-300 text-xs font-bold">${(cents / 100).toFixed(2)}</span>;
+}
+
+function SkeletonGrid({ n }: { n: number }) {
+  return (
+    <div className={GRID}>
+      {Array.from({ length: n }).map((_, i) => (
+        <div key={i} className="rounded-2xl bg-white/[0.04] animate-pulse aspect-[3/4]" />
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, title, hint }: { icon: typeof Shirt; title: string; hint: string }) {
+  return (
+    <div className="text-center py-16 text-white/40">
+      <Icon className="mx-auto mb-3 h-10 w-10 text-white/20" />
+      <p className="text-sm">{title}</p>
+      <p className="text-xs mt-1 text-white/30">{hint}</p>
+    </div>
+  );
+}
+
 export default function ShopPage() {
   const { t } = useTranslation();
   const router = useRouter();
+
   const [credits, setCredits] = useState<CreditsInfo | null>(null);
-  const [buying, setBuying] = useState<ShopItem | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [tab, setTab] = useState<TabId>('outfit');
+  const [detail, setDetail] = useState<Product | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+
   const [tokenPackages, setTokenPackages] = useState<TokenPackage[]>([]);
   const [tokenBalance, setTokenBalance] = useState(0);
   const [payPkg, setPayPkg] = useState<TokenPackage | null>(null);
@@ -77,16 +281,28 @@ export default function ShopPage() {
   const [payStep, setPayStep] = useState<'method' | 'crypto' | 'wallet'>('method');
   const [processingPay, setProcessingPay] = useState(false);
   const [payWallet, setPayWallet] = useState<{ address: string; amount: number; currency: string; network?: string } | null>(null);
-  const [tab, setTab] = useState<'skins' | 'gifts' | 'tokens' | 'seats'>('skins');
+
   const [seatPackages, setSeatPackages] = useState<Array<{ id: string; name: string; seats: number; price_cents: number }>>([]);
   const [seatStatus, setSeatStatus] = useState<{ used: number; effectiveLimit: number; bonusSeats: number; remaining: number | null; canAdd: boolean } | null>(null);
   const [buyingSeats, setBuyingSeats] = useState<string | null>(null);
-  const [skins, setSkins] = useState<ShopItem[]>([]);
-  const [gifts, setGifts] = useState<ShopItem[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  const refreshCatalog = useCallback(async () => {
+    try {
+      const d = await authedFetch('/api/shop/v2/products?limit=60').then((r) => r.json());
+      setProducts((d.products || []) as Product[]);
+      setCounts(d.counts || {});
+    } catch { /* non-critical */ }
+  }, []);
+
+  const refreshBalance = useCallback(async () => {
+    try {
+      const c = await authedFetch('/api/shop/credits').then((r) => r.json());
+      setCredits(c);
+    } catch { /* non-critical */ }
+  }, []);
 
   useEffect(() => {
-    authedFetch('/api/shop/credits').then((r) => r.json()).then(setCredits).catch(() => {});
+    refreshBalance();
     authedFetch('/api/v2/shop/tokens')
       .then((r) => r.json())
       .then((d) => {
@@ -96,10 +312,9 @@ export default function ShopPage() {
       .catch(() => {});
 
     const params = new URLSearchParams(window.location.search);
-    const qTab = params.get('tab');
-    if (qTab === 'seats' || qTab === 'tokens' || qTab === 'gifts' || qTab === 'skins') {
-      setTab(qTab);
-    }
+    const qTab = TAB_ALIAS[params.get('tab') || ''];
+    if (qTab) setTab(qTab);
+
     authedFetch('/api/v2/shop/seats')
       .then((r) => r.json())
       .then((d) => {
@@ -108,70 +323,71 @@ export default function ShopPage() {
       })
       .catch(() => {});
 
-    // Fetch ALL products from DB and split into skins (outfit) and gifts (everything else)
-    authedFetch('/api/shop/v2/products?limit=60')
-      .then((r) => r.json())
-      .then((d) => {
-        const allProducts: Record<string, unknown>[] = d.products || [];
-        const emojiMap: Record<string, string> = {
-          outfit: '👗', effect: '✨', consumable: '🎁', voice_pack: '🎙️', background: '🖼️',
-        };
-
-        const outfitProducts = allProducts
-          .filter((p) => p.category === 'outfit')
-          .map((p) => {
-            const meta = (p.virtual_meta || {}) as Record<string, unknown>;
-            return {
-              id: p.id as string,
-              name: p.name as string,
-              emoji: '👗',
-              description: (p.description as string) || '',
-              price_cents: Number(p.price_credits || p.price_cents || 0),
-              item_type: 'outfit',
-              effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
-              tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
-              is_limited: (p.is_featured as boolean) || false,
-              skin: gradientFromRarity(p.rarity as string),
-              preview_url: (p.preview_url as string) || '',
-              video_url: (meta.video_url as string) || '',
-            };
-          });
-
-        const giftProducts = allProducts
-          .filter((p) => p.category !== 'outfit')
-          .filter((p) => {
-            const meta = (p.virtual_meta || {}) as Record<string, unknown>;
-            return meta.kind !== 'credits' && p.subcategory !== 'credits';
-          })
-          .map((p) => ({
-            id: p.id as string,
-            name: p.name as string,
-            emoji: emojiMap[(p.category as string)] || '🎁',
-            description: (p.description as string) || '',
-            price_cents: Number(p.price_credits || p.price_cents || 0),
-            item_type: 'intimacy_boost',
-            effect_value: { intimacy_boost: Math.min(100, Math.floor(Number(p.price_credits || 0) / 30)) },
-            tier: p.rarity === 'legendary' || p.rarity === 'epic' ? 'premium' : 'free',
-          }));
-
-        setSkins(outfitProducts);
-        setGifts(giftProducts);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingProducts(false));
+    refreshCatalog().finally(() => setLoadingProducts(false));
 
     if (params.get('checkout') === 'success') {
       if (params.get('seats')) {
         toast.success('Companion seats unlocked (permanent)');
       } else {
-        toast.success('Purchase successful');
+        toast.success(t('shop.purchaseSuccess'));
       }
-      window.history.replaceState({}, '', '/shop' + (params.get('seats') ? '?tab=seats' : ''));
-      if (params.get('seats')) setTab('seats');
+      const nextTab = TAB_ALIAS[params.get('tab') || ''] || (params.get('seats') ? 'seats' : 'credits');
+      window.history.replaceState({}, '', `/shop?tab=${nextTab}`);
+      setTab(nextTab);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useAutoRefresh(useCallback(() => {
+    void refreshCatalog();
+    void refreshBalance();
+  }, [refreshCatalog, refreshBalance]));
 
+  const byCollection = useCallback((c: Collection) => products.filter((p) => p.collection === c), [products]);
+
+  /* ── purchase (credits) ─────────────────────────────────────────────── */
+  const purchaseProduct = async (p: Product) => {
+    setPurchasing(true);
+    try {
+      const res = await authedFetch('/api/shop/v2/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: p.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (p.collection === 'membership') {
+          toast.success(t('shop.membershipActivated'));
+          notifyDataChange('membership');
+        } else {
+          toast.success(`${COLLECTION_EMOJI[p.collection]} ${p.name} ${t('shop.addedToBag')}`);
+        }
+        setDetail(null);
+        if (typeof data.new_credits_balance === 'number') {
+          setCredits((c) => ({
+            credits_remaining: data.new_credits_balance,
+            membership_tier: data.membership_tier || c?.membership_tier || 'free',
+          }));
+        }
+        notifyDataChange('shop');
+        authedFetch('/api/v2/shop/tokens')
+          .then((r) => r.json())
+          .then((d) => setTokenBalance(Number(d.user_balance) || 0))
+          .catch(() => {});
+      } else if (res.status === 402) {
+        toast.error(t('shop.insufficient'), {
+          action: { label: t('shop.topup'), onClick: () => { setDetail(null); setTab('credits'); } },
+        });
+      } else {
+        toast.error(data.error || t('shop.buyFailed'));
+      }
+    } catch {
+      toast.error(t('shop.networkError'));
+    }
+    setPurchasing(false);
+  };
+
+  /* ── credit-pack checkout (fiat / crypto) ───────────────────────────── */
   const buyTokenPack = (packageId: string) => {
     const pkg = tokenPackages.find((p) => p.id === packageId) || null;
     setPayPkg(pkg || { id: packageId, name: 'Credit Pack', token_count: 0, price_cents: 0 });
@@ -203,7 +419,6 @@ export default function ShopPage() {
         return;
       }
       if (data.payAddress) {
-        // Hosted invoice unavailable → direct deposit address flow
         setPayWallet({
           address: data.payAddress,
           amount: data.payAmount,
@@ -221,7 +436,7 @@ export default function ShopPage() {
     }
   };
 
-    const buySeatPack = async (packageId: string) => {
+  const buySeatPack = async (packageId: string) => {
     setBuyingSeats(packageId);
     try {
       const res = await authedFetch('/api/v2/shop/seats', {
@@ -236,56 +451,133 @@ export default function ShopPage() {
       }
       window.location.href = data.url;
     } catch {
-      toast.error('Network error');
+      toast.error(t('shop.networkError'));
     } finally {
       setBuyingSeats(null);
     }
   };
 
-const handleBuy = async () => {
-    if (!buying) return;
-    setPurchasing(true);
-    try {
-      const res = await authedFetch('/api/shop/purchase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: buying.id }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(`${buying.emoji} ${buying.name} ${t('shop.addedToBag')}`);
-        setBuying(null);
-        const c = await authedFetch('/api/shop/credits').then((r) => r.json());
-        setCredits(c);
-      } else if (res.status === 402) {
-        toast.error(t('shop.insufficient'), {
-          action: { label: t('shop.topup'), onClick: () => setTab('tokens') },
-        });
-      } else {
-        toast.error(data.error || t('shop.buyFailed'));
-      }
-    } catch {
-      toast.error(t('shop.networkError'));
-    }
-    setPurchasing(false);
+  const balance = credits?.credits_remaining ?? tokenBalance ?? 0;
+  const currentTier = credits?.membership_tier || 'free';
+
+  const tabs: Array<{ id: TabId; label: string; icon: typeof Shirt; count?: number }> = [
+    { id: 'outfit', label: t('shop.tabOutfit'), icon: Shirt, count: counts.outfit },
+    { id: 'prop', label: t('shop.tabProp'), icon: Gift, count: counts.prop },
+    { id: 'membership', label: t('shop.tabMembership'), icon: Crown, count: counts.membership },
+    { id: 'credits', label: t('shop.tabCredits'), icon: Coins, count: tokenPackages.length || undefined },
+    { id: 'seats', label: t('shop.tabSeats'), icon: Users },
+  ];
+
+  const outfits = byCollection('outfit');
+  const props = byCollection('prop');
+  const memberships = byCollection('membership');
+
+  const tierKey = (p: Product): string => String(p.virtual_meta?.membership_tier || '').toLowerCase();
+
+  const tierLabel = (p: Product): string => {
+    const tier = tierKey(p);
+    if (tier === 'basic') return t('shop.tierBasic');
+    if (tier === 'pro') return t('shop.tierPro');
+    if (tier === 'unlimited') return t('shop.tierUnlimited');
+    return p.name;
   };
 
-  const balance = tokenBalance || credits?.credits_remaining || 0;
+  const rarityLabel = (r: string): string => {
+    if (r === 'legendary') return t('shop.rarityLegendary');
+    if (r === 'epic') return t('shop.rarityEpic');
+    if (r === 'rare') return t('shop.rarityRare');
+    return t('shop.rarityCommon');
+  };
+
+  const membershipDuration = (p: Product): string => {
+    const days = Number(p.virtual_meta?.duration_days || 0);
+    return days > 0 ? `${days} ${t('shop.dayUnit')}` : t('shop.permanent');
+  };
+
+  /* Renders a product card (outfit / prop / membership) with the shared ShelfCard. */
+  const renderProductCard = (item: Product) => {
+    const isMembership = item.collection === 'membership';
+    const tier = tierKey(item);
+    const isCurrent = isMembership && tier === currentTier;
+    const gradient = isMembership
+      ? (TIER_GRADIENT[tier] || RARITY_GRADIENT.common)
+      : (RARITY_GRADIENT[item.rarity] || RARITY_GRADIENT.common);
+    const durationHours = Number(item.virtual_meta?.duration_hours || 0);
+
+    return (
+      <ShelfCard
+        key={item.id}
+        image={item.preview_url}
+        video={videoUrl(item)}
+        gradient={gradient}
+        emoji={COLLECTION_EMOJI[item.collection]}
+        title={isMembership ? tierLabel(item) : item.name}
+        subtitle={item.description}
+        onClick={() => setDetail(item)}
+        topLeft={
+          isCurrent ? (
+            <CurrentBadge label={t('shop.currentTier')} />
+          ) : (
+            <>
+              {item.is_featured && <FeaturedBadge label={t('shop.featured')} />}
+              {item.is_new && <NewBadge label={t('shop.newBadge')} />}
+            </>
+          )
+        }
+        topRight={
+          isMembership ? (
+            <CornerChip className={RARITY_CHIP[tier === 'unlimited' ? 'legendary' : tier === 'pro' ? 'epic' : 'rare']}>
+              <Crown className="inline h-2.5 w-2.5 -mt-px" /> {tierLabel(item)}
+            </CornerChip>
+          ) : (
+            <CornerChip className={RARITY_CHIP[item.rarity] || RARITY_CHIP.common}>
+              {rarityLabel(item.rarity)}
+            </CornerChip>
+          )
+        }
+        price={<CreditPrice value={item.price_credits} />}
+        meta={
+          isMembership ? (
+            <span className="text-[10px] text-[#ffd700] flex items-center gap-0.5">
+              <Zap className="h-3 w-3" /> {membershipDuration(item)}
+            </span>
+          ) : durationHours > 0 ? (
+            <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
+              <Zap className="h-3 w-3" /> {durationHours}h
+            </span>
+          ) : isCreationCard(item) ? (
+            <span className="text-[10px] text-cyan-300 flex items-center gap-0.5">
+              <Sparkles className="h-3 w-3" /> +{cardAmount(item)} {t('shop.creationCardUnit')}
+            </span>
+          ) : (
+            <span className="text-[10px] text-[#ff6ba6] flex items-center gap-0.5">
+              <Heart className="h-3 w-3" /> +{intimacyBoost(item)} {t('shop.intimacyUnit')}
+            </span>
+          )
+        }
+      />
+    );
+  };
 
   return (
-    <GameShell className="skin-shelf min-h-[100dvh] pb-6 md:pb-12">
+    <GameShell className="min-h-[100dvh] pb-6 md:pb-12">
       <PageHeader
-        eyebrow="ARMORY"
+        eyebrow="BOUTIQUE"
         title={t('shop.armoryTitle')}
         subtitle={t('shop.armorySubtitle')}
         backHref="/"
         sticky={false}
         actions={
           <div className="flex items-center gap-2">
-            <div className="glass flex items-center gap-1.5 rounded-full px-3 h-10">
+            <button
+              type="button"
+              onClick={() => setTab('credits')}
+              className="glass flex items-center gap-1.5 rounded-full px-3 h-10 transition hover:border-[#ffd700]/50"
+              title={t('shop.tabCredits')}
+            >
               <Coins className="h-4 w-4 text-amber-400" />
               <span className="font-bold text-white tabular-nums text-sm">{balance}</span>
-            </div>
+            </button>
             <button
               type="button"
               onClick={() => router.push('/pricing')}
@@ -297,261 +589,150 @@ const handleBuy = async () => {
         }
       />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-3 flex gap-2">
-        {([
-          { id: 'skins', label: 'Skins', icon: Shirt },
-          { id: 'gifts', label: 'Gifts', icon: Gift },
-          { id: 'tokens', label: 'Tokens', icon: Coins },
-          { id: 'seats', label: 'Seats', icon: Users },
-        ] as const).map((t) => {
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'flex items-center gap-1.5 h-9 px-4 rounded-full text-sm font-medium transition-all',
-                tab === t.id
-                  ? 'glass-btn !h-9 !px-4'
-                  : 'glass text-white/50',
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {t.label}
-            </button>
-          );
-        })}
+      {/* ── collection tabs ─────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-30 bg-[#0d0613]/85 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex gap-2 overflow-x-auto no-scrollbar">
+          {tabs.map((tb) => {
+            const Icon = tb.icon;
+            const active = tab === tb.id;
+            return (
+              <button
+                key={tb.id}
+                type="button"
+                onClick={() => setTab(tb.id)}
+                className={cn(
+                  'flex shrink-0 items-center gap-1.5 h-9 px-4 rounded-full text-sm font-medium transition-all duration-200',
+                  active
+                    ? 'bg-gradient-to-r from-[#ff2e88] to-[#c026d3] text-white shadow-[0_0_18px_rgba(255,46,136,0.35)]'
+                    : 'glass text-white/50 hover:text-white/80',
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tb.label}
+                {typeof tb.count === 'number' && tb.count > 0 && (
+                  <span className={cn(
+                    'text-[10px] font-bold tabular-nums px-1.5 py-px rounded-full',
+                    active ? 'bg-white/25 text-white' : 'bg-white/10 text-white/50',
+                  )}
+                  >
+                    {tb.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="mx-auto max-w-6xl px-4 sm:px-8 py-6">
-        {tab === 'tokens' && (
+        {/* ── outfits ─────────────────────────────────────────────────────── */}
+        {tab === 'outfit' && (
           <section>
-            <GameSectionTitle title={t('shop.topupTitle')} subtitle={t('shop.topupSubtitle')} eyebrow="TOP UP" />
-            {tokenPackages.length === 0 ? (
-              <div className="text-center py-12 text-white/40">
-                <Coins className="mx-auto mb-3 h-10 w-10 text-white/20" />
-                <p>暂无代币套餐</p>
-              </div>
+            <GameSectionTitle eyebrow="OUTFITS" title={t('shop.outfitTitle')} subtitle={t('shop.outfitSubtitle')} />
+            {loadingProducts ? (
+              <SkeletonGrid n={6} />
+            ) : outfits.length === 0 ? (
+              <EmptyState icon={Shirt} title={t('shop.emptyOutfits')} hint={t('shop.noProductsHint')} />
             ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {tokenPackages.map((pkg, i) => {
-                const total = Number(pkg.token_count) + Number(pkg.bonus_tokens || 0);
-                return (
-                  <GamePanel key={pkg.id} glow={i === 1} className="p-5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-lg">{pkg.name}</span>
-                      {i === 1 && (
-                        <span className="text-[10px] font-black bg-[#ff2e88] px-2 py-0.5 rounded">HOT</span>
-                      )}
-                    </div>
-                    <div className="mt-3 text-3xl font-black text-[#ffd700]">{total}</div>
-                    <div className="text-xs text-white/40">tokens {pkg.bonus_tokens ? `· +${pkg.bonus_tokens} 赠送` : ''}</div>
-                    <div className="mt-4 flex items-center justify-between">
-                      <span className="text-xl font-bold">${(pkg.price_cents / 100).toFixed(2)}</span>
-                      <GamePrimaryButton
-                        className="h-10 px-5"
-                        onClick={() => buyTokenPack(pkg.id)}
-                      >
-                        {t('shop.buy')}
-                      </GamePrimaryButton>
-                    </div>
-                  </GamePanel>
-                );
-              })}
-            </div>
+              <div className={GRID}>{outfits.map(renderProductCard)}</div>
             )}
           </section>
         )}
 
-        
+        {/* ── props ───────────────────────────────────────────────────────── */}
+        {tab === 'prop' && (
+          <section>
+            <GameSectionTitle eyebrow="ITEMS" title={t('shop.propTitle')} subtitle={t('shop.propSubtitle')} />
+            {loadingProducts ? (
+              <SkeletonGrid n={6} />
+            ) : props.length === 0 ? (
+              <EmptyState icon={Gift} title={t('shop.emptyProps')} hint={t('shop.noProductsHint')} />
+            ) : (
+              <div className={GRID}>{props.map(renderProductCard)}</div>
+            )}
+          </section>
+        )}
+
+        {/* ── membership ──────────────────────────────────────────────────── */}
+        {tab === 'membership' && (
+          <section>
+            <GameSectionTitle eyebrow="VIP" title={t('shop.membershipTitle')} subtitle={t('shop.membershipSubtitle')} />
+            {loadingProducts ? (
+              <SkeletonGrid n={3} />
+            ) : memberships.length === 0 ? (
+              <EmptyState icon={Crown} title={t('shop.emptyMembership')} hint={t('shop.noProductsHint')} />
+            ) : (
+              <div className={GRID}>{memberships.map(renderProductCard)}</div>
+            )}
+          </section>
+        )}
+
+        {/* ── credit packs ────────────────────────────────────────────────── */}
+        {tab === 'credits' && (
+          <section>
+            <GameSectionTitle eyebrow="TOP UP" title={t('shop.creditsTitle')} subtitle={t('shop.creditsSubtitle')} />
+            {tokenPackages.length === 0 ? (
+              <EmptyState icon={Coins} title={t('shop.emptyCredits')} hint={t('shop.noProductsHint')} />
+            ) : (
+              <div className={GRID}>
+                {tokenPackages.map((pkg, i) => {
+                  const total = Number(pkg.token_count) + Number(pkg.bonus_tokens || 0);
+                  return (
+                    <ShelfCard
+                      key={pkg.id}
+                      gradient={CREDITS_GRADIENT}
+                      emoji={COLLECTION_EMOJI.credits}
+                      title={pkg.name}
+                      subtitle={pkg.bonus_tokens ? `+${pkg.bonus_tokens} ${t('shop.bonus')}` : t('shop.tabCredits')}
+                      onClick={() => buyTokenPack(pkg.id)}
+                      topLeft={i === 1 ? <FeaturedBadge label="HOT" /> : undefined}
+                      topRight={i === 2 ? <CornerChip className={RARITY_CHIP.legendary}>{t('shop.bestValue')}</CornerChip> : undefined}
+                      price={<UsdPrice cents={pkg.price_cents} />}
+                      meta={
+                        <span className="flex items-center gap-1 text-[#ffd700] text-xs font-black">
+                          <Coins className="h-3.5 w-3.5" /> {total}
+                        </span>
+                      }
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── companion seats ─────────────────────────────────────────────── */}
         {tab === 'seats' && (
           <section>
-            <GameSectionTitle
-              title="Companion Seats"
-              subtitle="Permanent slots · Free 3 · Pro 15 · Unlimited ∞ · Tax at checkout"
-              eyebrow="FRIENDS"
-            />
+            <GameSectionTitle eyebrow="FRIENDS" title={t('shop.tabSeats')} subtitle="Free 3 · Pro 15 · Unlimited ∞" />
             {seatStatus && (
               <div className="mb-4 glass rounded-2xl px-4 py-3 text-sm text-white/70">
-                Using {seatStatus.used}
-                {seatStatus.effectiveLimit < 0
-                  ? ' / ∞'
-                  : ` / ${seatStatus.effectiveLimit}`}
-                {seatStatus.bonusSeats > 0 ? ` · +${seatStatus.bonusSeats} purchased` : ''}
+                {seatStatus.used}
+                {seatStatus.effectiveLimit < 0 ? ' / ∞' : ` / ${seatStatus.effectiveLimit}`}
+                {seatStatus.bonusSeats > 0 ? ` · +${seatStatus.bonusSeats}` : ''}
                 {seatStatus.remaining != null ? ` · ${seatStatus.remaining} free` : ''}
               </div>
             )}
             {seatPackages.length === 0 ? (
-              <div className="text-center py-12 text-white/40">
-                <Users className="mx-auto mb-3 h-10 w-10 text-white/20" />
-                <p>No seat packages available yet</p>
-              </div>
+              <EmptyState icon={Users} title="No seat packages available yet" hint={t('shop.noProductsHint')} />
             ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {seatPackages.map((pkg, i) => (
-                <GamePanel key={pkg.id} glow={i === 1} className="p-5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-lg">{pkg.name}</span>
-                    {i === 1 && (
-                      <span className="text-[10px] font-black bg-[#ff2e88] px-2 py-0.5 rounded">BEST</span>
-                    )}
-                  </div>
-                  <div className="mt-3 text-3xl font-black text-[#ffd700]">+{pkg.seats}</div>
-                  <div className="text-xs text-white/40">permanent friend slots</div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="text-xl font-bold">${(pkg.price_cents / 100).toFixed(2)}</span>
-                    <GamePrimaryButton
-                      className="h-10 px-5"
-                      disabled={buyingSeats === pkg.id}
-                      onClick={() => buySeatPack(pkg.id)}
-                    >
-                      {buyingSeats === pkg.id ? '…' : 'Buy'}
-                    </GamePrimaryButton>
-                  </div>
-                </GamePanel>
-              ))}
-            </div>
-            )}
-          </section>
-        )}
-
-{tab === 'skins' && (
-          <section>
-            <GameSectionTitle
-              eyebrow="SKINS"
-              title={t('shop.skinsTitle')}
-              subtitle={t('shop.skinsSubtitle')}
-            />
-            {loadingProducts ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" /></div>
-            ) : skins.length === 0 ? (
-              <div className="text-center py-12 text-white/40">
-                <Shirt className="mx-auto mb-3 h-10 w-10 text-white/20" />
-                <p>{t('shop.noSkins')}</p>
-                <p className="text-xs mt-1">{t('shop.noProductsHint')}</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {skins.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setBuying(item)}
-                    className="group relative rounded-2xl overflow-hidden border border-white/10 text-left active:scale-[0.98] transition-transform"
-                  >
-                    <div className={cn('aspect-[4/5] bg-gradient-to-br relative', item.skin)}>
-                      {item.preview_url ? (
-                        <>
-                          <img
-                            src={item.preview_url}
-                            alt={item.name}
-                            className={cn(
-                              'absolute inset-0 h-full w-full object-cover transition-all duration-500',
-                              item.video_url ? 'group-hover:opacity-0' : 'group-hover:scale-110',
-                            )}
-                            loading="lazy"
-                          />
-                          {item.video_url && (
-                            <video
-                              src={item.video_url}
-                              muted
-                              loop
-                              playsInline
-                              preload="none"
-                              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-                              onMouseEnter={(e) => { e.currentTarget.play().catch(() => {}); }}
-                              onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
-                            />
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
-                          <div className="absolute inset-0 flex items-center justify-center text-6xl drop-shadow-lg">
-                            {item.emoji}
-                          </div>
-                        </>
-                      )}
-                      {item.preview_url && (
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-                      )}
-                      {item.is_limited && (
-                        <span className="absolute top-2 left-2 text-[9px] font-black tracking-wider bg-black/60 text-[#ffd700] px-2 py-0.5 rounded">
-                          LIMITED
-                        </span>
-                      )}
-                      {item.tier === 'premium' && (
-                        <Lock className="absolute top-2 right-2 h-4 w-4 text-white/70" />
-                      )}
-                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
-                        <div className="font-bold text-sm">{item.name}</div>
-                        <div className="text-[11px] text-white/55 line-clamp-1">{item.description}</div>
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="flex items-center gap-1 text-amber-300 text-xs font-bold">
-                            <Coins className="h-3.5 w-3.5" />
-                            {item.price_cents}
-                          </span>
-                          <span className="text-[10px] text-[#ff6ba6]">
-                            +{item.effect_value?.intimacy_boost} {t('shop.intimacyUnit')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {tab === 'gifts' && (
-          <section>
-            <GameSectionTitle eyebrow="ITEMS" title={t('shop.giftsTitle')} subtitle={t('shop.giftsSubtitle')} />
-            {loadingProducts ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]" /></div>
-            ) : gifts.length === 0 ? (
-              <div className="text-center py-12 text-white/40">
-                <Gift className="mx-auto mb-3 h-10 w-10 text-white/20" />
-                <p>{t('shop.noGifts')}</p>
-                <p className="text-xs mt-1">{t('shop.noProductsHint')}</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {gifts.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setBuying(item)}
-                    className="game-panel p-4 text-left hover:border-[#ff2e88]/40 transition-all active:scale-[0.98]"
-                  >
-                    {item.preview_url ? (
-                      <div className="aspect-square rounded-lg overflow-hidden mb-2">
-                        <img
-                          src={item.preview_url}
-                          alt={item.name}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      </div>
-                    ) : (
-                      <div className="text-4xl mb-2">{item.emoji}</div>
-                    )}
-                    <div className="font-semibold text-sm">{item.name}</div>
-                    <div className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{item.description}</div>
-                    <div className="mt-3 flex items-center justify-between">
-                      <span className="text-amber-300 text-xs font-bold flex items-center gap-1">
-                        <Coins className="h-3.5 w-3.5" /> {item.price_cents}
+              <div className={GRID}>
+                {seatPackages.map((pkg, i) => (
+                  <ShelfCard
+                    key={pkg.id}
+                    gradient={SEATS_GRADIENT}
+                    emoji={COLLECTION_EMOJI.seats}
+                    title={pkg.name}
+                    subtitle={t('shop.permanent')}
+                    onClick={() => { if (buyingSeats !== pkg.id) void buySeatPack(pkg.id); }}
+                    topLeft={i === 1 ? <FeaturedBadge label={t('shop.bestValue')} /> : undefined}
+                    price={<UsdPrice cents={pkg.price_cents} />}
+                    meta={
+                      <span className="text-[10px] text-[#ffd700] font-black flex items-center gap-0.5">
+                        <Users className="h-3 w-3" /> +{pkg.seats}
                       </span>
-                      {item.item_type === 'intimacy_boost' ? (
-                        <span className="text-[10px] text-[#ff6ba6] flex items-center gap-0.5">
-                          <Heart className="h-3 w-3" /> +{item.effect_value?.intimacy_boost}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
-                          <Zap className="h-3 w-3" /> {item.effect_value?.duration_hours}h
-                        </span>
-                      )}
-                    </div>
-                  </button>
+                    }
+                  />
                 ))}
               </div>
             )}
@@ -559,31 +740,104 @@ const handleBuy = async () => {
         )}
       </div>
 
-      <Dialog open={!!buying} onOpenChange={(o) => !o && setBuying(null)}>
-        <DialogContent className="bg-[#120a18] border-white/10 text-white sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span className="text-2xl">{buying?.emoji}</span>
-              {buying?.name}
-            </DialogTitle>
-            <DialogDescription className="text-white/50">
-              {buying?.description} · {t('shop.costs')} {buying?.price_cents} {t('shop.tokensUnit')}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setBuying(null)}>{t('shop.cancel')}</Button>
-            <Button
-              disabled={purchasing}
-              onClick={handleBuy}
-              className="bg-gradient-to-r from-[#ffd700] to-[#ff2e88] text-black font-bold"
-            >
-              {purchasing ? '…' : t('shop.confirmBuy')}
-            </Button>
-          </DialogFooter>
+      {/* ── product detail dialog ─────────────────────────────────────────── */}
+      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+        <DialogContent className="bg-[#120a18] border-white/10 text-white sm:max-w-md overflow-hidden p-0 gap-0">
+          {detail && (
+            <>
+              {detail.preview_url ? (
+                <div className="relative aspect-[4/3] bg-black/40 group">
+                  <img
+                    src={detail.preview_url}
+                    alt={detail.name}
+                    className="h-full w-full object-cover"
+                  />
+                  {videoUrl(detail) && (
+                    <video
+                      src={videoUrl(detail)}
+                      muted
+                      loop
+                      playsInline
+                      preload="none"
+                      className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                      onMouseEnter={(e) => { e.currentTarget.play().catch(() => {}); }}
+                      onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#120a18] via-transparent to-transparent pointer-events-none" />
+                  <span className={cn('absolute top-3 right-3 text-[10px] font-black tracking-wider px-2.5 py-1 rounded shadow', RARITY_CHIP[detail.rarity] || RARITY_CHIP.common)}>
+                    {rarityLabel(detail.rarity)}
+                  </span>
+                </div>
+              ) : (
+                <div className={cn('relative aspect-[4/3] bg-gradient-to-br flex items-center justify-center text-7xl', RARITY_GRADIENT[detail.rarity] || RARITY_GRADIENT.common)}>
+                  {COLLECTION_EMOJI[detail.collection]}
+                </div>
+              )}
+
+              <div className="p-5">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-lg">
+                    {detail.is_featured && <Star className="h-4 w-4 text-[#ffd700] fill-[#ffd700]" />}
+                    {detail.collection === 'membership' ? tierLabel(detail) : detail.name}
+                  </DialogTitle>
+                  <DialogDescription className="text-white/50 text-sm mt-1">
+                    {detail.description}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {detail.sales_count > 0 && (
+                    <span className="text-[10px] text-white/50 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                      {t('shop.soldCount', { n: detail.sales_count })}
+                    </span>
+                  )}
+                  {detail.collection !== 'membership' && isCreationCard(detail) && (
+                    <span className="text-[10px] text-cyan-300 bg-cyan-400/10 border border-cyan-400/25 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                      <Sparkles className="h-2.5 w-2.5" /> +{cardAmount(detail)} {t('shop.creationCardUnit')}
+                    </span>
+                  )}
+                  {detail.collection !== 'membership' && !isCreationCard(detail) && (
+                    <span className="text-[10px] text-[#ff6ba6] bg-[#ff2e88]/10 border border-[#ff2e88]/25 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                      <Heart className="h-2.5 w-2.5" /> +{intimacyBoost(detail)} {t('shop.intimacyUnit')}
+                    </span>
+                  )}
+                  {detail.collection === 'membership' && (
+                    <span className="text-[10px] text-[#ffd700] bg-[#ffd700]/10 border border-[#ffd700]/25 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                      <Crown className="h-2.5 w-2.5" /> {tierLabel(detail)} · {membershipDuration(detail)}
+                    </span>
+                  )}
+                  {Number(detail.virtual_meta?.duration_hours || 0) > 0 && (
+                    <span className="text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/25 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                      <Zap className="h-2.5 w-2.5" /> {String(detail.virtual_meta?.duration_hours)}h
+                    </span>
+                  )}
+                </div>
+
+                <DialogFooter className="mt-5 gap-3 sm:justify-between">
+                  <span className="flex items-center gap-1.5 text-xl font-black text-amber-300">
+                    <Coins className="h-5 w-5" /> {detail.price_credits}
+                    <span className="text-[10px] font-medium text-white/40">{t('shop.tokensUnit')}</span>
+                  </span>
+                  <Button
+                    disabled={purchasing || (detail.collection === 'membership' && tierKey(detail) === currentTier)}
+                    onClick={() => void purchaseProduct(detail)}
+                    className="bg-gradient-to-r from-[#ffd700] to-[#ff2e88] text-black font-bold min-w-[120px]"
+                  >
+                    {purchasing
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : (detail.collection === 'membership'
+                          ? (tierKey(detail) === currentTier ? t('shop.currentTier') : t('shop.activate'))
+                          : t('shop.buyNow'))}
+                  </Button>
+                </DialogFooter>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
-      {/* Credit-pack payment method dialog */}
+      {/* ── credit-pack payment dialog ────────────────────────────────────── */}
       <Dialog open={payOpen} onOpenChange={(o) => !o && setPayOpen(false)}>
         <DialogContent className="bg-[#120a18] border-white/10 text-white sm:max-w-md">
           <DialogHeader>
@@ -593,7 +847,7 @@ const handleBuy = async () => {
             </DialogTitle>
             {payPkg && payStep !== 'wallet' && (
               <DialogDescription className="text-white/50">
-                {payPkg.name} · {Number(payPkg.token_count) + Number(payPkg.bonus_tokens || 0)} tokens · ${(payPkg.price_cents / 100).toFixed(2)}
+                {payPkg.name} · {Number(payPkg.token_count) + Number(payPkg.bonus_tokens || 0)} {t('shop.tokensUnit')} · ${(payPkg.price_cents / 100).toFixed(2)}
               </DialogDescription>
             )}
           </DialogHeader>

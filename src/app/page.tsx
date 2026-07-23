@@ -35,6 +35,7 @@ import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
 import { useAuth } from '@/components/AuthProvider';
 import { HEAT_UNLOCK_HINTS, INTIMACY_LEVELS } from '@/lib/constants';
+import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
 
 
 function isHomeVideoUrl(url?: string | null): boolean {
@@ -165,6 +166,7 @@ export default function HomePage() {
   const [catalog, setCatalog] = useState<DemoGirl[]>([]);
   const [catalogReady, setCatalogReady] = useState(false);
   const [catalogSource, setCatalogSource] = useState<'api' | 'demo'>('api');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | CompanionCategory>('all');
   const [focus, setFocus] = useState(0);
   const [detail, setDetail] = useState<DemoGirl | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -195,13 +197,17 @@ export default function HomePage() {
   }, [loadData]);
 
   // 主视觉轮播：后台推荐(featured)优先，不足再用热门/公开补齐
+  const filteredCatalog = useMemo(
+    () => categoryFilter === 'all' ? catalog : catalog.filter((girl) => girl.category === categoryFilter),
+    [catalog, categoryFilter],
+  );
   const roster = useMemo(() => {
-    const featuredFirst = catalog.filter((g) => g.is_featured || g.list_kind === 'featured');
-    const rest = catalog.filter((g) => !(g.is_featured || g.list_kind === 'featured'));
+    const featuredFirst = filteredCatalog.filter((g) => g.is_featured || g.list_kind === 'featured');
+    const rest = filteredCatalog.filter((g) => !(g.is_featured || g.list_kind === 'featured'));
     const ordered = [...featuredFirst, ...rest];
     return ordered.slice(0, 10);
-  }, [catalog]);
-  const featured = roster[focus] || catalog[0] || null;
+  }, [filteredCatalog]);
+  const featured = roster[focus] || filteredCatalog[0] || null;
   const rc = RARITY_COLORS[(featured?.rarity as keyof typeof RARITY_COLORS) || 'R'] || RARITY_COLORS.R;
 
   // 热门 12：后台 is_hot / featured 优先，再按 hot_score
@@ -212,8 +218,8 @@ export default function HomePage() {
       if (g.is_featured || g.list_kind === 'featured') return 1_000_000 + base;
       return base;
     };
-    return [...catalog].sort((a, b) => score(b) - score(a)).slice(0, 12);
-  }, [catalog]);
+    return [...filteredCatalog].sort((a, b) => score(b) - score(a)).slice(0, 12);
+  }, [filteredCatalog]);
 
   useEffect(() => {
     if (catalog.length < 2 || paused) return;
@@ -331,7 +337,8 @@ export default function HomePage() {
     return (
       <GameShell className="pb-4 md:pb-8 min-h-[100dvh]" hex={false}>
         <div className="flex min-h-[60dvh] items-center justify-center text-sm text-white/50">
-          Loading companions…
+          <span>{catalogReady ? (locale === 'zh' ? '该分类暂无角色' : 'No companions in this category') : 'Loading companions...'}</span>
+          {catalogReady ? <button type="button" className="glass-btn px-4 py-2" onClick={() => setCategoryFilter('all')}>{locale === 'zh' ? '查看全部' : 'View all'}</button> : null}
         </div>
       </GameShell>
     );
@@ -380,6 +387,11 @@ export default function HomePage() {
             <Share2 className="h-4 w-4" />
             <span className="hidden sm:inline">{t('home.share')}</span>
           </button>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Companion categories">
+          <button type="button" onClick={() => { setCategoryFilter('all'); setFocus(0); }} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === 'all' ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55')}>{locale === 'zh' ? '全部' : 'All'}</button>
+          {COMPANION_CATEGORIES.map((category) => <button key={category} type="button" onClick={() => { setCategoryFilter(category); setFocus(0); }} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === category ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55')}>{COMPANION_CATEGORY_LABELS[category][locale]}</button>)}
         </div>
 
         {/* Guest conversion strip */}

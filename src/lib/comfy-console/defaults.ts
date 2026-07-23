@@ -221,7 +221,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
         id: 'wf-girlfriend',
         name: '人物肖像 · 3/4 全身',
         kind: 'girlfriend',
-        description: '性感女友卡：特征+动作+环境+质量；3/4 身材展示；明亮面部光；可挂身材/质感 LoRA',
+        description: '性感伴侣卡：特征+动作+环境+质量；3/4 身材展示；明亮面部光；可挂身材/质感 LoRA',
         defaults: {
           ckpt_id: 'flux-fp8',
           lora_id: 'body-curvy-flux',
@@ -279,7 +279,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
       },
       {
         id: 'wf-tryon',
-        name: '换装 · 女友图 img2img',
+        name: '换装 · 伴侣图 img2img',
         kind: 'girlfriend',
         description: '参考图保持脸，提示词换衣服（denoise 0.5–0.6）；推荐服装 LoRA',
         defaults: {

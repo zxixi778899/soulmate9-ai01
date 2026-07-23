@@ -30,19 +30,83 @@ import {
   type PresetContext,
 } from './shared';
 
+// ─── Gender / Style System ───────────────────────────────────
+export type GenderStyle = 'female' | 'male' | 'transgender' | 'cartoon';
+
+/** Detect gender/style from girlfriend row metadata */
+export function detectGenderStyle(row: Record<string, unknown>): GenderStyle {
+  const meta = row.metadata && typeof row.metadata === 'object' ? (row.metadata as Record<string, unknown>) : {};
+  const card = row.character_card && typeof row.character_card === 'object' ? (row.character_card as Record<string, unknown>) : {};
+  const raw = String(meta.gender || card.gender || row.gender || '').toLowerCase().trim();
+  const style = String(meta.style || card.style || row.art_style || '').toLowerCase().trim();
+
+  // Cartoon/anime detection
+  if (/cartoon|anime|manga|2d|illustrat|cel.?shad|comic/.test(style) || /cartoon|anime|manga/.test(raw)) {
+    return 'cartoon';
+  }
+  // Male
+  if (/^male$|boy|man$|masculine|boyfriend|guy/.test(raw)) return 'male';
+  // Transgender
+  if (/trans|shemale|ladyboy|futanari|femboy|cd$|crossdress/.test(raw)) return 'transgender';
+  // Default female
+  return 'female';
+}
+
+/**
+ * Quality prefix per gender/style — elevated NSFW.
+ */
+export const QUALITY_BY_GENDER: Record<GenderStyle, string> = {
+  female:
+    'breathtakingly gorgeous, irresistibly sexy, sultry and seductive, dewy glowing skin with natural sheen, plump glossy lips, heavy-lidded bedroom eyes, long thick lashes, photorealistic editorial beauty photo, crisp detailed eyes with catchlights, natural skin texture with visible pores, flowing voluminous hair, high-resolution 8K detail, sharp focus on face, intimate and captivating mood, professional lighting, magazine cover quality, RAW photo, masterpiece, award-winning portrait',
+  male:
+    'stunningly handsome, ruggedly attractive, chiseled jawline, defined musculature, warm masculine skin tone, intense piercing eyes, photorealistic editorial portrait, crisp detailed eyes with catchlights, natural skin texture with visible pores, high-resolution 8K detail, sharp focus on face, magnetic masculine presence, professional lighting, magazine cover quality, RAW photo, masterpiece, award-winning portrait',
+  transgender:
+    'breathtakingly beautiful, stunning feminine allure with confident presence, flawless glowing skin, captivating eyes with long lashes, glossy plump lips, photorealistic editorial beauty photo, crisp detailed eyes with catchlights, natural skin texture, elegant proportions, high-resolution 8K detail, sharp focus on face, intimate and captivating mood, professional lighting, magazine cover quality, RAW photo, masterpiece',
+  cartoon:
+    'beautiful anime illustration, vibrant cel-shading, expressive detailed eyes, clean lineart, rich saturated colors, dynamic composition, high-quality anime key visual, studio-grade animation still, detailed background, soft lighting effects, 4K wallpaper quality, trending on pixiv, masterpiece anime art',
+};
+
+/**
+ * Body description per gender/style.
+ */
+export const BODY_BY_GENDER: Record<GenderStyle, string> = {
+  female: 'sexy feminine hourglass silhouette, toned waist and full curves, long legs, collarbones visible, attractive proportions, realistic anatomy',
+  male: 'athletic masculine physique, broad shoulders, defined abs and pecs, V-taper torso, strong arms, lean muscular build, realistic male anatomy',
+  transgender: 'elegant feminine silhouette with tall graceful proportions, smooth curves, long legs, slender waist, beautiful feminine figure, realistic anatomy',
+  cartoon: 'stylized anime proportions, expressive figure, clean character design, dynamic pose-ready anatomy',
+};
+
+/**
+ * Elevated NSFW quality tags — appended when adult content is detected.
+ */
+export const NSFW_AMPLIFIER: Record<GenderStyle, string> = {
+  female: 'sensual erotic atmosphere, provocative inviting pose, bare skin glistening, intimate bedroom energy, seductive body language, explicit allure, erotic tension, naked curves visible',
+  male: 'sensual masculine energy, shirtless toned physique, provocative confident pose, bare chiseled chest, intimate bedroom atmosphere, erotic male allure, seductive body language, explicit masculine appeal',
+  transgender: 'sensual erotic atmosphere, provocative inviting pose, bare skin glistening, intimate bedroom energy, seductive body language, explicit allure, erotic tension, beautiful naked curves',
+  cartoon: 'ecchi anime atmosphere, suggestive pose, fanservice angle, revealing outfit, anime erotic energy, hentai-adjacent styling, provocative cartoon composition',
+};
+
+/**
+ * Negative prompt per style — cartoon removes the "cartoon, anime" exclusion.
+ */
+export const NEGATIVE_BY_GENDER: Record<GenderStyle, string> = {
+  female: 'blurry, out of focus, oversaturated, orange skin, harsh backlight, blown highlights, stiff pose, twisted torso, waxy skin, bad anatomy, deformed hands, child, underage, watermark, text',
+  male: 'blurry, out of focus, oversaturated, orange skin, harsh backlight, blown highlights, stiff pose, twisted torso, waxy skin, bad anatomy, deformed hands, feminine face, child, underage, watermark, text',
+  transgender: 'blurry, out of focus, oversaturated, orange skin, harsh backlight, blown highlights, stiff pose, twisted torso, waxy skin, bad anatomy, deformed hands, child, underage, watermark, text',
+  cartoon: 'blurry, low quality, bad anatomy, deformed hands, extra fingers, watermark, text, signature, 3d render, photorealistic, photograph, realistic photo',
+};
+
 /**
  * Quality tail (自然语言质量词) — beauty / allure / photoreal.
  * Keep short; avoid stacking camera spam that collapses faces.
  */
-export const GIRLFRIEND_QUALITY_PREFIX =
-  'breathtakingly gorgeous, irresistibly sexy, sultry and seductive, dewy glowing skin with natural sheen, plump glossy lips, heavy-lidded bedroom eyes, long thick lashes, photorealistic editorial beauty photo, crisp detailed eyes with catchlights, natural skin texture with visible pores, flowing voluminous hair, high-resolution 8K detail, sharp focus on face, intimate and captivating mood, professional lighting, magazine cover quality, RAW photo, masterpiece, award-winning portrait'
+export const GIRLFRIEND_QUALITY_PREFIX = QUALITY_BY_GENDER.female;
 
 /**
  * Soft figure hint — keep short so face/pose still dominate.
  * Enhanced for more sex appeal while staying natural.
  */
-export const GIRLFRIEND_BODY_FIXED =
-  'sexy feminine hourglass silhouette, toned waist and full curves, long legs, collarbones visible, attractive proportions, realistic anatomy'
+export const GIRLFRIEND_BODY_FIXED = BODY_BY_GENDER.female;
 
 /** Default framing for companion cards: face the viewer (not back/side template). */
 export const GIRLFRIEND_FRAMING =
@@ -476,6 +540,99 @@ const GLOBAL_OUTFITS: string[] = [
   'lace-trimmed camisole and silk shorts, boudoir chic',
 ];
 
+// ─── Male Pose & Outfit Pools ────────────────────────────────
+const MALE_POSES: string[] = [
+  'standing with arms crossed, confident wide stance, showing off physique, full body',
+  'leaning against wall with one hand in pocket, relaxed masculine energy, three-quarter body',
+  'sitting on edge of bed, elbows on knees, looking up at camera, intimate angle',
+  'shirtless stretching arms above head, torso elongated, showing defined abs',
+  'lying on side propped on elbow, bare chest visible, inviting masculine gaze',
+  'standing in doorway, one hand on frame, body language dominant and inviting',
+  'sitting backwards on chair, arms folded on backrest, chin resting, intense eye contact',
+  'pulling shirt off mid-motion, candid undressing moment, muscular torso revealed',
+  'standing close to camera, slightly cropped, intimate selfie distance, jawline sharp',
+  'reclining with one arm behind head, looking at camera, relaxed sensual energy',
+  'kneeling on bed, looking over shoulder at camera, back muscles visible',
+  'standing at window, morning light on bare chest, contemplative sexy pose',
+  'leaning forward on counter, forearms flexed, looking up at camera',
+  'sitting on couch with legs spread, one arm along backrest, dominant relaxed pose',
+  'towel around waist, fresh from shower, water droplets on skin, steam behind',
+  'standing in rain, wet shirt clinging to body, dramatic lighting',
+  'lying on back, one knee up, hand trailing down torso, sensual self-touch',
+  'adjusting belt or waistband, low camera angle, provocative composition',
+  'flexing casually in mirror selfie, showing off gains, confident smirk',
+  'sitting on floor between legs of chair, looking up, submissive yet masculine',
+];
+
+const MALE_OUTFITS: string[] = [
+  'nothing but low-slung boxers, showing V-line and abs',
+  'unbuttoned white shirt revealing chest, tailored trousers',
+  'tight black tank top showing muscle definition, joggers low on hips',
+  'open silk robe over bare chest, luxurious and provocative',
+  'fitted dress shirt with top buttons undone, sleeves rolled, tie loosened',
+  'shirtless with only a towel around waist',
+  'leather harness over bare chest, dark jeans, edgy and dominant',
+  'compression shirt showing every muscle, athletic shorts',
+  'open flannel shirt over bare torso, ripped jeans, rugged look',
+  'suit jacket over nothing, bare chest visible, power dressing undone',
+  'mesh tank top revealing skin beneath, tight shorts',
+  'silk pajama pants only, bare chest, morning bedroom look',
+  'wet white t-shirt clinging transparent to muscular body',
+  'leather jacket over bare chest, dark jeans, bad boy energy',
+  'swim trunks low on hips, showing Adonis belt, beach ready',
+  'undershirt pulled up revealing abs, casual candid moment',
+  'open bathrobe, bare skin visible, post-shower steam',
+  'tight briefs and nothing else, confident full body reveal',
+  'denim jacket over bare chest, unbuttoned jeans, rebellious look',
+  'workout gear: stringer tank and compression shorts, gym physique',
+];
+
+const TRANS_POSES: string[] = [
+  'arched back with hands running through hair, sensual expression, full body',
+  'lying on side propped on elbow, legs slightly bent, inviting gaze',
+  'standing with one leg raised on surface, showing off figure, confident pose',
+  'kneeling and looking up at camera, parted lips, sultry expression',
+  'sitting on edge of surface with legs crossed elegantly, hands on knee',
+  'twisting torso to look back at camera, hip popped, three-quarter view',
+  'reclining with one knee up, hand trailing down thigh, relaxed sensuality',
+  'pulling strap off shoulder, mid-motion candid, playful undressing',
+  'standing in doorway with hand on frame, body language inviting',
+  'perched on counter with legs dangling, casual yet provocative',
+  'lying on back with one arm behind head, looking at camera from below',
+  'standing close to camera, slightly cropped, intimate selfie distance',
+  'sitting on bed edge, one leg extended, elegant feminine pose',
+  'leaning against wall, one foot up, alluring confident stance',
+  'stretching arms above head, torso elongated, showing figure',
+  'hugging own shoulders, looking up at camera, shy but sexy',
+  'running hands down own body from neck to waist, sensual self-touch',
+  'sitting cross-legged then leaning forward, intimate close angle',
+  'standing at mirror, one hand on hip, admiring own reflection',
+  'kneeling on bed fixing hair, candid getting-ready selfie',
+];
+
+const TRANS_OUTFITS: string[] = [
+  'sheer lace bodysuit over bare skin, delicate and provocative',
+  'silk robe barely tied, slipping off one shoulder, luxurious',
+  'form-fitting latex mini dress, glossy and figure-hugging',
+  'oversized white shirt unbuttoned to mid-chest, no pants visible',
+  'strappy cutout bodycon dress showing midriff and hip',
+  'satin slip dress with thin straps, clinging to every curve',
+  'corset top with garter belt and thigh-high stockings',
+  'sheer kimono over lingerie set, flowing and exotic',
+  'lace-trimmed camisole and silk shorts, boudoir chic',
+  'velvet bralette and matching high-slit maxi skirt',
+  'mesh crop top over bralette, high-waisted leather shorts',
+  'off-shoulder knit sweater falling to reveal shoulder, micro shorts',
+  'bunny suit with fishnet stockings and heels, classic pin-up',
+  'backless sequin halter top with micro mini skirt, party glam',
+  'crop hoodie unzipped over string bikini top, streetwear meets beach',
+  'bandage dress in deep V neckline, sculpting every curve',
+  'high-waisted bikini with gold chain belt, goddess energy',
+  'wet white t-shirt clinging transparent to body, denim cutoffs',
+  'sports bra and tiny booty shorts, toned and sexy',
+  'simple lingerie set, natural not fetish costume',
+];
+
 function normalizeTags(tags?: string[] | string): string[] {
   if (!tags) return [];
   if (Array.isArray(tags)) return tags.map(String).filter(Boolean);
@@ -506,6 +663,7 @@ function pickFromList(seed: string, list: string[], salt = ''): string {
 export function pickScenePoseAndOutfit(
   subject: GirlfriendSubject,
   scene: SceneRecipe,
+  gender: GenderStyle = 'female',
 ): { pose: string; outfit: string; light: string; env: string } {
   const seed = [
     subject.name || '',
@@ -516,6 +674,10 @@ export function pickScenePoseAndOutfit(
     subject.outfit || '',
   ].join('|');
 
+  // Select gender-appropriate pools
+  const posePool = gender === 'male' ? MALE_POSES : gender === 'transgender' ? TRANS_POSES : GLOBAL_POSES;
+  const outfitPool = gender === 'male' ? MALE_OUTFITS : gender === 'transgender' ? TRANS_OUTFITS : GLOBAL_OUTFITS;
+
   // 40% chance to use scene-specific, 60% global pool — ensures variety across characters
   const useGlobalPose = hashPick(`${seed}|pose-decide|${scene.id}`, 10) >= 4;
   const useGlobalOutfit = hashPick(`${seed}|outfit-decide|${scene.id}`, 10) >= 4;
@@ -523,18 +685,18 @@ export function pickScenePoseAndOutfit(
   const useGlobalEnv = hashPick(`${seed}|env-decide|${scene.id}`, 10) >= 5; // 50% global env
 
   const pose = useGlobalPose
-    ? pickFromList(seed, GLOBAL_POSES, `gpose|${scene.id}`)
+    ? pickFromList(seed, posePool, `gpose|${scene.id}`)
     : pickFromList(seed, scene.poses, `pose|${scene.id}`);
 
   const outfit =
     (subject.outfit && subject.outfit.trim()) ||
     (useGlobalOutfit
-      ? pickFromList(seed, GLOBAL_OUTFITS, `goutfit|${scene.id}`)
+      ? pickFromList(seed, outfitPool, `goutfit|${scene.id}`)
       : pickFromList(seed, scene.outfits, `outfit|${scene.id}`));
 
   const light = useGlobalLight
     ? pickFromList(seed, GLOBAL_LIGHTS, `glight|${scene.id}`)
-    : (scene.light || 'soft flattering key light on her face, natural skin tone');
+    : (scene.light || 'soft flattering key light on face, natural skin tone');
 
   const env = useGlobalEnv
     ? pickFromList(seed, GLOBAL_ENVS, `genv|${scene.id}`)
@@ -647,14 +809,21 @@ export function buildExpressionClause(subject: GirlfriendSubject, scene: SceneRe
 
 /**
  * Traits only — face identity + hair/eyes/body from card.
+ * Gender-aware: uses appropriate subject description per gender/style.
  */
-export function buildSubjectClause(s: GirlfriendSubject): string {
-  const name = resolvePersonName(s.name, 'a beautiful young woman');
+export function buildSubjectClause(s: GirlfriendSubject, gender: GenderStyle = 'female'): string {
+  const genderLabel: Record<GenderStyle, string> = {
+    female: 'beautiful young adult woman 18-25',
+    male: 'handsome young adult man 18-30',
+    transgender: 'beautiful young transgender woman 18-28',
+    cartoon: 'attractive anime character',
+  };
+  const name = resolvePersonName(s.name, gender === 'male' ? 'a handsome young man' : 'a beautiful young woman');
   const parts: string[] = [
     name,
-    'beautiful young adult woman 18-25',
-    buildFaceIdentityClause(s),
-  ];
+    genderLabel[gender],
+    gender === 'cartoon' ? '' : buildFaceIdentityClause(s),
+  ].filter(Boolean);
 
   if (s.race) parts.push(`${s.race} features`);
   if (s.hair || s.hairColor) {
@@ -755,28 +924,34 @@ function trimPrompt(positive: string, max = 850): string {
 
 /**
  * Assemble natural-language FLUX caption:
- *   1) 主角 (who she is — name + identity)
- *   2) 在干嘛 (what she is doing — pose / outfit / scene / expression)
+ *   1) 主角 (who they are — name + identity)
+ *   2) 在干嘛 (what they are doing — pose / outfit / scene / expression)
  *   3) 质量词 (beauty + allure + photoreal quality)
+ *   4) NSFW amplifier (when adult content detected)
  *
- * AI girlfriend is the product core: images must feel seductive, beautiful, alluring.
- * Avoid identical template spam — pose/outfit/env vary per character hash + scene.
+ * Gender-aware: supports female, male, transgender, cartoon/anime.
+ * Elevated NSFW: appends explicit allure tags when adult=true.
  */
 export function assembleGirlfriendPrompt(
   ctx: PresetContext,
   subject: GirlfriendSubject,
-  opts?: { useEmptyNegative?: boolean; sceneId?: string },
+  opts?: { useEmptyNegative?: boolean; sceneId?: string; gender?: GenderStyle; adult?: boolean },
 ): AssembledPrompt {
+  const gender = opts?.gender || 'female';
+  const adult = opts?.adult || false;
+
   const fixedSubject: GirlfriendSubject = {
     ...subject,
-    name: resolvePersonName(subject.name),
+    name: resolvePersonName(subject.name, gender === 'male' ? 'a handsome young man' : 'a beautiful young woman'),
     sceneId: opts?.sceneId || subject.sceneId,
   };
 
   const rawIn = sanitizeBlurKeywords(ctx.rawPrompt || '');
   const metaScene = ctx.metadata?.scene || null;
   const scene = pickGirlfriendScene(fixedSubject, rawIn, metaScene);
-  const expression = buildExpressionClause(fixedSubject, scene);
+  const expression = gender === 'male'
+    ? buildMaleExpression(fixedSubject, scene)
+    : buildExpressionClause(fixedSubject, scene);
 
   const rawIsFullCaption =
     rawIn.length > 100 &&
@@ -785,7 +960,7 @@ export function assembleGirlfriendPrompt(
     ) ||
       looksLikeFluxPrompt(rawIn));
 
-  const subjectClause = buildSubjectClause(fixedSubject);
+  const subjectClause = buildSubjectClause(fixedSubject, gender);
   const rawStripped = rawIsFullCaption ? '' : stripQualityBoilerplate(rawIn);
   const extra =
     rawStripped &&
@@ -794,7 +969,7 @@ export function assembleGirlfriendPrompt(
       ? rawStripped.slice(0, 140)
       : '';
 
-  const { pose, outfit, light, env } = pickScenePoseAndOutfit(fixedSubject, scene);
+  const { pose, outfit, light, env } = pickScenePoseAndOutfit(fixedSubject, scene, gender);
 
   // ── 1) 主角 ──
   const hair = [fixedSubject.hairColor, fixedSubject.hair].filter(Boolean).join(' ').trim();
@@ -802,19 +977,28 @@ export function assembleGirlfriendPrompt(
     fixedSubject.personality && !looksLikeFluxPrompt(fixedSubject.personality)
       ? String(fixedSubject.personality).slice(0, 48)
       : '';
+
+  const genderIdentity: Record<GenderStyle, string> = {
+    female: 'a stunningly beautiful seductive adult female AI companion, age 18-25',
+    male: 'a stunningly handsome seductive adult male AI companion, age 18-30',
+    transgender: 'a stunningly beautiful seductive adult AI companion, age 18-28',
+    cartoon: 'a gorgeous attractive anime companion character',
+  };
+
   const conciseIdentity = joinParts([
     fixedSubject.name,
-    'a stunningly beautiful seductive adult AI girlfriend, age 18-25',
+    genderIdentity[gender],
     fixedSubject.race ? `${fixedSubject.race} features` : '',
     hair ? (/\bhair\b/i.test(hair) ? hair : `${hair} hair`) : '',
     fixedSubject.eyes ? `${fixedSubject.eyes} eyes` : '',
-    fixedSubject.body ? `${fixedSubject.body} figure` : GIRLFRIEND_BODY_FIXED,
+    fixedSubject.body ? `${fixedSubject.body} figure` : BODY_BY_GENDER[gender],
     personalityHint ? `${personalityHint} vibe` : '',
     fixedSubject.occupation ? `${fixedSubject.occupation}` : '',
   ]);
   const person = trimPrompt(conciseIdentity || subjectClause, 260);
 
   // ── 2) 在干嘛 ──
+  const pronoun = gender === 'male' ? 'He' : gender === 'female' ? 'She' : 'They';
   const generatedAction = joinParts([
     pose,
     `wearing ${outfit}`,
@@ -825,36 +1009,71 @@ export function assembleGirlfriendPrompt(
   ]);
   // Prefer admin/custom action text when present; otherwise scene recipe.
   const actionCore = extra || generatedAction;
-  const action = trimPrompt(actionCore.replace(/^[Ss]he is\s+/i, '').replace(/[.]$/, ''), 380);
+  const action = trimPrompt(actionCore.replace(/^(?:she|he|they) (?:is|are)\s+/i, '').replace(/[.]$/, ''), 380);
 
   // ── 3) 质量词 ──
-  const quality = GIRLFRIEND_QUALITY_PREFIX;
+  const quality = QUALITY_BY_GENDER[gender];
+
+  // ── 4) NSFW amplifier (elevated) ──
+  const nsfwBoost = adult ? `, ${NSFW_AMPLIFIER[gender]}` : '';
 
   const positive = trimPrompt(
-    `${person}. She is ${action}. ${quality}.`,
-    900,
+    `${person}. ${pronoun} is ${action}. ${quality}${nsfwBoost}.`,
+    adult ? 1000 : 900,
   );
 
-  // Default: short anti-underexposure negative (user issue: dark muddy faces).
-  // Pass useEmptyNegative: true only for pure FLUX workers that black-frame on any neg.
-  const negative = opts?.useEmptyNegative === true ? '' : GIRLFRIEND_NEGATIVE_FLUX;
+  // Gender-specific negative prompt
+  const negative = opts?.useEmptyNegative === true ? '' : NEGATIVE_BY_GENDER[gender];
 
   return { positive, negative };
+}
+
+/** Preferred inclusive name; legacy export remains for API compatibility. */
+export const assembleCompanionPrompt = assembleGirlfriendPrompt;
+
+/** Male-specific expression builder */
+function buildMaleExpression(subject: GirlfriendSubject, scene: SceneRecipe): string {
+  const p = (subject.personality || subject.mood || '').toLowerCase();
+  if (/shy|soft|gentle|sweet/.test(p)) return 'soft warm smile, gentle eyes gazing at camera, slight blush, tender look';
+  if (/playful|brat|tease|flirty/.test(p)) return 'confident smirk, mischievous spark in eyes, playful raised eyebrow';
+  if (/dominant|confident|alpha|bold/.test(p)) return 'intense smoldering gaze, confident half-smile, chin slightly tilted, commanding presence';
+  if (/romantic|caring|warm/.test(p)) return 'warm inviting smile, soft glowing eyes, lips slightly parted, intimate look';
+
+  const byScene: Record<string, string> = {
+    mirror_selfie: 'confident pout, heavy-lidded eyes staring into lens, sharp jawline, masculine allure',
+    rooftop_night: 'knowing smirk, bedroom eyes, wind-blown hair, masculine night energy',
+    pink_bedroom: 'inviting parted lips, dewy bedroom eyes, just-woke-up sexy masculine look',
+    gothic_throne: 'dark intense stare, mysterious allure, smoldering dominance',
+    window_sunlight: 'dreamy soft smile, sun-kissed glow on skin, warm masculine energy',
+    cafe_day: 'relaxed confident gaze, coffee in hand, easy masculine charm',
+    car_night: 'intimate late-night look, sharp features highlighted, come-here expression',
+    beach_breeze: 'sun-bright confident smile, salt-kissed skin, wind-tousled hair, carefree energy',
+    kitchen_morning: 'sleepy sexy smile, bedhead hair, bare shoulders, cozy intimate gaze',
+    studio_clean: 'magnetic stare, perfect jawline, editorial intensity, high-fashion masculine',
+    golden_hour: 'warm radiant smile, golden light catching features, honey-glow skin',
+    city_apartment: 'relaxed confident smile, eyes drawing you in, natural masculine beauty',
+  };
+  return byScene[scene.id] || 'intense captivating gaze, magnetic masculine presence, confident expression';
 }
 
 export function assembleGirlfriendFromRow(
   row: Record<string, unknown>,
   rawPrompt = '',
-  opts?: { sceneId?: string; useEmptyNegative?: boolean },
+  opts?: { sceneId?: string; useEmptyNegative?: boolean; gender?: GenderStyle; adult?: boolean },
 ): AssembledPrompt {
+  const gender = opts?.gender || detectGenderStyle(row);
   return assembleGirlfriendPrompt({ rawPrompt }, subjectFromGirlfriendRow(row), {
     useEmptyNegative: opts?.useEmptyNegative === true,
     sceneId: opts?.sceneId,
+    gender,
+    adult: opts?.adult,
   });
 }
 
+/** Preferred inclusive name; legacy export remains for stored girlfriend records. */
+export const assembleCompanionFromRow = assembleGirlfriendFromRow;
 
-﻿/**
+/**
  * Two-LoRA plan for girlfriend card generation.
  *
  * Primary  = style LoRA (photoreal / hyperreal) — always applied
