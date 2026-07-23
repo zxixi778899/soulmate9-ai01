@@ -1524,3 +1524,7 @@ body {
 .animate-shake {
   animation: shake 0.5s ease-in-out;
 }
+
+/* Hide scrollbars for horizontal tab rails */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

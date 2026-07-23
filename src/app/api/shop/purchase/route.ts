@@ -72,36 +72,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Insufficient credits (concurrent request)', code: 'INSUFFICIENT_CREDITS' }, { status: 402 });
     }
 
-    // Add to user backpack (not wardrobe)
+    // Sync user_tokens mirror (dual-balance architecture)
+    await supabase
+      .from('user_tokens')
+      .update({ balance_tokens: newCredits, last_updated_at: new Date().toISOString() })
+      .eq('user_id', user.id);
+
+    // Add to user_inventory (unified inventory system)
+    const isConsumable = item.category === 'consumable' || item.category === 'effect';
     const { data: existing } = await supabase
-      .from('user_backpack')
+      .from('user_inventory')
       .select('id, quantity')
       .eq('user_id', user.id)
       .eq('product_id', item.id)
       .maybeSingle();
 
-    let backpackItemId: string;
+    let inventoryItemId: string;
 
-    if (existing) {
-      // Stack quantity
+    if (existing && isConsumable) {
+      // Stack quantity for consumables
       await supabase
-        .from('user_backpack')
-        .update({ quantity: existing.quantity + 1 })
+        .from('user_inventory')
+        .update({ quantity: (existing.quantity || 1) + 1 })
         .eq('id', existing.id);
-      backpackItemId = existing.id;
+      inventoryItemId = existing.id;
+    } else if (existing) {
+      // Non-consumable already owned
+      inventoryItemId = existing.id;
     } else {
       const { data: inserted } = await supabase
-        .from('user_backpack')
+        .from('user_inventory')
         .insert({
           user_id: user.id,
           product_id: item.id,
+          asset_type: item.category || 'outfit',
+          asset_id: item.id,
           quantity: 1,
           source: 'purchase',
           metadata: { rarity: item.rarity, name: item.name, category: item.category },
         })
         .select('id')
         .single();
-      backpackItemId = inserted?.id ?? '';
+      inventoryItemId = inserted?.id ?? '';
     }
 
     // Apply consumable/effect items
@@ -129,7 +141,7 @@ export async function POST(req: NextRequest) {
       item: item.name,
       remaining_credits: profile.credits_remaining - item.price_credits,
       effect: item.category,
-      backpack_item_id: backpackItemId,
+      inventory_item_id: inventoryItemId,
     });
 
   } catch (err) {

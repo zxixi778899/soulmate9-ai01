@@ -102,10 +102,18 @@ function slug(value: string): string {
 }
 
 function virtualMeta(input: ProductInput, collection: Collection, current: Record<string, unknown> = {}) {
+  // Creation cards live in the 'prop' collection but must keep kind='creation_card'
+  // so /api/shop/v2/purchase actually increments profiles.creation_cards. Derive the
+  // flag from the submitted subcategory (input.category) or the existing meta so a
+  // routine admin edit never silently reverts the kind back to 'prop'.
+  const isCreationCard =
+    input.category === 'creation_card' ||
+    (collection === 'prop' && current.kind === 'creation_card');
+  const kind = collection === 'outfit' ? 'outfit' : isCreationCard ? 'creation_card' : collection;
   return {
     ...current,
     collection,
-    kind: collection === 'outfit' ? 'outfit' : collection,
+    kind,
     video_url: input.video_url || null,
     effect_asset_url: input.effect_asset_url || null,
     effect_type: input.effect_type || null,
@@ -142,6 +150,7 @@ export async function GET(request: NextRequest) {
     const { data: products, error } = await admin.supabase
       .from('products')
       .select('*')
+      .neq('status', 'archived')
       .order('display_order', { ascending: true });
     if (error) throw error;
 

@@ -196,8 +196,21 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        // 2.6 Membership — activate the tier declared by the admin-shop product
+        let grantedTier: string | null = null;
+        if (kind === 'membership') {
+          const rawTier = typeof product.virtual_meta?.membership_tier === 'string'
+            ? (product.virtual_meta.membership_tier as string).toLowerCase()
+            : 'pro';
+          grantedTier = ['basic', 'pro', 'unlimited'].includes(rawTier) ? rawTier : 'pro';
+          await db.query(
+            'UPDATE profiles SET membership_tier = $1 WHERE user_id = $2',
+            [grantedTier, user.id]
+          );
+        }
+
         await db.query('COMMIT');
-        return { orderId, newBalance, inventoryId };
+        return { orderId, newBalance, inventoryId, grantedTier };
       } catch (err) {
         await db.query('ROLLBACK');
         throw err;
@@ -208,6 +221,7 @@ export async function POST(request: NextRequest) {
       success: true,
       new_credits_balance: result.newBalance,
       inventory_item_id: result.inventoryId,
+      membership_tier: result.grantedTier,
       order: {
         order_number: orderNumber,
         product_id: product.id,
