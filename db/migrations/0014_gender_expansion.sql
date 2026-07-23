@@ -3,6 +3,13 @@
 -- Idempotent — safe to re-run.
 
 -- 1. Add Male + Transgender gender options
+ALTER TABLE girlfriends
+  ADD COLUMN IF NOT EXISTS gender text NOT NULL DEFAULT 'Female';
+
+ALTER TABLE girlfriends DROP CONSTRAINT IF EXISTS girlfriends_gender_check;
+ALTER TABLE girlfriends
+  ADD CONSTRAINT girlfriends_gender_check CHECK (gender IN ('Female', 'Male', 'Transgender'));
+
 INSERT INTO creator_option_pool (category, value, label_en, label_zh, sort_order)
 VALUES
   ('gender', 'Male', 'Male', '男性', 4),

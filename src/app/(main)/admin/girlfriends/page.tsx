@@ -67,6 +67,7 @@ type Girlfriend = {
   id: string;
   name: string;
   age: number;
+  gender?: string | null;
   slug?: string | null;
   personality?: string | null;
   tags?: string[] | string | null;
@@ -108,6 +109,7 @@ type FormState = {
   name: string;
   age: number;
   slug: string;
+  gender: 'Female' | 'Male' | 'Transgender';
   personality: string;
   tags: string;
   short_description: string;
@@ -148,6 +150,7 @@ function emptyForm(): FormState {
   return {
     name: '',
     age: rnd.age,
+    gender: 'Female',
     slug: '',
     personality: '',
     tags: '',
@@ -199,6 +202,7 @@ function toForm(g: Girlfriend): FormState {
   return {
     name: g.name || '',
     age: Number(g.age || 22),
+    gender: (['Female', 'Male', 'Transgender'].includes(String(g.gender)) ? String(g.gender) : 'Female') as FormState['gender'],
     slug: g.slug || '',
     personality: g.personality || '',
     tags: tagsToString(g.tags),
@@ -372,6 +376,7 @@ function AdminGirlfriendsMediaPageInner() {
     const payload: Record<string, unknown> = {
       name: form.name.trim(),
       age: Math.max(18, Number(form.age) || 18),
+      gender: form.gender,
       slug: form.slug.trim() || undefined,
       personality: form.personality.trim() || null,
       tags,
@@ -938,6 +943,17 @@ function AdminGirlfriendsMediaPageInner() {
                   <Label>年龄 (≥18)</Label>
                   <Input type="number" min={18} max={99} value={form.age} onChange={(e) => setField('age', Number(e.target.value) || 18)} className="mt-1 bg-black/30" />
                 </div>
+              <div>
+                <Label>性别</Label>
+                <Select value={form.gender} onValueChange={(value) => setField('gender', value as FormState['gender'])}>
+                  <SelectTrigger className="mt-1 bg-black/30"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Female">女性</SelectItem>
+                    <SelectItem value="Male">男性</SelectItem>
+                    <SelectItem value="Transgender">跨性别</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               </div>
               <div>
                 <Label>Slug</Label>

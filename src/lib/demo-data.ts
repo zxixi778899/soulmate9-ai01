@@ -31,6 +31,7 @@ export interface DemoGirl {
   id: string;
   name: string;
   age: number;
+  category?: 'female' | 'male' | 'transgender' | 'anime';
   /** English tagline (default / EN) */
   tagline: string;
   /** Optional Simplified Chinese tagline */

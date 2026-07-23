@@ -102,6 +102,7 @@ const ADMIN_GF_WRITE_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 }; // 6
 const ALLOWED_PATCH_FIELDS = new Set<string>([
   'name',
   'age',
+  'gender',
   'slug',
   'personality',
   'tags',
@@ -312,6 +313,7 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       name: body.name,
       age: ageCheck.age,
+      gender: ['Female', 'Male', 'Transgender'].includes(String(body.gender)) ? body.gender : 'Female',
       slug,
       personality: body.personality || '',
       tags: body.tags || [],

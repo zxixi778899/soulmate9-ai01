@@ -24,6 +24,12 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import {
+  COMPANION_CATEGORIES,
+  COMPANION_CATEGORY_LABELS,
+  STUDIO_PROMPTS,
+  type CompanionCategory,
+} from '@/lib/companion-category';
+import {
   assembleGirlfriendFromRow,
   GIRLFRIEND_NEGATIVE_FLUX,
   resolveGirlfriendLoraPlan,
@@ -328,6 +334,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [selectedLoras, setSelectedLoras] = useState<Array<{ id: string; strength: number }>>([]);
   const [prompt, setPrompt] = useState('');
   const [negative, setNegative] = useState('');
+  const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
   const [width, setWidth] = useState(832);
   const [height, setHeight] = useState(1216);
   const [steps, setSteps] = useState(28);
@@ -366,6 +373,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setCfg(p.cfg);
     toast.success(`已应用预设：${p.name}`);
   };
+  const applyCategoryPrompt = (category: CompanionCategory) => {
+    const preset = STUDIO_PROMPTS[category];
+    setCompanionCategory(category);
+    setPrompt(preset.prompt);
+    setNegative(preset.negative);
+    toast.success(`已切换为${COMPANION_CATEGORY_LABELS[category].zh}成人提示词`);
+  };
+
 
   useEffect(() => {
     try {
@@ -1321,6 +1336,20 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             </section>
           ) : null}
           <section className="rounded-md border border-slate-700 bg-[#111214] p-3 shadow-xl shadow-black/30">
+            <div className="mb-3 flex flex-wrap gap-2" aria-label="角色分类">
+              {COMPANION_CATEGORIES.map((category) => (
+                <Button
+                  key={category}
+                  type="button"
+                  size="sm"
+                  variant={companionCategory === category ? 'default' : 'outline'}
+                  className={cn('h-8', companionCategory === category && 'bg-fuchsia-600 hover:bg-fuchsia-500')}
+                  onClick={() => applyCategoryPrompt(category)}
+                >
+                  {COMPANION_CATEGORY_LABELS[category].zh}
+                </Button>
+              ))}
+            </div>
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-white">正向提示词 · 人物 + 做什么</h2>

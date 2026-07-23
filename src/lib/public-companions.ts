@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 
 /** Columns that always exist on production girlfriends table */
 const CORE_SELECT =
-  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, card_url, personality, created_at, is_public, review_status, avatar_video_url, portrait_video_url';
+  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, card_url, personality, appearance_style, created_at, is_public, review_status, avatar_video_url, portrait_video_url';
 
 /** Optional catalog columns (migration 0007) — probed once */
 let _optionalCols: string | null | undefined;
@@ -28,7 +28,7 @@ async function optionalSelectFragment(): Promise<string> {
     return '';
   }
   _optionalCols =
-    ', rarity, access_status, unlock_price_tokens, base_intimacy, base_desire, base_development, base_kink, occupation, hobbies, is_active, is_hot, is_featured, hot_score, sort_order';
+    ', gender, rarity, access_status, unlock_price_tokens, base_intimacy, base_desire, base_development, base_kink, occupation, hobbies, is_active, is_hot, is_featured, hot_score, sort_order';
   return _optionalCols;
 }
 
@@ -100,6 +100,8 @@ export interface PublicCompanionRow {
   portrait_video_url?: string | null;
   avatar_video_url?: string | null;
   personality: string | null;
+  gender?: string | null;
+  appearance_style?: string | null;
   occupation?: string | null;
   hobbies?: string | null;
   rarity?: string | null;

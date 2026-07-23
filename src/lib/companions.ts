@@ -10,6 +10,7 @@ import {
   looksLikeFluxPrompt,
   safeDisplayName,
 } from '@/lib/prompt/shared';
+import { normalizeCompanionCategory } from '@/lib/companion-category';
 
 export type CompanionSource = 'api' | 'demo';
 
@@ -192,6 +193,11 @@ export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl
     id,
     name,
     age,
+    category: normalizeCompanionCategory({
+      gender: row.gender,
+      style: row.appearance_style || (row.character_card as Record<string, unknown> | undefined)?.style,
+      tags,
+    }),
     tagline,
     avatar: image,
     portrait: image,
