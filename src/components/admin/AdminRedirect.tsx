@@ -1,7 +1,7 @@
 ﻿'use client';
 
 /**
- * 旧入口兼容跳转：图片库 / 视频库 → 女友与媒体
+ * 旧入口兼容跳转：图片库 / 视频库 → 伴侣与媒体
  * Comfy / 生成卡片 → 创作工作台
  */
 import { useEffect } from 'react';

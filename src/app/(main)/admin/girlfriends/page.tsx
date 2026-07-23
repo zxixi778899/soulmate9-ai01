@@ -441,7 +441,7 @@ function AdminGirlfriendsMediaPageInner() {
       if ((data.errors?.length ?? 0) > 0) {
         toast.warning(`已更新 ${data.updated ?? 0}/${data.total ?? 0} 位，部分记录失败`);
       } else {
-        toast.success(data.message || `已更新 ${data.updated ?? 0} 位女友`);
+        toast.success(data.message || `已更新 ${data.updated ?? 0} 位伴侣`);
       }
       await load();
     } catch (e) {
@@ -769,9 +769,9 @@ function AdminGirlfriendsMediaPageInner() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300/80">站内 CMS</p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">女友与媒体</h1>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">伴侣与媒体</h1>
               <p className="mt-1 max-w-3xl text-sm text-slate-400">
-                管理女友基础档案（年龄/亲密/职业/爱好/热情·开发·变态）与媒体。参数同步到前台卡片与对话人设。
+                管理伴侣基础档案（年龄/亲密/职业/爱好/热情·开发·变态）与媒体。参数同步到前台卡片与对话人设。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -792,7 +792,7 @@ function AdminGirlfriendsMediaPageInner() {
                 随机分配全部数值
               </Button>
               <Button className="bg-rose-600 hover:bg-rose-500" onClick={openCreate}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" /> 新建女友
+                <Plus className="mr-1.5 h-3.5 w-3.5" /> 新建伴侣
               </Button>
               <Button variant="outline" className="border-emerald-400/40 bg-emerald-500/10 text-emerald-100" onClick={() => setBatchOpen(true)}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" /> 批量新建
@@ -866,7 +866,7 @@ function AdminGirlfriendsMediaPageInner() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] py-16 text-center text-sm text-slate-500">
-            没有匹配的女友。可新建，或清空筛选。
+            没有匹配的伴侣。可新建，或清空筛选。
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -960,9 +960,9 @@ function AdminGirlfriendsMediaPageInner() {
           className="h-[92vh] w-[94vw] max-w-[94vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-white/10 bg-[#12121c] text-slate-100 sm:max-w-[94vw] xl:max-w-[1920px]"
         >
           <DialogHeader>
-            <DialogTitle>{creating ? '新建女友' : `编辑 · ${selected?.name || ''}`}</DialogTitle>
+            <DialogTitle>{creating ? '新建伴侣' : `编辑 · ${selected?.name || ''}`}</DialogTitle>
             <DialogDescription className="text-slate-400">
-              参数会同步到前台卡片。媒体上传后直接绑定本卡；创作请进工作台（按女友隔离资产）。
+              参数会同步到前台卡片。媒体上传后直接绑定本卡；创作请进工作台（按伴侣隔离资产）。
               <span className="ml-2 hidden text-violet-300 md:inline">横屏双栏显示，左右信息可同时编辑。</span>
             </DialogDescription>
           </DialogHeader>
@@ -1228,19 +1228,19 @@ function AdminGirlfriendsMediaPageInner() {
                             <button type="button" onClick={() => setAssetPickerField(null)} className="text-slate-300 hover:text-white">关闭</button>
                           </div>
                           {girlfriendAssetsLoading ? (
-                            <div className="flex items-center gap-1 py-3 text-[10px] text-slate-300"><Loader2 className="h-3 w-3 animate-spin" /> 加载女友资源库…</div>
+                            <div className="flex items-center gap-1 py-3 text-[10px] text-slate-300"><Loader2 className="h-3 w-3 animate-spin" /> 加载伴侣资源库…</div>
                           ) : girlfriendAssets.length ? (
                             <div className="grid max-h-40 grid-cols-5 gap-1.5 overflow-y-auto pr-1">
                               {girlfriendAssets.map((asset, index) => {
                                 const url = asset.preview_url || asset.url || '';
                                 if (!url) return null;
-                                return <button key={asset.id || asset.storage_key || index} type="button" className="aspect-[3/4] overflow-hidden rounded border border-white/15 hover:border-violet-300" onClick={() => { setField(assetPickerField, url); setAssetPickerField(null); toast.success('已从女友资源库选中'); }}>
+                                return <button key={asset.id || asset.storage_key || index} type="button" className="aspect-[3/4] overflow-hidden rounded border border-white/15 hover:border-violet-300" onClick={() => { setField(assetPickerField, url); setAssetPickerField(null); toast.success('已从伴侣资源库选中'); }}>
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={url} alt="女友资源" className="h-full w-full object-cover" />
+                                  <img src={url} alt="伴侣资源" className="h-full w-full object-cover" />
                                 </button>;
                               })}
                             </div>
-                          ) : <p className="py-3 text-[10px] text-slate-400">该女友资源库暂无图片，请使用本地上传或前往创作工作台生成。</p>}
+                          ) : <p className="py-3 text-[10px] text-slate-400">该伴侣资源库暂无图片，请使用本地上传或前往创作工作台生成。</p>}
                         </div>
                       ) : null}
                     </div>
@@ -1261,7 +1261,7 @@ function AdminGirlfriendsMediaPageInner() {
                             )}
                           </div>
                           <button type="button" onClick={() => setAssetPickerField(field)} className="mb-1 flex w-full items-center justify-center rounded bg-violet-500/20 py-1 text-[10px] font-medium text-violet-100 hover:bg-violet-500/35">
-                            从女友库选择
+                            从伴侣库选择
                           </button>
                           <label className="flex cursor-pointer items-center justify-center gap-1 rounded bg-white/5 py-1 text-[10px] hover:bg-white/10">
                             {imageUploading === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
@@ -1322,7 +1322,7 @@ function AdminGirlfriendsMediaPageInner() {
                       href={`/admin/studio?girlfriendId=${selected.id}`}
                       className="flex items-center justify-center gap-2 rounded-lg bg-violet-600/90 py-2 text-sm font-medium text-white hover:bg-violet-500"
                     >
-                      <Sparkles className="h-4 w-4" /> 为该女友创作（资产进独立库）
+                      <Sparkles className="h-4 w-4" /> 为该伴侣创作（资产进独立库）
                     </Link>
                   </div>
                 ) : (
@@ -1337,7 +1337,7 @@ function AdminGirlfriendsMediaPageInner() {
               {selected ? (
                 <Button variant="destructive" size="sm" onClick={() => void handleDelete()} disabled={deleting || saving}>
                   {deleting ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
-                  删除女友
+                  删除伴侣
                 </Button>
               ) : null}
             </div>
@@ -1357,7 +1357,7 @@ function AdminGirlfriendsMediaPageInner() {
           <DialogHeader>
             <DialogTitle>随机分配全部数值？</DialogTitle>
             <DialogDescription className="text-slate-300">
-              将重新生成全部 {total} 位女友的年龄、亲密值、职业、兴趣爱好、热情值、开发值和变态值。此操作会直接保存。
+              将重新生成全部 {total} 位伴侣的年龄、亲密值、职业、兴趣爱好、热情值、开发值和变态值。此操作会直接保存。
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -1444,7 +1444,7 @@ export default function AdminGirlfriendsMediaPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[40vh] items-center justify-center bg-[#0b0b12] text-slate-400">
-          加载女友与媒体…
+          加载伴侣与媒体…
         </div>
       }
     >

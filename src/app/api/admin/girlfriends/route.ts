@@ -477,7 +477,7 @@ export async function PATCH(request: NextRequest) {
         updated,
         total: (rows || []).length,
         errors: errors.slice(0, 10),
-        message: `已为 ${updated} 位女友随机分配年龄/亲密/职业/爱好/热情/开发/变态值`,
+        message: `已为 ${updated} 位伴侣随机分配年龄/亲密/职业/爱好/热情/开发/变态值`,
       });
     }
 

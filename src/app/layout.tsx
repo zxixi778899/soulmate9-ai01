@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   },
   description: APP_DESCRIPTION,
   keywords: [
-    'AI companion', 'AI girlfriend', 'virtual relationship',
+    'AI companion', 'AI companion relationship', 'virtual relationship',
     'NSFW AI chat', 'AI roleplay', 'AI dating', 'virtual companion',
   ],
   alternates: {

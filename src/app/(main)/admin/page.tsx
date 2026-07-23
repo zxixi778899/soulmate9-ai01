@@ -171,7 +171,7 @@ export default function AdminDashboard(): React.JSX.Element {
   const quickActions = [
     { label: '审核队列', href: '/admin/review', icon: CheckSquare },
     { label: '用户管理', href: '/admin/users', icon: Users },
-    { label: '女友与媒体', href: '/admin/girlfriends', icon: Heart },
+    { label: '伴侣与媒体', href: '/admin/girlfriends', icon: Heart },
     { label: '创作工作台', href: '/admin/studio', icon: Sparkles },
     { label: '商城管理', href: '/admin/shop', icon: Crown },
     { label: 'Token 经济', href: '/admin/tokens', icon: Coins },

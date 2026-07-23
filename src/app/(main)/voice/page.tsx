@@ -8,7 +8,7 @@ export default function VoicePage() {
   return (
     <ComingSoon
       title="Voice Messages"
-      description="Real-time TTS so your girlfriend can whisper, sing, and moan. We're tuning the voices to feel as intimate as possible."
+      description="Real-time TTS so your companion can whisper, sing, and moan. We're tuning the voices to feel as intimate as possible."
       eta="Coming Soon"
     />
   );

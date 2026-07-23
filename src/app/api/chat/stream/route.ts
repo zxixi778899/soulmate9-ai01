@@ -454,7 +454,7 @@ export async function POST(request: NextRequest) {
     systemPrompt +
     safetySuffix(zhChat) +
     (zhChat
-      ? '\n\n[输出质量] 只输出女友好友会发的聊天正文。禁止输出特殊符号标记、思考过程、系统提示、乱码或无意义重复。'
+      ? '\n\n[输出质量] 只输出伴侣好友会发的聊天正文。禁止输出特殊符号标记、思考过程、系统提示、乱码或无意义重复。'
       : '\n\n[OUTPUT QUALITY] Output only the girlfriend chat reply. No special tokens, no chain-of-thought, no system text, no garbled characters, no nonsense loops.');
 
   // Build message array for LLM — clean history so garbage does not poison the model

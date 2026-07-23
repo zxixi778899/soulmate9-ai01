@@ -2,8 +2,8 @@
 
 /**
  * 公共资产库（文件夹模式）
- * - 已分类：每个女友一个文件夹
- * - 未分类：未绑定女友的生成/上传结果
+ * - 已分类：每个伴侣一个文件夹
+ * - 未分类：未绑定伴侣的生成/上传结果
  * - 支持多选、上传到当前文件夹、移动/复制到其它文件夹、删除
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -112,7 +112,7 @@ export default function AdminAssetsPage() {
       if (!gfMap.has(gid)) {
         rows.push({
           id: gid,
-          name: `未知女友 ${gid.slice(0, 8)}`,
+          name: `未知伴侣 ${gid.slice(0, 8)}`,
           count,
           cover: '',
           classified: true,
@@ -300,7 +300,7 @@ export default function AdminAssetsPage() {
   const folderTitle =
     activeFolderId === null
       ? '未分类'
-      : gfMap.get(activeFolderId)?.name || `女友 ${activeFolderId.slice(0, 8)}`;
+      : gfMap.get(activeFolderId)?.name || `伴侣 ${activeFolderId.slice(0, 8)}`;
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] p-4 md:p-6" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -312,8 +312,8 @@ export default function AdminAssetsPage() {
             公共资产库
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-[#64748B]">
-            已分类按女友文件夹展示；未绑定女友的结果进入「未分类」。在文件夹内可多选、上传、剪切/复制/粘贴、移动与删除。
-            创作工作台按女友生成会自动归入对应文件夹。
+            已分类按伴侣文件夹展示；未绑定伴侣的结果进入「未分类」。在文件夹内可多选、上传、剪切/复制/粘贴、移动与删除。
+            创作工作台按伴侣生成会自动归入对应文件夹。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -324,7 +324,7 @@ export default function AdminAssetsPage() {
           </Link>
           <Link href="/admin/girlfriends">
             <Button size="sm" className="gap-1.5 bg-[#2563EB]">
-              <Heart className="h-4 w-4" /> 绑定女友
+              <Heart className="h-4 w-4" /> 绑定伴侣
             </Button>
           </Link>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
@@ -343,11 +343,11 @@ export default function AdminAssetsPage() {
             <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
               <div className="relative min-w-64 flex-1 max-w-md">
                 <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <Input value={folderQ} onChange={(e) => setFolderQ(e.target.value)} placeholder="搜索女友名称或资源库 ID" className="pl-9" />
+                <Input value={folderQ} onChange={(e) => setFolderQ(e.target.value)} placeholder="搜索伴侣名称或资源库 ID" className="pl-9" />
               </div>
               <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-[#334155]">
                 <option value="all">全部分类</option>
-                {assetKinds.map((kind) => <option key={kind} value={kind}>{kind === 'girlfriend' ? '女友图片' : kind === 'outfit' ? '服装' : kind === 'shop_item' ? '商品' : kind}</option>)}
+                {assetKinds.map((kind) => <option key={kind} value={kind}>{kind === 'girlfriend' ? '伴侣图片' : kind === 'outfit' ? '服装' : kind === 'shop_item' ? '商品' : kind}</option>)}
               </select>
             </div>
             <section>
@@ -362,14 +362,14 @@ export default function AdminAssetsPage() {
                 </div>
                 <div>
                   <div className="font-semibold text-[#1E293B]">未分类</div>
-                  <div className="text-xs text-[#64748B]">{folders.uncategorizedCount} 个文件 · 未绑定女友</div>
+                  <div className="text-xs text-[#64748B]">{folders.uncategorizedCount} 个文件 · 未绑定伴侣</div>
                 </div>
               </button>
             </section>
 
             <section>
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-[#334155]">已分类（按女友）</h2>
+                <h2 className="text-sm font-semibold text-[#334155]">已分类（按伴侣）</h2>
                 <span className="text-xs text-[#94A3B8]">{visibleFolders.length} / {folders.classified.length} 个文件夹</span>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -415,7 +415,7 @@ export default function AdminAssetsPage() {
             />
             <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} className="h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-[#334155]">
               <option value="all">全部分类</option>
-              {assetKinds.map((kind) => <option key={kind} value={kind}>{kind === 'girlfriend' ? '女友图片' : kind === 'outfit' ? '服装' : kind === 'shop_item' ? '商品' : kind}</option>)}
+              {assetKinds.map((kind) => <option key={kind} value={kind}>{kind === 'girlfriend' ? '伴侣图片' : kind === 'outfit' ? '服装' : kind === 'shop_item' ? '商品' : kind}</option>)}
             </select>
             <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm text-[#334155] hover:bg-gray-50">
               <Upload className="h-4 w-4" />
@@ -469,7 +469,7 @@ export default function AdminAssetsPage() {
             {activeFolderId ? (
               <Link href={`/admin/studio?girlfriendId=${encodeURIComponent(activeFolderId)}`} className="ml-auto">
                 <Button size="sm" className="gap-1 bg-violet-600 hover:bg-violet-700">
-                  <Sparkles className="h-4 w-4" /> 为该女友生成
+                  <Sparkles className="h-4 w-4" /> 为该伴侣生成
                 </Button>
               </Link>
             ) : null}

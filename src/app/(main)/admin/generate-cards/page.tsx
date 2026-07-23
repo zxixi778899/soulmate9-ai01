@@ -6,7 +6,7 @@ export default function LegacyGenerateCardsRedirect() {
     <AdminRedirect
       to="/admin/studio"
       title="生成卡片已并入创作工作台"
-      reason="批量/单卡生成请使用创作工作台；生成结果在公共资产库，绑定到女友请用「女友与媒体」。"
+      reason="批量/单卡生成请使用创作工作台；生成结果在公共资产库，绑定到伴侣请用「伴侣与媒体」。"
     />
   );
 }

@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 type AnyConfig = Record<string, any>;
 
 const SCENE_LABELS: Record<string, string> = {
-  girlfriend_portrait: '女友肖像',
+  girlfriend_portrait: '伴侣肖像',
   chat_selfie: '聊天自拍',
   outfit_prop: '换装道具',
   shop_item: '商城道具',

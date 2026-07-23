@@ -1,11 +1,13 @@
 export const COMPANION_CATEGORIES = ['female', 'male', 'transgender', 'anime'] as const;
 export type CompanionCategory = (typeof COMPANION_CATEGORIES)[number];
 
-export const COMPANION_CATEGORY_LABELS: Record<CompanionCategory, { en: string; zh: string }> = {
-  female: { en: 'Women', zh: '女性' },
-  male: { en: 'Men', zh: '男性' },
-  transgender: { en: 'Transgender', zh: '跨性别' },
-  anime: { en: 'Anime', zh: '二次元' },
+export type CompanionLabelLocale = 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr' | 'de';
+
+export const COMPANION_CATEGORY_LABELS: Record<CompanionCategory, Record<CompanionLabelLocale, string>> = {
+  female: { en: 'Women', zh: '女性', ja: '女性', ko: '여성', es: 'Mujeres', fr: 'Femmes', de: 'Frauen' },
+  male: { en: 'Men', zh: '男性', ja: '男性', ko: '남성', es: 'Hombres', fr: 'Hommes', de: 'Männer' },
+  transgender: { en: 'Transgender', zh: '跨性别', ja: 'トランスジェンダー', ko: '트랜스젠더', es: 'Transgénero', fr: 'Transgenre', de: 'Transgender' },
+  anime: { en: 'Anime', zh: '二次元', ja: 'アニメ', ko: '애니메이션', es: 'Anime', fr: 'Anime', de: 'Anime' },
 };
 
 const BLOCKED =
@@ -40,6 +42,7 @@ export function normalizeCompanionCategory(input: {
   const tags = Array.isArray(input.tags) ? input.tags.join(' ').toLowerCase() : String(input.tags || '').toLowerCase();
   if (/anime|manga|cartoon|2d|comic|二次元/.test(`${style} ${tags}`)) return 'anime';
   if (/trans|non.?binary|跨性别/.test(`${gender} ${tags}`)) return 'transgender';
-  if (/male|\bman\b|boyfriend|男性/.test(`${gender} ${tags}`)) return 'male';
+  if (/\bfemale\b|\bwoman\b|\bwomen\b|女性/.test(`${gender} ${tags}`)) return 'female';
+  if (/\bmale\b|\bman\b|\bmen\b|boyfriend|男性/.test(`${gender} ${tags}`)) return 'male';
   return 'female';
 }

@@ -27,7 +27,7 @@ const DEFAULTS: SiteSettings = {
   telegram_url: 'https://t.me/soulmateai_support',
   x_url: 'https://x.com/soulmateai',
   discord_url: '',
-  footer_tagline: 'AI 女友养成 · 高 NSFW · 私密对话',
+  footer_tagline: 'AI 伴侣养成 · 高 NSFW · 私密对话',
   maintenance_mode: false,
   home_hot_limit: 12,
   recharge_banner_title: '充值活动 · 首充双倍点券',

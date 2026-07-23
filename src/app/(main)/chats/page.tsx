@@ -805,7 +805,7 @@ export default function ChatsPage() {
             <div className="flex flex-col items-center gap-4 p-8 text-center">
               <MessageCircle className="h-8 w-8 text-[#ff6ba6]/40" />
               <p className="text-sm text-white/40">还没有对话 · 去创建开始</p>
-              <button type="button" onClick={() => router.push('/create')} className="glass-btn !h-10 !px-4 text-sm">创建女友</button>
+              <button type="button" onClick={() => router.push('/create')} className="glass-btn !h-10 !px-4 text-sm">创建伴侣</button>
             </div>
           ) : (
             <ul className="divide-y divide-white/[0.05]">

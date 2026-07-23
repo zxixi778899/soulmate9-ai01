@@ -10,7 +10,7 @@ interface Message {
 }
 
 const QUICK_REPLIES_EN = [
-  'How do I create a girlfriend?',
+  'How do I create a companion?',
   'How does billing work?',
   'How to unlock NSFW chat?',
   'Image generation not working',
@@ -18,7 +18,7 @@ const QUICK_REPLIES_EN = [
 ];
 
 const QUICK_REPLIES_ZH = [
-  '怎么创建女友？',
+  '怎么创建伴侣？',
   '计费方式是什么？',
   '如何解锁 NSFW 聊天？',
   '图片生成不了',

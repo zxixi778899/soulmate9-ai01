@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-/** 推荐/热门已并入「女友与媒体」卡片开关 */
+/** 推荐/热门已并入「伴侣与媒体」卡片开关 */
 export default function FeaturedRedirectPage() {
   const router = useRouter();
   useEffect(() => {
@@ -10,7 +10,7 @@ export default function FeaturedRedirectPage() {
   }, [router]);
   return (
     <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-400">
-      推荐/热门已合并到「女友与媒体」…
+      推荐/热门已合并到「伴侣与媒体」…
     </div>
   );
 }

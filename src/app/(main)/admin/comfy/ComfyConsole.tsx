@@ -29,6 +29,7 @@ import {
   STUDIO_PROMPTS,
   type CompanionCategory,
 } from '@/lib/companion-category';
+import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
 import {
   assembleGirlfriendFromRow,
   GIRLFRIEND_NEGATIVE_FLUX,
@@ -430,7 +431,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       setConfig(data.config);
       const wf = data.config?.workflows?.find((w: Any) => w.id === 'wf-girlfriend')
         || data.config?.workflows?.[0];
-      // 有女友卡时只套参数，不写死通用 positive（避免盖住已调试提示词）
+      // 有伴侣卡时只套参数，不写死通用 positive（避免盖住已调试提示词）
       if (wf) applyWorkflow(wf, data.config, { preservePrompt: Boolean(girlfriendId) });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '加载失败');
@@ -480,10 +481,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         if (one) {
           // 强制使用已调试的 assembleGirlfriendFromRow，而不是字段逗号拼接
           fillPromptFromGirlfriend(one, { force: true, toastOn: true });
-          toast.message(`已载入女友：${one.name || girlfriendId}`);
+          toast.message(`已载入伴侣：${one.name || girlfriendId}`);
         }
       } catch {
-        if (!cancelled) toast.error('载入女友失败');
+        if (!cancelled) toast.error('载入伴侣失败');
       } finally {
         if (!cancelled) setGfLoading(false);
       }
@@ -519,13 +520,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     void c;
   }
 
-  /** 用已调试的女友卡提示词配方（特征+动作+环境+质量），覆盖通用工作流默认句 */
+  /** 用已调试的伴侣卡提示词配方（特征+动作+环境+质量），覆盖通用工作流默认句 */
   function fillPromptFromGirlfriend(row: Any, opts?: { force?: boolean; toastOn?: boolean }) {
     if (!row) return false;
     try {
-      const assembled = assembleGirlfriendFromRow(row as Record<string, unknown>, '', {
-        useEmptyNegative: false,
-      });
+      const assembled = buildCompanionGenerationPrompt(row as Record<string, unknown>, { adult: true });
       const nextPrompt = String(assembled.positive || '').trim();
       const nextNeg = String(assembled.negative || GIRLFRIEND_NEGATIVE_FLUX).trim();
       if (!nextPrompt) return false;
@@ -569,7 +568,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       }
 
       if (opts?.toastOn !== false) {
-        toast.success(`已套用女友卡提示词配方：${row.name || 'girlfriend'}`);
+        toast.success(`已套用伴侣卡提示词配方：${row.name || 'companion'}`);
       }
       return true;
     } catch (e) {
@@ -580,67 +579,23 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
 
   /** AI 优化提示词：随机画面/动作/环境（含 NSFW），保持人物特性 */
   const randomizePrompt = useCallback(() => {
-    const sfwActions = [
-      'leaning against a window with soft morning light, gazing at the viewer with a gentle smile',
-      'sitting on a cozy couch, tucking her legs under, holding a warm cup of tea',
-      'standing in a sunlit garden, wind blowing through her hair, laughing naturally',
-      'walking along a moonlit beach, barefoot, dress flowing in the breeze',
-      'dancing alone in a dimly lit room, eyes closed, lost in the music',
-      'sitting at a vanity mirror, applying lipstick, catching the viewer in the reflection',
-      'standing under a cherry blossom tree, petals falling, turning to look over her shoulder',
-      'lounging by a pool, sunglasses on, sipping a cocktail with a playful smirk',
-      'cooking in a kitchen, wearing an oversized shirt, tasting from a wooden spoon',
-      'reading a book in a window seat, curling up, glancing up with warm eyes',
-      'taking a mirror selfie in a stylish outfit, pouting at the camera',
-      'standing in the rain under an umbrella, looking up at the sky with a peaceful expression',
-      'sitting on a motorcycle, leather jacket, looking back with a confident grin',
-    ];
-    const nsfwActions = [
-      'lying on silk sheets in sheer lingerie, arching her back toward the viewer with inviting eyes',
-      'kneeling on the bed in an oversized shirt, biting her lip playfully',
-      'standing in a steamy shower, hands on the glass, water running down her bare body',
-      'bending over the kitchen counter in a lace apron, glancing back seductively',
-      'straddling a velvet armchair in stockings, beckoning the viewer with one finger',
-      'crawling across the bed toward the camera, hair falling forward, eyes locked on the viewer',
-      'sitting in a bubble bath, knees drawn up, candlelight flickering on wet skin',
-      'lying face down on silk sheets, bare back glistening, looking back over her shoulder',
-      'standing by the window at night in a see-through nightgown, city lights silhouetting her body',
-      'on all fours on a plush rug, chin tilted up, lips parted, waiting',
-      'playing with the strap of her bra under an open blazer, sitting on a desk',
-      'emerging from a hot spring, steam curling around her bare shoulders, blushing',
-      'dancing in lace underwear under warm lamplight, hands sliding down her hips',
-      'reclining on a couch in a silk robe falling open, one leg draped over the armrest',
-      'unzipping a fitted catsuit in a dim neon room, holding steady eye contact',
-    ];
-    const qualities = [
-      'photorealistic, 8k, raw photo, natural skin texture, film grain',
-      'masterpiece, best quality, ultra detailed, soft lighting, bokeh background',
-      'editorial photography, Vogue style, dramatic lighting, sharp focus',
-      'candid shot, natural lighting, shallow depth of field, warm tones',
-      'boudoir photography, intimate mood, golden hour glow, rich contrast',
-      'sensual atmosphere, cinematic color grading, fine art aesthetic, dramatic shadows',
-    ];
-    const pool = [...sfwActions, ...nsfwActions];
-    const action = pool[Math.floor(Math.random() * pool.length)];
-    const quality = qualities[Math.floor(Math.random() * qualities.length)];
-
-    // If a girlfriend is selected, preserve her character traits
-    const gf = scopedGirlfriend;
-    if (gf) {
-      try {
-        const assembled = assembleGirlfriendFromRow(gf as Record<string, unknown>, action, {
-          useEmptyNegative: false,
-        });
-        setPrompt(`${assembled.positive}, ${quality}`);
-        if (assembled.negative) setNegative(assembled.negative);
-      } catch {
-        setPrompt(`${action}, ${quality}`);
-      }
-    } else {
-      setPrompt(`A beautiful young woman, ${action}, ${quality}`);
-    }
-    toast.success('已生成 AI 优化提示词');
-  }, [scopedGirlfriend]);
+    const row = scopedGirlfriend || {
+      gender: companionCategory === 'male'
+        ? 'Male'
+        : companionCategory === 'transgender'
+          ? 'Transgender'
+          : 'Female',
+      appearance_style: companionCategory === 'anime' ? 'anime' : 'realistic',
+      age: 25,
+    };
+    const assembled = buildCompanionGenerationPrompt(row as Record<string, unknown>, {
+      adult: true,
+      random: Math.random(),
+    });
+    setPrompt(assembled.positive);
+    setNegative(assembled.negative);
+    toast.success('已生成伴侣专属随机动作提示词');
+  }, [companionCategory, scopedGirlfriend]);
 
   /** 一键调用：选中 LoRA + 强度 + 触发词写入提示词 */
   function applyLora(lora: Any, opts?: { appendTriggers?: boolean; goGenerate?: boolean }) {
@@ -729,10 +684,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     try {
       const res = await authedFetch('/api/admin/girlfriends?limit=100&sort=name&order=asc');
       const data = await readResponseJson(res).catch(() => ({} as Any));
-      if (!res.ok) throw new Error(data.error || '加载女友列表失败');
+      if (!res.ok) throw new Error(data.error || '加载伴侣列表失败');
       setBatchGirlfriends(Array.isArray(data.girlfriends) ? data.girlfriends : []);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '加载女友列表失败');
+      toast.error(error instanceof Error ? error.message : '加载伴侣列表失败');
     } finally {
       setBatchLoading(false);
     }
@@ -742,7 +697,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setBatchSelectedIds((current) => {
       if (current.includes(id)) return current.filter((item) => item !== id);
       if (current.length >= 20) {
-        toast.error('单次批量任务最多选择 20 位女友');
+        toast.error('单次批量任务最多选择 20 位伴侣');
         return current;
       }
       return [...current, id];
@@ -803,7 +758,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
 
   const runBatchGeneration = async () => {
     const selected = batchGirlfriends.filter((item) => batchSelectedIds.includes(String(item.id)));
-    if (!selected.length) return toast.error('请先选择需要生成的女友');
+    if (!selected.length) return toast.error('请先选择需要生成的伴侣');
     if (genMode === 'img2img' && !inputImage.trim()) return toast.error('批量图生图需要先上传参考图');
     const actionText = prompt.includes('. She is ') ? prompt.split('. She is ').slice(1).join('. She is ') : prompt;
     setBatchRunning(true);
@@ -817,7 +772,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       const name = String(girlfriend.name || id);
       setBatchProgress((items) => items.map((item) => item.id === id ? { ...item, status: 'running' } : item));
       try {
-        const assembled = assembleGirlfriendFromRow(girlfriend as Record<string, unknown>, actionText, { useEmptyNegative: false });
+        const assembled = buildCompanionGenerationPrompt(girlfriend as Record<string, unknown>, { action: actionText, adult: true });
         const res = await authedFetch('/api/admin/comfy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -867,7 +822,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setLastResult(generatedAssets);
     setBatchRunning(false);
     if (failed) toast.warning(`批量任务完成：成功 ${succeeded}，失败 ${failed}`);
-    else toast.success(`批量任务完成：${succeeded} 位女友全部生成成功`);
+    else toast.success(`批量任务完成：${succeeded} 位伴侣全部生成成功`);
   };
 
   const syncInstalled = async () => {
@@ -1177,13 +1132,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     <div className={embedded ? 'bg-transparent p-3 sm:p-4 text-slate-100' : 'min-h-screen bg-[#0b0f14] p-4 sm:p-6 text-slate-100'}>
       {girlfriendId ? (
         <div className="mb-4 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-sm text-violet-100">
-          {gfLoading ? '正在载入女友…' : scopedGirlfriend ? (
+          {gfLoading ? '正在载入伴侣…' : scopedGirlfriend ? (
             <span>
-              按女友创作：<strong>{scopedGirlfriend.name || girlfriendId}</strong>
+              按伴侣创作：<strong>{scopedGirlfriend.name || girlfriendId}</strong>
               <span className="ml-2 text-xs text-violet-200/70">资产写入 girlfriends/{girlfriendId}/ · 不进公共库</span>
             </span>
           ) : (
-            <span>按女友创作 · ID {girlfriendId}（资料未取到也可生成）</span>
+            <span>按伴侣创作 · ID {girlfriendId}（资料未取到也可生成）</span>
           )}
           <button
             type="button"
@@ -1198,7 +1153,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         </div>
       ) : (
         <div className="mb-4 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
-          公共创作模式：结果进入 comfy-outputs / 公共资产库。从「女友与媒体」点创作可切换为按卡隔离。
+          公共创作模式：结果进入 comfy-outputs / 公共资产库。从「伴侣与媒体」点创作可切换为按卡隔离。
         </div>
       )}
       {!embedded && (
@@ -1277,8 +1232,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <section className="rounded-xl border border-violet-500/40 bg-violet-950/20 p-3 shadow-lg shadow-violet-950/20">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="flex items-center gap-2 text-sm font-bold text-white"><Users className="h-4 w-4 text-violet-300" /> 批量生成女友</h2>
-                  <p className="mt-1 text-[11px] text-slate-300">逐个读取女友卡特征并生成，每张图片自动进入对应女友独立资源库。单次最多 20 位。</p>
+                  <h2 className="flex items-center gap-2 text-sm font-bold text-white"><Users className="h-4 w-4 text-violet-300" /> 批量生成伴侣</h2>
+                  <p className="mt-1 text-[11px] text-slate-300">逐个读取伴侣卡特征并生成，每张图片自动进入对应伴侣独立资源库。单次最多 20 位。</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button type="button" size="sm" variant="outline" disabled={batchRunning || batchLoading} onClick={() => {
@@ -1293,10 +1248,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
               <div className="relative mt-3">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
-                <Input value={batchSearch} onChange={(event) => setBatchSearch(event.target.value)} placeholder="搜索女友名字 / slug" className="h-9 border-slate-700 bg-slate-950 pl-8 text-sm" />
+                <Input value={batchSearch} onChange={(event) => setBatchSearch(event.target.value)} placeholder="搜索伴侣名字 / slug" className="h-9 border-slate-700 bg-slate-950 pl-8 text-sm" />
               </div>
               {batchLoading ? (
-                <div className="flex h-28 items-center justify-center text-sm text-slate-300"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 加载女友列表…</div>
+                <div className="flex h-28 items-center justify-center text-sm text-slate-300"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 加载伴侣列表…</div>
               ) : (
                 <div className="mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
                   {filteredBatchGirlfriends.map((item) => {
@@ -1353,7 +1308,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-white">正向提示词 · 人物 + 做什么</h2>
-                <p className="text-[11px] text-slate-300">使用自然语言描述成年 AI 女友及她正在进行的性感、妩媚或亲密动作。</p>
+                <p className="text-[11px] text-slate-300">使用自然语言描述成年 AI 伴侣及其正在进行的性感、妩媚或亲密动作。</p>
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="h-7 gap-1 border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10" onClick={randomizePrompt} title="随机生成优化提示词（保持人物特性，含 NSFW）">
@@ -1364,7 +1319,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
             </div>
             <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px]">
-              <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-500 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年女友。她正倚在床边，用妩媚的眼神邀请观众靠近。" />
+              <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-500 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年伴侣。她正倚在床边，用妩媚的眼神邀请观众靠近。" />
               <Button className="min-h-28 bg-slate-100 text-base font-bold !text-slate-950 hover:bg-white" disabled={generating} onClick={generate}>
                 {generating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
                 {generating ? '生成中…' : '生成'}
@@ -1458,12 +1413,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 </span>
                 <span className="text-[10px] opacity-80">
                   {identityConsistency
-                    ? girlfriendId ? '已锁定当前女友特征' : '需先选择女友卡'
+                    ? girlfriendId ? '已锁定当前伴侣特征' : '需先选择伴侣卡'
                     : '关闭'}
                 </span>
               </button>
               <p className="mt-1.5 text-[10px] leading-4 text-slate-400">
-                文生图优先使用女友卡肖像保持身份；图生图把上传图片作为姿势与构图参考，人物仍以女友卡的脸型、发色、眼睛和身材为准。
+                文生图优先使用伴侣卡肖像保持身份；图生图把上传图片作为姿势与构图参考，人物仍以伴侣卡的脸型、发色、眼睛和身材为准。
               </p>
             </div>
 
@@ -2142,7 +2097,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           <li>左侧参数（文生图 / 图生图），右侧输出预览；说明固定在页面底部。</li>
           <li>LoRA 须对应网络卷 models/loras/ 真实文件名；● 盘上可调，未安装会在服务端回退。</li>
           <li>下载：模型库导出 lora-urls.txt → RunPod downloader → 在 LORA_REGISTRY 添加条目或设置 RUNPOD_INSTALLED_LORAS → 同步盘状态。</li>
-          <li>女友模式写入 girlfriends/&#123;id&#125;/；公共模式写入 comfy-outputs。</li>
+          <li>伴侣模式写入 girlfriends/&#123;id&#125;/；公共模式写入 comfy-outputs。</li>
           <li>当前仅展示已接通的文生图与图生图；采样器、调度器、Steps、CFG、Seed 和 LoRA 均写入真实工作流。</li>
         </ol>
       </footer>

@@ -391,7 +391,7 @@ export default function HomePage() {
 
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Companion categories">
           <button type="button" onClick={() => { setCategoryFilter('all'); setFocus(0); }} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === 'all' ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55')}>{locale === 'zh' ? '全部' : 'All'}</button>
-          {COMPANION_CATEGORIES.map((category) => <button key={category} type="button" onClick={() => { setCategoryFilter(category); setFocus(0); }} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === category ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55')}>{locale === 'zh' ? COMPANION_CATEGORY_LABELS[category].zh : COMPANION_CATEGORY_LABELS[category].en}</button>)}
+          {COMPANION_CATEGORIES.map((category) => <button key={category} type="button" onClick={() => { setCategoryFilter(category); setFocus(0); }} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === category ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55')}>{COMPANION_CATEGORY_LABELS[category][locale]}</button>)}
         </div>
 
         {/* Guest conversion strip */}

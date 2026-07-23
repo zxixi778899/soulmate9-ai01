@@ -21,7 +21,7 @@ import {
 import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
-import { assembleGirlfriendFromRow } from '@/lib/prompt/girlfriend';
+import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -843,7 +843,7 @@ if (body.action === 'generate') {
         : body.input_image
           ? Number(wf?.defaults.denoise ?? 0.55)
           : 1;
-    const negative = String(
+    let negative = String(
       body.negative || wf?.defaults.negative || 'blurry, low quality, watermark',
     );
     const kind = body.kind || wf?.kind || 'custom';
@@ -862,7 +862,12 @@ if (body.action === 'generate') {
           error: girlfriendError.message,
         });
       } else if (girlfriend) {
-        prompt = assembleGirlfriendFromRow(girlfriend, prompt).positive;
+        const companionPrompt = buildCompanionGenerationPrompt(girlfriend, {
+          action: prompt,
+          adult: true,
+        });
+        prompt = companionPrompt.positive;
+        negative = companionPrompt.negative;
         consistencyReference = String(
           girlfriend.portrait_url || girlfriend.avatar_url || girlfriend.card_url || '',
         ).trim();

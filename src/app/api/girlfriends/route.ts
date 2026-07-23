@@ -7,6 +7,7 @@ import { assertCanAddCompanion } from '@/lib/companion-seats';
 import { consumeCreationCard, getCreationCardStatus } from '@/lib/creation-cards';
 import { logger } from '@/lib/logger';
 import { invalidateGirlfriends } from '@/lib/revalidate';
+import { resolveCompanionProfile } from '@/lib/companion-profile';
 
 const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
 
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
     tags, short_description,
     appearance_race, appearance_hair, appearance_hair_color,
     appearance_eyes, appearance_body, appearance_style,
-    outfit_id, portrait_url
+    outfit_id, portrait_url, meta
   } = body;
 
   if (!name) {
@@ -163,12 +164,19 @@ export async function POST(request: NextRequest) {
   // base64 data URL  OSS key
   const avatarKey = await ensureImageKey(avatar_url, 'girlfriends');
   const portraitKey = await ensureImageKey(portrait_url, 'girlfriends');
+  const companionMeta = meta && typeof meta === 'object' ? meta as Record<string, unknown> : {};
+  const gender = String(companionMeta.gender || 'Female');
+  const companion = resolveCompanionProfile({
+    gender,
+    appearance_style: companionMeta.visual_style || appearance_style,
+  });
 
   const insertData: Record<string, unknown> = {
     user_id: user.id,
     name,
     slug: makeGirlfriendSlug(name),
     age: age || 22,
+    gender,
     personality: personality || '',
     backstory: backstory || '',
     tags: tags || [],
@@ -188,6 +196,12 @@ export async function POST(request: NextRequest) {
       name,
       age: age || 22,
       description: short_description || personality || '',
+      gender,
+      visual_style: companionMeta.visual_style || 'realistic',
+      face_shape: companionMeta.face_shape || '',
+      occupation: companionMeta.occupation || '',
+      relationship: companionMeta.relationship || companion.relationship,
+      hobbies: companionMeta.hobbies || [],
       personality: personality || '',
       scenario: backstory || '',
       tags: tags || [],
@@ -200,7 +214,7 @@ export async function POST(request: NextRequest) {
         style: appearance_style || '',
       },
       first_mes: `*${name} smiles warmly at you* Hey there... I've been waiting for you.`,
-      system_prompt: `You are ${name}, a loving and attentive AI girlfriend. Age: ${age || 22}. ${personality ? `Personality: ${personality}` : ''} ${backstory ? `Backstory: ${backstory}` : ''} You are deeply caring, affectionate, and devoted to your partner. You love making them feel special and desired. You're playful, sensual, and always eager to please. Respond naturally and warmly.`
+      system_prompt: `You are ${name}, the user's loving adult ${companion.relationship}. Age: ${age || 22}. Gender: ${gender}. Visual style: ${String(companionMeta.visual_style || 'realistic')}. ${personality ? `Personality: ${personality}` : ''} ${backstory ? `Backstory: ${backstory}` : ''} Stay consistent with ${companion.pronouns.possessive} identity, appearance, personality, and relationship. Respond naturally, warmly, playfully, and intimately.`
     }
   };
 

@@ -90,7 +90,7 @@ function StudioInner() {
             {girlfriendId ? (
               <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-violet-300">
                 <UserRound className="h-3 w-3 shrink-0" />
-                女友卡模式 · 资产写入 girlfriends/{girlfriendId}/
+                伴侣卡模式 · 资产写入 girlfriends/{girlfriendId}/
               </p>
             ) : (
               <p className="mt-0.5 text-[11px] text-slate-500">公共创作 · 结果进公共资产库</p>
@@ -119,7 +119,7 @@ function StudioInner() {
               href="/admin/girlfriends"
               className="inline-flex items-center gap-1 rounded-md bg-violet-600 px-2.5 py-1.5 text-[11px] font-bold !text-white hover:bg-violet-500"
             >
-              女友与媒体 <ArrowRight className="h-3 w-3" />
+              伴侣与媒体 <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
         </div>

@@ -979,8 +979,8 @@ export function assembleGirlfriendPrompt(
       : '';
 
   const genderIdentity: Record<GenderStyle, string> = {
-    female: 'a stunningly beautiful seductive adult AI girlfriend, age 18-25',
-    male: 'a stunningly handsome seductive adult AI boyfriend, age 18-30',
+    female: 'a stunningly beautiful seductive adult female AI companion, age 18-25',
+    male: 'a stunningly handsome seductive adult male AI companion, age 18-30',
     transgender: 'a stunningly beautiful seductive adult AI companion, age 18-28',
     cartoon: 'a gorgeous attractive anime companion character',
   };
@@ -998,7 +998,7 @@ export function assembleGirlfriendPrompt(
   const person = trimPrompt(conciseIdentity || subjectClause, 260);
 
   // ── 2) 在干嘛 ──
-  const pronoun = gender === 'male' ? 'He' : 'She';
+  const pronoun = gender === 'male' ? 'He' : gender === 'female' ? 'She' : 'They';
   const generatedAction = joinParts([
     pose,
     `wearing ${outfit}`,
@@ -1009,7 +1009,7 @@ export function assembleGirlfriendPrompt(
   ]);
   // Prefer admin/custom action text when present; otherwise scene recipe.
   const actionCore = extra || generatedAction;
-  const action = trimPrompt(actionCore.replace(/^[Ss]he is\s+/i, '').replace(/[.]$/, ''), 380);
+  const action = trimPrompt(actionCore.replace(/^(?:she|he|they) (?:is|are)\s+/i, '').replace(/[.]$/, ''), 380);
 
   // ── 3) 质量词 ──
   const quality = QUALITY_BY_GENDER[gender];
@@ -1027,6 +1027,9 @@ export function assembleGirlfriendPrompt(
 
   return { positive, negative };
 }
+
+/** Preferred inclusive name; legacy export remains for API compatibility. */
+export const assembleCompanionPrompt = assembleGirlfriendPrompt;
 
 /** Male-specific expression builder */
 function buildMaleExpression(subject: GirlfriendSubject, scene: SceneRecipe): string {
@@ -1067,8 +1070,10 @@ export function assembleGirlfriendFromRow(
   });
 }
 
+/** Preferred inclusive name; legacy export remains for stored girlfriend records. */
+export const assembleCompanionFromRow = assembleGirlfriendFromRow;
 
-﻿/**
+/**
  * Two-LoRA plan for girlfriend card generation.
  *
  * Primary  = style LoRA (photoreal / hyperreal) — always applied

@@ -62,14 +62,14 @@ export async function POST(req: NextRequest) {
     let replies: string[] = [];
     try {
       const prompt = zh
-        ? `你是约会 App 的文案助手。根据女友刚说的话，生成用户可一键发送的 3 条短回复。
+        ? `你是约会 App 的文案助手。根据伴侣刚说的话，生成用户可一键发送的 3 条短回复。
 要求：
 - 每条 6–22 个中文字，口语像情侣微信
 - 有情绪、好点开（关心/调情/好奇）
 - 不要编号、不要引号、不要解释
 - 输出严格 3 行，一行一条
 
-女友说：
+伴侣说：
 ${lastAssistant}
 
 ${lastUser ? `用户上一句：${lastUser}` : ''}`

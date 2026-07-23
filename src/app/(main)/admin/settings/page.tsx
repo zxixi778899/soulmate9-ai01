@@ -142,7 +142,7 @@ export default function AdminSettingsPage() {
           <CardContent className="p-5 space-y-4">
             <div className="text-sm font-semibold text-[#1E293B]">首页运营</div>
             <div>
-              <Label>热门女友数量</Label>
+              <Label>热门伴侣数量</Label>
               <Input
                 type="number"
                 value={settings.home_hot_limit}

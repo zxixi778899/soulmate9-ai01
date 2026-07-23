@@ -325,7 +325,7 @@ export default function CreatePage() {
     try {
       const relOpts = getOpts('relationship');
       const relMeta = relOpts.find(r => r.value === relationship);
-      const relLabel = relMeta ? getLabel(relMeta, locale) : (zh ? '女友' : 'Girlfriend');
+      const relLabel = relMeta ? getLabel(relMeta, locale) : (zh ? '伴侣' : 'Girlfriend');
       const relDesc = relMeta ? getExtra(relMeta, 'desc', locale) : '';
 
       const fullCharacterCard = [

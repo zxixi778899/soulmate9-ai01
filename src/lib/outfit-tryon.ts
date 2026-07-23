@@ -1,6 +1,6 @@
 /**
  * Simple virtual try-on:
- *   女友图 (face/body consistency) + 服装描述/服装图 = 换装结果图
+ *   伴侣图 (face/body consistency) + 服装描述/服装图 = 换装结果图
  *
  * Stack: RunPod FLUX img2img (girl as reference) + strong clothing prompt.
  * Outfit preview image is used as style text cue (full dual-image VTON needs extra Comfy nodes).
@@ -90,7 +90,7 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
   if (!girlImage) {
     return {
       ok: false,
-      error: '该女友还没有肖像图，请先生成或上传一张形象图再换装',
+      error: '该伴侣还没有肖像图，请先生成或上传一张形象图再换装',
     };
   }
 
