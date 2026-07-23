@@ -146,6 +146,19 @@ const BACKSTORIES = [
   'Writer who published her first novel at 25. Draws inspiration from her quirky observations of everyday life.',
 ];
 
+//  Gender Pools 
+const GENDERS = ['Female', 'Male', 'Transgender'] as const;
+type Gender = (typeof GENDERS)[number];
+
+const MALE_FIRST_NAMES = [
+  'James', 'Liam', 'Noah', 'Ethan', 'Lucas', 'Mason', 'Logan', 'Alexander', 'Daniel', 'Henry',
+  'Sebastian', 'Jack', 'Owen', 'Samuel', 'Ryan', 'Nathan', 'Caleb', 'Dylan', 'Luke', 'Gabriel',
+  'Marcus', 'Adrian', 'Julian', 'Dominic', 'Xavier', 'Tristan', 'Cole', 'Blake', 'Hunter', 'Levi',
+  'Maxwell', 'Austin', 'Jordan', 'Chase', 'Ian', 'Tyler', 'Brandon', 'Zachary', 'Connor', 'Derek',
+  'Dante', 'Rafael', 'Marco', 'Andrei', 'Viktor', 'Nikolai', 'Sergei', 'Dmitri', 'Aleksandr', 'Mikhail',
+  'Diego', 'Santiago', 'Mateo', 'Emiliano', 'Joaquin', 'Rodrigo', 'Tomas', 'Bruno', 'Felipe', 'Nicolas',
+];
+
 //  Relationship Roles (immersive settings) 
 const ROLES = [
   { role: 'coworker', label: '', desc: 'Your new colleague who sits across from you. Late nights at the office lead to unexpected conversations over coffee.' },
@@ -164,6 +177,24 @@ const ROLES = [
   { role: 'travel_companion', label: '', desc: 'You met by chance while traveling solo. What was supposed to be a one-time encounter turned into daily calls.' },
   { role: 'landlord_daughter', label: '', desc: 'She helps her parents manage the apartment building. Fixing that leaky faucet gave you an excuse to see her again.' },
   { role: 'music_teacher', label: '', desc: 'She teaches piano at the music school nearby. Your lessons became the highlight of your week.' },
+];
+
+const MALE_ROLES = [
+  { role: 'coworker', label: '男同事', desc: 'Your new colleague who sits across from you. Late nights at the office lead to unexpected conversations over coffee.' },
+  { role: 'neighbor', label: '男邻居', desc: 'The attractive man who lives next door. You keep running into each other in the hallway and elevator.' },
+  { role: 'classmate', label: '男同学', desc: 'Your former classmate from university. You reconnected on social media and started chatting again.' },
+  { role: 'gym_partner', label: '健身搭子', desc: 'You see him at the gym every morning. He spotted you once, and now you always work out together.' },
+  { role: 'barista', label: '咖啡师', desc: 'The charming barista at your favorite cafe. He always remembers your order and slips little notes into your cup.' },
+  { role: 'personal_trainer', label: '私教', desc: 'Your personal fitness trainer. He pushes you hard but celebrates every milestone with you.' },
+  { role: 'photographer', label: '摄影师', desc: 'A freelance photographer who offered to take your portrait. The photo sessions became your favorite time together.' },
+  { role: 'bookstore_owner', label: '书店老板', desc: 'He runs the cozy bookstore down the street. You started visiting daily just to talk to him.' },
+  { role: 'childhood_friend', label: '青梅竹马', desc: 'You have known him since you were kids. Over the years, friendship slowly turned into something more.' },
+  { role: 'travel_companion', label: '旅伴', desc: 'You met by chance while traveling solo. What was supposed to be a one-time encounter turned into daily calls.' },
+  { role: 'music_teacher', label: '音乐老师', desc: 'He teaches guitar at the music school nearby. Your lessons became the highlight of your week.' },
+  { role: 'bartender', label: '调酒师', desc: 'The charismatic bartender at your favorite lounge. He always knows exactly what you need after a long day.' },
+  { role: 'tutor', label: '家教', desc: 'Your private tutor who makes every subject fascinating. Study sessions became the best part of your week.' },
+  { role: 'chef', label: '厨师', desc: 'The talented chef at the restaurant downstairs. He started cooking special dishes just for you.' },
+  { role: 'lifeguard', label: '救生员', desc: 'The attentive lifeguard at the pool. He always keeps an eye on you, and now you swim just to see him.' },
 ];
 
 // 50+ tags (more diverse)
@@ -189,20 +220,66 @@ function pickN<T>(arr: T[], n: number): T[] {
 
 // slug generation lives in @/lib/girlfriend-slug
 
+//  Male-specific data pools 
+const MALE_OCCUPATIONS = [
+  'model', 'actor', 'dancer', 'singer', 'photographer', 'artist', 'designer', 'architect',
+  'doctor', 'surgeon', 'therapist', 'psychologist', 'professor', 'researcher', 'scientist',
+  'lawyer', 'journalist', 'writer', 'engineer', 'software developer', 'entrepreneur', 'CEO', 'consultant',
+  'chef', 'bartender', 'pilot', 'personal trainer', 'firefighter', 'police officer', 'military officer',
+  'professional athlete', 'football player', 'basketball player', 'swimmer', 'boxer', 'MMA fighter',
+  'music producer', 'DJ', 'guitarist', 'pianist', 'film director', 'screenwriter',
+];
+
+const MALE_BODY_TYPES = [
+  'lean and muscular', 'tall and athletic', 'broad-shouldered and toned', 'slim and wiry',
+  'muscular and defined', 'tall and lean', 'compact and powerful', 'swimmer build',
+  'rugby player build', 'boxer physique', 'lean with visible abs', 'strong and stocky',
+  'tall with long limbs', 'athletic V-taper', 'fit and toned', 'naturally muscular',
+  'slender and graceful', 'powerful and imposing', 'wiry and agile', 'well-proportioned',
+];
+
+const MALE_HAIR_STYLES = [
+  'short cropped', 'textured fade', 'undercut', 'slicked back', 'messy quiff',
+  'buzz cut', 'medium length wavy', 'long tied back', 'curly top', 'side part',
+  'pompadour', 'crew cut', 'tousled medium', 'straight and neat', 'spiky',
+  'man bun', 'shoulder-length', 'windswept', 'natural waves', 'clean shave with short hair',
+];
+
+const MALE_HAIR_COLORS = [
+  'dark brown', 'jet black', 'light brown', 'blonde', 'dirty blonde',
+  'auburn', 'ginger', 'salt and pepper', 'platinum blonde', 'ash brown',
+  'chestnut', 'copper', 'silver gray', 'honey blonde', 'dark black',
+];
+
+const MALE_EYE_COLORS = [
+  'deep brown', 'warm brown', 'steel blue', 'ocean blue', 'piercing gray',
+  'emerald green', 'hazel', 'amber', 'dark and intense', 'light blue',
+  'forest green', 'golden brown', 'storm gray', 'ice blue', 'copper',
+];
+
+const MALE_STYLES = [
+  'casual masculine', 'suited and sharp', 'sporty athletic', 'rugged outdoorsy', 'minimalist clean',
+  'streetwear', 'classic gentleman', 'edgy rock', 'preppy', 'bohemian artist',
+];
+
 //  Generate a unique girlfriend 
-function generateGirlfriend(userId: string) {
-  const firstName = pick(FIRST_NAMES);
+function generateGirlfriend(userId: string, gender?: Gender) {
+  // Resolve gender: use provided, or random
+  const resolvedGender: Gender = gender || pick([...GENDERS]);
+  const isMale = resolvedGender === 'Male';
+
+  const firstName = isMale ? pick(MALE_FIRST_NAMES) : pick(FIRST_NAMES);
   const lastName = pick(LAST_NAMES);
   const fullName = `${firstName} ${lastName}`;
-  const occupation = pick(OCCUPATIONS);
-  const roleData = pick(ROLES);
+  const occupation = isMale ? pick(MALE_OCCUPATIONS) : pick(OCCUPATIONS);
+  const roleData = isMale ? pick(MALE_ROLES) : pick(ROLES);
 
-  const hairStyle = pick(HAIR_STYLES);
-  const hairColor = pick(HAIR_COLORS);
-  const eyeColor = pick(EYE_COLORS);
-  const bodyType = pick(BODY_TYPES);
+  const hairStyle = isMale ? pick(MALE_HAIR_STYLES) : pick(HAIR_STYLES);
+  const hairColor = isMale ? pick(MALE_HAIR_COLORS) : pick(HAIR_COLORS);
+  const eyeColor = isMale ? pick(MALE_EYE_COLORS) : pick(EYE_COLORS);
+  const bodyType = isMale ? pick(MALE_BODY_TYPES) : pick(BODY_TYPES);
   const race = pick(RACES);
-  const style = pick(['casual chic', 'elegant', 'sporty', 'bohemian', 'minimalist', 'trendy', 'classic', 'edgy', 'glamorous', 'street style']);
+  const style = isMale ? pick(MALE_STYLES) : pick(['casual chic', 'elegant', 'sporty', 'bohemian', 'minimalist', 'trendy', 'classic', 'edgy', 'glamorous', 'street style']);
 
   const personality = pick(PERSONALITIES);
   const backstory = pick(BACKSTORIES);
@@ -214,6 +291,13 @@ function generateGirlfriend(userId: string) {
   // Build backstory that includes occupation and role
   const fullBackstory = `${roleData.desc} ${backstory} Works as a ${occupation}. ${personality}`;
 
+  // Gender-aware subject descriptor for prompt
+  const subjectDescriptor = isMale
+    ? `A strikingly handsome ${roleData.label || 'man'} figure`
+    : resolvedGender === 'Transgender'
+      ? `A breathtakingly beautiful transgender ${roleData.label || 'companion'} figure`
+      : `A breathtakingly beautiful ${roleData.label || 'woman'} figure`;
+
   // Build character_card with full profile info
   const characterCard = {
     title: fullName,
@@ -222,6 +306,7 @@ function generateGirlfriend(userId: string) {
     role: roleData.role,
     role_label: roleData.label,
     occupation: occupation,
+    gender: resolvedGender,
     appearance: {
       race: race,
       hair_style: hairStyle,
@@ -231,12 +316,13 @@ function generateGirlfriend(userId: string) {
       style: style,
     },
     personality: personality,
-    prompt: `A breathtakingly beautiful ${roleData.label} figure, ${appearanceDescription}, wearing ${style} outfit, ${personality.toLowerCase()} expression, professional photography, natural lighting, sharp focus, 8K UHD`,
+    prompt: `${subjectDescriptor}, ${appearanceDescription}, wearing ${style} outfit, ${personality.toLowerCase()} expression, professional photography, natural lighting, sharp focus, 8K UHD`,
   };
 
   return {
     user_id: userId,
     name: fullName,
+    gender: resolvedGender,
     slug: makeGirlfriendSlug(fullName),
     personality: personality,
     backstory: fullBackstory,
@@ -269,11 +355,14 @@ export async function POST(request: NextRequest) {
     const userId = guard.user!.id;
     const body = await request.json();
     const count = Math.min(Math.max(body.count || 1, 1), 10);
+    // gender: 'Female' | 'Male' | 'Transgender' | 'random' (omit or 'random' = random per character)
+    const rawGender = String(body.gender || 'random');
+    const gender: Gender | undefined = GENDERS.includes(rawGender as Gender) ? (rawGender as Gender) : undefined;
 
-    logger.info('admin/girlfriends/batch: creating', { count, userId });
+    logger.info('admin/girlfriends/batch: creating', { count, userId, gender: gender || 'random' });
 
-    // Generate multiple girlfriends
-    const girlfriends = Array.from({ length: count }, () => generateGirlfriend(userId));
+    // Generate multiple girlfriends with specified or random gender
+    const girlfriends = Array.from({ length: count }, () => generateGirlfriend(userId, gender));
 
     // Insert into database
     const proxyUrl = process.env.COZE_SUPABASE_URL;

@@ -294,6 +294,12 @@ function AdminGirlfriendsMediaPageInner() {
   const [girlfriendAssets, setGirlfriendAssets] = useState<Array<{ id?: string; url?: string; preview_url?: string; storage_key?: string }>>([]);
   const [girlfriendAssetsLoading, setGirlfriendAssetsLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Batch create state
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchCount, setBatchCount] = useState(5);
+  const [batchGender, setBatchGender] = useState<'Female' | 'Male' | 'Transgender' | 'random'>('random');
+  const [batchMode, setBatchMode] = useState<'random' | 'llm'>('random');
+  const [batchLoading, setBatchLoading] = useState(false);
 
   useEffect(() => {
     const f = searchParams.get('filter');
@@ -458,6 +464,44 @@ function AdminGirlfriendsMediaPageInner() {
       base_kink: rnd.base_kink,
     }));
     toast.message('已为本卡随机生成基础参数（保存后生效）');
+  };
+
+  const handleBatchCreate = async () => {
+    setBatchLoading(true);
+    try {
+      let res: Response;
+      if (batchMode === 'llm') {
+        // LLM-powered batch create
+        res = await authedFetch('/api/admin/girlfriends', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            batch: true,
+            count: batchCount,
+            gender: batchGender === 'random' ? 'Female' : batchGender,
+          }),
+        });
+      } else {
+        // Random data pool batch create
+        res = await authedFetch('/api/v2/admin/girlfriends/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            count: batchCount,
+            gender: batchGender,
+          }),
+        });
+      }
+      const data = await readResponseJson<{ error?: string; count?: number; success?: boolean }>(res);
+      if (!res.ok) throw new Error(data.error || '批量新建失败');
+      toast.success(`成功批量新建 ${data.count || batchCount} 个角色`);
+      setBatchOpen(false);
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '批量新建失败');
+    } finally {
+      setBatchLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -749,6 +793,9 @@ function AdminGirlfriendsMediaPageInner() {
               </Button>
               <Button className="bg-rose-600 hover:bg-rose-500" onClick={openCreate}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" /> 新建女友
+              </Button>
+              <Button variant="outline" className="border-emerald-400/40 bg-emerald-500/10 text-emerald-100" onClick={() => setBatchOpen(true)}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" /> 批量新建
               </Button>
               <Link href="/admin/studio">
                 <Button variant="outline" className="border-violet-400/40 bg-violet-500/10 text-violet-100">
@@ -1322,6 +1369,68 @@ function AdminGirlfriendsMediaPageInner() {
             >
               {randomizing && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               确认随机分配
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Create Dialog */}
+      <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
+        <DialogContent className="border-emerald-400/30 bg-slate-950 text-slate-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>批量新建角色</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              使用随机数据或 AI 批量生成角色档案，支持指定性别。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>生成模式</Label>
+              <Select value={batchMode} onValueChange={(v) => setBatchMode(v as 'random' | 'llm')}>
+                <SelectTrigger className="border-white/10 bg-black/30">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="random">随机数据池（快速）</SelectItem>
+                  <SelectItem value="llm">AI 生成（更丰富）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>性别</Label>
+              <Select value={batchGender} onValueChange={(v) => setBatchGender(v as typeof batchGender)}>
+                <SelectTrigger className="border-white/10 bg-black/30">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="random">随机（混合性别）</SelectItem>
+                  <SelectItem value="Female">女性</SelectItem>
+                  <SelectItem value="Male">男性</SelectItem>
+                  <SelectItem value="Transgender">跨性别</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>数量（1-10）</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={batchCount}
+                onChange={(e) => setBatchCount(Math.min(10, Math.max(1, Number(e.target.value) || 1)))}
+                className="border-white/10 bg-black/30"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setBatchOpen(false)}>取消</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-500"
+              onClick={() => void handleBatchCreate()}
+              disabled={batchLoading}
+            >
+              {batchLoading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              开始生成
             </Button>
           </DialogFooter>
         </DialogContent>
