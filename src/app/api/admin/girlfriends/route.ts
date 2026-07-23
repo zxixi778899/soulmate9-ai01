@@ -10,6 +10,7 @@ import {
   clampTrait,
   randomizeGirlfriendTraits,
 } from '@/lib/girlfriend-traits';
+import { generateText } from '@/lib/llm-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -800,57 +801,20 @@ Generate EXACTLY ${count} characters. Use ONLY English.`;
 
   const userPrompt = `Generate ${count} unique, diverse ${gender === 'Male' ? 'male companion' : gender === 'Transgender' ? 'transgender companion' : 'girlfriend'} characters. Make each one unforgettable.`;
 
-  // Direct HTTP LLM call (bypass SDK to avoid "Missing credentials" issue)
-  const API_BASE = process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn';
-  const API_KEY = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || '';
-  if (!API_KEY) {
-    return NextResponse.json({ error: 'LLM credentials not configured' }, { status: 500 });
-  }
-
-  const llmRes = await fetch(`${API_BASE}/api/v3/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'doubao-seed-2-0-pro-260215',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+  // Use shared LLM service (RunPod vLLM primary, Together fallback)
+  let text = '';
+  try {
+    text = await generateText({
+      systemPrompt,
+      prompt: userPrompt,
       temperature: 0.95,
-      max_tokens: 2048,
-      stream: false,
-    }),
-  });
-
-  if (!llmRes.ok) {
-    const errText = await llmRes.text().catch(() => 'unknown');
-    return NextResponse.json({ error: `[LLM_DIRECT] LLM API error (${llmRes.status}): ${errText}` }, { status: 500 });
+      maxTokens: 2048,
+    });
+  } catch (llmErr) {
+    const msg = llmErr instanceof Error ? llmErr.message : String(llmErr);
+    logger.error('[admin/girlfriends] batch LLM generation failed', { err: msg });
+    return NextResponse.json({ error: `LLM generation failed: ${msg}` }, { status: 500 });
   }
-
-  // Parse SSE response
-  const reader = llmRes.body?.getReader();
-  if (!reader) return NextResponse.json({ error: 'No response body' }, { status: 500 });
-  const decoder = new TextDecoder();
-  let fullContent = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    for (const line of chunk.split('\n')) {
-      if (line.startsWith('data: ')) {
-        try {
-          const parsed = JSON.parse(line.slice(6));
-          const delta = parsed?.choices?.[0]?.delta?.content;
-          if (delta) fullContent += delta;
-        } catch { /* skip non-JSON lines */ }
-      }
-    }
-  }
-
-  const text = fullContent.trim();
 
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
