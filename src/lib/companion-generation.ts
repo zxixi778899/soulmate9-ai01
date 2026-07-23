@@ -1,4 +1,4 @@
-import { STUDIO_PROMPTS, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
+import { HIGH_NSFW_PROMPT, STUDIO_PROMPTS, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
 import { assembleGirlfriendFromRow } from '@/lib/prompt/girlfriend';
 
@@ -71,7 +71,7 @@ export function buildCompanionGenerationPrompt(
     baseInfo,
     action,
     quality,
-    positive: `${assembled.positive}, ${quality}`,
+    positive: `${assembled.positive}, ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}, ${quality}`,
     negative: `${assembled.negative}, ${preset.negative}`,
   };
 }

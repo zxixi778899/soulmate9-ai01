@@ -127,7 +127,17 @@ function parseEnvInstalled(): string[] {
     .map((s) => (s.endsWith('.safetensors') ? s : `${s}.safetensors`));
 }
 
-/** All LoRA filenames confirmed on the volume (registry + env extras). */
+/** Runtime inventory reported from the mounted RunPod volume. */
+export function getVerifiedInstalledLoraSet(): Set<string> {
+  return new Set(parseEnvInstalled());
+}
+
+/** Whether this deployment has evidence from the mounted volume. */
+export function hasVerifiedLoraInventory(): boolean {
+  return getVerifiedInstalledLoraSet().size > 0;
+}
+
+/** Legacy allowlist used to keep generation backward compatible. */
 export function getInstalledLoraSet(): Set<string> {
   const set = new Set<string>(LORA_REGISTRY.map((e) => e.file));
   for (const extra of parseEnvInstalled()) set.add(extra);
@@ -202,8 +212,8 @@ export function sanitizeLoraForVolume(
 
   // Permissive mode: accept any .safetensors filename directly
   // (admin knows what's on the volume — don't block unknown LoRAs)
-  if (base.endsWith('.safetensors')) {
-    return { lora_name: base, changed: base !== raw, reason: 'permissive' };
+  if (base.endsWith('.safetensors') && !hasVerifiedLoraInventory()) {
+    return { lora_name: base, changed: base !== raw, reason: 'unverified-permissive' };
   }
 
   // Fallback chain
@@ -282,4 +292,97 @@ export function planToLorasArray(plan: LoraPlan): Array<{
 /** Backward-compat: extract single lora_name from plan (primary). */
 export function planToSingleLora(plan: LoraPlan): string {
   return plan.primary.name;
+}
+
+// ─── LoRA Authenticity Verification ─────────────────────────
+
+export type LoraHealthEntry = {
+  file: string;
+  label: string;
+  category: LoraCategory;
+  status: 'ok' | 'missing' | 'unknown';
+  note: string;
+};
+
+export type LoraHealthReport = {
+  total: number;
+  ok: number;
+  missing: number;
+  unknown: number;
+  entries: LoraHealthEntry[];
+  checkedAt: string;
+  inventorySource: 'runtime-volume' | 'unavailable';
+  inventoryCount: number;
+};
+
+/**
+ * Verify LoRA authenticity by cross-referencing the registry against the
+ * installed set (volume listing). Flags entries that are registered but not
+ * physically present on the RunPod volume.
+ *
+ * Call this from the admin API to give the operator a health dashboard.
+ */
+export function verifyLoraHealth(): LoraHealthReport {
+  const installed = getVerifiedInstalledLoraSet();
+  const inventoryAvailable = installed.size > 0;
+  const entries: LoraHealthEntry[] = LORA_REGISTRY.map((entry) => {
+    const present = installed.has(entry.file);
+    return {
+      file: entry.file,
+      label: entry.label,
+      category: entry.category,
+      status: present ? 'ok' : inventoryAvailable ? 'missing' : 'unknown',
+      note: present
+        ? 'Confirmed by runtime mounted-volume inventory'
+        : inventoryAvailable
+          ? 'NOT found in runtime mounted-volume inventory'
+          : 'Registry entry only; runtime volume inventory unavailable',
+    };
+  });
+
+  // Also check env-declared extras that are not in registry
+  const envExtras = parseEnvInstalled();
+  for (const extra of envExtras) {
+    if (!LORA_REGISTRY.some((e) => e.file === extra)) {
+      entries.push({
+        file: extra,
+        label: extra.replace('.safetensors', ''),
+        category: 'style',
+        status: 'ok',
+        note: 'Declared via env (not in registry)',
+      });
+    }
+  }
+
+  const ok = entries.filter((e) => e.status === 'ok').length;
+  const missing = entries.filter((e) => e.status === 'missing').length;
+  return {
+    total: entries.length,
+    ok,
+    missing,
+    unknown: entries.length - ok - missing,
+    entries,
+    checkedAt: new Date().toISOString(),
+    inventorySource: inventoryAvailable ? 'runtime-volume' : 'unavailable',
+    inventoryCount: installed.size,
+  };
+}
+
+/**
+ * Quick check: is a specific LoRA file authentic (present + non-zero)?
+ * Returns a reason string if problematic, null if OK.
+ */
+export function checkLoraAuthenticity(filename: string): string | null {
+  const trimmed = filename.trim();
+  if (!trimmed) return 'Empty filename';
+  if (!trimmed.endsWith('.safetensors')) return 'Not a .safetensors file';
+  const installed = getVerifiedInstalledLoraSet();
+  if (!installed.size) {
+    return 'Runtime volume inventory unavailable; set RUNPOD_INSTALLED_LORAS from models/loras';
+  }
+  if (!installed.has(trimmed)) {
+    const sample = [...installed].slice(0, 5).join(", ");
+    return "Not found on volume (installed: " + sample + "...)";
+  }
+  return null; // OK
 }

@@ -10,24 +10,37 @@ export const COMPANION_CATEGORY_LABELS: Record<CompanionCategory, Record<Compani
   anime: { en: 'Anime', zh: '二次元', ja: 'アニメ', ko: '애니메이션', es: 'Anime', fr: 'Anime', de: 'Anime' },
 };
 
-const BLOCKED =
-  'child, underage, teen, young-looking, schoolchild, non-consensual, coercion, violence, gore, incest, bestiality, blurry, bad anatomy, deformed hands, watermark, text';
+/**
+ * Safety guardrails shared by all adult generation surfaces (studio prompts +
+ * quick presets). Always keep minors / coercion / violence excluded.
+ */
+export const BLOCKED =
+  'child, underage, teen, young-looking, schoolchild, minor, loli, shota, non-consensual, coercion, violence, gore, incest, bestiality, blurry, bad anatomy, deformed hands, watermark, text';
+
+/**
+ * High-explicitness adult baseline per companion category. These power the
+ * admin Creation Workbench "adult prompt" buttons and set the default
+ * high-NSFW tone. All subjects are framed as consenting adults age 25+.
+ */
+export const HIGH_NSFW_PROMPT = 'consenting adults age 25+ only, high-NSFW erotic composition, tasteful explicit nudity, exposed adult body, provocative intimate pose, strong sexual tension, realistic adult anatomy, confident direct eye contact, premium uncensored boudoir aesthetic';
+
+export const COMPACT_ADULT_NEGATIVE = 'child, minor, underage, teen, young-looking, loli, shota, non-consensual, coercion, violence, gore, incest, bestiality, bad anatomy, deformed hands, watermark, text';
 
 export const STUDIO_PROMPTS: Record<CompanionCategory, { prompt: string; negative: string }> = {
   female: {
-    prompt: 'A breathtaking adult woman age 25+, feminine hourglass figure, confident direct eye contact, explicit consensual adult boudoir scene, provocative natural pose, detailed skin and anatomy, cinematic intimate lighting, photorealistic high-resolution editorial quality',
+    prompt: 'A breathtaking adult woman age 25+, voluptuous feminine hourglass figure, full natural breasts, soft curves, bare glowing skin with visible pores, confident direct eye contact, explicit consensual adult boudoir scene, provocative natural pose, sensual parted lips, detailed realistic skin texture and anatomy, warm cinematic intimate lighting, erotic high-resolution editorial boudoir photography, 8k uhd, raw photo',
     negative: `male body, masculine face, ${BLOCKED}`,
   },
   male: {
-    prompt: 'A striking adult man age 25+, athletic masculine physique, broad shoulders and defined torso, confident direct eye contact, explicit consensual adult bedroom scene, provocative natural pose, detailed skin and male anatomy, cinematic intimate lighting, photorealistic high-resolution editorial quality',
+    prompt: 'A striking adult man age 25+, athletic masculine physique, broad shoulders, defined muscular torso and abs, bare toned skin, confident direct eye contact, explicit consensual adult bedroom scene, provocative natural pose, detailed realistic skin and male anatomy, warm cinematic intimate lighting, erotic high-resolution editorial photography',
     negative: `female body, breasts, feminine face, ${BLOCKED}`,
   },
   transgender: {
-    prompt: 'A beautiful adult transgender person age 25+, confident authentic gender presentation, elegant natural proportions, direct eye contact, explicit consensual adult boudoir scene, provocative natural pose, detailed skin and anatomy, cinematic intimate lighting, photorealistic high-resolution editorial quality',
+    prompt: 'A beautiful adult transgender woman age 25+, confident authentic feminine presentation, elegant curvy proportions, soft glowing skin, alluring direct eye contact, explicit consensual adult boudoir scene, provocative natural pose, sensual expression, detailed realistic skin texture and anatomy, warm cinematic intimate lighting, erotic high-resolution editorial photography',
     negative: `caricature, fetishized stereotype, ${BLOCKED}`,
   },
   anime: {
-    prompt: 'An unmistakably adult anime character age 25+, mature facial features and adult proportions, explicit consensual adult fantasy scene, provocative dynamic pose, polished 2D illustration, clean line art, expressive eyes, rich cel shading, detailed background, premium anime key visual',
+    prompt: 'An unmistakably adult anime character age 25+, mature facial features and voluptuous adult proportions, expressive seductive eyes, explicit consensual adult fantasy scene, provocative dynamic pose, sensual atmosphere, polished 2D illustration, clean line art, rich cel shading, detailed background, premium erotic anime key visual',
     negative: `childlike proportions, school uniform, loli, shota, photorealistic, photograph, 3d render, ${BLOCKED}`,
   },
 };
