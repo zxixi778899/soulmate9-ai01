@@ -42,7 +42,7 @@ describe('companion generation prompt', () => {
     expect(result.category).toBe(category);
     expect(result.baseInfo).toContain('Alex');
     expect(result.action).toContain('intimate bedroom');
-    expect(result.positive).toContain('high-resolution');
+    expect(result.positive).toContain('Render this as');
     expect(result.negative).toContain('child');
     expect(result.negative).toContain('underage');
   });

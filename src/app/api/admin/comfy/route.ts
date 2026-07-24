@@ -788,12 +788,15 @@ if (body.action === 'finalize') {
   }
 
 if (body.action === 'verify_loras') {
-    const report = verifyLoraHealth();
-    // If specific files requested, check each
+    // Accept optional file_sizes map from volume scan: { "filename.safetensors": bytes }
+    const fileSizes: Record<string, number> | undefined =
+      body.file_sizes && typeof body.file_sizes === 'object' ? body.file_sizes : undefined;
+    const report = verifyLoraHealth(fileSizes);
+    // If specific files requested, check each (with size when available)
     const files: string[] = Array.isArray(body.files) ? body.files : [];
     const fileChecks = files.map((f) => ({
       file: f,
-      issue: checkLoraAuthenticity(f),
+      issue: checkLoraAuthenticity(f, fileSizes?.[f]),
     }));
     return NextResponse.json({
       success: true,
@@ -890,8 +893,8 @@ if (body.action === 'verify_loras') {
         ).trim();
       }
     }
-    if (!prompt.includes('high-NSFW erotic composition')) {
-      prompt = `${prompt}, ${HIGH_NSFW_PROMPT}`;
+    if (!prompt.includes('consenting adults age 25 or older')) {
+      prompt = `${prompt} ${HIGH_NSFW_PROMPT}`;
     }
     // Keep this below FLUX's negative-length cutoff so the worker actually uses it.
     negative = COMPACT_ADULT_NEGATIVE;

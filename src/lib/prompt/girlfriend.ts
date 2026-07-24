@@ -11,8 +11,6 @@
  * - Natural light (window, flash, city night, golden hour) — avoid flat beauty-dish spam
  */
 import {
-  pickInstalledLora,
-  sanitizeLoraForVolume,
   type LoraPlan,
   type LoraEntry,
   LORA_REGISTRY,
@@ -53,17 +51,15 @@ export function detectGenderStyle(row: Record<string, unknown>): GenderStyle {
 }
 
 /**
- * Quality prefix per gender/style — elevated NSFW.
+ * Quality prefix per gender/style — FLUX-optimal concise natural language.
+ * FLUX.1-dev responds to scene descriptions, not SD-style tag spam.
+ * Keep under 25 words to preserve prompt budget for character/scene detail.
  */
 export const QUALITY_BY_GENDER: Record<GenderStyle, string> = {
-  female:
-    'breathtakingly gorgeous, irresistibly sexy, sultry and seductive, dewy glowing skin with natural sheen, plump glossy lips, heavy-lidded bedroom eyes, long thick lashes, photorealistic editorial beauty photo, crisp detailed eyes with catchlights, natural skin texture with visible pores, flowing voluminous hair, high-resolution 8K detail, sharp focus on face, intimate and captivating mood, professional lighting, magazine cover quality, RAW photo, masterpiece, award-winning portrait',
-  male:
-    'stunningly handsome, ruggedly attractive, chiseled jawline, defined musculature, warm masculine skin tone, intense piercing eyes, photorealistic editorial portrait, crisp detailed eyes with catchlights, natural skin texture with visible pores, high-resolution 8K detail, sharp focus on face, magnetic masculine presence, professional lighting, magazine cover quality, RAW photo, masterpiece, award-winning portrait',
-  transgender:
-    'breathtakingly beautiful, stunning feminine allure with confident presence, flawless glowing skin, captivating eyes with long lashes, glossy plump lips, photorealistic editorial beauty photo, crisp detailed eyes with catchlights, natural skin texture, elegant proportions, high-resolution 8K detail, sharp focus on face, intimate and captivating mood, professional lighting, magazine cover quality, RAW photo, masterpiece',
-  cartoon:
-    'beautiful anime illustration, vibrant cel-shading, expressive detailed eyes, clean lineart, rich saturated colors, dynamic composition, high-quality anime key visual, studio-grade animation still, detailed background, soft lighting effects, 4K wallpaper quality, trending on pixiv, masterpiece anime art',
+  female: 'Render this as a polished editorial beauty photograph with lifelike skin texture, clear expressive eyes, flattering professional light, and a sharply focused face.',
+  male: 'Render this as a polished editorial portrait with lifelike skin texture, clear expressive eyes, sculpted masculine form, and controlled professional light.',
+  transgender: 'Render this as an elegant editorial beauty photograph with authentic proportions, lifelike skin texture, clear expressive eyes, and flattering professional light.',
+  cartoon: 'Render this as a premium anime key visual with clean linework, expressive eyes, rich cel shading, deliberate color design, and a dynamic readable composition.',
 };
 
 /**
@@ -77,13 +73,15 @@ export const BODY_BY_GENDER: Record<GenderStyle, string> = {
 };
 
 /**
- * Elevated NSFW quality tags — appended when adult content is detected.
+ * NSFW amplifier — concise scene-descriptive language for FLUX.
+ * Appended when adult content is detected. Short evocative description
+ * outperforms tag-spam on FLUX.1-dev.
  */
 export const NSFW_AMPLIFIER: Record<GenderStyle, string> = {
-  female: 'sensual erotic atmosphere, provocative inviting pose, bare skin glistening, intimate bedroom energy, seductive body language, explicit allure, erotic tension, naked curves visible',
-  male: 'sensual masculine energy, shirtless toned physique, provocative confident pose, bare chiseled chest, intimate bedroom atmosphere, erotic male allure, seductive body language, explicit masculine appeal',
-  transgender: 'sensual erotic atmosphere, provocative inviting pose, bare skin glistening, intimate bedroom energy, seductive body language, explicit allure, erotic tension, beautiful naked curves',
-  cartoon: 'ecchi anime atmosphere, suggestive pose, fanservice angle, revealing outfit, anime erotic energy, hentai-adjacent styling, provocative cartoon composition',
+  female: 'The consenting adult scene feels private and erotic, with confident intimate body language, naturally exposed skin, a flushed expression, and direct inviting eye contact.',
+  male: 'The consenting adult scene emphasizes confident erotic masculine energy, an exposed sculpted torso, intimate body language, and an intense direct gaze.',
+  transgender: 'The consenting adult scene celebrates an authentic body with confident intimate posing, naturally exposed skin, elegant curves, and alluring direct eye contact.',
+  cartoon: 'The clearly adult anime scene uses a bold erotic composition, revealing fantasy styling, mature proportions, expressive intimate body language, and a seductive gaze.',
 };
 
 /**
@@ -659,11 +657,12 @@ function pickFromList(seed: string, list: string[], salt = ''): string {
   return list[hashPick(`${seed}|${salt}`, list.length)] || list[0];
 }
 
-/** Per-character variety: mix scene-specific + global pools for maximum diversity. */
+/** Per-character variety with strict SFW/adult pool separation. */
 export function pickScenePoseAndOutfit(
   subject: GirlfriendSubject,
   scene: SceneRecipe,
   gender: GenderStyle = 'female',
+  adult = false,
 ): { pose: string; outfit: string; light: string; env: string } {
   const seed = [
     subject.name || '',
@@ -678,11 +677,12 @@ export function pickScenePoseAndOutfit(
   const posePool = gender === 'male' ? MALE_POSES : gender === 'transgender' ? TRANS_POSES : GLOBAL_POSES;
   const outfitPool = gender === 'male' ? MALE_OUTFITS : gender === 'transgender' ? TRANS_OUTFITS : GLOBAL_OUTFITS;
 
-  // 40% chance to use scene-specific, 60% global pool — ensures variety across characters
-  const useGlobalPose = hashPick(`${seed}|pose-decide|${scene.id}`, 10) >= 4;
-  const useGlobalOutfit = hashPick(`${seed}|outfit-decide|${scene.id}`, 10) >= 4;
-  const useGlobalLight = hashPick(`${seed}|light-decide|${scene.id}`, 10) >= 4;
-  const useGlobalEnv = hashPick(`${seed}|env-decide|${scene.id}`, 10) >= 5; // 50% global env
+  // SFW never enters the provocative global pools. Adult scenes may use
+  // them for variety while preserving the selected scene's identity.
+  const useGlobalPose = adult && hashPick(`${seed}|pose-decide|${scene.id}`, 10) >= 4;
+  const useGlobalOutfit = adult && hashPick(`${seed}|outfit-decide|${scene.id}`, 10) >= 4;
+  const useGlobalLight = hashPick(`${seed}|light-decide|${scene.id}`, 10) >= 5; // 50% always
+  const useGlobalEnv = hashPick(`${seed}|env-decide|${scene.id}`, 10) >= 5; // 50% always
 
   const pose = useGlobalPose
     ? pickFromList(seed, posePool, `gpose|${scene.id}`)
@@ -1015,10 +1015,10 @@ export function assembleGirlfriendPrompt(
   const quality = QUALITY_BY_GENDER[gender];
 
   // ── 4) NSFW amplifier (elevated) ──
-  const nsfwBoost = adult ? `, ${NSFW_AMPLIFIER[gender]}` : '';
+  const nsfwBoost = adult ? ` ${NSFW_AMPLIFIER[gender]}` : '';
 
   const positive = trimPrompt(
-    `${person}. ${pronoun} is ${action}. ${quality}${nsfwBoost}.`,
+    `${person}. ${pronoun} is ${action}. ${quality}${nsfwBoost}`,
     adult ? 1000 : 900,
   );
 
@@ -1096,7 +1096,7 @@ export type GirlfriendLoraPlan = {
   plan: LoraPlan;
 };
 
-function registryByCategory(cat: 'style' | 'body' | 'detail'): LoraEntry | undefined {
+function registryByCategory(cat: LoraEntry['category']): LoraEntry | undefined {
   return LORA_REGISTRY.find((e) => e.category === cat && isLoraInstalled(e.file));
 }
 
@@ -1123,7 +1123,14 @@ function envOrDefault(envKey: string, fallback: LoraEntry): LoraEntry {
 export function buildLoraPlan(
   subject: GirlfriendSubject,
   sceneId?: string,
-  opts?: { preferBody?: boolean; preferDetail?: boolean },
+  opts?: {
+    preferBody?: boolean;
+    preferDetail?: boolean;
+    preferOutfit?: boolean;
+    preferNsfwPose?: boolean;
+    adult?: boolean;
+    content?: string;
+  },
 ): LoraPlan {
   const bag = [
     subject.personality || '',
@@ -1131,68 +1138,72 @@ export function buildLoraPlan(
     subject.appearance || '',
     subject.outfit || '',
     sceneId || subject.sceneId || '',
+    opts?.content || '',
     normalizeTags(subject.tags).join(' '),
-  ]
-    .join(' ')
-    .toLowerCase();
+  ].join(' ').toLowerCase();
 
-  // ── Primary: style LoRA ──
+  const adult = opts?.adult === true || /nsfw|nude|naked|erotic|explicit|bedroom|boudoir|seduc|lingerie|latex|bikini/.test(bag);
   const defaultStyle = getDefaultStyleLora();
   let primary = envOrDefault('GIRLFRIEND_STYLE_LORA', defaultStyle);
-
   if (/hyperreal|aidma|ultra.?real/.test(bag)) {
-    const hyper = LORA_REGISTRY.find(
-      (e) => e.file.includes('hyperreal') && isLoraInstalled(e.file),
-    );
-    if (hyper) primary = hyper;
+    primary = registryByCategory('style') || primary;
   }
 
-  // ── Secondary: body or detail ──
+  const primaryStrength = adult ? 0.46 : /portrait|selfie|face/.test(bag) ? 0.52 : 0.48;
   let secondary: LoraPlan['secondary'] = null;
 
-  if (opts?.preferBody || /curvy|busty|hourglass|voluptuous|large breasts/.test(bag)) {
-    const bodyCurvy = LORA_REGISTRY.find(
-      (e) => e.file.includes('body_curvy') && isLoraInstalled(e.file),
-    );
-    if (bodyCurvy) {
-      secondary = {
-        name: bodyCurvy.file,
-        strength_model: bodyCurvy.strength,
-        strength_clip: bodyCurvy.strength,
-        note: 'body-curvy',
-      };
+  const outfitRules: Array<[RegExp, string, string]> = [
+    [/lingerie|underwear|bra|panties|negligee|see.?through/, 'outfit_lingerie', 'outfit-lingerie'],
+    [/bunny|rabbit suit/, 'outfit_bunny', 'outfit-bunny'],
+    [/maid/, 'outfit_maid', 'outfit-maid'],
+    [/bikini|swimsuit|pool|beach/, 'outfit_bikini', 'outfit-bikini'],
+    [/latex|catsuit|rubber/, 'outfit_latex', 'outfit-latex'],
+  ];
+  const outfitRule = outfitRules.find(([pattern]) => pattern.test(bag));
+  if (opts?.preferOutfit || outfitRule) {
+    const token = outfitRule?.[1] || 'outfit_lingerie';
+    const entry = LORA_REGISTRY.find((item) => item.file.includes(token) && isLoraInstalled(item.file));
+    if (entry) {
+      const strength = Math.min(0.72, Math.max(0.5, entry.strength + (adult ? 0.05 : -0.05)));
+      secondary = { name: entry.file, strength_model: strength, strength_clip: strength * 0.9, note: outfitRule?.[2] || 'outfit' };
     }
-  } else if (/pear|wide hips|big ass|thick thighs/.test(bag)) {
-    const bodyPear = LORA_REGISTRY.find(
-      (e) => e.file.includes('body_pear') && isLoraInstalled(e.file),
-    );
-    if (bodyPear) {
-      secondary = {
-        name: bodyPear.file,
-        strength_model: bodyPear.strength,
-        strength_clip: bodyPear.strength,
-        note: 'body-pear',
-      };
+  }
+
+  if (!secondary && (opts?.preferNsfwPose || (adult && /pose|kneel|crawl|arch|bend|spread|straddl|dance|dynamic/.test(bag)))) {
+    const pose = registryByCategory('pose');
+    if (pose) {
+      const strength = /dynamic|straddl|crawl|bend/.test(bag) ? 0.64 : 0.54;
+      secondary = { name: pose.file, strength_model: strength, strength_clip: strength * 0.85, note: 'pose-adult-dynamic' };
     }
-  } else if (opts?.preferDetail || /skin|pores|texture|natural skin/.test(bag)) {
-    const skin = LORA_REGISTRY.find(
-      (e) => e.file.includes('detail_skin') && !e.file.includes('nplastic') && isLoraInstalled(e.file),
-    );
+  }
+
+  if (!secondary && (opts?.preferBody || /curvy|busty|hourglass|voluptuous|large breasts/.test(bag))) {
+    const body = LORA_REGISTRY.find((item) => item.file.includes('body_curvy') && isLoraInstalled(item.file));
+    if (body) {
+      const strength = adult ? 0.54 : 0.46;
+      secondary = { name: body.file, strength_model: strength, strength_clip: strength, note: 'body-curvy' };
+    }
+  } else if (!secondary && /pear|wide hips|big ass|thick thighs/.test(bag)) {
+    const body = LORA_REGISTRY.find((item) => item.file.includes('body_pear') && isLoraInstalled(item.file));
+    if (body) {
+      const strength = adult ? 0.54 : 0.46;
+      secondary = { name: body.file, strength_model: strength, strength_clip: strength, note: 'body-pear' };
+    }
+  }
+
+  if (!secondary && (opts?.preferDetail || /skin|pores|texture|close.?up/.test(bag))) {
+    const skin = LORA_REGISTRY.find((item) => item.file.includes('detail_skin') && !item.file.includes('nplastic') && isLoraInstalled(item.file));
     if (skin) {
-      secondary = {
-        name: skin.file,
-        strength_model: skin.strength,
-        strength_clip: skin.strength,
-        note: 'detail-skin',
-      };
+      const strength = /close.?up|portrait|selfie/.test(bag) ? 0.42 : 0.34;
+      secondary = { name: skin.file, strength_model: strength, strength_clip: strength, note: 'detail-skin' };
     }
   }
 
   return {
     primary: {
       name: primary.file,
-      strength_model: primary.strength,
-      strength_clip: primary.strength,
+      strength_model: primaryStrength,
+      strength_clip: primaryStrength,
       note: `style:${primary.file.split('_').slice(1, 3).join('-')}`,
     },
     secondary,
@@ -1206,11 +1217,15 @@ export function buildLoraPlan(
 export function resolveGirlfriendLoraPlan(
   subject: GirlfriendSubject,
   sceneId?: string,
-  opts?: { preferBody?: boolean; preferOutfit?: boolean; preferNsfwPose?: boolean },
+  opts?: { preferBody?: boolean; preferOutfit?: boolean; preferNsfwPose?: boolean; adult?: boolean; content?: string },
 ): GirlfriendLoraPlan {
   const plan = buildLoraPlan(subject, sceneId, {
     preferBody: opts?.preferBody,
     preferDetail: false,
+    preferOutfit: opts?.preferOutfit,
+    preferNsfwPose: opts?.preferNsfwPose,
+    adult: opts?.adult,
+    content: opts?.content,
   });
 
   return {

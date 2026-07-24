@@ -15,6 +15,7 @@ export type ProviderId =
   | 'openai'
   | 'coze'
   | 'anthropic'
+  | 'openrouter'
   | 'local';
 
 /** One callable model endpoint */

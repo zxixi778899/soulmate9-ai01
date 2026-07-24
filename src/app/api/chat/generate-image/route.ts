@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { runpodClient } from '@/lib/runpod';
 import { resolveImageUrl, uploadDataUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { loadAiModules, resolveImageCall, type MembershipTier } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
-import { assembleGirlfriendFromRow, detectGenderStyle, GIRLFRIEND_NEGATIVE_FLUX } from '@/lib/prompt/girlfriend';
-import { falGenerate, isFalConfigured } from '@/lib/fal-client';
+import {
+  assembleGirlfriendFromRow,
+  buildLoraPlan,
+  detectGenderStyle,
+  GIRLFRIEND_NEGATIVE_FLUX,
+  planToLorasArray,
+  subjectFromGirlfriendRow,
+} from '@/lib/prompt/girlfriend';
 import { resolveImageGenerationProfile } from '@/lib/image-generation-profile';
+import { routeImageGeneration, type ImageProvider } from '@/lib/image-router';
 import {
   buildImageActionFromChat,
   type ChatContextLine,
@@ -220,7 +226,19 @@ export async function POST(request: NextRequest) {
       { gender: genderStyle, adult: adultRequested },
     );
 
-    const prompt = `${assembled.positive}, ${generationProfile.promptSuffix}`;
+    const prompt = assembled.positive;
+    const loraPlan = buildLoraPlan(
+      subjectFromGirlfriendRow(gf as Record<string, unknown>),
+      'chat_selfie',
+      {
+        adult: adultRequested,
+        content: [userRequest, actionBits, intent.kind].filter(Boolean).join(' '),
+        preferOutfit: /lingerie|underwear|bikini|swimsuit|latex|maid|bunny|see.?through/i.test(userRequest),
+        preferNsfwPose: adultRequested && /pose|kneel|crawl|arch|bend|spread|straddl|dance/i.test(`${userRequest} ${actionBits}`),
+        preferDetail: /selfie|portrait|close.?up|face|skin/i.test(`${userRequest} ${intent.kind}`),
+      },
+    );
+    const intelligentLoras = planToLorasArray(loraPlan);
     const baseNegativePrompt =
       typeof (body as { negative_prompt?: string }).negative_prompt === 'string' &&
       (body as { negative_prompt: string }).negative_prompt.trim()
@@ -255,99 +273,58 @@ export async function POST(request: NextRequest) {
     const sceneCfg = resolved.config;
     const generationSeed = Math.floor(Math.random() * 2 ** 32);
 
-    // --- fal.ai fast path (fallback when RunPod is busy) ---
-    const requestedProvider = String((body as { provider?: string }).provider || 'runpod');
-    if (requestedProvider === 'fal' && isFalConfigured()) {
-      try {
-        const falResult = await falGenerate({
-          prompt,
-          negative_prompt: negativePrompt,
-          width: sceneCfg.width || 704,
-          height: sceneCfg.height || 960,
-          num_inference_steps: 28,
-          guidance_scale: 3.5,
-          seed: generationSeed,
-          image_url: useConsistency ? referenceImage : undefined,
-          strength: useConsistency ? 0.75 : undefined,
-          model: 'dev',
-        });
-        const falUrl = falResult.images[0];
-        if (falUrl) {
-          // Persist to chat_messages + chat_media
-          const gfName = String((gf as { name?: string }).name || 'She');
-          const caption = zh ? `${gfName} 给你发来一张全新自拍 💕` : `${gfName} sends you a brand-new selfie 💕`;
-          await client.from('chat_messages').insert({
-            user_id: user.id, girlfriend_id, role: 'assistant',
-            content: caption, media_url: falUrl, media_type: 'image',
-          });
-          await client.from('chat_media').insert({
-            user_id: user.id, girlfriend_id, media_type: 'image',
-            url: falUrl, metadata: { provider: 'fal', seed: generationSeed },
-          }).then(({ error: mediaErr }) => {
-            if (mediaErr) logger.warn('[Chat Generate Image] chat_media insert failed', { err: mediaErr.message });
-          });
-          void logModelUsage({
-            provider: 'fal', model_id: 'flux-dev', task_type: 'image_generation',
-            user_id: user.id, girlfriend_id, latency_ms: Date.now() - started,
-            cost_usd: 0.025, success: true,
-          });
-          return NextResponse.json({
-            imageUrl: falUrl, image_url: falUrl, message: caption,
-            scene: 'chat_selfie', provider: 'fal',
-            prompt_preview: prompt.slice(0, 220),
-          });
-        }
-      } catch (falErr) {
-        logger.warn('[Chat Generate Image] fal.ai failed, falling back to RunPod', {
-          error: falErr instanceof Error ? falErr.message : String(falErr),
-        });
-        // Fall through to RunPod below
-      }
-    }
-
-    // --- RunPod path (primary, has LoRA for character consistency) ---
-    const gen = await runpodClient.generate({
+    // --- Unified multi-provider image router (RunPod → fal.ai failover) ---
+    const requestedProvider = String((body as { provider?: string }).provider || '') as ImageProvider | '';
+    const routerResult = await routeImageGeneration({
       prompt,
       negative_prompt: negativePrompt,
-      input_image: useConsistency ? referenceImage : undefined,
-      denoising_strength: useConsistency ? denoise : undefined,
       width: sceneCfg.width || 704,
       height: sceneCfg.height || 960,
-      num_images: 1,
-      seed: generationSeed,
       num_inference_steps: sceneCfg.steps || 20,
       guidance_scale: Math.min(Math.max(sceneCfg.cfg || 2.5, 1.0), 3.5),
-      endpoint_id: resolved.endpointId || undefined,
+      seed: generationSeed,
+      image_url: useConsistency ? referenceImage : undefined,
+      strength: useConsistency ? denoise : undefined,
+      loras: intelligentLoras,
       ckpt_name: sceneCfg.ckpt_name || generationProfile.checkpoint,
-      loras: sceneCfg.lora_name
-        ? [{
-            name: sceneCfg.lora_name,
-            strength_model: sceneCfg.lora_strength_model,
-            strength_clip: sceneCfg.lora_strength_clip,
-          }]
-        : generationProfile.loras,
       sampler_name: sceneCfg.sampler_name || undefined,
       scheduler: sceneCfg.scheduler || undefined,
-      submit_only: true,
+      force_provider: requestedProvider || undefined,
+      nsfw: adultRequested,
+      endpoint_id: resolved.endpointId || undefined,
     });
 
-    // If still pending, return job_id for client-side polling
-    if (gen.pending) {
+    // If RunPod queued (pending), return job_id for client-side polling
+    if (routerResult.pending) {
       return NextResponse.json({
         pending: true,
-        job_id: gen.job_id,
-        status: gen.status || 'IN_QUEUE',
+        job_id: routerResult.job_id,
+        status: 'IN_QUEUE',
         scene: 'chat_selfie',
-        message: 'Image is being generated. Poll /api/runpod/status?job_id=' + gen.job_id,
+        provider: routerResult.provider,
+        message: 'Image is being generated. Poll /api/runpod/status?job_id=' + routerResult.job_id,
       });
     }
 
-    const base64 = gen.images[0];
-    if (!base64) throw new Error('Failed to generate image');
+    // Resolve final URL: images[] contains URLs or base64 strings
+    let generatedUrl: string;
+    const firstImage = routerResult.images[0];
+    if (!firstImage) {
+      throw new Error('Image router returned no image data');
+    }
+    if (firstImage.startsWith('http://') || firstImage.startsWith('https://')) {
+      generatedUrl = firstImage;
+    } else {
+      const dataUrl = `data:image/png;base64,${firstImage}`;
+      const key = await uploadDataUrl(dataUrl, `chat_photos/${girlfriend_id}`);
+      generatedUrl = (await resolveImageUrl(key)) || key;
+    }
 
-    const dataUrl = `data:image/png;base64,${base64}`;
-    const key = await uploadDataUrl(dataUrl, `chat_photos/${girlfriend_id}`);
-    const generatedUrl = (await resolveImageUrl(key)) || key;
+    void logModelUsage({
+      provider: routerResult.provider, model_id: 'flux-dev',
+      task_type: 'image_generation', user_id: user.id, girlfriend_id,
+      latency_ms: Date.now() - started, cost_usd: 0.025, success: true,
+    });
 
     const { error: auditError } = await client.from('ai_generation_audits').insert({
       user_id: user.id, girlfriend_id, scene: 'chat_selfie', membership_tier: tier,
@@ -404,6 +381,11 @@ export async function POST(request: NextRequest) {
       quality_tier: resolved.qualityTier,
       model_endpoint: resolved.logicalEndpointId,
       token_cost: resolved.tokenCost,
+      lora_plan: {
+        primary: loraPlan.primary.note,
+        secondary: loraPlan.secondary?.note || null,
+        strengths: intelligentLoras.map((lora) => lora.strength_model),
+      },
       daily_limit: resolved.dailyLimit,
     });
   } catch (error) {

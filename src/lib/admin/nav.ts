@@ -22,6 +22,7 @@ import {
   Home,
   LayoutTemplate,
   Brain,
+  Network,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -127,6 +128,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { label: '页面/导航', href: '/admin/pages', icon: LayoutTemplate, aliases: ['/admin/navigation'] },
       { label: 'AI 对话模型', href: '/admin/models', icon: Brain },
       { label: 'AI 模块方案', href: '/admin/ai-modules', icon: Brain },
+      { label: '路由线路', href: '/admin/provider-routes', icon: Network, hint: '多供应商路由 · 故障转移 · 熔断' },
       { label: '站点设置', href: '/admin/settings', icon: Settings },
     ],
   },

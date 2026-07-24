@@ -129,30 +129,30 @@ const CATEGORY_BASE: Record<CompanionCategory, {
 }> = {
   female: {
     subject: 'A breathtaking adult woman age 25+, voluptuous feminine hourglass figure, full natural breasts, soft curves, bare glowing skin, detailed skin pores',
-    style: 'photorealistic, hyperdetailed realistic skin texture with visible pores and peach fuzz, warm cinematic intimate lighting, shallow depth of field, erotic high-resolution editorial boudoir photography, 8k uhd, raw photo',
+    style: 'Photograph the scene as an intimate editorial with lifelike skin, subtle pores and peach fuzz, controlled warm light, natural depth, and a clearly focused subject.',
     negative: `male body, masculine face, flat chest, plastic skin, airbrushed, cartoon, painting, ${BLOCKED}`,
-    quality: 'masterpiece, best quality, ultra detailed, sharp focus, professional color grading',
+    quality: 'Keep the face and anatomy coherent, the eyes expressive, and the lighting and color treatment professionally controlled.',
     loraHint: 'hyperreal + skin_detail',
   },
   male: {
     subject: 'A striking adult man age 25+, athletic masculine physique, broad shoulders, defined muscular torso and abs, v-line, bare toned skin, visible muscle definition',
-    style: 'photorealistic, hyperdetailed realistic skin texture with visible pores, warm cinematic intimate lighting, shallow depth of field, erotic high-resolution editorial male photography, 8k uhd, raw photo',
+    style: 'Photograph the scene as an intimate masculine editorial with lifelike skin, visible texture, controlled warm light, natural depth, and a clearly focused subject.',
     negative: `female body, breasts, feminine face, soft body, chubby, plastic skin, airbrushed, cartoon, painting, ${BLOCKED}`,
-    quality: 'masterpiece, best quality, ultra detailed, sharp focus, professional color grading, masculine aesthetic',
+    quality: 'Keep the face and anatomy coherent, preserve a strong masculine presence, and use controlled editorial light and color.',
     loraHint: 'photoreal + skin_detail',
   },
   transgender: {
     subject: 'A beautiful adult transgender woman age 25+, confident authentic feminine presentation, elegant curvy proportions, soft glowing skin, graceful features, natural beauty',
-    style: 'photorealistic, hyperdetailed realistic skin texture with visible pores and peach fuzz, warm cinematic intimate lighting, shallow depth of field, erotic high-resolution editorial boudoir photography, 8k uhd, raw photo',
+    style: 'Photograph the scene as an intimate editorial with lifelike skin, subtle pores and peach fuzz, controlled warm light, natural depth, and a clearly focused subject.',
     negative: `caricature, fetishized stereotype, exaggerated features, plastic skin, airbrushed, cartoon, painting, ${BLOCKED}`,
-    quality: 'masterpiece, best quality, ultra detailed, sharp focus, professional color grading, authentic beauty',
+    quality: 'Keep the face and anatomy coherent, preserve authentic beauty, and use controlled editorial light and color.',
     loraHint: 'hyperreal + skin_detail',
   },
   anime: {
     subject: 'An unmistakably adult anime character age 25+, mature facial features, voluptuous adult proportions, expressive seductive eyes, detailed anime anatomy',
-    style: 'polished 2D illustration, clean line art, rich cel shading, detailed background, premium erotic anime key visual, studio quality, vibrant colors, dynamic composition',
+    style: 'Illustrate the scene as a premium adult anime key visual with deliberate linework, rich cel shading, expressive color, a readable background, and a dynamic composition.',
     negative: `childlike proportions, school uniform, loli, shota, photorealistic, photograph, 3d render, flat color, sketch, ${BLOCKED}`,
-    quality: 'masterpiece, best quality, ultra detailed, official art, highres, absurdres',
+    quality: 'Keep the anatomy readable, the eyes expressive, the linework clean, and the cel shading deliberate throughout the frame.',
     loraHint: 'none (anime style via checkpoint)',
   },
 };
@@ -214,14 +214,13 @@ function getSceneOverride(category: CompanionCategory, sceneId: string): string 
 // ─── NSFW boost per category (high-explicitness for admin workbench) ─────
 
 const NSFW_BOOST: Record<CompanionCategory, string> = {
-  female: 'explicit consensual adult scene, highly provocative erotic pose, intimate sexual atmosphere, revealing sheer lingerie, full visible cleavage, bare midriff and hips, nipples visible through fabric, adult editorial boudoir, extremely suggestive body language, parted wet lips, heavy bedroom eyes, flushed skin, erotic tension, naked curves on display, sensual skin glow, provocative arching',
-  male: 'explicit consensual adult scene, highly provocative erotic pose, intimate sexual atmosphere, completely shirtless revealing sculpted torso, defined abs and v-line fully visible, low-slung waistband revealing hip bones, adult editorial, extremely suggestive masculine body language, intense predatory gaze, glistening bare chest, erotic tension, muscular definition on display, sensual skin glow',
-  transgender: 'explicit consensual adult scene, highly provocative erotic pose, intimate sexual atmosphere, revealing sheer lingerie, confident authentic beautiful body on display, elegant curves celebrated, nipples visible through fabric, adult editorial boudoir, extremely suggestive body language, alluring seductive expression, flushed skin, erotic tension, naked curves visible, sensual skin glow, provocative arching',
-  anime: 'explicit consensual adult scene, highly provocative erotic pose, intimate sexual atmosphere, extremely revealing outfit, exaggerated voluptuous adult curves, ecchi composition with fanservice angles, suggestive body language, seductive half-lidded expression, mature erotic themes, ahegao-adjacent expression, clothing pulled aside, erotic tension, glistening anime skin highlights',
+  female: 'The consenting adult scene feels private and erotic. She uses confident intimate body language, naturally exposed skin, a flushed expression, and direct inviting eye contact.',
+  male: 'The consenting adult scene emphasizes his exposed sculpted torso, confident intimate masculine body language, and a direct intense gaze.',
+  transgender: 'The consenting adult scene celebrates an authentic body through confident intimate posing, elegant curves, naturally exposed skin, and alluring eye contact.',
+  anime: 'The clearly consenting adult fantasy scene uses a bold erotic composition, mature proportions, revealing styling, expressive intimate body language, and a seductive gaze.',
 };
 
-/** Alluring mood applied to every scene (all scenes are high-NSFW in admin workbench). */
-const SFW_MOOD = 'elegant, deeply alluring expression, intensely sensual mood, captivating erotic presence, inviting direct eye contact';
+const SFW_MOOD = 'The subject remains elegant, deeply alluring, emotionally present, and directly engaged with the viewer.';
 
 // ─── Build presets ───────────────────────────────────────────────────────
 
@@ -229,14 +228,14 @@ function buildCategoryPresets(category: CompanionCategory): GenPreset[] {
   const base = CATEGORY_BASE[category];
   return SCENES.map((sc) => {
     const sceneText = getSceneOverride(category, sc.id) || sc.scene;
-    const boost = `${NSFW_BOOST[category]}, ${SFW_MOOD}`;
+    const boost = `${NSFW_BOOST[category]} ${SFW_MOOD}`;
     return {
       id: `${category}-${sc.id}`,
       name: sc.name,
       desc: sc.desc,
       prompt: [base.subject, sceneText, boost, base.quality, base.style]
         .filter(Boolean)
-        .join(', '),
+        .join(' '),
       negative: base.negative,
       width: sc.width,
       height: sc.height,

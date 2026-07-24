@@ -22,7 +22,7 @@ export const BLOCKED =
  * admin Creation Workbench "adult prompt" buttons and set the default
  * high-NSFW tone. All subjects are framed as consenting adults age 25+.
  */
-export const HIGH_NSFW_PROMPT = 'consenting adults age 25+ only, high-NSFW erotic composition, tasteful explicit nudity, exposed adult body, provocative intimate pose, strong sexual tension, realistic adult anatomy, confident direct eye contact, premium uncensored boudoir aesthetic';
+export const HIGH_NSFW_PROMPT = 'The image depicts consenting adults age 25 or older in a private erotic scene. Their intimate pose, naturally exposed body, realistic anatomy, direct eye contact, and confident sexual tension are photographed with an uncensored premium boudoir aesthetic.';
 
 export const COMPACT_ADULT_NEGATIVE = 'child, minor, underage, teen, young-looking, loli, shota, non-consensual, coercion, violence, gore, incest, bestiality, bad anatomy, deformed hands, watermark, text';
 

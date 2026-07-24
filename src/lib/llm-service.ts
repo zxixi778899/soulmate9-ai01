@@ -81,17 +81,41 @@ function buildInput(opts: GenOptions) {
   return msgs;
 }
 
+// Poll cadence/budget for the async RunPod pattern. Serverless cold starts
+// (model download + vLLM warm-up) can take minutes, far beyond /runsync's
+// ~90s synchronous window, so we submit with /run and poll /status/{id}.
+const POLL_INTERVAL_MS = 2000;
+const POLL_BUDGET_MS = Math.max(30_000, Number(process.env.RUNPOD_LLM_POLL_MS) || 250_000);
+
 async function postRunPod(input: Record<string, unknown>, signal: AbortSignal): Promise<any> {
-  const res = await fetch(`${RP_BASE}/runsync`, {
+  const submit = await fetch(`${RP_BASE}/run`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(input),
     signal,
   });
-  if (!res.ok) throw new Error(`LLM error (${res.status})`);
-  const data = await res.json();
-  if (data.status === 'FAILED') throw new Error(`LLM generation failed: ${data.error || ''}`);
-  return data;
+  if (!submit.ok) throw new Error(`LLM error (${submit.status})`);
+  const submitted = await submit.json();
+  const jobId = submitted?.id;
+  if (!jobId) throw new Error('LLM submit returned no job id');
+
+  let last: any = submitted;
+  const deadline = Date.now() + POLL_BUDGET_MS;
+  while (Date.now() < deadline) {
+    if (last.status === 'COMPLETED') return last;
+    if (last.status === 'FAILED') {
+      throw new Error(`LLM generation failed: ${last.error || ''}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    const res = await fetch(`${RP_BASE}/status/${jobId}`, {
+      headers: headers(),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new Error(`LLM status error (${res.status})`);
+    last = await res.json();
+  }
+  if (last.status === 'COMPLETED') return last;
+  throw new Error(`LLM timed out after ${POLL_BUDGET_MS}ms (status=${last.status})`);
 }
 
 // ── Non-streaming ──
@@ -133,7 +157,6 @@ async function callTogetherChat(
 
 export async function generateText(options: GenOptions): Promise<string> {
   const messages = buildInput(options);
-  const mode: LoreMode = options.loraMode || 'default';
   const errors: string[] = [];
 
   if (isConfigured()) {
@@ -141,13 +164,19 @@ export async function generateText(options: GenOptions): Promise<string> {
       const data = await postRunPod({
         input: {
           messages,
-          max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
-          temperature: options.temperature ?? DEFAULT_TEMPERATURE,
-          top_p: options.topP ?? DEFAULT_TOP_P,
-          repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
-          ...(options.loraName || (mode !== 'default' ? mode : LORA_NAME)
-            ? { lora_name: options.loraName || (mode !== 'default' ? mode : LORA_NAME) }
-            : {}),
+          // runpod-workers/vllm reads generation params ONLY from the nested
+          // `sampling_params` object; flat top-level keys are ignored and
+          // max_tokens silently defaults to 100 (truncating JSON output).
+          sampling_params: {
+            max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+            temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+            top_p: options.topP ?? DEFAULT_TOP_P,
+            repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
+          },
+          // Only send lora_name when explicitly requested — the endpoint must be
+          // started with --enable-lora for it to apply; otherwise vLLM rejects the
+          // request. LoRA persona is still conveyed via injectLore text injection.
+          ...(options.loraName ? { lora_name: options.loraName } : {}),
         },
       }, AbortSignal.timeout(FETCH_TIMEOUT));
       const content = parseRunPodOutput(data);
@@ -202,13 +231,19 @@ export async function streamText(options: GenOptions): Promise<Response> {
       const data = await postRunPod({
         input: {
           messages,
-          max_tokens: options.maxTokens ?? 1024,
-          temperature: options.temperature ?? DEFAULT_TEMPERATURE,
-          top_p: options.topP ?? DEFAULT_TOP_P,
-          repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
-          ...(options.loraName || (mode !== 'default' ? mode : LORA_NAME)
-            ? { lora_name: options.loraName || (mode !== 'default' ? mode : LORA_NAME) }
-            : {}),
+          // runpod-workers/vllm reads generation params ONLY from the nested
+          // `sampling_params` object; flat top-level keys are ignored and
+          // max_tokens silently defaults to 100 (truncating output).
+          sampling_params: {
+            max_tokens: options.maxTokens ?? 1024,
+            temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+            top_p: options.topP ?? DEFAULT_TOP_P,
+            repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
+          },
+          // Only send lora_name when explicitly requested — the endpoint must be
+          // started with --enable-lora for it to apply; otherwise vLLM rejects the
+          // request. LoRA persona is still conveyed via injectLore text injection.
+          ...(options.loraName ? { lora_name: options.loraName } : {}),
         },
       }, AbortSignal.timeout(FETCH_TIMEOUT));
       const content = parseRunPodOutput(data) || '...';

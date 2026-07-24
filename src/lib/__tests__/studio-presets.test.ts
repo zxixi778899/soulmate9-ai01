@@ -21,12 +21,12 @@ describe('creation workbench presets', () => {
     expect(new Set(presets.map((preset) => preset.id)).size).toBe(30);
     expect(presets.every((preset) => preset.nsfw)).toBe(true);
     expect(presets.every((preset) => preset.steps >= 30)).toBe(true);
-    expect(presets.every((preset) => preset.prompt.includes('explicit consensual adult scene'))).toBe(true);
+    expect(presets.every((preset) => preset.prompt.includes('consenting adult'))).toBe(true);
   });
 
   it('keeps the global adult intensity explicitly adult-only', () => {
-    expect(HIGH_NSFW_PROMPT).toContain('adults age 25+ only');
-    expect(HIGH_NSFW_PROMPT).toContain('high-NSFW');
+    expect(HIGH_NSFW_PROMPT).toContain('adults age 25 or older');
+    expect(HIGH_NSFW_PROMPT).toContain('private erotic scene');
   });
 });
 

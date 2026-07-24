@@ -13,6 +13,9 @@ import {
 import { generateText } from '@/lib/llm-service';
 
 export const dynamic = 'force-dynamic';
+// Batch create polls a RunPod LLM job; warm runs take ~90s and cold starts
+// (model download + vLLM warm-up) can take several minutes. Allow up to 5 min.
+export const maxDuration = 300;
 
 /**
  * Resolve raw storage keys to browser-usable URLs for admin display.
@@ -808,7 +811,9 @@ Generate EXACTLY ${count} characters. Use ONLY English.`;
       systemPrompt,
       prompt: userPrompt,
       temperature: 0.95,
-      maxTokens: 2048,
+      // 10 rich profiles can exceed 2000 tokens; give ample headroom so the
+      // JSON is never truncated mid-object (which would fail to parse).
+      maxTokens: 4096,
     });
   } catch (llmErr) {
     const msg = llmErr instanceof Error ? llmErr.message : String(llmErr);
@@ -824,8 +829,19 @@ Generate EXACTLY ${count} characters. Use ONLY English.`;
     );
   }
 
-  const parsed = JSON.parse(jsonMatch[0]);
-  const profiles: GeneratedProfile[] = parsed.girlfriends || parsed;
+  let parsed: { girlfriends?: GeneratedProfile[] } & Record<string, unknown>;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch (parseErr) {
+    return NextResponse.json(
+      {
+        error: `LLM returned invalid format: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+        raw: text.slice(0, 500),
+      },
+      { status: 500 }
+    );
+  }
+  const profiles: GeneratedProfile[] = parsed.girlfriends || (parsed as unknown as GeneratedProfile[]);
   if (!Array.isArray(profiles) || profiles.length === 0) {
     return NextResponse.json(
       { error: 'LLM returned empty array', raw: text.slice(0, 500) },

@@ -53,6 +53,7 @@ export function buildCompanionGenerationPrompt(
   const assembled = assembleGirlfriendFromRow(row, action, {
     adult: options?.adult !== false,
     useEmptyNegative: false,
+    gender: category === 'anime' ? 'cartoon' : category,
   });
   const baseInfo = [
     String(row.name || 'adult companion'),
@@ -65,13 +66,15 @@ export function buildCompanionGenerationPrompt(
     String(row.appearance_body || ''),
     String(row.appearance_style || profile.style),
   ].filter(Boolean).join(', ');
-  const quality = preset.prompt.split(', ').slice(-5).join(', ');
+  const quality = category === 'anime'
+    ? 'A premium anime illustration with deliberate linework, expressive eyes, rich cel shading, and a readable composition.'
+    : 'A polished editorial photograph with lifelike texture, controlled light, clear eyes, and natural depth.';
   return {
     category,
     baseInfo,
     action,
     quality,
-    positive: `${assembled.positive}, ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}, ${quality}`,
+    positive: `${assembled.positive} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
     negative: `${assembled.negative}, ${preset.negative}`,
   };
 }
