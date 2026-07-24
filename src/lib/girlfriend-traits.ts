@@ -239,7 +239,7 @@ export function buildTraitPromptSection(
     lines.push(
       `基础亲密值：${baseIntimacy}/100` +
         (liveIntimacyLevel
-          ? ` · 当前动态亲密度等级 ${liveIntimacyLevel}/6`
+          ? ` · 当前动态亲密度等级 ${liveIntimacyLevel}/5`
           : '') +
         ' —— 决定亲近程度与称呼。',
     );
@@ -264,7 +264,7 @@ export function buildTraitPromptSection(
     if (hobbies) lines.push(`Hobbies: ${hobbies} — bring these into small talk.`);
     lines.push(
       `Base intimacy: ${baseIntimacy}/100` +
-        (liveIntimacyLevel ? ` · live intimacy level ${liveIntimacyLevel}/6` : '') +
+        (liveIntimacyLevel ? ` · live intimacy level ${liveIntimacyLevel}/5` : '') +
         ' — closeness & pet-name readiness.',
     );
     lines.push('');

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, withAuthBody } from '@/lib/api-handler';
 import { z } from 'zod';
+import { DAILY_INTIMACY_CAP, INTIMACY_MAX_SCORE, getIntimacyLevel, getIntimacyProgress } from '@/lib/constants';
 
 const intimacyBodySchema = z.object({
   girlfriend_id: z.string().uuid('girlfriend_id must be a valid UUID'),
@@ -25,23 +26,19 @@ export const GET = withAuth(async (req, { user, client }) => {
     return NextResponse.json({ scores: [] });
   }
 
-  return NextResponse.json({ scores: scores || [] });
+  const normalizedScores = (scores || []).map((row) => ({
+    ...row,
+    score: Math.min(Number(row.score || 0), INTIMACY_MAX_SCORE),
+    level: getIntimacyLevel(Number(row.score || 0)),
+    progress: getIntimacyProgress(Number(row.score || 0)),
+  }));
+  return NextResponse.json({ scores: normalizedScores });
 });
 
 export const POST = withAuthBody(
   intimacyBodySchema,
   async (req, { user, client, body }) => {
   const { girlfriend_id, message_type } = body;
-
-  // Check user membership tier
-  const { data: profile } = await client
-    .from('profiles')
-    .select('membership_tier')
-    .eq('user_id', user.id)
-    .single();
-
-  const isFree = profile?.membership_tier === 'free';
-  const FREE_INTIMACY_CAP = 59; // Level 3 (Friend) max
 
   // Get current intimacy score
   const { data: current } = await client
@@ -54,26 +51,26 @@ export const POST = withAuthBody(
   if (!current) {
     // Auto-create intimacy record on first interaction
     const today = new Date().toISOString().split('T')[0];
-    const { data: created } = await client
+    await client
       .from('intimacy_scores')
       .insert({
         user_id: user.id,
         girlfriend_id,
-        score: 1,
+        score: message_type === 'first_chat' ? 5 : 2,
         level: 1,
         last_interacted_at: new Date().toISOString(),
         daily_message_count: 1,
-        daily_score_gained: 1,
+        daily_score_gained: message_type === 'first_chat' ? 5 : 2,
         last_daily_reset: today,
       })
       .select('*')
       .single();
 
     return NextResponse.json({
-      gained: 1,
-      score: 1,
+      gained: message_type === 'first_chat' ? 5 : 2,
+      score: message_type === 'first_chat' ? 5 : 2,
       level: 1,
-      daily_score_gained: 1,
+      daily_score_gained: message_type === 'first_chat' ? 5 : 2,
     });
   }
 
@@ -91,29 +88,28 @@ export const POST = withAuthBody(
   const today = new Date().toISOString().split('T')[0];
 
   // Daily cap check - reset daily_score_gained if it's a new day
-  const DAILY_CAP = 17;
   const isNewDay = current.last_daily_reset !== today;
   const todayGain = isNewDay ? 0 : (current.daily_score_gained || 0);
 
   // Calculate gain
   let gain = 0;
   switch (message_type) {
-    case 'first_chat': gain = 2; break;
-    case 'reply_proactive': gain = 5; break;
-    case 'normal': gain = isUnlocked ? 1 : 0.5; break;
+    case 'first_chat': gain = 5; break;
+    case 'reply_proactive': gain = 8; break;
+    case 'normal': gain = 2; break;
   }
 
   // Apply cap if not unlocked
-  if (!isUnlocked && todayGain >= DAILY_CAP) {
-    return NextResponse.json({ gained: 0, capped: true, score: current.score });
+  if (!isUnlocked && todayGain >= DAILY_INTIMACY_CAP) {
+    return NextResponse.json({ gained: 0, capped: true, score: current.score, level: getIntimacyLevel(Number(current.score || 0)) });
   }
 
-  if (!isUnlocked && todayGain + gain > DAILY_CAP) {
-    gain = Math.max(0, DAILY_CAP - todayGain);
+  if (!isUnlocked && todayGain + gain > DAILY_INTIMACY_CAP) {
+    gain = Math.max(0, DAILY_INTIMACY_CAP - todayGain);
   }
 
-  const newScore = Math.min(current.score + gain, isFree ? FREE_INTIMACY_CAP : 200);
-  const newLevel = getLevel(newScore);
+  const newScore = Math.min(Number(current.score || 0) + gain, INTIMACY_MAX_SCORE);
+  const newLevel = getIntimacyLevel(newScore);
 
   // Update
   const { error } = await client
@@ -121,7 +117,7 @@ export const POST = withAuthBody(
     .update({
       score: newScore,
       level: newLevel,
-      daily_score_gained: isUnlocked ? (todayGain + gain) : Math.min(todayGain + gain, DAILY_CAP),
+      daily_score_gained: isUnlocked ? (todayGain + gain) : Math.min(todayGain + gain, DAILY_INTIMACY_CAP),
       last_daily_reset: today,
       last_interacted_at: new Date().toISOString(),
     })
@@ -133,17 +129,9 @@ export const POST = withAuthBody(
 
   return NextResponse.json({
     gained: gain,
-    capped: !isUnlocked && todayGain + gain >= DAILY_CAP,
+    capped: !isUnlocked && todayGain + gain >= DAILY_INTIMACY_CAP,
     score: newScore,
     level: newLevel,
+    progress: getIntimacyProgress(newScore),
   });
 });
-
-function getLevel(score: number): number {
-  if (score >= 100) return 6;
-  if (score >= 80) return 5;
-  if (score >= 60) return 4;
-  if (score >= 40) return 3;
-  if (score >= 20) return 2;
-  return 1;
-}

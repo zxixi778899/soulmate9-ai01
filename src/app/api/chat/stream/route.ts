@@ -30,6 +30,7 @@ import {
 } from '@/lib/chat-reply-sanitize';
 import { moderateText, type ContentMode } from '@/lib/content-moderation';
 import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
+import { getIntimacyLevel } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -293,7 +294,7 @@ export async function POST(request: NextRequest) {
       .single(),
     client
       .from('intimacy_scores')
-      .select('level')
+      .select('score, level')
       .eq('girlfriend_id', girlfriend_id)
       .eq('user_id', user.id)
       .single(),
@@ -312,10 +313,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Get intimacy level
-  let intimacyLevel = 1;
-  if (intimacyResult.data) {
-    intimacyLevel = intimacyResult.data.level;
-  }
+  const intimacyLevel = getIntimacyLevel(Number(intimacyResult.data?.score || 0));
 
   const messageText = String(message ?? '').trim() || (mediaUrl ? '[media]' : '');
 
@@ -417,8 +415,8 @@ export async function POST(request: NextRequest) {
       loreContext,
       presets,
       locale: chatLocale,
-      allowNsfw: chatResolved.allowNsfw,
-      nsfwChannel: chatResolved.channel === 'nsfw',
+      allowNsfw: intimacyLevel >= 3 && chatResolved.allowNsfw,
+      nsfwChannel: intimacyLevel >= 3 && chatResolved.channel === 'nsfw',
     }) +
     `\n\n${langLock}` +
     `\n\n${timeContext}` +

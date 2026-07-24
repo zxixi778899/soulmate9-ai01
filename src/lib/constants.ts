@@ -95,26 +95,59 @@ export function baseCompanionSeatLimit(tier: string): number {
   return MEMBERSHIP_TIERS.free.max_girlfriends;
 }
 
+export const INTIMACY_MAX_SCORE = 1500;
+export type IntimacyLevel = 1 | 2 | 3 | 4 | 5;
+
 export const INTIMACY_LEVELS = [
-  { level: 1, min_score: 0, title: 'Spark', color: '#6b7280' },
-  { level: 2, min_score: 20, title: 'Tease', color: '#8b5cf6' },
-  { level: 3, min_score: 40, title: 'Heat', color: '#f97316' },
-  { level: 4, min_score: 60, title: 'Desire', color: '#f59e0b' },
-  { level: 5, min_score: 80, title: 'Lover', color: '#ef4444' },
-  { level: 6, min_score: 100, title: 'Soulmate', color: '#ec4899' },
+  { level: 1, min_score: 0, next_score: 100, title: 'Cultivation', title_zh: '培养期', color: '#6b7280', nsfw: false },
+  { level: 2, min_score: 100, next_score: 300, title: 'Flirting', title_zh: '暧昧期', color: '#8b5cf6', nsfw: false },
+  { level: 3, min_score: 300, next_score: 600, title: 'Passionate', title_zh: '热恋期', color: '#f97316', nsfw: true },
+  { level: 4, min_score: 600, next_score: 1000, title: 'Ultimate Partner', title_zh: '极品女友', color: '#ef4444', nsfw: true },
+  { level: 5, min_score: 1000, next_score: 1500, title: 'Ultimate Devotion', title_zh: '极品母狗', color: '#ec4899', nsfw: true },
 ] as const;
+
+export function clampIntimacyScore(score: number): number {
+  return Math.min(INTIMACY_MAX_SCORE, Math.max(0, Number.isFinite(score) ? score : 0));
+}
+
+export function getIntimacyLevel(score: number): IntimacyLevel {
+  const value = clampIntimacyScore(score);
+  if (value >= 1000) return 5;
+  if (value >= 600) return 4;
+  if (value >= 300) return 3;
+  if (value >= 100) return 2;
+  return 1;
+}
+
+export function getIntimacyProgress(score: number) {
+  const value = clampIntimacyScore(score);
+  const level = getIntimacyLevel(value);
+  const info = INTIMACY_LEVELS[level - 1];
+  const next = level === 1 ? INTIMACY_LEVELS[1]
+    : level === 2 ? INTIMACY_LEVELS[2]
+      : level === 3 ? INTIMACY_LEVELS[3]
+        : level === 4 ? INTIMACY_LEVELS[4]
+          : null;
+  const target = next?.min_score ?? INTIMACY_MAX_SCORE;
+  const span = Math.max(1, target - info.min_score);
+  return {
+    score: value, level, info, next,
+    remaining: Math.max(0, target - value),
+    percent: level === 5 && value >= INTIMACY_MAX_SCORE ? 100 : Math.round(((value - info.min_score) / span) * 100),
+    isMax: value >= INTIMACY_MAX_SCORE,
+  };
+}
 
 /** Client + UI copy for heat ladder (retention). */
 export const HEAT_UNLOCK_HINTS = [
-  { level: 1, hint: 'Chat more to unlock warmer teasing.' },
-  { level: 2, hint: 'Keep the spark - Heat mode opens soon.' },
-  { level: 3, hint: 'Heat unlocked. Intimate channel opens at Desire.' },
-  { level: 4, hint: 'Desire mode - explicit chemistry available on Pro+.' },
-  { level: 5, hint: 'Lover heat - she escalates with you.' },
-  { level: 6, hint: 'Soulmate - full passion and memory depth.' },
+  { level: 1, hint: 'Keep chatting to reach Flirting at 100.' },
+  { level: 2, hint: 'Reach 300 to unlock adult chat and image generation.' },
+  { level: 3, hint: 'Adult mode unlocked. Build trust for more proactive scenes.' },
+  { level: 4, hint: 'High-intensity scenes and proactive roleplay unlocked.' },
+  { level: 5, hint: 'Maximum consensual adult intensity unlocked.' },
 ] as const;
 
-export const DAILY_INTIMACY_CAP = 17;
+export const DAILY_INTIMACY_CAP = 50;
 
 export const PROACTIVE_TIME_SLOTS = [
   { slot: 'morning', window: '8:00-10:00', label: 'Morning Greeting' },

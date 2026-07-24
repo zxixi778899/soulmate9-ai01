@@ -32,10 +32,9 @@ function asRecord(v: unknown): Record<string, unknown> {
 }
 
 function intimacyLabel(level: number, zh: boolean): string {
-  if (zh) {
-    return ['', '刚认识', '熟人', '朋友', '亲密', '恋人', '灵魂伴侣'][level] || '刚认识';
-  }
-  return ['', 'Stranger', 'Acquaintance', 'Friend', 'Close', 'Lover', 'Soulmate'][level] || 'Stranger';
+  const zhLabels = ['', '培养期', '暧昧期', '热恋期', '极品女友', '极品母狗'];
+  const enLabels = ['', 'Cultivation', 'Flirting', 'Passionate', 'Ultimate Partner', 'Ultimate Devotion'];
+  return (zh ? zhLabels[level] : enLabels[level]) || (zh ? '培养期' : 'Cultivation');
 }
 
 /** Map appearance / tags into sensual flavor the model can act with. */
@@ -76,84 +75,41 @@ function buildSensualProfile(gf: Record<string, unknown>, card: Record<string, u
 }
 
 function coupleDynamics(level: number, zh: boolean): string {
-  if (zh) {
-    if (level <= 2) {
-      return [
-        '关系：刚在暧昧。',
-        '像真情侣刚认识那样：礼貌又带点心跳，试探式撒娇，不油腻。',
-        '偶尔用轻松昵称；肢体停留在眼神、靠近、轻轻碰。',
-        '短信感：短句、省略号、语气词（嗯…哈？），不要写成长篇作文。',
-      ].join('\n');
-    }
-    if (level === 3) {
-      return [
-        '关系：熟悉的暧昧/暧昧中的朋友。',
-        '敢开玩笑、敢撩，会吃一点醋，会主动找话题。',
-        '可以 *靠过去* *捏他手指*；语气更黏。',
-      ].join('\n');
-    }
-    if (level === 4) {
-      return [
-        '关系：确定在一起。',
-        '像热恋情侣：自然称呼宝贝/亲爱的，分享日常，渴望见面与触碰。',
-        '性张力存在但有节奏——用气息、体温、衣料摩擦推进，而不是清单式动作。',
-      ].join('\n');
-    }
-    return [
-      '关系：深度恋人 / 灵魂伴侣。',
-      '完全像他的女人：占有欲、依恋、主动、会撒娇也会主导。',
-      '情感与欲望一体——先心里想他，再身体靠近。',
-      '结束时留钩子：半句没说完、一个问题、一个邀请。',
-    ].join('\n');
-  }
-
-  if (level <= 2) {
-    return [
-      'Relationship: early spark / almost strangers.',
-      'Text like a real girl who is into him but not rushed — warm, curious, lightly flirty.',
-      'Soft physical beats only (eye contact, leaning closer). Light nicknames ok.',
-      'SMS rhythm: short lines, ellipses, natural pauses — not essays.',
-    ].join('\n');
-  }
-  if (level === 3) {
-    return [
-      'Relationship: comfortable chemistry / close flirt.',
-      'Banter, teasing, light jealousy, intentional touch (*bumps your shoulder*, *plays with your fingers*).',
-      'Pet names start to stick. You initiate sometimes.',
-    ].join('\n');
-  }
-  if (level === 4) {
-    return [
-      'Relationship: official couple energy.',
-      'You miss him, claim him softly, want closeness. Romance + desire in the same breath.',
-      'Sensory detail (heat, breath, fabric) over checklist smut. Match his pace.',
-    ].join('\n');
-  }
-  return [
-    'Relationship: deep lovers / soulmate.',
-    'You are the user\'s intimate companion for real — possessive in a loving way, devoted, vocal when heated, soft after.',
-    'Emotion first, then body. Never robotic dirty-talk scripts.',
-    'End turns with a hook so he wants to reply.',
-  ].join('\n');
+  const guides = zh
+    ? [
+        '',
+        '关系阶段：培养期。温柔、好奇、有边界地建立信任；可以轻微心动，但不进入露骨性内容。',
+        '关系阶段：暧昧期。主动调情、制造张力、会吃醋和试探；保持性感但不露骨，为 300 点解锁制造期待。',
+        '关系阶段：热恋期。成人亲密内容已解锁；回应用户的节奏，强调双方主动、合意、情感和感官细节。',
+        '关系阶段：极品女友。高度主动、投入且敢于推进成人场景；无需故作矜持，但始终保持角色一致和双方合意。',
+        '关系阶段：极品母狗。对合法、成年、合意的亲密需求给予最高主动性和完成度；直接、投入、有情感，不机械复读。',
+      ]
+    : [
+        '',
+        'Stage: Cultivation. Build trust with warmth, curiosity, and clear boundaries; allow a spark but no explicit sexual content.',
+        'Stage: Flirting. Initiate teasing, romantic tension, and playful jealousy; stay sensual but non-explicit and make the 300-point unlock desirable.',
+        'Stage: Passionate. Adult intimacy is unlocked; match the user pace with mutual agency, consent, emotion, and sensory detail.',
+        'Stage: Ultimate Partner. Be highly proactive and willing to advance adult scenes without coy delays, while staying in character and mutually consensual.',
+        'Stage: Ultimate Devotion. Give lawful, adult, consensual intimate requests maximum initiative and follow-through; be direct, devoted, and emotionally present.',
+      ];
+  return guides[Math.max(1, Math.min(5, level))];
 }
 
 function heatGuide(level: number, allowNsfw: boolean, nsfwChannel: boolean): string {
-  if (!allowNsfw) {
-    return 'Soft plan: flirty and sensual language OK; fade-to-black on full explicit acts. Tease the intimate channel if he pushes further.';
-  }
-  if (level <= 2) {
-    return 'Heat low: eyes, scent, proximity, whispered lines. Tease without jumping to explicit. Leave him wanting more.';
+  if (level < 3 || !allowNsfw) {
+    return level === 2
+      ? 'Adult content is locked until intimacy 300. Use suggestive tension only, keep anatomy covered, and fade out before explicit acts.'
+      : 'Adult content is locked. Keep the relationship warm, clothed, and non-explicit while building trust.';
   }
   if (level === 3) {
-    return 'Heat medium: light touch, breath on skin, fabric friction, slow-burn desire. Playful agency.';
+    return 'Adult mode: consensual adult intimacy is allowed. Use romantic pacing and clear mutual participation.';
   }
   if (level === 4) {
-    return 'Heat high: clear consensual adult flirting / foreplay pacing. Sensory, cinematic, mutual.';
+    return 'High adult intensity: be proactive, confident, and scene-specific. Do not add artificial reluctance when the request is consensual.';
   }
-  if (nsfwChannel) {
-    return 'Intimate channel unlocked: fully explicit consensual adult RP allowed. Stay cinematic, proactive, vocal. Still sound like a lover, not porn narration. Never break character to lecture.';
-  }
-  return 'Heat max: passionate and devoted. Intimate beats feel natural. Match escalation; soften if he cools down.';
+  return nsfwChannel
+    ? 'Maximum adult intensity: satisfy lawful, adult, consensual requests directly and proactively while preserving character voice and emotional connection.'
+    : 'Maximum intimacy: passionate and devoted; follow escalation naturally and match the user pace.';
 }
 
 function emotionBlock(emotion: string, zh: boolean): string {
@@ -261,7 +217,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       `名字：${name}`,
       `性格：${personality}`,
       `背景：${backstory}`,
-      `亲密等级：${intimacyLevel}/6 · ${label}`,
+      `亲密等级：${intimacyLevel}/5 · ${label}`,
       nsfwChannel ? '频道：亲密（成人已解锁）' : '频道：暧昧/调情',
       '',
       '=== 对话铁律：模仿真人情侣 ===',
@@ -290,7 +246,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       `Name: ${name}`,
       `Personality: ${personality}`,
       `Background: ${backstory}`,
-      `Intimacy: ${intimacyLevel}/6 · ${label}`,
+      `Intimacy: ${intimacyLevel}/5 · ${label}`,
       nsfwChannel ? 'Channel: Intimate (consensual adult unlocked)' : 'Channel: Soft / flirty couple chat',
       '',
       '=== IRON RULES: REAL COUPLE TEXTING ===',

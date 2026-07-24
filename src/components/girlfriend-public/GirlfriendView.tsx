@@ -264,7 +264,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
                 <div className="h-full w-3/5 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6]" />
               </div>
               <p className="text-xs text-[#a1a1aa] mt-2">
-                Intimacy Level: Friend  45/60
+                Intimacy Level: Cultivation  45/100
               </p>
             </div>
 
@@ -341,7 +341,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
   );
 }
 
-//  layout shift   skeleton 
+//  layout shift   skeleton
 export function GirlfriendViewSkeleton() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex">

@@ -2,6 +2,7 @@
 
 import { Heart, Lock, Star, MessageCircle, ShoppingBag, Gift, Zap, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { INTIMACY_LEVELS } from '@/lib/constants';
 
 interface IntimacyUnlockProps {
   currentLevel: number;
@@ -38,7 +39,7 @@ const FEATURE_LABELS: Record<string, string> = {
   special_title: 'Special Title',
 };
 
-const LEVEL_LABELS = ['', 'Stranger', 'Friend', 'Close', 'Intimate', 'Lover', 'Soulmate'];
+const LEVEL_LABELS = ['', ...INTIMACY_LEVELS.map((level) => level.title)];
 
 export function IntimacyProgress({
   currentLevel,
@@ -63,7 +64,7 @@ export function IntimacyProgress({
       </div>
 
       {/* Progress to next level */}
-      {currentLevel < 6 && (
+      {currentLevel < 5 && (
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] text-[#8B8BA3]/60">
             <span>Next: {nextLevelName || LEVEL_LABELS[currentLevel + 1]}</span>
@@ -102,7 +103,7 @@ export function IntimacyProgress({
       )}
 
       {/* Locked features preview */}
-      {currentLevel < 6 && (
+      {currentLevel < 5 && (
         <div className="space-y-1.5">
           <span className="text-[10px] uppercase tracking-wider text-[#8B8BA3]/50">
             Coming next

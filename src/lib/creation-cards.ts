@@ -3,8 +3,9 @@
  *
  * Quota rules:
  * - Free tier: 1 free card (one-time, claimed on first registration)
- * - Pro tier: 3 cards per month (auto-refill on first access each month)
- * - Unlimited tier: 5 cards per month (auto-refill on first access each month)
+ * - Basic tier: 3 cards per month (auto-refill on first access each month)
+ * - Pro tier: 5 cards per month (auto-refill on first access each month)
+ * - Unlimited tier: 10 cards per month (auto-refill on first access each month)
  *
  * Cards can also be purchased from the shop.
  */
@@ -25,8 +26,9 @@ export type CreationCardStatus = {
 
 /** Get the monthly quota based on membership tier. */
 function getMonthlyQuota(tier: string): number {
-  if (tier === 'unlimited') return 5;
-  if (tier === 'pro') return 3;
+  if (tier === 'unlimited') return 10;
+  if (tier === 'pro') return 5;
+  if (tier === 'basic') return 3;
   return 0; // free tier only gets the one-time free card
 }
 

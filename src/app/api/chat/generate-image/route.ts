@@ -19,6 +19,7 @@ import {
   buildImageActionFromChat,
   type ChatContextLine,
 } from '@/lib/chat-image-intent';
+import { getIntimacyGenerationPolicy, getIntimacyUnlockPayload } from '@/lib/intimacy-policy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -109,7 +110,25 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     const tier = membershipFromProfile((profile as Record<string, unknown>) || null);
     const adultRequested = /\b(nude|naked|nsfw|explicit|sex|sexy|lingerie|fuck|cock|pussy|dick|cum|orgasm|blowjob|anal|breast|nipple|horny|moan|undress|strip|bdsm|spank|ride|aroused|climax|erotic|hardcore|fetish|kink|threesome|oral|deepthroat|creampie|facial|bondage|dominat|submiss|collar|leash|whip|gag|choker|thigh.?high|garter|corset|bustier|negligee|see.?through|topless|bottomless|spread|bent.?over|on.?knees|suck|lick|tease|seduce)\b/i.test(userRequest);
-    const resolved = resolveImageCall(aiModules, { scene: 'chat_selfie', tier, adult: adultRequested });
+    const { data: intimacyRow } = await client
+      .from('intimacy_scores')
+      .select('score')
+      .eq('girlfriend_id', girlfriend_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const intimacyScore = Number(intimacyRow?.score || 0);
+    const intimacyPolicy = getIntimacyGenerationPolicy(intimacyScore);
+
+    if (adultRequested && !intimacyPolicy.adultAllowed) {
+      return NextResponse.json({
+        error: zh ? '亲密值达到 300 后解锁成人聊天与生图。' : 'Reach 300 intimacy to unlock adult chat and image generation.',
+        code: 'intimacy_locked',
+        ...getIntimacyUnlockPayload(intimacyScore),
+      }, { status: 403 });
+    }
+
+    const effectiveAdult = adultRequested && intimacyPolicy.adultAllowed;
+    const resolved = resolveImageCall(aiModules, { scene: 'chat_selfie', tier, adult: effectiveAdult });
 
     if (!resolved.enabled) {
       return NextResponse.json(
@@ -214,16 +233,16 @@ export async function POST(request: NextRequest) {
     }
 
     const intent = buildImageActionFromChat(userRequest || 'send me a selfie', chatContext);
-    const actionBits = [intent.action, poseTag, envTag, moodTag].filter(Boolean).join(', ');
+    const actionBits = [intent.action, poseTag, envTag, moodTag, intimacyPolicy.sceneDirection].filter(Boolean).join(', ');
 
     const genderStyle = detectGenderStyle(gf as Record<string, unknown>);
-    const generationProfile = resolveImageGenerationProfile(genderStyle, adultRequested);
+    const generationProfile = resolveImageGenerationProfile(genderStyle, effectiveAdult);
     // Character-consistent NL: identity + what they talked about + quality
     const assembled = assembleGirlfriendFromRow(
       gf as Record<string, unknown>,
       actionBits ||
         'taking a flirty intimate selfie for her boyfriend matching their chat, looking at camera',
-      { gender: genderStyle, adult: adultRequested },
+      { gender: genderStyle, adult: effectiveAdult },
     );
 
     const prompt = assembled.positive;
@@ -231,14 +250,18 @@ export async function POST(request: NextRequest) {
       subjectFromGirlfriendRow(gf as Record<string, unknown>),
       'chat_selfie',
       {
-        adult: adultRequested,
+        adult: effectiveAdult,
         content: [userRequest, actionBits, intent.kind].filter(Boolean).join(' '),
         preferOutfit: /lingerie|underwear|bikini|swimsuit|latex|maid|bunny|see.?through/i.test(userRequest),
-        preferNsfwPose: adultRequested && /pose|kneel|crawl|arch|bend|spread|straddl|dance/i.test(`${userRequest} ${actionBits}`),
+        preferNsfwPose: effectiveAdult && /pose|kneel|crawl|arch|bend|spread|straddl|dance/i.test(`${userRequest} ${actionBits}`),
         preferDetail: /selfie|portrait|close.?up|face|skin/i.test(`${userRequest} ${intent.kind}`),
       },
     );
-    const intelligentLoras = planToLorasArray(loraPlan);
+    const intelligentLoras = planToLorasArray(loraPlan).map((lora) => ({
+      ...lora,
+      strength_model: Math.min(0.9, Math.max(0.2, lora.strength_model * intimacyPolicy.loraStrengthMultiplier)),
+      strength_clip: Math.min(0.9, Math.max(0.2, lora.strength_clip * intimacyPolicy.loraStrengthMultiplier)),
+    }));
     const baseNegativePrompt =
       typeof (body as { negative_prompt?: string }).negative_prompt === 'string' &&
       (body as { negative_prompt: string }).negative_prompt.trim()
@@ -290,7 +313,7 @@ export async function POST(request: NextRequest) {
       sampler_name: sceneCfg.sampler_name || undefined,
       scheduler: sceneCfg.scheduler || undefined,
       force_provider: requestedProvider || undefined,
-      nsfw: adultRequested,
+      nsfw: effectiveAdult,
       endpoint_id: resolved.endpointId || undefined,
     });
 

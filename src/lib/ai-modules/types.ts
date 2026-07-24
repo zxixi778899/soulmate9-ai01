@@ -63,7 +63,7 @@ export interface ChatModuleConfig {
   enabled: boolean;
   classifier_endpoint_id?: string;
   complexity_threshold?: number;
-  /** Min intimacy level (1-6) to unlock NSFW channel for pro+ */
+  /** Min intimacy level (1-5) to unlock NSFW channel for pro+ */
   nsfw_min_intimacy: number;
   /** Keyword / heuristic threshold label */
   nsfw_detection: 'keywords' | 'off';

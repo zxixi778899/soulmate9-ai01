@@ -16,7 +16,7 @@ import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { notifyDataChange } from '@/hooks/useDataSync';
 import {
   Save, ArrowLeft, ArrowRight, Wand2, Loader2, Sparkles, Check, User2,
-  CreditCard, SkipForward, Palette,
+  CreditCard,
 } from 'lucide-react';
 import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
@@ -399,8 +399,6 @@ export default function CreatePage() {
 
   // ─── Render ────────────────────────────────────────────────────────────
 
-  const cardLabel = t('creator.creationCard') || (zh ? '创建卡' : 'Creation Cards');
-
   return (
     <GameShell className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
       <PageHeader
@@ -429,7 +427,7 @@ export default function CreatePage() {
         {cardStatus && (
           <div className="flex items-center gap-1.5 text-[11px] text-white/50">
             <CreditCard className="h-3.5 w-3.5" />
-            <span>{cardLabel}: </span>
+            <span>{t('creator.creationCard') || (zh ? '创建卡' : 'Cards')}: </span>
             <span className={cn('font-bold', cardStatus.cards > 0 ? 'text-[#FF2D78]' : 'text-red-400')}>
               {cardStatus.cards}
             </span>

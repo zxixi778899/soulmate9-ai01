@@ -123,8 +123,8 @@ export function deriveMood(
   if (/night|晚安|sleep|梦/.test(c)) return { emoji: '🌙', label: '睡意朦胧', tone: 'text-indigo-300' };
   if (/love|爱|喜欢|heart/.test(c)) return { emoji: '❤️', label: '心跳加速', tone: 'text-rose-400' };
   if (/angry|生气|哼|不理/.test(c)) return { emoji: '😤', label: '小脾气', tone: 'text-orange-300' };
-  if (intimacyScore >= 80) return { emoji: '🔥', label: 'On fire', tone: 'text-[#ff6ba6]' };
-  if (intimacyScore >= 50) return { emoji: '😊', label: 'Teasing', tone: 'text-pink-300' };
-  if (intimacyScore >= 20) return { emoji: '💭', label: 'Curious', tone: 'text-white/60' };
+  if (intimacyScore >= 1000) return { emoji: '🔥', label: 'On fire', tone: 'text-[#ff6ba6]' };
+  if (intimacyScore >= 300) return { emoji: '😊', label: 'Teasing', tone: 'text-pink-300' };
+  if (intimacyScore >= 100) return { emoji: '💭', label: 'Curious', tone: 'text-white/60' };
   return { emoji: '✨', label: '刚认识', tone: 'text-white/45' };
 }

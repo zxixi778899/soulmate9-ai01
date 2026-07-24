@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Image as ImageIcon, Brain, ChevronDown, Home, Camera } from 'lucide-react';
 import type { ChatGirlfriend, IntimacyData } from './types';
-import { HEAT_UNLOCK_HINTS } from '@/lib/constants';
+import { HEAT_UNLOCK_HINTS, getIntimacyProgress } from '@/lib/constants';
 import type { INTIMACY_LEVELS } from '@/lib/constants';
 import { traitLabelFor } from '@/lib/girlfriend-traits';
 import { useTranslation } from '@/lib/i18n/context';
@@ -31,9 +31,10 @@ export function ChatAppBar(props: {
   const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories, onAlbum } = props;
   const name = girlfriend?.name?.trim() || 'Companion';
   const color = levelInfo?.color || '#ff2e88';
-  const title = locale === 'zh' ? ['初识', '心动', '暧昧', '亲密', '热恋'][Math.max(0, Math.min(4, (intimacy?.level ?? 1) - 1))] : levelInfo?.title || 'Chat';
-  const level = intimacy?.level ?? 1;
   const score = Math.round(intimacy?.score ?? 0);
+  const progress = getIntimacyProgress(score);
+  const level = progress.level;
+  const title = locale === 'zh' ? progress.info.title_zh : progress.info.title;
 
   return (
     <header
@@ -141,10 +142,20 @@ export function ChatAppBar(props: {
         </Link>
       </div>
       {!isTyping && (
-        <div className="px-3 sm:px-4 pb-2 text-[10px] text-[#ff6ba6]/90 truncate">
-          {locale === 'zh'
-            ? '继续聊天可提升亲密热度并解锁更多互动'
-            : HEAT_UNLOCK_HINTS.find((h) => h.level === level)?.hint || 'Build heat together'}
+        <div className="px-3 sm:px-4 pb-2">
+          <div className="mb-1 flex items-center justify-between gap-3 text-[10px] text-[#ff6ba6]/90">
+            <span className="truncate">
+              {progress.isMax
+                ? (locale === 'zh' ? '亲密值已满，全部等级内容已解锁' : 'Max intimacy: every level reward is unlocked')
+                : locale === 'zh'
+                  ? `再提升 ${progress.remaining} 点解锁${progress.next?.title_zh}${progress.next?.level === 3 ? '与成人聊天/生图' : ''}`
+                  : HEAT_UNLOCK_HINTS.find((h) => h.level === level)?.hint || 'Build intimacy together'}
+            </span>
+            <span className="shrink-0 font-mono tabular-nums">{score}/{progress.next?.min_score ?? 1500}</span>
+          </div>
+          <div className="h-1 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-gradient-to-r from-[#ff2e88] to-[#f97316] transition-[width] duration-500" style={{ width: `${progress.percent}%` }} />
+          </div>
         </div>
       )}
     </header>

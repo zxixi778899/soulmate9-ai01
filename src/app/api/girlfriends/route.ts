@@ -4,7 +4,7 @@ import { ensureImageKey, resolveImageUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
 import { assertCanAddCompanion } from '@/lib/companion-seats';
-import { consumeCreationCard, getCreationCardStatus } from '@/lib/creation-cards';
+import { consumeCreationCard } from '@/lib/creation-cards';
 import { logger } from '@/lib/logger';
 import { invalidateGirlfriends } from '@/lib/revalidate';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
@@ -240,13 +240,13 @@ export async function POST(request: NextRequest) {
       });
   }
 
-  // Create initial intimacy score — V3 (Heat) for user-created girlfriends
+  // Create initial intimacy score — start at 300 (热恋期 / Passionate) for user-created girlfriends
   await client
     .from('intimacy_scores')
     .insert({
       user_id: user.id,
       girlfriend_id: girlfriend.id,
-      score: 40,
+      score: 300,
       level: 3,
       last_daily_reset: new Date().toISOString().split('T')[0],
     });

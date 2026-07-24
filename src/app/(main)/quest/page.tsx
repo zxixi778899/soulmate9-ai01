@@ -96,7 +96,7 @@ export default function QuestPage() {
     { id: 'q3', title: 'Growing Closer',     desc: 'Reach intimacy level 3 with any companion',     progress: Math.min(usage.intimacy, 3),   goal: 3, reward: '+15 tokens',  rarity: 'rare',      icon: Star,         done: usage.intimacy >= 3 },
     { id: 'q4', title: 'Soulmate Bond',      desc: 'Reach intimacy level 5 with any companion',     progress: Math.min(usage.intimacy, 5),   goal: 5, reward: '+75 tokens',  rarity: 'epic',      icon: Sparkles,     done: usage.intimacy >= 5 },
     { id: 'q5', title: 'Companion Collector', desc: 'Have 5 companions at once',                    progress: Math.min(usage.girlfriends, 5), goal: 5, reward: '+50 tokens', rarity: 'epic',      icon: Zap,          done: usage.girlfriends >= 5 },
-    { id: 'q6', title: 'Legendary Lover',    desc: 'Reach intimacy level 6 with any companion',     progress: Math.min(usage.intimacy, 6),   goal: 6, reward: '+500 tokens', rarity: 'legendary', icon: Crown,        done: usage.intimacy >= 6 },
+    { id: 'q6', title: 'Legendary Lover',    desc: 'Reach intimacy level 5 with any companion',     progress: Math.min(usage.intimacy, 5),   goal: 5, reward: '+500 tokens', rarity: 'legendary', icon: Crown,        done: usage.intimacy >= 5 },
   ];
 
   const rewards = checkin?.rewards ?? [10, 15, 20, 30, 40, 50, 80];
