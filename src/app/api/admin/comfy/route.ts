@@ -9,6 +9,7 @@ import {
 } from '@/lib/comfy-console/store';
 import { createDefaultComfyConfig } from '@/lib/comfy-console/defaults';
 import { LORA_CATALOG, groupLorasByCategory } from '@/lib/comfy-console/lora-catalog';
+import { loraUsageZh } from '@/lib/comfy-console/studio-profile';
 import { runpodClient } from '@/lib/runpod';
 import {
   uploadImageBase64,
@@ -22,7 +23,8 @@ import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
-import { COMPACT_ADULT_NEGATIVE, HIGH_NSFW_PROMPT } from '@/lib/companion-category';
+import { COMPACT_ADULT_NEGATIVE, HIGH_NSFW_PROMPT, COMPANION_CATEGORIES, type CompanionCategory } from '@/lib/companion-category';
+import { buildStudioPromptEnhancement, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -798,9 +800,27 @@ if (body.action === 'verify_loras') {
       file: f,
       issue: checkLoraAuthenticity(f, fileSizes?.[f]),
     }));
+    const verifyConfig = await loadComfyConfig(admin.supabase);
+    const installed = new Set(report.entries.filter((entry) => entry.status === 'ok').map((entry) => entry.file));
+    const catalogChecks = verifyConfig.loras
+      .filter((lora) => Boolean(lora.filename))
+      .map((lora) => ({
+        id: lora.id,
+        label: lora.label,
+        file: lora.filename,
+        purpose_zh: loraUsageZh(lora),
+        status: installed.has(lora.filename)
+          ? 'ok'
+          : report.inventorySource === 'runtime-volume'
+            ? 'missing'
+            : 'unknown',
+        size_bytes: fileSizes?.[lora.filename],
+        source_url: lora.page_url || null,
+      }));
     return NextResponse.json({
       success: true,
       health: report,
+      catalog_checks: catalogChecks,
       file_checks: fileChecks.length ? fileChecks : undefined,
     });
   }
@@ -847,7 +867,9 @@ if (body.action === 'verify_loras') {
 
     const width = Number(body.width || wf?.defaults.width || 832);
     const height = Number(body.height || wf?.defaults.height || 1216);
-    const steps = Number(body.steps || wf?.defaults.steps || 28);
+    const categoryForParams = String(body.companion_category || 'female');
+    const minimumSteps = categoryForParams === 'anime' ? 30 : categoryForParams === 'transgender' ? 32 : 28;
+    const steps = Math.max(minimumSteps, Number(body.steps || wf?.defaults.steps || minimumSteps));
     const cfgScale = Number(body.cfg || wf?.defaults.cfg || 3.5);
     const allowedSamplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_sde']);
     const allowedSchedulers = new Set(['simple', 'normal', 'karras', 'sgm_uniform']);
@@ -893,11 +915,18 @@ if (body.action === 'verify_loras') {
         ).trim();
       }
     }
+    const rawCategory = String(body.companion_category || 'female');
+    const category: CompanionCategory = COMPANION_CATEGORIES.includes(rawCategory as CompanionCategory)
+      ? rawCategory as CompanionCategory
+      : 'female';
+    const rawIntensity = Math.round(Number(body.nsfw_intensity || 5));
+    const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
+    const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : '2d';
+    prompt = `${prompt} ${buildStudioPromptEnhancement({ category, intensity: nsfwIntensity, animeStyle })}`;
     if (!prompt.includes('consenting adults age 25 or older')) {
       prompt = `${prompt} ${HIGH_NSFW_PROMPT}`;
     }
-    // Keep this below FLUX's negative-length cutoff so the worker actually uses it.
-    negative = COMPACT_ADULT_NEGATIVE;
+    negative = `${studioNegativePrompt(category, animeStyle)}, ${COMPACT_ADULT_NEGATIVE}`;
 
     const effectiveInputImage = String(body.input_image || consistencyReference || '').trim() || undefined;
     const effectiveDenoise = effectiveInputImage

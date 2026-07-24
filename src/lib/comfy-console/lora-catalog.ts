@@ -46,8 +46,42 @@ export type LoraCatalog = {
 
 export const LORA_CATALOG = catalogJson as LoraCatalog;
 
+const PRACTICAL_LORAS: CatalogLora[] = [
+  {
+    id: 'body-transgender-flux', label: '跨性别身体结构', category: 'body',
+    filename: 'flux_body_transgender_v1.safetensors', default_strength: 0.62, nsfw: true,
+    usage: '跨性别成年人物：稳定女性外观、胸部曲线与跨性别外生殖结构；建议强度 0.5-0.7。',
+    trigger_words: ['adult transgender woman', 'feminine curves', 'coherent transgender anatomy'],
+    workflows: ['wf-girlfriend', 'wf-tryon'], source: 'civitai',
+    page_url: 'https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=transgender%20anatomy',
+    search_keywords: 'FLUX transgender woman anatomy adult',
+    download: { type: 'manual_or_script', hint: '仅选择明确标注 FLUX.1 D 且有真实样图的版本' },
+  },
+  {
+    id: 'style-anime-2d-flux', label: '二次元 2D 赛璐璐', category: 'style',
+    filename: 'flux_style_anime_2d_v1.safetensors', default_strength: 0.72, nsfw: true,
+    usage: '2D 动漫插画：稳定线稿、赛璐璐上色、动漫五官和发型；不要与写实风格 LoRA 叠加。',
+    trigger_words: ['2d anime illustration', 'clean line art', 'cel shading'],
+    workflows: ['wf-girlfriend'], source: 'civitai',
+    page_url: 'https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=anime%202d',
+    search_keywords: 'FLUX anime 2D cel shading',
+    download: { type: 'manual_or_script', hint: '优先选择 FLUX.1 D 原生 2D 动漫 LoRA' },
+  },
+  {
+    id: 'style-anime-3d-flux', label: '二次元 3D CGI', category: 'style',
+    filename: 'flux_style_anime_3d_v1.safetensors', default_strength: 0.68, nsfw: true,
+    usage: '3D 动漫 CGI：稳定角色建模、PBR 材质、发丝和电影灯光；不要与 2D 线稿 LoRA 叠加。',
+    trigger_words: ['3d anime cgi', 'stylized PBR character', 'cinematic render'],
+    workflows: ['wf-girlfriend'], source: 'civitai',
+    page_url: 'https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=anime%203d%20cgi',
+    search_keywords: 'FLUX anime 3D CGI PBR',
+    download: { type: 'manual_or_script', hint: '优先选择 FLUX.1 D 原生 3D 动漫 LoRA' },
+  },
+];
+
 export function getCatalogLoras(): CatalogLora[] {
-  return LORA_CATALOG.loras || [];
+  const existing = new Set((LORA_CATALOG.loras || []).map((lora) => lora.id));
+  return [...(LORA_CATALOG.loras || []), ...PRACTICAL_LORAS.filter((lora) => !existing.has(lora.id))];
 }
 
 export function getCatalogLoraById(id: string): CatalogLora | undefined {

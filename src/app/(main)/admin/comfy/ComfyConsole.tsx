@@ -32,6 +32,14 @@ import {
 import { getPresetsForCategory, type GenPreset } from './presets';
 import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
 import {
+  buildStudioPromptEnhancement,
+  loraUsageZh,
+  recommendedStudioLoras,
+  studioNegativePrompt,
+  type AnimeRenderStyle,
+  type NsfwIntensity,
+} from '@/lib/comfy-console/studio-profile';
+import {
   GIRLFRIEND_NEGATIVE_FLUX,
   resolveGirlfriendLoraPlan,
   subjectFromGirlfriendRow,
@@ -79,6 +87,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [prompt, setPrompt] = useState('');
   const [negative, setNegative] = useState('');
   const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
+  const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('2d');
+  const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(5);
   const [width, setWidth] = useState(832);
   const [height, setHeight] = useState(1216);
   const [steps, setSteps] = useState(28);
@@ -106,6 +116,18 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [batchProgress, setBatchProgress] = useState<Array<{ id: string; name: string; status: 'pending' | 'running' | 'success' | 'failed'; error?: string }>>([]);
 
 
+  const applyRecommendedLoras = (category: CompanionCategory, animeStyle: AnimeRenderStyle = animeRenderStyle) => {
+    const recommendations = recommendedStudioLoras(category, animeStyle);
+    const available = recommendations
+      .map((item) => ({ item, asset: (config?.loras || []).find((l: Any) => l.id === item.id) }))
+      .filter((entry) => entry.asset && (!entry.asset.filename || installedLoras.includes(String(entry.asset.filename))))
+      .map((entry) => ({ id: entry.item.id, strength: entry.item.strength }));
+    setSelectedLoras(available.slice(0, 3));
+    setLoraId(available[0]?.id || 'none');
+    if (available[0]) setLoraStrength(available[0].strength);
+    return available.length;
+  };
+
   const applyPreset = (p: GenPreset) => {
     const assembled = buildCompanionGenerationPrompt(
       scopedGirlfriend || {
@@ -113,21 +135,23 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         appearance_style: companionCategory === 'anime' ? 'anime' : 'realistic',
         age: 25,
       },
-      { action: p.prompt, adult: true },
+      { action: `${p.prompt} ${buildStudioPromptEnhancement({ category: companionCategory, intensity: nsfwIntensity, animeStyle: animeRenderStyle })}`, adult: true },
     );
     setPrompt(assembled.positive);
-    setNegative(`${assembled.negative}, ${p.negative}`);
+    setNegative(`${studioNegativePrompt(companionCategory, animeRenderStyle)}, ${assembled.negative}, ${p.negative}`);
     setWidth(p.width);
     setHeight(p.height);
     setSteps(p.steps);
     setCfg(p.cfg);
+    applyRecommendedLoras(companionCategory);
     toast.success(`已应用预设：${p.name}`);
   };
   const applyCategoryPrompt = (category: CompanionCategory) => {
     const preset = STUDIO_PROMPTS[category];
     setCompanionCategory(category);
-    setPrompt(preset.prompt);
-    setNegative(preset.negative);
+    setPrompt(`${preset.prompt} ${buildStudioPromptEnhancement({ category, intensity: nsfwIntensity, animeStyle: animeRenderStyle })}`);
+    setNegative(`${studioNegativePrompt(category, animeRenderStyle)}, ${preset.negative}`);
+    applyRecommendedLoras(category);
     toast.success(`已切换为${COMPANION_CATEGORY_LABELS[category].zh}成人提示词`);
   };
 
@@ -339,12 +363,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     };
     const assembled = buildCompanionGenerationPrompt(row as Record<string, unknown>, {
       adult: true,
+      action: buildStudioPromptEnhancement({ category: companionCategory, intensity: nsfwIntensity, animeStyle: animeRenderStyle }),
       random: Math.random(),
     });
     setPrompt(assembled.positive);
-    setNegative(assembled.negative);
+    setNegative(`${studioNegativePrompt(companionCategory, animeRenderStyle)}, ${assembled.negative}`);
+    applyRecommendedLoras(companionCategory);
     toast.success('已生成伴侣专属随机动作提示词');
-  }, [companionCategory, scopedGirlfriend]);
+  }, [animeRenderStyle, companionCategory, nsfwIntensity, scopedGirlfriend]);
 
   /** 一键调用：选中 LoRA + 强度 + 触发词写入提示词 */
   function applyLora(lora: Any, opts?: { appendTriggers?: boolean; goGenerate?: boolean }) {
@@ -477,6 +503,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     input_image: genMode === 'img2img' || inputImage.trim() ? inputImage.trim() || undefined : undefined,
     character_consistency: identityConsistency,
     gen_mode: genMode,
+    companion_category: companionCategory,
+    anime_render_style: animeRenderStyle,
+    nsfw_intensity: nsfwIntensity,
     kind,
   });
 
@@ -963,6 +992,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             if (data.health) {
               const h = data.health;
               if (h.inventorySource === 'unavailable') toast.warning('未取得 RunPod 运行卷清单，LoRA 只能标记为待验证');
+              else if (h.suspect > 0) toast.error('发现 ' + h.suspect + ' 个疑似损坏或占位 LoRA，请重新下载');
               else if (h.missing === 0) toast.success('LoRA 真实性检查通过：' + h.ok + '/' + h.total + ' 已由运行卷确认');
               else toast.warning('运行卷缺失 ' + h.missing + ' 个 LoRA：' + h.entries.filter((e: Any) => e.status === 'missing').map((e: Any) => e.label).join(', '));
             }
@@ -1068,6 +1098,25 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                   {COMPANION_CATEGORY_LABELS[category].zh}
                 </Button>
               ))}
+            </div>
+            <div className="mb-3 grid gap-3 rounded-md border border-fuchsia-500/20 bg-fuchsia-950/10 p-3 md:grid-cols-[220px_1fr]">
+              <div>
+                <Label className="mb-2 block text-[11px] text-slate-200">NSFW 强度：{nsfwIntensity}/5</Label>
+                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => setNsfwIntensity(Number(event.target.value) as NsfwIntensity)} className="w-full accent-rose-500" />
+                <p className="mt-1 text-[10px] text-slate-400">1 性感非露骨 · 3 明确成人 · 5 最高成人强度</p>
+              </div>
+              {companionCategory === 'anime' ? (
+                <div>
+                  <Label className="mb-2 block text-[11px] text-slate-200">二次元渲染方式</Label>
+                  <div className="flex gap-2">
+                    {(['2d', '3d'] as const).map((style) => (
+                      <Button key={style} type="button" size="sm" variant={animeRenderStyle === style ? 'default' : 'outline'} onClick={() => { setAnimeRenderStyle(style); applyRecommendedLoras('anime', style); }} className={cn('h-8', animeRenderStyle === style && 'bg-violet-600')}>
+                        {style === '2d' ? '2D 插画 / 赛璐璐' : '3D 动漫 / CGI'}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : <p className="self-center text-[11px] text-slate-400">AI 优化会按分类重写自然语言描述，并只调用网络卷上已验证的推荐 LoRA。</p>}
             </div>
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
@@ -1535,7 +1584,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         一键调用
                       </Button>
                     </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">{l.usage}</p>
+                    <p className="text-[11px] text-slate-300 leading-relaxed"><span className="font-semibold text-violet-300">用途：</span>{loraUsageZh(l)}</p>
                     <p className="text-[10px] font-mono text-cyan-400/70 break-all">{l.filename}</p>
                     {(l.trigger_words?.length ?? 0) > 0 && (
                       <div className="flex flex-wrap gap-1">

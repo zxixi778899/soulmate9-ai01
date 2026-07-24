@@ -142,9 +142,9 @@ const CATEGORY_BASE: Record<CompanionCategory, {
     loraHint: 'photoreal + skin_detail',
   },
   transgender: {
-    subject: 'A beautiful adult transgender woman age 25+, confident authentic feminine presentation, elegant curvy proportions, soft glowing skin, graceful features, natural beauty',
+    subject: 'An unmistakably adult transgender woman age 25+, feminine face, developed natural breasts, narrow waist, curvy hips and thighs, and coherent external male genital anatomy when exposed; one consistent body with both feminine and masculine sexual characteristics',
     style: 'Photograph the scene as an intimate editorial with lifelike skin, subtle pores and peach fuzz, controlled warm light, natural depth, and a clearly focused subject.',
-    negative: `caricature, fetishized stereotype, exaggerated features, plastic skin, airbrushed, cartoon, painting, ${BLOCKED}`,
+    negative: `duplicated genitals, detached genitals, female-only anatomy, male-only silhouette, caricature, fetishized stereotype, plastic skin, airbrushed, cartoon, painting, ${BLOCKED}`,
     quality: 'Keep the face and anatomy coherent, preserve authentic beauty, and use controlled editorial light and color.',
     loraHint: 'hyperreal + skin_detail',
   },
@@ -228,11 +228,11 @@ function buildCategoryPresets(category: CompanionCategory): GenPreset[] {
   const base = CATEGORY_BASE[category];
   return SCENES.map((sc) => {
     const sceneText = getSceneOverride(category, sc.id) || sc.scene;
-    const boost = `${NSFW_BOOST[category]} ${SFW_MOOD}`;
+    const boost = `${NSFW_BOOST[category]} The preset is intentionally high-NSFW with explicit adult nudity, direct erotic staging, and clearly readable mature anatomy. ${SFW_MOOD}`;
     return {
       id: `${category}-${sc.id}`,
       name: sc.name,
-      desc: sc.desc,
+      desc: `高 NSFW · ${sc.desc}`,
       prompt: [base.subject, sceneText, boost, base.quality, base.style]
         .filter(Boolean)
         .join(' '),
