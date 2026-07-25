@@ -14,17 +14,18 @@ describe('studio generation profiles', () => {
       intensity: 5,
     });
     expect(prompt).toContain('developed breasts');
-    expect(prompt).toContain('external male genital anatomy');
-    expect(prompt).toContain('maximum consensual adult intensity');
+    expect(prompt).toContain('large penis');
+    expect(prompt).toContain('visible semen');
     expect(studioNegativePrompt('transgender')).toContain('duplicated genitals');
   });
 
   it('uses distinct adult anatomy for female and male profiles', () => {
     const female = buildStudioPromptEnhancement({ category: 'female', intensity: 5 });
     const male = buildStudioPromptEnhancement({ category: 'male', intensity: 5 });
-    expect(female).toContain('vulva and vaginal opening');
+    expect(female).toContain('vulva clearly visible');
     expect(female).not.toContain('large penis');
-    expect(male).toContain('large penis and testicles');
+    expect(male).toContain('large penis');
+    expect(male).toContain('testicles');
     expect(male).not.toContain('vaginal opening');
   });
   it('makes all five intensity levels materially different', () => {
@@ -32,9 +33,11 @@ describe('studio generation profiles', () => {
       buildStudioPromptEnhancement({ category: 'female', intensity }),
     );
     expect(new Set(prompts).size).toBe(5);
-    expect(prompts[0]).toContain('no visible nipples or genitals');
-    expect(prompts[2]).toContain('explicitly nude');
-    expect(prompts[4]).toContain('Do not soften');
+    expect(prompts[0]).toContain('fully clothed');
+    expect(prompts[1]).toContain('keeping her vulva covered');
+    expect(prompts[2]).toContain('fully nude');
+    expect(prompts[3]).toContain('before climax');
+    expect(prompts[4]).toContain('to climax');
     expect(studioLoraStrengthScale(5)).toBeGreaterThan(studioLoraStrengthScale(1));
   });
   it('keeps 2D and 3D anime directions mutually distinct', () => {
@@ -48,10 +51,10 @@ describe('studio generation profiles', () => {
       intensity: 5,
       animeStyle: '3d',
     });
-    expect(twoD).toContain('clean confident line art');
+    expect(twoD).toContain('clean line art');
     expect(twoD).not.toContain('PBR materials');
     expect(threeD).toContain('PBR materials');
-    expect(threeD).not.toContain('clean confident line art');
+    expect(threeD).not.toContain('clean line art');
   });
 
   it('recommends category-specific practical LoRAs', () => {

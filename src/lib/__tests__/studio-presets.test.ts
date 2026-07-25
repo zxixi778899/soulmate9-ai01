@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { COMPANION_CATEGORIES, HIGH_NSFW_PROMPT } from '@/lib/companion-category';
+import { COMPANION_CATEGORIES } from '@/lib/companion-category';
 import { CATEGORY_PRESETS } from '@/app/(main)/admin/comfy/presets';
 import {
   checkLoraAuthenticity,
@@ -21,7 +21,8 @@ describe('creation workbench presets', () => {
     expect(new Set(presets.map((preset) => preset.id)).size).toBe(30);
     expect(presets.every((preset) => preset.nsfw)).toBe(true);
     expect(presets.every((preset) => preset.steps >= 30)).toBe(true);
-    expect(presets.every((preset) => preset.prompt.includes('consenting adult'))).toBe(true);
+    expect(presets.every((preset) => preset.prompt.length > 20 && preset.prompt.length <= 320)).toBe(true);
+    expect(presets.every((preset) => !/masterpiece|8k|raw photo|consenting adult/i.test(preset.prompt))).toBe(true);
   });
 
   it('uses visibly different preset names for every category', () => {
@@ -32,10 +33,6 @@ describe('creation workbench presets', () => {
         expect(rightNames.filter((name) => leftNames.has(name)).length).toBeLessThan(3);
       }
     }
-  });
-  it('keeps the global adult intensity explicitly adult-only', () => {
-    expect(HIGH_NSFW_PROMPT).toContain('adults age 25 or older');
-    expect(HIGH_NSFW_PROMPT).toContain('private erotic scene');
   });
 });
 

@@ -28,19 +28,19 @@ export const COMPACT_ADULT_NEGATIVE = 'child, minor, underage, teen, young-looki
 
 export const STUDIO_PROMPTS: Record<CompanionCategory, { prompt: string; negative: string }> = {
   female: {
-    prompt: 'A breathtaking adult woman age 25+, voluptuous feminine hourglass figure, full natural breasts, soft curves, bare glowing skin with visible pores, confident direct eye contact, explicit consensual adult boudoir scene, provocative natural pose, sensual parted lips, detailed realistic skin texture and anatomy, warm cinematic intimate lighting, erotic high-resolution editorial boudoir photography, 8k uhd, raw photo',
+    prompt: 'on a modern sofa in a private living room, medium full-body framing',
     negative: `male body, masculine face, ${BLOCKED}`,
   },
   male: {
-    prompt: 'A striking adult man age 25+, athletic masculine physique, broad shoulders, defined muscular torso and abs, bare toned skin, confident direct eye contact, explicit consensual adult bedroom scene, provocative natural pose, detailed realistic skin and male anatomy, warm cinematic intimate lighting, erotic high-resolution editorial photography',
+    prompt: 'on a modern sofa in a private living room, medium full-body framing',
     negative: `female body, breasts, feminine face, ${BLOCKED}`,
   },
   transgender: {
-    prompt: 'A beautiful adult transgender woman age 25+, confident authentic feminine presentation, elegant curvy proportions, soft glowing skin, alluring direct eye contact, explicit consensual adult boudoir scene, provocative natural pose, sensual expression, detailed realistic skin texture and anatomy, warm cinematic intimate lighting, erotic high-resolution editorial photography',
+    prompt: 'on a modern sofa in a private living room, medium full-body framing',
     negative: `caricature, fetishized stereotype, ${BLOCKED}`,
   },
   anime: {
-    prompt: 'An unmistakably adult anime character age 25+, mature facial features and voluptuous adult proportions, expressive seductive eyes, explicit consensual adult fantasy scene, provocative dynamic pose, sensual atmosphere, polished 2D illustration, clean line art, rich cel shading, detailed background, premium erotic anime key visual',
+    prompt: 'on a sofa in a private fantasy apartment, medium full-body framing',
     negative: `childlike proportions, school uniform, loli, shota, photorealistic, photograph, 3d render, ${BLOCKED}`,
   },
 };

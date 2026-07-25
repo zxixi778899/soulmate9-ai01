@@ -26,7 +26,7 @@ import { loadAiModules } from '@/lib/ai-modules/store';
 import { resolveChatCall } from '@/lib/ai-modules/resolve';
 import { invokeChat } from '@/lib/ai-modules/invoke';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
-import { COMPACT_ADULT_NEGATIVE, HIGH_NSFW_PROMPT, COMPANION_CATEGORIES, type CompanionCategory } from '@/lib/companion-category';
+import { COMPACT_ADULT_NEGATIVE, COMPANION_CATEGORIES, type CompanionCategory } from '@/lib/companion-category';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 
 export const dynamic = 'force-dynamic';
@@ -436,16 +436,15 @@ export async function POST(req: NextRequest) {
     const profile = body.companion && typeof body.companion === 'object'
       ? JSON.stringify(body.companion).slice(0, 5000)
       : '{}';
-    const systemPrompt = `You are a senior FLUX.1-dev prompt engineer for an adults-only image studio. Rewrite prompts as concise, concrete natural-language visual direction, never SD tag piles. The selected category and intensity are authoritative even when the old prompt or profile conflicts. All depicted people must be consenting adults age 25 or older. Return strict JSON only with keys "prompt" and "negative".`;
+    const systemPrompt = `Extract or invent one short setting for an adults-only FLUX image. Return strict JSON only with keys "prompt" and "negative". The prompt value must contain only a setting and framing in 8-24 natural English words. Do not include the subject, anatomy, action, style, quality tags, or NSFW labels; the server adds those deterministically.`;
     const userPrompt = [
       `Selected category: ${category}`,
       `Anime render style: ${animeStyle}`,
-      `NSFW intensity: ${intensity}/5`,
-      `Mandatory intensity behavior: ${buildStudioPromptEnhancement({ category, intensity, animeStyle })}`,
-      `Companion profile (preserve identity details except conflicting gender/anatomy/style): ${profile}`,
-      `Current user prompt: ${currentPrompt || 'Create a new category-appropriate adult scene.'}`,
-      'Write one concise 45-90 word FLUX prompt in natural English. Use complete sentences, not SD quality tags. State the subject first, then the action and setting, then camera and light. Keep only details visible in the image. Make levels 1-5 materially different. Preserve the selected sex characteristics exactly. For anime, strictly follow the selected 2D or 3D render style.',
-      `Negative prompt must be concise and category-specific. Include: ${studioNegativePrompt(category, animeStyle)}`,
+      `Selected NSFW intensity: ${intensity}/5`,
+      `Companion profile, used only to infer a fitting location: ${profile}`,
+      `Current prompt, used only to preserve its location or framing: ${currentPrompt || 'a modern sofa in a private living room'}`,
+      'Return a short setting such as "on a modern sofa in a private living room, medium full-body framing".',
+      `Negative prompt must be concise and include: ${studioNegativePrompt(category, animeStyle)}`,
     ].join('\n');
     try {
       const aiConfig = await loadAiModules(admin.supabase);
@@ -477,8 +476,14 @@ export async function POST(req: NextRequest) {
       const raw = result.content;
       const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
       const parsed = JSON.parse(cleaned) as { prompt?: unknown; negative?: unknown };
-      const optimizedPrompt = String(parsed.prompt || '').trim();
-      if (!optimizedPrompt) throw new Error('LLM returned an empty prompt');
+      const optimizedScene = String(parsed.prompt || '').trim();
+      if (!optimizedScene) throw new Error('LLM returned an empty scene');
+      const optimizedPrompt = buildStudioPromptEnhancement({
+        category,
+        intensity,
+        animeStyle,
+        scene: optimizedScene,
+      });
       const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
       const installed = getVerifiedInstalledLoraSet();
       const scale = studioLoraStrengthScale(intensity);
@@ -1048,10 +1053,12 @@ if (body.action === 'verify_loras') {
     const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : '2d';
     if (body.prompt_profile_applied !== true) {
-      prompt = `${buildStudioPromptEnhancement({ category, intensity: nsfwIntensity, animeStyle })} ${prompt}`;
-    }
-    if (!prompt.includes('consenting adults age 25 or older')) {
-      prompt = `${prompt} ${HIGH_NSFW_PROMPT}`;
+      prompt = buildStudioPromptEnhancement({
+        category,
+        intensity: nsfwIntensity,
+        animeStyle,
+        scene: prompt,
+      });
     }
     negative = `${studioNegativePrompt(category, animeStyle)}, ${COMPACT_ADULT_NEGATIVE}`;
 

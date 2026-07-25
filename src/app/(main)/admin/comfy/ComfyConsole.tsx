@@ -32,6 +32,7 @@ import {
 import { getPresetsForCategory, type GenPreset } from './presets';
 import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
 import {
+  buildStudioPromptEnhancement,
   loraUsageZh,
   recommendedStudioLoras,
   studioIntensityLabel,
@@ -139,17 +140,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   };
 
   const applyPreset = (p: GenPreset) => {
-    const assembled = buildCompanionGenerationPrompt(
-      scopedGirlfriend || {
-        gender: companionCategory === 'male' ? 'Male' : companionCategory === 'transgender' ? 'Transgender' : 'Female',
-        appearance_style: companionCategory === 'anime' ? 'anime' : 'realistic',
-        age: 25,
-      },
-      { action: p.prompt, adult: true },
-    );
-    setPrompt(assembled.positive);
-    setPromptProfileApplied(false);
-    setNegative(`${studioNegativePrompt(companionCategory, animeRenderStyle)}, ${assembled.negative}, ${p.negative}`);
+    setPrompt(buildStudioPromptEnhancement({
+      category: companionCategory,
+      intensity: nsfwIntensity,
+      animeStyle: animeRenderStyle,
+      scene: p.prompt,
+    }));
+    setPromptProfileApplied(true);
+    setNegative(`${studioNegativePrompt(companionCategory, animeRenderStyle)}, ${p.negative}`);
     setWidth(p.width);
     setHeight(p.height);
     setSteps(p.steps);
@@ -160,8 +158,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const applyCategoryPrompt = (category: CompanionCategory) => {
     const preset = STUDIO_PROMPTS[category];
     setCompanionCategory(category);
-    setPrompt(preset.prompt);
-    setPromptProfileApplied(false);
+    setPrompt(buildStudioPromptEnhancement({
+      category,
+      intensity: nsfwIntensity,
+      animeStyle: animeRenderStyle,
+      scene: preset.prompt,
+    }));
+    setPromptProfileApplied(true);
     setNegative(`${studioNegativePrompt(category, animeRenderStyle)}, ${preset.negative}`);
     applyRecommendedLoras(category);
     toast.success(`已切换为${COMPANION_CATEGORY_LABELS[category].zh}成人提示词`);
@@ -310,11 +313,17 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     if (!row) return false;
     try {
       const assembled = buildCompanionGenerationPrompt(row as Record<string, unknown>, { adult: true });
-      const nextPrompt = String(assembled.positive || '').trim();
+      const nextPrompt = buildStudioPromptEnhancement({
+        category: assembled.category,
+        intensity: nsfwIntensity,
+        animeStyle: animeRenderStyle,
+        scene: STUDIO_PROMPTS[assembled.category].prompt,
+      });
       const nextNeg = String(assembled.negative || GIRLFRIEND_NEGATIVE_FLUX).trim();
       if (!nextPrompt) return false;
       if (opts?.force) {
         setPrompt(nextPrompt);
+        setPromptProfileApplied(true);
         setNegative(nextNeg || GIRLFRIEND_NEGATIVE_FLUX);
       } else {
         setPrompt((prev: string) => {
@@ -531,7 +540,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     companion_category: companionCategory,
     anime_render_style: animeRenderStyle,
     nsfw_intensity: nsfwIntensity,
-    prompt_profile_applied: promptProfileApplied,
+    prompt_profile_applied: overrides?.prompt ? false : promptProfileApplied,
     kind,
   });
 
@@ -1128,16 +1137,16 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div className="mb-3 grid gap-3 rounded-md border border-fuchsia-500/20 bg-fuchsia-950/10 p-3 md:grid-cols-[220px_1fr]">
               <div>
                 <Label className="mb-2 block text-[11px] text-slate-200">NSFW 强度：{nsfwIntensity}/5</Label>
-                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => { const next = Number(event.target.value) as NsfwIntensity; setNsfwIntensity(next); applyRecommendedLoras(companionCategory, animeRenderStyle, next); }} className="w-full accent-rose-500" />
+                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => { const next = Number(event.target.value) as NsfwIntensity; setNsfwIntensity(next); setPrompt(buildStudioPromptEnhancement({ category: companionCategory, intensity: next, animeStyle: animeRenderStyle })); setPromptProfileApplied(true); applyRecommendedLoras(companionCategory, animeRenderStyle, next); }} className="w-full accent-rose-500" />
                 <p className="mt-1 text-[10px] font-medium text-rose-200">当前：{studioIntensityLabel(nsfwIntensity)}</p>
-                <p className="mt-1 text-[10px] text-slate-400">滑块会改变生成端场景约束和 LoRA 权重；点击 AI 优化后会由 LLM 完整重写当前提示词。</p>
+                <p className="mt-1 text-[10px] text-slate-400">滑块会立即重写动作等级和 LoRA 权重；AI 优化只负责选择合适场景，不再堆叠提示词。</p>
               </div>
               {companionCategory === 'anime' ? (
                 <div>
                   <Label className="mb-2 block text-[11px] text-slate-200">二次元渲染方式</Label>
                   <div className="flex gap-2">
                     {(['2d', '3d'] as const).map((style) => (
-                      <Button key={style} type="button" size="sm" variant={animeRenderStyle === style ? 'default' : 'outline'} onClick={() => { setAnimeRenderStyle(style); applyRecommendedLoras('anime', style); }} className={cn('h-8', animeRenderStyle === style && 'bg-violet-600')}>
+                      <Button key={style} type="button" size="sm" variant={animeRenderStyle === style ? 'default' : 'outline'} onClick={() => { setAnimeRenderStyle(style); setPrompt(buildStudioPromptEnhancement({ category: 'anime', intensity: nsfwIntensity, animeStyle: style })); setPromptProfileApplied(true); applyRecommendedLoras('anime', style); }} className={cn('h-8', animeRenderStyle === style && 'bg-violet-600')}>
                         {style === '2d' ? '2D 插画 / 赛璐璐' : '3D 动漫 / CGI'}
                       </Button>
                     ))}

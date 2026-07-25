@@ -3,39 +3,71 @@ import type { CompanionCategory } from '@/lib/companion-category';
 export type AnimeRenderStyle = '2d' | '3d';
 export type NsfwIntensity = 1 | 2 | 3 | 4 | 5;
 
-const INTENSITY_PROMPTS: Record<NsfwIntensity, string> = {
-  1: 'Keep the scene sensual but non-explicit: fully covered intimate clothing, teasing eye contact, relaxed flirtatious body language, and no visible nipples or genitals.',
-  2: 'Create an erotic boudoir scene with lingerie or strategic covering, partial nudity, intimate posing, and strong adult tension, while keeping genitals covered.',
-  3: 'Create an explicitly nude adult scene with a direct erotic pose, visible mature anatomy, confident eye contact, and a clearly readable body silhouette.',
-  4: 'Create a highly explicit consensual adult scene with fully visible mature anatomy, proactive erotic body language, close intimate staging, and physically coherent contact.',
-  5: 'Use maximum consensual adult intensity: full nudity, fully visible mature anatomy, an unmistakable sexual pose, close direct staging, and visible sexual fluids only when the described action implies climax. Do not soften the scene into glamour or lingerie.',
+const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>> = {
+  1: {
+    female: 'She remains fully clothed and poses flirtatiously without exposing her breasts or vulva.',
+    male: 'He remains fully clothed and poses flirtatiously without exposing his penis.',
+    transgender: 'She remains fully clothed and poses flirtatiously without exposing her breasts or penis.',
+    anime: 'The adult character remains fully clothed and poses flirtatiously without exposed nipples or genitals.',
+  },
+  2: {
+    female: 'She wears lingerie, reveals part of her breasts, and slowly touches her body while keeping her vulva covered.',
+    male: 'He wears low underwear, reveals his chest, and slowly touches his body while keeping his penis covered.',
+    transgender: 'She wears lingerie, reveals her breasts, and slowly touches her body while keeping her penis covered.',
+    anime: 'The adult character wears revealing underwear and touches their body while nipples and genitals remain covered.',
+  },
+  3: {
+    female: 'She poses fully nude with her natural breasts and vulva clearly visible, without performing a sexual act.',
+    male: 'He poses fully nude with his muscular torso, large penis, and testicles clearly visible, without performing a sexual act.',
+    transgender: 'She poses fully nude with developed breasts, feminine curves, a large penis, and testicles clearly visible, without performing a sexual act.',
+    anime: 'The adult character poses fully nude with mature stylized anatomy clearly visible, without performing a sexual act.',
+  },
+  4: {
+    female: 'She masturbates with one hand on her clearly visible vulva, before climax and without visible sexual fluids.',
+    male: 'He masturbates his clearly visible large penis, before climax and without visible semen.',
+    transgender: 'She masturbates her clearly visible large penis while her developed breasts and feminine curves remain in frame, before climax and without visible semen.',
+    anime: 'The adult character performs clearly visible solo masturbation, before climax and without visible sexual fluids.',
+  },
+  5: {
+    female: 'She masturbates to climax with her natural breasts and vulva clearly visible and a small amount of anatomically coherent sexual fluid.',
+    male: 'He masturbates his large penis to climax with his masculine body, testicles, and visible semen clearly shown.',
+    transgender: 'She masturbates her large penis to climax while her developed breasts and feminine curves remain clearly visible, with visible semen shown coherently.',
+    anime: 'The adult character performs explicit solo masturbation to climax with mature stylized anatomy and restrained visible sexual fluids.',
+  },
 };
 
-const CATEGORY_PROMPTS: Record<CompanionCategory, string> = {
-  female: 'An adult woman age 25 or older with a feminine face, natural breasts, a narrow waist, rounded hips, and an anatomically correct visible vulva and vaginal opening in nude scenes.',
-  male: 'An adult man age 25 or older with a masculine face, broad shoulders, a defined torso, and coherent external male genital anatomy, including an anatomically correct large penis and testicles in nude scenes, with visible semen only when the action implies ejaculation.',
-  transgender: 'An adult transgender woman age 25 or older with a feminine face, developed breasts, a narrow waist, rounded hips, and coherent external male genital anatomy, including an anatomically correct large penis and testicles in nude scenes, with visible semen only when the action implies ejaculation.',
-  anime: 'An unmistakably adult anime character age 25 or older with mature facial structure, adult proportions, and coherent stylized anatomy.',
+const CATEGORY_SUBJECTS: Record<CompanionCategory, string> = {
+  female: 'The subject is a consenting adult woman age 25 or older with a feminine face, natural breasts, a narrow waist, rounded hips, and female anatomy.',
+  male: 'The subject is a consenting adult man age 25 or older with a masculine face, broad shoulders, a defined torso, and male anatomy.',
+  transgender: 'The subject is a consenting adult transgender woman age 25 or older with a feminine face, developed breasts, a narrow waist, rounded hips, a large penis, and testicles.',
+  anime: 'The subject is an unmistakably adult anime character age 25 or older with mature proportions and coherent stylized anatomy.',
 };
 
 const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
-  '2d': 'Render as premium 2D adult anime illustration: clean confident line art, controlled cel shading, expressive eyes, layered hair shapes, deliberate highlights, and no photoreal skin.',
-  '3d': 'Render as polished 3D adult anime CGI: high-quality stylized character model, coherent PBR materials, subsurface skin shading, detailed hair cards, cinematic volumetric lighting, and no flat line-art look.',
+  '2d': 'Render it as a high-resolution 2D anime frame with clean line art, consistent cel shading, expressive eyes, and no photographic or 3D elements.',
+  '3d': 'Render it as a high-resolution 3D animated film frame with a coherent modeled character, PBR materials, detailed hair, and cinematic lighting, with no flat line art.',
 };
+
+function compactScene(scene?: string): string {
+  const clean = String(scene || '').replace(/\s+/g, ' ').trim();
+  if (!clean || clean.length > 320) return 'The scene takes place on a modern sofa in a private living room.';
+  return `The scene direction is: ${clean.replace(/[.]+$/, '')}.`;
+}
 
 export function buildStudioPromptEnhancement(input: {
   category: CompanionCategory;
   intensity: NsfwIntensity;
   animeStyle?: AnimeRenderStyle;
+  scene?: string;
 }): string {
-  const render = input.category === 'anime'
+  const quality = input.category === 'anime'
     ? RENDER_PROMPTS[input.animeStyle || '2d']
-    : 'Use FLUX natural-language photographic direction, realistic skin response, controlled cinematic light, and a coherent single adult subject.';
+    : 'Capture it as a sharp high-resolution 4K real photograph with natural skin texture, realistic anatomy, and soft cinematic light.';
   return [
-    CATEGORY_PROMPTS[input.category],
-    INTENSITY_PROMPTS[input.intensity],
-    render,
-    'Show one anatomically consistent consenting adult with a clear face, hands, torso, and pelvis.',
+    CATEGORY_SUBJECTS[input.category],
+    compactScene(input.scene),
+    INTENSITY_ACTIONS[input.intensity][input.category],
+    quality,
   ].join(' ');
 }
 
@@ -45,11 +77,11 @@ export function studioLoraStrengthScale(intensity: NsfwIntensity): number {
 
 export function studioIntensityLabel(intensity: NsfwIntensity): string {
   return ({
-    1: '性感但不露点',
-    2: '情趣内衣与局部裸露',
-    3: '明确成人全裸',
-    4: '高强度成人亲密场景',
-    5: '最高强度成人显式场景',
+    1: '完整穿着 · 挑逗姿势 · 不露点',
+    2: '内衣局部裸露 · 生殖器遮挡',
+    3: '全裸展示 · 无性行为',
+    4: '明确自慰 · 未高潮 · 无体液',
+    5: '自慰高潮 · 对应身体特征与体液',
   } as const)[intensity];
 }
 
