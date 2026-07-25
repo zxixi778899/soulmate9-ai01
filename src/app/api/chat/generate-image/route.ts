@@ -307,7 +307,7 @@ export async function POST(request: NextRequest) {
       strength_clip: lora.strength,
     }));
     const categoryFiles = new Set(categoryLoras.map((lora) => lora.name));
-    const useCategoryOnly = categoryControl.selected.length > 0 && category !== 'female';
+    const useCategoryOnly = categoryControl.selected.length > 0;
     const intelligentLoras = [
       ...categoryLoras,
       ...(useCategoryOnly

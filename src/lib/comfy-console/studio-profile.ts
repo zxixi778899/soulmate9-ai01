@@ -118,27 +118,24 @@ export function recommendedStudioLoras(
   const subjectCategory = category === 'anime' ? 'female' : category;
   const genderLoras = subjectCategory === 'transgender'
     ? [
-        { id: 'body-transgender-anatomy-flux', strength: 0.74, reasonZh: '\u540c\u65f6\u5f3a\u5316\u80f8\u90e8\u4e0e\u7537\u6027\u5916\u751f\u6b96\u7279\u5f81' },
-        { id: 'body-transgender-presentation-flux', strength: 0.48, reasonZh: '\u7a33\u5b9a\u6210\u5e74 MtF \u7684\u5973\u6027\u9762\u90e8\u3001\u80f8\u90e8\u548c\u66f2\u7ebf' },
+        { id: 'detail-skin', strength: 0.28, reasonZh: '\u4ec5\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282\uff0c\u4e0d\u5e72\u9884\u8de8\u6027\u522b\u8eab\u4f53\u7ed3\u6784' },
       ]
     : subjectCategory === 'male'
       ? [
           { id: 'body-masculine-flux', strength: 0.62, reasonZh: '\u5f3a\u5316\u6210\u5e74\u7537\u6027\u4f53\u578b\u4e0e\u89e3\u5256' },
-          { id: 'detail-skin-flux', strength: 0.36, reasonZh: '\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282' },
+          { id: 'detail-skin', strength: 0.36, reasonZh: '\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282' },
         ]
       : [
           { id: 'body-curvy-flux', strength: 0.58, reasonZh: '\u5f3a\u5316\u6210\u5e74\u5973\u6027\u81ea\u7136\u66f2\u7ebf' },
-          { id: 'detail-skin-flux', strength: 0.36, reasonZh: '\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282' },
+          { id: 'detail-skin', strength: 0.36, reasonZh: '\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282' },
         ];
   const styleLora = animeStyle === '2d'
     ? { id: 'style-anime-2d-flux', strength: 0.68, reasonZh: '\u7a33\u5b9a 2D \u7ebf\u7a3f\u4e0e\u8d5b\u7490\u7490\u4e0a\u8272' }
     : animeStyle === '3d'
       ? { id: 'style-anime-3d-flux', strength: 0.64, reasonZh: '\u7a33\u5b9a 3D \u52a8\u753b\u6750\u8d28\u4e0e\u89d2\u8272\u5efa\u6a21' }
       : null;
-  if (!styleLora) return genderLoras;
-  return subjectCategory === 'transgender'
-    ? [...genderLoras, styleLora]
-    : [genderLoras[0], styleLora, genderLoras[1]];
+  if (!styleLora) return [genderLoras[0]];
+  return [styleLora];
 }
 
 export type CategoryLoraControl = {

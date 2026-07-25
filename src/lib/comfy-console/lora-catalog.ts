@@ -1,4 +1,4 @@
-﻿/**
+/**
  * LoRA catalog: load from data/lora-catalog.json for Comfy defaults + admin UI.
  * Single source: edit JSON to sync download scripts and Admin UI.
  */
@@ -50,28 +50,6 @@ export type LoraCatalog = {
 export const LORA_CATALOG = catalogJson as LoraCatalog;
 
 const PRACTICAL_LORAS: CatalogLora[] = [
-  {
-    id: 'body-transgender-presentation-flux', label: '跨性别女性外观（MtF）', category: 'body',
-    filename: 'realistic-mtf-trans.safetensors', default_strength: 0.5, nsfw: false,
-    usage: '跨性别女性外观控制：强化成年 MtF 的女性面部、胸部与曲线。它不单独负责生殖结构，需与跨性别双特征 LoRA 配合。',
-    trigger_words: ['MtF trans'], workflows: ['wf-girlfriend', 'wf-tryon'], source: 'civitai',
-    page_url: 'https://civitai.com/models/918039', version_id: 1027537,
-    sha256: '04C9A25E61C5141CA9A5B7E874A2A05117EB849740D230ED7E96C8B085F3543F',
-    download_url: 'https://civitai.com/api/download/models/1027537',
-    search_keywords: 'FLUX realistic MtF transgender',
-    download: { type: 'civitai_version', hint: 'FLUX.1 D；触发词 MtF trans；SafeTensor 扫描通过' },
-  },
-  {
-    id: 'body-transgender-anatomy-flux', label: '跨性别双特征结构', category: 'body',
-    filename: 'Anet_Valence_futanari_FLUX-000004.safetensors', default_strength: 0.68, nsfw: true,
-    usage: '跨性别双特征结构控制：用于女性胸部与男性外生殖特征同时入镜。Lv3-Lv5 建议 0.62-0.78，并使用胸部到骨盆完整构图。',
-    trigger_words: ['adult transgender woman', 'developed breasts and penis'], workflows: ['wf-girlfriend'], source: 'civitai',
-    page_url: 'https://civitai.com/models/737321', version_id: 824543,
-    sha256: '7E901AB1C18760C8129218C7D05DB7156749E3A25E71973A2A9F034566A7C759',
-    download_url: 'https://civitai.com/api/download/models/824543',
-    search_keywords: 'FLUX transgender dual anatomy',
-    download: { type: 'civitai_version', hint: 'FLUX.1 D；SafeTensor 扫描通过；下载后需用测试种子人工验收' },
-  },
   {
     id: 'body-masculine-flux', label: '成年男性体型 MASC', category: 'body',
     filename: 'MASC V1.0.safetensors', default_strength: 0.62, nsfw: false,

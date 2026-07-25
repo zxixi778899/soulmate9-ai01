@@ -1,5 +1,3 @@
 # filename|download_url|sha256
-realistic-mtf-trans.safetensors|https://civitai.com/api/download/models/1027537|04C9A25E61C5141CA9A5B7E874A2A05117EB849740D230ED7E96C8B085F3543F
-Anet_Valence_futanari_FLUX-000004.safetensors|https://civitai.com/api/download/models/824543|7E901AB1C18760C8129218C7D05DB7156749E3A25E71973A2A9F034566A7C759
 rdanimefluxv1rapid.safetensors|https://civitai.com/api/download/models/863817|49D581E274F0D50492E4A7A72DA49BA8F3C69DD3549AEF6FD86554F1A2B28F5F
 MASC V1.0.safetensors|https://civitai.com/api/download/models/1967998|AB521113F14E583263FE9E6BB819F8ED32E6B605CDCC08F4942B3C61EEADF79E

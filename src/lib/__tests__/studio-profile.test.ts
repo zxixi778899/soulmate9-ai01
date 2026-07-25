@@ -78,23 +78,19 @@ describe('studio generation profiles', () => {
   });
 
   it('recommends category-specific practical LoRAs', () => {
-    expect(recommendedStudioLoras('transgender')[0]?.id).toBe('body-transgender-anatomy-flux');
+    expect(recommendedStudioLoras('transgender')).toEqual([
+      expect.objectContaining({ id: 'detail-skin', strength: 0.28 }),
+    ]);
     expect(recommendedStudioLoras('female', '2d').map((item) => item.id)).toContain('style-anime-2d-flux');
     expect(recommendedStudioLoras('male', '3d').map((item) => item.id)).toContain('style-anime-3d-flux');
-    expect(recommendedStudioLoras('transgender', '2d').map((item) => item.id)).toEqual([
-      'body-transgender-anatomy-flux',
-      'body-transgender-presentation-flux',
-      'style-anime-2d-flux',
-    ]);
+    expect(recommendedStudioLoras('transgender', '2d').map((item) => item.id)).toEqual(['style-anime-2d-flux']);
   });
 
-  it('selects both verified transgender controls without substituting a female body LoRA', () => {
+  it('avoids conflicting transgender anatomy LoRAs and uses one stable helper', () => {
     const controls = resolveCategoryLoraControls('transgender', 5);
-    expect(controls.selected.map((item) => item.id)).toEqual([
-      'body-transgender-anatomy-flux',
-      'body-transgender-presentation-flux',
-    ]);
+    expect(controls.selected.map((item) => item.id)).toEqual(['detail-skin']);
     expect(controls.selected.some((item) => item.id === 'body-curvy-flux')).toBe(false);
+    expect(controls.selected.some((item) => item.id.includes('transgender'))).toBe(false);
   });
 
   it('forces explicit transgender levels to include chest and pelvis in one frame', () => {
