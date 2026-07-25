@@ -6,7 +6,6 @@ import { logger } from '@/lib/logger';
 import { loadAiModules, resolveImageCall, type MembershipTier } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
 import {
-  assembleGirlfriendFromRow,
   buildLoraPlan,
   detectGenderStyle,
   GIRLFRIEND_NEGATIVE_FLUX,
@@ -20,6 +19,12 @@ import {
   type ChatContextLine,
 } from '@/lib/chat-image-intent';
 import { getIntimacyGenerationPolicy, getIntimacyUnlockPayload } from '@/lib/intimacy-policy';
+import { normalizeCompanionCategory } from '@/lib/companion-category';
+import {
+  buildStudioPromptEnhancement,
+  studioNegativePrompt,
+  type AnimeRenderStyle,
+} from '@/lib/comfy-console/studio-profile';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -109,7 +114,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle();
     const tier = membershipFromProfile((profile as Record<string, unknown>) || null);
-    const adultRequested = /\b(nude|naked|nsfw|explicit|sex|sexy|lingerie|fuck|cock|pussy|dick|cum|orgasm|blowjob|anal|breast|nipple|horny|moan|undress|strip|bdsm|spank|ride|aroused|climax|erotic|hardcore|fetish|kink|threesome|oral|deepthroat|creampie|facial|bondage|dominat|submiss|collar|leash|whip|gag|choker|thigh.?high|garter|corset|bustier|negligee|see.?through|topless|bottomless|spread|bent.?over|on.?knees|suck|lick|tease|seduce)\b/i.test(userRequest);
+    const adultRequested = /\b(nude|naked|nsfw|explicit|sex|sexy|lingerie|fuck|cock|pussy|dick|cum|orgasm|blowjob|anal|breast|nipple|horny|moan|undress|strip|bdsm|spank|ride|aroused|climax|erotic|hardcore|fetish|kink|threesome|oral|deepthroat|creampie|facial|bondage|dominat|submiss|collar|leash|whip|gag|choker|thigh.?high|garter|corset|bustier|negligee|see.?through|topless|bottomless|spread|bent.?over|on.?knees|suck|lick|tease|seduce)\b|裸|自慰|高潮|乳房|阴道|阴茎|精液|性爱|口交|肛交|内衣|露点|色情|调教/i.test(userRequest);
     const { data: intimacyRow } = await client
       .from('intimacy_scores')
       .select('score')
@@ -127,7 +132,7 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    const effectiveAdult = adultRequested && intimacyPolicy.adultAllowed;
+    const effectiveAdult = intimacyPolicy.adultAllowed;
     const resolved = resolveImageCall(aiModules, { scene: 'chat_selfie', tier, adult: effectiveAdult });
 
     if (!resolved.enabled) {
@@ -233,27 +238,49 @@ export async function POST(request: NextRequest) {
     }
 
     const intent = buildImageActionFromChat(userRequest || 'send me a selfie', chatContext);
-    const actionBits = [intent.action, poseTag, envTag, moodTag, intimacyPolicy.sceneDirection].filter(Boolean).join(', ');
+    const framing = intent.kind === 'selfie'
+      ? 'close selfie framing, looking directly at the camera'
+      : intent.kind === 'body'
+        ? 'medium full-body framing'
+        : 'balanced portrait framing';
+    const sceneBits = [envTag || 'a private modern room', poseTag, moodTag, framing]
+      .filter(Boolean)
+      .join(', ');
 
-    const genderStyle = detectGenderStyle(gf as Record<string, unknown>);
+    const gfRecord = gf as Record<string, unknown>;
+    const category = normalizeCompanionCategory({
+      gender: gfRecord.gender,
+      style: gfRecord.appearance_style,
+      tags: gfRecord.tags,
+    });
+    const animeText = `${String(gfRecord.appearance_style || '')} ${Array.isArray(gfRecord.tags) ? gfRecord.tags.join(' ') : ''}`;
+    const animeStyle: AnimeRenderStyle = /\b3d\b|cgi|pbr|rendered|pixar/i.test(animeText) ? '3d' : '2d';
+    const identity = [
+      gfRecord.name,
+      gfRecord.appearance_race,
+      gfRecord.appearance_hair_color,
+      gfRecord.appearance_hair,
+      gfRecord.appearance_eyes,
+      gfRecord.appearance_body,
+    ].filter(Boolean).map(String).join(', ');
+    const prompt = buildStudioPromptEnhancement({
+      category,
+      intensity: intimacyPolicy.nsfwIntensity,
+      animeStyle,
+      scene: sceneBits,
+      identity,
+    });
+
+    const genderStyle = detectGenderStyle(gfRecord);
     const generationProfile = resolveImageGenerationProfile(genderStyle, effectiveAdult);
-    // Character-consistent NL: identity + what they talked about + quality
-    const assembled = assembleGirlfriendFromRow(
-      gf as Record<string, unknown>,
-      actionBits ||
-        'taking a flirty intimate selfie for her boyfriend matching their chat, looking at camera',
-      { gender: genderStyle, adult: effectiveAdult },
-    );
-
-    const prompt = assembled.positive;
     const loraPlan = buildLoraPlan(
       subjectFromGirlfriendRow(gf as Record<string, unknown>),
       'chat_selfie',
       {
         adult: effectiveAdult,
-        content: [userRequest, actionBits, intent.kind].filter(Boolean).join(' '),
-        preferOutfit: /lingerie|underwear|bikini|swimsuit|latex|maid|bunny|see.?through/i.test(userRequest),
-        preferNsfwPose: effectiveAdult && /pose|kneel|crawl|arch|bend|spread|straddl|dance/i.test(`${userRequest} ${actionBits}`),
+        content: [prompt, intent.kind, intimacyPolicy.sceneDirection].filter(Boolean).join(' '),
+        preferOutfit: intimacyPolicy.level === 2,
+        preferNsfwPose: intimacyPolicy.level >= 4,
         preferDetail: /selfie|portrait|close.?up|face|skin/i.test(`${userRequest} ${intent.kind}`),
       },
     );
@@ -266,9 +293,9 @@ export async function POST(request: NextRequest) {
       typeof (body as { negative_prompt?: string }).negative_prompt === 'string' &&
       (body as { negative_prompt: string }).negative_prompt.trim()
         ? (body as { negative_prompt: string }).negative_prompt
-        : assembled.negative || resolved.defaultNegative || GIRLFRIEND_NEGATIVE_FLUX;
+        : resolved.defaultNegative || GIRLFRIEND_NEGATIVE_FLUX;
 
-    const negativePrompt = `${baseNegativePrompt}, ${generationProfile.negativePrompt}`;
+    const negativePrompt = `${studioNegativePrompt(category, animeStyle)}, ${baseNegativePrompt}, ${generationProfile.negativePrompt}`;
     // Face / body reference for character consistency
     const refCandidates = [
       (gf as { face_reference_url?: string }).face_reference_url,
@@ -404,6 +431,8 @@ export async function POST(request: NextRequest) {
       quality_tier: resolved.qualityTier,
       model_endpoint: resolved.logicalEndpointId,
       token_cost: resolved.tokenCost,
+      intimacy_level: intimacyPolicy.level,
+      nsfw_intensity: intimacyPolicy.nsfwIntensity,
       lora_plan: {
         primary: loraPlan.primary.note,
         secondary: loraPlan.secondary?.note || null,

@@ -8,6 +8,7 @@ import {
   getIntimacyGenerationPolicy,
   getIntimacyUnlockPayload,
 } from '@/lib/intimacy-policy';
+import { buildStudioPromptEnhancement } from '@/lib/comfy-console/studio-profile';
 
 describe('intimacy levels', () => {
   it.each([
@@ -48,6 +49,22 @@ describe('intimacy generation policy', () => {
     expect(getIntimacyGenerationPolicy(300).adultAllowed).toBe(true);
   });
 
+  it('maps every intimacy level to the same image intensity policy', () => {
+    const scores = [0, 100, 300, 600, 1000];
+    const prompts = scores.map((score) => {
+      const policy = getIntimacyGenerationPolicy(score);
+      expect(policy.nsfwIntensity).toBe(policy.level);
+      return buildStudioPromptEnhancement({
+        category: 'female',
+        intensity: policy.nsfwIntensity,
+      });
+    });
+    expect(prompts[0]).toContain('fully clothed');
+    expect(prompts[1]).toContain('vulva covered');
+    expect(prompts[2]).toContain('without performing a sexual act');
+    expect(prompts[3]).toContain('before climax');
+    expect(prompts[4]).toContain('to climax');
+  });
   it('increases LoRA intensity as intimacy grows', () => {
     expect(getIntimacyGenerationPolicy(1000).loraStrengthMultiplier)
       .toBeGreaterThan(getIntimacyGenerationPolicy(300).loraStrengthMultiplier);

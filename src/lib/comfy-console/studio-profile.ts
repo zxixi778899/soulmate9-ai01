@@ -48,6 +48,11 @@ const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
   '3d': 'Render it as a high-resolution 3D animated film frame with a coherent modeled character, PBR materials, detailed hair, and cinematic lighting, with no flat line art.',
 };
 
+function compactIdentity(identity?: string): string {
+  const clean = String(identity || '').replace(/\s+/g, ' ').trim();
+  return clean ? ' Keep these identity details: ' + clean.slice(0, 180) + '.' : '';
+}
+
 function compactScene(scene?: string): string {
   const clean = String(scene || '').replace(/\s+/g, ' ').trim();
   if (!clean || clean.length > 320) return 'The scene takes place on a modern sofa in a private living room.';
@@ -59,12 +64,13 @@ export function buildStudioPromptEnhancement(input: {
   intensity: NsfwIntensity;
   animeStyle?: AnimeRenderStyle;
   scene?: string;
+  identity?: string;
 }): string {
   const quality = input.category === 'anime'
     ? RENDER_PROMPTS[input.animeStyle || '2d']
     : 'Capture it as a sharp high-resolution 4K real photograph with natural skin texture, realistic anatomy, and soft cinematic light.';
   return [
-    CATEGORY_SUBJECTS[input.category],
+    CATEGORY_SUBJECTS[input.category] + compactIdentity(input.identity),
     compactScene(input.scene),
     INTENSITY_ACTIONS[input.intensity][input.category],
     quality,

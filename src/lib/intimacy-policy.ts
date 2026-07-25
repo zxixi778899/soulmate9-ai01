@@ -3,6 +3,7 @@ import { getIntimacyLevel, getIntimacyProgress, type IntimacyLevel } from '@/lib
 export type IntimacyGenerationPolicy = {
   level: IntimacyLevel;
   adultAllowed: boolean;
+  nsfwIntensity: IntimacyLevel;
   sceneDirection: string;
   loraStrengthMultiplier: number;
 };
@@ -12,27 +13,32 @@ export function getIntimacyGenerationPolicy(score: number): IntimacyGenerationPo
   const policies: Record<IntimacyLevel, Omit<IntimacyGenerationPolicy, 'level'>> = {
     1: {
       adultAllowed: false,
-      sceneDirection: 'Keep the scene warm, fully clothed, non-sexual, and focused on trust-building eye contact.',
+      nsfwIntensity: 1,
+      sceneDirection: 'Fully clothed and flirtatious, with no exposed breasts, nipples, or genitals.',
       loraStrengthMultiplier: 0.78,
     },
     2: {
       adultAllowed: false,
-      sceneDirection: 'Use playful romantic tension and fashionable clothing; keep anatomy covered and the scene non-explicit.',
+      nsfwIntensity: 2,
+      sceneDirection: 'Lingerie or low underwear with partial nudity and body touching, while genitals remain covered.',
       loraStrengthMultiplier: 0.9,
     },
     3: {
       adultAllowed: true,
-      sceneDirection: 'Adult intimacy is unlocked; follow the requested consensual scene with a romantic, mutually engaged tone.',
+      nsfwIntensity: 3,
+      sceneDirection: 'Full adult nudity with clearly visible anatomy and no sexual act.',
       loraStrengthMultiplier: 1,
     },
     4: {
       adultAllowed: true,
-      sceneDirection: 'Use confident, proactive adult posing and stronger scene-specific outfit and pose styling.',
+      nsfwIntensity: 4,
+      sceneDirection: 'Explicit solo masturbation before climax, with no visible sexual fluids.',
       loraStrengthMultiplier: 1.08,
     },
     5: {
       adultAllowed: true,
-      sceneDirection: 'Use the highest requested consensual adult intensity, direct posing, and precise scene details.',
+      nsfwIntensity: 5,
+      sceneDirection: 'Explicit solo masturbation to climax with anatomy-appropriate restrained sexual fluids.',
       loraStrengthMultiplier: 1.15,
     },
   };
