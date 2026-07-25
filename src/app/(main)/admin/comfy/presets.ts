@@ -12,7 +12,7 @@
  * guardrails always apply.
  */
 
-import { BLOCKED, COMPANION_CATEGORIES, type CompanionCategory } from '@/lib/companion-category';
+import { BLOCKED, COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
 
 export type GenPreset = {
   id: string;
@@ -224,15 +224,28 @@ const SFW_MOOD = 'The subject remains elegant, deeply alluring, emotionally pres
 
 // ─── Build presets ───────────────────────────────────────────────────────
 
+const CATEGORY_PRESET_NAMES: Record<CompanionCategory, string[]> = {
+  female: '蕾丝窗边|丝绸卧室|镜前更衣|烛光浴室|泳池出水|天台晚风|沙发俯身|厨房晨光|按摩油光|落地窗夜色|浴袍滑落|梳妆台回眸|雨夜湿衣|私人舞池|办公室夜班|壁炉地毯|花瓣浴缸|酒店阳台|健身房拉伸|海边日落|试衣间帘后|床边长靴|霓虹走廊|温泉水雾|红裙晚宴|皮衣机车|咖啡馆挑逗|午后阅读|闪光自拍|月光露台'.split('|'),
+  male: '衬衫敞开|低腰晨光|健身房汗光|淋浴玻璃|皮沙发靠坐|领带夜班|天台西装|泳池出水|按摩背肌|落地窗剪影|浴袍胸肌|镜前腕表|雨夜白衬衫|私人舞池|办公桌边|壁炉地毯|酒店床沿|阳台晨风|拳击馆休息|海边湿身|试衣间衬衫|床边伸展|霓虹皮夹克|温泉肩背|黑西装晚宴|机车回眸|咖啡店卷袖|沙发阅读|健身镜自拍|月光露台'.split('|'),
+  transgender: '双性特征肖像|镜前身体自信|丝绸床榻|蒸汽淋浴|蕾丝浴袍|天台礼服|泳池湿身|沙发亲密姿态|晨光全身|烛光按摩|夜窗身体轮廓|梳妆台凝视|雨夜贴身装|私人舞池|办公室裙装|壁炉侧卧|花瓣浴缸|酒店阳台|瑜伽拉伸|海边日落|试衣间礼服|床边长靴|霓虹走廊|温泉水雾|红裙晚宴|皮衣机车|咖啡馆回眸|午后沙发|镜面自拍|月光露台'.split('|'),
+  anime: '2D魔法塔窗边|3D幻想卧室|樱花温泉|月光城堡|赛博镜面自拍|精灵浴场|魔法泳池|酒馆舞台|王座厅私会|星空阳台|丝绸寝宫|水晶梳妆台|霓虹雨巷|魅魔舞池|学院办公室成人版|壁炉兽毯|花瓣魔法浴|空艇甲板|战斗后拉伸|海神殿日落|魔法试衣间|床边长靴|赛博走廊|雪山温泉|王室晚宴|暗夜坐骑|猫耳咖啡馆成人版|塔楼阅读|魔导镜自拍|月神露台'.split('|'),
+};
+
+const CATEGORY_SCENE_DIRECTIVES: Record<CompanionCategory, string> = {
+  female: 'Center a confident adult feminine silhouette, natural breasts and hips, soft but anatomically precise curves, and expressive intimate body language.',
+  male: 'Center a clearly masculine adult physique with broad shoulders, defined chest and abdomen, narrow hips, strong hands, and confident masculine erotic body language.',
+  transgender: 'Make both sets of traits visually unmistakable in one coherent adult body: feminine face, developed breasts, narrow waist and curvy hips together with coherent external male genital anatomy whenever nudity is visible.',
+  anime: 'Use a mature adult anime design with unmistakably adult proportions, stylized but coherent anatomy, dynamic composition, expressive eyes, and a readable fantasy or cyberpunk environment.',
+};
 function buildCategoryPresets(category: CompanionCategory): GenPreset[] {
   const base = CATEGORY_BASE[category];
-  return SCENES.map((sc) => {
-    const sceneText = getSceneOverride(category, sc.id) || sc.scene;
+  return SCENES.map((sc, index) => {
+    const sceneText = `${getSceneOverride(category, sc.id) || sc.scene} ${CATEGORY_SCENE_DIRECTIVES[category]}`;
     const boost = `${NSFW_BOOST[category]} The preset is intentionally high-NSFW with explicit adult nudity, direct erotic staging, and clearly readable mature anatomy. ${SFW_MOOD}`;
     return {
       id: `${category}-${sc.id}`,
-      name: sc.name,
-      desc: `高 NSFW · ${sc.desc}`,
+      name: `${COMPANION_CATEGORY_LABELS[category].zh} · ${CATEGORY_PRESET_NAMES[category][index] || sc.name}`,
+      desc: `高 NSFW · ${COMPANION_CATEGORY_LABELS[category]?.zh || category}专属 · ${sc.desc}`,
       prompt: [base.subject, sceneText, boost, base.quality, base.style]
         .filter(Boolean)
         .join(' '),

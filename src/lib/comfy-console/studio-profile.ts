@@ -4,11 +4,11 @@ export type AnimeRenderStyle = '2d' | '3d';
 export type NsfwIntensity = 1 | 2 | 3 | 4 | 5;
 
 const INTENSITY_PROMPTS: Record<NsfwIntensity, string> = {
-  1: 'Use sensual adult styling, teasing eye contact, and revealing clothing without explicit nudity.',
-  2: 'Use erotic boudoir styling, partial nudity, intimate posing, and clear adult sexual tension.',
-  3: 'Use explicit adult nudity and a direct erotic pose with accurate mature anatomy.',
-  4: 'Use a highly explicit consensual adult scene, proactive body language, and clearly readable anatomy.',
-  5: 'Use maximum consensual adult intensity, an unambiguous explicit pose, precise anatomy, and direct visual storytelling.',
+  1: 'Keep the scene sensual but non-explicit: fully covered intimate clothing, teasing eye contact, relaxed flirtatious body language, and no visible nipples or genitals.',
+  2: 'Create an erotic boudoir scene with lingerie or strategic covering, partial nudity, intimate posing, and strong adult tension, while keeping genitals covered.',
+  3: 'Create an explicitly nude adult scene with a direct erotic pose, visible mature anatomy, confident eye contact, and a clearly readable body silhouette.',
+  4: 'Create a highly explicit consensual adult scene with fully visible mature anatomy, proactive erotic body language, close intimate staging, and physically coherent contact.',
+  5: 'Use maximum consensual adult intensity at the most explicit level supported by the image workflow: full nudity, fully readable mature anatomy, an unmistakable sexual pose, close direct staging, and precise visual storytelling. Do not soften the scene into glamour or lingerie.',
 };
 
 const CATEGORY_PROMPTS: Record<CompanionCategory, string> = {
@@ -37,6 +37,20 @@ export function buildStudioPromptEnhancement(input: {
     render,
     'Keep hands, face, torso, pelvis, and visible anatomy internally consistent. Show only consenting adults.',
   ].join(' ');
+}
+
+export function studioLoraStrengthScale(intensity: NsfwIntensity): number {
+  return ({ 1: 0.72, 2: 0.84, 3: 0.96, 4: 1.08, 5: 1.18 } as const)[intensity];
+}
+
+export function studioIntensityLabel(intensity: NsfwIntensity): string {
+  return ({
+    1: '性感但不露点',
+    2: '情趣内衣与局部裸露',
+    3: '明确成人全裸',
+    4: '高强度成人亲密场景',
+    5: '最高强度成人显式场景',
+  } as const)[intensity];
 }
 
 export function studioNegativePrompt(category: CompanionCategory, animeStyle: AnimeRenderStyle = '2d'): string {

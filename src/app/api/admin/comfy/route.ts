@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sanitizeLoraForVolume, verifyLoraHealth, checkLoraAuthenticity } from '@/lib/runpod-loras';
+import { sanitizeLoraForVolume, verifyLoraHealth, checkLoraAuthenticity, getVerifiedInstalledLoraSet, LORA_REGISTRY } from '@/lib/runpod-loras';
 import { requireAdmin } from '@/lib/require-admin';
 import {
   loadComfyConfig,
@@ -8,7 +8,7 @@ import {
   type ComfyConsoleConfig,
 } from '@/lib/comfy-console/store';
 import { createDefaultComfyConfig } from '@/lib/comfy-console/defaults';
-import { LORA_CATALOG, groupLorasByCategory } from '@/lib/comfy-console/lora-catalog';
+import { LORA_CATALOG, catalogToLoraAssets, groupLorasByCategory } from '@/lib/comfy-console/lora-catalog';
 import { loraUsageZh } from '@/lib/comfy-console/studio-profile';
 import { runpodClient } from '@/lib/runpod';
 import {
@@ -21,10 +21,11 @@ import {
 } from '@/lib/storage';
 import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
+import { captureException } from '@/lib/sentry';
+import { generateText } from '@/lib/llm-service';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
-import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
 import { COMPACT_ADULT_NEGATIVE, HIGH_NSFW_PROMPT, COMPANION_CATEGORIES, type CompanionCategory } from '@/lib/companion-category';
-import { buildStudioPromptEnhancement, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
+import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -38,6 +39,42 @@ function assetFolder(girlfriendId?: string | null): string {
 }
 
 
+function mergeInstalledLoras(config: ComfyConsoleConfig): ComfyConsoleConfig {
+  const installed = getVerifiedInstalledLoraSet();
+  if (!installed.size) return config;
+  const catalog = catalogToLoraAssets();
+  const existingFiles = new Set(config.loras.map((item) => item.filename).filter(Boolean));
+  const catalogByFile = new Map(catalog.filter((item) => item.filename).map((item) => [item.filename, item]));
+  const registryByFile = new Map(LORA_REGISTRY.map((item) => [item.file, item]));
+  const verifiedLoras = config.loras.map((item) => installed.has(item.filename)
+    ? {
+        ...item,
+        label: item.label.startsWith('[同步盘已验证]') ? item.label : `[同步盘已验证] ${item.label}`,
+        usage: `同步盘 models/loras 已存在此文件。${loraUsageZh(item)}`,
+        source: 'runpod-volume',
+      }
+    : item);
+  const additions = [...installed].filter((file) => !existingFiles.has(file)).map((file) => {
+    const known = catalogByFile.get(file);
+    if (known) return { ...known, label: `[同步盘已验证] ${known.label}`, source: 'runpod-volume' };
+    const registry = registryByFile.get(file);
+    const stem = file.replace(/\.safetensors$/i, '');
+    return {
+      id: `volume:${stem.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()}`,
+      label: `[同步盘已验证] ${registry?.label || stem}`,
+      filename: file,
+      default_strength: registry?.strength ?? 0.55,
+      category: registry?.category === 'pose' ? 'action' : registry?.category || 'style',
+      nsfw: registry?.category === 'pose' || /nsfw|ahegao|lingerie|bikini|latex|bunny/i.test(file),
+      usage: `同步盘已验证文件。用途：${registry?.label || stem}；建议从 ${registry?.strength ?? 0.55} 强度开始测试。`,
+      trigger_words: registry?.trigger_words || [],
+      workflows: ['wf-girlfriend'],
+      source: 'runpod-volume',
+    };
+  });
+  return { ...config, loras: [...verifiedLoras, ...additions] };
+}
+
 /**
  * GET /api/admin/comfy
  *   ?view=config | assets | help | loras
@@ -47,7 +84,8 @@ export async function GET(req: NextRequest) {
   if (admin.error) return admin.error;
 
   const view = new URL(req.url).searchParams.get('view') || 'config';
-  const cfg = await loadComfyConfig(admin.supabase);
+  const storedCfg = await loadComfyConfig(admin.supabase);
+  const cfg = mergeInstalledLoras(storedCfg);
 
   if (view === 'volume' || view === 'installed') {
     const { getVerifiedInstalledLoraSet } = await import('@/lib/runpod-loras');
@@ -376,6 +414,71 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'action required' }, { status: 400 });
   }
 
+  if (body.action === 'optimize_prompt') {
+    const rl = await checkRateLimitAsync(`comfy-optimize:${admin.user!.id}`, { maxRequests: 30, windowMs: 60 * 60 * 1000 });
+    if (!rl.allowed) {
+      return NextResponse.json({ error: 'Too many prompt optimization requests' }, { status: 429 });
+    }
+    const rawCategory = String(body.companion_category || 'female');
+    const category: CompanionCategory = COMPANION_CATEGORIES.includes(rawCategory as CompanionCategory)
+      ? rawCategory as CompanionCategory
+      : 'female';
+    const intensity = Math.min(5, Math.max(1, Math.round(Number(body.nsfw_intensity || 3)))) as NsfwIntensity;
+    const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : '2d';
+    const currentPrompt = String(body.prompt || '').trim();
+    const profile = body.companion && typeof body.companion === 'object'
+      ? JSON.stringify(body.companion).slice(0, 5000)
+      : '{}';
+    const systemPrompt = `You are a senior FLUX.1-dev prompt engineer for an adults-only image studio. Rewrite prompts as concise, concrete natural-language visual direction, never SD tag piles. The selected category and intensity are authoritative even when the old prompt or profile conflicts. All depicted people must be consenting adults age 25 or older. Return strict JSON only with keys "prompt" and "negative".`;
+    const userPrompt = [
+      `Selected category: ${category}`,
+      `Anime render style: ${animeStyle}`,
+      `NSFW intensity: ${intensity}/5`,
+      `Mandatory intensity behavior: ${buildStudioPromptEnhancement({ category, intensity, animeStyle })}`,
+      `Companion profile (preserve identity details except conflicting gender/anatomy/style): ${profile}`,
+      `Current user prompt: ${currentPrompt || 'Create a new category-appropriate adult scene.'}`,
+      'Write one 90-180 word FLUX prompt. Make subject anatomy, scene, pose, camera, lighting, expression, clothing or nudity, and physical interaction explicit and visually unambiguous. Make levels 1-5 materially different. For transgender subjects, visibly preserve feminine and masculine sex traits in one coherent adult body. For anime, strictly follow the selected 2D or 3D render style.',
+      `Negative prompt must be concise and category-specific. Include: ${studioNegativePrompt(category, animeStyle)}`,
+    ].join('\n');
+    try {
+      const raw = await generateText({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.72,
+        maxTokens: 900,
+      });
+      const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      const parsed = JSON.parse(cleaned) as { prompt?: unknown; negative?: unknown };
+      const optimizedPrompt = String(parsed.prompt || '').trim();
+      if (!optimizedPrompt) throw new Error('LLM returned an empty prompt');
+      const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
+      const installed = getVerifiedInstalledLoraSet();
+      const scale = studioLoraStrengthScale(intensity);
+      const loras = recommendedStudioLoras(category, animeStyle)
+        .map((item) => {
+          const asset = cfg.loras.find((candidate) => candidate.id === item.id);
+          return asset?.filename && installed.has(asset.filename)
+            ? { id: asset.id, strength: Number(Math.min(1.05, item.strength * scale).toFixed(2)) }
+            : null;
+        })
+        .filter((item): item is { id: string; strength: number } => item !== null);
+      return NextResponse.json({
+        success: true,
+        source: 'llm',
+        prompt: optimizedPrompt,
+        negative: String(parsed.negative || studioNegativePrompt(category, animeStyle)).trim(),
+        loras,
+      });
+    } catch (error) {
+      captureException(error, { tags: { route: 'admin-comfy', action: 'optimize_prompt' } });
+      logger.error('[comfy] LLM prompt optimization failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return NextResponse.json({ error: 'LLM prompt optimization failed. No preset fallback was used.' }, { status: 502 });
+    }
+  }
   if (body.action === 'reset_config') {
     const cfg = createDefaultComfyConfig();
     const { source } = await saveComfyConfig(cfg, admin.supabase);
@@ -904,12 +1007,8 @@ if (body.action === 'verify_loras') {
           error: girlfriendError.message,
         });
       } else if (girlfriend) {
-        const companionPrompt = buildCompanionGenerationPrompt(girlfriend, {
-          action: prompt,
-          adult: true,
-        });
-        prompt = companionPrompt.positive;
-        negative = companionPrompt.negative;
+        // Keep the category-selected prompt; only reuse the image for identity.
+        // Rebuilding from storage here used to restore the original gender.
         consistencyReference = String(
           girlfriend.portrait_url || girlfriend.avatar_url || girlfriend.card_url || '',
         ).trim();
@@ -922,7 +1021,7 @@ if (body.action === 'verify_loras') {
     const rawIntensity = Math.round(Number(body.nsfw_intensity || 5));
     const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : '2d';
-    prompt = `${prompt} ${buildStudioPromptEnhancement({ category, intensity: nsfwIntensity, animeStyle })}`;
+    prompt = `${buildStudioPromptEnhancement({ category, intensity: nsfwIntensity, animeStyle })} ${prompt}`;
     if (!prompt.includes('consenting adults age 25 or older')) {
       prompt = `${prompt} ${HIGH_NSFW_PROMPT}`;
     }
@@ -950,7 +1049,8 @@ if (body.action === 'verify_loras') {
             ? item as Record<string, unknown>
             : {};
           const asset = cfg.loras.find((candidate) => candidate.id === String(value.id || ''));
-          const strength = Number(value.strength ?? asset?.default_strength ?? 0.7);
+          const baseStrength = Number(value.strength ?? asset?.default_strength ?? 0.7);
+          const strength = baseStrength * studioLoraStrengthScale(nsfwIntensity);
           return asset?.filename
             ? {
                 id: asset.id,

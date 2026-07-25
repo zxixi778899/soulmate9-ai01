@@ -3,6 +3,7 @@ import {
   buildStudioPromptEnhancement,
   loraUsageZh,
   recommendedStudioLoras,
+  studioLoraStrengthScale,
   studioNegativePrompt,
 } from '@/lib/comfy-console/studio-profile';
 
@@ -18,6 +19,16 @@ describe('studio generation profiles', () => {
     expect(studioNegativePrompt('transgender')).toContain('duplicated genitals');
   });
 
+  it('makes all five intensity levels materially different', () => {
+    const prompts = ([1, 2, 3, 4, 5] as const).map((intensity) =>
+      buildStudioPromptEnhancement({ category: 'female', intensity }),
+    );
+    expect(new Set(prompts).size).toBe(5);
+    expect(prompts[0]).toContain('no visible nipples or genitals');
+    expect(prompts[2]).toContain('explicitly nude');
+    expect(prompts[4]).toContain('Do not soften');
+    expect(studioLoraStrengthScale(5)).toBeGreaterThan(studioLoraStrengthScale(1));
+  });
   it('keeps 2D and 3D anime directions mutually distinct', () => {
     const twoD = buildStudioPromptEnhancement({
       category: 'anime',

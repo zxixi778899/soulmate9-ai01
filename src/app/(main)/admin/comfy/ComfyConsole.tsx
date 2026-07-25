@@ -35,6 +35,8 @@ import {
   buildStudioPromptEnhancement,
   loraUsageZh,
   recommendedStudioLoras,
+  studioIntensityLabel,
+  studioLoraStrengthScale,
   studioNegativePrompt,
   type AnimeRenderStyle,
   type NsfwIntensity,
@@ -65,6 +67,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [config, setConfig] = useState<Any | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [optimizingPrompt, setOptimizingPrompt] = useState(false);
   const [assets, setAssets] = useState<Any[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [selectedAssetKeys, setSelectedAssetKeys] = useState<string[]>([]);
@@ -116,12 +119,19 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [batchProgress, setBatchProgress] = useState<Array<{ id: string; name: string; status: 'pending' | 'running' | 'success' | 'failed'; error?: string }>>([]);
 
 
-  const applyRecommendedLoras = (category: CompanionCategory, animeStyle: AnimeRenderStyle = animeRenderStyle) => {
+  const applyRecommendedLoras = (
+    category: CompanionCategory,
+    animeStyle: AnimeRenderStyle = animeRenderStyle,
+    intensity: NsfwIntensity = nsfwIntensity,
+  ) => {
     const recommendations = recommendedStudioLoras(category, animeStyle);
     const available = recommendations
       .map((item) => ({ item, asset: (config?.loras || []).find((l: Any) => l.id === item.id) }))
       .filter((entry) => entry.asset && (!entry.asset.filename || installedLoras.includes(String(entry.asset.filename))))
-      .map((entry) => ({ id: entry.item.id, strength: entry.item.strength }));
+      .map((entry) => ({
+        id: entry.item.id,
+        strength: Number(Math.min(1.05, entry.item.strength * studioLoraStrengthScale(intensity)).toFixed(2)),
+      }));
     setSelectedLoras(available.slice(0, 3));
     setLoraId(available[0]?.id || 'none');
     if (available[0]) setLoraStrength(available[0].strength);
@@ -350,27 +360,39 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
   }
 
-  /** AI 优化提示词：随机画面/动作/环境（含 NSFW），保持人物特性 */
-  const randomizePrompt = useCallback(() => {
-    const row = scopedGirlfriend || {
-      gender: companionCategory === 'male'
-        ? 'Male'
-        : companionCategory === 'transgender'
-          ? 'Transgender'
-          : 'Female',
-      appearance_style: companionCategory === 'anime' ? 'anime' : 'realistic',
-      age: 25,
-    };
-    const assembled = buildCompanionGenerationPrompt(row as Record<string, unknown>, {
-      adult: true,
-      action: buildStudioPromptEnhancement({ category: companionCategory, intensity: nsfwIntensity, animeStyle: animeRenderStyle }),
-      random: Math.random(),
-    });
-    setPrompt(assembled.positive);
-    setNegative(`${studioNegativePrompt(companionCategory, animeRenderStyle)}, ${assembled.negative}`);
-    applyRecommendedLoras(companionCategory);
-    toast.success('已生成伴侣专属随机动作提示词');
-  }, [animeRenderStyle, companionCategory, nsfwIntensity, scopedGirlfriend]);
+  /** LLM-only prompt optimization. No local preset or random-pool fallback. */
+  const optimizePromptWithLlm = useCallback(async () => {
+    setOptimizingPrompt(true);
+    try {
+      const res = await authedFetch('/api/admin/comfy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'optimize_prompt',
+          prompt,
+          companion_category: companionCategory,
+          anime_render_style: animeRenderStyle,
+          nsfw_intensity: nsfwIntensity,
+          companion: scopedGirlfriend || undefined,
+        }),
+      });
+      const data = await readResponseJson(res).catch(() => ({} as Any));
+      if (!res.ok || data.source !== 'llm') {
+        throw new Error(data.error || 'LLM 提示词优化失败');
+      }
+      setPrompt(String(data.prompt || ''));
+      setNegative(String(data.negative || studioNegativePrompt(companionCategory, animeRenderStyle)));
+      const planned = Array.isArray(data.loras) ? data.loras : [];
+      setSelectedLoras(planned);
+      setLoraId(planned[0]?.id || 'none');
+      if (planned[0]) setLoraStrength(Number(planned[0].strength));
+      toast.success(`LLM 已按${COMPANION_CATEGORY_LABELS[companionCategory].zh}和强度 ${nsfwIntensity}/5 重写提示词`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'LLM 提示词优化失败');
+    } finally {
+      setOptimizingPrompt(false);
+    }
+  }, [animeRenderStyle, companionCategory, nsfwIntensity, prompt, scopedGirlfriend]);
 
   /** 一键调用：选中 LoRA + 强度 + 触发词写入提示词 */
   function applyLora(lora: Any, opts?: { appendTriggers?: boolean; goGenerate?: boolean }) {
@@ -1102,8 +1124,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div className="mb-3 grid gap-3 rounded-md border border-fuchsia-500/20 bg-fuchsia-950/10 p-3 md:grid-cols-[220px_1fr]">
               <div>
                 <Label className="mb-2 block text-[11px] text-slate-200">NSFW 强度：{nsfwIntensity}/5</Label>
-                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => setNsfwIntensity(Number(event.target.value) as NsfwIntensity)} className="w-full accent-rose-500" />
-                <p className="mt-1 text-[10px] text-slate-400">1 性感非露骨 · 3 明确成人 · 5 最高成人强度</p>
+                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => { const next = Number(event.target.value) as NsfwIntensity; setNsfwIntensity(next); applyRecommendedLoras(companionCategory, animeRenderStyle, next); }} className="w-full accent-rose-500" />
+                <p className="mt-1 text-[10px] font-medium text-rose-200">当前：{studioIntensityLabel(nsfwIntensity)}</p>
+                <p className="mt-1 text-[10px] text-slate-400">滑块会改变生成端场景约束和 LoRA 权重；点击 AI 优化后会由 LLM 完整重写当前提示词。</p>
               </div>
               {companionCategory === 'anime' ? (
                 <div>
@@ -1124,9 +1147,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <p className="text-[11px] text-slate-300">使用自然语言描述成年 AI 伴侣及其正在进行的性感、妩媚或亲密动作。</p>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-7 gap-1 border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10" onClick={randomizePrompt} title="随机生成优化提示词（保持人物特性，含 NSFW）">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  AI优化提示词
+                <Button variant="outline" size="sm" className="h-7 gap-1 border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10" onClick={optimizePromptWithLlm} disabled={optimizingPrompt} title="调用 LLM 按当前伴侣、性别和 NSFW 强度重写提示词">
+                  {optimizingPrompt ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {optimizingPrompt ? 'LLM 优化中' : 'AI 优化提示词'}
                 </Button>
                 <Badge className="border-violet-400/40 bg-violet-500/15 text-violet-100">{prompt.length} 字符</Badge>
               </div>

@@ -24,6 +24,15 @@ describe('creation workbench presets', () => {
     expect(presets.every((preset) => preset.prompt.includes('consenting adult'))).toBe(true);
   });
 
+  it('uses visibly different preset names for every category', () => {
+    for (let left = 0; left < COMPANION_CATEGORIES.length; left += 1) {
+      for (let right = left + 1; right < COMPANION_CATEGORIES.length; right += 1) {
+        const leftNames = new Set(CATEGORY_PRESETS[COMPANION_CATEGORIES[left]].map((item) => item.name));
+        const rightNames = CATEGORY_PRESETS[COMPANION_CATEGORIES[right]].map((item) => item.name);
+        expect(rightNames.filter((name) => leftNames.has(name)).length).toBeLessThan(3);
+      }
+    }
+  });
   it('keeps the global adult intensity explicitly adult-only', () => {
     expect(HIGH_NSFW_PROMPT).toContain('adults age 25 or older');
     expect(HIGH_NSFW_PROMPT).toContain('private erotic scene');
