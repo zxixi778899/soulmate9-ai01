@@ -41,14 +41,33 @@ describe('studio generation profiles', () => {
     expect(prompts[4]).toContain('to climax');
     expect(studioLoraStrengthScale(5)).toBeGreaterThan(studioLoraStrengthScale(1));
   });
+  it('shows category-specific genitals from level 3 onward', () => {
+    const level2 = {
+      female: buildStudioPromptEnhancement({ category: 'female', intensity: 2 }),
+      male: buildStudioPromptEnhancement({ category: 'male', intensity: 2 }),
+      transgender: buildStudioPromptEnhancement({ category: 'transgender', intensity: 2 }),
+    };
+    const level3 = {
+      female: buildStudioPromptEnhancement({ category: 'female', intensity: 3 }),
+      male: buildStudioPromptEnhancement({ category: 'male', intensity: 3 }),
+      transgender: buildStudioPromptEnhancement({ category: 'transgender', intensity: 3 }),
+    };
+    expect(level2.female).toContain('vulva covered');
+    expect(level2.male).toContain('penis covered');
+    expect(level2.transgender).toContain('penis covered');
+    expect(level3.female).toContain('vulva clearly visible');
+    expect(level3.male).toContain('penis, and testicles clearly visible');
+    expect(level3.transgender).toContain('developed breasts, feminine curves, a large penis, and testicles clearly visible');
+  });
+
   it('keeps 2D and 3D anime directions mutually distinct', () => {
     const twoD = buildStudioPromptEnhancement({
-      category: 'anime',
+      category: 'female',
       intensity: 5,
       animeStyle: '2d',
     });
     const threeD = buildStudioPromptEnhancement({
-      category: 'anime',
+      category: 'female',
       intensity: 5,
       animeStyle: '3d',
     });
@@ -60,8 +79,13 @@ describe('studio generation profiles', () => {
 
   it('recommends category-specific practical LoRAs', () => {
     expect(recommendedStudioLoras('transgender')[0]?.id).toBe('body-transgender-anatomy-flux');
-    expect(recommendedStudioLoras('anime', '2d')[0]?.id).toBe('style-anime-2d-flux');
-    expect(recommendedStudioLoras('anime', '3d')[0]?.id).toBe('style-anime-3d-flux');
+    expect(recommendedStudioLoras('female', '2d').map((item) => item.id)).toContain('style-anime-2d-flux');
+    expect(recommendedStudioLoras('male', '3d').map((item) => item.id)).toContain('style-anime-3d-flux');
+    expect(recommendedStudioLoras('transgender', '2d').map((item) => item.id)).toEqual([
+      'body-transgender-anatomy-flux',
+      'body-transgender-presentation-flux',
+      'style-anime-2d-flux',
+    ]);
   });
 
   it('selects both verified transgender controls without substituting a female body LoRA', () => {

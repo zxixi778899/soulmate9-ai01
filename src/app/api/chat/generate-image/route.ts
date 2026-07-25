@@ -257,7 +257,11 @@ export async function POST(request: NextRequest) {
       tags: gfRecord.tags,
     });
     const animeText = `${String(gfRecord.appearance_style || '')} ${Array.isArray(gfRecord.tags) ? gfRecord.tags.join(' ') : ''}`;
-    const animeStyle: AnimeRenderStyle = /\b3d\b|cgi|pbr|rendered|pixar/i.test(animeText) ? '3d' : '2d';
+    const animeStyle: AnimeRenderStyle = /\b3d\b|cgi|pbr|rendered|pixar/i.test(animeText)
+      ? '3d'
+      : /anime|manga|cartoon|2d|comic/i.test(animeText)
+        ? '2d'
+        : 'realistic';
     const identity = [
       gfRecord.name,
       gfRecord.appearance_race,

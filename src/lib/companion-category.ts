@@ -28,19 +28,19 @@ export const COMPACT_ADULT_NEGATIVE = 'child, minor, underage, teen, young-looki
 
 export const STUDIO_PROMPTS: Record<CompanionCategory, { prompt: string; negative: string }> = {
   female: {
-    prompt: 'on a modern sofa in a private living room, medium full-body framing',
+    prompt: 'a consenting adult on a modern sofa in a private living room, medium full-body framing',
     negative: `male body, masculine face, ${BLOCKED}`,
   },
   male: {
-    prompt: 'on a modern sofa in a private living room, medium full-body framing',
+    prompt: 'a consenting adult on a modern sofa in a private living room, medium full-body framing',
     negative: `female body, breasts, feminine face, ${BLOCKED}`,
   },
   transgender: {
-    prompt: 'on a modern sofa in a private living room, medium full-body framing',
+    prompt: 'a consenting adult on a modern sofa in a private living room, medium full-body framing',
     negative: `caricature, fetishized stereotype, ${BLOCKED}`,
   },
   anime: {
-    prompt: 'on a sofa in a private fantasy apartment, medium full-body framing',
+    prompt: 'a consenting adult on a sofa in a private fantasy apartment, medium full-body framing',
     negative: `childlike proportions, school uniform, loli, shota, photorealistic, photograph, 3d render, ${BLOCKED}`,
   },
 };
@@ -51,11 +51,12 @@ export function normalizeCompanionCategory(input: {
   tags?: unknown;
 }): CompanionCategory {
   const gender = String(input.gender || '').toLowerCase();
-  const style = String(input.style || '').toLowerCase();
   const tags = Array.isArray(input.tags) ? input.tags.join(' ').toLowerCase() : String(input.tags || '').toLowerCase();
-  if (/anime|manga|cartoon|2d|comic|二次元/.test(`${style} ${tags}`)) return 'anime';
-  if (/trans|non.?binary|跨性别/.test(`${gender} ${tags}`)) return 'transgender';
-  if (/\bfemale\b|\bwoman\b|\bwomen\b|女性/.test(`${gender} ${tags}`)) return 'female';
-  if (/\bmale\b|\bman\b|\bmen\b|boyfriend|男性/.test(`${gender} ${tags}`)) return 'male';
+  const identity = `${gender} ${tags}`;
+  if (/\btrans(?:gender|sexual)?\b|non.?binary|mtf|ftm/.test(identity)) return 'transgender';
+  if (/\bmale\b|\bman\b|\bmen\b|boyfriend/.test(identity)) return 'male';
+  if (/\bfemale\b|\bwoman\b|\bwomen\b|girlfriend/.test(identity)) return 'female';
+  // Legacy anime-only records had no independent sex field. Keep them usable as
+  // female subjects while render style is resolved separately by the image route.
   return 'female';
 }

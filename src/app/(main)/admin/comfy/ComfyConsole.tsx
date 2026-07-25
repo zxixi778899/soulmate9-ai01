@@ -91,7 +91,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [promptProfileApplied, setPromptProfileApplied] = useState(false);
   const [negative, setNegative] = useState('');
   const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
-  const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('2d');
+  const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('realistic');
   const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(5);
   const [width, setWidth] = useState(832);
   const [height, setHeight] = useState(1216);
@@ -1127,7 +1127,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           ) : null}
           <section className="rounded-md border border-slate-700 bg-[#111214] p-3 shadow-xl shadow-black/30">
             <div className="mb-3 flex flex-wrap gap-2" aria-label="角色分类">
-              {COMPANION_CATEGORIES.map((category) => (
+              {COMPANION_CATEGORIES.filter((category) => category !== 'anime').map((category) => (
                 <Button
                   key={category}
                   type="button"
@@ -1147,18 +1147,29 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <p className="mt-1 text-[10px] font-medium text-rose-200">当前：{studioIntensityLabel(nsfwIntensity)}</p>
                 <p className="mt-1 text-[10px] text-slate-400">滑块会立即重写动作等级和 LoRA 权重；AI 优化只负责选择合适场景，不再堆叠提示词。</p>
               </div>
-              {companionCategory === 'anime' ? (
-                <div>
-                  <Label className="mb-2 block text-[11px] text-slate-200">二次元渲染方式</Label>
-                  <div className="flex gap-2">
-                    {(['2d', '3d'] as const).map((style) => (
-                      <Button key={style} type="button" size="sm" variant={animeRenderStyle === style ? 'default' : 'outline'} onClick={() => { setAnimeRenderStyle(style); setPrompt(buildStudioPromptEnhancement({ category: 'anime', intensity: nsfwIntensity, animeStyle: style })); setPromptProfileApplied(true); applyRecommendedLoras('anime', style); }} className={cn('h-8', animeRenderStyle === style && 'bg-violet-600')}>
-                        {style === '2d' ? '2D 插画 / 赛璐璐' : '3D 动漫 / CGI'}
-                      </Button>
-                    ))}
-                  </div>
+              <div>
+                <Label className="mb-2 block text-[11px] text-slate-200">渲染风格</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(['realistic', '2d', '3d'] as const).map((style) => (
+                    <Button
+                      key={style}
+                      type="button"
+                      size="sm"
+                      variant={animeRenderStyle === style ? 'default' : 'outline'}
+                      onClick={() => {
+                        setAnimeRenderStyle(style);
+                        setPrompt(buildStudioPromptEnhancement({ category: companionCategory, intensity: nsfwIntensity, animeStyle: style }));
+                        setPromptProfileApplied(true);
+                        applyRecommendedLoras(companionCategory, style);
+                      }}
+                      className={cn('h-8', animeRenderStyle === style && 'bg-violet-600')}
+                    >
+                      {style === 'realistic' ? '写实实拍' : style === '2d' ? '2D 动漫' : '3D 动画'}
+                    </Button>
+                  ))}
                 </div>
-              ) : <p className="self-center text-[11px] text-slate-400">AI 优化会按分类重写自然语言描述，并只调用网络卷上已验证的推荐 LoRA。</p>}
+                <p className="mt-2 text-[10px] text-slate-400">画风只改变渲染与风格 LoRA，不改变女性、男性或跨性别的身体逻辑。</p>
+              </div>
             </div>
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>

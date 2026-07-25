@@ -2,7 +2,7 @@ import type { CompanionCategory } from '@/lib/companion-category';
 import { getCatalogLoraById } from '@/lib/comfy-console/lora-catalog';
 import { isLoraInstalled } from '@/lib/runpod-loras';
 
-export type AnimeRenderStyle = '2d' | '3d';
+export type AnimeRenderStyle = 'realistic' | '2d' | '3d';
 export type NsfwIntensity = 1 | 2 | 3 | 4 | 5;
 
 const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>> = {
@@ -46,6 +46,7 @@ const CATEGORY_SUBJECTS: Record<CompanionCategory, string> = {
 };
 
 const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
+  'realistic': 'Photograph it like an unretouched editorial frame made with a real camera: believable skin pores and small imperfections, natural exposure, restrained color, and soft directional light.',
   '2d': 'Render it as a high-resolution 2D anime frame with clean line art, consistent cel shading, expressive eyes, and no photographic or 3D elements.',
   '3d': 'Render it as a high-resolution 3D animated film frame with a coherent modeled character, PBR materials, detailed hair, and cinematic lighting, with no flat line art.',
 };
@@ -68,9 +69,7 @@ export function buildStudioPromptEnhancement(input: {
   scene?: string;
   identity?: string;
 }): string {
-  const quality = input.category === 'anime'
-    ? RENDER_PROMPTS[input.animeStyle || '2d']
-    : 'Photograph it like an unretouched editorial frame made with a real camera: believable skin pores and small imperfections, natural exposure, restrained color, and soft directional light.';
+  const quality = RENDER_PROMPTS[input.animeStyle || 'realistic'];
   const composition = input.intensity >= 3
     ? 'Use a candid three-quarter full-body view with the torso and pelvis in frame. Shift the weight naturally through one hip, keep the shoulders and hips slightly asymmetrical, relax the free hand, and capture a believable moment between movements rather than a rigid pose.'
     : input.category === 'transgender'
@@ -99,50 +98,47 @@ export function studioIntensityLabel(intensity: NsfwIntensity): string {
   } as const)[intensity];
 }
 
-export function studioNegativePrompt(category: CompanionCategory, animeStyle: AnimeRenderStyle = '2d'): string {
+export function studioNegativePrompt(category: CompanionCategory, animeStyle: AnimeRenderStyle = 'realistic'): string {
   const shared = 'plastic skin, waxy face, mannequin pose, rigid symmetry, over-smoothed skin, vacant expression, child, teen, underage, youthful face, ambiguous age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals';
-  if (category === 'transgender') {
-    return `${shared}, cisgender woman, vagina, flat chest, cropped pelvis, genital area out of frame, duplicated genitals, detached genitals, male-only silhouette, caricature, fetish stereotype`;
-  }
-  if (category === 'anime') {
-    return animeStyle === '2d'
-      ? `${shared}, photorealistic, photograph, 3d render, plastic CGI, muddy line art`
-      : `${shared}, flat 2d drawing, sketch, broken mesh, wax figure, low-poly model`;
-  }
-  return `${shared}, plastic skin, waxy face, broken pelvis, bad anatomy`;
+  const anatomy = category === 'transgender'
+    ? 'cisgender woman, vagina, flat chest, cropped pelvis, genital area out of frame, duplicated genitals, detached genitals, male-only silhouette, caricature, fetish stereotype'
+    : 'broken pelvis, bad anatomy';
+  const style = animeStyle === '2d'
+    ? 'photorealistic, photograph, 3d render, plastic CGI, muddy line art'
+    : animeStyle === '3d'
+      ? 'flat 2d drawing, sketch, broken mesh, wax figure, low-poly model'
+      : 'illustration, anime, cartoon, CGI, 3d render';
+  return shared + ', ' + anatomy + ', ' + style;
 }
 
 export function recommendedStudioLoras(
   category: CompanionCategory,
-  animeStyle: AnimeRenderStyle = '2d',
+  animeStyle: AnimeRenderStyle = 'realistic',
 ): Array<{ id: string; strength: number; reasonZh: string }> {
-  if (category === 'transgender') {
-    return [
-      { id: 'body-transgender-anatomy-flux', strength: 0.68, reasonZh: '控制胸部与男性外生殖特征同时出现' },
-      { id: 'body-transgender-presentation-flux', strength: 0.5, reasonZh: '稳定成年 MtF 的女性面部、胸部和曲线' },
-      { id: 'detail-skin-flux', strength: 0.42, reasonZh: '增强真实皮肤和局部细节' },
-    ];
-  }
-  if (category === 'anime') {
-    return animeStyle === '2d'
+  const subjectCategory = category === 'anime' ? 'female' : category;
+  const genderLoras = subjectCategory === 'transgender'
+    ? [
+        { id: 'body-transgender-anatomy-flux', strength: 0.74, reasonZh: '\u540c\u65f6\u5f3a\u5316\u80f8\u90e8\u4e0e\u7537\u6027\u5916\u751f\u6b96\u7279\u5f81' },
+        { id: 'body-transgender-presentation-flux', strength: 0.48, reasonZh: '\u7a33\u5b9a\u6210\u5e74 MtF \u7684\u5973\u6027\u9762\u90e8\u3001\u80f8\u90e8\u548c\u66f2\u7ebf' },
+      ]
+    : subjectCategory === 'male'
       ? [
-          { id: 'style-anime-2d-flux', strength: 0.72, reasonZh: '稳定 2D 线稿与赛璐璐上色' },
-          { id: 'pose-nsfw-dynamic', strength: 0.38, reasonZh: '辅助成人动作构图' },
+          { id: 'body-masculine-flux', strength: 0.62, reasonZh: '\u5f3a\u5316\u6210\u5e74\u7537\u6027\u4f53\u578b\u4e0e\u89e3\u5256' },
+          { id: 'detail-skin-flux', strength: 0.36, reasonZh: '\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282' },
         ]
       : [
-          { id: 'style-anime-3d-flux', strength: 0.68, reasonZh: '稳定 3D 动漫材质和角色建模' },
-          { id: 'pose-nsfw-dynamic', strength: 0.4, reasonZh: '辅助成人动作构图' },
+          { id: 'body-curvy-flux', strength: 0.58, reasonZh: '\u5f3a\u5316\u6210\u5e74\u5973\u6027\u81ea\u7136\u66f2\u7ebf' },
+          { id: 'detail-skin-flux', strength: 0.36, reasonZh: '\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282' },
         ];
-  }
-  return category === 'male'
-    ? [
-        { id: 'body-masculine-flux', strength: 0.62, reasonZh: '强化男性体型' },
-        { id: 'detail-skin-flux', strength: 0.42, reasonZh: '增强皮肤细节' },
-      ]
-    : [
-        { id: 'body-curvy-flux', strength: 0.58, reasonZh: '强化女性曲线' },
-        { id: 'detail-skin-flux', strength: 0.42, reasonZh: '增强皮肤细节' },
-      ];
+  const styleLora = animeStyle === '2d'
+    ? { id: 'style-anime-2d-flux', strength: 0.68, reasonZh: '\u7a33\u5b9a 2D \u7ebf\u7a3f\u4e0e\u8d5b\u7490\u7490\u4e0a\u8272' }
+    : animeStyle === '3d'
+      ? { id: 'style-anime-3d-flux', strength: 0.64, reasonZh: '\u7a33\u5b9a 3D \u52a8\u753b\u6750\u8d28\u4e0e\u89d2\u8272\u5efa\u6a21' }
+      : null;
+  if (!styleLora) return genderLoras;
+  return subjectCategory === 'transgender'
+    ? [...genderLoras, styleLora]
+    : [genderLoras[0], styleLora, genderLoras[1]];
 }
 
 export type CategoryLoraControl = {
@@ -156,7 +152,7 @@ export type CategoryLoraControl = {
 export function resolveCategoryLoraControls(
   category: CompanionCategory,
   intensity: NsfwIntensity,
-  animeStyle: AnimeRenderStyle = '2d',
+  animeStyle: AnimeRenderStyle = 'realistic',
 ): { selected: CategoryLoraControl[]; missing: Array<{ id: string; reasonZh: string }> } {
   const scale = studioLoraStrengthScale(intensity);
   const selected: CategoryLoraControl[] = [];

@@ -3,7 +3,7 @@ import { normalizeCompanionCategory, STUDIO_PROMPTS } from '../companion-categor
 
 describe('companion categories', () => {
   it('prefers anime style over gender', () => {
-    expect(normalizeCompanionCategory({ gender: 'Male', style: 'anime' })).toBe('anime');
+    expect(normalizeCompanionCategory({ gender: 'Male', style: 'anime' })).toBe('male');
   });
 
   it('detects transgender and male rows', () => {

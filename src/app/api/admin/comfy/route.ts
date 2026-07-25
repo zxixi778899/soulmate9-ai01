@@ -431,7 +431,7 @@ export async function POST(req: NextRequest) {
       ? rawCategory as CompanionCategory
       : 'female';
     const intensity = Math.min(5, Math.max(1, Math.round(Number(body.nsfw_intensity || 3)))) as NsfwIntensity;
-    const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : '2d';
+    const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';
     const currentPrompt = String(body.prompt || '').trim();
     const companion = body.companion && typeof body.companion === 'object'
       ? body.companion as Record<string, unknown>
@@ -449,7 +449,7 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `Extract or invent one short setting for an adults-only FLUX image. Return strict JSON only with keys "prompt" and "negative". The prompt value must contain only a setting and framing in 8-24 natural English words. Do not include the subject, anatomy, action, style, quality tags, or NSFW labels; the server adds those deterministically.`;
     const userPrompt = [
       `Selected category: ${category}`,
-      `Anime render style: ${animeStyle}`,
+      `Render style: ${animeStyle}`,
       `Selected NSFW intensity: ${intensity}/5`,
       `Companion profile, used only to infer a fitting location: ${profile}`,
       `Current prompt, used only to preserve its location or framing: ${currentPrompt || 'a modern sofa in a private living room'}`,
@@ -1025,7 +1025,7 @@ if (body.action === 'verify_loras') {
     const width = Number(body.width || wf?.defaults.width || 832);
     const height = Number(body.height || wf?.defaults.height || 1216);
     const categoryForParams = String(body.companion_category || 'female');
-    const minimumSteps = categoryForParams === 'anime' ? 30 : categoryForParams === 'transgender' ? 32 : 28;
+    const minimumSteps = categoryForParams === 'transgender' ? 32 : 28;
     const steps = Math.max(minimumSteps, Number(body.steps || wf?.defaults.steps || minimumSteps));
     const cfgScale = Math.min(2, Math.max(1, Number(body.cfg || wf?.defaults.cfg || 1.4)));
     const allowedSamplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_sde']);
@@ -1074,7 +1074,7 @@ if (body.action === 'verify_loras') {
       : 'female';
     const rawIntensity = Math.round(Number(body.nsfw_intensity || 5));
     const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
-    const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : '2d';
+    const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';
     if (body.prompt_profile_applied !== true) {
       prompt = buildStudioPromptEnhancement({
         category,
@@ -1088,7 +1088,7 @@ if (body.action === 'verify_loras') {
     const effectiveInputImage = String(body.input_image || consistencyReference || '').trim() || undefined;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
-        ? category === 'transgender' || category === 'anime'
+        ? category === 'transgender' || animeStyle !== 'realistic'
           ? 0.92
           : 0.86
         : Math.min(0.95, Math.max(0.5, denoise))
