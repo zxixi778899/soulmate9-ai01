@@ -51,8 +51,11 @@ export function normalizeCompanionCategory(input: {
   tags?: unknown;
 }): CompanionCategory {
   const gender = String(input.gender || '').toLowerCase();
+  const style = String(input.style || '').toLowerCase();
   const tags = Array.isArray(input.tags) ? input.tags.join(' ').toLowerCase() : String(input.tags || '').toLowerCase();
-  const identity = `${gender} ${tags}`;
+  const identity = `${gender} ${tags} ${style}`;
+  // Anime / 2D render style is its own browsing category and wins over gender.
+  if (/\banime\b|\bmanga\b|\b2d\b|二次元|animation style/.test(`${tags} ${style}`)) return 'anime';
   if (/\btrans(?:gender|sexual)?\b|non.?binary|mtf|ftm/.test(identity)) return 'transgender';
   if (/\bmale\b|\bman\b|\bmen\b|boyfriend/.test(identity)) return 'male';
   if (/\bfemale\b|\bwoman\b|\bwomen\b|girlfriend/.test(identity)) return 'female';

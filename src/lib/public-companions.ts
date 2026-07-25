@@ -184,6 +184,8 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
       portrait_video_url: portrait_video_url || null,
       avatar_video_url: avatar_video_url || null,
       personality: (g.personality as string) ?? null,
+      gender: (g.gender as string) ?? null,
+      appearance_style: (g.appearance_style as string) ?? null,
       occupation: (g.occupation as string) ?? null,
       hobbies:
         typeof g.hobbies === 'string'
