@@ -149,10 +149,13 @@ export function buildFluxWorkflow(opts: {
 
   // FLUX: empty negative is safest. Long SD negatives → black / muddy images.
   const rawNeg = String(opts.negativePrompt ?? '').trim();
-  const negText =
-    rawNeg.length > 0 && rawNeg.length < 200
-      ? rawNeg
-      : '';
+  const negativeParts = [...new Set(rawNeg.split(',').map((part) => part.trim()).filter(Boolean))];
+  let negText = '';
+  for (const part of negativeParts) {
+    const candidate = negText ? `${negText}, ${part}` : part;
+    if (candidate.length > 220) break;
+    negText = candidate;
+  }
 
   // Node IDs: 1 Checkpoint → 2 pos CLIP → 3 neg CLIP → 4 latent → 5 KSampler → 6 VAE → 7 Save
   // Optional LoRA node 14

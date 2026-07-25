@@ -64,15 +64,20 @@ describe('studio generation profiles', () => {
     expect(recommendedStudioLoras('anime', '3d')[0]?.id).toBe('style-anime-3d-flux');
   });
 
-  it('reports unavailable gender LoRAs instead of silently substituting another body', () => {
+  it('selects both verified transgender controls without substituting a female body LoRA', () => {
     const controls = resolveCategoryLoraControls('transgender', 5);
-    expect(controls.missing.map((item) => item.id)).toContain('body-transgender-anatomy-flux');
+    expect(controls.selected.map((item) => item.id)).toEqual([
+      'body-transgender-anatomy-flux',
+      'body-transgender-presentation-flux',
+    ]);
     expect(controls.selected.some((item) => item.id === 'body-curvy-flux')).toBe(false);
   });
 
   it('forces explicit transgender levels to include chest and pelvis in one frame', () => {
     const prompt = buildStudioPromptEnhancement({ category: 'transgender', intensity: 4 });
-    expect(prompt).toContain('entire pelvis visible');
+    expect(prompt).toContain('torso and pelvis in frame');
+    expect(prompt).toContain('weight naturally through one hip');
+    expect(prompt).not.toContain('frontal full-body');
     expect(studioNegativePrompt('transgender')).toContain('cropped pelvis');
   });
 

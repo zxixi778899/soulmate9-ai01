@@ -22,6 +22,32 @@ describe('buildFluxWorkflow LoRA stacking', () => {
     expect(graph['4'].inputs.batch_size).toBe(4);
   });
 
+  it('connects transgender LoRAs to both CLIP and the sampled model', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'MtF trans. An adult transgender woman in a relaxed three-quarter pose.',
+      loras: [
+        { name: 'Anet_Valence_futanari_FLUX-000004.safetensors', strength_model: 0.8, strength_clip: 0.55 },
+        { name: 'realistic-mtf-trans.safetensors', strength_model: 0.58, strength_clip: 0.45 },
+      ],
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+
+    expect(graph['14'].inputs.lora_name).toBe('Anet_Valence_futanari_FLUX-000004.safetensors');
+    expect(graph['15'].inputs.lora_name).toBe('realistic-mtf-trans.safetensors');
+    expect(graph['5'].inputs.model).toEqual(['15', 0]);
+    expect(graph['2'].inputs.clip).toEqual(['15', 1]);
+  });
+
+  it('keeps a compact quality negative instead of dropping a long negative prompt', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'An adult subject in natural window light.',
+      negativePrompt: 'plastic skin, waxy face, mannequin pose, rigid symmetry, over-smoothed skin, vacant expression, child, teen, underage, youthful face, ambiguous age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals, censored bar, mosaic, watermark, text, blurry, low quality',
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+    const negative = String(graph['3'].inputs.text);
+    expect(negative).toContain('plastic skin');
+    expect(negative).toContain('mannequin pose');
+    expect(negative.length).toBeLessThanOrEqual(220);
+  });
+
   it('removes blur cues from the positive prompt', () => {
     const graph = buildFluxWorkflow({
       prompt: 'adult woman, dreamy blur, soft focus, natural window light, sharp eyes',

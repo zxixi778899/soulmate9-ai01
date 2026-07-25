@@ -70,12 +70,12 @@ export function buildStudioPromptEnhancement(input: {
 }): string {
   const quality = input.category === 'anime'
     ? RENDER_PROMPTS[input.animeStyle || '2d']
-    : 'Capture it as a sharp high-resolution 4K real photograph with natural skin texture, realistic anatomy, and soft cinematic light.';
+    : 'Photograph it like an unretouched editorial frame made with a real camera: believable skin pores and small imperfections, natural exposure, restrained color, and soft directional light.';
   const composition = input.intensity >= 3
-    ? 'Use an uncropped frontal full-body composition that keeps the face, chest, hands, and entire pelvis visible in the same frame.'
+    ? 'Use a candid three-quarter full-body view with the torso and pelvis in frame. Shift the weight naturally through one hip, keep the shoulders and hips slightly asymmetrical, relax the free hand, and capture a believable moment between movements rather than a rigid pose.'
     : input.category === 'transgender'
-      ? 'Use a waist-up or three-quarter composition that clearly establishes her feminine face, chest, and body shape.'
-      : 'Keep the subject and the described action clearly visible.';
+      ? 'Use a relaxed three-quarter view that establishes her feminine face, chest, waist, and hips without a centered mannequin pose.'
+      : 'Keep the action readable with relaxed shoulders, natural weight distribution, and an unforced candid expression.';
   return [
     CATEGORY_SUBJECTS[input.category] + compactIdentity(input.identity),
     compactScene(input.scene),
@@ -100,7 +100,7 @@ export function studioIntensityLabel(intensity: NsfwIntensity): string {
 }
 
 export function studioNegativePrompt(category: CompanionCategory, animeStyle: AnimeRenderStyle = '2d'): string {
-  const shared = 'child, teen, underage, youthful face, ambiguous age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals, censored bar, mosaic, watermark, text';
+  const shared = 'plastic skin, waxy face, mannequin pose, rigid symmetry, over-smoothed skin, vacant expression, child, teen, underage, youthful face, ambiguous age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals';
   if (category === 'transgender') {
     return `${shared}, cisgender woman, vagina, flat chest, cropped pelvis, genital area out of frame, duplicated genitals, detached genitals, male-only silhouette, caricature, fetish stereotype`;
   }

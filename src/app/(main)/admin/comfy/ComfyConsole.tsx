@@ -109,6 +109,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [identityConsistency, setIdentityConsistency] = useState(Boolean(girlfriendId));
   const [kind, setKind] = useState('girlfriend');
   const [lastResult, setLastResult] = useState<Any[]>([]);
+  const [lastGenerationTrace, setLastGenerationTrace] = useState<Any | null>(null);
   const [scopedGirlfriend, setScopedGirlfriend] = useState<Any | null>(null);
   const [gfLoading, setGfLoading] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -684,6 +685,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       });
       const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '生成失败');
+      setLastGenerationTrace(data.generation_trace || null);
 
       // Handle async pending response — poll until job completes
       if (data.pending && data.job_id) {
@@ -1473,6 +1475,22 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 {genMode === 'img2video' && '图生视频（预留）'}
               </div>
             </div>
+            {lastGenerationTrace && (
+              <div className="mb-3 border border-cyan-800/70 bg-cyan-950/30 p-3 text-xs text-slate-200">
+                <div className="mb-2 font-semibold text-cyan-300">本次生成链路</div>
+                <div>基础信息：{String(lastGenerationTrace.identitySource || 'manual_prompt')}</div>
+                <div>分类 / 强度：{String(lastGenerationTrace.category || '-')} / {String(lastGenerationTrace.intensity || '-')}</div>
+                <div>模型：{String(lastGenerationTrace.checkpoint || '-')}</div>
+                <div>参数：Steps {String(lastGenerationTrace.steps || '-')} / CFG {String(lastGenerationTrace.cfg || '-')} / {String(lastGenerationTrace.sampler || '-')} / {String(lastGenerationTrace.scheduler || '-')}</div>
+                <div>参考图重绘：{lastGenerationTrace.referenceDenoise == null ? '未使用' : String(lastGenerationTrace.referenceDenoise)}</div>
+                <div className="mt-2 text-cyan-200">实际 LoRA：</div>
+                <div className="break-all text-slate-300">
+                  {Array.isArray(lastGenerationTrace.loras) && lastGenerationTrace.loras.length
+                    ? lastGenerationTrace.loras.map((item: Any) => String(item.name) + ' (' + Number(item.strength_model || 0).toFixed(2) + ')').join(' / ')
+                    : '未加载 LoRA'}
+                </div>
+              </div>
+            )}
             {generating && (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 text-slate-400 py-16">
                 <Loader2 className="h-10 w-10 animate-spin text-violet-400" />

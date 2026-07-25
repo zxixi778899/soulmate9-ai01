@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
 
     const intent = buildImageActionFromChat(userRequest || 'send me a selfie', chatContext);
     const framing = intimacyPolicy.level >= 3
-      ? 'uncropped frontal full-body framing with face, chest, hands, and pelvis visible'
+      ? 'candid three-quarter full-body framing, torso and pelvis visible, shifted weight, relaxed shoulders, asymmetrical natural gesture'
       : intent.kind === 'selfie'
       ? 'close selfie framing, looking directly at the camera'
       : intent.kind === 'body'
@@ -343,7 +343,11 @@ export async function POST(request: NextRequest) {
     // Preserve identity from the saved portrait without copying its composition.
     const useConsistency =
       resolved.config.use_consistency_default !== false && Boolean(referenceImage);
-    const denoise = useConsistency ? 0.78 : 1;
+    const denoise = useConsistency
+      ? intimacyPolicy.level >= 3
+        ? 0.92
+        : 0.86
+      : 1;
 
     const sceneCfg = resolved.config;
     const generationSeed = Math.floor(Math.random() * 2 ** 32);
@@ -377,6 +381,14 @@ export async function POST(request: NextRequest) {
         status: 'IN_QUEUE',
         scene: 'chat_selfie',
         provider: routerResult.provider,
+        generation_trace: {
+          category,
+          intensity: intimacyPolicy.nsfwIntensity,
+          prompt: prompt.slice(0, 800),
+          loras: intelligentLoras,
+          referenceDenoise: useConsistency ? denoise : null,
+          attempts: routerResult.attempts,
+        },
         message: 'Image is being generated. Poll /api/runpod/status?job_id=' + routerResult.job_id,
       });
     }
@@ -462,6 +474,10 @@ export async function POST(request: NextRequest) {
         primary: loraPlan.primary.note,
         secondary: loraPlan.secondary?.note || null,
         strengths: intelligentLoras.map((lora) => lora.strength_model),
+        files: intelligentLoras.map((lora) => lora.name),
+        provider: routerResult.provider,
+        attempts: routerResult.attempts,
+        referenceDenoise: useConsistency ? denoise : null,
         missingCategoryLoras: categoryControl.missing.map((item) => item.id),
       },
       daily_limit: resolved.dailyLimit,

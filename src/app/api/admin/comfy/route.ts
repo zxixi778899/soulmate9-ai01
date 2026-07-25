@@ -433,9 +433,19 @@ export async function POST(req: NextRequest) {
     const intensity = Math.min(5, Math.max(1, Math.round(Number(body.nsfw_intensity || 3)))) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : '2d';
     const currentPrompt = String(body.prompt || '').trim();
-    const profile = body.companion && typeof body.companion === 'object'
-      ? JSON.stringify(body.companion).slice(0, 5000)
-      : '{}';
+    const companion = body.companion && typeof body.companion === 'object'
+      ? body.companion as Record<string, unknown>
+      : {};
+    const profile = JSON.stringify(companion).slice(0, 5000);
+    const identity = [
+      companion.name,
+      companion.appearance_race,
+      companion.appearance_hair_color,
+      companion.appearance_hair,
+      companion.appearance_eyes,
+      companion.appearance_body,
+      companion.appearance,
+    ].filter(Boolean).map(String).join(', ');
     const systemPrompt = `Extract or invent one short setting for an adults-only FLUX image. Return strict JSON only with keys "prompt" and "negative". The prompt value must contain only a setting and framing in 8-24 natural English words. Do not include the subject, anatomy, action, style, quality tags, or NSFW labels; the server adds those deterministically.`;
     const userPrompt = [
       `Selected category: ${category}`,
@@ -483,6 +493,7 @@ export async function POST(req: NextRequest) {
         intensity,
         animeStyle,
         scene: optimizedScene,
+        identity,
       });
       const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
       const installed = getInstalledLoraSet();
@@ -502,6 +513,14 @@ export async function POST(req: NextRequest) {
         prompt: optimizedPrompt,
         negative: String(parsed.negative || studioNegativePrompt(category, animeStyle)).trim(),
         loras,
+        pipeline: {
+          identitySource: identity ? 'companion_record' : 'manual_prompt',
+          identity,
+          category,
+          intensity,
+          prompt: optimizedPrompt,
+          loras,
+        },
         missing_loras: recommendations
           .filter((item) => !loras.some((selected) => selected.id === item.id))
           .map((item) => ({ id: item.id, reasonZh: item.reasonZh })),
@@ -1008,7 +1027,7 @@ if (body.action === 'verify_loras') {
     const categoryForParams = String(body.companion_category || 'female');
     const minimumSteps = categoryForParams === 'anime' ? 30 : categoryForParams === 'transgender' ? 32 : 28;
     const steps = Math.max(minimumSteps, Number(body.steps || wf?.defaults.steps || minimumSteps));
-    const cfgScale = Number(body.cfg || wf?.defaults.cfg || 3.5);
+    const cfgScale = Math.min(2, Math.max(1, Number(body.cfg || wf?.defaults.cfg || 1.4)));
     const allowedSamplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_sde']);
     const allowedSchedulers = new Set(['simple', 'normal', 'karras', 'sgm_uniform']);
     const requestedSampler = String(body.sampler_name || 'euler');
@@ -1068,7 +1087,11 @@ if (body.action === 'verify_loras') {
 
     const effectiveInputImage = String(body.input_image || consistencyReference || '').trim() || undefined;
     const effectiveDenoise = effectiveInputImage
-      ? characterConsistency ? Math.min(0.45, denoise) : denoise
+      ? characterConsistency
+        ? category === 'transgender' || category === 'anime'
+          ? 0.92
+          : 0.86
+        : Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
     const folder = assetFolder(girlfriendId);
     const loraStrength =
@@ -1104,7 +1127,7 @@ if (body.action === 'verify_loras') {
       (sum: number, item: RequestedLora) => sum + item.strength_model,
       0,
     );
-    const loraScale = totalLoraStrength > 1 ? 1 / totalLoraStrength : 1;
+    const loraScale = totalLoraStrength > 1.55 ? 1.55 / totalLoraStrength : 1;
     const normalizedLoras = requestedLoras.map((item: RequestedLora) => ({
       ...item,
       strength_model: Number((item.strength_model * loraScale).toFixed(3)),
@@ -1144,25 +1167,7 @@ if (body.action === 'verify_loras') {
         endpoint_id: endpointId,
         submit_only: true,
       };
-      let result;
-      try {
-        result = await runpodClient.generate(generationOptions);
-      } catch (generationError) {
-        // A stale volume inventory can make Comfy reject the whole prompt when a
-        // selected LoRA was removed or renamed on RunPod. Keep generation usable
-        // by retrying once without optional LoRAs; checkpoint generation remains
-        // the source of truth and the failure is still recorded in server logs.
-        if (!normalizedLoras.length) throw generationError;
-        logger.warn('[comfy] LoRA workflow failed, retrying without LoRA', {
-          error: generationError instanceof Error ? generationError.message : String(generationError),
-          loras: normalizedLoras.map((item) => item.name),
-        });
-        result = await runpodClient.generate({
-          ...generationOptions,
-          lora_name: null,
-          loras: [],
-        });
-      }
+      const result = await runpodClient.generate(generationOptions);
 
       // If still pending, return job_id for client-side polling
       if (result.pending) {
@@ -1172,6 +1177,24 @@ if (body.action === 'verify_loras') {
           job_id: result.job_id,
           status: result.status || 'IN_QUEUE',
           message: 'Generation in queue. Poll /api/runpod/status?job_id=' + result.job_id,
+          generation_trace: {
+            category,
+            intensity: nsfwIntensity,
+            identitySource: girlfriendId ? 'companion_record' : 'manual_prompt',
+            prompt,
+            negative,
+            loras: normalizedLoras.length
+              ? normalizedLoras
+              : loraSan.lora_name
+                ? [{ name: loraSan.lora_name, strength_model: loraStrength, strength_clip: loraStrength }]
+                : [],
+            checkpoint: body.ckpt_name || ckpt?.filename,
+            steps,
+            cfg: cfgScale,
+            sampler: samplerName,
+            scheduler,
+            referenceDenoise: effectiveDenoise ?? null,
+          },
         });
       }
 

@@ -69,6 +69,13 @@ export interface ImageRouterOptions {
   endpoint_id?: string;
 }
 
+export function shouldSwitchFromQueuedRunPod(
+  route: Pick<ImageRouteConfig, 'switch_on_queue'>,
+  needsLora: boolean,
+): boolean {
+  return route.switch_on_queue && !needsLora;
+}
+
 export interface ImageRouterResult {
   images: string[]; // base64 or URLs
   provider: ImageProvider;
@@ -381,7 +388,7 @@ export async function routeImageGeneration(opts: ImageRouterOptions): Promise<Im
         ]);
 
         // If RunPod queued and switch_on_queue is enabled, try next provider
-        if (result.pending && route.switch_on_queue) {
+        if (result.pending && shouldSwitchFromQueuedRunPod(route, needsLora)) {
           const queueLatency = Date.now() - attemptStart;
           attempts.push({ provider: route.provider, success: false, error: 'queued_switch', latency_ms: queueLatency });
           logger.info('[image-router] RunPod queued, switching to next provider', {
