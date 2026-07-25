@@ -244,7 +244,7 @@ export default function CreatePage() {
           personality: selectedTags.join(', '),
         }),
       });
-      const data = await readResponseJson<{ portrait_url?: string; url?: string; imageUrl?: string; error?: string; pending?: boolean; job_id?: string }>(res);
+      const data = await readResponseJson<{ portrait_url?: string; url?: string; imageUrl?: string; error?: string; pending?: boolean; job_id?: string; endpoint_id?: string }>(res);
       if (!res.ok) {
         setError(data.error || (zh ? '生成失败' : 'Generate failed'));
         return;
@@ -255,7 +255,7 @@ export default function CreatePage() {
         for (let p = 0; p < 60; p++) {
           await new Promise((r) => setTimeout(r, 3000));
           try {
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(data.job_id)}`);
+            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(data.job_id)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(data.endpoint_id)}` : ''}`);
             const pollData = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(pollRes);
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
               url = pollData.images[0];

@@ -635,7 +635,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           let done = false;
           for (let p = 0; p < 60; p++) {
             await new Promise((r) => setTimeout(r, 3000));
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}`);
+            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}`);
             const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
               let polled: Any[] = pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));
@@ -723,7 +723,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         for (let i = 0; i < maxPolls; i++) {
           await new Promise((r) => setTimeout(r, 3000));
           try {
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}`);
+            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}`);
             const pollData = await readResponseJson(pollRes).catch(() => ({} as any));
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
               let polledAssets: Any[] = pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));

@@ -463,7 +463,7 @@ export default function ChatPage() {
     let raw: string | null = null;
     try { raw = localStorage.getItem(`soulmate_gen_job_${id}`); } catch { return; }
     if (!raw) return;
-    let job: { job_id?: string; startedAt?: number; req?: string } = {};
+    let job: { job_id?: string; endpoint_id?: string; startedAt?: number; req?: string } = {};
     try { job = JSON.parse(raw); } catch { job = {}; }
     const age = Date.now() - (job.startedAt || 0);
     if (!job.job_id || age > 4 * 60 * 1000) {
@@ -497,7 +497,7 @@ export default function ChatPage() {
         if (stopped || cancelGenRef.current || genSessionRef.current !== session) break;
         try {
           const res = await authedFetch(
-            `/api/runpod/status?job_id=${encodeURIComponent(job.job_id!)}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`,
+            `/api/runpod/status?job_id=${encodeURIComponent(job.job_id!)}${job.endpoint_id ? `&endpoint_id=${encodeURIComponent(job.endpoint_id)}` : ''}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`,
           );
           const data = await readResponseJson<{ status?: string; images?: string[] }>(res);
           if (data.status === 'COMPLETED' && data.images?.length) {
@@ -639,7 +639,7 @@ export default function ChatPage() {
   };
 
   /* ---------- generation job persistence (resume after refresh) ---------- */
-  const saveGenJob = (gid: string, job: { job_id: string; startedAt: number; req: string }) => {
+  const saveGenJob = (gid: string, job: { job_id: string; endpoint_id?: string; startedAt: number; req: string }) => {
     try { localStorage.setItem(`soulmate_gen_job_${gid}`, JSON.stringify(job)); } catch { /* ignore */ }
   };
   const clearGenJob = (gid: string) => {
@@ -740,6 +740,7 @@ export default function ChatPage() {
         message?: string;
         pending?: boolean;
         job_id?: string;
+        endpoint_id?: string;
         status?: string;
       }>(res);
       if (!res.ok) {
@@ -763,14 +764,14 @@ export default function ChatPage() {
         let jobId = data.job_id;
         let retried = false;
         let falAttempted = false;
-        saveGenJob(id, { job_id: jobId, startedAt: Date.now(), req });
-        const pollStatus = async (jid: string): Promise<{ url?: string; failed?: boolean; error?: string; cancelled?: boolean }> => {
+        saveGenJob(id, { job_id: jobId, endpoint_id: data.endpoint_id, startedAt: Date.now(), req });
+        const pollStatus = async (jid: string, endpointId?: string): Promise<{ url?: string; failed?: boolean; error?: string; cancelled?: boolean }> => {
           for (let p = 0; p < 80; p++) {
             if (cancelGenRef.current || genSessionRef.current !== session) return { cancelled: true };
             await new Promise((r) => setTimeout(r, 3000));
             if (cancelGenRef.current || genSessionRef.current !== session) return { cancelled: true };
             try {
-              const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jid)}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`);
+              const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jid)}${endpointId ? `&endpoint_id=${encodeURIComponent(endpointId)}` : ''}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`);
               const pollData = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(pollRes);
               if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
                 return { url: pollData.images[0] };
@@ -822,7 +823,7 @@ export default function ChatPage() {
           return { failed: true, error: 'timeout' };
         };
 
-        let result = await pollStatus(jobId);
+        let result = await pollStatus(jobId, data.endpoint_id);
 
         // User cancelled mid-generation — cleanup already done in handleCancelGeneration
         if (result.cancelled) {
@@ -859,8 +860,8 @@ export default function ChatPage() {
               result = { url: retryData.image_url || retryData.imageUrl };
             } else if (retryData.pending && retryData.job_id) {
               jobId = retryData.job_id;
-              saveGenJob(id, { job_id: jobId, startedAt: Date.now(), req });
-              result = await pollStatus(jobId);
+              saveGenJob(id, { job_id: jobId, endpoint_id: data.endpoint_id, startedAt: Date.now(), req });
+              result = await pollStatus(jobId, data.endpoint_id);
               if (result.cancelled) {
                 clearGenJob(id);
                 setIsTyping(false);
@@ -963,7 +964,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ girlfriend_id: id, user_request: userRequest || 'send me a selfie', locale }),
       });
-      const imgData = await readResponseJson<{ image_url?: string; imageUrl?: string; pending?: boolean; job_id?: string; error?: string }>(imgRes);
+      const imgData = await readResponseJson<{ image_url?: string; imageUrl?: string; pending?: boolean; job_id?: string; endpoint_id?: string; error?: string }>(imgRes);
       if (!imgRes.ok) throw new Error(imgData.error || 'Image generation failed');
 
       let imageUrl = imgData.image_url || imgData.imageUrl;
@@ -981,7 +982,7 @@ export default function ChatPage() {
               content: waitZh ? '照片还在排队中，GPU 正在热身… 💕' : 'Photo still in queue, GPU is warming up… 💕',
             } : m));
           }
-          const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(imgData.job_id)}`);
+          const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(imgData.job_id)}${imgData.endpoint_id ? `&endpoint_id=${encodeURIComponent(imgData.endpoint_id)}` : ''}`);
           const pollData = await readResponseJson<{ status?: string; images?: string[] }>(pollRes);
           if (pollData.status === 'COMPLETED' && pollData.images?.length) { imageUrl = pollData.images[0]; break; }
           if (pollData.status === 'FAILED') throw new Error('Image generation failed');
@@ -995,7 +996,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input_image: imageUrl, girlfriend_id: id }),
       });
-      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; error?: string }>(vidRes);
+      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; endpoint_id?: string; error?: string }>(vidRes);
       if (!vidRes.ok) throw new Error(vidData.error || 'Video generation failed');
 
       let videoUrl = vidData.video_url;

@@ -387,6 +387,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         pending: true,
         job_id: routerResult.job_id,
+        endpoint_id: generationRoute.endpointId || resolved.endpointId || undefined,
         status: 'IN_QUEUE',
         scene: 'chat_selfie',
         provider: routerResult.provider,

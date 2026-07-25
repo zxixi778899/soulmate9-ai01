@@ -582,7 +582,7 @@ export default function ChatsPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ girlfriend_id: selectedId, user_request: req, message: req, chat_context: chatCtx, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale }),
       });
-      const data = await readResponseJson<{ error?: string; localized_error?: string; code?: string; image_url?: string; imageUrl?: string; message?: string; pending?: boolean; job_id?: string }>(res);
+      const data = await readResponseJson<{ error?: string; localized_error?: string; code?: string; image_url?: string; imageUrl?: string; message?: string; pending?: boolean; job_id?: string; endpoint_id?: string }>(res);
       if (!res.ok) throw new Error(data?.code === 'daily_limit' ? (data.localized_error || t('chat.imageDailyLimit')) : (data?.localized_error || data?.error || t('chat.imageFailed')));
       let imgUrl = data.image_url || data.imageUrl;
       // Handle async RunPod job — poll until complete
@@ -590,7 +590,7 @@ export default function ChatsPage() {
         for (let p = 0; p < 80; p++) {
           await new Promise((r) => setTimeout(r, 3000));
           try {
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(data.job_id)}&scene=chat_selfie`);
+            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(data.job_id)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(data.endpoint_id)}` : ''}&scene=chat_selfie`);
             const pollData = await readResponseJson<{ status?: string; images?: string[]; image_url?: string; error?: string }>(pollRes);
             if (pollData.status === 'COMPLETED') {
               imgUrl = pollData.images?.[0] || pollData.image_url;

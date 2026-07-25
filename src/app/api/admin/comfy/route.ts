@@ -1189,6 +1189,7 @@ if (body.action === 'verify_loras') {
           success: true,
           pending: true,
           job_id: result.job_id,
+          endpoint_id: result.endpoint_id || generationOptions.endpoint_id,
           status: result.status || 'IN_QUEUE',
           message: 'Generation in queue. Poll /api/runpod/status?job_id=' + result.job_id,
           generation_trace: {

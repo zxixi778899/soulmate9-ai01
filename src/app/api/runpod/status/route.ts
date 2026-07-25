@@ -23,8 +23,14 @@ export async function GET(req: NextRequest) {
     }
     const girlfriendId = searchParams.get('girlfriend_id') || undefined;
     const scene = searchParams.get('scene') || 'chat_selfie';
+    const requestedEndpointId = searchParams.get('endpoint_id') || undefined;
+    const endpointId =
+      requestedEndpointId && /^[a-zA-Z0-9_-]+$/.test(requestedEndpointId)
+        ? requestedEndpointId
+        : undefined;
 
     const result = await runpodClient.pollJob(jobId, {
+      endpoint_id: endpointId,
       poll_budget_ms: 8000, // Quick check — client polls every 3s anyway
       on_timeout: 'pending',
     });
