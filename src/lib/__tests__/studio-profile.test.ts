@@ -19,6 +19,14 @@ describe('studio generation profiles', () => {
     expect(studioNegativePrompt('transgender')).toContain('duplicated genitals');
   });
 
+  it('uses distinct adult anatomy for female and male profiles', () => {
+    const female = buildStudioPromptEnhancement({ category: 'female', intensity: 5 });
+    const male = buildStudioPromptEnhancement({ category: 'male', intensity: 5 });
+    expect(female).toContain('vulva and vaginal opening');
+    expect(female).not.toContain('large penis');
+    expect(male).toContain('large penis and testicles');
+    expect(male).not.toContain('vaginal opening');
+  });
   it('makes all five intensity levels materially different', () => {
     const prompts = ([1, 2, 3, 4, 5] as const).map((intensity) =>
       buildStudioPromptEnhancement({ category: 'female', intensity }),

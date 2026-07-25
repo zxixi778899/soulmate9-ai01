@@ -68,7 +68,12 @@ function mergeInstalledLoras(config: ComfyConsoleConfig): ComfyConsoleConfig {
       default_strength: registry?.strength ?? 0.55,
       category: registry?.category === 'pose' ? 'action' : registry?.category || 'style',
       nsfw: registry?.category === 'pose' || /nsfw|ahegao|lingerie|bikini|latex|bunny/i.test(file),
-      usage: `同步盘已验证文件。用途：${registry?.label || stem}；建议从 ${registry?.strength ?? 0.55} 强度开始测试。`,
+      usage: loraUsageZh({
+        id: stem,
+        label: registry?.label || stem,
+        filename: file,
+        category: registry?.category === 'pose' ? 'action' : registry?.category || 'style',
+      }),
       trigger_words: registry?.trigger_words || [],
       workflows: ['wf-girlfriend'],
       source: 'runpod-volume',
@@ -439,7 +444,7 @@ export async function POST(req: NextRequest) {
       `Mandatory intensity behavior: ${buildStudioPromptEnhancement({ category, intensity, animeStyle })}`,
       `Companion profile (preserve identity details except conflicting gender/anatomy/style): ${profile}`,
       `Current user prompt: ${currentPrompt || 'Create a new category-appropriate adult scene.'}`,
-      'Write one 90-180 word FLUX prompt. Make subject anatomy, scene, pose, camera, lighting, expression, clothing or nudity, and physical interaction explicit and visually unambiguous. Make levels 1-5 materially different. For transgender subjects, visibly preserve feminine and masculine sex traits in one coherent adult body. For anime, strictly follow the selected 2D or 3D render style.',
+      'Write one concise 45-90 word FLUX prompt in natural English. Use complete sentences, not SD quality tags. State the subject first, then the action and setting, then camera and light. Keep only details visible in the image. Make levels 1-5 materially different. Preserve the selected sex characteristics exactly. For anime, strictly follow the selected 2D or 3D render style.',
       `Negative prompt must be concise and category-specific. Include: ${studioNegativePrompt(category, animeStyle)}`,
     ].join('\n');
     try {
@@ -1042,7 +1047,9 @@ if (body.action === 'verify_loras') {
     const rawIntensity = Math.round(Number(body.nsfw_intensity || 5));
     const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : '2d';
-    prompt = `${buildStudioPromptEnhancement({ category, intensity: nsfwIntensity, animeStyle })} ${prompt}`;
+    if (body.prompt_profile_applied !== true) {
+      prompt = `${buildStudioPromptEnhancement({ category, intensity: nsfwIntensity, animeStyle })} ${prompt}`;
+    }
     if (!prompt.includes('consenting adults age 25 or older')) {
       prompt = `${prompt} ${HIGH_NSFW_PROMPT}`;
     }

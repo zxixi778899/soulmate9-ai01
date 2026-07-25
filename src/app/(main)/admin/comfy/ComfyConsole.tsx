@@ -32,7 +32,6 @@ import {
 import { getPresetsForCategory, type GenPreset } from './presets';
 import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
 import {
-  buildStudioPromptEnhancement,
   loraUsageZh,
   recommendedStudioLoras,
   studioIntensityLabel,
@@ -88,6 +87,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [loraStrength, setLoraStrength] = useState(0.8);
   const [selectedLoras, setSelectedLoras] = useState<Array<{ id: string; strength: number }>>([]);
   const [prompt, setPrompt] = useState('');
+  const [promptProfileApplied, setPromptProfileApplied] = useState(false);
   const [negative, setNegative] = useState('');
   const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
   const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('2d');
@@ -145,9 +145,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         appearance_style: companionCategory === 'anime' ? 'anime' : 'realistic',
         age: 25,
       },
-      { action: `${p.prompt} ${buildStudioPromptEnhancement({ category: companionCategory, intensity: nsfwIntensity, animeStyle: animeRenderStyle })}`, adult: true },
+      { action: p.prompt, adult: true },
     );
     setPrompt(assembled.positive);
+    setPromptProfileApplied(false);
     setNegative(`${studioNegativePrompt(companionCategory, animeRenderStyle)}, ${assembled.negative}, ${p.negative}`);
     setWidth(p.width);
     setHeight(p.height);
@@ -159,7 +160,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const applyCategoryPrompt = (category: CompanionCategory) => {
     const preset = STUDIO_PROMPTS[category];
     setCompanionCategory(category);
-    setPrompt(`${preset.prompt} ${buildStudioPromptEnhancement({ category, intensity: nsfwIntensity, animeStyle: animeRenderStyle })}`);
+    setPrompt(preset.prompt);
+    setPromptProfileApplied(false);
     setNegative(`${studioNegativePrompt(category, animeRenderStyle)}, ${preset.negative}`);
     applyRecommendedLoras(category);
     toast.success(`已切换为${COMPANION_CATEGORY_LABELS[category].zh}成人提示词`);
@@ -381,6 +383,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         throw new Error(data.error || 'LLM 提示词优化失败');
       }
       setPrompt(String(data.prompt || ''));
+      setPromptProfileApplied(true);
       setNegative(String(data.negative || studioNegativePrompt(companionCategory, animeRenderStyle)));
       const planned = Array.isArray(data.loras) ? data.loras : [];
       setSelectedLoras(planned);
@@ -528,6 +531,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     companion_category: companionCategory,
     anime_render_style: animeRenderStyle,
     nsfw_intensity: nsfwIntensity,
+    prompt_profile_applied: promptProfileApplied,
     kind,
   });
 
@@ -1155,7 +1159,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
             </div>
             <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px]">
-              <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-500 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年伴侣。她正倚在床边，用妩媚的眼神邀请观众靠近。" />
+              <Textarea value={prompt} onChange={(e) => { setPrompt(e.target.value); setPromptProfileApplied(false); }} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-500 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年伴侣。她正倚在床边，用妩媚的眼神邀请观众靠近。" />
               <Button className="min-h-28 bg-slate-100 text-base font-bold !text-slate-950 hover:bg-white" disabled={generating} onClick={generate}>
                 {generating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
                 {generating ? '生成中…' : '生成'}
@@ -1336,8 +1340,15 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                       const fn = String(l.filename || '');
                       const on = !fn || (volumeInfo?.inventory_source === 'runtime-volume' && installedSet.has(fn));
                       return (
-                        <SelectItem key={l.id} value={l.id}>
-                          {on ? '● ' : '○ '}{String(l.label || l.id).replace(/^\[[^\]]+\]\s*/, '')}
+                        <SelectItem key={l.id} value={l.id} className="py-2">
+                          <div className="max-w-[420px]">
+                            <div className="text-xs font-medium text-slate-100">
+                              {on ? '● ' : '○ '}{String(l.label || l.id).replace(/^\[[^\]]+\]\s*/, '')}
+                            </div>
+                            <div className="mt-0.5 whitespace-normal text-[10px] leading-4 text-slate-400">
+                              用途：{loraUsageZh(l)}
+                            </div>
+                          </div>
                         </SelectItem>
                       );
                     })}
@@ -1358,6 +1369,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                             <p className={cn('truncate text-[10px] font-mono', onDisk ? 'text-cyan-300' : 'text-amber-300')}>
                               {onDisk ? filename : `${filename} · 未在盘上`}
                             </p>
+                            <p className="mt-1 text-[10px] leading-4 text-slate-400">用途：{asset ? loraUsageZh(asset) : '用途尚未识别'}</p>
                           </div>
                           <button type="button" className="text-slate-300 hover:text-red-300" onClick={() => {
                             setSelectedLoras((current) => current.filter((item) => item.id !== selection.id));
