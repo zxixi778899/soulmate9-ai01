@@ -22,7 +22,9 @@ import {
 import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { captureException } from '@/lib/sentry';
-import { generateText } from '@/lib/llm-service';
+import { loadAiModules } from '@/lib/ai-modules/store';
+import { resolveChatCall } from '@/lib/ai-modules/resolve';
+import { invokeChat } from '@/lib/ai-modules/invoke';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { COMPACT_ADULT_NEGATIVE, HIGH_NSFW_PROMPT, COMPANION_CATEGORIES, type CompanionCategory } from '@/lib/companion-category';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
@@ -441,14 +443,33 @@ export async function POST(req: NextRequest) {
       `Negative prompt must be concise and category-specific. Include: ${studioNegativePrompt(category, animeStyle)}`,
     ].join('\n');
     try {
-      const raw = await generateText({
+      const aiConfig = await loadAiModules(admin.supabase);
+      const resolved = resolveChatCall(aiConfig, {
+        tier: 'admin',
+        userId: admin.user!.id,
+        message: userPrompt,
+        preferNsfw: true,
+        intimacyLevel: 5,
+        adultCharacterVerified: true,
+        locale: 'en',
+        rolloutPercent: 100,
+      });
+      const result = await invokeChat({
+        endpoint: resolved.endpoint,
+        fallbackEndpoints: resolved.fallbackChain,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.72,
         maxTokens: 900,
+        userId: admin.user!.id,
+        taskType: 'prompt_optimization',
+        membershipTier: 'admin',
+        scene: 'admin_comfy_prompt',
+        routeReason: resolved.routeReason,
       });
+      const raw = result.content;
       const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
       const parsed = JSON.parse(cleaned) as { prompt?: unknown; negative?: unknown };
       const optimizedPrompt = String(parsed.prompt || '').trim();
