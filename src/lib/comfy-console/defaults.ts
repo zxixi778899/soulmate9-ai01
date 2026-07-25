@@ -1,4 +1,4 @@
-﻿/**
+/**
  * RunPod resources + Comfy console defaults for Soulmate9.
  * Network volume LoRAs/models are listed as filenames Comfy sees after mount.
  * LoRA 清单单源：data/lora-catalog.json → catalogToLoraAssets()
@@ -6,7 +6,7 @@
 import { catalogToLoraAssets, LORA_CATALOG } from './lora-catalog';
 import type { LibraryItem } from '@/lib/model-library';
 
-export type WorkflowKind = 'girlfriend' | 'outfit' | 'prop' | 'custom';
+export type WorkflowKind = 'girlfriend' | 'outfit' | 'prop' | 'advert' | 'custom';
 
 export type RunPodEndpointConfig = {
   id: string;
@@ -40,6 +40,7 @@ export type LoraAsset = {
   search_keywords?: string;
   workflows?: string[];
   source?: string;
+  base_model?: 'FLUX.1' | 'Pony' | 'Illustrious' | 'SDXL';
 };
 
 export type WorkflowPreset = {
@@ -147,6 +148,7 @@ export function mergeLoraAssets(libraryItems?: LibraryItem[]): LoraAsset[] {
       search_keywords: it.notes,
       workflows: ['wf-girlfriend'],
       source: it.source,
+      base_model: /illustrious/i.test(it.base_model || '') ? 'Illustrious' : /pony/i.test(it.base_model || '') ? 'Pony' : /sdxl/i.test(it.base_model || '') ? 'SDXL' : 'FLUX.1',
     });
   }
   return [...base, ...extra];
@@ -156,7 +158,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
   const loras = mergeLoraAssets(libraryItems);
 
   return {
-    version: 2,
+    version: 3,
     updated_at: new Date().toISOString(),
     lora_catalog_version: LORA_CATALOG.version,
     lora_stacking_tips: LORA_CATALOG.stacking_tips || [],
@@ -180,18 +182,18 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
     },
     endpoints: [
       {
-        id: 'comfy-default',
-        label: 'ComfyUI 5.8.6',
-        endpoint_id: process.env.RUNPOD_ENDPOINT_ID || '',
+        id: 'comfy-flux-cd1',
+        label: 'CD1 · FLUX ComfyUI',
+        endpoint_id: process.env.RUNPOD_ENDPOINT_ID_FLUX || process.env.RUNPOD_ENDPOINT_ID || '',
         kind: 'comfy',
-        notes: '通用 ComfyUI；可填你的真实 Endpoint ID',
+        notes: 'FLUX.1-dev：普通写实、3D、服装、道具与广告图',
       },
       {
-        id: 'portrait-v9',
-        label: 'soulmate-portrait:v9',
-        endpoint_id: process.env.RUNPOD_PORTRAIT_ENDPOINT_ID || process.env.RUNPOD_ENDPOINT_ID || '',
+        id: 'comfy-sdxl-cd2',
+        label: 'CD2 · Pony / Illustrious ComfyUI',
+        endpoint_id: process.env.RUNPOD_ENDPOINT_ID_SDXL || process.env.RUNPOD_ENDPOINT_ID_DC2 || '',
         kind: 'comfy',
-        notes: '自定义肖像镜像 zhanxixi/soulmate-portrait:v9',
+        notes: 'Pony Realism：Lv3-Lv5 与跨性别；Illustrious：2D 动漫',
       },
       {
         id: 'vllm-luminaid',
@@ -214,6 +216,18 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
         filename: 'flux1-dev.safetensors',
         type: 'checkpoint',
       },
+      {
+        id: 'pony-realism-v22',
+        label: 'Pony Realism V2.2 · CD2',
+        filename: 'ponyRealism_V22.safetensors',
+        type: 'checkpoint',
+      },
+      {
+        id: 'wai-mature-illustrious-v20',
+        label: 'WAI Mature Illustrious V2 · CD2',
+        filename: 'waiMatureIllustrious_v20.safetensors',
+        type: 'checkpoint',
+      },
     ],
     loras,
     workflows: [
@@ -231,7 +245,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           steps: 28,
           cfg: 1,
           denoise: 1,
-          endpoint_key: 'portrait-v9',
+          endpoint_key: 'comfy-flux-cd1',
           positive:
             'beautiful seductive adult woman, distinctive face and hairstyle, alluring eye contact, relaxed asymmetrical three-quarter pose, elegant revealing outfit, soft directional key light on face with natural rim light, photorealistic editorial portrait, crisp eyes, fine skin texture, realistic hair, high-resolution detail, sharp focus',
           negative:
@@ -251,7 +265,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           height: 1024,
           steps: 24,
           cfg: 1,
-          endpoint_key: 'comfy-default',
+          endpoint_key: 'comfy-flux-cd1',
           positive:
             'sexy cosplay costume game prop, invisible ghost mannequin, no person no face, full garment front view, game inventory showcase, 8k',
           negative:
@@ -271,7 +285,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           height: 1024,
           steps: 22,
           cfg: 1,
-          endpoint_key: 'comfy-default',
+          endpoint_key: 'comfy-flux-cd1',
           positive:
             'fantasy game prop icon, magical special effects, glowing aura, particles, RPG loot, centered product, 8k',
           negative: 'person, face, body, blurry, watermark, text, logo',
@@ -291,10 +305,28 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           steps: 26,
           cfg: 1,
           denoise: 0.55,
-          endpoint_key: 'portrait-v9',
+          endpoint_key: 'comfy-flux-cd1',
           positive:
             'same young adult woman as reference, identity preserved, wearing elegant outfit, three-quarter body, photorealistic 8k',
           negative: 'different person, face change, deformed, child, watermark',
+        },
+      },
+      {
+        id: 'wf-advert',
+        name: '广告图 · 商品视觉',
+        kind: 'advert',
+        description: '商城横幅、活动主视觉与商品广告，不混用人物身体或服装 LoRA',
+        defaults: {
+          ckpt_id: 'flux-fp8',
+          lora_id: 'style-photoreal',
+          lora_strength: 0.45,
+          width: 1216,
+          height: 832,
+          steps: 26,
+          cfg: 1,
+          endpoint_key: 'comfy-flux-cd1',
+          positive: 'premium commercial product campaign, clear hero product, controlled studio lighting, intentional negative space for copy, polished advertising photography',
+          negative: 'person, malformed product, duplicate product, unreadable text, watermark, clutter',
         },
       },
       {
@@ -309,7 +341,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
           height: 1216,
           steps: 28,
           cfg: 1,
-          endpoint_key: 'comfy-default',
+          endpoint_key: 'comfy-flux-cd1',
           positive: '',
           negative: 'blurry, low quality, watermark, text',
         },

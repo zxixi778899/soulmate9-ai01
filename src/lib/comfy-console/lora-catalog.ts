@@ -22,6 +22,7 @@ export type CatalogLora = {
   sha256?: string;
   download_url?: string;
   search_keywords?: string;
+  base_model?: 'FLUX.1' | 'Pony' | 'Illustrious' | 'SDXL';
   download?: { type?: string; hint?: string };
 };
 
@@ -109,6 +110,7 @@ export function catalogToLoraAssets(): Array<{
   page_url?: string;
   search_keywords?: string;
   workflows?: string[];
+  base_model?: 'FLUX.1' | 'Pony' | 'Illustrious' | 'SDXL';
 }> {
   const none = {
     id: 'none',
@@ -132,6 +134,7 @@ export function catalogToLoraAssets(): Array<{
     page_url: l.page_url,
     search_keywords: l.search_keywords,
     workflows: l.workflows,
+    base_model: /illustrious/i.test(l.base_model || LORA_CATALOG.base_model) ? 'Illustrious' as const : /pony/i.test(l.base_model || LORA_CATALOG.base_model) ? 'Pony' as const : /sdxl/i.test(l.base_model || LORA_CATALOG.base_model) ? 'SDXL' as const : 'FLUX.1' as const,
   }));
 
   return [none, ...items];

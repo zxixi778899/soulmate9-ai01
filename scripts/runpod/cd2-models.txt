@@ -1,0 +1,3 @@
+# filename|download_url|sha256
+ponyRealism_V22.safetensors|https://civitai.com/api/download/models/914390|7C97ECF786A50A54835A22277C35703787B840E98C04C318A4E3FEF9D3B463F7
+waiMatureIllustrious_v20.safetensors|https://civitai.com/api/download/models/2183030|7E4B5E6D917B52FEFF9153BEDE22EA391B1638CF350C8A64ABA23AAE56472FF9

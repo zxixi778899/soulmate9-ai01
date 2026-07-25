@@ -15,6 +15,7 @@
 import { logger } from '@/lib/logger';
 import { runpodClient } from '@/lib/runpod';
 import { falGenerate, isFalConfigured } from '@/lib/fal-client';
+import type { ImageModelFamily } from '@/lib/image-generation-routing';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ export interface ImageRouterOptions {
   ckpt_name?: string;
   sampler_name?: string;
   scheduler?: string;
+  model_family?: ImageModelFamily;
   /** Force a specific provider (admin override) */
   force_provider?: ImageProvider;
   /** Whether NSFW content is requested */
@@ -174,7 +176,7 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
   {
     id: 'runpod-dc2',
     provider: 'runpod_dc2',
-    label: 'RunPod FLUX (DC2 Backup)',
+    label: 'RunPod CD2 Pony / Illustrious',
     enabled: true,
     priority: 15,
     timeout_ms: 30_000,
@@ -184,8 +186,8 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
     supports_lora: true,
     supports_reference: true,
     nsfw_capable: true,
-    endpoint_env: 'RUNPOD_ENDPOINT_ID_DC2',
-    notes: 'Second datacenter backup. On-demand billing, 0 idle workers.',
+    endpoint_env: 'RUNPOD_ENDPOINT_ID_SDXL',
+    notes: 'CD2 routes Pony Realism for adult realistic/transgender and Illustrious for 2D. Scale to 0 idle.',
   },
 ];
 
@@ -242,6 +244,7 @@ async function executeRunPod(
       : undefined,
     sampler_name: opts.sampler_name,
     scheduler: opts.scheduler,
+    model_family: opts.model_family,
     submit_only: true,
   });
 

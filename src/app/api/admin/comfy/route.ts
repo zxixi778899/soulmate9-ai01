@@ -27,6 +27,8 @@ import { resolveChatCall } from '@/lib/ai-modules/resolve';
 import { invokeChat } from '@/lib/ai-modules/invoke';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { COMPACT_ADULT_NEGATIVE, COMPANION_CATEGORIES, type CompanionCategory } from '@/lib/companion-category';
+import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
+import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 
 export const dynamic = 'force-dynamic';
@@ -1010,6 +1012,9 @@ if (body.action === 'verify_loras') {
     const endpointId =
       body.endpoint_id ||
       ep?.endpoint_id ||
+      process.env.RUNPOD_ENDPOINT_ID_FLUX ||
+      process.env.RUNPOD_ENDPOINT_ID_SDXL ||
+      process.env.RUNPOD_ENDPOINT_ID_DC2 ||
       process.env.RUNPOD_ENDPOINT_ID ||
       '';
 
@@ -1075,7 +1080,9 @@ if (body.action === 'verify_loras') {
     const rawIntensity = Math.round(Number(body.nsfw_intensity || 5));
     const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';
-    if (body.prompt_profile_applied !== true) {
+    const surface = (body.generation_surface || (kind === 'girlfriend' ? 'companion' : kind) || 'companion') as ImageSurface;
+    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity });
+    if (surface === 'companion' && body.prompt_profile_applied !== true) {
       prompt = buildStudioPromptEnhancement({
         category,
         intensity: nsfwIntensity,
@@ -1083,7 +1090,9 @@ if (body.action === 'verify_loras') {
         scene: prompt,
       });
     }
-    negative = `${studioNegativePrompt(category, animeStyle)}, ${COMPACT_ADULT_NEGATIVE}`;
+    if (surface === 'companion') {
+      negative = `${studioNegativePrompt(category, animeStyle)}, ${COMPACT_ADULT_NEGATIVE}`;
+    }
 
     const effectiveInputImage = String(body.input_image || consistencyReference || '').trim() || undefined;
     const effectiveDenoise = effectiveInputImage
@@ -1106,11 +1115,12 @@ if (body.action === 'verify_loras') {
       strength_clip: number;
     };
     const requestedLoras: RequestedLora[] = Array.isArray(body.loras)
-      ? body.loras.slice(0, 4).map((item: unknown) => {
+      ? body.loras.slice(0, 1).map((item: unknown) => {
           const value = item && typeof item === 'object'
             ? item as Record<string, unknown>
             : {};
           const asset = cfg.loras.find((candidate) => candidate.id === String(value.id || ''));
+          if (asset && !isLoraAllowedForContext(asset, { surface, category, modelFamily: generationRoute.modelFamily })) return null;
           const baseStrength = Number(value.strength ?? asset?.default_strength ?? 0.7);
           const strength = baseStrength * studioLoraStrengthScale(nsfwIntensity);
           return asset?.filename
@@ -1135,9 +1145,10 @@ if (body.action === 'verify_loras') {
     }));
 
     try {
-      const requestedLora = lora?.filename || body.lora_name || null;
+      const singleLoraAllowed = lora ? isLoraAllowedForContext(lora, { surface, category, modelFamily: generationRoute.modelFamily }) : false;
+      const requestedLora = singleLoraAllowed ? lora?.filename || null : null;
       const loraSan = sanitizeLoraForVolume(requestedLora, {
-        fallback: 'flux_style_photoreal_v1.safetensors',
+        fallback: generationRoute.modelFamily === 'flux' ? 'flux_style_photoreal_v1.safetensors' : null,
       });
       if (loraSan.changed && requestedLora) {
         logger.warn('[comfy] lora not on volume, fallback', {
@@ -1151,20 +1162,23 @@ if (body.action === 'verify_loras') {
         negative_prompt: negative,
         width,
         height,
-        num_inference_steps: steps,
-        guidance_scale: cfgScale,
-        sampler_name: samplerName,
-        scheduler,
+        num_inference_steps: Math.max(generationRoute.steps, body.steps ? steps : generationRoute.steps),
+        guidance_scale: generationRoute.modelFamily === 'flux'
+          ? Math.min(3.5, Math.max(1, Number(body.cfg || generationRoute.cfg)))
+          : Math.min(9, Math.max(3, Number(body.cfg || generationRoute.cfg))),
+        sampler_name: generationRoute.modelFamily === 'flux' && body.sampler_name ? samplerName : generationRoute.sampler,
+        scheduler: generationRoute.modelFamily === 'flux' && body.scheduler ? scheduler : generationRoute.scheduler,
         num_images: effectiveInputImage ? 1 : imageCount,
         seed: seed >= 0 ? seed : undefined,
         input_image: effectiveInputImage,
         denoising_strength: effectiveDenoise,
-        ckpt_name: body.ckpt_name || ckpt?.filename,
+        ckpt_name: body.ckpt_name || generationRoute.checkpoint || ckpt?.filename,
+        model_family: generationRoute.modelFamily,
         lora_name: normalizedLoras.length ? null : loraSan.lora_name,
         lora_strength_model: loraStrength,
         lora_strength_clip: loraStrength,
         loras: normalizedLoras,
-        endpoint_id: endpointId,
+        endpoint_id: body.endpoint_id || generationRoute.endpointId || endpointId,
         submit_only: true,
       };
       const result = await runpodClient.generate(generationOptions);
@@ -1192,7 +1206,7 @@ if (body.action === 'verify_loras') {
             steps,
             cfg: cfgScale,
             sampler: samplerName,
-            scheduler,
+            scheduler: body.scheduler ? scheduler : generationRoute.scheduler,
             referenceDenoise: effectiveDenoise ?? null,
           },
         });
@@ -1216,7 +1230,7 @@ if (body.action === 'verify_loras') {
           prompt,
           negative_prompt: negative,
           workflow_id: workflowId || null,
-          endpoint_id: endpointId,
+          endpoint_id: body.endpoint_id || generationRoute.endpointId || endpointId,
           ckpt_name: body.ckpt_name || ckpt?.filename || null,
           lora_name: normalizedLoras.length
             ? normalizedLoras.map((item: RequestedLora) => item.name).join(',')

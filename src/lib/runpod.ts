@@ -99,16 +99,20 @@ export function buildFluxWorkflow(opts: {
     strength_model?: number;
     strength_clip?: number;
   }>;
+  model_family?: 'flux' | 'pony' | 'illustrious' | 'sdxl';
 }): Record<string, unknown> {
-  // FLUX defaults: lower CFG + empty/minimal negative avoids black frames
+  const modelFamily = opts.model_family || 'flux';
+  const isFlux = modelFamily === 'flux';
   const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 32);
   const width = opts.width ?? 832;
   const height = opts.height ?? 1216;
   const steps = Math.max(opts.steps ?? 20, 12);
   // FLUX.1-dev: cfg 1.0–3.5; higher often darkens/destroys image
-  const guidance = Math.min(Math.max(opts.guidance ?? 1.0, 1.0), 3.5);
-  const sampler_name = opts.sampler_name || 'euler';
-  const scheduler = opts.scheduler || 'simple';
+  const guidance = isFlux
+    ? Math.min(Math.max(opts.guidance ?? 1.0, 1.0), 3.5)
+    : Math.min(Math.max(opts.guidance ?? 6.0, 3.0), 9.0);
+  const sampler_name = opts.sampler_name || (isFlux ? 'euler' : 'dpmpp_2m_sde');
+  const scheduler = opts.scheduler || (isFlux ? 'simple' : 'karras');
   const batchSize = Math.min(4, Math.max(1, Math.floor(opts.batch_size ?? 1)));
   const ckpt = opts.ckpt_name || 'flux1-dev-fp8.safetensors';
   const requestedStack = opts.loras?.length
@@ -153,7 +157,7 @@ export function buildFluxWorkflow(opts: {
   let negText = '';
   for (const part of negativeParts) {
     const candidate = negText ? `${negText}, ${part}` : part;
-    if (candidate.length > 220) break;
+    if (candidate.length > (isFlux ? 220 : 1200)) break;
     negText = candidate;
   }
 
@@ -315,6 +319,7 @@ export interface RunPodGenerateOptions {
     strength_model?: number;
     strength_clip?: number;
   }>;
+  model_family?: 'flux' | 'pony' | 'illustrious' | 'sdxl';
   /** Override default RUNPOD_ENDPOINT_ID for this call */
   endpoint_id?: string;
   /** Resume an existing RunPod job (skip /run submit). */
@@ -705,6 +710,7 @@ class RunPodClient {
           : undefined),
       denoising_strength: options.denoising_strength,
       ckpt_name: options.ckpt_name,
+      model_family: options.model_family,
       lora_name: options.lora_name,
       lora_strength_model: options.lora_strength_model,
       lora_strength_clip: options.lora_strength_clip,

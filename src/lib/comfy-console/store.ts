@@ -16,6 +16,12 @@ function filePath() {
 
 let cache: { cfg: ComfyConsoleConfig; at: number } | null = null;
 
+function mergeById<T extends { id: string }>(defaults: T[], saved?: T[]): T[] {
+  const savedById = new Map((saved || []).map((item) => [item.id, item]));
+  const merged = defaults.map((item) => ({ ...item, ...(savedById.get(item.id) || {}) }));
+  const defaultIds = new Set(defaults.map((item) => item.id));
+  return [...merged, ...(saved || []).filter((item) => !defaultIds.has(item.id))];
+}
 function mergeDeep(base: ComfyConsoleConfig, patch: Partial<ComfyConsoleConfig>): ComfyConsoleConfig {
   // LoRA list always comes from catalog + model-library (base.loras already merged).
   // Keep user endpoint / workflow edits.
@@ -23,13 +29,13 @@ function mergeDeep(base: ComfyConsoleConfig, patch: Partial<ComfyConsoleConfig>)
     ...base,
     ...patch,
     network_volume: { ...base.network_volume, ...(patch.network_volume || {}) },
-    endpoints: patch.endpoints || base.endpoints,
-    checkpoints: patch.checkpoints || base.checkpoints,
+    endpoints: mergeById(base.endpoints, patch.endpoints),
+    checkpoints: mergeById(base.checkpoints, patch.checkpoints),
     loras: base.loras,
     lora_stacking_tips: base.lora_stacking_tips,
     lora_recipes: base.lora_recipes,
     lora_catalog_version: base.lora_catalog_version,
-    workflows: patch.workflows || base.workflows,
+    workflows: mergeById(base.workflows, patch.workflows),
   };
 }
 

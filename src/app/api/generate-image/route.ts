@@ -12,6 +12,8 @@ import {
 } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
 import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
+import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
+import type { CompanionCategory } from '@/lib/companion-category';
 
 const HOURLY_HARD_CAP = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
 
@@ -130,6 +132,19 @@ export async function POST(request: NextRequest) {
     }
 
     const sceneCfg = resolved.config;
+    const surface: ImageSurface = body.generation_surface === 'advert'
+      ? 'advert'
+      : body.generation_surface === 'prop' || scene === 'shop_item'
+        ? 'prop'
+        : body.generation_surface === 'outfit' || scene === 'outfit_prop'
+          ? 'outfit'
+          : 'companion';
+    const generationRoute = resolveImageGenerationRoute({
+      surface,
+      category: String(body.companion_category || 'female') as CompanionCategory,
+      renderStyle: body.anime_render_style === '2d' ? '2d' : body.anime_render_style === '3d' ? '3d' : 'realistic',
+      nsfwIntensity: Math.min(5, Math.max(1, Number(body.nsfw_intensity || 1))) as 1 | 2 | 3 | 4 | 5,
+    });
     let width = sceneCfg.width;
     let height = sceneCfg.height;
     if (typeof body.size === 'string' && body.size.includes('x')) {
@@ -143,11 +158,10 @@ export async function POST(request: NextRequest) {
     if (typeof body.height === 'number' && body.height > 0) height = body.height;
 
     const count = Math.min(Math.max(Number(body.count) || sceneCfg.count || 1, 1), 4);
-    const steps = Number(body.steps) || sceneCfg.steps || 28;
-    const guidance = Math.min(
-      Math.max(Number(body.cfg ?? body.guidance_scale ?? sceneCfg.cfg) || 1.0, 1.0),
-      3.5,
-    );
+    const steps = Math.max(generationRoute.steps, Number(body.steps) || sceneCfg.steps || generationRoute.steps);
+    const guidance = generationRoute.modelFamily === 'flux'
+      ? Math.min(Math.max(Number(body.cfg ?? body.guidance_scale ?? generationRoute.cfg), 1), 3.5)
+      : Math.min(Math.max(Number(body.cfg ?? body.guidance_scale ?? generationRoute.cfg), 3), 9);
     const negative =
       typeof body.negative_prompt === 'string'
         ? body.negative_prompt
@@ -167,16 +181,17 @@ export async function POST(request: NextRequest) {
       height,
       num_inference_steps: steps,
       guidance_scale: guidance,
-      endpoint_id: resolved.endpointId || undefined,
+      endpoint_id: generationRoute.endpointId || resolved.endpointId || undefined,
+      model_family: generationRoute.modelFamily,
       input_image: typeof body.input_image === 'string' ? body.input_image : undefined,
       denoising_strength:
         typeof body.denoising_strength === 'number' ? body.denoising_strength : undefined,
-      ckpt_name: sceneCfg.ckpt_name || undefined,
-      lora_name: sceneCfg.lora_name || undefined,
+      ckpt_name: generationRoute.checkpoint || sceneCfg.ckpt_name || undefined,
+      lora_name: generationRoute.modelFamily === 'flux' ? sceneCfg.lora_name || undefined : undefined,
       lora_strength_model: sceneCfg.lora_strength_model,
       lora_strength_clip: sceneCfg.lora_strength_clip,
-      sampler_name: sceneCfg.sampler_name || undefined,
-      scheduler: sceneCfg.scheduler || undefined,
+      sampler_name: generationRoute.sampler,
+      scheduler: generationRoute.scheduler,
       num_images: count,
       submit_only: true,
     });

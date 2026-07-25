@@ -46,6 +46,8 @@ import {
   resolveGirlfriendLoraPlan,
   subjectFromGirlfriendRow,
 } from '@/lib/prompt/girlfriend';
+import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
+import { isLoraAllowedForContext } from '@/lib/lora-scope';
 
 type Any = Record<string, any>;
 
@@ -76,6 +78,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const referenceImageInputRef = useRef<HTMLInputElement | null>(null);
   const [loraFilter, setLoraFilter] = useState<string>('all');
   const [genMode, setGenMode] = useState<'txt2img' | 'img2img' | 'img2video'>('txt2img');
+  const [generationSurface, setGenerationSurface] = useState<ImageSurface>('companion');
   const [installedLoras, setInstalledLoras] = useState<string[]>([]);
   const [volumeInfo, setVolumeInfo] = useState<Any | null>(null);
   const [syncingInstalled, setSyncingInstalled] = useState(false);
@@ -290,6 +293,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     const c = cfg || config;
     setWorkflowId(wf.id);
     setKind(wf.kind || 'custom');
+    setGenerationSurface(wf.kind === 'outfit' ? 'outfit' : wf.kind === 'prop' ? 'prop' : wf.kind === 'advert' ? 'advert' : 'companion');
     setEndpointKey(wf.defaults?.endpoint_key || 'comfy-default');
     setCkptId(wf.defaults?.ckpt_id || 'flux-fp8');
     setLoraId(wf.defaults?.lora_id || 'none');
@@ -461,7 +465,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const workflows: Any[] = config?.workflows || [];
   const endpoints: Any[] = config?.endpoints || [];
   const checkpoints: Any[] = config?.checkpoints || [];
-  const loras: Any[] = config?.loras || [];
+  const allLoras: Any[] = config?.loras || [];
+  const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity });
+  const loras: Any[] = useMemo(
+    () => allLoras.filter((lora) => isLoraAllowedForContext(lora, { surface: generationSurface, category: companionCategory, modelFamily: generationRoute.modelFamily })),
+    [allLoras, companionCategory, generationRoute.modelFamily, generationSurface],
+  );
   const recipes: Any[] = config?.lora_recipes || [];
   const stackingTips: string[] = config?.lora_stacking_tips || [];
 
@@ -483,6 +492,22 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     () => endpoints.find((e) => e.id === endpointKey),
     [endpoints, endpointKey],
   );
+  useEffect(() => {
+    const endpoint = generationRoute.modelFamily === 'flux' ? 'comfy-flux-cd1' : 'comfy-sdxl-cd2';
+    const checkpoint = generationRoute.modelFamily === 'flux'
+      ? 'flux-fp8'
+      : generationRoute.modelFamily === 'pony'
+        ? 'pony-realism-v22'
+        : 'wai-mature-illustrious-v20';
+    setEndpointKey(endpoint);
+    setCkptId(checkpoint);
+    setSteps(generationRoute.steps);
+    setCfg(generationRoute.cfg);
+    setSampler(generationRoute.sampler);
+    setScheduler(generationRoute.scheduler);
+    setSelectedLoras((current) => current.filter((selection) => loras.some((lora) => lora.id === selection.id)));
+    setLoraId((current) => current === 'none' || loras.some((lora) => lora.id === current) ? current : 'none');
+  }, [generationRoute.cfg, generationRoute.modelFamily, generationRoute.sampler, generationRoute.scheduler, generationRoute.steps, loras]);
 
   const filteredBatchGirlfriends = useMemo(() => {
     const query = batchSearch.trim().toLowerCase();
@@ -542,6 +567,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     input_image: genMode === 'img2img' || inputImage.trim() ? inputImage.trim() || undefined : undefined,
     character_consistency: identityConsistency,
     gen_mode: genMode,
+    generation_surface: generationSurface,
+    model_family: generationRoute.modelFamily,
     companion_category: companionCategory,
     anime_render_style: animeRenderStyle,
     nsfw_intensity: nsfwIntensity,
@@ -1126,7 +1153,34 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             </section>
           ) : null}
           <section className="rounded-md border border-slate-700 bg-[#111214] p-3 shadow-xl shadow-black/30">
-            <div className="mb-3 flex flex-wrap gap-2" aria-label="角色分类">
+            <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-slate-700 pb-3">
+              {([
+                ['companion', '伴侣人物'],
+                ['outfit', '服装商品'],
+                ['prop', '道具商品'],
+                ['advert', '广告素材'],
+              ] as const).map(([surface, label]) => (
+                <Button
+                  key={surface}
+                  type="button"
+                  size="sm"
+                  variant={generationSurface === surface ? 'default' : 'outline'}
+                  className={cn('h-8', generationSurface === surface && 'bg-violet-600 hover:bg-violet-500')}
+                  onClick={() => {
+                    setGenerationSurface(surface);
+                    setSelectedLoras([]);
+                    setLoraId('none');
+                    const targetWorkflow = workflows.find((item) => item.kind === surface || (surface === 'companion' && item.kind === 'girlfriend'));
+                    if (targetWorkflow) applyWorkflow(targetWorkflow);
+                  }}
+                >
+                  {label}
+                </Button>
+              ))}
+              <Badge className="ml-auto border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
+                {generationRoute.modelFamily === 'flux' ? 'CD1 · FLUX' : generationRoute.modelFamily === 'pony' ? 'CD2 · Pony Realism' : 'CD2 · Illustrious 2D'}
+              </Badge>
+            </div>            <div className="mb-3 flex flex-wrap gap-2" aria-label="角色分类">
               {COMPANION_CATEGORIES.filter((category) => category !== 'anime').map((category) => (
                 <Button
                   key={category}

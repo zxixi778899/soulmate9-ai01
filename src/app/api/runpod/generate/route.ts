@@ -38,6 +38,8 @@ import {
   SceneType,
   OutfitCategory,
 } from '@/lib/prompts';
+import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
+import type { CompanionCategory } from '@/lib/companion-category';
 
 const RUNPOD_GENERATE_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
 const MIN_IMAGE_DIMENSION = 256;
@@ -131,6 +133,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const surface: ImageSurface = body.generation_surface === 'advert' || hero_theme
+      ? 'advert'
+      : body.generation_surface === 'prop'
+        ? 'prop'
+        : body.generation_surface === 'outfit' || outfit_category
+          ? 'outfit'
+          : 'companion';
+    const generationRoute = resolveImageGenerationRoute({
+      surface,
+      category: String(body.companion_category || 'female') as CompanionCategory,
+      renderStyle: body.anime_render_style === '2d' ? '2d' : body.anime_render_style === '3d' ? '3d' : 'realistic',
+      nsfwIntensity: Math.min(5, Math.max(1, Number(body.nsfw_intensity || 1))) as 1 | 2 | 3 | 4 | 5,
+    });
+
     // Check if RunPod is configured
     if (!runpodClient.isConfigured) {
       return NextResponse.json({
@@ -149,8 +165,13 @@ export async function POST(req: NextRequest) {
         width,
         height,
         num_images: 1,
-        num_inference_steps: 28,
-        guidance_scale: 7,
+        num_inference_steps: generationRoute.steps,
+        guidance_scale: generationRoute.cfg,
+        endpoint_id: generationRoute.endpointId || undefined,
+        ckpt_name: generationRoute.checkpoint,
+        sampler_name: generationRoute.sampler,
+        scheduler: generationRoute.scheduler,
+        model_family: generationRoute.modelFamily,
       },
     );
 

@@ -26,6 +26,7 @@ import {
   studioNegativePrompt,
   type AnimeRenderStyle,
 } from '@/lib/comfy-console/studio-profile';
+import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -262,6 +263,9 @@ export async function POST(request: NextRequest) {
       : /anime|manga|cartoon|2d|comic/i.test(animeText)
         ? '2d'
         : 'realistic';
+    const generationRoute = resolveImageGenerationRoute({
+      surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intimacyPolicy.nsfwIntensity,
+    });
     const identity = [
       gfRecord.name,
       gfRecord.appearance_race,
@@ -308,12 +312,12 @@ export async function POST(request: NextRequest) {
     }));
     const categoryFiles = new Set(categoryLoras.map((lora) => lora.name));
     const useCategoryOnly = categoryControl.selected.length > 0;
-    const intelligentLoras = [
+    const intelligentLoras = generationRoute.modelFamily === 'flux' ? [
       ...categoryLoras,
       ...(useCategoryOnly
         ? []
         : genericLoras.filter((lora) => !categoryFiles.has(lora.name))),
-    ].slice(0, 3);
+    ].slice(0, 1) : [];
     const triggerWords = categoryControl.selected.flatMap((lora) => lora.triggerWords);
     if (triggerWords.length > 0) {
       prompt = `${[...new Set(triggerWords)].join(', ')}. ${prompt}`;
@@ -363,18 +367,19 @@ export async function POST(request: NextRequest) {
       negative_prompt: negativePrompt,
       width: sceneCfg.width || 704,
       height: sceneCfg.height || 960,
-      num_inference_steps: sceneCfg.steps || 20,
-      guidance_scale: Math.min(Math.max(sceneCfg.cfg || 2.5, 1.0), 3.5),
+      num_inference_steps: generationRoute.steps,
+      guidance_scale: generationRoute.cfg,
       seed: generationSeed,
       image_url: useConsistency ? referenceImage : undefined,
       strength: useConsistency ? denoise : undefined,
       loras: intelligentLoras,
-      ckpt_name: sceneCfg.ckpt_name || generationProfile.checkpoint,
-      sampler_name: sceneCfg.sampler_name || undefined,
-      scheduler: sceneCfg.scheduler || undefined,
-      force_provider: requestedProvider || undefined,
+      ckpt_name: generationRoute.checkpoint,
+      sampler_name: generationRoute.sampler,
+      scheduler: generationRoute.scheduler,
+      model_family: generationRoute.modelFamily,
+      force_provider: requestedProvider || (generationRoute.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2'),
       nsfw: effectiveAdult,
-      endpoint_id: resolved.endpointId || undefined,
+      endpoint_id: generationRoute.endpointId || resolved.endpointId || undefined,
     });
 
     // If RunPod queued (pending), return job_id for client-side polling
