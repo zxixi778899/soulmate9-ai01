@@ -35,25 +35,12 @@ interface OptionItem {
   sort_order: number;
 }
 
-interface CharacterPreset {
-  id: string;
-  name: string;
-  description: string;
-  thumbnail_url?: string;
-  visual_style: string;
+interface CreatorPreview {
   gender: string;
-  ethnicity: string;
-  face_shape: string;
-  hair_style: string;
-  hair_color: string;
-  eye_color: string;
-  body_type: string;
-  fashion_style: string;
-  personality_tags: string[];
-  voice: string;
-  occupation: string;
-  relationship: string;
-  age: number;
+  visual_style: string;
+  thumbnail_url: string;
+  is_active: boolean;
+  sort_order: number;
 }
 
 interface CardStatus {
@@ -120,20 +107,18 @@ export default function CreatePage() {
   // Steps: 0 = preset, 1 = appearance, 2 = personality & identity
   const [step, setStep] = useState(0);
   const stepLabels = [
-    t('creator.stepPreset') || (zh ? '选择预设' : 'Choose Preset'),
+    t('creator.stepPreset') || (zh ? '预览' : 'Preview'),
     t('creator.stepLook') || (zh ? '外观' : 'Appearance'),
     t('creator.stepIdentity') || (zh ? '人设' : 'Identity'),
   ];
 
   // Data from backend
-  const [presets, setPresets] = useState<CharacterPreset[]>([]);
+  const [previews, setPreviews] = useState<CreatorPreview[]>([]);
   const [options, setOptions] = useState<Record<string, OptionItem[]>>({});
   const [cardStatus, setCardStatus] = useState<CardStatus | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
   // Form state
-  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const [presetGenderFilter, setPresetGenderFilter] = useState<'all' | 'Female' | 'Male' | 'Transgender'>('all');
   const [visualStyle, setVisualStyle] = useState('realistic');
   const [gender, setGender] = useState('Female');
   const [ethnicity, setEthnicity] = useState('Asian');
@@ -168,15 +153,17 @@ export default function CreatePage() {
   const fetchCreatorData = useCallback(async () => {
     setLoadingData(true);
     try {
-      const [presetsRes, cardsRes] = await Promise.all([
-        fetch('/api/creator/presets'),
+      const [optsRes, previewsRes, cardsRes] = await Promise.all([
+        fetch('/api/creator/presets?section=options'),
+        fetch('/api/creator/previews'),
         authedFetch('/api/creator/cards'),
       ]);
-      const presetsData = await readResponseJson<{ presets?: CharacterPreset[]; options?: Record<string, OptionItem[]> }>(presetsRes);
+      const optsData = await readResponseJson<{ options?: Record<string, OptionItem[]> }>(optsRes);
+      const previewsData = await readResponseJson<{ previews?: CreatorPreview[] }>(previewsRes);
       const cardsData = await readResponseJson<CardStatus>(cardsRes);
 
-      if (presetsData.presets) setPresets(presetsData.presets);
-      if (presetsData.options) setOptions(presetsData.options);
+      if (optsData.options) setOptions(optsData.options);
+      if (previewsData.previews) setPreviews(previewsData.previews);
       if (cardsData) setCardStatus(cardsData);
     } catch (err) {
       logger.warn('[creator] fetch data failed', { error: String(err) });
@@ -208,42 +195,16 @@ export default function CreatePage() {
     return options[category] || [];
   }, [options]);
 
-  const filteredPresets = useMemo(() => {
-    if (presetGenderFilter === 'all') return presets;
-    return presets.filter((p) => p.gender === presetGenderFilter);
-  }, [presets, presetGenderFilter]);
-
-  const genderTabs: { key: 'all' | 'Female' | 'Male' | 'Transgender'; label: string; icon: string }[] = [
-    { key: 'all', label: zh ? '全部' : 'All', icon: '✦' },
-    { key: 'Female', label: zh ? '女性' : 'Female', icon: '♀' },
-    { key: 'Male', label: zh ? '男性' : 'Male', icon: '♂' },
-    { key: 'Transgender', label: zh ? '跨性别' : 'Trans', icon: '⚧' },
+  const GENDER_PREVIEWS: { value: string; label: string; icon: string }[] = [
+    { value: 'Female', label: zh ? '女性' : 'Female', icon: '♀' },
+    { value: 'Male', label: zh ? '男性' : 'Male', icon: '♂' },
+    { value: 'Transgender', label: zh ? '跨性别' : 'Trans', icon: '⚧' },
   ];
 
-  // ─── Preset Selection ───────────────────────────────────────────────────
+  // ─── Preview Selection ──────────────────────────────────────────────────
 
-  const applyPreset = useCallback((preset: CharacterPreset) => {
-    setSelectedPreset(preset.id);
-    setVisualStyle(preset.visual_style || 'realistic');
-    setGender(preset.gender || 'Female');
-    setEthnicity(preset.ethnicity || 'Asian');
-    setFaceShape(preset.face_shape || 'Oval');
-    setHairStyle(preset.hair_style || 'Long Flowing');
-    setHairColor(preset.hair_color || '#d4a574');
-    setEyeColor(preset.eye_color || 'Brown');
-    setBodyType(preset.body_type || 'Slim');
-    setFashionStyle(preset.fashion_style || 'Casual');
-    setSelectedTags(preset.personality_tags || ['Romantic']);
-    setVoice(preset.voice || 'soft');
-    setOccupation(preset.occupation || 'Student');
-    setName(preset.name || '');
-    setAge(preset.age || 22);
-    setRelationship(preset.relationship || 'girlfriend');
-    if (preset.description) setShortDescription(preset.description);
-  }, []);
-
-  const startFromScratch = useCallback(() => {
-    setSelectedPreset(null);
+  const selectPreviewGender = useCallback((g: string) => {
+    setGender(g);
     setStep(1);
   }, []);
 
@@ -400,13 +361,14 @@ export default function CreatePage() {
   // ─── Render ────────────────────────────────────────────────────────────
 
   return (
-    <GameShell className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
+    <GameShell className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden" innerClassName="flex flex-1 flex-col min-h-0">
       <PageHeader
         eyebrow="CREATOR"
         title={t('creator.title') || (zh ? '捏脸创建' : 'Create Companion')}
         subtitle={t('creator.subtitle') || (zh ? '预设 · 外观 · 人设' : 'Preset · Look · Identity')}
         backHref="/"
         sticky={false}
+        className="shrink-0"
         actions={
           step === 2 ? (
             <GamePrimaryButton
@@ -467,11 +429,11 @@ export default function CreatePage() {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-3 pb-32">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-3 pb-6">
         <div className="mx-auto max-w-5xl">
           <AnimatePresence mode="wait">
 
-            {/* ─── Step 0: Preset Selection ─────────────────────────────── */}
+            {/* ─── Step 0: Preview (style + gender) ─────────────────────── */}
             {step === 0 && (
               <motion.div
                 key="s0"
@@ -482,10 +444,10 @@ export default function CreatePage() {
               >
                 <div className="text-center py-4">
                   <h2 className="text-lg font-bold text-white/90">
-                    {t('creator.choosePreset') || (zh ? '选择一个预设模板' : 'Choose a Preset')}
+                    {t('creator.choosePreset') || (zh ? '选择创建风格' : 'Choose a Style')}
                   </h2>
                   <p className="text-xs text-white/40 mt-1">
-                    {t('creator.presetHint') || (zh ? '选择预设可快速填充，也可从零开始自定义' : 'Pick a preset to quick-fill, or start from scratch')}
+                    {t('creator.presetHint') || (zh ? '先选择画风，再挑选性别模板开始自定义' : 'Pick a style, then choose a gender template to customize')}
                   </p>
                 </div>
 
@@ -495,110 +457,62 @@ export default function CreatePage() {
                   </div>
                 ) : (
                   <>
-                    {/* Gender category tabs */}
+                    {/* Visual style tabs */}
                     <div className="flex items-center justify-center gap-2 flex-wrap">
-                      {genderTabs.map((tab) => (
+                      {getOpts('visual_style').map((v) => (
                         <button
-                          key={tab.key}
+                          key={v.value}
                           type="button"
-                          onClick={() => setPresetGenderFilter(tab.key)}
+                          onClick={() => setVisualStyle(v.value)}
                           className={cn(
-                            'flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold border transition-all touch-manipulation',
-                            presetGenderFilter === tab.key
+                            'px-5 py-2 rounded-full text-xs font-semibold border transition-all touch-manipulation',
+                            visualStyle === v.value
                               ? 'bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white border-transparent shadow-[0_0_16px_rgba(255,45,120,0.35)]'
                               : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-[#FF2D78]/40 hover:text-white',
                           )}
                         >
-                          <span className="text-sm">{tab.icon}</span>
-                          {tab.label}
+                          {getLabel(v, locale)}
                         </button>
                       ))}
                     </div>
 
-                    {/* Preset cards with image preview */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {filteredPresets.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => { applyPreset(preset); setStep(1); }}
-                          className={cn(
-                            'group relative rounded-2xl border text-left transition-all overflow-hidden',
-                            selectedPreset === preset.id
-                              ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10 shadow-[0_0_24px_rgba(255,45,120,0.2)]'
-                              : 'border-white/10 bg-white/[0.03] hover:border-[#FF2D78]/30 hover:bg-white/[0.05] hover:shadow-[0_0_20px_rgba(139,92,246,0.15)]',
-                          )}
-                        >
-                          {/* Image preview area */}
-                          <div className="relative h-40 overflow-hidden bg-gradient-to-br from-[#FF2D78]/20 via-[#8b5cf6]/15 to-[#3b82f6]/10">
-                            {preset.thumbnail_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={preset.thumbnail_url}
-                                alt={preset.name}
-                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                              />
-                            ) : (
-                              <div className="h-full w-full flex flex-col items-center justify-center gap-2">
-                                <div className="h-16 w-16 rounded-full bg-white/[0.06] flex items-center justify-center text-2xl">
-                                  {preset.gender === 'Male' ? '👨' : preset.gender === 'Transgender' ? '🧑‍🎤' : '👩'}
+                    {/* 3 gender preview cards for the selected style */}
+                    <div className="grid grid-cols-3 gap-3 max-w-2xl mx-auto">
+                      {GENDER_PREVIEWS.map((g) => {
+                        const prev = previews.find(
+                          (p) => p.gender === g.value && p.visual_style === visualStyle && p.is_active,
+                        );
+                        return (
+                          <button
+                            key={g.value}
+                            type="button"
+                            onClick={() => selectPreviewGender(g.value)}
+                            className="group relative rounded-2xl border border-white/10 bg-white/[0.03] text-left transition-all overflow-hidden hover:border-[#FF2D78]/40 hover:bg-white/[0.05] hover:shadow-[0_0_20px_rgba(139,92,246,0.15)]"
+                          >
+                            <div className="relative aspect-[3/4] overflow-hidden bg-gradient-to-br from-[#FF2D78]/20 via-[#8b5cf6]/15 to-[#3b82f6]/10">
+                              {prev?.thumbnail_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={prev.thumbnail_url}
+                                  alt={g.label}
+                                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                />
+                              ) : (
+                                <div className="h-full w-full flex items-center justify-center text-3xl">
+                                  {g.icon}
                                 </div>
-                                <span className="text-[10px] text-white/30">{preset.visual_style}</span>
+                              )}
+                              <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/70 to-transparent" />
+                              <div className="absolute inset-x-0 bottom-0 p-2.5 text-center">
+                                <div className="text-sm font-bold text-white/90">{g.label}</div>
                               </div>
-                            )}
-                            {/* Gender badge */}
-                            <div className="absolute top-2 left-2">
-                              <span className={cn(
-                                'px-2 py-0.5 rounded-full text-[9px] font-bold backdrop-blur-sm',
-                                preset.gender === 'Male' && 'bg-blue-500/30 text-blue-200 border border-blue-400/30',
-                                preset.gender === 'Female' && 'bg-pink-500/30 text-pink-200 border border-pink-400/30',
-                                preset.gender === 'Transgender' && 'bg-purple-500/30 text-purple-200 border border-purple-400/30',
-                              )}>
-                                {preset.gender === 'Male' ? (zh ? '男性' : 'Male') : preset.gender === 'Transgender' ? (zh ? '跨性别' : 'Trans') : (zh ? '女性' : 'Female')}
-                              </span>
                             </div>
-                            {/* Bottom gradient */}
-                            <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/70 to-transparent" />
-                          </div>
-                          {/* Info */}
-                          <div className="p-3.5">
-                            <div className="text-sm font-bold text-white/90">{preset.name}</div>
-                            <div className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{preset.description}</div>
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {(preset.personality_tags || []).slice(0, 3).map(tag => (
-                                <span key={tag} className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] text-white/50">{tag}</span>
-                              ))}
-                            </div>
-                            <div className="text-[10px] text-white/30 mt-2">
-                              {preset.age} · {preset.occupation} · {preset.ethnicity}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
 
-                    {filteredPresets.length === 0 && (
-                      <div className="text-center py-8 text-white/30 text-sm">
-                        {zh ? '该分类暂无预设模板' : 'No presets in this category yet'}
-                      </div>
-                    )}
-
-                    {/* Start from scratch */}
-                    <button
-                      type="button"
-                      onClick={startFromScratch}
-                      className="w-full rounded-2xl border border-dashed border-white/15 p-6 text-center transition-all hover:border-[#FF2D78]/40 hover:bg-white/[0.02]"
-                    >
-                      <Sparkles className="h-6 w-6 text-white/20 mx-auto mb-2" />
-                      <div className="text-sm font-semibold text-white/60">
-                        {t('creator.fromScratch') || (zh ? '从零开始自定义' : 'Start from Scratch')}
-                      </div>
-                      <div className="text-[11px] text-white/30 mt-0.5">
-                        {t('creator.fromScratchHint') || (zh ? '完全自定义每一个选项' : 'Customize every detail yourself')}
-                      </div>
-                    </button>
-
-                    {/* Inline skip button */}
+                    {/* Inline continue button */}
                     <div className="flex justify-end pt-2">
                       <GamePrimaryButton
                         className="h-11 px-6 touch-manipulation"

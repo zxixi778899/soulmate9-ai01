@@ -7,10 +7,13 @@ import type { ReactNode } from 'react';
 export function GameShell({
   children,
   className,
+  innerClassName,
   hex = true,
 }: {
   children: ReactNode;
   className?: string;
+  /** Applied to the inner z-10 content wrapper (e.g. 'flex flex-1 flex-col min-h-0' for full-height flex layouts) */
+  innerClassName?: string;
   hex?: boolean;
 }) {
   return (
@@ -18,7 +21,7 @@ export function GameShell({
       {hex && (
         <div className="pointer-events-none absolute inset-0 game-hex-grid opacity-30" aria-hidden />
       )}
-      <div className="relative z-10">{children}</div>
+      <div className={cn('relative z-10', innerClassName)}>{children}</div>
     </div>
   );
 }

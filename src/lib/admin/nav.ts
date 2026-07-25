@@ -24,6 +24,7 @@ import {
   Brain,
   Network,
   Settings,
+  Palette,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -89,6 +90,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: '/admin/assets',
         icon: FolderOpen,
         hint: '生成结果保留 · 选用到伴侣',
+      },
+      {
+        label: '捏脸预览',
+        href: '/admin/creator-previews',
+        icon: Palette,
+        hint: '3 性别 × 3 画风预览图配置',
       },
     ],
   },
