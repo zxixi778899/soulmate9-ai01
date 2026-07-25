@@ -63,6 +63,34 @@ export const LORA_REGISTRY: readonly LoraEntry[] = [
   },
   // ── Legacy / generic ──
   {
+    file: 'realistic-mtf-trans.safetensors',
+    category: 'body',
+    strength: 0.5,
+    label: 'Realistic MtF transgender presentation',
+    trigger_words: ['MtF trans'],
+  },
+  {
+    file: 'Anet_Valence_futanari_FLUX-000004.safetensors',
+    category: 'body',
+    strength: 0.68,
+    label: 'Transgender dual-feature anatomy',
+    trigger_words: ['adult transgender woman', 'developed breasts and penis'],
+  },
+  {
+    file: 'MASC V1.0.safetensors',
+    category: 'body',
+    strength: 0.62,
+    label: 'MASC adult masculine body',
+    trigger_words: ['adult masculine man', 'masculine physique'],
+  },
+  {
+    file: 'rdanimefluxv1rapid.safetensors',
+    category: 'style',
+    strength: 0.72,
+    label: 'RD Anime FLUX 2D',
+    trigger_words: ['anime'],
+  },
+  {
     file: 'flux_style_photoreal_v1.safetensors',
     category: 'style',
     strength: 0.55,

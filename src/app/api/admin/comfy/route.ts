@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sanitizeLoraForVolume, verifyLoraHealth, checkLoraAuthenticity, getVerifiedInstalledLoraSet, LORA_REGISTRY } from '@/lib/runpod-loras';
+import { sanitizeLoraForVolume, verifyLoraHealth, checkLoraAuthenticity, getVerifiedInstalledLoraSet, getInstalledLoraSet, LORA_REGISTRY } from '@/lib/runpod-loras';
 import { requireAdmin } from '@/lib/require-admin';
 import {
   loadComfyConfig,
@@ -485,7 +485,7 @@ export async function POST(req: NextRequest) {
         scene: optimizedScene,
       });
       const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
-      const installed = getVerifiedInstalledLoraSet();
+      const installed = getInstalledLoraSet();
       const scale = studioLoraStrengthScale(intensity);
       const recommendations = recommendedStudioLoras(category, animeStyle);
       const loras = recommendations

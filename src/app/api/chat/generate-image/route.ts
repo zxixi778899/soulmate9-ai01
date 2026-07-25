@@ -303,9 +303,12 @@ export async function POST(request: NextRequest) {
       strength_clip: lora.strength,
     }));
     const categoryFiles = new Set(categoryLoras.map((lora) => lora.name));
+    const useCategoryOnly = categoryControl.selected.length > 0 && category !== 'female';
     const intelligentLoras = [
       ...categoryLoras,
-      ...genericLoras.filter((lora) => !categoryFiles.has(lora.name)),
+      ...(useCategoryOnly
+        ? []
+        : genericLoras.filter((lora) => !categoryFiles.has(lora.name))),
     ].slice(0, 3);
     const triggerWords = categoryControl.selected.flatMap((lora) => lora.triggerWords);
     if (triggerWords.length > 0) {
