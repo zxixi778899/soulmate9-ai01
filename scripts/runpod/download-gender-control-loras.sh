@@ -7,7 +7,9 @@ mkdir -p "$DEST"
 failed=0
 while IFS='|' read -r name url expected; do
   [ -z "$name" ] && continue
-  case "$name" in #*) continue ;; esac
+  case "$name" in
+    \#*) continue ;;
+  esac
   target="$DEST/$name"
   if [ -f "$target" ] && echo "$expected  $target" | sha256sum -c - >/dev/null 2>&1; then
     echo "SKIP verified: $name"
