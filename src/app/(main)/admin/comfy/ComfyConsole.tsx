@@ -398,6 +398,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       setSelectedLoras(planned);
       setLoraId(planned[0]?.id || 'none');
       if (planned[0]) setLoraStrength(Number(planned[0].strength));
+      const missingLoras = Array.isArray(data.missing_loras) ? data.missing_loras : [];
+      if (missingLoras.length > 0) {
+        toast.warning(`???? LoRA ?????${missingLoras.map((item: Any) => item.id).join(', ')}`);
+      }
       toast.success(`LLM 已按${COMPANION_CATEGORY_LABELS[companionCategory].zh}和强度 ${nsfwIntensity}/5 重写提示词`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'LLM 提示词优化失败');

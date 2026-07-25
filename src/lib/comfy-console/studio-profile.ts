@@ -1,4 +1,6 @@
 import type { CompanionCategory } from '@/lib/companion-category';
+import { getCatalogLoraById } from '@/lib/comfy-console/lora-catalog';
+import { isLoraInstalled } from '@/lib/runpod-loras';
 
 export type AnimeRenderStyle = '2d' | '3d';
 export type NsfwIntensity = 1 | 2 | 3 | 4 | 5;
@@ -69,10 +71,16 @@ export function buildStudioPromptEnhancement(input: {
   const quality = input.category === 'anime'
     ? RENDER_PROMPTS[input.animeStyle || '2d']
     : 'Capture it as a sharp high-resolution 4K real photograph with natural skin texture, realistic anatomy, and soft cinematic light.';
+  const composition = input.intensity >= 3
+    ? 'Use an uncropped frontal full-body composition that keeps the face, chest, hands, and entire pelvis visible in the same frame.'
+    : input.category === 'transgender'
+      ? 'Use a waist-up or three-quarter composition that clearly establishes her feminine face, chest, and body shape.'
+      : 'Keep the subject and the described action clearly visible.';
   return [
     CATEGORY_SUBJECTS[input.category] + compactIdentity(input.identity),
     compactScene(input.scene),
     INTENSITY_ACTIONS[input.intensity][input.category],
+    composition,
     quality,
   ].join(' ');
 }
@@ -94,7 +102,7 @@ export function studioIntensityLabel(intensity: NsfwIntensity): string {
 export function studioNegativePrompt(category: CompanionCategory, animeStyle: AnimeRenderStyle = '2d'): string {
   const shared = 'child, teen, underage, youthful face, ambiguous age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals, censored bar, mosaic, watermark, text';
   if (category === 'transgender') {
-    return `${shared}, duplicated genitals, detached genitals, female-only anatomy, male-only silhouette, caricature, fetish stereotype`;
+    return `${shared}, cisgender woman, vagina, flat chest, cropped pelvis, genital area out of frame, duplicated genitals, detached genitals, male-only silhouette, caricature, fetish stereotype`;
   }
   if (category === 'anime') {
     return animeStyle === '2d'
@@ -110,9 +118,9 @@ export function recommendedStudioLoras(
 ): Array<{ id: string; strength: number; reasonZh: string }> {
   if (category === 'transgender') {
     return [
-      { id: 'body-transgender-flux', strength: 0.62, reasonZh: '稳定女性外观与跨性别身体特征' },
+      { id: 'body-transgender-anatomy-flux', strength: 0.68, reasonZh: '控制胸部与男性外生殖特征同时出现' },
+      { id: 'body-transgender-presentation-flux', strength: 0.5, reasonZh: '稳定成年 MtF 的女性面部、胸部和曲线' },
       { id: 'detail-skin-flux', strength: 0.42, reasonZh: '增强真实皮肤和局部细节' },
-      { id: 'pose-nsfw-dynamic', strength: 0.48, reasonZh: '增强成人动作可读性' },
     ];
   }
   if (category === 'anime') {
@@ -128,13 +136,46 @@ export function recommendedStudioLoras(
   }
   return category === 'male'
     ? [
-        { id: 'body-athletic-flux', strength: 0.58, reasonZh: '强化男性体型' },
+        { id: 'body-masculine-flux', strength: 0.62, reasonZh: '强化男性体型' },
         { id: 'detail-skin-flux', strength: 0.42, reasonZh: '增强皮肤细节' },
       ]
     : [
         { id: 'body-curvy-flux', strength: 0.58, reasonZh: '强化女性曲线' },
         { id: 'detail-skin-flux', strength: 0.42, reasonZh: '增强皮肤细节' },
       ];
+}
+
+export type CategoryLoraControl = {
+  id: string;
+  filename: string;
+  strength: number;
+  triggerWords: string[];
+  reasonZh: string;
+};
+
+export function resolveCategoryLoraControls(
+  category: CompanionCategory,
+  intensity: NsfwIntensity,
+  animeStyle: AnimeRenderStyle = '2d',
+): { selected: CategoryLoraControl[]; missing: Array<{ id: string; reasonZh: string }> } {
+  const scale = studioLoraStrengthScale(intensity);
+  const selected: CategoryLoraControl[] = [];
+  const missing: Array<{ id: string; reasonZh: string }> = [];
+  for (const recommendation of recommendedStudioLoras(category, animeStyle)) {
+    const catalog = getCatalogLoraById(recommendation.id);
+    if (!catalog?.filename || !isLoraInstalled(catalog.filename)) {
+      missing.push({ id: recommendation.id, reasonZh: recommendation.reasonZh });
+      continue;
+    }
+    selected.push({
+      id: recommendation.id,
+      filename: catalog.filename,
+      strength: Number(Math.min(0.9, recommendation.strength * scale).toFixed(2)),
+      triggerWords: catalog.trigger_words || [],
+      reasonZh: recommendation.reasonZh,
+    });
+  }
+  return { selected: selected.slice(0, 3), missing };
 }
 
 export function loraUsageZh(lora: { id?: string; label?: string; filename?: string; category?: string; usage?: string }): string {

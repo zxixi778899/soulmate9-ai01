@@ -487,7 +487,8 @@ export async function POST(req: NextRequest) {
       const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
       const installed = getVerifiedInstalledLoraSet();
       const scale = studioLoraStrengthScale(intensity);
-      const loras = recommendedStudioLoras(category, animeStyle)
+      const recommendations = recommendedStudioLoras(category, animeStyle);
+      const loras = recommendations
         .map((item) => {
           const asset = cfg.loras.find((candidate) => candidate.id === item.id);
           return asset?.filename && installed.has(asset.filename)
@@ -501,6 +502,9 @@ export async function POST(req: NextRequest) {
         prompt: optimizedPrompt,
         negative: String(parsed.negative || studioNegativePrompt(category, animeStyle)).trim(),
         loras,
+        missing_loras: recommendations
+          .filter((item) => !loras.some((selected) => selected.id === item.id))
+          .map((item) => ({ id: item.id, reasonZh: item.reasonZh })),
       });
     } catch (error) {
       captureException(error, { tags: { route: 'admin-comfy', action: 'optimize_prompt' } });

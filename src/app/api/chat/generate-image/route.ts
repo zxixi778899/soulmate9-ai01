@@ -22,6 +22,7 @@ import { getIntimacyGenerationPolicy, getIntimacyUnlockPayload } from '@/lib/int
 import { normalizeCompanionCategory } from '@/lib/companion-category';
 import {
   buildStudioPromptEnhancement,
+  resolveCategoryLoraControls,
   studioNegativePrompt,
   type AnimeRenderStyle,
 } from '@/lib/comfy-console/studio-profile';
@@ -238,7 +239,9 @@ export async function POST(request: NextRequest) {
     }
 
     const intent = buildImageActionFromChat(userRequest || 'send me a selfie', chatContext);
-    const framing = intent.kind === 'selfie'
+    const framing = intimacyPolicy.level >= 3
+      ? 'uncropped frontal full-body framing with face, chest, hands, and pelvis visible'
+      : intent.kind === 'selfie'
       ? 'close selfie framing, looking directly at the camera'
       : intent.kind === 'body'
         ? 'medium full-body framing'
@@ -263,7 +266,7 @@ export async function POST(request: NextRequest) {
       gfRecord.appearance_eyes,
       gfRecord.appearance_body,
     ].filter(Boolean).map(String).join(', ');
-    const prompt = buildStudioPromptEnhancement({
+    let prompt = buildStudioPromptEnhancement({
       category,
       intensity: intimacyPolicy.nsfwIntensity,
       animeStyle,
@@ -284,11 +287,30 @@ export async function POST(request: NextRequest) {
         preferDetail: /selfie|portrait|close.?up|face|skin/i.test(`${userRequest} ${intent.kind}`),
       },
     );
-    const intelligentLoras = planToLorasArray(loraPlan).map((lora) => ({
+    const genericLoras = planToLorasArray(loraPlan).map((lora) => ({
       ...lora,
       strength_model: Math.min(0.9, Math.max(0.2, lora.strength_model * intimacyPolicy.loraStrengthMultiplier)),
       strength_clip: Math.min(0.9, Math.max(0.2, lora.strength_clip * intimacyPolicy.loraStrengthMultiplier)),
     }));
+    const categoryControl = resolveCategoryLoraControls(
+      category,
+      intimacyPolicy.nsfwIntensity,
+      animeStyle,
+    );
+    const categoryLoras = categoryControl.selected.map((lora) => ({
+      name: lora.filename,
+      strength_model: lora.strength,
+      strength_clip: lora.strength,
+    }));
+    const categoryFiles = new Set(categoryLoras.map((lora) => lora.name));
+    const intelligentLoras = [
+      ...categoryLoras,
+      ...genericLoras.filter((lora) => !categoryFiles.has(lora.name)),
+    ].slice(0, 3);
+    const triggerWords = categoryControl.selected.flatMap((lora) => lora.triggerWords);
+    if (triggerWords.length > 0) {
+      prompt = `${[...new Set(triggerWords)].join(', ')}. ${prompt}`;
+    }
     const baseNegativePrompt =
       typeof (body as { negative_prompt?: string }).negative_prompt === 'string' &&
       (body as { negative_prompt: string }).negative_prompt.trim()
@@ -437,6 +459,7 @@ export async function POST(request: NextRequest) {
         primary: loraPlan.primary.note,
         secondary: loraPlan.secondary?.note || null,
         strengths: intelligentLoras.map((lora) => lora.strength_model),
+        missingCategoryLoras: categoryControl.missing.map((item) => item.id),
       },
       daily_limit: resolved.dailyLimit,
     });

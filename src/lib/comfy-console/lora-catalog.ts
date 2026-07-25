@@ -18,6 +18,9 @@ export type CatalogLora = {
   workflows?: string[];
   source?: string;
   page_url?: string;
+  version_id?: number;
+  sha256?: string;
+  download_url?: string;
   search_keywords?: string;
   download?: { type?: string; hint?: string };
 };
@@ -48,22 +51,48 @@ export const LORA_CATALOG = catalogJson as LoraCatalog;
 
 const PRACTICAL_LORAS: CatalogLora[] = [
   {
-    id: 'body-transgender-flux', label: '跨性别身体结构', category: 'body',
-    filename: 'flux_body_transgender_v1.safetensors', default_strength: 0.62, nsfw: true,
-    usage: '跨性别成年人物：稳定女性外观、胸部曲线与跨性别外生殖结构；建议强度 0.5-0.7。',
-    trigger_words: ['adult transgender woman', 'feminine curves', 'coherent transgender anatomy'],
-    workflows: ['wf-girlfriend', 'wf-tryon'], source: 'civitai',
-    page_url: 'https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=transgender%20anatomy',
-    search_keywords: 'FLUX transgender woman anatomy adult',
-    download: { type: 'manual_or_script', hint: '仅选择明确标注 FLUX.1 D 且有真实样图的版本' },
+    id: 'body-transgender-presentation-flux', label: '跨性别女性外观（MtF）', category: 'body',
+    filename: 'realistic-mtf-trans.safetensors', default_strength: 0.5, nsfw: false,
+    usage: '跨性别女性外观控制：强化成年 MtF 的女性面部、胸部与曲线。它不单独负责生殖结构，需与跨性别双特征 LoRA 配合。',
+    trigger_words: ['MtF trans'], workflows: ['wf-girlfriend', 'wf-tryon'], source: 'civitai',
+    page_url: 'https://civitai.com/models/918039', version_id: 1027537,
+    sha256: '04C9A25E61C5141CA9A5B7E874A2A05117EB849740D230ED7E96C8B085F3543F',
+    download_url: 'https://civitai.com/api/download/models/1027537',
+    search_keywords: 'FLUX realistic MtF transgender',
+    download: { type: 'civitai_version', hint: 'FLUX.1 D；触发词 MtF trans；SafeTensor 扫描通过' },
+  },
+  {
+    id: 'body-transgender-anatomy-flux', label: '跨性别双特征结构', category: 'body',
+    filename: 'Anet_Valence_futanari_FLUX-000004.safetensors', default_strength: 0.68, nsfw: true,
+    usage: '跨性别双特征结构控制：用于女性胸部与男性外生殖特征同时入镜。Lv3-Lv5 建议 0.62-0.78，并使用胸部到骨盆完整构图。',
+    trigger_words: ['adult transgender woman', 'developed breasts and penis'], workflows: ['wf-girlfriend'], source: 'civitai',
+    page_url: 'https://civitai.com/models/737321', version_id: 824543,
+    sha256: '7E901AB1C18760C8129218C7D05DB7156749E3A25E71973A2A9F034566A7C759',
+    download_url: 'https://civitai.com/api/download/models/824543',
+    search_keywords: 'FLUX transgender dual anatomy',
+    download: { type: 'civitai_version', hint: 'FLUX.1 D；SafeTensor 扫描通过；下载后需用测试种子人工验收' },
+  },
+  {
+    id: 'body-masculine-flux', label: '成年男性体型 MASC', category: 'body',
+    filename: 'MASC V1.0.safetensors', default_strength: 0.62, nsfw: false,
+    usage: '男性外观与体型控制：强化成年男性面部、肩背、胸腹和阳刚轮廓；生殖结构仍由提示词与底模负责。',
+    trigger_words: ['adult masculine man', 'masculine physique'], workflows: ['wf-girlfriend'], source: 'civitai',
+    page_url: 'https://civitai.com/models/879573', version_id: 1967998,
+    sha256: 'AB521113F14E583263FE9E6BB819F8ED32E6B605CDCC08F4942B3C61EEADF79E',
+    download_url: 'https://civitai.com/api/download/models/1967998',
+    search_keywords: 'FLUX realistic masculine men MASC',
+    download: { type: 'civitai_version', hint: 'FLUX.1 D；SafeTensor 扫描通过' },
   },
   {
     id: 'style-anime-2d-flux', label: '二次元 2D 赛璐璐', category: 'style',
-    filename: 'flux_style_anime_2d_v1.safetensors', default_strength: 0.72, nsfw: true,
+    filename: 'rdanimefluxv1rapid.safetensors', default_strength: 0.72, nsfw: false,
     usage: '2D 动漫插画：稳定线稿、赛璐璐上色、动漫五官和发型；不要与写实风格 LoRA 叠加。',
-    trigger_words: ['2d anime illustration', 'clean line art', 'cel shading'],
+    trigger_words: ['anime'],
     workflows: ['wf-girlfriend'], source: 'civitai',
-    page_url: 'https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=anime%202d',
+    page_url: 'https://civitai.com/models/772320',
+    version_id: 863817,
+    sha256: '49D581E274F0D50492E4A7A72DA49BA8F3C69DD3549AEF6FD86554F1A2B28F5F',
+    download_url: 'https://civitai.com/api/download/models/863817',
     search_keywords: 'FLUX anime 2D cel shading',
     download: { type: 'manual_or_script', hint: '优先选择 FLUX.1 D 原生 2D 动漫 LoRA' },
   },

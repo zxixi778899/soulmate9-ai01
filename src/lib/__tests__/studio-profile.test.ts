@@ -3,6 +3,7 @@ import {
   buildStudioPromptEnhancement,
   loraUsageZh,
   recommendedStudioLoras,
+  resolveCategoryLoraControls,
   studioLoraStrengthScale,
   studioNegativePrompt,
 } from '@/lib/comfy-console/studio-profile';
@@ -58,9 +59,21 @@ describe('studio generation profiles', () => {
   });
 
   it('recommends category-specific practical LoRAs', () => {
-    expect(recommendedStudioLoras('transgender')[0]?.id).toBe('body-transgender-flux');
+    expect(recommendedStudioLoras('transgender')[0]?.id).toBe('body-transgender-anatomy-flux');
     expect(recommendedStudioLoras('anime', '2d')[0]?.id).toBe('style-anime-2d-flux');
     expect(recommendedStudioLoras('anime', '3d')[0]?.id).toBe('style-anime-3d-flux');
+  });
+
+  it('reports unavailable gender LoRAs instead of silently substituting another body', () => {
+    const controls = resolveCategoryLoraControls('transgender', 5);
+    expect(controls.missing.map((item) => item.id)).toContain('body-transgender-anatomy-flux');
+    expect(controls.selected.some((item) => item.id === 'body-curvy-flux')).toBe(false);
+  });
+
+  it('forces explicit transgender levels to include chest and pelvis in one frame', () => {
+    const prompt = buildStudioPromptEnhancement({ category: 'transgender', intensity: 4 });
+    expect(prompt).toContain('entire pelvis visible');
+    expect(studioNegativePrompt('transgender')).toContain('cropped pelvis');
   });
 
   it('always exposes a Chinese usage description', () => {
