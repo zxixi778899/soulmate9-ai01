@@ -33,15 +33,16 @@ import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
+import { normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
 
 const GEN_LIMIT = { maxRequests: 40, windowMs: 60 * 60 * 1000 };
 
-function assetFolder(girlfriendId?: string | null): string {
+function assetFolder(girlfriendId?: string | null, assetRole?: unknown): string {
   const id = (girlfriendId || '').trim();
-  if (id) return `girlfriends/${id}`;
+  if (id) return `girlfriends/${id}/${normalizeCharacterAssetRole(assetRole)}`;
   return 'comfy-outputs';
 }
 
@@ -877,7 +878,8 @@ if (body.action === 'finalize') {
     }
 
     const girlfriendId = String(body.girlfriend_id || body.girlfriendId || '').trim() || null;
-    const folder = assetFolder(girlfriendId);
+    const assetRole = normalizeCharacterAssetRole(body.asset_role);
+    const folder = assetFolder(girlfriendId, assetRole);
     const kind = String(body.kind || 'custom');
 
     const cfg = await loadComfyConfig(admin.supabase);
@@ -921,6 +923,8 @@ if (body.action === 'finalize') {
           meta: {
             job_id: jobId,
             finalized: true,
+            asset_role: assetRole,
+            reference_role: body.reference_role || 'identity',
             ...(body.meta && typeof body.meta === 'object' ? (body.meta as object) : {}),
           },
         };
@@ -1159,7 +1163,8 @@ if (body.action === 'verify_loras') {
           : 0.86
         : Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
-    const folder = assetFolder(girlfriendId);
+    const assetRole = normalizeCharacterAssetRole(body.asset_role);
+    const folder = assetFolder(girlfriendId, assetRole);
     const loraStrength =
       body.lora_strength != null
         ? Number(body.lora_strength)
@@ -1316,6 +1321,8 @@ if (body.action === 'verify_loras') {
           meta: {
             job_id: result.job_id,
             execution_time: result.execution_time,
+            asset_role: assetRole,
+            reference_role: body.reference_role || 'identity',
             lora_strength: loraStrength,
             loras: effectiveLoras,
             requested_lora_total_strength: totalLoraStrength,

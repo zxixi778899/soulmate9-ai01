@@ -18,6 +18,7 @@ import {
   Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { CHARACTER_PRODUCTION_PRESETS, type CharacterAssetRole } from '@/lib/character-asset-production';
 
 type Asset = {
   id?: string | null;
@@ -28,6 +29,7 @@ type Asset = {
   girlfriend_id?: string | null;
   kind?: string;
   storage_key?: string;
+  meta?: { asset_role?: CharacterAssetRole; reference_role?: string } | null;
 };
 
 type Gf = {
@@ -55,6 +57,7 @@ export default function AdminAssetsPage() {
   const [q, setQ] = useState('');
   const [folderQ, setFolderQ] = useState('');
   const [kindFilter, setKindFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState<CharacterAssetRole | 'all'>('all');
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'folders' | 'folder'>('folders');
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null); // null = uncategorized
@@ -82,7 +85,12 @@ export default function AdminAssetsPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
+    const requestedGirlfriendId = new URLSearchParams(window.location.search).get('girlfriendId');
+    if (requestedGirlfriendId) {
+      setActiveFolderId(requestedGirlfriendId);
+      setView('folder');
+    }
   }, [load]);
 
   const gfMap = useMemo(() => {
@@ -130,6 +138,7 @@ export default function AdminAssetsPage() {
     const list = items.filter((a) => {
       const gid = (a.girlfriend_id || '').trim() || null;
       if (kindFilter !== 'all' && (a.kind || 'girlfriend') !== kindFilter) return false;
+      if (roleFilter !== 'all' && a.meta?.asset_role !== roleFilter) return false;
       if (activeFolderId === null) return !gid;
       return gid === activeFolderId;
     });
@@ -141,7 +150,7 @@ export default function AdminAssetsPage() {
       (a.storage_key || '').toLowerCase().includes(s) ||
       (a.girlfriend_id || '').toLowerCase().includes(s),
     );
-  }, [items, activeFolderId, q, kindFilter]);
+  }, [items, activeFolderId, q, kindFilter, roleFilter]);
 
   const visibleFolders = useMemo(() => {
     const term = folderQ.trim().toLowerCase();
@@ -417,6 +426,10 @@ export default function AdminAssetsPage() {
               <option value="all">全部分类</option>
               {assetKinds.map((kind) => <option key={kind} value={kind}>{kind === 'girlfriend' ? '伴侣图片' : kind === 'outfit' ? '服装' : kind === 'shop_item' ? '商品' : kind}</option>)}
             </select>
+            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as CharacterAssetRole | 'all')} className="h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-[#334155]">
+              <option value="all">全部角色资产</option>
+              {CHARACTER_PRODUCTION_PRESETS.map((preset) => <option key={preset.role} value={preset.role}>{preset.label}</option>)}
+            </select>
             <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm text-[#334155] hover:bg-gray-50">
               <Upload className="h-4 w-4" />
               上传到此文件夹
@@ -526,7 +539,9 @@ export default function AdminAssetsPage() {
                     <div className="space-y-1 p-2">
                       <div className="truncate text-[11px] font-medium text-[#334155]">{a.name || a.storage_key || a.id}</div>
                       <div className="flex items-center justify-between gap-1">
-                        <span className="truncate text-[10px] text-[#94A3B8]">{a.kind || 'image'}</span>
+                        <span className="truncate text-[10px] text-[#94A3B8]">
+                          {CHARACTER_PRODUCTION_PRESETS.find((preset) => preset.role === a.meta?.asset_role)?.label || a.kind || 'image'}
+                        </span>
                         {url ? (
                           <a href={url} target="_blank" rel="noreferrer" className="text-violet-600">
                             <ExternalLink className="h-3.5 w-3.5" />

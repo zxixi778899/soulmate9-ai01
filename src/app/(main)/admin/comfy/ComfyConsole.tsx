@@ -48,6 +48,12 @@ import {
 } from '@/lib/prompt/girlfriend';
 import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
+import {
+  CHARACTER_ID_PACK,
+  getCharacterProductionPreset,
+  styleProductionHint,
+  type CharacterAssetRole,
+} from '@/lib/character-asset-production';
 
 type Any = Record<string, any>;
 
@@ -117,6 +123,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [styleStrength, setStyleStrength] = useState(0.32);
   const [compositionStrength, setCompositionStrength] = useState(0.48);
   const [kind, setKind] = useState('girlfriend');
+  const [productionGirlfriendId, setProductionGirlfriendId] = useState(girlfriendId || '');
+  const [assetRole, setAssetRole] = useState<CharacterAssetRole>('scene');
+  const [batchIdentityPack, setBatchIdentityPack] = useState(true);
   const [lastResult, setLastResult] = useState<Any[]>([]);
   const [lastGenerationTrace, setLastGenerationTrace] = useState<Any | null>(null);
   const [scopedGirlfriend, setScopedGirlfriend] = useState<Any | null>(null);
@@ -165,6 +174,39 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     applyRecommendedLoras(companionCategory);
     toast.success(`已应用预设：${p.name}`);
   };
+  const applyProductionPreset = (role: CharacterAssetRole) => {
+    const preset = getCharacterProductionPreset(role);
+    setAssetRole(role);
+    setKind('girlfriend');
+    setGenerationSurface('companion');
+    setGenMode('txt2img');
+    setIdentityConsistency(preset.consistency);
+    setWidth(preset.width);
+    setHeight(preset.height);
+    setPrompt(buildStudioPromptEnhancement({
+      category: companionCategory,
+      intensity: nsfwIntensity,
+      animeStyle: animeRenderStyle,
+      identity: scopedGirlfriend
+        ? [
+            scopedGirlfriend.name,
+            scopedGirlfriend.appearance_race,
+            scopedGirlfriend.appearance_hair_color,
+            scopedGirlfriend.appearance_hair,
+            scopedGirlfriend.appearance_eyes,
+            scopedGirlfriend.appearance_body,
+            scopedGirlfriend.appearance_face,
+            scopedGirlfriend.distinguishing_features,
+          ].filter(Boolean).join(', ')
+        : undefined,
+      scene: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
+    }));
+    setPromptProfileApplied(true);
+    setNegative(studioNegativePrompt(companionCategory, animeRenderStyle));
+    applyRecommendedLoras(companionCategory, animeRenderStyle, nsfwIntensity);
+    toast.success(`已切换：${preset.label}，模型与参数将自动匹配`);
+  };
+
   const applyCategoryPrompt = (category: CompanionCategory) => {
     const preset = STUDIO_PROMPTS[category];
     setCompanionCategory(category);
@@ -549,9 +591,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     });
   };
 
-  const generationBody = (overrides?: { girlfriendId?: string; prompt?: string; negative?: string }) => ({
+  const generationBody = (overrides?: { girlfriendId?: string; prompt?: string; negative?: string; assetRole?: CharacterAssetRole }) => ({
     action: 'generate',
-    girlfriend_id: overrides?.girlfriendId || girlfriendId || undefined,
+    girlfriend_id: overrides?.girlfriendId || productionGirlfriendId || girlfriendId || undefined,
     workflow_id: workflowId,
     endpoint_key: endpointKey,
     endpoint_id: selectedEndpoint?.endpoint_id || undefined,
@@ -590,6 +632,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     anime_render_style: animeRenderStyle,
     nsfw_intensity: nsfwIntensity,
     prompt_profile_applied: overrides?.prompt ? false : promptProfileApplied,
+    asset_role: overrides?.assetRole || assetRole,
+    reference_role: getCharacterProductionPreset(overrides?.assetRole || assetRole).referenceRole,
     kind,
   });
 
@@ -597,7 +641,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const finalizeAssets = async (
     jobId: string,
     images: string[],
-    overrides?: { girlfriendId?: string; prompt?: string; negative?: string },
+    overrides?: { girlfriendId?: string; prompt?: string; negative?: string; assetRole?: CharacterAssetRole },
   ): Promise<Any[] | null> => {
     try {
       const res = await authedFetch('/api/admin/comfy', {
@@ -620,71 +664,81 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
 
   const runBatchGeneration = async () => {
     const selected = batchGirlfriends.filter((item) => batchSelectedIds.includes(String(item.id)));
-    if (!selected.length) return toast.error('请先选择需要生成的伴侣');
-    if (genMode === 'img2img' && !inputImage.trim()) return toast.error('批量图生图需要先上传参考图');
-    const actionText = prompt.includes('. She is ') ? prompt.split('. She is ').slice(1).join('. She is ') : prompt;
+    if (!selected.length) return toast.error('请先选择需要生产资源的伴侣');
+    const roles = batchIdentityPack ? CHARACTER_ID_PACK : [assetRole];
+    const totalTasks = selected.length * roles.length;
+    if (totalTasks > 40) return toast.error('单次最多 40 个生成任务，请减少伴侣数量');
+
     setBatchRunning(true);
     setLastResult([]);
     setBatchProgress(selected.map((item) => ({ id: String(item.id), name: String(item.name || item.id), status: 'pending' })));
     const generatedAssets: Any[] = [];
     let succeeded = 0;
     let failed = 0;
+
     for (const girlfriend of selected) {
       const id = String(girlfriend.id);
-      const name = String(girlfriend.name || id);
       setBatchProgress((items) => items.map((item) => item.id === id ? { ...item, status: 'running' } : item));
-      try {
-        const assembled = buildCompanionGenerationPrompt(girlfriend as Record<string, unknown>, { action: actionText, adult: true });
-        const res = await authedFetch('/api/admin/comfy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...generationBody({ girlfriendId: id, prompt: assembled.positive, negative: assembled.negative }),
-            character_consistency: true,
-          }),
-        });
-        const data = await readResponseJson(res).catch(() => ({} as Any));
-        if (!res.ok) throw new Error(data.error || '生成失败');
+      let companionFailed = false;
+      for (const role of roles) {
+        const preset = getCharacterProductionPreset(role);
+        try {
+          const assembled = buildCompanionGenerationPrompt(girlfriend as Record<string, unknown>, {
+            action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
+            adult: nsfwIntensity >= 3,
+          });
+          const overrides = { girlfriendId: id, prompt: assembled.positive, negative: assembled.negative, assetRole: role };
+          const res = await authedFetch('/api/admin/comfy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...generationBody(overrides),
+              character_consistency: preset.consistency,
+              width: preset.width,
+              height: preset.height,
+              num_images: 1,
+            }),
+          });
+          const data = await readResponseJson(res).catch(() => ({} as Any));
+          if (!res.ok) throw new Error(data.error || `${preset.label}生成失败`);
 
-        // Handle async pending — poll until done
-        if (data.pending && data.job_id) {
-          const jobId = String(data.job_id);
-          let done = false;
-          for (let p = 0; p < 60; p++) {
-            await new Promise((r) => setTimeout(r, 3000));
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}`);
-            const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
-            if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-              let polled: Any[] = pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));
-              const saved = await finalizeAssets(jobId, pollData.images, {
-                girlfriendId: id,
-                prompt: assembled.positive,
-                negative: assembled.negative,
-              });
-              if (saved) polled = saved;
-              generatedAssets.push(...polled);
-              done = true;
-              break;
+          if (data.pending && data.job_id) {
+            const jobId = String(data.job_id);
+            let done = false;
+            for (let poll = 0; poll < 60; poll++) {
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+              const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}`);
+              const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
+              if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
+                const saved = await finalizeAssets(jobId, pollData.images, overrides);
+                generatedAssets.push(...(saved || pollData.images.map((url: string) => ({ url, id: null }))));
+                done = true;
+                break;
+              }
+              if (pollData.status === 'FAILED') throw new Error(pollData.error || `${preset.label}任务失败`);
             }
-            if (pollData.status === 'FAILED') throw new Error(pollData.error || 'RunPod 任务失败');
+            if (!done) throw new Error(`${preset.label} GPU 排队超时`);
+          } else {
+            generatedAssets.push(...(Array.isArray(data.assets) ? data.assets : []));
           }
-          if (!done) throw new Error('GPU 排队超时');
-        } else {
-          generatedAssets.push(...(Array.isArray(data.assets) ? data.assets : []));
+          succeeded += 1;
+        } catch (error) {
+          companionFailed = true;
+          failed += 1;
+          setBatchProgress((items) => items.map((item) => item.id === id
+            ? { ...item, status: 'failed', error: `${preset.shortLabel}：${error instanceof Error ? error.message : '生成失败'}` }
+            : item));
+          break;
         }
-        succeeded += 1;
+      }
+      if (!companionFailed) {
         setBatchProgress((items) => items.map((item) => item.id === id ? { ...item, status: 'success' } : item));
-      } catch (error) {
-        failed += 1;
-        setBatchProgress((items) => items.map((item) => item.id === id
-          ? { ...item, status: 'failed', error: error instanceof Error ? error.message : '生成失败' }
-          : item));
       }
     }
     setLastResult(generatedAssets);
     setBatchRunning(false);
-    if (failed) toast.warning(`批量任务完成：成功 ${succeeded}，失败 ${failed}`);
-    else toast.success(`批量任务完成：${succeeded} 位伴侣全部生成成功`);
+    if (failed) toast.warning(`生产任务完成：成功 ${succeeded}，失败 ${failed}`);
+    else toast.success(`角色生产包完成：共生成 ${succeeded} 项资产`);
   };
 
   const syncInstalled = async () => {
@@ -1107,21 +1161,98 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       {/* GENERATE — SD: left params sticky / right preview */}
       {tab === 'generate' && (
         <div className="space-y-4 text-slate-100">
+          <section className="border-y border-slate-700 bg-slate-950/50 px-3 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-white">系统角色生产</h2>
+                <p className="mt-1 text-[11px] text-slate-400">选择伴侣后按顺序建立身份图组、角色立绘和场景资源；模型、LoRA、尺寸与参考强度自动匹配。</p>
+              </div>
+              <Link href="/admin/girlfriends" className="text-xs font-medium text-violet-300 hover:text-violet-200">新建/编辑伴侣基础信息 →</Link>
+            </div>
+            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(240px,360px)_1fr]">
+              <div>
+                <Label className="mb-1 block text-[11px] text-slate-300">当前伴侣</Label>
+                <Select value={productionGirlfriendId || 'none'} onValueChange={(id) => {
+                  if (id === 'none') return;
+                  const girlfriend = batchGirlfriends.find((item) => String(item.id) === id);
+                  setProductionGirlfriendId(id);
+                  if (girlfriend) {
+                    setScopedGirlfriend(girlfriend);
+                    fillPromptFromGirlfriend(girlfriend, { force: true });
+                    const gender = String(girlfriend.gender || '').toLowerCase();
+                    setCompanionCategory(gender.includes('trans') ? 'transgender' : gender.includes('male') && !gender.includes('female') ? 'male' : 'female');
+                  }
+                  setIdentityConsistency(true);
+                }}>
+                  <SelectTrigger className="h-10 border-slate-600 bg-slate-950 text-sm"><SelectValue placeholder="选择系统伴侣" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">选择系统伴侣…</SelectItem>
+                    {batchGirlfriends.map((item) => <SelectItem key={String(item.id)} value={String(item.id)}>{String(item.name || item.id)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <button type="button" className="mt-1 text-[10px] text-cyan-300 hover:text-cyan-200" onClick={() => void loadBatchGirlfriends()}>
+                  {batchLoading ? '正在载入…' : batchGirlfriends.length ? `已载入 ${batchGirlfriends.length} 位伴侣 · 刷新` : '载入伴侣列表'}
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {[
+                  { title: '1. 身份图组', roles: CHARACTER_ID_PACK.slice(0, 4) },
+                  { title: '2. 角色立绘', roles: ['character-art'] as CharacterAssetRole[] },
+                  { title: '3. 场景与参考', roles: ['scene', 'pose-reference', 'style-reference', 'composition-reference'] as CharacterAssetRole[] },
+                ].map((group) => (
+                  <div key={group.title} className="border-l border-slate-700 pl-3">
+                    <p className="mb-2 text-[11px] font-semibold text-slate-200">{group.title}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {group.roles.map((role) => {
+                        const preset = getCharacterProductionPreset(role);
+                        return (
+                          <button
+                            key={role}
+                            type="button"
+                            title={preset.description}
+                            disabled={!productionGirlfriendId}
+                            onClick={() => applyProductionPreset(role)}
+                            className={cn(
+                              'h-8 border px-2 text-[11px] font-medium transition',
+                              assetRole === role ? 'border-cyan-400 bg-cyan-500/20 text-cyan-100' : 'border-slate-600 bg-slate-900 text-slate-300 hover:border-slate-400',
+                              !productionGirlfriendId && 'cursor-not-allowed opacity-40',
+                            )}
+                          >
+                            {preset.shortLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {productionGirlfriendId ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3 text-[11px]">
+                <span className="text-slate-300">当前任务：<strong className="text-cyan-200">{getCharacterProductionPreset(assetRole).label}</strong> · 自动保存至 <code>girlfriends/{productionGirlfriendId}/{assetRole}</code></span>
+                <Link href={`/admin/assets?girlfriendId=${encodeURIComponent(productionGirlfriendId)}`} className="text-violet-300 hover:text-violet-200">查看角色资源文件夹 →</Link>
+              </div>
+            ) : <p className="mt-3 text-[11px] text-amber-300">先选择伴侣；如果还没有角色，请到“伴侣与媒体”填写基础信息。</p>}
+          </section>
           {batchOpen ? (
             <section className="rounded-xl border border-violet-500/40 bg-violet-950/20 p-3 shadow-lg shadow-violet-950/20">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="flex items-center gap-2 text-sm font-bold text-white"><Users className="h-4 w-4 text-violet-300" /> 批量生成伴侣</h2>
-                  <p className="mt-1 text-[11px] text-slate-300">逐个读取伴侣卡特征并生成，每张图片自动进入对应伴侣独立资源库。单次最多 20 位。</p>
+                  <h2 className="flex items-center gap-2 text-sm font-bold text-white"><Users className="h-4 w-4 text-violet-300" /> 批量生产角色资产</h2>
+                  <p className="mt-1 text-[11px] text-slate-300">自动读取每位伴侣资料并归档到独立目录。身份生产包包含正脸、侧脸、半身、全身和角色立绘。</p>
+                  <div className="mt-2 inline-flex border border-violet-500/40 bg-slate-950 p-1">
+                    <button type="button" onClick={() => setBatchIdentityPack(true)} className={cn('h-7 px-2 text-[11px]', batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>身份图组 + 立绘</button>
+                    <button type="button" onClick={() => setBatchIdentityPack(false)} className={cn('h-7 px-2 text-[11px]', !batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>仅当前任务</button>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button type="button" size="sm" variant="outline" disabled={batchRunning || batchLoading} onClick={() => {
-                    setBatchSelectedIds(filteredBatchGirlfriends.slice(0, 20).map((item) => String(item.id)));
+                    setBatchSelectedIds(filteredBatchGirlfriends.slice(0, batchIdentityPack ? 8 : 20).map((item) => String(item.id)));
                   }}>选择当前结果</Button>
                   <Button type="button" size="sm" variant="outline" disabled={batchRunning} onClick={() => setBatchSelectedIds([])}>清空</Button>
                   <Button type="button" size="sm" className="bg-violet-600 hover:bg-violet-500" disabled={batchRunning || batchSelectedIds.length === 0} onClick={() => void runBatchGeneration()}>
                     {batchRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Play className="mr-1.5 h-4 w-4" />}
-                    {batchRunning ? '批量生成中' : `开始生成 ${batchSelectedIds.length || ''}`}
+                    {batchRunning ? '角色资产生产中' : batchIdentityPack ? `生成 ${batchSelectedIds.length * CHARACTER_ID_PACK.length} 项资产` : `生成 ${batchSelectedIds.length} 项资产`}
                   </Button>
                 </div>
               </div>
