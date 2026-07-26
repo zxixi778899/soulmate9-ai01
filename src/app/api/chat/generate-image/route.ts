@@ -278,11 +278,17 @@ export async function POST(request: NextRequest) {
     });
     const identity = [
       gfRecord.name,
+      gfRecord.age ? `age ${String(gfRecord.age)}` : 'age 25 or older',
+      gfRecord.ethnicity,
       gfRecord.appearance_race,
       gfRecord.appearance_hair_color,
       gfRecord.appearance_hair,
       gfRecord.appearance_eyes,
       gfRecord.appearance_body,
+      gfRecord.appearance_face,
+      gfRecord.appearance_skin,
+      gfRecord.appearance,
+      gfRecord.distinguishing_features,
     ].filter(Boolean).map(String).join(', ');
     let prompt = buildStudioPromptEnhancement({
       category,
@@ -376,8 +382,8 @@ export async function POST(request: NextRequest) {
       resolved.config.use_consistency_default !== false && Boolean(referenceImage);
     const denoise = useConsistency
       ? intimacyPolicy.level >= 3
-        ? 0.92
-        : 0.86
+        ? 0.58
+        : 0.42
       : 1;
 
     const sceneCfg = resolved.config;

@@ -47,10 +47,10 @@ export function resolveImageGenerationRoute(input: {
       endpointEnv: 'RUNPOD_ENDPOINT_ID_SDXL',
       endpointId: sdxlEndpoint,
       checkpoint: env('RUNPOD_ILLUSTRIOUS_CHECKPOINT', 'waiMatureIllustrious_v20.safetensors'),
-      sampler: complexScene ? 'dpmpp_sde' : 'dpmpp_2m',
+      sampler: complexScene ? 'dpmpp_sde' : 'dpmpp_2m_sde',
       scheduler: 'karras',
-      steps: complexScene ? 34 : 28,
-      cfg: complexScene ? 6.5 : 5.5,
+      steps: complexScene ? 40 : 34,
+      cfg: complexScene ? 6.5 : 5.8,
       clipSkip: 2,
       width: 832,
       height: 1216,
@@ -65,6 +65,19 @@ export function resolveImageGenerationRoute(input: {
   const needsAdultAnatomy = input.surface === 'companion' && renderStyle === 'realistic' &&
     (intensity >= 3 || input.category === 'transgender' || complexScene);
   if (needsAdultAnatomy) {
+    const category = input.category || 'female';
+    const subjectTags = category === 'transgender'
+      ? '1girl, solo, transgender female, futanari, feminine face, breasts, penis, testicles'
+      : category === 'male'
+        ? '1boy, solo, male, masculine face, broad shoulders, male body'
+        : '1girl, solo, female, feminine face, female body';
+    const anatomyTags = intensity >= 3
+      ? category === 'transgender'
+        ? 'visible breasts, visible penis, visible testicles'
+        : category === 'male'
+          ? 'visible penis, visible testicles'
+          : 'visible breasts, visible vulva'
+      : '';
     const highControl = semantics.powerDynamic === 'sm' || semantics.pairing === 'group_4i';
     return {
       surface: input.surface,
@@ -72,15 +85,15 @@ export function resolveImageGenerationRoute(input: {
       endpointEnv: 'RUNPOD_ENDPOINT_ID_SDXL',
       endpointId: sdxlEndpoint,
       checkpoint: env('RUNPOD_PONY_CHECKPOINT', 'ponyRealism_V22.safetensors'),
-      sampler: highControl ? 'dpmpp_sde' : 'dpmpp_2m',
+      sampler: highControl ? 'dpmpp_sde' : 'dpmpp_2m_sde',
       scheduler: 'karras',
-      steps: highControl ? 36 : complexScene ? 34 : 30,
-      cfg: highControl ? 6.5 : 6,
+      steps: highControl ? 44 : complexScene ? 40 : 36,
+      cfg: highControl ? 7 : 6.5,
       clipSkip: 2,
-      width: complexScene ? 896 : 832,
-      height: complexScene ? 1152 : 1216,
+      width: 1024,
+      height: complexScene ? 1344 : 1536,
       presetId: highControl ? 'pony-adult-composition-control' : complexScene ? 'pony-adult-pair' : 'pony-adult-portrait',
-      promptPrefix: 'score_9, score_8_up, score_7_up, source_realistic. Natural adult editorial photography with coherent anatomy, candid body language, realistic skin texture, and uncluttered composition.',
+      promptPrefix: `score_9, score_8_up, score_7_up, source_realistic, ${subjectTags}, ${anatomyTags}, full body, complete head, face visible, eyes in focus, detailed skin, natural skin texture, realistic photography, sharp focus, clean exposure, BREAK.`,
       reason: input.category === 'transgender'
         ? 'Transgender anatomy uses the Pony-native adult pipeline on CD2.'
         : 'Explicit or multi-person adult anatomy uses the Pony-native adult pipeline on CD2.',
@@ -95,14 +108,14 @@ export function resolveImageGenerationRoute(input: {
     checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
     sampler: 'euler',
     scheduler: 'simple',
-    steps: input.surface === 'companion' ? 28 : 24,
-    cfg: 1,
+    steps: input.surface === 'companion' ? 32 : 28,
+    cfg: 1.8,
     clipSkip: 1,
     width: input.surface === 'companion' ? 832 : 1024,
     height: input.surface === 'companion' ? 1216 : 1024,
     presetId: input.surface === 'companion' ? 'flux-companion-natural' : `flux-${input.surface}-product`,
     promptPrefix: input.surface === 'companion'
-      ? 'Natural editorial portrait photography with relaxed posture and believable skin texture.'
+      ? 'A sharp in-focus real-camera editorial portrait with the complete head visible, clear eyes, relaxed posture, natural skin pores, restrained grain, and believable texture.'
       : 'Clean commercial product photography with accurate materials and controlled lighting.',
     reason: renderStyle === '3d'
       ? '3D companion rendering stays on FLUX CD1.'

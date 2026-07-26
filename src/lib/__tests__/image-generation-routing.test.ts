@@ -17,6 +17,28 @@ describe('unified image generation routing', () => {
     }).endpointEnv).toBe('RUNPOD_ENDPOINT_ID_SDXL');
   });
 
+  it.each([
+    ['female', '1girl, solo, female', 'visible vulva'],
+    ['male', '1boy, solo, male', 'visible penis'],
+    ['transgender', 'transgender female, futanari', 'visible breasts, visible penis'],
+  ] as const)('uses Pony-native tags and recommended parameters for %s NSFW', (category, subjectTag, anatomyTag) => {
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      category,
+      renderStyle: 'realistic',
+      nsfwIntensity: 5,
+    });
+    expect(route.modelFamily).toBe('pony');
+    expect(route.promptPrefix).toContain(subjectTag);
+    expect(route.promptPrefix).toContain(anatomyTag);
+    expect(route.sampler).toBe('dpmpp_2m_sde');
+    expect(route.scheduler).toBe('karras');
+    expect(route.cfg).toBeGreaterThanOrEqual(6);
+    expect(route.steps).toBeGreaterThanOrEqual(36);
+    expect(route.width).toBeGreaterThanOrEqual(1024);
+    expect(route.clipSkip).toBe(2);
+  });
+
   it('routes 2D to Illustrious and 3D to FLUX', () => {
     expect(resolveImageGenerationRoute({
       surface: 'companion',

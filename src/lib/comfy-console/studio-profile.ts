@@ -53,7 +53,9 @@ const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
 
 function compactIdentity(identity?: string): string {
   const clean = String(identity || '').replace(/\s+/g, ' ').trim();
-  return clean ? ' Keep these identity details: ' + clean.slice(0, 180) + '.' : '';
+  return clean
+    ? ' This is the same established character in every image. Preserve exactly these identity details: ' + clean.slice(0, 420) + '. Do not replace them with a generic face or body.'
+    : '';
 }
 
 function compactScene(scene?: string): string {
@@ -71,7 +73,7 @@ export function buildStudioPromptEnhancement(input: {
 }): string {
   const quality = RENDER_PROMPTS[input.animeStyle || 'realistic'];
   const composition = input.intensity >= 3
-    ? 'Use a candid three-quarter full-body view with the torso and pelvis in frame. Shift the weight naturally through one hip, keep the shoulders and hips slightly asymmetrical, relax the free hand, and capture a believable moment between movements rather than a rigid pose.'
+    ? 'Use a candid head-to-knee or full-body view with the entire head and face visible and the torso and pelvis in frame, with both hands inside the image. Shift the weight naturally through one hip, keep the shoulders and hips slightly asymmetrical, relax the free hand, and capture a believable moment between movements rather than a rigid pose.'
     : input.category === 'transgender'
       ? 'Use a relaxed three-quarter view that establishes her feminine face, chest, waist, and hips without a centered mannequin pose.'
       : 'Keep the action readable with relaxed shoulders, natural weight distribution, and an unforced candid expression.';
@@ -99,10 +101,14 @@ export function studioIntensityLabel(intensity: NsfwIntensity): string {
 }
 
 export function studioNegativePrompt(category: CompanionCategory, animeStyle: AnimeRenderStyle = 'realistic'): string {
-  const shared = 'plastic skin, waxy face, mannequin pose, rigid symmetry, over-smoothed skin, vacant expression, child, teen, underage, youthful face, ambiguous age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals';
+  const shared = 'score_4, score_5, score_6, worst quality, low quality, blur, soft focus, motion blur, excessive film grain, chromatic noise, jpeg artifacts, low resolution, plastic skin, waxy face, mannequin pose, rigid symmetry, over-smoothed skin, vacant expression, cropped head, head out of frame, headless body, cut-off face, child, teen, underage, youthful face, ambiguous age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals';
   const anatomy = category === 'transgender'
     ? 'cisgender woman, vagina, flat chest, cropped pelvis, genital area out of frame, duplicated genitals, detached genitals, male-only silhouette, caricature, fetish stereotype'
-    : 'broken pelvis, bad anatomy';
+    : category === 'male'
+      ? 'woman, female body, feminine breasts, vagina, transgender woman, feminine silhouette, narrow female shoulders, broken pelvis, bad anatomy'
+      : category === 'female'
+        ? 'man, male body, penis, testicles, transgender woman, masculine face, broad masculine torso, broken pelvis, bad anatomy'
+        : 'broken pelvis, bad anatomy';
   const style = animeStyle === '2d'
     ? 'photorealistic, photograph, 3d render, plastic CGI, muddy line art'
     : animeStyle === '3d'

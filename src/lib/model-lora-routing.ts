@@ -19,6 +19,24 @@ type ModelLoraPlan = {
 const splitList = (value: string | undefined): string[] =>
   [...new Set(String(value || '').split(/[;,\n]/).map((item) => item.trim()).filter(Boolean))];
 
+const DEFAULT_FAMILY_LORAS: Record<ImageModelFamily, Partial<Record<CompanionCategory | 'nsfw' | '2d', string[]>>> = {
+  flux: {},
+  pony: {
+    female: ['pony_detailifier_v5.safetensors'],
+    male: ['pony_detailifier_v5.safetensors'],
+    transgender: ['pony_detailifier_v5.safetensors'],
+    anime: ['pony_detailifier_v5.safetensors'],
+    nsfw: ['pony_detailifier_v5.safetensors'],
+  },
+  illustrious: {
+    female: ['AddMicroDetails_Illustrious_v6.safetensors', 'BackgroundDetailerV3-000004.safetensors'],
+    male: ['AddMicroDetails_Illustrious_v6.safetensors', 'BackgroundDetailerV3-000004.safetensors'],
+    transgender: ['AddMicroDetails_Illustrious_v6.safetensors', 'BackgroundDetailerV3-000004.safetensors'],
+    anime: ['AddMicroDetails_Illustrious_v6.safetensors', 'BackgroundDetailerV3-000004.safetensors'],
+    '2d': ['StS-Illustrious-Detail-Slider-v1.0.safetensors'],
+  },
+};
+
 function inventoryForFamily(family: ImageModelFamily | 'sdxl'): { files: Set<string>; source: string } {
   const familyKey = family.toUpperCase();
   const familyValue = process.env[`RUNPOD_INSTALLED_LORAS_${familyKey}`];
@@ -52,7 +70,14 @@ function configuredCandidates(
     animeStyle === '3d' ? process.env[`${prefix}_3D_LORAS`] : '',
     process.env[`${prefix}_LORAS`],
   ];
-  return [...new Set(values.flatMap(splitList))];
+  const configured = [...new Set(values.flatMap(splitList))];
+  if (configured.length > 0) return configured;
+  const defaults = DEFAULT_FAMILY_LORAS[family];
+  return [...new Set([
+    ...(defaults[category] || defaults.female || []),
+    ...(intensity >= 3 ? defaults.nsfw || [] : []),
+    ...(animeStyle === '2d' ? defaults['2d'] || [] : []),
+  ])];
 }
 
 function rankInventory(files: Set<string>, category: CompanionCategory, intensity: NsfwIntensity): string[] {
@@ -120,7 +145,11 @@ export function resolveModelLoraPlan(input: {
     : [];
   const names = [...new Set([...requested.map((item) => item.name), ...configured, ...inventoryCandidates])];
   const inventoryVerified = inventory.files.size > 0;
-  const allowed = names.filter((name) => !inventoryVerified || inventory.files.has(name)).slice(0, maxLoras);
+  const verifiedNames = names.filter((name) => !inventoryVerified || inventory.files.has(name));
+  const fallbackNames = verifiedNames.length === 0 && canAutoSelectInventory
+    ? rankInventory(inventory.files, input.category, input.intensity)
+    : [];
+  const allowed = [...new Set([...verifiedNames, ...fallbackNames])].slice(0, maxLoras);
   const selected = allowed.map((name, index) => {
     const explicit = requested.find((item) => item.name === name);
     const strength = strengthForIntensity(input.intensity, index);
