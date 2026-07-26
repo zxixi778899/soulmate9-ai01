@@ -646,40 +646,51 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) {
-      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    const singleId = searchParams.get('id');
+    const batchRaw = searchParams.get('ids');
+
+    // Resolve list of IDs to delete (single or batch)
+    let ids: string[] = [];
+    if (batchRaw) {
+      ids = [...new Set(batchRaw.split(',').map((s) => s.trim()).filter(Boolean))].slice(0, 50);
+    } else if (singleId) {
+      ids = [singleId];
+    }
+    if (ids.length === 0) {
+      return NextResponse.json({ error: 'id or ids is required' }, { status: 400 });
     }
 
-    // Best-effort slug for ISR bust before delete
-    let slug: string | null = null;
-    let gfName: string | null = null;
+    // Best-effort: fetch slugs + names for ISR bust and featured cleanup
+    let slugs: string[] = [];
+    let names: string[] = [];
     try {
-      const { data: row } = await supabase.from('girlfriends').select('slug, name').eq('id', id).maybeSingle();
-      slug = (row?.slug as string) || null;
-      gfName = (row?.name as string) || null;
+      const { data: rows } = await supabase
+        .from('girlfriends')
+        .select('slug, name')
+        .in('id', ids);
+      slugs = (rows || []).map((r) => String(r.slug || '')).filter(Boolean);
+      names = (rows || []).map((r) => String(r.name || '')).filter(Boolean);
     } catch {
       /* ignore */
     }
 
     // Clean up featured_girlfriends: match by base_girlfriend_id AND by name
-    // (name fallback handles cases where featured row has a different base ID)
     try {
-      await supabase.from('featured_girlfriends').delete().eq('base_girlfriend_id', id);
-      if (gfName) {
-        await supabase.from('featured_girlfriends').delete().eq('name', gfName);
+      await supabase.from('featured_girlfriends').delete().in('base_girlfriend_id', ids);
+      if (names.length > 0) {
+        await supabase.from('featured_girlfriends').delete().in('name', names);
       }
     } catch (featuredErr) {
       logger.warn('[admin/girlfriends] featured cleanup failed (non-critical)', {
         err: featuredErr instanceof Error ? featuredErr.message : String(featuredErr),
-        id,
+        ids,
       });
     }
 
-    const { error: deleteErr } = await supabase.from('girlfriends').delete().eq('id', id);
+    const { error: deleteErr } = await supabase.from('girlfriends').delete().in('id', ids);
     if (deleteErr) throw deleteErr;
-    invalidateGirlfriends(slug);
-    return NextResponse.json({ success: true });
+    for (const slug of slugs) invalidateGirlfriends(slug);
+    return NextResponse.json({ success: true, deleted: ids.length });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });

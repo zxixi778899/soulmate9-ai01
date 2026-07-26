@@ -41,6 +41,8 @@ import {
   Trash2,
   RefreshCw,
   Heart,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -300,6 +302,9 @@ function AdminGirlfriendsMediaPageInner() {
   const [batchGender, setBatchGender] = useState<'Female' | 'Male' | 'Transgender' | 'random'>('random');
   const [batchMode, setBatchMode] = useState<'random' | 'llm'>('random');
   const [batchLoading, setBatchLoading] = useState(false);
+  // Batch delete selection
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   useEffect(() => {
     const f = searchParams.get('filter');
@@ -563,6 +568,57 @@ function AdminGirlfriendsMediaPageInner() {
       toast.error(e instanceof Error ? e.message : '删除失败');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // ── Batch selection + delete ──
+  const toggleCheck = (id: string) => {
+    setCheckedIds((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  };
+
+  const toggleCheckAll = () => {
+    if (checkedIds.size === filtered.length) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(filtered.map((g) => g.id)));
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (checkedIds.size === 0) return;
+    if (!window.confirm(`确定删除选中的 ${checkedIds.size} 个伴侣？此操作不可恢复。`)) return;
+    setBatchDeleting(true);
+    try {
+      const ids = [...checkedIds];
+      const res = await authedFetch(`/api/admin/girlfriends?ids=${encodeURIComponent(ids.join(','))}`, { method: 'DELETE' });
+      const data = await readResponseJson<{ error?: string; deleted?: number }>(res);
+      if (!res.ok) throw new Error(data.error || '批量删除失败');
+      toast.success(`已删除 ${data.deleted ?? ids.length} 个伴侣`);
+      setCheckedIds(new Set());
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '批量删除失败');
+    } finally {
+      setBatchDeleting(false);
+    }
+  };
+
+  const handleQuickDelete = async (g: Girlfriend) => {
+    if (!window.confirm(`确定删除「${g.name}」？此操作不可恢复。`)) return;
+    try {
+      const res = await authedFetch(`/api/admin/girlfriends?id=${g.id}`, { method: 'DELETE' });
+      const data = await readResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || '删除失败');
+      toast.success(`已删除「${g.name}」`);
+      setCheckedIds((prev) => { const n = new Set(prev); n.delete(g.id); return n; });
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '删除失败');
     }
   };
 
@@ -856,6 +912,36 @@ function AdminGirlfriendsMediaPageInner() {
             </Select>
           </div>
           <p className="mt-2 text-xs text-slate-500">共 {total} 条 · 本页筛选后 {filtered.length} 张</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleCheckAll}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-slate-300 transition hover:bg-white/10"
+            >
+              {checkedIds.size === filtered.length && filtered.length > 0 ? (
+                <CheckSquare className="h-3.5 w-3.5 text-rose-400" />
+              ) : (
+                <Square className="h-3.5 w-3.5" />
+              )}
+              {checkedIds.size === filtered.length && filtered.length > 0 ? '取消全选' : '全选本页'}
+            </button>
+            {checkedIds.size > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={batchDeleting}
+                onClick={handleBatchDelete}
+                className="border-rose-500/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
+              >
+                {batchDeleting ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                批量删除 ({checkedIds.size})
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -872,11 +958,28 @@ function AdminGirlfriendsMediaPageInner() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {filtered.map((g) => {
               const cover = coverOf(g);
+              const isChecked = checkedIds.has(g.id);
               return (
                 <div
                   key={g.id}
-                  className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] transition hover:border-rose-400/40 hover:bg-rose-500/5"
+                  className={cn(
+                    'group relative overflow-hidden rounded-xl border bg-white/[0.03] transition hover:border-rose-400/40 hover:bg-rose-500/5',
+                    isChecked ? 'border-rose-500 ring-2 ring-rose-500/30' : 'border-white/10',
+                  )}
                 >
+                  {/* Selection checkbox */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); toggleCheck(g.id); }}
+                    className="absolute right-1.5 top-1.5 z-10 rounded bg-black/60 p-1 backdrop-blur-sm transition hover:bg-black/80"
+                    aria-label={isChecked ? '取消选中' : '选中'}
+                  >
+                    {isChecked ? (
+                      <CheckSquare className="h-4 w-4 text-rose-400" />
+                    ) : (
+                      <Square className="h-4 w-4 text-white/60" />
+                    )}
+                  </button>
                   <button type="button" onClick={() => openEdit(g)} className="block w-full text-left">
                     <div className="relative aspect-[3/4] bg-black/40">
                       {cover ? (
@@ -939,6 +1042,14 @@ function AdminGirlfriendsMediaPageInner() {
                       >
                         <Sparkles className="h-3.5 w-3.5" />
                       </Link>
+                      <button
+                        type="button"
+                        title="删除"
+                        onClick={(e) => { e.stopPropagation(); void handleQuickDelete(g); }}
+                        className="rounded p-0.5 text-slate-500 hover:bg-rose-500/20 hover:text-rose-400"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>
