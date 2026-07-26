@@ -6,8 +6,47 @@ import { useAuth } from '@/components/AuthProvider';
 import { Loader2 } from 'lucide-react';
 
 /**
+ * Route prefixes that require authentication.
+ * Guests can freely browse everything else (explore, category, pricing…).
+ * When a guest hits one of these, we redirect to /login?next=<path>.
+ */
+const AUTH_REQUIRED_PREFIXES = [
+  '/chat/',
+  '/chats',
+  '/create',
+  '/studio',
+  '/wallet',
+  '/wardrobe',
+  '/memories',
+  '/quest',
+  '/voice',
+  '/summon',
+  '/profile',
+  '/shop',
+  '/purchases',
+  '/payment',
+  '/admin',
+  '/achievements',
+];
+
+function isAuthRequired(pathname: string | null): boolean {
+  if (!pathname) return false;
+  // /payment/success is public (post-checkout landing)
+  if (pathname === '/payment/success' || pathname.startsWith('/payment/success/')) return false;
+  return AUTH_REQUIRED_PREFIXES.some(
+    (prefix) => pathname === prefix.replace(/\/$/, '') || pathname.startsWith(prefix),
+  );
+}
+
+/**
  * Main app shell — no left sidebar (full-bleed game canvas).
  * Navigation lives in bottom dock + top glass bar.
+ *
+ * Permission model:
+ *  - Guest (no session): browse explore / category / pricing freely.
+ *    Triggered login when entering chat, create, shop, etc.
+ *  - User (authenticated): full access gated by membership tier.
+ *  - Admin: /admin guarded separately by admin layout + requireAdmin().
  */
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -20,31 +59,15 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     setMounted(true);
   }, []);
 
-  // Public routes inside (main) that must work without login
-  const isPublicMainRoute =
-    pathname === '/pricing' ||
-    pathname?.startsWith('/pricing/') ||
-    pathname === '/payment/success';
+  const needsAuth = isAuthRequired(pathname);
 
+  // Redirect guests only when they hit an auth-required route
   useEffect(() => {
-    if (mounted && !isLoading && !user && !isPublicMainRoute) {
+    if (mounted && !isLoading && !user && needsAuth) {
       const next = pathname && pathname !== '/' ? `?next=${encodeURIComponent(pathname)}` : '';
       router.push(`/login${next}`);
     }
-  }, [mounted, isLoading, user, router, pathname, isPublicMainRoute]);
-
-  useEffect(() => {
-    if (mounted && !isLoading && user && pathname !== '/onboarding' && !isAdmin) {
-      const onboardingDone = localStorage.getItem('soulmate_onboarding_complete');
-      if (!onboardingDone) {
-        router.push('/onboarding');
-      }
-    }
-  }, [mounted, isLoading, user, pathname, router, isAdmin]);
-
-  if (pathname === '/onboarding' && user) {
-    return <>{children}</>;
-  }
+  }, [mounted, isLoading, user, router, pathname, needsAuth]);
 
   // Always show a shell while hydrating / auth loads — never blank body
   if (!mounted || isLoading) {
@@ -69,8 +92,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  // Unauthenticated: keep loading shell while redirect runs (avoid empty white/black page)
-  if (!user && !isPublicMainRoute) {
+  // Guest on auth-required route: keep loading shell while redirect runs
+  if (!user && needsAuth) {
     return (
       <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#08040e]">
         <div className="relative flex flex-col items-center gap-4 glass-strong rounded-3xl px-10 py-8">

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { isSupportedLocale, type Locale, type TranslationKey } from './types';
-import { getTranslation, detectBrowserLocale } from './translations';
+import { getTranslation } from './translations';
 
 interface I18nContextType {
   locale: Locale;
@@ -20,18 +20,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');
 
   useEffect(() => {
-    // Never force Chinese on admin path for front locale storage —
-    // admin layout sets zh-CN on document separately.
+    // Default to English. Only use a stored preference if the user previously
+    // switched language explicitly via the language switcher.
     const stored = localStorage.getItem('soulmate_locale');
-    let targetLocale: Locale;
-    if (isSupportedLocale(stored)) {
-      targetLocale = stored;
-    } else {
-      const detected = detectBrowserLocale();
-      targetLocale = isSupportedLocale(detected) ? detected : 'en';
-    }
+    const targetLocale: Locale = isSupportedLocale(stored) ? stored : 'en';
     setLocaleState(targetLocale);
-    // Nordic / EU browsers (sv, no, da, fi, de, …) → en UI, lang=en
     document.documentElement.lang = targetLocale;
   }, []);
 

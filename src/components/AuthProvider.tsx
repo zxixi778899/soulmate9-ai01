@@ -70,11 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     if (!supabase) {
-      router.push('/login');
+      router.push('/');
       return;
     }
     await supabase.auth.signOut();
-    router.push('/login');
+    router.push('/');
   };
 
   return (
