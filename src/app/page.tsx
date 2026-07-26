@@ -210,7 +210,7 @@ export default function HomePage() {
   const featured = roster[focus] || filteredCatalog[0] || null;
   const rc = RARITY_COLORS[(featured?.rarity as keyof typeof RARITY_COLORS) || 'R'] || RARITY_COLORS.R;
 
-  // 热门 12：后台 is_hot / featured 优先，再按 hot_score
+  // 热门 20：后台 is_hot / featured 优先，再按 hot_score
   const hotList = useMemo(() => {
     const score = (g: DemoGirl) => {
       const base = Number(g.hot_score ?? g.intimacy ?? 0);
@@ -218,7 +218,7 @@ export default function HomePage() {
       if (g.is_featured || g.list_kind === 'featured') return 1_000_000 + base;
       return base;
     };
-    return [...filteredCatalog].sort((a, b) => score(b) - score(a)).slice(0, 12);
+    return [...filteredCatalog].sort((a, b) => score(b) - score(a)).slice(0, 20);
   }, [filteredCatalog]);
 
   useEffect(() => {
@@ -592,12 +592,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ═══════════ Hot 12：移动端左右滑动轮播 / 桌面 3×4 网格 ═══════════ */}
+        {/* ═══════════ Hot 20：移动端左右滑动轮播 / 桌面 4×5 网格 ═══════════ */}
         <section>
           <div className="flex items-center justify-between gap-3 mb-3">
             <div>
               <div className="game-chip mb-1">
-                <Flame className="h-3 w-3" /> HOT · 3×4
+                <Flame className="h-3 w-3" /> HOT · 4×5
               </div>
               <h3 className="text-lg font-bold">{t('home.hotTitle')}</h3>
               <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>

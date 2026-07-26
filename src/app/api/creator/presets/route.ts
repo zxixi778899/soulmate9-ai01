@@ -42,11 +42,16 @@ export async function GET(req: NextRequest) {
         console.warn('[creator/presets] options query failed', optErr.message);
         result.options = {};
       } else {
-        // Group by category
+        // Group by category (dedupe by value in case of accidental duplicate rows)
         const grouped: Record<string, any[]> = {};
+        const seenPerCat: Record<string, Set<string>> = {};
         for (const opt of options || []) {
           const cat = opt.category;
           if (!grouped[cat]) grouped[cat] = [];
+          if (!seenPerCat[cat]) seenPerCat[cat] = new Set();
+          const valKey = String(opt.value ?? '').trim().toLowerCase();
+          if (valKey && seenPerCat[cat].has(valKey)) continue;
+          if (valKey) seenPerCat[cat].add(valKey);
           grouped[cat].push(opt);
         }
         result.options = grouped;

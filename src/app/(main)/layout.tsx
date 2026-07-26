@@ -82,16 +82,25 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   }
 
   const isChatDetail = pathname?.startsWith('/chat/');
+  const isChats = pathname === '/chats' || pathname?.startsWith('/chats/');
   const isCreate = pathname?.startsWith('/create');
 
-  // Chat / create: full-height fixed shell. Other pages: scrollable mobile canvas.
-  const lockViewport = isChatDetail || isCreate || isAdmin;
+  // Chat / chats / create: full-height fixed shell. Other pages: scrollable mobile canvas.
+  const lockViewport = isChatDetail || isChats || isCreate || isAdmin;
+
+  // /chats keeps the sticky top nav visible, so the locked shell must subtract the
+  // nav height (3rem mobile / 3.5rem desktop + 1px border + safe-area top inset)
+  // to fit exactly between the nav and the viewport bottom. Other locked pages hide
+  // the nav and can use the full dynamic viewport height.
+  const lockedShellHeight = isChats
+    ? 'h-[calc(100dvh-3rem-1px-env(safe-area-inset-top,0px))] sm:h-[calc(100dvh-3.5rem-1px-env(safe-area-inset-top,0px))]'
+    : 'h-[100dvh] max-h-[100dvh]';
 
   return (
     <div
       className={`relative flex bg-[#08040e] text-[#FAF7FF] ${
         lockViewport
-          ? 'h-[100dvh] max-h-[100dvh] overflow-hidden'
+          ? `${lockedShellHeight} overflow-hidden`
           : 'min-h-[100dvh]'
       }`}
     >

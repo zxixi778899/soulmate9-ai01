@@ -423,7 +423,7 @@ export default function ChatsPage() {
       const msgData = await readResponseJson(msgRes).catch(() => ({}));
       const intData = await readResponseJson(intRes).catch(() => ({}));
 
-      let gfList = Array.isArray((gfData as { girlfriends?: ChatGirlfriend[] }).girlfriends) ? (gfData as { girlfriends: ChatGirlfriend[] }).girlfriends : [];
+      const gfList = Array.isArray((gfData as { girlfriends?: ChatGirlfriend[] }).girlfriends) ? (gfData as { girlfriends: ChatGirlfriend[] }).girlfriends : [];
       let gf: ChatGirlfriend | null = gfList.find((g) => g.id === id) || gfList[0] || null;
       if (!gf) {
         const all = await authedFetch('/api/girlfriends').then((r) => readResponseJson(r).catch(() => ({}))).catch(() => ({}));
@@ -764,7 +764,7 @@ export default function ChatsPage() {
 
   // ── Render ──
   return (
-    <div className="h-[100dvh] flex bg-[#0a0a12] overflow-hidden">
+    <div className="h-full flex bg-[#0a0a12] overflow-hidden pb-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:pb-0">
       {/* ──── Left sidebar: Friend list ──── */}
       <aside className={cn(
         'flex flex-col border-r border-white/[0.06] bg-[#0e0e18]',
