@@ -1,0 +1,12 @@
+# filename|download_url|sha256|family|trigger
+flux_style_photoreal_v1.safetensors|https://civitai.com/api/download/models/1084957|-|flux|photorealistic
+flux_detail_skin_v1.safetensors|https://civitai.com/api/download/models/827325|-|flux|natural skin texture
+flux_detail_skin_nplastic_v1.safetensors|https://civitai.com/api/download/models/1301668|-|flux|natural skin
+flux_detail_hands_v1.safetensors|https://civitai.com/api/download/models/1003317|-|flux|detailed hands
+flux_body_curvy_v1.safetensors|https://civitai.com/api/download/models/1668530|-|flux|curvy body
+flux_body_pear_v1.safetensors|https://civitai.com/api/download/models/1276427|-|flux|pear body
+flux_pose_nsfw_dynamic_v1.safetensors|https://civitai.com/api/download/models/746602|-|flux|dynamic pose
+flux_outfit_lingerie_v1.safetensors|https://civitai.com/api/download/models/869894|-|flux|lingerie
+flux_outfit_bikini_v1.safetensors|https://civitai.com/api/download/models/1184191|-|flux|bikini
+flux_outfit_latex_v1.safetensors|https://civitai.com/api/download/models/734230|-|flux|latex outfit
+flux_style_cinematic_v1.safetensors|https://civitai.com/api/download/models/953083|-|flux|cinematic

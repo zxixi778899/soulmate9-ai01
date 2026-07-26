@@ -27,6 +27,8 @@ import {
   type AnimeRenderStyle,
 } from '@/lib/comfy-console/studio-profile';
 import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
+import { buildSceneCastPrompt, classifyImageScene } from '@/lib/image-scene-semantics';
+import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -263,8 +265,16 @@ export async function POST(request: NextRequest) {
       : /anime|manga|cartoon|2d|comic/i.test(animeText)
         ? '2d'
         : 'realistic';
+    const sceneSemantics = classifyImageScene(
+      [userRequest, ...chatContext.map((message) => message.content), poseTag, envTag].filter(Boolean).join(' '),
+      category,
+    );
     const generationRoute = resolveImageGenerationRoute({
-      surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intimacyPolicy.nsfwIntensity,
+      surface: 'companion',
+      category,
+      renderStyle: animeStyle,
+      nsfwIntensity: intimacyPolicy.nsfwIntensity,
+      sceneSemantics,
     });
     const identity = [
       gfRecord.name,
@@ -278,9 +288,11 @@ export async function POST(request: NextRequest) {
       category,
       intensity: intimacyPolicy.nsfwIntensity,
       animeStyle,
-      scene: sceneBits,
+      scene: `${sceneBits}. ${buildSceneCastPrompt(sceneSemantics)}`,
       identity,
     });
+
+    prompt = `${generationRoute.promptPrefix} ${prompt}`;
 
     const genderStyle = detectGenderStyle(gfRecord);
     const generationProfile = resolveImageGenerationProfile(genderStyle, effectiveAdult);
@@ -312,15 +324,26 @@ export async function POST(request: NextRequest) {
     }));
     const categoryFiles = new Set(categoryLoras.map((lora) => lora.name));
     const useCategoryOnly = categoryControl.selected.length > 0;
-    const intelligentLoras = generationRoute.modelFamily === 'flux' ? [
-      ...categoryLoras,
-      ...(useCategoryOnly
-        ? []
-        : genericLoras.filter((lora) => !categoryFiles.has(lora.name))),
-    ].slice(0, 1) : [];
+    const requestedCompatibleLoras = generationRoute.modelFamily === 'flux'
+      ? [
+          ...categoryLoras,
+          ...(useCategoryOnly ? [] : genericLoras.filter((lora) => !categoryFiles.has(lora.name))),
+        ]
+      : [];
+    const compatibleLoraPlan = resolveModelLoraPlan({
+      modelFamily: generationRoute.modelFamily,
+      category,
+      intensity: intimacyPolicy.nsfwIntensity,
+      animeStyle,
+      requested: requestedCompatibleLoras,
+      maxLoras: intimacyPolicy.nsfwIntensity >= 3 ? 3 : 2,
+    });
+    const intelligentLoras = compatibleLoraPlan.selected;
+    const modelLoraTriggers = compatibleLoraPlan.triggerWords;
     const triggerWords = categoryControl.selected.flatMap((lora) => lora.triggerWords);
-    if (triggerWords.length > 0) {
-      prompt = `${[...new Set(triggerWords)].join(', ')}. ${prompt}`;
+    const allLoraTriggers = [...new Set([...triggerWords, ...modelLoraTriggers])];
+    if (allLoraTriggers.length > 0) {
+      prompt = `${allLoraTriggers.join(', ')}. ${prompt}`;
     }
     const baseNegativePrompt =
       typeof (body as { negative_prompt?: string }).negative_prompt === 'string' &&
@@ -365,8 +388,8 @@ export async function POST(request: NextRequest) {
     const routerResult = await routeImageGeneration({
       prompt,
       negative_prompt: negativePrompt,
-      width: sceneCfg.width || 704,
-      height: sceneCfg.height || 960,
+      width: generationRoute.width || sceneCfg.width || 704,
+      height: generationRoute.height || sceneCfg.height || 960,
       num_inference_steps: generationRoute.steps,
       guidance_scale: generationRoute.cfg,
       seed: generationSeed,
@@ -376,6 +399,7 @@ export async function POST(request: NextRequest) {
       ckpt_name: generationRoute.checkpoint,
       sampler_name: generationRoute.sampler,
       scheduler: generationRoute.scheduler,
+      clip_skip: generationRoute.clipSkip,
       model_family: generationRoute.modelFamily,
       force_provider: requestedProvider || (generationRoute.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2'),
       nsfw: effectiveAdult,
@@ -396,6 +420,8 @@ export async function POST(request: NextRequest) {
           intensity: intimacyPolicy.nsfwIntensity,
           prompt: prompt.slice(0, 800),
           loras: intelligentLoras,
+          lora_inventory_source: compatibleLoraPlan.inventorySource,
+          missing_loras: compatibleLoraPlan.missing,
           referenceDenoise: useConsistency ? denoise : null,
           attempts: routerResult.attempts,
         },

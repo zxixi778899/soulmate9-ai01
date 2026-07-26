@@ -1,0 +1,5 @@
+# filename|download_url|sha256|family|trigger
+pony_detailifier_v5.safetensors|https://civitai.com/api/download/models/624633|-|pony|detailerlora
+AddMicroDetails_Illustrious_v6.safetensors|https://civitai.com/api/download/models/2832991|CE12AF9C5E510A745618F76F1197C5776CD283E5DDDD707FC0371AFD940B4454|illustrious|
+StS-Illustrious-Detail-Slider-v1.0.safetensors|https://civitai.com/api/download/models/1122976|2E7A68EC7E2EBA5A07881E885E072213BBB1B03CBF881D852F0F85623AD99349|illustrious|
+BackgroundDetailerV3-000004.safetensors|https://civitai.com/api/download/models/726791|DF9E5D5356D662FEE519FF2C448EE1422A43B516BF26798B6AEE4EED410391B3|illustrious|

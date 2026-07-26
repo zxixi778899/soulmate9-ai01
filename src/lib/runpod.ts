@@ -11,6 +11,7 @@
  */
 
 import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
+import { validateModelLoraName } from '@/lib/model-lora-routing';
 import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from './analytics';
@@ -83,6 +84,7 @@ export function buildFluxWorkflow(opts: {
   seed?: number;
   sampler_name?: string;
   scheduler?: string;
+  clip_skip?: number;
   batch_size?: number;
   /** Worker-local filename registered via RunPod `images` payload, or path for LoadImage */
   input_image?: string;
@@ -126,16 +128,20 @@ export function buildFluxWorkflow(opts: {
       : [];
   const loraStack = requestedStack
     .map((item) => {
-      const sanitized = sanitizeLoraForVolume(item.name, { fallback: null });
-      if (sanitized.changed) {
-        logger.warn('[runpod] skipping LoRA not on volume', {
+      const validated = isFlux
+        ? (() => {
+            const result = sanitizeLoraForVolume(item.name, { fallback: null });
+            return { name: result.lora_name, reason: result.reason };
+          })()
+        : validateModelLoraName(modelFamily, item.name);
+      if (!validated.name) {
+        logger.warn('[runpod] skipping LoRA not on model-family volume', {
           requested: item.name,
-          reason: sanitized.reason,
+          modelFamily,
+          reason: validated.reason,
         });
       }
-      return sanitized.lora_name
-        ? { ...item, name: sanitized.lora_name }
-        : null;
+      return validated.name ? { ...item, name: validated.name } : null;
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)
     .slice(0, 4);
@@ -165,7 +171,8 @@ export function buildFluxWorkflow(opts: {
   // Optional LoRA node 14
   const lastLoraNodeId = loraStack.length ? String(14 + loraStack.length - 1) : '1';
   const modelRef: [string, number] = [lastLoraNodeId, 0];
-  const clipRef: [string, number] = [lastLoraNodeId, 1];
+  const clipSkip = isFlux ? 1 : Math.min(2, Math.max(1, Math.round(opts.clip_skip || 2)));
+  const clipRef: [string, number] = clipSkip > 1 ? ['20', 0] : [lastLoraNodeId, 1];
   const vaeRef: [string, number] = ['1', 2];
 
   const loraNodes = Object.fromEntries(loraStack.map((item, index) => {
@@ -182,6 +189,15 @@ export function buildFluxWorkflow(opts: {
         },
       }];
   }));
+
+  const clipSkipNodes = clipSkip > 1
+    ? {
+        '20': {
+          class_type: 'CLIPSetLastLayer',
+          inputs: { clip: [lastLoraNodeId, 1], stop_at_clip_layer: -clipSkip },
+        },
+      }
+    : {};
 
   // img2img path
   if (opts.input_image) {
@@ -241,7 +257,7 @@ export function buildFluxWorkflow(opts: {
         inputs: { pixels: ['12', 0], vae: vaeRef },
       },
     };
-    Object.assign(graph, loraNodes);
+    Object.assign(graph, loraNodes, clipSkipNodes);
     return graph;
   }
 
@@ -287,7 +303,7 @@ export function buildFluxWorkflow(opts: {
       inputs: { filename_prefix: 'soulmate', images: ['6', 0] },
     },
   };
-  Object.assign(graph, loraNodes);
+  Object.assign(graph, loraNodes, clipSkipNodes);
   return graph;
 }
 
@@ -308,6 +324,7 @@ export interface RunPodGenerateOptions {
   sampler_name?: string;
   /** Comfy KSampler scheduler (FLUX: simple) */
   scheduler?: string;
+  clip_skip?: number;
   input_image?: string;      // For img2img (character consistency)
   denoising_strength?: number; // 0-1, lower = closer to input
   ckpt_name?: string;
@@ -699,6 +716,7 @@ class RunPodClient {
       seed: options.seed,
       sampler_name: options.sampler_name || 'euler',
       scheduler: options.scheduler || 'simple',
+      clip_skip: options.clip_skip,
       batch_size: options.num_images,
       // Prefer resolved worker filename; if caller already passed a bare filename, keep it.
       input_image:

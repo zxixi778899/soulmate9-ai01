@@ -28,6 +28,8 @@ import { invokeChat } from '@/lib/ai-modules/invoke';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { COMPACT_ADULT_NEGATIVE, COMPANION_CATEGORIES, type CompanionCategory } from '@/lib/companion-category';
 import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
+import { buildSceneCastPrompt, classifyImageScene, normalizeLlmImageScene } from '@/lib/image-scene-semantics';
+import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 
@@ -448,7 +450,7 @@ export async function POST(req: NextRequest) {
       companion.appearance_body,
       companion.appearance,
     ].filter(Boolean).map(String).join(', ');
-    const systemPrompt = `Extract or invent one short setting for an adults-only FLUX image. Return strict JSON only with keys "prompt" and "negative". The prompt value must contain only a setting and framing in 8-24 natural English words. Do not include the subject, anatomy, action, style, quality tags, or NSFW labels; the server adds those deterministically.`;
+    const systemPrompt = `Analyze the requested adults-only image and return strict JSON only. Keys: "prompt", "negative", "pairing", "protagonist", "power_dynamic", "tags". pairing must be solo|female_male|male_male|female_female|trans_pair|group_4i. protagonist must be female|male|transgender|femboy|ensemble. power_dynamic must be neutral|male_dominant|male_submissive|sm. Interpret Chinese role labels: \u7537\u5973, \u7537\u7537, \u5973\u5973, \u5973\u4e3b, \u7537\u4e3b, \u8de8\u6027\u522b, 4i, \u4f2a\u5a18, SM, \u7537\u653b, \u7537\u53d7. The prompt is one concise natural-English setting/action/framing description for consenting adults. Never infer minors or non-consent.`;
     const userPrompt = [
       `Selected category: ${category}`,
       `Render style: ${animeStyle}`,
@@ -487,15 +489,20 @@ export async function POST(req: NextRequest) {
       });
       const raw = result.content;
       const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-      const parsed = JSON.parse(cleaned) as { prompt?: unknown; negative?: unknown };
+      const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+      const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
+      const sceneSemantics = normalizeLlmImageScene(parsed, fallbackSemantics);
       const optimizedScene = String(parsed.prompt || '').trim();
       if (!optimizedScene) throw new Error('LLM returned an empty scene');
       const optimizedPrompt = buildStudioPromptEnhancement({
         category,
         intensity,
         animeStyle,
-        scene: optimizedScene,
+        scene: `${optimizedScene}. ${buildSceneCastPrompt(sceneSemantics)}`,
         identity,
+      });
+      const generationRoute = resolveImageGenerationRoute({
+        surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intensity, sceneSemantics,
       });
       const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
       const installed = getInstalledLoraSet();
@@ -512,7 +519,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         source: 'llm',
-        prompt: optimizedPrompt,
+        scene_semantics: sceneSemantics,
+        generation_preset: generationRoute,
+        prompt: `${generationRoute.promptPrefix} ${optimizedPrompt}`,
         negative: String(parsed.negative || studioNegativePrompt(category, animeStyle)).trim(),
         loras,
         pipeline: {
@@ -1027,8 +1036,8 @@ if (body.action === 'verify_loras') {
       );
     }
 
-    const width = Number(body.width || wf?.defaults.width || 832);
-    const height = Number(body.height || wf?.defaults.height || 1216);
+    let width = Number(body.width || wf?.defaults.width || 832);
+    let height = Number(body.height || wf?.defaults.height || 1216);
     const categoryForParams = String(body.companion_category || 'female');
     const minimumSteps = categoryForParams === 'transgender' ? 32 : 28;
     const steps = Math.max(minimumSteps, Number(body.steps || wf?.defaults.steps || minimumSteps));
@@ -1081,7 +1090,11 @@ if (body.action === 'verify_loras') {
     const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';
     const surface = (body.generation_surface || (kind === 'girlfriend' ? 'companion' : kind) || 'companion') as ImageSurface;
-    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity });
+    const sceneSemantics = classifyImageScene(prompt, category);
+    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity, sceneSemantics });
+    if (body.width == null) width = generationRoute.width;
+    if (body.height == null) height = generationRoute.height;
+    prompt = `${generationRoute.promptPrefix} ${buildSceneCastPrompt(sceneSemantics)} ${prompt}`;
     if (surface === 'companion' && body.prompt_profile_applied !== true) {
       prompt = buildStudioPromptEnhancement({
         category,
@@ -1115,7 +1128,7 @@ if (body.action === 'verify_loras') {
       strength_clip: number;
     };
     const requestedLoras: RequestedLora[] = Array.isArray(body.loras)
-      ? body.loras.slice(0, 1).map((item: unknown) => {
+      ? body.loras.slice(0, 3).map((item: unknown) => {
           const value = item && typeof item === 'object'
             ? item as Record<string, unknown>
             : {};
@@ -1143,6 +1156,18 @@ if (body.action === 'verify_loras') {
       strength_model: Number((item.strength_model * loraScale).toFixed(3)),
       strength_clip: Number((item.strength_clip * loraScale).toFixed(3)),
     }));
+    const compatibleLoraPlan = resolveModelLoraPlan({
+      modelFamily: generationRoute.modelFamily,
+      category,
+      intensity: nsfwIntensity,
+      animeStyle,
+      requested: normalizedLoras,
+      maxLoras: nsfwIntensity >= 3 ? 3 : 2,
+    });
+    const effectiveLoras = compatibleLoraPlan.selected;
+    if (compatibleLoraPlan.triggerWords.length > 0) {
+      prompt = `${compatibleLoraPlan.triggerWords.join(', ')}. ${prompt}`;
+    }
 
     try {
       const singleLoraAllowed = lora ? isLoraAllowedForContext(lora, { surface, category, modelFamily: generationRoute.modelFamily }) : false;
@@ -1168,16 +1193,17 @@ if (body.action === 'verify_loras') {
           : Math.min(9, Math.max(3, Number(body.cfg || generationRoute.cfg))),
         sampler_name: generationRoute.modelFamily === 'flux' && body.sampler_name ? samplerName : generationRoute.sampler,
         scheduler: generationRoute.modelFamily === 'flux' && body.scheduler ? scheduler : generationRoute.scheduler,
+        clip_skip: generationRoute.clipSkip,
         num_images: effectiveInputImage ? 1 : imageCount,
         seed: seed >= 0 ? seed : undefined,
         input_image: effectiveInputImage,
         denoising_strength: effectiveDenoise,
         ckpt_name: body.ckpt_name || generationRoute.checkpoint || ckpt?.filename,
         model_family: generationRoute.modelFamily,
-        lora_name: normalizedLoras.length ? null : loraSan.lora_name,
+        lora_name: effectiveLoras.length ? null : loraSan.lora_name,
         lora_strength_model: loraStrength,
         lora_strength_clip: loraStrength,
-        loras: normalizedLoras,
+        loras: effectiveLoras,
         endpoint_id: body.endpoint_id || generationRoute.endpointId || endpointId,
         submit_only: true,
       };
@@ -1198,8 +1224,8 @@ if (body.action === 'verify_loras') {
             identitySource: girlfriendId ? 'companion_record' : 'manual_prompt',
             prompt,
             negative,
-            loras: normalizedLoras.length
-              ? normalizedLoras
+            loras: effectiveLoras.length
+              ? effectiveLoras
               : loraSan.lora_name
                 ? [{ name: loraSan.lora_name, strength_model: loraStrength, strength_clip: loraStrength }]
                 : [],
@@ -1233,8 +1259,8 @@ if (body.action === 'verify_loras') {
           workflow_id: workflowId || null,
           endpoint_id: body.endpoint_id || generationRoute.endpointId || endpointId,
           ckpt_name: body.ckpt_name || ckpt?.filename || null,
-          lora_name: normalizedLoras.length
-            ? normalizedLoras.map((item: RequestedLora) => item.name).join(',')
+          lora_name: effectiveLoras.length
+            ? effectiveLoras.map((item) => item.name).join(',')
             : loraSan.lora_name,
           width,
           height,
@@ -1245,7 +1271,7 @@ if (body.action === 'verify_loras') {
             job_id: result.job_id,
             execution_time: result.execution_time,
             lora_strength: loraStrength,
-            loras: normalizedLoras,
+            loras: effectiveLoras,
             requested_lora_total_strength: totalLoraStrength,
             denoise: effectiveDenoise ?? 1,
             character_consistency: characterConsistency,

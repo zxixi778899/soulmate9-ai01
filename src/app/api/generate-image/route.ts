@@ -13,6 +13,7 @@ import {
 import { logModelUsage } from '@/lib/model-usage';
 import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
 import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
+import { classifyImageScene } from '@/lib/image-scene-semantics';
 import type { CompanionCategory } from '@/lib/companion-category';
 
 const HOURLY_HARD_CAP = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
   const started = Date.now();
   try {
     const body = await request.json();
-    const prompt = body.prompt;
+    let prompt = body.prompt;
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
     }
@@ -139,14 +140,18 @@ export async function POST(request: NextRequest) {
         : body.generation_surface === 'outfit' || scene === 'outfit_prop'
           ? 'outfit'
           : 'companion';
+    const category = String(body.companion_category || 'female') as CompanionCategory;
+    const sceneSemantics = classifyImageScene(prompt, category);
     const generationRoute = resolveImageGenerationRoute({
       surface,
-      category: String(body.companion_category || 'female') as CompanionCategory,
+      category,
       renderStyle: body.anime_render_style === '2d' ? '2d' : body.anime_render_style === '3d' ? '3d' : 'realistic',
       nsfwIntensity: Math.min(5, Math.max(1, Number(body.nsfw_intensity || 1))) as 1 | 2 | 3 | 4 | 5,
+      sceneSemantics,
     });
-    let width = sceneCfg.width;
-    let height = sceneCfg.height;
+    prompt = `${generationRoute.promptPrefix} ${prompt}`;
+    let width = generationRoute.width || sceneCfg.width;
+    let height = generationRoute.height || sceneCfg.height;
     if (typeof body.size === 'string' && body.size.includes('x')) {
       const [w, h] = body.size.split('x').map(Number);
       if (w > 0 && h > 0) {
@@ -192,6 +197,7 @@ export async function POST(request: NextRequest) {
       lora_strength_clip: sceneCfg.lora_strength_clip,
       sampler_name: generationRoute.sampler,
       scheduler: generationRoute.scheduler,
+      clip_skip: generationRoute.clipSkip,
       num_images: count,
       submit_only: true,
     });

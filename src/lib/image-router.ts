@@ -62,6 +62,7 @@ export interface ImageRouterOptions {
   ckpt_name?: string;
   sampler_name?: string;
   scheduler?: string;
+  clip_skip?: number;
   model_family?: ImageModelFamily;
   /** Force a specific provider (admin override) */
   force_provider?: ImageProvider;
@@ -244,6 +245,7 @@ async function executeRunPod(
       : undefined,
     sampler_name: opts.sampler_name,
     scheduler: opts.scheduler,
+    clip_skip: opts.clip_skip,
     model_family: opts.model_family,
     submit_only: true,
   });
