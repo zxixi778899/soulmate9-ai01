@@ -140,7 +140,8 @@ export async function POST(request: NextRequest) {
         : body.generation_surface === 'outfit' || scene === 'outfit_prop'
           ? 'outfit'
           : 'companion';
-    const category = String(body.companion_category || 'female') as CompanionCategory;
+    const requestedCategory = String(body.companion_category || 'female') as CompanionCategory;
+    const category: CompanionCategory = requestedCategory === 'anime' ? 'female' : requestedCategory;
     const sceneSemantics = classifyImageScene(prompt, category);
     const generationRoute = resolveImageGenerationRoute({
       surface,

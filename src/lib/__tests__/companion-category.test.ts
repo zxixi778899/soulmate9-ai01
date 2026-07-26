@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeCompanionCategory, STUDIO_PROMPTS } from '../companion-category';
+import { normalizeCompanionCategory, normalizeCompanionRenderStyle, STUDIO_PROMPTS } from '../companion-category';
 
 describe('companion categories', () => {
-  it('prefers anime style over gender', () => {
-    expect(normalizeCompanionCategory({ gender: 'Male', style: 'anime' })).toBe('male');
+  it('never lets render style override gender', () => {
+    expect(normalizeCompanionCategory({ gender: 'Male', style: 'anime', tags: ['female', '2d'] })).toBe('male');
+    expect(normalizeCompanionCategory({ gender: 'Transgender', style: 'realistic', tags: ['male'] })).toBe('transgender');
+  });
+
+  it('normalizes render style independently with strict values', () => {
+    expect(normalizeCompanionRenderStyle({ appearanceStyle: 'anime' })).toBe('2d');
+    expect(normalizeCompanionRenderStyle({ animeRenderStyle: '3D' })).toBe('3d');
+    expect(normalizeCompanionRenderStyle({ appearanceStyle: 'latex maid outfit' })).toBe('realistic');
+    expect(normalizeCompanionRenderStyle({ renderStyle: 'realistic', appearanceStyle: 'anime' })).toBe('realistic');
   });
 
   it('detects transgender and male rows', () => {

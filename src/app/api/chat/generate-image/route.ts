@@ -19,7 +19,7 @@ import {
   type ChatContextLine,
 } from '@/lib/chat-image-intent';
 import { getIntimacyGenerationPolicy, getIntimacyUnlockPayload } from '@/lib/intimacy-policy';
-import { normalizeCompanionCategory } from '@/lib/companion-category';
+import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
 import {
   buildStudioPromptEnhancement,
   resolveCategoryLoraControls,
@@ -259,12 +259,21 @@ export async function POST(request: NextRequest) {
       style: gfRecord.appearance_style,
       tags: gfRecord.tags,
     });
-    const animeText = `${String(gfRecord.appearance_style || '')} ${Array.isArray(gfRecord.tags) ? gfRecord.tags.join(' ') : ''}`;
-    const animeStyle: AnimeRenderStyle = /\b3d\b|cgi|pbr|rendered|pixar/i.test(animeText)
-      ? '3d'
-      : /anime|manga|cartoon|2d|comic/i.test(animeText)
-        ? '2d'
-        : 'realistic';
+    const metadata = gfRecord.metadata && typeof gfRecord.metadata === 'object'
+      ? gfRecord.metadata as Record<string, unknown>
+      : {};
+    const characterCard = gfRecord.character_card && typeof gfRecord.character_card === 'object'
+      ? gfRecord.character_card as Record<string, unknown>
+      : {};
+    const cardAppearance = characterCard.appearance && typeof characterCard.appearance === 'object'
+      ? characterCard.appearance as Record<string, unknown>
+      : {};
+    const animeStyle: AnimeRenderStyle = normalizeCompanionRenderStyle({
+      renderStyle: gfRecord.render_style || metadata.render_style || characterCard.render_style,
+      animeRenderStyle: gfRecord.anime_render_style || metadata.anime_render_style,
+      visualStyle: gfRecord.visual_style || metadata.visual_style || cardAppearance.render_style,
+      appearanceStyle: gfRecord.appearance_style,
+    });
     const sceneSemantics = classifyImageScene(
       [userRequest, ...chatContext.map((message) => message.content), poseTag, envTag].filter(Boolean).join(' '),
       category,

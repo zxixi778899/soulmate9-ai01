@@ -7,7 +7,7 @@ describe('companion profiles', () => {
     ['Female', 'realistic', 'female', 'she', 'girlfriend'],
     ['Male', 'realistic', 'male', 'he', 'boyfriend'],
     ['Transgender', 'realistic', 'transgender', 'they', 'partner'],
-    ['Female', 'anime', 'anime', 'they', 'partner'],
+    ['Female', 'anime', 'female', 'she', 'girlfriend'],
   ])('resolves %s/%s consistently', (gender, style, category, pronoun, relationship) => {
     const profile = resolveCompanionProfile({ gender, appearance_style: style });
     expect(profile.category).toBe(category);
@@ -21,7 +21,7 @@ describe('companion generation prompt', () => {
     ['Female', 'realistic', 'female'],
     ['Male', 'realistic', 'male'],
     ['Transgender', 'realistic', 'transgender'],
-    ['Female', 'anime', 'anime'],
+    ['Female', 'anime', 'female'],
   ])('combines companion-specific prompt sections for %s/%s', (gender, style, category) => {
     const result = buildCompanionGenerationPrompt({
       name: 'Alex',

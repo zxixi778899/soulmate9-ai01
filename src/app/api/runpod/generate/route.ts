@@ -142,7 +142,9 @@ export async function POST(req: NextRequest) {
           : 'companion';
     const generationRoute = resolveImageGenerationRoute({
       surface,
-      category: String(body.companion_category || 'female') as CompanionCategory,
+      category: String(body.companion_category || 'female') === 'anime'
+        ? 'female'
+        : String(body.companion_category || 'female') as CompanionCategory,
       renderStyle: body.anime_render_style === '2d' ? '2d' : body.anime_render_style === '3d' ? '3d' : 'realistic',
       nsfwIntensity: Math.min(5, Math.max(1, Number(body.nsfw_intensity || 1))) as 1 | 2 | 3 | 4 | 5,
     });

@@ -431,9 +431,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many prompt optimization requests' }, { status: 429 });
     }
     const rawCategory = String(body.companion_category || 'female');
-    const category: CompanionCategory = COMPANION_CATEGORIES.includes(rawCategory as CompanionCategory)
-      ? rawCategory as CompanionCategory
-      : 'female';
+    const category: CompanionCategory = rawCategory === 'anime'
+      ? 'female'
+      : COMPANION_CATEGORIES.includes(rawCategory as CompanionCategory)
+        ? rawCategory as CompanionCategory
+        : 'female';
     const intensity = Math.min(5, Math.max(1, Math.round(Number(body.nsfw_intensity || 3)))) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';
     const currentPrompt = String(body.prompt || '').trim();
@@ -1083,9 +1085,11 @@ if (body.action === 'verify_loras') {
       }
     }
     const rawCategory = String(body.companion_category || 'female');
-    const category: CompanionCategory = COMPANION_CATEGORIES.includes(rawCategory as CompanionCategory)
-      ? rawCategory as CompanionCategory
-      : 'female';
+    const category: CompanionCategory = rawCategory === 'anime'
+      ? 'female'
+      : COMPANION_CATEGORIES.includes(rawCategory as CompanionCategory)
+        ? rawCategory as CompanionCategory
+        : 'female';
     const rawIntensity = Math.round(Number(body.nsfw_intensity || 5));
     const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';

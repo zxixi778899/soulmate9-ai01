@@ -50,16 +50,32 @@ export function normalizeCompanionCategory(input: {
   style?: unknown;
   tags?: unknown;
 }): CompanionCategory {
-  const gender = String(input.gender || '').toLowerCase();
-  const style = String(input.style || '').toLowerCase();
-  const tags = Array.isArray(input.tags) ? input.tags.join(' ').toLowerCase() : String(input.tags || '').toLowerCase();
-  const identity = `${gender} ${tags} ${style}`;
-  // Anime / 2D render style is its own browsing category and wins over gender.
-  if (/\banime\b|\bmanga\b|\b2d\b|二次元|animation style/.test(`${tags} ${style}`)) return 'anime';
-  if (/\btrans(?:gender|sexual)?\b|non.?binary|mtf|ftm/.test(identity)) return 'transgender';
-  if (/\bmale\b|\bman\b|\bmen\b|boyfriend/.test(identity)) return 'male';
-  if (/\bfemale\b|\bwoman\b|\bwomen\b|girlfriend/.test(identity)) return 'female';
-  // Legacy anime-only records had no independent sex field. Keep them usable as
-  // female subjects while render style is resolved separately by the image route.
+  const gender = String(input.gender || '').trim().toLowerCase();
+  // Gender is an identity field. Style and tags must never override it.
+  if (/\btrans(?:gender|sexual)?\b|non.?binary|mtf|ftm/.test(gender)) return 'transgender';
+  if (/\bmale\b|\bman\b|\bmen\b|boyfriend/.test(gender)) return 'male';
+  if (/\bfemale\b|\bwoman\b|\bwomen\b|girlfriend/.test(gender)) return 'female';
   return 'female';
 }
+
+export type CompanionRenderStyle = 'realistic' | '2d' | '3d';
+
+function exactStyle(value: unknown): CompanionRenderStyle | null {
+  const normalized = String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (['2d', '2danime', 'anime2d', 'anime', 'manga', 'cartoon', 'cel', 'celshaded'].includes(normalized)) return '2d';
+  if (['3d', '3danime', 'anime3d', 'cgi', 'pbr', 'animation3d', '3danimation'].includes(normalized)) return '3d';
+  if (['realistic', 'photorealistic', 'photo', 'photography', 'real'].includes(normalized)) return 'realistic';
+  return null;
+}
+
+export function normalizeCompanionRenderStyle(input: {
+  renderStyle?: unknown;
+  animeRenderStyle?: unknown;
+  visualStyle?: unknown;
+  appearanceStyle?: unknown;
+}): CompanionRenderStyle {
+  return exactStyle(input.renderStyle)
+    || exactStyle(input.animeRenderStyle)
+    || exactStyle(input.visualStyle)
+    || exactStyle(input.appearanceStyle)
+    || 'realistic';}

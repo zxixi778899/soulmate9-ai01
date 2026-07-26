@@ -35,7 +35,8 @@ export function resolveImageGenerationRoute(input: {
 }): ImageGenerationRoute {
   const renderStyle = input.renderStyle || 'realistic';
   const intensity = input.nsfwIntensity || 1;
-  const semantics = input.sceneSemantics || classifyImageScene(input.sceneText || '', input.category || 'female');
+  const category: CompanionCategory = input.category === 'anime' ? 'female' : input.category || 'female';
+  const semantics = input.sceneSemantics || classifyImageScene(input.sceneText || '', category);
   const complexScene = isComplexAdultScene(semantics);
   const fluxEndpoint = env('RUNPOD_ENDPOINT_ID_FLUX', env('RUNPOD_ENDPOINT_ID', ''));
   const sdxlEndpoint = env('RUNPOD_ENDPOINT_ID_SDXL', env('RUNPOD_ENDPOINT_ID_DC2', ''));
@@ -63,9 +64,8 @@ export function resolveImageGenerationRoute(input: {
   }
 
   const needsAdultAnatomy = input.surface === 'companion' && renderStyle === 'realistic' &&
-    (intensity >= 3 || input.category === 'transgender' || complexScene);
+    (intensity >= 3 || category === 'transgender' || complexScene);
   if (needsAdultAnatomy) {
-    const category = input.category || 'female';
     const subjectTags = category === 'transgender'
       ? '1girl, solo, transgender female, futanari, feminine face, breasts, penis, testicles'
       : category === 'male'
@@ -94,7 +94,7 @@ export function resolveImageGenerationRoute(input: {
       height: complexScene ? 1344 : 1536,
       presetId: highControl ? 'pony-adult-composition-control' : complexScene ? 'pony-adult-pair' : 'pony-adult-portrait',
       promptPrefix: `score_9, score_8_up, score_7_up, source_realistic, ${subjectTags}, ${anatomyTags}, full body, complete head, face visible, eyes in focus, detailed skin, natural skin texture, realistic photography, sharp focus, clean exposure, BREAK.`,
-      reason: input.category === 'transgender'
+      reason: category === 'transgender'
         ? 'Transgender anatomy uses the Pony-native adult pipeline on CD2.'
         : 'Explicit or multi-person adult anatomy uses the Pony-native adult pipeline on CD2.',
     };
