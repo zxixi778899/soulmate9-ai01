@@ -117,6 +117,11 @@ export function validateModelLoraName(
   const base = requested.split(/[/\\]/).pop()?.trim() || '';
   if (!base.endsWith('.safetensors')) return { name: null, reason: 'invalid-extension' };
   const inventory = inventoryForFamily(family);
+  // SDXL-family endpoints reject an unknown LoRA before sampling. Fail
+  // closed until the selected endpoint's mounted inventory is configured.
+  if (inventory.files.size === 0 && family !== 'flux') {
+    return { name: null, reason: 'inventory-unavailable-strict' };
+  }
   if (inventory.files.size === 0) return { name: base, reason: 'unverified-permissive' };
   if (inventory.files.has(base)) return { name: base };
   return { name: null, reason: `missing-from-${inventory.source}` };
@@ -145,7 +150,10 @@ export function resolveModelLoraPlan(input: {
     : [];
   const names = [...new Set([...requested.map((item) => item.name), ...configured, ...inventoryCandidates])];
   const inventoryVerified = inventory.files.size > 0;
-  const verifiedNames = names.filter((name) => !inventoryVerified || inventory.files.has(name));
+  const allowUnverified = input.modelFamily === 'flux';
+  const verifiedNames = names.filter(
+    (name) => inventory.files.has(name) || (!inventoryVerified && allowUnverified),
+  );
   const fallbackNames = verifiedNames.length === 0 && canAutoSelectInventory
     ? rankInventory(inventory.files, input.category, input.intensity)
     : [];
@@ -168,7 +176,7 @@ export function resolveModelLoraPlan(input: {
       strength_clip: Number((item.strength_clip * scale).toFixed(2)),
     })),
     configured: names,
-    missing: inventoryVerified ? names.filter((name) => !inventory.files.has(name)) : [],
+    missing: names.filter((name) => !inventory.files.has(name) && (inventoryVerified || !allowUnverified)),
     inventorySource: inventory.source,
     triggerWords: [...new Set(selected.flatMap((item) => triggersForLora(item.name)))],
   };

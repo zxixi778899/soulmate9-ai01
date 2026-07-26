@@ -27,6 +27,34 @@ describe('model-specific LoRA routing', () => {
     expect(plan.selected.every((item) => item.strength_model > 0)).toBe(true);
   });
 
+  it('fails closed when the Pony endpoint inventory is unavailable', () => {
+    delete process.env.RUNPOD_INSTALLED_LORAS_PONY;
+    delete process.env.RUNPOD_INSTALLED_LORAS_SDXL;
+    delete process.env.RUNPOD_PONY_LORAS;
+    delete process.env.RUNPOD_PONY_FEMALE_LORAS;
+    delete process.env.RUNPOD_PONY_NSFW_LORAS;
+    const plan = resolveModelLoraPlan({
+      modelFamily: 'pony',
+      category: 'female',
+      intensity: 5,
+    });
+    expect(plan.selected).toEqual([]);
+    expect(plan.missing).toContain('pony_detailifier_v5.safetensors');
+  });
+
+  it('omits an unverified Pony LoRA from the final workflow', () => {
+    delete process.env.RUNPOD_INSTALLED_LORAS_PONY;
+    delete process.env.RUNPOD_INSTALLED_LORAS_SDXL;
+    const graph = buildFluxWorkflow({
+      prompt: 'An adult subject in a natural portrait.',
+      model_family: 'pony',
+      ckpt_name: 'ponyRealism_V22.safetensors',
+      loras: [{ name: 'pony_detailifier_v5.safetensors', strength_model: 0.65 }],
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+    expect(graph['14']).toBeUndefined();
+    expect(graph['5'].inputs.model).toEqual(['1', 0]);
+  });
+
   it('never substitutes an installed FLUX LoRA into the Pony stack', () => {
     process.env.RUNPOD_INSTALLED_LORAS = 'flux_pose_nsfw_dynamic_v1.safetensors';
     process.env.RUNPOD_INSTALLED_LORAS_PONY = 'pony_nsfw_pose.safetensors';
