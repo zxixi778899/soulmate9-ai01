@@ -32,6 +32,7 @@ import { buildSceneCastPrompt, classifyImageScene, normalizeLlmImageScene } from
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
+import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -1111,7 +1112,46 @@ if (body.action === 'verify_loras') {
       negative = `${studioNegativePrompt(category, animeStyle)}, ${COMPACT_ADULT_NEGATIVE}`;
     }
 
-    const effectiveInputImage = String(body.input_image || consistencyReference || '').trim() || undefined;
+    const suppliedReference = String(body.input_image || '').trim();
+    const identityAssets = girlfriendId && consistencyReference
+      ? companionIdentityAssets(girlfriendId, [consistencyReference], {
+          category,
+          renderStyle: animeStyle,
+          modelFamily: generationRoute.modelFamily,
+        })
+      : [];
+    const manualAssets: ReferenceAsset[] = suppliedReference
+      ? [{
+          id: 'manual-reference',
+          url: suppliedReference,
+          role: girlfriendId && characterConsistency ? 'identity' : 'pose',
+          companionId: girlfriendId && characterConsistency ? girlfriendId : undefined,
+          category,
+          renderStyle: animeStyle,
+          modelFamily: generationRoute.modelFamily,
+          qualityScore: 100,
+        }]
+      : [];
+    const requestedReferenceControls =
+      body.reference_controls && typeof body.reference_controls === 'object'
+        ? body.reference_controls as Partial<ReferenceControlSettings>
+        : cfg.reference_control;
+    const referencePlan = buildReferenceGenerationPlan({
+      surface,
+      category,
+      renderStyle: animeStyle,
+      modelFamily: generationRoute.modelFamily,
+      companionId: girlfriendId || undefined,
+      nsfwLevel: nsfwIntensity,
+      controls: requestedReferenceControls,
+      assets: [...identityAssets, ...manualAssets, ...(cfg.reference_assets || [])],
+    });
+    if (referencePlan.promptHints.length > 0) {
+      prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
+    }
+    const effectiveInputImage =
+      referencePlan.primaryIdentity?.url ||
+      referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
         ? category === 'transgender' || animeStyle !== 'realistic'
@@ -1239,6 +1279,8 @@ if (body.action === 'verify_loras') {
             sampler: samplerName,
             scheduler: body.scheduler ? scheduler : generationRoute.scheduler,
             referenceDenoise: effectiveDenoise ?? null,
+            referencePlan: referencePlan.trace,
+            referenceRoles: referencePlan.selected.map((asset) => asset.role),
           },
         });
       }

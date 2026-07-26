@@ -29,6 +29,11 @@ import {
 import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { buildSceneCastPrompt, classifyImageScene } from '@/lib/image-scene-semantics';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
+import { loadComfyConfig } from '@/lib/comfy-console/store';
+import {
+  buildReferenceGenerationPlan,
+  companionIdentityAssets,
+} from '@/lib/reference-generation-plan';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -384,7 +389,28 @@ export async function POST(request: NextRequest) {
         if (String(raw).startsWith('http') && !referenceImages.includes(String(raw))) referenceImages.push(String(raw));
       }
     }
-    const referenceImage = referenceImages[0];
+    const referenceConfig = await loadComfyConfig(client);
+    const referencePlan = buildReferenceGenerationPlan({
+      surface: 'companion',
+      category,
+      renderStyle: animeStyle,
+      modelFamily: generationRoute.modelFamily,
+      companionId: girlfriend_id,
+      nsfwLevel: intimacyPolicy.nsfwIntensity,
+      controls: referenceConfig.reference_control,
+      assets: [
+        ...companionIdentityAssets(girlfriend_id, referenceImages, {
+          category,
+          renderStyle: animeStyle,
+          modelFamily: generationRoute.modelFamily,
+        }),
+        ...(referenceConfig.reference_assets || []),
+      ],
+    });
+    if (referencePlan.promptHints.length > 0) {
+      prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
+    }
+    const referenceImage = referencePlan.primaryIdentity?.url;
 
     // Preserve identity from the saved portrait without copying its composition.
     const useConsistency =
@@ -438,6 +464,8 @@ export async function POST(request: NextRequest) {
           lora_inventory_source: compatibleLoraPlan.inventorySource,
           missing_loras: compatibleLoraPlan.missing,
           referenceDenoise: useConsistency ? denoise : null,
+          referencePlan: referencePlan.trace,
+          referenceRoles: referencePlan.selected.map((asset) => asset.role),
           attempts: routerResult.attempts,
         },
         message: 'Image is being generated. Poll /api/runpod/status?job_id=' + routerResult.job_id,
@@ -469,7 +497,7 @@ export async function POST(request: NextRequest) {
       endpoint_id: resolved.logicalEndpointId, model_id: resolved.logicalEndpointId,
       route_reason: resolved.routeReason, quality_tier: resolved.qualityTier, seed: generationSeed,
       character_version: String((gf as { updated_at?: string }).updated_at || ''),
-      reference_urls: referenceImages, prompt_summary: prompt.slice(0, 500), success: true,
+      reference_urls: referencePlan.selected.map((asset) => asset.url), prompt_summary: prompt.slice(0, 500), success: true,
     });
     if (auditError) logger.warn('[Chat Generate Image] audit insert failed', { error: auditError.message });
 

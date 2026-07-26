@@ -110,6 +110,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [inputImage, setInputImage] = useState('');
   const [referenceImageUploading, setReferenceImageUploading] = useState(false);
   const [identityConsistency, setIdentityConsistency] = useState(Boolean(girlfriendId));
+  const [referenceAutoSelect, setReferenceAutoSelect] = useState(true);
+  const [referenceMax, setReferenceMax] = useState(5);
+  const [identityStrength, setIdentityStrength] = useState(0.82);
+  const [poseStrength, setPoseStrength] = useState(0.68);
+  const [styleStrength, setStyleStrength] = useState(0.32);
+  const [compositionStrength, setCompositionStrength] = useState(0.48);
   const [kind, setKind] = useState('girlfriend');
   const [lastResult, setLastResult] = useState<Any[]>([]);
   const [lastGenerationTrace, setLastGenerationTrace] = useState<Any | null>(null);
@@ -566,6 +572,17 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     denoise: genMode === 'img2img' || inputImage ? denoise : undefined,
     input_image: genMode === 'img2img' || inputImage.trim() ? inputImage.trim() || undefined : undefined,
     character_consistency: identityConsistency,
+    reference_controls: {
+      enabled: identityConsistency || referenceAutoSelect,
+      autoSelect: referenceAutoSelect,
+      maxReferences: referenceMax,
+      identityStrength,
+      poseStrength,
+      styleStrength,
+      compositionStrength,
+      requireExactCategory: true,
+      requireExactStyle: true,
+    },
     gen_mode: genMode,
     generation_surface: generationSurface,
     model_family: generationRoute.modelFamily,
@@ -1337,6 +1354,39 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     : '关闭'}
                 </span>
               </button>
+              <div className="mt-3 border-t border-slate-700 pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-white">混合参考控制</span>
+                  <button
+                    type="button"
+                    aria-pressed={referenceAutoSelect}
+                    onClick={() => setReferenceAutoSelect((value) => !value)}
+                    className={cn('text-[11px] font-medium', referenceAutoSelect ? 'text-cyan-300' : 'text-slate-400')}
+                  >
+                    {referenceAutoSelect ? '自动匹配已开启' : '自动匹配已关闭'}
+                  </button>
+                </div>
+                <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                  身份图只取当前伴侣；动作、构图和风格参考严格匹配性别、写实/2D/3D 与模型族。
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+                  {[
+                    ['身份', identityStrength, setIdentityStrength],
+                    ['动作', poseStrength, setPoseStrength],
+                    ['风格', styleStrength, setStyleStrength],
+                    ['构图', compositionStrength, setCompositionStrength],
+                  ].map(([label, value, setter]) => (
+                    <label key={String(label)} className="text-[10px] text-slate-300">
+                      <span className="flex justify-between"><span>{String(label)}</span><span>{Number(value).toFixed(2)}</span></span>
+                      <input type="range" min={0} max={1} step={0.05} value={Number(value)} onChange={(event) => (setter as React.Dispatch<React.SetStateAction<number>>)(Number(event.target.value))} className="w-full accent-cyan-500" />
+                    </label>
+                  ))}
+                </div>
+                <label className="mt-2 flex items-center justify-between text-[10px] text-slate-300">
+                  <span>最多参考图</span>
+                  <input type="number" min={1} max={8} value={referenceMax} onChange={(event) => setReferenceMax(Math.min(8, Math.max(1, Number(event.target.value))))} className="h-7 w-16 rounded border border-slate-600 bg-slate-950 px-2 text-right text-xs" />
+                </label>
+              </div>
               <p className="mt-1.5 text-[10px] leading-4 text-slate-400">
                 文生图优先使用伴侣卡肖像保持身份；图生图把上传图片作为姿势与构图参考，人物仍以伴侣卡的脸型、发色、眼睛和身材为准。
               </p>

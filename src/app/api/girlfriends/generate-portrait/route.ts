@@ -4,15 +4,17 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { sanitizeBlurKeywords } from '@/lib/prompt';
+import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
+import { buildStudioPromptEnhancement, studioNegativePrompt } from '@/lib/comfy-console/studio-profile';
+import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
+import { routeImageGeneration } from '@/lib/image-router';
+import { loadComfyConfig } from '@/lib/comfy-console/store';
+import { buildReferenceGenerationPlan } from '@/lib/reference-generation-plan';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 const PORTRAIT_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
-
-const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || '';
-const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID || '';
-const RUNPOD_BASE_URL = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}`;
 
 function hairColorName(hexOrName: string): string {
   const v = (hexOrName || '').trim();
@@ -52,7 +54,7 @@ function buildPortraitPrompt(input: {
   style?: string;
   personality?: string;
 }): string {
-  const name = (input.name || 'a beautiful young woman').trim();
+  const name = (input.name || 'an adult companion').trim();
   const ethnicity = input.ethnicity || 'mixed';
   const gender = input.gender || 'Female';
   const face = input.face_shape || 'oval';
@@ -67,9 +69,17 @@ function buildPortraitPrompt(input: {
   );
 
   const medium =
-    visual === 'anime'
-      ? 'high quality anime illustration, clean line art, vibrant colors'
-      : 'photorealistic three-quarter portrait, natural skin texture, 8k ultra photorealistic';
+    visual === '2d' || visual === 'anime'
+      ? 'a polished 2D anime character portrait with clean line art and deliberate cel shading'
+      : visual === '3d'
+        ? 'a polished 3D animated character portrait with coherent materials and studio character lighting'
+        : 'a natural editorial photograph with believable skin texture and soft directional light';
+  const category = normalizeCompanionCategory({ gender });
+  const bodyDescription = category === 'male'
+    ? `${bodyType} adult masculine build with broad shoulders and a defined torso`
+    : category === 'transgender'
+      ? `${bodyType} adult feminine silhouette with visibly mixed masculine and feminine physical traits`
+      : `${bodyType} adult feminine figure with natural proportions`;
 
   const parts = [
     medium,
@@ -77,10 +87,10 @@ function buildPortraitPrompt(input: {
     `${ethnicity} features, ${face} face shape`,
     `${hairStyle} ${hairColor} hair`,
     `${eyeColor} eyes looking at viewer`,
-    `${bodyType} figure, large breasts, wide hips, hourglass silhouette`,
+    bodyDescription,
     `wearing flattering ${fashion} outfit`,
     extra.slice(0, 180),
-    'bright clear lighting, sharp detailed face and eyes, soft smile, magazine quality',
+    'clear eyes, complete head in frame, relaxed shoulders, natural asymmetrical posture, coherent hands',
   ].filter(Boolean);
 
   let prompt = parts.join(', ').replace(/\s{2,}/g, ' ').trim();
@@ -92,59 +102,42 @@ function buildPortraitPrompt(input: {
   return prompt;
 }
 
-function buildWorkflow(prompt: string): Record<string, unknown> {
-  const seed = Math.floor(Math.random() * 2147483647);
-  return {
-    '1': {
-      class_type: 'KSampler',
-      inputs: {
-        seed,
-        steps: 28,
-        cfg: 1.0,
-        sampler_name: 'euler',
-        scheduler: 'simple',
-        denoise: 1,
-        model: ['2', 0],
-        positive: ['3', 0],
-        negative: ['4', 0],
-        latent_image: ['5', 0],
-      },
-    },
-    '2': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'flux1-dev-fp8.safetensors' } },
-    '3': { class_type: 'CLIPTextEncode', inputs: { text: prompt, clip: ['2', 1] } },
-    '4': {
-      class_type: 'CLIPTextEncode',
-      inputs: {
-        text: '',
-        clip: ['2', 1],
-      },
-    },
-    '5': { class_type: 'EmptyLatentImage', inputs: { width: 832, height: 1216, batch_size: 1 } },
-    '6': { class_type: 'VAEDecode', inputs: { samples: ['1', 0], vae: ['2', 2] } },
-    '7': { class_type: 'SaveImage', inputs: { filename_prefix: 'soulmate', images: ['6', 0] } },
-  };
-}
-
-async function generateImage(prompt: string): Promise<{ image?: string; jobId?: string; pending?: boolean }> {
-  if (!RUNPOD_API_KEY || !RUNPOD_ENDPOINT_ID) {
-    throw new Error('RunPod is not configured');
-  }
-  const workflow = buildWorkflow(prompt);
-  const submitRes = await fetch(`${RUNPOD_BASE_URL}/run`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${RUNPOD_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: { workflow, prompt: workflow, positive_prompt: prompt } }),
+async function generateImage(input: {
+  prompt: string;
+  negativePrompt: string;
+  category: ReturnType<typeof normalizeCompanionCategory>;
+  renderStyle: ReturnType<typeof normalizeCompanionRenderStyle>;
+  endpointId?: string;
+  referenceImage?: string;
+}): Promise<{ image?: string; jobId?: string; endpointId?: string; pending?: boolean }> {
+  const route = resolveImageGenerationRoute({
+    surface: 'companion',
+    category: input.category,
+    renderStyle: input.renderStyle,
+    nsfwIntensity: 1,
   });
-  if (!submitRes.ok) {
-    const errText = await submitRes.text();
-    throw new Error(`RunPod submit failed: ${errText.slice(0, 200)}`);
+  const result = await routeImageGeneration({
+    prompt: `${route.promptPrefix} ${input.prompt}`,
+    negative_prompt: input.negativePrompt,
+    width: route.width,
+    height: route.height,
+    num_inference_steps: route.steps,
+    guidance_scale: route.cfg,
+    image_url: input.referenceImage,
+    strength: input.referenceImage ? 0.38 : undefined,
+    ckpt_name: route.checkpoint,
+    sampler_name: route.sampler,
+    scheduler: route.scheduler,
+    clip_skip: route.clipSkip,
+    model_family: route.modelFamily,
+    force_provider: route.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2',
+    endpoint_id: input.endpointId || route.endpointId || undefined,
+    nsfw: false,
+  });
+  if (result.pending) {
+    return { jobId: result.job_id, endpointId: input.endpointId || route.endpointId || undefined, pending: true };
   }
-  const submitData = (await submitRes.json()) as { id?: string };
-  const jobId = submitData.id;
-  if (!jobId) throw new Error('No RunPod job ID');
-
-  // Submit-only: return immediately — client polls /api/runpod/status
-  return { jobId, pending: true };
+  return { image: result.images[0] };
 }
 
 async function uploadToStorage(base64Data: string, name: string): Promise<string> {
@@ -159,7 +152,7 @@ async function uploadToStorage(base64Data: string, name: string): Promise<string
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, error: authError } = await getAuthUser(request);
+    const { user, client, error: authError } = await getAuthUser(request);
     if (!user) {
       return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
     }
@@ -194,8 +187,54 @@ export async function POST(request: NextRequest) {
       personality: body.personality as string | undefined,
     });
 
-    logger.info('[Generate Portrait] Generating', { name, promptLen: prompt.length });
-    const result = await generateImage(prompt);
+    const category = normalizeCompanionCategory({ gender: body.gender });
+    const renderStyle = normalizeCompanionRenderStyle({
+      visualStyle: body.visual_style,
+      renderStyle: body.render_style,
+      animeRenderStyle: body.anime_render_style,
+    });
+    const config = await loadComfyConfig(client);
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      category,
+      renderStyle,
+      nsfwIntensity: 1,
+    });
+    const referencePlan = buildReferenceGenerationPlan({
+      surface: 'companion',
+      category,
+      renderStyle,
+      modelFamily: route.modelFamily,
+      nsfwLevel: 1,
+      allowIdentity: false,
+      controls: config.reference_control,
+      assets: config.reference_assets || [],
+    });
+    const naturalPrompt = buildStudioPromptEnhancement({
+      category,
+      intensity: 1,
+      animeStyle: renderStyle,
+      identity: prompt,
+      scene: [
+        'a relaxed three-quarter portrait with natural posture and clear face',
+        ...referencePlan.promptHints,
+      ].join('. '),
+    });
+    const negativePrompt = studioNegativePrompt(category, renderStyle);
+    logger.info('[Generate Portrait] Generating', {
+      name,
+      category,
+      renderStyle,
+      promptLen: naturalPrompt.length,
+      referenceRoles: referencePlan.selected.map((asset) => asset.role),
+    });
+    const result = await generateImage({
+      prompt: naturalPrompt,
+      negativePrompt,
+      category,
+      renderStyle,
+      endpointId: route.endpointId || undefined,
+    });
 
     // If still pending, return job_id for client-side polling
     if (result.pending || !result.image) {
@@ -203,6 +242,14 @@ export async function POST(request: NextRequest) {
         success: true,
         pending: true,
         job_id: result.jobId,
+        endpoint_id: result.endpointId,
+        generation_trace: {
+          category,
+          renderStyle,
+          modelFamily: route.modelFamily,
+          checkpoint: route.checkpoint,
+          referencePlan: referencePlan.trace,
+        },
         message: 'Portrait is being generated. Poll /api/runpod/status?job_id=' + result.jobId,
       });
     }
@@ -215,7 +262,7 @@ export async function POST(request: NextRequest) {
       portrait_url: imageUrl,
       url: imageUrl,
       key: null,
-      optimizedPrompt: prompt,
+      optimizedPrompt: naturalPrompt,
     });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';

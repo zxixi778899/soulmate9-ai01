@@ -5,6 +5,11 @@
  */
 import { catalogToLoraAssets, LORA_CATALOG } from './lora-catalog';
 import type { LibraryItem } from '@/lib/model-library';
+import {
+  DEFAULT_REFERENCE_CONTROLS,
+  type ReferenceAsset,
+  type ReferenceControlSettings,
+} from '@/lib/reference-generation-plan';
 
 export type WorkflowKind = 'girlfriend' | 'outfit' | 'prop' | 'advert' | 'custom';
 
@@ -93,6 +98,8 @@ export type ComfyConsoleConfig = {
     positive_extra?: string;
   }>;
   lora_catalog_version?: number;
+  reference_control?: ReferenceControlSettings;
+  reference_assets?: ReferenceAsset[];
 };
 
 export const COMFY_CONFIG_KEY = 'comfy_console';
@@ -161,6 +168,8 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
     version: 3,
     updated_at: new Date().toISOString(),
     lora_catalog_version: LORA_CATALOG.version,
+    reference_control: { ...DEFAULT_REFERENCE_CONTROLS },
+    reference_assets: [],
     lora_stacking_tips: LORA_CATALOG.stacking_tips || [],
     lora_recipes: LORA_CATALOG.apply_recipes || [],
     network_volume: {
