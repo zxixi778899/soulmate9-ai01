@@ -1022,26 +1022,11 @@ if (body.action === 'verify_loras') {
     const lora = loraId
       ? cfg.loras.find((l) => l.id === loraId)
       : null;
-    const endpointKey = body.endpoint_key || wf?.defaults.endpoint_key || 'comfy-default';
-    const ep = cfg.endpoints.find((e) => e.id === endpointKey);
-
+    // Unified endpoint: all generation goes to comfyui-wozrrlcdipyl3p
     const endpointId =
       body.endpoint_id ||
-      ep?.endpoint_id ||
-      process.env.RUNPOD_ENDPOINT_ID_FLUX ||
-      process.env.RUNPOD_ENDPOINT_ID_SDXL ||
-      process.env.RUNPOD_ENDPOINT_ID_DC2 ||
       process.env.RUNPOD_ENDPOINT_ID ||
-      '';
-
-    if (!endpointId) {
-      return NextResponse.json(
-        {
-          error: 'No Comfy endpoint id. Set endpoints in console config or RUNPOD_ENDPOINT_ID',
-        },
-        { status: 400 },
-      );
-    }
+      'comfyui-wozrrlcdipyl3p';
 
     let width = Number(body.width || wf?.defaults.width || 832);
     let height = Number(body.height || wf?.defaults.height || 1216);

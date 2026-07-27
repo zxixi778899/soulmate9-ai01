@@ -5,10 +5,17 @@ import { classifyImageScene, isComplexAdultScene, type ImageSceneSemantics } fro
 export type ImageSurface = 'companion' | 'outfit' | 'prop' | 'advert';
 export type ImageModelFamily = 'flux' | 'pony' | 'illustrious';
 
+/**
+ * Single unified ComfyUI endpoint — ALL image generation goes through here.
+ * The worker has all checkpoints (FLUX / Pony / Illustrious) and LoRAs
+ * mounted on its network volume. LoRAs are auto-selected downstream by
+ * resolveModelLoraPlan() based on model family + category + intensity.
+ */
+export const UNIFIED_COMFY_ENDPOINT = 'comfyui-wozrrlcdipyl3p';
+
 export type ImageGenerationRoute = {
   surface: ImageSurface;
   modelFamily: ImageModelFamily;
-  endpointEnv: 'RUNPOD_ENDPOINT_ID_FLUX' | 'RUNPOD_ENDPOINT_ID_SDXL';
   endpointId: string;
   checkpoint: string;
   sampler: string;
@@ -25,6 +32,11 @@ export type ImageGenerationRoute = {
 
 const env = (name: string, fallback: string): string => process.env[name]?.trim() || fallback;
 
+/**
+ * Resolve generation parameters for the unified ComfyUI endpoint.
+ * Model family / checkpoint / sampler still vary by context to build
+ * the correct ComfyUI workflow graph, but ALL requests hit the same endpoint.
+ */
 export function resolveImageGenerationRoute(input: {
   surface: ImageSurface;
   category?: CompanionCategory;
@@ -38,15 +50,14 @@ export function resolveImageGenerationRoute(input: {
   const category: CompanionCategory = input.category === 'anime' ? 'female' : input.category || 'female';
   const semantics = input.sceneSemantics || classifyImageScene(input.sceneText || '', category);
   const complexScene = isComplexAdultScene(semantics);
-  const fluxEndpoint = env('RUNPOD_ENDPOINT_ID_FLUX', env('RUNPOD_ENDPOINT_ID', ''));
-  const sdxlEndpoint = env('RUNPOD_ENDPOINT_ID_SDXL', env('RUNPOD_ENDPOINT_ID_DC2', ''));
+  // Single endpoint for all model families
+  const endpointId = env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT);
 
   if (input.surface === 'companion' && renderStyle === '2d') {
     return {
       surface: input.surface,
       modelFamily: 'illustrious',
-      endpointEnv: 'RUNPOD_ENDPOINT_ID_SDXL',
-      endpointId: sdxlEndpoint,
+      endpointId,
       checkpoint: env('RUNPOD_ILLUSTRIOUS_CHECKPOINT', 'waiMatureIllustrious_v20.safetensors'),
       sampler: complexScene ? 'dpmpp_sde' : 'dpmpp_2m_sde',
       scheduler: 'karras',
@@ -58,8 +69,8 @@ export function resolveImageGenerationRoute(input: {
       presetId: complexScene ? 'illustrious-2d-multi-control' : 'illustrious-2d-portrait',
       promptPrefix: 'masterpiece, best quality, very aesthetic, mature adult character, consistent design, clean line work.',
       reason: complexScene
-        ? 'Multi-character 2D art uses a higher-control Illustrious preset on CD2.'
-        : 'Single-character 2D art uses the Illustrious portrait preset on CD2.',
+        ? 'Multi-character 2D art uses a higher-control Illustrious preset.'
+        : 'Single-character 2D art uses the Illustrious portrait preset.',
     };
   }
 
@@ -82,8 +93,7 @@ export function resolveImageGenerationRoute(input: {
     return {
       surface: input.surface,
       modelFamily: 'pony',
-      endpointEnv: 'RUNPOD_ENDPOINT_ID_SDXL',
-      endpointId: sdxlEndpoint,
+      endpointId,
       checkpoint: env('RUNPOD_PONY_CHECKPOINT', 'ponyRealism_V22.safetensors'),
       sampler: highControl ? 'dpmpp_sde' : 'dpmpp_2m_sde',
       scheduler: 'karras',
@@ -95,16 +105,15 @@ export function resolveImageGenerationRoute(input: {
       presetId: highControl ? 'pony-adult-composition-control' : complexScene ? 'pony-adult-pair' : 'pony-adult-portrait',
       promptPrefix: `score_9, score_8_up, score_7_up, source_realistic, ${subjectTags}, ${anatomyTags}, full body, complete head, face visible, eyes in focus, detailed skin, natural skin texture, realistic photography, sharp focus, clean exposure, BREAK.`,
       reason: category === 'transgender'
-        ? 'Transgender anatomy uses the Pony-native adult pipeline on CD2.'
-        : 'Explicit or multi-person adult anatomy uses the Pony-native adult pipeline on CD2.',
+        ? 'Transgender anatomy uses the Pony-native adult pipeline.'
+        : 'Explicit or multi-person adult anatomy uses the Pony-native adult pipeline.',
     };
   }
 
   return {
     surface: input.surface,
     modelFamily: 'flux',
-    endpointEnv: 'RUNPOD_ENDPOINT_ID_FLUX',
-    endpointId: fluxEndpoint,
+    endpointId,
     checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
     sampler: 'euler',
     scheduler: 'simple',
@@ -118,7 +127,7 @@ export function resolveImageGenerationRoute(input: {
       ? 'A sharp in-focus real-camera editorial portrait with the complete head visible, clear eyes, relaxed posture, natural skin pores, restrained grain, and believable texture.'
       : 'Clean commercial product photography with accurate materials and controlled lighting.',
     reason: renderStyle === '3d'
-      ? '3D companion rendering stays on FLUX CD1.'
-      : `${input.surface} generation uses the FLUX product pipeline on CD1.`,
+      ? '3D companion rendering uses the FLUX pipeline.'
+      : `${input.surface} generation uses the FLUX product pipeline.`,
   };
 }

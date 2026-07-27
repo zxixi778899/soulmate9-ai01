@@ -177,7 +177,7 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
   {
     id: 'runpod-dc2',
     provider: 'runpod_dc2',
-    label: 'RunPod CD2 Pony / Illustrious',
+    label: 'RunPod Pony / Illustrious',
     enabled: true,
     priority: 15,
     timeout_ms: 30_000,
@@ -187,8 +187,8 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
     supports_lora: true,
     supports_reference: true,
     nsfw_capable: true,
-    endpoint_env: 'RUNPOD_ENDPOINT_ID_SDXL',
-    notes: 'CD2 routes Pony Realism for adult realistic/transgender and Illustrious for 2D. Scale to 0 idle.',
+    endpoint_env: 'RUNPOD_ENDPOINT_ID',
+    notes: 'Pony Realism for adult realistic/transgender, Illustrious for 2D. Same unified endpoint.',
   },
 ];
 

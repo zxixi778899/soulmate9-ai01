@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
+import { resolveImageGenerationRoute, UNIFIED_COMFY_ENDPOINT } from '@/lib/image-generation-routing';
 
 describe('unified image generation routing', () => {
-  it('routes explicit and transgender realism to Pony on CD2', () => {
+  it('routes explicit and transgender realism to Pony on unified endpoint', () => {
     expect(resolveImageGenerationRoute({
       surface: 'companion',
       category: 'female',
@@ -14,7 +14,7 @@ describe('unified image generation routing', () => {
       category: 'transgender',
       renderStyle: 'realistic',
       nsfwIntensity: 1,
-    }).endpointEnv).toBe('RUNPOD_ENDPOINT_ID_SDXL');
+    }).endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
   });
 
   it.each([
@@ -50,9 +50,21 @@ describe('unified image generation routing', () => {
     }).modelFamily).toBe('flux');
   });
 
-  it.each(['outfit', 'prop', 'advert'] as const)('keeps %s assets on FLUX CD1', (surface) => {
+  it.each(['outfit', 'prop', 'advert'] as const)('keeps %s assets on FLUX via unified endpoint', (surface) => {
     const route = resolveImageGenerationRoute({ surface });
     expect(route.modelFamily).toBe('flux');
-    expect(route.endpointEnv).toBe('RUNPOD_ENDPOINT_ID_FLUX');
+    expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
+  });
+
+  it('all routes share the same unified endpoint', () => {
+    const routes = [
+      resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 1 }),
+      resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 5 }),
+      resolveImageGenerationRoute({ surface: 'companion', renderStyle: '2d' }),
+      resolveImageGenerationRoute({ surface: 'outfit' }),
+    ];
+    for (const route of routes) {
+      expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
+    }
   });
 });

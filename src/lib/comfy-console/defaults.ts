@@ -191,18 +191,11 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
     },
     endpoints: [
       {
-        id: 'comfy-flux-cd1',
-        label: 'CD1 · FLUX ComfyUI',
-        endpoint_id: process.env.RUNPOD_ENDPOINT_ID_FLUX || process.env.RUNPOD_ENDPOINT_ID || '',
+        id: 'comfy-unified',
+        label: 'ComfyUI (FLUX + Pony + Illustrious)',
+        endpoint_id: process.env.RUNPOD_ENDPOINT_ID || 'comfyui-wozrrlcdipyl3p',
         kind: 'comfy',
-        notes: 'FLUX.1-dev：普通写实、3D、服装、道具与广告图',
-      },
-      {
-        id: 'comfy-sdxl-cd2',
-        label: 'CD2 · Pony / Illustrious ComfyUI',
-        endpoint_id: process.env.RUNPOD_ENDPOINT_ID_SDXL || process.env.RUNPOD_ENDPOINT_ID_DC2 || '',
-        kind: 'comfy',
-        notes: 'Pony Realism：Lv3-Lv5 与跨性别；Illustrious：2D 动漫',
+        notes: '统一端点：所有模型(FLUX/Pony/Illustrious)和LoRA均挂载在同一worker',
       },
       {
         id: 'vllm-luminaid',
