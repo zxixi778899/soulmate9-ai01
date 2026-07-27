@@ -20,7 +20,13 @@ const splitList = (value: string | undefined): string[] =>
   [...new Set(String(value || '').split(/[;,\n]/).map((item) => item.trim()).filter(Boolean))];
 
 const DEFAULT_FAMILY_LORAS: Record<ImageModelFamily, Partial<Record<CompanionCategory | 'nsfw' | '2d', string[]>>> = {
-  flux: {},
+  flux: {
+    female: ['flux_realism_xlabs.safetensors', 'flux_add_details.safetensors', 'flux_uncensored.safetensors'],
+    male: ['flux_krea_realism.safetensors', 'flux_add_details.safetensors', 'flux_uncensored.safetensors'],
+    transgender: ['flux_hyperrealism_aidma.safetensors', 'flux_add_details.safetensors', 'flux_uncensored.safetensors'],
+    anime: ['flux_detail_enhancer.safetensors'],
+    nsfw: ['flux_nsfw_klein_v2.safetensors'],
+  },
   pony: {
     female: ['pony_detailifier_v5.safetensors'],
     male: ['pony_detailifier_v5.safetensors'],
