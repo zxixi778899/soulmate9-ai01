@@ -219,6 +219,78 @@ function sseFromText(content: string): Response {
   );
 }
 
+/** Timeout for streaming connections (60s). */
+const STREAM_TIMEOUT_MS = 60_000;
+
+/**
+ * Real streaming via RunPod vLLM OpenAI-compatible endpoint.
+ * vLLM exposes /openai/v1/chat/completions on the serverless worker.
+ */
+async function streamRunPodReal(
+  messages: { role: string; content: string }[],
+  options: GenOptions,
+): Promise<Response> {
+  const url = `${RP_BASE}/openai/v1/chat/completions`;
+  const model = process.env.LLM_MODEL_NAME || 'lumimaid-13b';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: options.maxTokens ?? 1024,
+      temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+      top_p: options.topP ?? DEFAULT_TOP_P,
+      repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
+      stream: true,
+      ...(options.loraName ? { lora_name: options.loraName } : {}),
+    }),
+    signal: AbortSignal.timeout(STREAM_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`RunPod stream HTTP ${res.status}: ${body.slice(0, 160)}`);
+  }
+  if (!res.body) throw new Error('RunPod stream returned no body');
+  return res;
+}
+
+/**
+ * Real streaming via Together AI.
+ */
+async function streamTogetherReal(
+  messages: { role: string; content: string }[],
+  options: GenOptions,
+): Promise<Response> {
+  const key = process.env.TOGETHER_API_KEY || '';
+  if (!key) throw new Error('Together not configured');
+  const model =
+    process.env.TOGETHER_CHAT_MODEL ||
+    'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo';
+  const res = await fetch('https://api.together.xyz/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: options.maxTokens ?? 1024,
+      temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+      top_p: options.topP ?? DEFAULT_TOP_P,
+      stream: true,
+    }),
+    signal: AbortSignal.timeout(STREAM_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Together stream HTTP ${res.status}: ${body.slice(0, 160)}`);
+  }
+  if (!res.body) throw new Error('Together stream returned no body');
+  return res;
+}
+
 export async function streamText(options: GenOptions): Promise<Response> {
   const messages = buildInput(options);
   const mode: LoreMode = options.loraMode || 'default';
@@ -226,23 +298,44 @@ export async function streamText(options: GenOptions): Promise<Response> {
   logger.debug('[llm] streaming request', { data: { msgCount: messages.length, mode } });
   const errors: string[] = [];
 
+  // ── Try real streaming first ──
+  if (isConfigured()) {
+    try {
+      const res = await streamRunPodReal(messages as { role: string; content: string }[], options);
+      logger.debug('[llm] real stream connected', { data: { ms: Date.now() - start, provider: 'runpod' } });
+      return res;
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+      logger.warn('[llm] runpod real stream failed, trying Together', { err: errors[errors.length - 1] });
+    }
+  }
+
+  if (process.env.TOGETHER_API_KEY) {
+    try {
+      const res = await streamTogetherReal(messages as { role: string; content: string }[], options);
+      logger.debug('[llm] real stream connected', { data: { ms: Date.now() - start, provider: 'together' } });
+      return res;
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+      logger.warn('[llm] together real stream failed', { err: errors[errors.length - 1] });
+    }
+  }
+
+  // ── Fallback: buffered (fake SSE) ──
+  logger.warn('[llm] real streaming unavailable, using buffered fallback', { errors });
+  const fallbackErrors: string[] = [];
+
   if (isConfigured()) {
     try {
       const data = await postRunPod({
         input: {
           messages,
-          // runpod-workers/vllm reads generation params ONLY from the nested
-          // `sampling_params` object; flat top-level keys are ignored and
-          // max_tokens silently defaults to 100 (truncating output).
           sampling_params: {
             max_tokens: options.maxTokens ?? 1024,
             temperature: options.temperature ?? DEFAULT_TEMPERATURE,
             top_p: options.topP ?? DEFAULT_TOP_P,
             repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
           },
-          // Only send lora_name when explicitly requested — the endpoint must be
-          // started with --enable-lora for it to apply; otherwise vLLM rejects the
-          // request. LoRA persona is still conveyed via injectLore text injection.
           ...(options.loraName ? { lora_name: options.loraName } : {}),
         },
       }, AbortSignal.timeout(FETCH_TIMEOUT));
@@ -250,8 +343,7 @@ export async function streamText(options: GenOptions): Promise<Response> {
       logger.debug('[llm] response', { data: { ms: Date.now() - start, len: content.length, provider: 'runpod' } });
       return sseFromText(content);
     } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err));
-      logger.warn('[llm] runpod stream failed, trying Together', { err: errors[errors.length - 1] });
+      fallbackErrors.push(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -264,11 +356,11 @@ export async function streamText(options: GenOptions): Promise<Response> {
       logger.debug('[llm] response', { data: { ms: Date.now() - start, len: content.length, provider: 'together' } });
       return sseFromText(content);
     } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err));
+      fallbackErrors.push(err instanceof Error ? err.message : String(err));
     }
   }
 
-  throw new Error(errors[0] || 'LLM not configured');
+  throw new Error([...errors, ...fallbackErrors].join('; ') || 'LLM not configured');
 }
 
 // ── Compat wrappers ──

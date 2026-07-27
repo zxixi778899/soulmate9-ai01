@@ -64,7 +64,120 @@ export async function invokeChat(opts: InvokeChatOptions): Promise<InvokeChatRes
 }
 function localFallback(locale?: string): string { const value = (locale || '').toLowerCase(); if (value.startsWith('zh')) return '我在呢，刚才连接有点不稳定。把刚才那句话再发一次，我会好好回答你。'; if (value.startsWith('ja')) return 'ここにいるよ。接続が少し不安定だったみたい。もう一度送ってくれたら、ちゃんと答えるね。'; if (value.startsWith('ko')) return '나 여기 있어. 연결이 잠깐 불안정했어. 방금 말을 다시 보내 주면 제대로 답할게.'; if (value.startsWith('es')) return 'Estoy aquí. La conexión falló un momento; envíamelo otra vez y te responderé bien.'; if (value.startsWith('fr')) return 'Je suis là. La connexion a eu un raté ; renvoie-moi ton message et je te répondrai correctement.'; if (value.startsWith('de')) return 'Ich bin da. Die Verbindung hatte kurz Probleme; schick es noch einmal, dann antworte ich dir richtig.'; return "I'm right here. My connection hiccupped—send that once more and I'll answer you properly."; }
 function sse(content: string, provider: string, model: string, endpointId: string): Response { const encoder = new TextEncoder(); return new Response(new ReadableStream({ start(controller) { controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`)); controller.enqueue(encoder.encode('data: [DONE]\n\n')); controller.close(); } }), { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Model-Provider': provider, 'X-Model-Id': model, 'X-Model-Endpoint': endpointId } }); }
+/** Timeout for streaming connections (60s). */
+const STREAM_TIMEOUT_MS = 60_000;
+
+/**
+ * Build the correct streaming URL for each provider.
+ * RunPod serverless exposes an OpenAI-compatible endpoint at /openai/v1/chat/completions.
+ * Together / OpenRouter / OpenAI already have /v1 in their base URL.
+ */
+function streamUrl(ep: ModelEndpoint): string {
+  const apiBase = base(ep);
+  if (ep.provider === 'runpod') return `${apiBase}/openai/v1/chat/completions`;
+  return `${apiBase}/chat/completions`;
+}
+
+/**
+ * Real token-by-token streaming. Calls the provider's /chat/completions with
+ * stream:true and returns the raw Response whose body is an SSE stream.
+ * Falls back through the endpoint chain on failure; respects circuit breakers.
+ */
+export async function invokeChatStreamReal(opts: InvokeChatOptions): Promise<{ response: Response; provider: string; model: string; endpointId: string }> {
+  const candidates = [opts.endpoint, ...(opts.fallbackEndpoints || [])].filter(
+    (item, index, all) => all.findIndex((v) => v.id === item.id) === index,
+  );
+  const inputTokens = estimateTokens(opts.messages.map((m) => m.content).join('\n'));
+  let last: unknown;
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const ep = candidates[index];
+    if (circuitOpen(ep)) {
+      logger.warn('[ai-gateway] stream: circuit open, skipping', { endpoint: ep.id });
+      continue;
+    }
+    const apiKey = key(ep);
+    if (!apiKey) { last = new Error(`API key missing for ${ep.id}`); continue; }
+    const url = streamUrl(ep);
+    if (!url || url === '/chat/completions' || url === '/openai/v1/chat/completions') {
+      last = new Error(`api_base_url missing for ${ep.id}`);
+      continue;
+    }
+
+    const isQwen3 = /qwen3/i.test(ep.model_id);
+    const body: Record<string, unknown> = {
+      model: ep.model_id,
+      messages: opts.messages,
+      max_tokens: opts.maxTokens ?? ep.max_tokens,
+      temperature: opts.temperature ?? ep.temperature,
+      stream: true,
+    };
+    if (isQwen3) {
+      body.enable_thinking = false;
+      body.chat_template_kwargs = { enable_thinking: false };
+    }
+
+    const attemptStarted = Date.now();
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(ep.timeout_ms || STREAM_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        throw new Error(`${ep.provider} HTTP ${response.status}: ${errBody.slice(0, 160)}`);
+      }
+      if (!response.body) throw new Error(`${ep.provider} returned no stream body`);
+
+      recordSuccess(ep);
+      const outputTokens = 0; // unknown until stream completes
+      const cost = estimateCost(inputTokens, outputTokens, ep.cost_per_1k_input, ep.cost_per_1k_output);
+      void logModelUsage({
+        provider: ep.provider, model_id: ep.model_id, task_type: opts.taskType || 'chat',
+        user_id: opts.userId, girlfriend_id: opts.girlfriendId,
+        input_tokens: inputTokens, output_tokens: 0,
+        latency_ms: Date.now() - attemptStarted, cost_usd: cost, success: true,
+        membership_tier: opts.membershipTier, scene: opts.scene, route_reason: opts.routeReason,
+        endpoint_id: ep.id, fallback_count: index, time_to_first_token_ms: Date.now() - attemptStarted,
+        estimated_cost_usd: cost,
+      });
+
+      return { response, provider: ep.provider, model: ep.model_id, endpointId: ep.id };
+    } catch (error) {
+      last = error;
+      recordFailure(ep, error);
+      logger.warn('[ai-gateway] stream endpoint failed', {
+        endpoint: ep.id, fallbackIndex: index,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void logModelUsage({
+        provider: ep.provider, model_id: ep.model_id, task_type: opts.taskType || 'chat',
+        user_id: opts.userId, girlfriend_id: opts.girlfriendId,
+        input_tokens: inputTokens, output_tokens: 0,
+        latency_ms: Date.now() - attemptStarted, cost_usd: 0, success: false,
+        error_message: error instanceof Error ? error.message : String(error),
+        membership_tier: opts.membershipTier, scene: opts.scene, route_reason: opts.routeReason,
+        endpoint_id: ep.id, fallback_count: index,
+      });
+    }
+  }
+  throw last instanceof Error ? last : new Error('All streaming endpoints failed');
+}
+
 export async function invokeChatAsSseStream(opts: InvokeChatOptions): Promise<{ response: Response; provider: string; model: string; meta: InvokeChatResult | null }> {
+  // Try real token-by-token streaming first
+  try {
+    const real = await invokeChatStreamReal(opts);
+    return { response: real.response, provider: real.provider, model: real.model, meta: null };
+  } catch (streamErr) {
+    logger.warn('[ai-gateway] real streaming failed, falling back to buffered SSE', {
+      error: streamErr instanceof Error ? streamErr.message : String(streamErr),
+    });
+  }
+  // Fallback: full completion wrapped in a single SSE event
   try { const result = await invokeChat(opts); return { response: sse(result.content, result.provider, result.model, result.endpoint_id), provider: result.provider, model: result.model, meta: result }; }
   catch (error) { logger.error('[ai-gateway] all endpoints failed', { error: error instanceof Error ? error.message : String(error), routeReason: opts.routeReason }); const content = localFallback(opts.locale); return { response: sse(content, 'local', 'same-language-fallback', 'local-fallback'), provider: 'local', model: 'same-language-fallback', meta: null }; }
 }
