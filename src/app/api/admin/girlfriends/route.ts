@@ -755,6 +755,73 @@ function buildImagePrompt(profile: GeneratedProfile, gender = 'Female'): string 
   return parts.join(', ');
 }
 
+//  Random profile fallback (when LLM is unavailable) 
+const RAND_NAMES_F = ['Emma','Olivia','Ava','Isabella','Sophia','Mia','Luna','Aria','Scarlett','Victoria','Aurora','Grace','Chloe','Penelope','Layla','Nora','Riley','Zoey','Hannah','Lily','Stella','Hazel','Savannah','Audrey','Bella','Claire','Lucy','Everly','Nova','Emilia','Natasha','Anya','Freya','Bianca','Giulia','Francesca','Elena','Valentina','Luciana','Gabriela','Zara','Phoenix','Sage','Willow','Jade','Ruby','Iris','Jasmine','Holly','Flora'];
+const RAND_NAMES_M = ['James','Liam','Noah','Ethan','Lucas','Mason','Logan','Alexander','Daniel','Henry','Sebastian','Jack','Owen','Samuel','Ryan','Nathan','Caleb','Dylan','Luke','Gabriel','Marcus','Adrian','Julian','Dominic','Xavier','Tristan','Cole','Blake','Hunter','Levi','Dante','Rafael','Marco','Andrei','Viktor','Diego','Santiago','Mateo','Bruno','Felipe'];
+const RAND_RACES = ['Caucasian','Asian','Latino/Latina','Ebony','Arab','Indian','Mixed','Slavic','Mediterranean','Nordic'];
+const RAND_HAIR_F = ['Long wavy','Pixie cut','Twin braids','Messy bun','Straight bob','Long straight','Shoulder-length curls','High ponytail','Beachy waves','Elegant updo'];
+const RAND_HAIR_M = ['Short cropped','Textured fade','Slicked back','Messy quiff','Undercut','Buzz cut','Medium wavy','Crew cut','Pompadour','Tousled medium'];
+const RAND_HAIR_COLORS = ['Platinum blonde','Golden blonde','Raven black','Copper red','Ash brown','Dark brown','Chestnut','Auburn','Honey blonde','Silver'];
+const RAND_EYES = ['Deep emerald green','Honey brown','Ice blue','Steel gray','Warm chocolate','Ocean blue','Amber','Hazel','Forest green','Dark and intense'];
+const RAND_BODY_F = ['Petite','Slim','Athletic','Curvy','Hourglass','Tall and lean','Soft and feminine'];
+const RAND_BODY_M = ['Lean muscular','Athletic','Broad-shouldered','Slim','Tall and lean','Swimmer build','Boxer physique','V-taper'];
+const RAND_STYLE_F = ['Boho chic','Minimalist elegance','Streetwear','Classic feminine','Edgy alternative','Cozy academic','Glamorous','Sporty'];
+const RAND_STYLE_M = ['Suited and sharp','Casual masculine','Streetwear','Sporty athletic','Classic gentleman','Edgy rock','Rugged outdoorsy','Minimalist clean'];
+const RAND_TAGS = ['Sultry','Bookworm','Adventurous','Flirty','Artistic','Mysterious','Playful','Confident','Shy','Bold','Creative','Romantic','Intellectual','Wild','Gentle','Sassy','Dreamy','Ambitious','Free-spirited','Nerdy'];
+const RAND_PERSONALITIES = [
+  'Warm and playful, loves making people laugh with silly jokes and spontaneous adventures. Has a contagious energy that lights up any room.',
+  'Quiet and thoughtful, enjoys deep conversations and cozy evenings. A great listener who always remembers the little details.',
+  'Energetic and outgoing, always up for trying new things. The life of the party who makes everyone feel included.',
+  'Creative and artistic, sees beauty in everyday moments and loves expressing through painting, writing, or music.',
+  'Adventurous and bold, loves exploring new places and pushing boundaries. Has stories from every continent.',
+  'Confident and independent, knows what they want and goes after it. A natural leader who inspires others.',
+  'Mysterious and intriguing, has an air of sophistication that draws people in. Speaks softly but carries great wisdom.',
+  'Sweet and romantic, believes in grand gestures and loves surprising people with thoughtful gifts and handwritten letters.',
+];
+const RAND_BACKSTORIES = [
+  'Grew up in a small coastal town, moved to the city to pursue big dreams. Loves urban energy but misses the ocean.',
+  'Traveled the world as a child, now settles in one place but still dreams of adventure. Speaks three languages.',
+  'Former competitive athlete who now teaches and mentors. Still has the discipline and drive from those years.',
+  'Self-taught artist who sold their first piece at 16. Now runs a studio and mentors young creatives.',
+  'Tech entrepreneur who built a startup in college. Believes in using innovation to make the world better.',
+  'Former corporate lawyer who quit to follow a passion for photography. Now travels capturing moments.',
+  'Chef who trained abroad and now runs a fusion restaurant. Believes food is the ultimate love language.',
+  'Travel blogger who has visited 50 countries. Collects passport stamps and memories instead of things.',
+];
+
+function pickRand<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+function pickRandN<T>(arr: T[], n: number): T[] { return [...arr].sort(() => Math.random() - 0.5).slice(0, n); }
+
+function generateRandomProfiles(count: number, gender: string): GeneratedProfile[] {
+  const isMale = gender === 'Male';
+  const names = isMale ? RAND_NAMES_M : RAND_NAMES_F;
+  const usedNames = new Set<string>();
+  const profiles: GeneratedProfile[] = [];
+  for (let i = 0; i < count; i++) {
+    let name = pickRand(names);
+    let tries = 0;
+    while (usedNames.has(name) && tries < 20) { name = pickRand(names); tries++; }
+    usedNames.add(name);
+    profiles.push({
+      name,
+      age: 19 + Math.floor(Math.random() * 14),
+      personality: pickRand(RAND_PERSONALITIES),
+      tags: pickRandN(RAND_TAGS, 4 + Math.floor(Math.random() * 3)),
+      short_description: `${pickRand(['Captivating','Enchanting','Irresistible','Magnetic','Radiant'])} ${isMale ? 'companion' : 'companion'} with a ${pickRand(['mysterious','playful','sultry','intellectual','adventurous'])} side waiting to be discovered.`,
+      backstory: pickRand(RAND_BACKSTORIES),
+      appearance: {
+        race: pickRand(RAND_RACES),
+        hair: pickRand(isMale ? RAND_HAIR_M : RAND_HAIR_F),
+        hair_color: pickRand(RAND_HAIR_COLORS),
+        eyes: pickRand(RAND_EYES),
+        body: pickRand(isMale ? RAND_BODY_M : RAND_BODY_F),
+        style: pickRand(isMale ? RAND_STYLE_M : RAND_STYLE_F),
+      },
+    });
+  }
+  return profiles;
+}
+
 //  Batch create handler 
 async function handleBatchCreate(supabase: any, user: { id: string }, rawCount: number, rawGender?: string) {
   const count = Math.min(Math.max(Number(rawCount) || 3, 1), 10);
@@ -817,6 +884,7 @@ Generate EXACTLY ${count} characters. Use ONLY English.`;
 
   // Use shared LLM service (RunPod vLLM primary, Together fallback)
   let text = '';
+  let llmFailed = false;
   try {
     text = await generateText({
       systemPrompt,
@@ -828,36 +896,30 @@ Generate EXACTLY ${count} characters. Use ONLY English.`;
     });
   } catch (llmErr) {
     const msg = llmErr instanceof Error ? llmErr.message : String(llmErr);
-    logger.error('[admin/girlfriends] batch LLM generation failed', { err: msg });
-    return NextResponse.json({ error: `LLM generation failed: ${msg}` }, { status: 500 });
+    logger.warn('[admin/girlfriends] batch LLM unavailable, falling back to random generation', { err: msg });
+    llmFailed = true;
   }
 
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    return NextResponse.json(
-      { error: 'LLM returned invalid format', raw: text.slice(0, 500) },
-      { status: 500 }
-    );
+  let profiles: GeneratedProfile[] = [];
+
+  if (!llmFailed) {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed: { girlfriends?: GeneratedProfile[] } & Record<string, unknown> = JSON.parse(jsonMatch[0]);
+        const arr = parsed.girlfriends || (parsed as unknown as GeneratedProfile[]);
+        if (Array.isArray(arr) && arr.length > 0) profiles = arr;
+      } catch (parseErr) {
+        logger.warn('[admin/girlfriends] batch LLM JSON parse failed, using random fallback', {
+          err: parseErr instanceof Error ? parseErr.message : String(parseErr),
+        });
+      }
+    }
   }
 
-  let parsed: { girlfriends?: GeneratedProfile[] } & Record<string, unknown>;
-  try {
-    parsed = JSON.parse(jsonMatch[0]);
-  } catch (parseErr) {
-    return NextResponse.json(
-      {
-        error: `LLM returned invalid format: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
-        raw: text.slice(0, 500),
-      },
-      { status: 500 }
-    );
-  }
-  const profiles: GeneratedProfile[] = parsed.girlfriends || (parsed as unknown as GeneratedProfile[]);
-  if (!Array.isArray(profiles) || profiles.length === 0) {
-    return NextResponse.json(
-      { error: 'LLM returned empty array', raw: text.slice(0, 500) },
-      { status: 500 }
-    );
+  // Fallback: generate random profiles when LLM is unavailable or returns bad data
+  if (profiles.length === 0) {
+    profiles = generateRandomProfiles(count, gender);
   }
 
   const created: Record<string, unknown>[] = [];

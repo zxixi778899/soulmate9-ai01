@@ -332,6 +332,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     return () => { cancelled = true; };
   }, [girlfriendId]);
 
+  // Auto-load partner list so the "当前伴侣" dropdown shows the name when entering with girlfriendId
+  useEffect(() => {
+    if (girlfriendId && batchGirlfriends.length === 0 && !batchLoading) {
+      void loadBatchGirlfriends();
+    }
+  }, [girlfriendId]);
 
   useEffect(() => {
     if (tab === 'library') loadAssets();
