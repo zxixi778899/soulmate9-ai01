@@ -74,7 +74,11 @@ const STREAM_TIMEOUT_MS = 60_000;
  */
 function streamUrl(ep: ModelEndpoint): string {
   const apiBase = base(ep);
-  if (ep.provider === 'runpod') return `${apiBase}/openai/v1/chat/completions`;
+  if (ep.provider === 'runpod') {
+    // If base already includes /openai/v1 (e.g. from api_base_env), avoid doubling
+    if (apiBase.includes('/openai/v1')) return `${apiBase}/chat/completions`;
+    return `${apiBase}/openai/v1/chat/completions`;
+  }
   return `${apiBase}/chat/completions`;
 }
 
