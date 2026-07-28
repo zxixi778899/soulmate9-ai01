@@ -1,68 +1,114 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { logger } from '@/lib/logger';
+import {
+  DEFAULT_CREATOR_PRESETS,
+  normalizeCreatorPreset,
+  type CreatorPreset,
+} from '@/lib/creator-presets';
+
+interface CreatorOption {
+  id: string;
+  category: string;
+  value: string;
+  label_en: string;
+  label_zh: string;
+  extra?: Record<string, string>;
+  sort_order: number;
+}
+
+interface CreatorPresetResponse {
+  presets?: CreatorPreset[];
+  options?: Record<string, CreatorOption[]>;
+  source?: 'database' | 'built-in';
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function normalizeOption(value: unknown): CreatorOption | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const id = typeof row.id === 'string' ? row.id : '';
+  const category = typeof row.category === 'string' ? row.category : '';
+  const optionValue = typeof row.value === 'string' ? row.value : '';
+  if (!id || !category || !optionValue) return null;
+  return {
+    id,
+    category,
+    value: optionValue,
+    label_en: typeof row.label_en === 'string' ? row.label_en : optionValue,
+    label_zh: typeof row.label_zh === 'string' ? row.label_zh : optionValue,
+    extra: asRecord(row.extra) as Record<string, string> | undefined,
+    sort_order: typeof row.sort_order === 'number' ? row.sort_order : 100,
+  };
+}
 
 /**
- * GET /api/creator/presets
- * Returns active character presets + option pool for the creator.
- * No auth required — presets are public catalog data.
+ * Public creator catalog. Built-in presets keep companion creation usable when
+ * the optional catalog tables have not been seeded or are temporarily down.
  */
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse<CreatorPresetResponse>> {
   const { searchParams } = new URL(req.url);
-  const section = searchParams.get('section'); // 'presets' | 'options' | 'all' (default)
+  const section = searchParams.get('section');
+  const includePresets = !section || section === 'all' || section === 'presets';
+  const includeOptions = !section || section === 'all' || section === 'options';
+  const result: CreatorPresetResponse = {};
 
   try {
     const client = getSupabaseClient();
-    const result: { presets?: any[]; options?: Record<string, any[]> } = {};
 
-    // Fetch presets
-    if (!section || section === 'all' || section === 'presets') {
-      const { data: presets, error: presetErr } = await client
+    if (includePresets) {
+      const { data, error } = await client
         .from('character_presets')
         .select('*')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
-
-      if (presetErr) {
-        console.warn('[creator/presets] presets query failed', presetErr.message);
-        result.presets = [];
-      } else {
-        result.presets = presets || [];
-      }
+      const databasePresets = (data || [])
+        .map((row: unknown) => asRecord(row))
+        .filter((row): row is Record<string, unknown> => row !== null)
+        .map(normalizeCreatorPreset)
+        .filter((preset): preset is CreatorPreset => preset !== null);
+      if (error) logger.warn('[creator/presets] preset query failed; using built-ins', { err: error.message });
+      result.presets = databasePresets.length ? databasePresets : [...DEFAULT_CREATOR_PRESETS];
+      result.source = databasePresets.length ? 'database' : 'built-in';
     }
 
-    // Fetch option pool grouped by category
-    if (!section || section === 'all' || section === 'options') {
-      const { data: options, error: optErr } = await client
+    if (includeOptions) {
+      const { data, error } = await client
         .from('creator_option_pool')
         .select('*')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
-
-      if (optErr) {
-        console.warn('[creator/presets] options query failed', optErr.message);
-        result.options = {};
-      } else {
-        // Group by category (dedupe by value in case of accidental duplicate rows)
-        const grouped: Record<string, any[]> = {};
-        const seenPerCat: Record<string, Set<string>> = {};
-        for (const opt of options || []) {
-          const cat = opt.category;
-          if (!grouped[cat]) grouped[cat] = [];
-          if (!seenPerCat[cat]) seenPerCat[cat] = new Set();
-          const valKey = String(opt.value ?? '').trim().toLowerCase();
-          if (valKey && seenPerCat[cat].has(valKey)) continue;
-          if (valKey) seenPerCat[cat].add(valKey);
-          grouped[cat].push(opt);
-        }
-        result.options = grouped;
+      if (error) logger.warn('[creator/presets] option query failed', { err: error.message });
+      const grouped: Record<string, CreatorOption[]> = {};
+      const seen = new Map<string, Set<string>>();
+      for (const raw of data || []) {
+        const option = normalizeOption(raw);
+        if (!option) continue;
+        const categorySeen = seen.get(option.category) || new Set<string>();
+        const key = option.value.trim().toLowerCase();
+        if (categorySeen.has(key)) continue;
+        categorySeen.add(key);
+        seen.set(option.category, categorySeen);
+        (grouped[option.category] ||= []).push(option);
       }
+      result.options = grouped;
     }
 
     return NextResponse.json(result, {
       headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' },
     });
-  } catch (err) {
-    console.error('[creator/presets] unexpected error', String(err));
-    return NextResponse.json({ presets: [], options: {} }, { status: 500 });
+  } catch (error) {
+    logger.error('[creator/presets] unexpected error; using built-ins', {
+      err: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({
+      ...(includePresets ? { presets: [...DEFAULT_CREATOR_PRESETS], source: 'built-in' as const } : {}),
+      ...(includeOptions ? { options: {} } : {}),
+    });
   }
 }

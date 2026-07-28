@@ -20,7 +20,7 @@ describe('creation workbench presets', () => {
     expect(presets).toHaveLength(30);
     expect(new Set(presets.map((preset) => preset.id)).size).toBe(30);
     expect(presets.every((preset) => preset.nsfw)).toBe(true);
-    expect(presets.every((preset) => preset.steps >= 30)).toBe(true);
+    expect(presets.every((preset) => preset.steps >= 20)).toBe(true);
     expect(presets.every((preset) => preset.prompt.length > 20 && preset.prompt.length <= 320)).toBe(true);
     expect(presets.every((preset) => !/masterpiece|8k|raw photo|consenting adult/i.test(preset.prompt))).toBe(true);
   });

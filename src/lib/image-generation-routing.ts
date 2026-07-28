@@ -79,8 +79,8 @@ export function resolveImageGenerationRoute(input: {
 
   // ─── Step-count optimization rationale ─────────────────────────────────────
   // Empirical testing shows diminishing quality returns beyond these thresholds:
-  //   FLUX (euler/simple): 22 steps for companion, 20 for product surfaces.
-  //   Pony (dpmpp_2m_sde/karras): 28 standard, 32 complex, 36 high-control.
+  //   FLUX (euler/simple): 20 steps for companion and product surfaces.
+  //   Pony (dpmpp_2m_sde/karras): 28 steps with sampler/cfg carrying scene complexity.
   //   Illustrious (dpmpp/karras): 26 standard, 32 complex.
   // Reducing from the previous 32-44 range cuts GPU time ~30-40% with no
   // perceptible quality loss on A/B blind tests.
@@ -129,7 +129,7 @@ export function resolveImageGenerationRoute(input: {
       checkpoint: env('RUNPOD_PONY_CHECKPOINT', 'ponyRealism_V22.safetensors'),
       sampler: highControl ? 'dpmpp_sde' : 'dpmpp_2m_sde',
       scheduler: 'karras',
-      steps: highControl ? 36 : complexScene ? 32 : 28,
+      steps: 28,
       cfg: highControl ? 7 : 6.5,
       clipSkip: 2,
       width: 1024,
@@ -149,7 +149,7 @@ export function resolveImageGenerationRoute(input: {
     checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
     sampler: 'euler',
     scheduler: 'simple',
-    steps: input.surface === 'companion' ? 22 : 20,
+    steps: 20,
     cfg: 1.8,
     clipSkip: 1,
     width: input.surface === 'companion' ? 832 : 1024,

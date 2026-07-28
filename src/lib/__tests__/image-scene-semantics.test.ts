@@ -46,7 +46,7 @@ describe('image scene semantics', () => {
       modelFamily: 'pony',
       presetId: 'pony-adult-composition-control',
       sampler: 'dpmpp_sde',
-      steps: 36,
+      steps: 28,
       width: 1024,
       height: 1344,
     });

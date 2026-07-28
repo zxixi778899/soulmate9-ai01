@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
       pending: true,
       job_id: jobId,
       status: 'IN_PROGRESS',
-      message: 'Video is still generating. Poll /api/runpod/status?job_id=' + jobId,
+      message: 'Video is still generating. Poll /api/ai/status?job_id=' + jobId,
     });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';

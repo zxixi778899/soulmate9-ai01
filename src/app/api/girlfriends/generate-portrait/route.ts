@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
           checkpoint: route.checkpoint,
           referencePlan: referencePlan.trace,
         },
-        message: 'Portrait is being generated. Poll /api/runpod/status?job_id=' + result.jobId,
+        message: 'Portrait is being generated. Poll /api/ai/status?job_id=' + result.jobId,
       });
     }
 

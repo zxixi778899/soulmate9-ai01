@@ -387,6 +387,7 @@ export async function POST(request: NextRequest) {
     tier: membershipTier, userId: user.id,
     rolloutPercent: Number(process.env.AI_GATEWAY_V2_ROLLOUT_PERCENT || 10), intimacyLevel, message: messageText, locale: chatLocale,
     memoryCount: memories.length, contextMessageCount: recentMessages.length, dailyCostUsd,
+    recentMessages: recentMessages.slice(0, 3).map((item) => String(item.content || '')),
     adultCharacterVerified: Number((gf as { age?: number | string } | null)?.age || 18) >= 18,
   });
 

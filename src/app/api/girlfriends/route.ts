@@ -8,6 +8,7 @@ import { consumeCreationCard } from '@/lib/creation-cards';
 import { logger } from '@/lib/logger';
 import { invalidateGirlfriends } from '@/lib/revalidate';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
+import { buildCompanionCharacterCard } from '@/lib/creator-presets';
 
 const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
 
@@ -171,6 +172,19 @@ export async function POST(request: NextRequest) {
     appearance_style: companionMeta.visual_style || appearance_style,
   });
 
+  const characterCard = buildCompanionCharacterCard({
+    name: String(name),
+    age: Number(age) || 22,
+    gender,
+    relationship: String(companionMeta.relationship || companion.relationship),
+    personality: String(personality || ''),
+    backstory: String(backstory || ''),
+    occupation: String(companionMeta.occupation || ''),
+    hobbies: Array.isArray(companionMeta.hobbies) ? companionMeta.hobbies.map(String) : String(companionMeta.hobbies || ''),
+    voice: String(companionMeta.voice || voice_id || ''),
+    visualStyle: String(companionMeta.visual_style || 'realistic'),
+    shortDescription: String(short_description || ''),
+  });
   const insertData: Record<string, unknown> = {
     user_id: user.id,
     name,
@@ -193,18 +207,7 @@ export async function POST(request: NextRequest) {
     is_public: false,
     review_status: 'draft',
     character_card: {
-      name,
-      age: age || 22,
-      description: short_description || personality || '',
-      gender,
-      visual_style: companionMeta.visual_style || 'realistic',
-      face_shape: companionMeta.face_shape || '',
-      occupation: companionMeta.occupation || '',
-      relationship: companionMeta.relationship || companion.relationship,
-      hobbies: companionMeta.hobbies || [],
-      personality: personality || '',
-      scenario: backstory || '',
-      tags: tags || [],
+      ...characterCard,
       appearance: {
         race: appearance_race || '',
         hair: appearance_hair || '',
@@ -213,9 +216,7 @@ export async function POST(request: NextRequest) {
         body: appearance_body || '',
         style: appearance_style || '',
       },
-      first_mes: `*${name} smiles warmly at you* Hey there... I've been waiting for you.`,
-      system_prompt: `You are ${name}, the user's loving adult ${companion.relationship}. Age: ${age || 22}. Gender: ${gender}. Visual style: ${String(companionMeta.visual_style || 'realistic')}. ${personality ? `Personality: ${personality}` : ''} ${backstory ? `Backstory: ${backstory}` : ''} Stay consistent with ${companion.pronouns.possessive} identity, appearance, personality, and relationship. Respond naturally, warmly, playfully, and intimately.`
-    }
+    },
   };
 
   const { data: girlfriend, error } = await client

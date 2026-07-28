@@ -590,7 +590,7 @@ export default function ChatsPage() {
         for (let p = 0; p < 80; p++) {
           await new Promise((r) => setTimeout(r, 3000));
           try {
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(data.job_id)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(data.endpoint_id)}` : ''}&scene=chat_selfie`);
+            const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(data.job_id)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(data.endpoint_id)}` : ''}&scene=chat_selfie`);
             const pollData = await readResponseJson<{ status?: string; images?: string[]; image_url?: string; error?: string }>(pollRes);
             if (pollData.status === 'COMPLETED') {
               imgUrl = pollData.images?.[0] || pollData.image_url;
@@ -643,7 +643,7 @@ export default function ChatsPage() {
     const wantsPhoto = parseChatImageIntent(text).wantsImage;
 
     try {
-      const res = await authedFetch('/api/chat/stream', {
+      const res = await authedFetch('/api/ai/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text || displayText, girlfriend_id: selectedId, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale, ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}) }),
       });

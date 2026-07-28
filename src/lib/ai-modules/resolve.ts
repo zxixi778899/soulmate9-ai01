@@ -5,6 +5,9 @@ const NSFW_KEYWORDS = /\b(sex|sexy|nude|naked|fuck|cock|pussy|dick|cum|orgasm|bl
 const COMPLEX_HINTS = /remember|last time|you promised|relationship|feelings?|why did|story|continue|roleplay|conflict|memory|还记得|上次|答应|感情|心情|继续|剧情|矛盾|覚えて|recuerd|souviens|erinner/i;
 
 export function detectNsfwIntent(message?: string): boolean { return !!message && NSFW_KEYWORDS.test(message); }
+export function hasRecentNsfwContext(messages?: string[]): boolean {
+  return (messages || []).slice(-3).some((message) => detectNsfwIntent(message));
+}
 export function isGatewayV2Enrolled(userId: string | undefined, tier: MembershipTier, percent: number): boolean {
   if (tier === 'free') return true;
   const safePercent = Math.max(0, Math.min(100, Math.floor(percent)));
@@ -52,7 +55,9 @@ export function resolveChatCall(input: AiModulesConfig | null | undefined, ctx: 
   const locale = (ctx.locale || cfg.language.default_locale) as AppLocale;
   const language = cfg.language.enabled && cfg.language.force_reply_language ? cfg.language.reply_instructions[locale] || cfg.language.reply_instructions[cfg.language.fallback_locale] || '' : '';
   const suffix = [cfg.chat.global_system_suffix, language].filter(Boolean).join('\n');
-  const wantsAdult = ctx.preferNsfw === true || (cfg.chat.nsfw_detection === 'keywords' && detectNsfwIntent(ctx.message));
+  const wantsAdult = ctx.preferNsfw === true || (cfg.chat.nsfw_detection === 'keywords' && (
+    detectNsfwIntent(ctx.message) || hasRecentNsfwContext(ctx.recentMessages)
+  ));
   const fallbackIds = route.fallback_endpoint_ids || [cfg.chat.fallback_endpoint_id];
   const softBudget = route.daily_cost_soft_limit_usd; const overBudget = softBudget !== undefined && (ctx.dailyCostUsd || 0) >= softBudget;
   const rolloutPercent = ctx.rolloutPercent ?? Number(process.env.AI_GATEWAY_V2_ROLLOUT_PERCENT || 10);

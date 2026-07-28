@@ -44,10 +44,10 @@ type Scene = {
 };
 
 /* Base 30 steps; NSFW scenes get 32 for finer skin/anatomy detail. */
-const P = { width: 832, height: 1216, steps: 30, cfg: 1 };
-const TALL = { width: 768, height: 1344, steps: 30, cfg: 1 };
-const P_NSFW = { width: 832, height: 1216, steps: 32, cfg: 1 };
-const TALL_NSFW = { width: 768, height: 1344, steps: 32, cfg: 1 };
+const P = { width: 832, height: 1216, steps: 20, cfg: 1 };
+const TALL = { width: 768, height: 1344, steps: 20, cfg: 1 };
+const P_NSFW = { width: 832, height: 1216, steps: 28, cfg: 1 };
+const TALL_NSFW = { width: 768, height: 1344, steps: 28, cfg: 1 };
 
 /** 30 distinct scene archetypes (10 sensual-lifestyle + 20 explicit adult). */
 const SCENES: Scene[] = [

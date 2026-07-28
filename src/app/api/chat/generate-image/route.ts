@@ -468,7 +468,7 @@ export async function POST(request: NextRequest) {
           referenceRoles: referencePlan.selected.map((asset) => asset.role),
           attempts: routerResult.attempts,
         },
-        message: 'Image is being generated. Poll /api/runpod/status?job_id=' + routerResult.job_id,
+        message: 'Image is being generated. Poll /api/ai/status?job_id=' + routerResult.job_id,
       });
     }
 

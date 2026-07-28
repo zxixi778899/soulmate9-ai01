@@ -22,6 +22,7 @@ import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
+import type { CreatorPreset } from '@/lib/creator-presets';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ export default function CreatePage() {
 
   // Data from backend
   const [previews, setPreviews] = useState<CreatorPreview[]>([]);
+  const [presets, setPresets] = useState<CreatorPreset[]>([]);
   const [options, setOptions] = useState<Record<string, OptionItem[]>>({});
   const [cardStatus, setCardStatus] = useState<CardStatus | null>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -154,15 +156,16 @@ export default function CreatePage() {
     setLoadingData(true);
     try {
       const [optsRes, previewsRes, cardsRes] = await Promise.all([
-        fetch('/api/creator/presets?section=options'),
+        fetch('/api/creator/presets?section=all'),
         fetch('/api/creator/previews'),
         authedFetch('/api/creator/cards'),
       ]);
-      const optsData = await readResponseJson<{ options?: Record<string, OptionItem[]> }>(optsRes);
+      const optsData = await readResponseJson<{ presets?: CreatorPreset[]; options?: Record<string, OptionItem[]> }>(optsRes);
       const previewsData = await readResponseJson<{ previews?: CreatorPreview[] }>(previewsRes);
       const cardsData = await readResponseJson<CardStatus>(cardsRes);
 
       if (optsData.options) setOptions(optsData.options);
+      if (optsData.presets) setPresets(optsData.presets);
       if (previewsData.previews) setPreviews(previewsData.previews);
       if (cardsData) setCardStatus(cardsData);
     } catch (err) {
@@ -205,6 +208,25 @@ export default function CreatePage() {
 
   const selectPreviewGender = useCallback((g: string) => {
     setGender(g);
+    setStep(1);
+  }, []);
+  const applyPreset = useCallback((preset: CreatorPreset) => {
+    setVisualStyle(preset.visual_style);
+    setGender(preset.gender);
+    setEthnicity(preset.ethnicity);
+    setFaceShape(preset.face_shape);
+    setHairStyle(preset.hair_style);
+    setHairColor(preset.hair_color);
+    setEyeColor(preset.eye_color);
+    setBodyType(preset.body_type);
+    setFashionStyle(preset.fashion_style);
+    setSelectedTags(preset.personality_tags.slice(0, 8));
+    setVoice(preset.voice);
+    setOccupation(preset.occupation);
+    setRelationship(preset.relationship);
+    setHobbies(preset.hobbies);
+    setBackstory(preset.backstory);
+    setShortDescription(preset.short_description);
     setStep(1);
   }, []);
 
@@ -255,7 +277,7 @@ export default function CreatePage() {
         for (let p = 0; p < 60; p++) {
           await new Promise((r) => setTimeout(r, 3000));
           try {
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(data.job_id)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(data.endpoint_id)}` : ''}`);
+            const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(data.job_id)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(data.endpoint_id)}` : ''}`);
             const pollData = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(pollRes);
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
               url = pollData.images[0];
@@ -457,6 +479,31 @@ export default function CreatePage() {
                   </div>
                 ) : (
                   <>
+                    {presets.length > 0 && (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {presets.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => applyPreset(preset)}
+                            className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-[#FF2D78]/50 hover:bg-white/[0.06]"
+                          >
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <span className="font-semibold text-white">{zh ? preset.name_zh : preset.name}</span>
+                              <Sparkles className="h-4 w-4 shrink-0 text-[#FF2D78]" />
+                            </div>
+                            <p className="line-clamp-2 text-xs leading-5 text-white/50">
+                              {zh ? preset.description_zh : preset.description}
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-1">
+                              {preset.personality_tags.slice(0, 3).map((tag) => (
+                                <span key={tag} className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] text-white/50">{tag}</span>
+                              ))}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {/* Visual style tabs */}
                     <div className="flex items-center justify-center gap-2 flex-wrap">
                       {getOpts('visual_style').map((v) => (

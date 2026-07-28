@@ -77,6 +77,17 @@ describe('ai-modules resolve', () => {
     expect(r.endpoint.nsfw_capable).toBe(true);
   });
 
+  it('continues an adult route from the last three messages', () => {
+    const cfg = createDefaultAiModules();
+    const result = resolveChatCall(cfg, {
+      tier: 'pro',
+      intimacyLevel: cfg.chat.nsfw_min_intimacy,
+      message: 'yes, keep going',
+      recentMessages: ['hello', 'have sex with me'],
+      rolloutPercent: 100,
+    });
+    expect(result.channel).toBe('nsfw');
+  });
   it('locks NSFW when intimacy is low', () => {
     const cfg = createDefaultAiModules();
     const r = resolveChatCall(cfg, {

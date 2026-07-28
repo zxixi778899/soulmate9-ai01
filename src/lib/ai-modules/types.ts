@@ -149,6 +149,7 @@ export interface ResolveChatContext {
   tier: MembershipTier;
   intimacyLevel?: number;
   message?: string;
+  recentMessages?: string[];
   preferNsfw?: boolean;
   locale?: AppLocale | string;
   userId?: string;

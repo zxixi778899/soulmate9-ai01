@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
         endpoint_id: result.endpoint_id || generationRoute.endpointId || resolved.endpointId || undefined,
         status: result.status || 'IN_QUEUE',
         scene,
-        message: 'Image is being generated. Poll /api/runpod/status?job_id=' + result.job_id,
+        message: 'Image is being generated. Poll /api/ai/status?job_id=' + result.job_id,
       });
     }
 

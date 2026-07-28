@@ -497,7 +497,7 @@ export default function ChatPage() {
         if (stopped || cancelGenRef.current || genSessionRef.current !== session) break;
         try {
           const res = await authedFetch(
-            `/api/runpod/status?job_id=${encodeURIComponent(job.job_id!)}${job.endpoint_id ? `&endpoint_id=${encodeURIComponent(job.endpoint_id)}` : ''}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`,
+            `/api/ai/status?job_id=${encodeURIComponent(job.job_id!)}${job.endpoint_id ? `&endpoint_id=${encodeURIComponent(job.endpoint_id)}` : ''}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`,
           );
           const data = await readResponseJson<{ status?: string; images?: string[] }>(res);
           if (data.status === 'COMPLETED' && data.images?.length) {
@@ -771,7 +771,7 @@ export default function ChatPage() {
             await new Promise((r) => setTimeout(r, 3000));
             if (cancelGenRef.current || genSessionRef.current !== session) return { cancelled: true };
             try {
-              const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jid)}${endpointId ? `&endpoint_id=${encodeURIComponent(endpointId)}` : ''}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`);
+              const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(jid)}${endpointId ? `&endpoint_id=${encodeURIComponent(endpointId)}` : ''}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie`);
               const pollData = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(pollRes);
               if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
                 return { url: pollData.images[0] };
@@ -982,7 +982,7 @@ export default function ChatPage() {
               content: waitZh ? '照片还在排队中，GPU 正在热身… 💕' : 'Photo still in queue, GPU is warming up… 💕',
             } : m));
           }
-          const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(imgData.job_id)}${imgData.endpoint_id ? `&endpoint_id=${encodeURIComponent(imgData.endpoint_id)}` : ''}`);
+          const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(imgData.job_id)}${imgData.endpoint_id ? `&endpoint_id=${encodeURIComponent(imgData.endpoint_id)}` : ''}`);
           const pollData = await readResponseJson<{ status?: string; images?: string[] }>(pollRes);
           if (pollData.status === 'COMPLETED' && pollData.images?.length) { imageUrl = pollData.images[0]; break; }
           if (pollData.status === 'FAILED') throw new Error('Image generation failed');
@@ -991,7 +991,7 @@ export default function ChatPage() {
       if (!imageUrl) throw new Error('No image generated for video');
 
       // Step 2: Generate video from the image
-      const vidRes = await authedFetch('/api/generate-video', {
+      const vidRes = await authedFetch('/api/ai/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input_image: imageUrl, girlfriend_id: id }),
@@ -1020,7 +1020,7 @@ export default function ChatPage() {
               content: waitZh ? '视频渲染中，马上就好… 💕' : 'Rendering video, almost there… 💕',
             } : m));
           }
-          const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(vidData.job_id)}`);
+          const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(vidData.job_id)}`);
           const pollData = await readResponseJson<{ status?: string; images?: string[] }>(pollRes);
           if (pollData.status === 'COMPLETED' && pollData.images?.length) { videoUrl = pollData.images[0]; break; }
           if (pollData.status === 'FAILED') throw new Error('Video generation failed');
@@ -1111,7 +1111,7 @@ export default function ChatPage() {
       (detectedTurnLocale == null && String(locale || '').toLowerCase().startsWith('zh'));
 
     try {
-      const res = await authedFetch('/api/chat/stream', {
+      const res = await authedFetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
