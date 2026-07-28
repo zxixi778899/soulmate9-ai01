@@ -33,7 +33,7 @@ import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
-import { getCharacterProductionPreset, normalizeCharacterAssetRole, styleProductionHint } from '@/lib/character-asset-production';
+import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole, styleProductionHint } from '@/lib/character-asset-production';
 import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
 
 export const dynamic = 'force-dynamic';
@@ -1158,7 +1158,7 @@ if (body.action === 'verify_loras') {
           error: storedIdentityError.message,
         });
       } else {
-        const rolePriority = ['avatar-closeup', 'identity-front', 'identity-profile', 'identity-back'];
+        const rolePriority = identityReferenceRolePriority(assetRole);
         for (const role of rolePriority) {
           const match = (storedIdentityRows || []).find((row) => {
             const meta = row.meta && typeof row.meta === 'object'
@@ -1212,7 +1212,7 @@ if (body.action === 'verify_loras') {
       referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
-        ? Math.min(0.45, Math.max(0.25, denoise))
+        ? identityTurnaroundDenoise(assetRole, denoise)
         : Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
     const folder = assetFolder(girlfriendId, assetRole);

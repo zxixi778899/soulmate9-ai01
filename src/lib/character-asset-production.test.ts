@@ -3,6 +3,8 @@ import {
   CHARACTER_ID_PACK,
   CHARACTER_PRODUCTION_PRESETS,
   getCharacterProductionPreset,
+  identityReferenceRolePriority,
+  identityTurnaroundDenoise,
   normalizeCharacterAssetRole,
   styleProductionHint,
 } from './character-asset-production';
@@ -28,6 +30,17 @@ describe('character asset production', () => {
     expect(getCharacterProductionPreset('character-art').consistency).toBe(true);
   });
 
+  it('chains turnaround references and allows enough composition change', () => {
+    expect(identityReferenceRolePriority('identity-front')).toEqual(['avatar-closeup']);
+    expect(identityReferenceRolePriority('identity-profile')).toEqual(['identity-front', 'avatar-closeup']);
+    expect(identityReferenceRolePriority('identity-back')).toEqual(['identity-profile', 'identity-front', 'avatar-closeup']);
+    expect(identityTurnaroundDenoise('identity-front', 0.35)).toBe(0.72);
+    expect(identityTurnaroundDenoise('identity-profile', 0.35)).toBe(0.68);
+    expect(identityTurnaroundDenoise('identity-back', 0.35)).toBe(0.76);
+    expect(getCharacterProductionPreset('identity-front').scene).toContain('STRICT FULL-BODY FRONT');
+    expect(getCharacterProductionPreset('identity-profile').scene).toContain('90-DEGREE LEFT SIDE');
+    expect(getCharacterProductionPreset('identity-back').scene).toContain('face and eyes are not visible');
+  });
   it('keeps render styles mutually exclusive', () => {
     expect(styleProductionHint('realistic')).toContain('real camera photograph');
     expect(styleProductionHint('2d')).toContain('only as coherent 2D');

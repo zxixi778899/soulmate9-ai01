@@ -770,6 +770,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               width: preset.width,
               height: preset.height,
               num_images: 1,
+              input_image: undefined,
             }),
           });
           const data = await readResponseJson(res).catch(() => ({} as Any));

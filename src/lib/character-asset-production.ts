@@ -46,7 +46,7 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     label: '角色 ID · 正脸',
     shortLabel: '正脸',
     description: '清晰记录脸型、五官、发型和肤色，作为主身份参考。',
-    scene: 'a full-body front-view identity turnaround of the same adult character, facing directly toward camera, complete head, hands and feet visible, arms slightly separated from the torso, simple fitted neutral clothing showing body proportions, relaxed expression, plain studio background and even identity lighting',
+    scene: 'STRICT FULL-BODY FRONT TURNAROUND, not a portrait and not a three-quarter view. The same adult character stands facing exactly forward at eye level, complete head, both hands and both feet fully inside frame with generous margin, arms separated from torso, symmetrical neutral stance, simple fitted neutral clothing, seamless light-gray studio backdrop, flat even catalog lighting, no hallway, no cinematic environment, no crop above the feet',
     width: 832,
     height: 1216,
     consistency: true,
@@ -57,7 +57,7 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     label: '角色 ID · 侧脸',
     shortLabel: '侧脸',
     description: '记录鼻梁、下颌、发际线和侧面轮廓。',
-    scene: 'a full-body ninety-degree side-view identity turnaround of the same adult character, complete head, hands and feet visible, arms naturally separated from the torso, exact facial profile, hair silhouette and body proportions readable, simple fitted neutral clothing, plain studio background and even identity lighting',
+    scene: 'STRICT FULL-BODY 90-DEGREE LEFT SIDE TURNAROUND, not a portrait, not front-facing and not a three-quarter view. The same adult character stands in exact orthographic side profile from head to feet, nose pointing left, one eye maximum visible, both hands and both feet inside frame, arms separated from torso, simple fitted neutral clothing, seamless light-gray studio backdrop, flat even catalog lighting, no hallway, no cinematic environment, no crop',
     width: 832,
     height: 1216,
     consistency: true,
@@ -68,7 +68,7 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     label: '角色 ID · 背面',
     shortLabel: '背面',
     description: '记录后脑、发型背面、肩背轮廓和身体比例，完成标准三视图。',
-    scene: 'a clean back-view identity turnaround, the same adult character facing directly away from camera, complete head, hair silhouette, shoulders, torso and body proportions visible, fitted simple clothing, neutral studio background and even lighting',
+    scene: 'STRICT FULL-BODY REAR TURNAROUND, not a portrait, not front-facing and no three-quarter angle. The same adult character faces exactly away from camera from head to feet; face and eyes are not visible, back of head, hairstyle, shoulders, spine, hips, legs, both hands and both feet fully inside frame, arms separated from torso, simple fitted neutral clothing, seamless light-gray studio backdrop, flat even catalog lighting, no looking over shoulder, no hallway, no cinematic environment, no crop',
     width: 832,
     height: 1216,
     consistency: true,
@@ -171,6 +171,19 @@ export const CHARACTER_ID_PACK: CharacterAssetRole[] = [
   'identity-back',
 ];
 
+export function identityReferenceRolePriority(role: CharacterAssetRole): CharacterAssetRole[] {
+  if (role === 'identity-front') return ['avatar-closeup'];
+  if (role === 'identity-profile') return ['identity-front', 'avatar-closeup'];
+  if (role === 'identity-back') return ['identity-profile', 'identity-front', 'avatar-closeup'];
+  return ['identity-front', 'avatar-closeup', 'identity-profile', 'identity-back'];
+}
+
+export function identityTurnaroundDenoise(role: CharacterAssetRole, requested: number): number {
+  if (role === 'identity-front') return 0.72;
+  if (role === 'identity-profile') return 0.68;
+  if (role === 'identity-back') return 0.76;
+  return Math.min(0.45, Math.max(0.25, requested));
+}
 export function normalizeCharacterAssetRole(value: unknown): CharacterAssetRole {
   const role = String(value || '');
   return CHARACTER_ASSET_ROLES.includes(role as CharacterAssetRole)
