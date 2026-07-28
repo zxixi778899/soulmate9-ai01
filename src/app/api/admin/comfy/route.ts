@@ -33,7 +33,8 @@ import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
-import { normalizeCharacterAssetRole } from '@/lib/character-asset-production';
+import { getCharacterProductionPreset, normalizeCharacterAssetRole, styleProductionHint } from '@/lib/character-asset-production';
+import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -1076,9 +1077,11 @@ if (body.action === 'verify_loras') {
     );
     const kind = body.kind || wf?.kind || 'custom';
     const girlfriendId = String(body.girlfriend_id || body.girlfriendId || '').trim() || null;
+    const assetRole = normalizeCharacterAssetRole(body.asset_role);
     const characterConsistency = body.character_consistency === true;
     let consistencyReference = '';
-    if (characterConsistency && girlfriendId) {
+    let databaseCompanion: Record<string, unknown> | null = null;
+    if (girlfriendId) {
       const { data: girlfriend, error: girlfriendError } = await admin.supabase
         .from('girlfriends')
         .select('*')
@@ -1090,6 +1093,7 @@ if (body.action === 'verify_loras') {
           error: girlfriendError.message,
         });
       } else if (girlfriend) {
+        databaseCompanion = girlfriend as Record<string, unknown>;
         // Keep the category-selected prompt; only reuse the image for identity.
         // Rebuilding from storage here used to restore the original gender.
         consistencyReference = String(
@@ -1098,7 +1102,7 @@ if (body.action === 'verify_loras') {
       }
     }
     const rawCategory = String(body.companion_category || 'female');
-    const category: CompanionCategory = rawCategory === 'anime'
+    let category: CompanionCategory = rawCategory === 'anime'
       ? 'female'
       : COMPANION_CATEGORIES.includes(rawCategory as CompanionCategory)
         ? rawCategory as CompanionCategory
@@ -1106,21 +1110,36 @@ if (body.action === 'verify_loras') {
     const rawIntensity = Math.round(Number(body.nsfw_intensity || 5));
     const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';
+    const isIdentityAsset = assetRole === 'avatar-closeup' || assetRole.startsWith('identity-');
+    const generationIntensity: NsfwIntensity = isIdentityAsset ? 1 : nsfwIntensity;
+    if (isIdentityAsset) {
+      if (!databaseCompanion) {
+        return NextResponse.json({ error: 'Companion database record is required for identity generation' }, { status: 400 });
+      }
+      const productionPreset = getCharacterProductionPreset(assetRole);
+      const authoritativePrompt = buildCompanionGenerationPrompt(databaseCompanion, {
+        action: `${productionPreset.scene}. ${styleProductionHint(animeStyle)}`,
+        adult: false,
+      });
+      category = authoritativePrompt.category;
+      prompt = authoritativePrompt.positive;
+      negative = authoritativePrompt.negative;
+    }
     const surface = (body.generation_surface || (kind === 'girlfriend' ? 'companion' : kind) || 'companion') as ImageSurface;
     const sceneSemantics = classifyImageScene(prompt, category);
-    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity, sceneSemantics });
+    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics });
     if (body.width == null) width = generationRoute.width;
     if (body.height == null) height = generationRoute.height;
     prompt = `${generationRoute.promptPrefix} ${buildSceneCastPrompt(sceneSemantics)} ${prompt}`;
-    if (surface === 'companion' && body.prompt_profile_applied !== true) {
+    if (surface === 'companion' && body.prompt_profile_applied !== true && !isIdentityAsset) {
       prompt = buildStudioPromptEnhancement({
         category,
-        intensity: nsfwIntensity,
+        intensity: generationIntensity,
         animeStyle,
         scene: prompt,
       });
     }
-    if (surface === 'companion') {
+    if (surface === 'companion' && !isIdentityAsset) {
       negative = `${studioNegativePrompt(category, animeStyle)}, ${COMPACT_ADULT_NEGATIVE}`;
     }
 
@@ -1181,7 +1200,7 @@ if (body.action === 'verify_loras') {
       renderStyle: animeStyle,
       modelFamily: generationRoute.modelFamily,
       companionId: girlfriendId || undefined,
-      nsfwLevel: nsfwIntensity,
+      nsfwLevel: generationIntensity,
       controls: requestedReferenceControls,
       assets: [...identityAssets, ...manualAssets, ...(cfg.reference_assets || [])],
     });
@@ -1196,7 +1215,6 @@ if (body.action === 'verify_loras') {
         ? Math.min(0.45, Math.max(0.25, denoise))
         : Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
-    const assetRole = normalizeCharacterAssetRole(body.asset_role);
     const folder = assetFolder(girlfriendId, assetRole);
     const loraStrength =
       body.lora_strength != null
@@ -1217,7 +1235,7 @@ if (body.action === 'verify_loras') {
           const asset = cfg.loras.find((candidate) => candidate.id === String(value.id || ''));
           if (asset && !isLoraAllowedForContext(asset, { surface, category, modelFamily: generationRoute.modelFamily })) return null;
           const baseStrength = Number(value.strength ?? asset?.default_strength ?? 0.7);
-          const strength = baseStrength * studioLoraStrengthScale(nsfwIntensity);
+          const strength = baseStrength * studioLoraStrengthScale(generationIntensity);
           return asset?.filename
             ? {
                 id: asset.id,
@@ -1241,10 +1259,10 @@ if (body.action === 'verify_loras') {
     const compatibleLoraPlan = resolveModelLoraPlan({
       modelFamily: generationRoute.modelFamily,
       category,
-      intensity: nsfwIntensity,
+      intensity: generationIntensity,
       animeStyle,
       requested: normalizedLoras,
-      maxLoras: nsfwIntensity >= 3 ? 3 : 2,
+      maxLoras: generationIntensity >= 3 ? 3 : 2,
     });
     const effectiveLoras = compatibleLoraPlan.selected;
     if (compatibleLoraPlan.triggerWords.length > 0) {
@@ -1302,8 +1320,20 @@ if (body.action === 'verify_loras') {
           message: 'Generation in queue. Poll /api/runpod/status?job_id=' + result.job_id,
           generation_trace: {
             category,
-            intensity: nsfwIntensity,
-            identitySource: girlfriendId ? 'companion_record' : 'manual_prompt',
+            intensity: generationIntensity,
+            identitySource: isIdentityAsset ? 'girlfriends_database_live' : girlfriendId ? 'companion_record' : 'manual_prompt',
+            identitySnapshot: isIdentityAsset && databaseCompanion ? {
+              id: databaseCompanion.id,
+              name: databaseCompanion.name,
+              age: databaseCompanion.age,
+              gender: databaseCompanion.gender,
+              hairColor: databaseCompanion.appearance_hair_color,
+              hairstyle: databaseCompanion.appearance_hair,
+              eyes: databaseCompanion.appearance_eyes,
+              body: databaseCompanion.appearance_body,
+              race: databaseCompanion.appearance_race,
+              style: databaseCompanion.appearance_style,
+            } : undefined,
             prompt,
             negative,
             loras: effectiveLoras.length

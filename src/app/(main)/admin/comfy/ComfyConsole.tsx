@@ -783,6 +783,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           const data = await readResponseJson(res).catch(() => ({} as Any));
           if (!res.ok) throw new Error(data.error || `${preset.label}生成失败`);
 
+          const executedOverrides = {
+            ...overrides,
+            prompt: String(data.generation_trace?.prompt || overrides.prompt),
+            negative: String(data.generation_trace?.negative || overrides.negative),
+          };
           if (data.pending && data.job_id) {
             const jobId = String(data.job_id);
             let done = false;
@@ -791,7 +796,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${overrides?.girlfriendId ? `&girlfriend_id=${encodeURIComponent(overrides.girlfriendId)}` : ''}&asset_role=${encodeURIComponent(String(overrides?.assetRole || assetRole))}`);
               const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
               if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-                const saved = Array.isArray(pollData.assets) && pollData.assets.length > 0 ? pollData.assets : await finalizeAssets(jobId, pollData.images, overrides);
+                const saved = Array.isArray(pollData.assets) && pollData.assets.length > 0 ? pollData.assets : await finalizeAssets(jobId, pollData.images, executedOverrides);
                 generatedAssets.push(...(saved || pollData.images.map((url: string) => ({ url, id: null }))));
                 done = true;
                 break;
