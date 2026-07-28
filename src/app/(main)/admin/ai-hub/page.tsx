@@ -15,8 +15,9 @@ import { toast } from 'sonner';
 import {
   Loader2, RefreshCw, Plus, Trash2, Play, Zap, MessageSquare,
   ImageIcon, Mic, Video, Settings, GripVertical, CheckCircle2,
-  XCircle, AlertTriangle,
+  XCircle, AlertTriangle, Layers,
 } from 'lucide-react';
+import LoraPanel from './LoraPanel';
 
 // --- Types ---
 
@@ -157,6 +158,7 @@ export default function AdminAiHubPage() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="chat">Chat Models</TabsTrigger>
           <TabsTrigger value="routes">Routes</TabsTrigger>
+          <TabsTrigger value="lora">LoRA 资源库</TabsTrigger>
           <TabsTrigger value="presets">Presets</TabsTrigger>
         </TabsList>
 
@@ -368,6 +370,11 @@ export default function AdminAiHubPage() {
               );
             })}
           </div>
+        </TabsContent>
+
+        {/* === LoRA Tab === */}
+        <TabsContent value="lora" className="space-y-4">
+          <LoraPanel />
         </TabsContent>
 
         {/* === Presets Tab === */}

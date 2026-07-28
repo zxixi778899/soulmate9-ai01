@@ -24,6 +24,13 @@ export type CatalogLora = {
   search_keywords?: string;
   base_model?: 'FLUX.1' | 'Pony' | 'Illustrious' | 'SDXL';
   download?: { type?: string; hint?: string };
+  family?: string;
+  installed?: boolean;
+  size_mb?: number;
+  routing?: Record<string, boolean>;
+  civitai_model_id?: number;
+  civitai_version_id?: number;
+  notes?: string;
 };
 
 export type LoraApplyRecipe = {
@@ -38,17 +45,22 @@ export type LoraApplyRecipe = {
 
 export type LoraCatalog = {
   version: number;
-  base_model: string;
+  updated?: string;
+  base_model?: string;
   target_volume: string;
+  volume_path?: string;
   region: string;
   notes: string[];
+  families?: string[];
   categories: Array<{ id: string; label: string; order: number }>;
   loras: CatalogLora[];
+  routing_rules?: Record<string, Record<string, string[]>> & { description?: string };
+  generation_params?: Record<string, { steps: number; cfg: number; sampler: string; scheduler: string; clip_skip?: number }>;
   stacking_tips: string[];
   apply_recipes?: LoraApplyRecipe[];
 };
 
-export const LORA_CATALOG = catalogJson as LoraCatalog;
+export const LORA_CATALOG = catalogJson as unknown as LoraCatalog;
 
 const PRACTICAL_LORAS: CatalogLora[] = [
   {
@@ -134,7 +146,7 @@ export function catalogToLoraAssets(): Array<{
     page_url: l.page_url,
     search_keywords: l.search_keywords,
     workflows: l.workflows,
-    base_model: /illustrious/i.test(l.base_model || LORA_CATALOG.base_model) ? 'Illustrious' as const : /pony/i.test(l.base_model || LORA_CATALOG.base_model) ? 'Pony' as const : /sdxl/i.test(l.base_model || LORA_CATALOG.base_model) ? 'SDXL' as const : 'FLUX.1' as const,
+    base_model: /illustrious/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'Illustrious' as const : /pony/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'Pony' as const : /sdxl/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'SDXL' as const : 'FLUX.1' as const,
   }));
 
   return [none, ...items];

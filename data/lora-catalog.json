@@ -1,567 +1,383 @@
 {
-  "version": 3,
-  "base_model": "FLUX.1",
-  "target_volume": "soulmate-models-ca2",
+  "version": 4,
+  "updated": "2026-07-28",
+  "target_volume": "p1dup48kuq",
+  "volume_path": "/runpod-volume/models/loras",
   "region": "US-CA-2",
   "notes": [
-    "最小挂盘：先下 flux_style_photoreal_v1 + flux_detail_skin_v1（见 scripts/runpod/lora-urls.minimal.txt）",
-    "仅收录 FLUX 底模 LoRA，不可与 SDXL/SD1.5 LoRA 混用",
-    "fp8 主模型已有：flux1-dev-fp8.safetensors（放在 models/checkpoints/）",
-    "LoRA 下载到网盘：models/loras/，文件名必须与 filename 字段一致",
-    "Civitai 请设置 CIVITAI_API_TOKEN；NSFW 资源需站点年龄验证",
-    "后台「模型库」可搜索 Civitai、入库并导出 lora-urls.txt 到下载机"
+    "v4: 多模型族(FLUX/Pony/Illustrious)实际部署清单",
+    "路由规则由 src/lib/model-lora-routing.ts DEFAULT_FAMILY_LORAS 控制",
+    "Vercel env RUNPOD_INSTALLED_LORAS 必须与 installed=true 的 filename 一致",
+    "强度由 resolveModelLoraPlan() 按 intensity 自动计算，total cap 1.65",
+    "Civitai 下载需 token=f4dfc61f5bfffd47b9b3dd8b7da12a13",
+    "HuggingFace 公开镜像无需认证"
+  ],
+  "families": [
+    "flux",
+    "pony",
+    "illustrious"
   ],
   "categories": [
     {
-      "id": "body",
-      "label": "身材",
+      "id": "realism",
+      "label": "写实/真实感",
       "order": 1
     },
     {
-      "id": "action",
-      "label": "人物动作 NSFW",
+      "id": "detail",
+      "label": "细节增强",
       "order": 2
     },
     {
-      "id": "outfit",
-      "label": "服装",
+      "id": "nsfw",
+      "label": "NSFW 专用",
       "order": 3
     },
     {
-      "id": "prop",
-      "label": "道具",
+      "id": "uncensored",
+      "label": "解除审查",
       "order": 4
     },
     {
-      "id": "detail",
-      "label": "细节质感",
+      "id": "2d",
+      "label": "2D/平面",
       "order": 5
-    },
-    {
-      "id": "style",
-      "label": "风格",
-      "order": 6
-    },
-    {
-      "id": "checkpoint",
-      "label": "主模型",
-      "order": 7
     }
   ],
   "loras": [
     {
-      "id": "body-curvy-flux",
-      "label": "丰满曲线身材",
-      "category": "body",
-      "filename": "flux_body_curvy_v1.safetensors",
-      "default_strength": 0.75,
-      "nsfw": true,
-      "usage": "Boost bust/hips curves for girlfriend cards. Strength 0.6-0.85.",
-      "trigger_words": [
-        "curvy body",
-        "hourglass figure",
-        "large breasts",
-        "wide hips",
-        "thick thighs"
-      ],
-      "workflows": [
-        "wf-girlfriend",
-        "wf-tryon"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=curvy%20body",
-      "search_keywords": "FLUX curvy hourglass body",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "Search FLUX + curvy / hourglass on Civitai"
-      }
-    },
-    {
-      "id": "body-athletic-flux",
-      "label": "运动紧实身材",
-      "category": "body",
-      "filename": "flux_body_athletic_v1.safetensors",
-      "default_strength": 0.7,
+      "id": "flux-realism-xlabs",
+      "filename": "flux_realism_xlabs.safetensors",
+      "label": "FLUX 写实 (XLabs)",
+      "family": "flux",
+      "category": "realism",
+      "installed": true,
+      "size_mb": 21.4,
+      "default_strength": 0.58,
       "nsfw": false,
-      "usage": "Fitness / gym scenes, toned abs.",
+      "routing": {
+        "female": true
+      },
       "trigger_words": [
-        "athletic body",
-        "fit physique",
-        "toned abs",
-        "muscular legs"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=athletic%20body",
-      "search_keywords": "FLUX athletic body fit",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "Search FLUX athletic body LoRA"
-      }
-    },
-    {
-      "id": "body-petite-slim",
-      "label": "纤细身材(成人)",
-      "category": "body",
-      "filename": "flux_body_petite_v1.safetensors",
-      "default_strength": 0.65,
-      "nsfw": false,
-      "usage": "Slim adult figure. Strength 0.5-0.7. Adult appearance only.",
-      "trigger_words": [
-        "slim body",
-        "petite figure",
-        "narrow waist",
-        "slender legs"
-      ],
-      "workflows": [
-        "wf-girlfriend",
-        "wf-tryon"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=slim%20body",
-      "search_keywords": "FLUX slim petite slender",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX slim / petite body LoRA"
-      }
-    },
-    {
-      "id": "pose-nsfw-dynamic",
-      "label": "动态 NSFW 姿态",
-      "category": "action",
-      "filename": "flux_pose_nsfw_dynamic_v1.safetensors",
-      "default_strength": 0.7,
-      "nsfw": true,
-      "usage": "Dynamic sensual poses. Pair with pose keywords. Stack body LoRA 0.5-0.7.",
-      "trigger_words": [
-        "dynamic pose",
-        "arching back",
-        "on all fours",
-        "straddling",
-        "sensual pose"
-      ],
-      "workflows": [
-        "wf-girlfriend",
-        "wf-tryon"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=nsfw%20pose",
-      "search_keywords": "FLUX nsfw pose dynamic",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "Search FLUX NSFW pose"
-      }
-    },
-    {
-      "id": "pose-from-behind",
-      "label": "后视角姿态",
-      "category": "action",
-      "filename": "flux_pose_from_behind_v1.safetensors",
-      "default_strength": 0.65,
-      "nsfw": true,
-      "usage": "Rear view / doggy angle.",
-      "trigger_words": [
-        "from behind",
-        "rear view",
-        "looking back",
-        "arched back"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=from%20behind",
-      "search_keywords": "FLUX from behind doggy pose",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX from behind LoRA"
-      }
-    },
-    {
-      "id": "pose-cowgirl",
-      "label": "骑乘姿态",
-      "category": "action",
-      "filename": "flux_pose_cowgirl_v1.safetensors",
-      "default_strength": 0.7,
-      "nsfw": true,
-      "usage": "Cowgirl / riding pose.",
-      "trigger_words": [
-        "cowgirl",
-        "riding pose",
-        "straddling",
-        "on top"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=cowgirl",
-      "search_keywords": "FLUX cowgirl riding pose",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX cowgirl LoRA"
-      }
-    },
-    {
-      "id": "pose-missionary",
-      "label": "传教士/仰卧",
-      "category": "action",
-      "filename": "flux_pose_missionary_v1.safetensors",
-      "default_strength": 0.68,
-      "nsfw": true,
-      "usage": "Missionary / lying on back.",
-      "trigger_words": [
-        "missionary",
-        "lying on back",
-        "legs open",
-        "looking up"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=missionary",
-      "search_keywords": "FLUX missionary sex pose",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX missionary LoRA"
-      }
-    },
-    {
-      "id": "pose-oral",
-      "label": "口部姿态",
-      "category": "action",
-      "filename": "flux_pose_oral_v1.safetensors",
-      "default_strength": 0.65,
-      "nsfw": true,
-      "usage": "Oral / face focus pose.",
-      "trigger_words": [
-        "oral",
-        "on knees",
-        "looking up",
-        "open mouth"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=oral%20pose",
-      "search_keywords": "FLUX oral pose",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX oral pose LoRA"
-      }
-    },
-    {
-      "id": "pose-standing",
-      "label": "站立亲密姿态",
-      "category": "action",
-      "filename": "flux_pose_standing_v1.safetensors",
-      "default_strength": 0.65,
-      "nsfw": true,
-      "usage": "Standing / wall intimate pose.",
-      "trigger_words": [
-        "standing sex",
-        "against wall",
-        "lifted leg",
-        "standing intimate"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=standing%20pose%20nsfw",
-      "search_keywords": "FLUX standing intimate pose",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX standing pose LoRA"
-      }
-    },
-    {
-      "id": "pose-side",
-      "label": "侧卧/后入侧视",
-      "category": "action",
-      "filename": "flux_pose_side_v1.safetensors",
-      "default_strength": 0.65,
-      "nsfw": true,
-      "usage": "Side-lying / spooning.",
-      "trigger_words": [
-        "side view",
-        "spooning",
-        "lying on side",
-        "profile pose"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=side%20pose",
-      "search_keywords": "FLUX side spooning pose",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX side pose LoRA"
-      }
-    },
-    {
-      "id": "pose-bed-lying",
-      "label": "卧室躺姿",
-      "category": "action",
-      "filename": "flux_pose_bed_lying_v1.safetensors",
-      "default_strength": 0.65,
-      "nsfw": true,
-      "usage": "On bed / boudoir recline.",
-      "trigger_words": [
-        "lying on bed",
-        "bedroom pose",
-        "reclining",
-        "on sheets"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=lying%20on%20bed",
-      "search_keywords": "FLUX bedroom lying pose",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX bedroom lying LoRA"
-      }
-    },
-    {
-      "id": "face-ahegao",
-      "label": "阿黑颜表情",
-      "category": "detail",
-      "filename": "flux_face_ahegao_v1.safetensors",
-      "default_strength": 0.55,
-      "nsfw": true,
-      "usage": "Ahegao face. Keep strength low 0.4-0.6.",
-      "trigger_words": [
-        "ahegao",
-        "rolling eyes",
-        "tongue out",
-        "flushed face"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=ahegao",
-      "search_keywords": "FLUX ahegao face",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX ahegao LoRA"
-      }
-    },
-    {
-      "id": "outfit-lingerie",
-      "label": "内衣套装",
-      "category": "outfit",
-      "filename": "flux_outfit_lingerie_v1.safetensors",
-      "default_strength": 0.65,
-      "nsfw": true,
-      "usage": "Lingerie / garter / sheer stockings.",
-      "trigger_words": [
-        "lingerie",
-        "garter belt",
-        "sheer stockings",
-        "lace bra"
-      ],
-      "workflows": [
-        "wf-girlfriend",
-        "wf-tryon",
-        "wf-outfit"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=lingerie",
-      "search_keywords": "FLUX lingerie lace",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX lingerie LoRA"
-      }
-    },
-    {
-      "id": "outfit-ghost-mannequin",
-      "label": "幽灵人台商品图",
-      "category": "outfit",
-      "filename": "flux_outfit_ghost_mannequin_v1.safetensors",
-      "default_strength": 0.7,
-      "nsfw": false,
-      "usage": "Outfit product shot without model face.",
-      "trigger_words": [
-        "ghost mannequin",
-        "product shot",
-        "clothing display",
-        "studio backdrop"
-      ],
-      "workflows": [
-        "wf-outfit"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=ghost%20mannequin",
-      "search_keywords": "FLUX ghost mannequin clothing",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX product clothing LoRA"
-      }
-    },
-    {
-      "id": "outfit-bunny",
-      "label": "兔女郎套装",
-      "category": "outfit",
-      "filename": "flux_outfit_bunny_v1.safetensors",
-      "default_strength": 0.7,
-      "nsfw": true,
-      "usage": "Bunny girl outfit / cosplay.",
-      "trigger_words": [
-        "bunny suit",
-        "playboy bunny",
-        "fishnet stockings",
-        "bowtie"
-      ],
-      "workflows": [
-        "wf-girlfriend",
-        "wf-tryon"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=bunny%20suit",
-      "search_keywords": "FLUX bunny suit",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX bunny outfit LoRA"
-      }
-    },
-    {
-      "id": "prop-magical",
-      "label": "魔法道具图标",
-      "category": "prop",
-      "filename": "flux_prop_magical_v1.safetensors",
-      "default_strength": 0.75,
-      "nsfw": false,
-      "usage": "Shop props / RPG loot icons.",
-      "trigger_words": [
-        "magical item",
-        "glowing prop",
-        "fantasy artifact",
-        "game icon"
-      ],
-      "workflows": [
-        "wf-prop"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=magical%20item",
-      "search_keywords": "FLUX magical item prop",
-      "download": {
-        "type": "manual_or_script",
-        "hint": "FLUX prop / item LoRA"
-      }
-    },
-    {
-      "id": "detail-skin",
-      "label": "皮肤细节增强",
-      "category": "detail",
-      "filename": "flux_detail_skin_v1.safetensors",
-      "default_strength": 0.45,
-      "nsfw": false,
-      "usage": "Pores / skin texture. Strength 0.3-0.5.",
-      "trigger_words": [
-        "detailed skin",
-        "skin pores",
-        "natural skin texture"
-      ],
-      "workflows": [
-        "wf-girlfriend"
-      ],
-      "source": "civitai",
-      "page_url": "https://civitai.com/models/?query=fluxRealSkin",
-      "search_keywords": "FLUX fluxRealSkin skin texture",
-      "download": {
-        "type": "civitai_version",
-        "version_id": 827325,
-        "url": "https://civitai.com/api/download/models/827325",
-        "hint": "Rename download to flux_detail_skin_v1.safetensors (fluxRealSkin-V2)"
-      }
-    },
-    {
-      "id": "style-photoreal",
-      "label": "写实质感",
-      "category": "style",
-      "filename": "flux_style_photoreal_v1.safetensors",
-      "default_strength": 0.55,
-      "nsfw": false,
-      "usage": "Extra photoreal polish for card portraits.",
-      "trigger_words": [
+        "realistic",
         "photorealistic",
-        "raw photo",
-        "sharp details"
+        "raw photo"
       ],
-      "workflows": [
-        "wf-girlfriend"
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/Muapi/flux-lora-collection/resolve/main/flux_realism_xlabs.safetensors",
+      "usage": "女性写实人像主LoRA。搭配 add_details + uncensored 三件套。"
+    },
+    {
+      "id": "flux-krea-realism",
+      "filename": "flux_krea_realism.safetensors",
+      "label": "FLUX Krea 写实",
+      "family": "flux",
+      "category": "realism",
+      "installed": true,
+      "size_mb": 85.6,
+      "default_strength": 0.58,
+      "nsfw": false,
+      "routing": {
+        "male": true
+      },
+      "trigger_words": [
+        "realistic",
+        "photorealistic",
+        "natural lighting"
+      ],
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/LarryAIDraw/flux-krea-realism-lora/resolve/main/flux_krea_realism.safetensors",
+      "usage": "男性写实主LoRA。Krea风格自然光影。搭配 add_details + uncensored。"
+    },
+    {
+      "id": "flux-hyperrealism-aidma",
+      "filename": "flux_hyperrealism_aidma.safetensors",
+      "label": "FLUX 超写实 (AIDMA)",
+      "family": "flux",
+      "category": "realism",
+      "installed": true,
+      "size_mb": 73.1,
+      "default_strength": 0.58,
+      "nsfw": false,
+      "routing": {
+        "transgender": true
+      },
+      "trigger_words": [
+        "hyperrealistic",
+        "ultra detailed",
+        "photorealistic"
+      ],
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/Muapi/flux-lora-collection/resolve/main/flux_hyperrealism_aidma.safetensors",
+      "usage": "跨性别超写实主LoRA。AIDMA Hyperrealism风格。搭配 add_details + uncensored。"
+    },
+    {
+      "id": "flux-add-details",
+      "filename": "flux_add_details.safetensors",
+      "label": "FLUX 细节增强 (Shakker)",
+      "family": "flux",
+      "category": "detail",
+      "installed": true,
+      "size_mb": 655.6,
+      "default_strength": 0.5,
+      "nsfw": false,
+      "routing": {
+        "female": true,
+        "male": true,
+        "transgender": true
+      },
+      "trigger_words": [
+        "detailed",
+        "high quality",
+        "sharp focus"
+      ],
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/Shakker-Labs/FLUX.1-dev-LoRA-add-details/resolve/main/FLUX-dev-lora-add_details.safetensors",
+      "usage": "通用细节增强辅助LoRA。所有FLUX写实路由必挂。强度不宜过高(0.4-0.55)。"
+    },
+    {
+      "id": "flux-detail-enhancer",
+      "filename": "flux_detail_enhancer.safetensors",
+      "label": "FLUX 细节增强器",
+      "family": "flux",
+      "category": "detail",
+      "installed": true,
+      "size_mb": 164,
+      "default_strength": 0.5,
+      "nsfw": false,
+      "routing": {
+        "anime": true
+      },
+      "trigger_words": [
+        "detailed",
+        "intricate details",
+        "high resolution"
+      ],
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/Muapi/flux-lora-collection/resolve/main/flux_detail_enhancer.safetensors",
+      "usage": "FLUX anime/2.5D风格细节增强。用于anime路由。"
+    },
+    {
+      "id": "flux-uncensored",
+      "filename": "flux_uncensored.safetensors",
+      "label": "FLUX 解除审查",
+      "family": "flux",
+      "category": "uncensored",
+      "installed": true,
+      "size_mb": 37.9,
+      "default_strength": 0.5,
+      "nsfw": false,
+      "routing": {
+        "female": true,
+        "male": true,
+        "transgender": true
+      },
+      "trigger_words": [],
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/aifeifei798/flux-lora-uncensored/resolve/main/flux-lora-uncensored.safetensors",
+      "usage": "解除FLUX内容限制。所有写实路由必挂，允许生成NSFW内容。无需触发词。"
+    },
+    {
+      "id": "flux-nsfw-klein-v2",
+      "filename": "flux_nsfw_klein_v2.safetensors",
+      "label": "FLUX NSFW Klein V2",
+      "family": "flux",
+      "category": "nsfw",
+      "installed": true,
+      "size_mb": 158,
+      "default_strength": 0.65,
+      "nsfw": true,
+      "routing": {
+        "nsfw": true
+      },
+      "trigger_words": [
+        "explicit",
+        "nsfw"
+      ],
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/AntiLeecher/Flux-Klein-NSFW-Lora/resolve/main/Flux%20Klein%20-%20NSFW%20v2.safetensors",
+      "usage": "FLUX专用NSFW LoRA。intensity>=3时自动挂载。增强解剖学细节。"
+    },
+    {
+      "id": "pony-detailifier-v5",
+      "filename": "pony_detailifier_v5.safetensors",
+      "label": "Pony 细节化 V5",
+      "family": "pony",
+      "category": "detail",
+      "installed": true,
+      "size_mb": 18.4,
+      "default_strength": 0.55,
+      "nsfw": false,
+      "routing": {
+        "female": true,
+        "male": true,
+        "transgender": true,
+        "anime": true,
+        "nsfw": true
+      },
+      "trigger_words": [
+        "detailerlora"
+      ],
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/Muapi/pony-lora-collection/resolve/main/pony_detailifier_v5.safetensors",
+      "usage": "Pony模型万能细节LoRA。所有Pony路由统一使用。触发词: detailerlora。"
+    },
+    {
+      "id": "illustrious-micro-details-v6",
+      "filename": "AddMicroDetails_Illustrious_v6.safetensors",
+      "label": "Illustrious 微细节 V6",
+      "family": "illustrious",
+      "category": "detail",
+      "installed": true,
+      "size_mb": 217.9,
+      "default_strength": 0.55,
+      "nsfw": false,
+      "routing": {
+        "female": true,
+        "male": true,
+        "transgender": true,
+        "anime": true
+      },
+      "trigger_words": [
+        "micro details",
+        "detailed skin"
+      ],
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/Muapi/illustrious-lora-collection/resolve/main/AddMicroDetails_Illustrious_v6.safetensors",
+      "usage": "Illustrious底模微细节增强。皮肤纹理、衣物褶皱。所有Illustrious路由主LoRA。"
+    },
+    {
+      "id": "illustrious-background-detailer-v3",
+      "filename": "BackgroundDetailerV3-000004.safetensors",
+      "label": "Illustrious 背景细节 V3",
+      "family": "illustrious",
+      "category": "detail",
+      "installed": false,
+      "size_mb": 218,
+      "default_strength": 0.5,
+      "nsfw": false,
+      "routing": {
+        "female": true,
+        "male": true,
+        "transgender": true,
+        "anime": true
+      },
+      "trigger_words": [
+        "detailed background"
       ],
       "source": "civitai",
-      "page_url": "https://civitai.com/models/?query=Immersive+Photorealistic",
-      "search_keywords": "FLUX Immersive Photorealistic",
-      "download": {
-        "type": "civitai_version",
-        "version_id": 1084957,
-        "url": "https://civitai.com/api/download/models/1084957",
-        "hint": "Rename download to flux_style_photoreal_v1.safetensors"
-      }
+      "civitai_model_id": 422243,
+      "civitai_version_id": 726791,
+      "download_url": "https://civitai.com/api/download/models/726791?token=f4dfc61f5bfffd47b9b3dd8b7da12a13",
+      "usage": "Illustrious背景/场景细节增强。风景、建筑、室内环境。搭配MicroDetails使用。",
+      "notes": "RunPod serverless自定义镜像当前故障，文件已下载到本地待推送"
+    },
+    {
+      "id": "illustrious-detail-slider",
+      "filename": "StS-Illustrious-Detail-Slider-v1.0.safetensors",
+      "label": "Illustrious 细节滑块",
+      "family": "illustrious",
+      "category": "2d",
+      "installed": true,
+      "size_mb": 8.4,
+      "default_strength": 0.5,
+      "nsfw": false,
+      "routing": {
+        "2d": true
+      },
+      "trigger_words": [
+        "detail slider"
+      ],
+      "source": "huggingface",
+      "download_url": "https://huggingface.co/Muapi/illustrious-lora-collection/resolve/main/StS-Illustrious-Detail-Slider-v1.0.safetensors",
+      "usage": "Illustrious 2D/平面风格细节控制。animeStyle='2d'时挂载。"
     }
   ],
+  "routing_rules": {
+    "description": "由 model-lora-routing.ts DEFAULT_FAMILY_LORAS 硬编码，env可覆盖",
+    "flux": {
+      "female": [
+        "flux_realism_xlabs.safetensors",
+        "flux_add_details.safetensors",
+        "flux_uncensored.safetensors"
+      ],
+      "male": [
+        "flux_krea_realism.safetensors",
+        "flux_add_details.safetensors",
+        "flux_uncensored.safetensors"
+      ],
+      "transgender": [
+        "flux_hyperrealism_aidma.safetensors",
+        "flux_add_details.safetensors",
+        "flux_uncensored.safetensors"
+      ],
+      "anime": [
+        "flux_detail_enhancer.safetensors"
+      ],
+      "nsfw": [
+        "flux_nsfw_klein_v2.safetensors"
+      ]
+    },
+    "pony": {
+      "all": [
+        "pony_detailifier_v5.safetensors"
+      ]
+    },
+    "illustrious": {
+      "female": [
+        "AddMicroDetails_Illustrious_v6.safetensors",
+        "BackgroundDetailerV3-000004.safetensors"
+      ],
+      "male": [
+        "AddMicroDetails_Illustrious_v6.safetensors",
+        "BackgroundDetailerV3-000004.safetensors"
+      ],
+      "transgender": [
+        "AddMicroDetails_Illustrious_v6.safetensors",
+        "BackgroundDetailerV3-000004.safetensors"
+      ],
+      "anime": [
+        "AddMicroDetails_Illustrious_v6.safetensors",
+        "BackgroundDetailerV3-000004.safetensors"
+      ],
+      "2d": [
+        "StS-Illustrious-Detail-Slider-v1.0.safetensors"
+      ]
+    }
+  },
+  "generation_params": {
+    "flux": {
+      "steps": 22,
+      "cfg": 1,
+      "sampler": "euler",
+      "scheduler": "simple"
+    },
+    "pony": {
+      "steps": 28,
+      "cfg": 7,
+      "sampler": "euler_ancestral",
+      "scheduler": "normal",
+      "clip_skip": 2
+    },
+    "illustrious": {
+      "steps": 26,
+      "cfg": 7,
+      "sampler": "euler_ancestral",
+      "scheduler": "normal",
+      "clip_skip": 2
+    },
+    "turbo": {
+      "steps": 12,
+      "cfg": 1,
+      "sampler": "euler",
+      "scheduler": "simple"
+    }
+  },
   "stacking_tips": [
-    "单 worker FLUX 建议每次只挂 1 个 LoRA，更稳。",
-    "身材 0.6–0.8 + 动作关键词，通常比叠 3 个 LoRA 更好。",
-    "NSFW 动作 LoRA：0.65–0.70；表情类 ≤0.55。",
-    "服装商品图：服装 LoRA + 负面 person/face/hands。",
-    "文件名必须与 models/loras/ 下完全一致。"
-  ],
-  "apply_recipes": [
-    {
-      "id": "recipe-gf-curvy",
-      "label": "女友卡·曲线身材",
-      "workflow_id": "wf-girlfriend",
-      "lora_id": "body-curvy-flux",
-      "lora_strength": 0.75,
-      "append_triggers": true,
-      "positive_extra": "three-quarter body portrait, looking at viewer, vivid companion card"
-    },
-    {
-      "id": "recipe-gf-nsfw-dynamic",
-      "label": "女友卡·NSFW 动态",
-      "workflow_id": "wf-girlfriend",
-      "lora_id": "pose-nsfw-dynamic",
-      "lora_strength": 0.7,
-      "append_triggers": true,
-      "positive_extra": "sensual adult pose, detailed skin, cinematic intimate light"
-    },
-    {
-      "id": "recipe-tryon-bunny",
-      "label": "试穿·兔女郎",
-      "workflow_id": "wf-tryon",
-      "lora_id": "outfit-bunny",
-      "lora_strength": 0.75,
-      "append_triggers": true,
-      "positive_extra": "same woman as reference, identity preserved, three-quarter body"
-    },
-    {
-      "id": "recipe-outfit-product",
-      "label": "服装商品图",
-      "workflow_id": "wf-outfit",
-      "lora_id": "outfit-ghost-mannequin",
-      "lora_strength": 0.7,
-      "append_triggers": true,
-      "positive_extra": "game inventory showcase, clean studio background"
-    },
-    {
-      "id": "recipe-prop-magic",
-      "label": "魔法道具 icon",
-      "workflow_id": "wf-prop",
-      "lora_id": "prop-magical",
-      "lora_strength": 0.75,
-      "append_triggers": true,
-      "positive_extra": "centered product, RPG loot icon, 8k"
-    }
+    "FLUX: 最多3个LoRA (主写实 + add_details + uncensored)，NSFW时+klein_v2替换uncensored",
+    "Pony: 单LoRA (detailifier_v5) 即可，触发词 detailerlora 必须加入prompt",
+    "Illustrious: 2个LoRA (MicroDetails + BackgroundDetailer)，2D风格用DetailSlider替换",
+    "强度自动计算: base=0.5~0.72(按intensity)，每个递减0.08，total cap 1.65",
+    "文件名必须与 /runpod-volume/models/loras/ 下完全一致"
   ]
 }

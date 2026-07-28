@@ -108,6 +108,14 @@ function triggersForLora(name: string): string[] {
   const lower = name.toLowerCase();
   if (lower.includes('detailifier')) return ['detailerlora'];
   if (lower.includes('backgrounddetailer')) return ['detailed background'];
+  if (lower.includes('addmicrodetails')) return ['micro details', 'detailed skin'];
+  if (lower.includes('detail-slider') || lower.includes('detail_slider')) return ['detail slider'];
+  if (lower.includes('detail_enhancer') || lower.includes('detail-enhancer')) return ['intricate details'];
+  if (lower.includes('add_details') || lower.includes('add-details')) return ['sharp focus'];
+  if (lower.includes('xlabs') || lower.includes('realism_xlabs')) return ['raw photo'];
+  if (lower.includes('krea')) return ['natural lighting'];
+  if (lower.includes('hyperrealism') || lower.includes('aidma')) return ['hyperrealistic'];
+  if (lower.includes('nsfw_klein') || lower.includes('klein')) return ['explicit'];
   return [];
 }
 
