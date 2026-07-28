@@ -71,7 +71,7 @@ export function resolveCreativeGenerationPreset(input: {
     nsfwIntensity: input.intensity,
     sceneText: input.scene,
   });
-  const isIdentityAsset = input.assetRole?.startsWith('identity-') ?? false;
+  const isIdentityAsset = input.assetRole === 'avatar-closeup' || (input.assetRole?.startsWith('identity-') ?? false);
   const denoise = input.mode === 'img2img'
     ? isIdentityAsset || input.identityConsistency
       ? 0.35

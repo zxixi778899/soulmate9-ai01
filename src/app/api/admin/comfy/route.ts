@@ -720,7 +720,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  
+
   if (body.action === 'move_assets' || body.action === 'copy_assets') {
     const mode = body.action === 'copy_assets' ? 'copy' : 'move';
     const targetGirlfriendId = String(body.girlfriend_id || body.girlfriendId || '').trim() || null;
@@ -1022,11 +1022,11 @@ if (body.action === 'verify_loras') {
     const lora = loraId
       ? cfg.loras.find((l) => l.id === loraId)
       : null;
-    // Unified endpoint: all generation goes to comfyui-wozrrlcdipyl3p
+    // Unified endpoint: all generation goes to wozrrlcdipyl3p
     const endpointId =
       body.endpoint_id ||
       process.env.RUNPOD_ENDPOINT_ID ||
-      'comfyui-wozrrlcdipyl3p';
+      'wozrrlcdipyl3p';
 
     let width = Number(body.width || wf?.defaults.width || 832);
     let height = Number(body.height || wf?.defaults.height || 1216);

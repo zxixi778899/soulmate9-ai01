@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { runpodClient } from '@/lib/runpod';
-import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
+import { uploadDataUrl, uploadImageBase64, resolveImageUrl } from '@/lib/storage';
+import { normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { logger } from '@/lib/logger';
 
 /**
  * GET /api/runpod/status?job_id=xxx[&girlfriend_id=yyy&scene=chat_selfie]
  * Poll a RunPod job status and return images if completed.
- * When girlfriend_id is provided, persists the image to chat_messages + chat_media on completion.
+ *
+ * Two modes:
+ *  - Chat mode (default): persists image to chat_messages + chat_media.
+ *  - Admin mode (admin_source=true): uploads to girlfriends/{id}/{asset_role}/
+ *    and inserts a generation_assets record — same as the synchronous generate path.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -29,6 +34,10 @@ export async function GET(req: NextRequest) {
         ? requestedEndpointId
         : undefined;
 
+    // Admin studio context — save directly to the correct asset folder
+    const adminSource = searchParams.get('admin_source') === 'true';
+    const assetRole = normalizeCharacterAssetRole(searchParams.get('asset_role') || undefined);
+
     const result = await runpodClient.pollJob(jobId, {
       endpoint_id: endpointId,
       poll_budget_ms: 8000, // Quick check — client polls every 3s anyway
@@ -37,6 +46,64 @@ export async function GET(req: NextRequest) {
 
     // Upload images if completed
     if (!result.pending && result.images.length > 0) {
+      // ─── Admin mode: upload to girlfriends/{id}/{assetRole}/ + generation_assets ───
+      if (adminSource) {
+        const folder = girlfriendId
+          ? `girlfriends/${girlfriendId}/${assetRole}`
+          : 'comfy-outputs';
+        const assets: Array<Record<string, unknown>> = [];
+        for (const base64Data of result.images.slice(0, 4)) {
+          if (!base64Data) continue;
+          try {
+            const raw = /^https?:\/\//i.test(base64Data)
+              ? base64Data
+              : base64Data.startsWith('data:')
+                ? base64Data
+                : `data:image/png;base64,${base64Data}`;
+            const { key, url } = await uploadImageBase64(raw, folder, 'image/png');
+            const row = {
+              created_by: user.id,
+              kind: 'girlfriend',
+              girlfriend_id: girlfriendId || null,
+              storage_key: key,
+              url,
+              prompt: null,
+              negative_prompt: null,
+              workflow_id: null,
+              endpoint_id: endpointId || null,
+              ckpt_name: null,
+              lora_name: null,
+              width: null,
+              height: null,
+              steps: null,
+              cfg: null,
+              seed: null,
+              meta: { job_id: jobId, finalized: true, asset_role: assetRole, source: 'status_poll' },
+            };
+            const { data: saved, error: insErr } = await client
+              .from('generation_assets')
+              .insert(row)
+              .select('*')
+              .single();
+            if (insErr) {
+              logger.warn('[runpod/status] admin asset insert failed', { err: insErr.message });
+              assets.push({ ...row, id: null, warning: insErr.message });
+            } else {
+              assets.push(saved);
+            }
+          } catch (e) {
+            logger.error('[runpod/status] admin upload failed', { error: e });
+          }
+        }
+        return NextResponse.json({
+          status: 'COMPLETED',
+          images: assets.map((a) => String(a.url || '')).filter(Boolean),
+          assets,
+          job_id: jobId,
+        });
+      }
+
+      // ─── Chat mode (original behavior) ───
       const urls = await Promise.all(
         result.images.map(async (base64Data) => {
           if (!base64Data) return '';

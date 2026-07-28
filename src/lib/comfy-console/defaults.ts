@@ -193,7 +193,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
       {
         id: 'comfy-unified',
         label: 'ComfyUI (FLUX + Pony + Illustrious)',
-        endpoint_id: process.env.RUNPOD_ENDPOINT_ID || 'comfyui-wozrrlcdipyl3p',
+        endpoint_id: process.env.RUNPOD_ENDPOINT_ID || 'wozrrlcdipyl3p',
         kind: 'comfy',
         notes: '统一端点：所有模型(FLUX/Pony/Illustrious)和LoRA均挂载在同一worker',
       },

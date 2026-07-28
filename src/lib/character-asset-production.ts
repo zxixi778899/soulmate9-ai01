@@ -1,12 +1,14 @@
 import type { AnimeRenderStyle } from '@/lib/comfy-console/studio-profile';
 
 export const CHARACTER_ASSET_ROLES = [
+  'avatar-closeup',
   'identity-front',
   'identity-profile',
   'identity-back',
   'identity-half',
   'identity-full',
   'character-art',
+  'album',
   'scene',
   'pose-reference',
   'style-reference',
@@ -28,6 +30,17 @@ export type CharacterProductionPreset = {
 };
 
 export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
+  {
+    role: 'avatar-closeup',
+    label: '人设头像 · 正脸特写',
+    shortLabel: '头像特写',
+    description: '根据伴侣基础信息生成正脸特写，作为后续三视图与立绘的首要身份参考。',
+    scene: 'a close-up front-facing identity headshot of the same adult character, face filling most of the frame, both eyes looking toward camera, complete hairline and chin visible, neutral relaxed expression, plain studio background, soft even facial light, no hands or props covering the face',
+    width: 1024,
+    height: 1024,
+    consistency: false,
+    referenceRole: 'identity',
+  },
   {
     role: 'identity-front',
     label: '角色 ID · 正脸',
@@ -95,6 +108,17 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     referenceRole: 'identity',
   },
   {
+    role: 'album',
+    label: '角色相册',
+    shortLabel: '相册',
+    description: '调用人设参考图，在新服装、动作与场景中生成保持身份一致的相册图片。',
+    scene: 'a polished lifestyle album photograph of the established adult character, preserving the exact face, hair, body proportions and distinguishing features while varying the requested wardrobe, action, environment, camera angle and lighting',
+    width: 832,
+    height: 1216,
+    consistency: true,
+    referenceRole: 'identity',
+  },
+  {
     role: 'scene',
     label: '场景资源',
     shortLabel: '场景',
@@ -141,10 +165,10 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
 ];
 
 export const CHARACTER_ID_PACK: CharacterAssetRole[] = [
+  'avatar-closeup',
   'identity-front',
   'identity-profile',
   'identity-back',
-  'character-art',
 ];
 
 export function normalizeCharacterAssetRole(value: unknown): CharacterAssetRole {

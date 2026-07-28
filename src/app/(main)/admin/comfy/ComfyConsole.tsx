@@ -82,6 +82,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [generating, setGenerating] = useState(false);
   const [optimizingPrompt, setOptimizingPrompt] = useState(false);
   const [assets, setAssets] = useState<Any[]>([]);
+  const [companionAssets, setCompanionAssets] = useState<Any[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [selectedAssetKeys, setSelectedAssetKeys] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -181,10 +182,16 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   };
   const applyProductionPreset = (role: CharacterAssetRole) => {
     const preset = getCharacterProductionPreset(role);
+    const usesIdentityImage = role === 'character-art' || role === 'album';
+    const identityAsset = companionAssets.find((item) => item.meta?.asset_role === 'identity-front')
+      || companionAssets.find((item) => item.meta?.asset_role === 'avatar-closeup')
+      || companionAssets.find((item) => String(item.meta?.asset_role || '').startsWith('identity-'));
+    const identityImage = String(identityAsset?.url || scopedGirlfriend?.avatar_url || scopedGirlfriend?.portrait_url || scopedGirlfriend?.card_url || '');
     setAssetRole(role);
     setKind('girlfriend');
     setGenerationSurface('companion');
-    setGenMode('txt2img');
+    setGenMode(usesIdentityImage ? 'img2img' : 'txt2img');
+    if (usesIdentityImage) setInputImage(identityImage);
     setIdentityConsistency(preset.consistency);
     setWidth(preset.width);
     setHeight(preset.height);
@@ -209,7 +216,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setPromptProfileApplied(true);
     setNegative(studioNegativePrompt(companionCategory, animeRenderStyle));
     applyRecommendedLoras(companionCategory, animeRenderStyle, nsfwIntensity);
-    toast.success(`已切换：${preset.label}，模型与参数将自动匹配`);
+    if (usesIdentityImage && !identityImage) toast.warning('尚无人设参考图，请先生成头像特写和三视图');
+    else toast.success(`已切换：${preset.label}，${usesIdentityImage ? '已调用人设参考图' : '将读取伴侣基础信息'}`);
   };
 
   const applyCategoryPrompt = (category: CompanionCategory) => {
@@ -304,10 +312,32 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
   }, [girlfriendId]);
 
+  const loadCompanionAssets = useCallback(async (id: string) => {
+    if (!id) {
+      setCompanionAssets([]);
+      return [] as Any[];
+    }
+    try {
+      const params = new URLSearchParams({ view: 'assets', girlfriend_id: id, limit: '120' });
+      const res = await authedFetch(`/api/admin/comfy?${params.toString()}`);
+      const data = await readResponseJson(res).catch(() => ({} as Any));
+      const nextAssets = Array.isArray(data.assets) ? data.assets : [];
+      setCompanionAssets(nextAssets);
+      return nextAssets as Any[];
+    } catch {
+      setCompanionAssets([]);
+      return [] as Any[];
+    }
+  }, []);
   useEffect(() => {
     loadConfig();
     loadVolume();
   }, [loadConfig, loadVolume]);
+
+  useEffect(() => {
+    if (productionGirlfriendId) void loadCompanionAssets(productionGirlfriendId);
+    else setCompanionAssets([]);
+  }, [loadCompanionAssets, productionGirlfriendId]);
 
   useEffect(() => {
     if (!girlfriendId) {
@@ -706,10 +736,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     return null;
   };
 
-  const runBatchGeneration = async () => {
-    const selected = batchGirlfriends.filter((item) => batchSelectedIds.includes(String(item.id)));
+  const runBatchGeneration = async (
+    selectedIds: string[] = batchSelectedIds,
+    produceIdentityPack: boolean = batchIdentityPack,
+  ) => {
+    const selectedFromList = batchGirlfriends.filter((item) => selectedIds.includes(String(item.id)));
+    const selected = selectedFromList.length ? selectedFromList : scopedGirlfriend && selectedIds.includes(String(scopedGirlfriend.id)) ? [scopedGirlfriend] : [];
     if (!selected.length) return toast.error('请先选择需要生产资源的伴侣');
-    const roles = batchIdentityPack ? CHARACTER_ID_PACK : [assetRole];
+    const roles = produceIdentityPack ? CHARACTER_ID_PACK : [assetRole];
     const totalTasks = selected.length * roles.length;
     if (totalTasks > 40) return toast.error('单次最多 40 个生成任务，请减少伴侣数量');
 
@@ -751,10 +785,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             let done = false;
             for (let poll = 0; poll < 60; poll++) {
               await new Promise((resolve) => setTimeout(resolve, 3000));
-              const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}`);
+              const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${overrides?.girlfriendId ? `&girlfriend_id=${encodeURIComponent(overrides.girlfriendId)}` : ''}&asset_role=${encodeURIComponent(String(overrides?.assetRole || assetRole))}`);
               const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
               if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-                const saved = await finalizeAssets(jobId, pollData.images, overrides);
+                const saved = Array.isArray(pollData.assets) && pollData.assets.length > 0 ? pollData.assets : await finalizeAssets(jobId, pollData.images, overrides);
                 generatedAssets.push(...(saved || pollData.images.map((url: string) => ({ url, id: null }))));
                 done = true;
                 break;
@@ -780,7 +814,21 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       }
     }
     setLastResult(generatedAssets);
+    if (produceIdentityPack && selected.length === 1) {
+      const avatarAsset = generatedAssets.find((item) => item.meta?.asset_role === 'avatar-closeup');
+      const avatarUrl = String(avatarAsset?.url || '');
+      if (avatarUrl) {
+        try {
+          await authedFetch('/api/admin/girlfriends', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: String(selected[0].id), avatar_url: avatarUrl }),
+          });
+        } catch { /* 资源已保存，绑定头像失败时仍可在资源库手动更换 */ }
+      }
+    }
     setBatchRunning(false);
+    if (productionGirlfriendId && selectedIds.includes(productionGirlfriendId)) void loadCompanionAssets(productionGirlfriendId);
     if (failed) toast.warning(`生产任务完成：成功 ${succeeded}，失败 ${failed}`);
     else toast.success(`角色生产包完成：共生成 ${succeeded} 项资产`);
   };
@@ -856,12 +904,17 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         for (let i = 0; i < maxPolls; i++) {
           await new Promise((r) => setTimeout(r, 3000));
           try {
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}`);
+            const activeGfId = productionGirlfriendId || girlfriendId || '';
+            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${activeGfId ? `&girlfriend_id=${encodeURIComponent(activeGfId)}` : ''}&asset_role=${encodeURIComponent(String(assetRole))}`);
             const pollData = await readResponseJson(pollRes).catch(() => ({} as any));
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-              let polledAssets: Any[] = pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));
-              const saved = await finalizeAssets(jobId, pollData.images);
-              if (saved) polledAssets = saved;
+              let polledAssets: Any[] = Array.isArray(pollData.assets) && pollData.assets.length > 0
+                ? pollData.assets
+                : pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));
+              if (!pollData.assets?.length) {
+                const saved = await finalizeAssets(jobId, pollData.images);
+                if (saved) polledAssets = saved;
+              }
               setLastResult(polledAssets);
               toast.success(`生成成功 ${polledAssets.length} 张`);
               if (tab === 'library') loadAssets();
@@ -1245,6 +1298,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     setCompanionCategory(gender.includes('trans') ? 'transgender' : gender.includes('male') && !gender.includes('female') ? 'male' : 'female');
                   }
                   setIdentityConsistency(true);
+                  void loadCompanionAssets(id);
                 }}>
                   <SelectTrigger className="h-10 border-slate-600 bg-slate-950 text-sm"><SelectValue placeholder="选择系统伴侣" /></SelectTrigger>
                   <SelectContent>
@@ -1259,7 +1313,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="grid gap-2 sm:grid-cols-3">
                 {[
                   { title: '1. 身份图组', roles: CHARACTER_ID_PACK.slice(0, 4) },
-                  { title: '2. 角色立绘', roles: ['character-art'] as CharacterAssetRole[] },
+                  { title: '2. 立绘 / 相册', roles: ['character-art', 'album'] as CharacterAssetRole[] },
                   { title: '3. 场景与参考', roles: ['scene', 'pose-reference', 'style-reference', 'composition-reference'] as CharacterAssetRole[] },
                 ].map((group) => (
                   <div key={group.title} className="border-l border-slate-700 pl-3">
@@ -1290,7 +1344,16 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
             </div>
             {productionGirlfriendId ? (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3 text-[11px]">
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
+                <Button type="button" size="sm" className="bg-cyan-600 hover:bg-cyan-500" disabled={batchRunning} onClick={() => void runBatchGeneration([productionGirlfriendId], true)}>
+                  {batchRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+                  一键生成头像特写 + 三视图
+                </Button>
+                <span className="text-[10px] text-slate-400">读取当前伴侣基础信息，依次保存到头像、正面、侧面、背面文件夹。</span>
+              </div>
+            ) : null}
+            {productionGirlfriendId ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                 <span className="text-slate-300">当前任务：<strong className="text-cyan-200">{getCharacterProductionPreset(assetRole).label}</strong> · 自动保存至 <code>girlfriends/{productionGirlfriendId}/{assetRole}</code></span>
                 <Link href={`/admin/assets?girlfriendId=${encodeURIComponent(productionGirlfriendId)}`} className="text-violet-300 hover:text-violet-200">查看角色资源文件夹 →</Link>
               </div>
@@ -1301,7 +1364,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="flex items-center gap-2 text-sm font-bold text-white"><Users className="h-4 w-4 text-violet-300" /> 批量生产角色资产</h2>
-                  <p className="mt-1 text-[11px] text-slate-300">自动读取每位伴侣资料并归档到独立目录。身份生产包包含正脸、侧脸、半身、全身和角色立绘。</p>
+                  <p className="mt-1 text-[11px] text-slate-300">自动读取每位伴侣资料并归档到独立目录。身份生产包包含头像特写、正面、侧面和背面三视图。</p>
                   <div className="mt-2 inline-flex border border-violet-500/40 bg-slate-950 p-1">
                     <button type="button" onClick={() => setBatchIdentityPack(true)} className={cn('h-7 px-2 text-[11px]', batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>身份图组 + 立绘</button>
                     <button type="button" onClick={() => setBatchIdentityPack(false)} className={cn('h-7 px-2 text-[11px]', !batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>仅当前任务</button>

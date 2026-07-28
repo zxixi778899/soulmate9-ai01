@@ -236,6 +236,30 @@ export default function AdminAssetsPage() {
     }
   };
 
+  const bindAssetToCompanion = async (
+    asset: Asset,
+    field: 'avatar_url' | 'portrait_url' | 'card_url',
+  ) => {
+    const girlfriendId = asset.girlfriend_id || activeFolderId;
+    const url = asset.preview_url || asset.url || '';
+    if (!girlfriendId || !url) return toast.error('该资源未绑定伴侣或缺少可用地址');
+    setBusy(true);
+    try {
+      const res = await authedFetch('/api/admin/girlfriends', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: girlfriendId, [field]: url }),
+      });
+      const data = await readResponseJson<{ error?: string }>(res).catch((): { error?: string } => ({}));
+      if (!res.ok) throw new Error(data.error || '绑定失败');
+      toast.success(field === 'avatar_url' ? '已设为当前头像' : field === 'portrait_url' ? '已设为当前肖像' : '已设为当前卡片图');
+      load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '绑定失败');
+    } finally {
+      setBusy(false);
+    }
+  };
   const cutSelected = () => {
     if (!selectedAssets.length) return toast.message('请先多选图片');
     setClipboard({ mode: 'cut', items: selectedAssets });
@@ -548,6 +572,13 @@ export default function AdminAssetsPage() {
                           </a>
                         ) : null}
                       </div>
+                      {activeFolderId && url ? (
+                        <div className="grid grid-cols-3 gap-1 pt-1">
+                          <button type="button" disabled={busy} onClick={() => void bindAssetToCompanion(a, 'avatar_url')} className="rounded border border-slate-200 px-1 py-1 text-[9px] text-slate-600 hover:border-violet-300">设头像</button>
+                          <button type="button" disabled={busy} onClick={() => void bindAssetToCompanion(a, 'portrait_url')} className="rounded border border-slate-200 px-1 py-1 text-[9px] text-slate-600 hover:border-violet-300">设肖像</button>
+                          <button type="button" disabled={busy} onClick={() => void bindAssetToCompanion(a, 'card_url')} className="rounded border border-slate-200 px-1 py-1 text-[9px] text-slate-600 hover:border-violet-300">设卡片</button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 );

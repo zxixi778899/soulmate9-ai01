@@ -64,6 +64,37 @@ function compactScene(scene?: string): string {
   return `The scene direction is: ${clean.replace(/[.]+$/, '')}.`;
 }
 
+export type StudioPromptSections = {
+  identity: string;
+  scene: string;
+  exposureAndAction: string;
+  composition: string;
+  quality: string;
+};
+
+export function buildStudioPromptSections(input: {
+  category: CompanionCategory;
+  intensity: NsfwIntensity;
+  animeStyle?: AnimeRenderStyle;
+  scene?: string;
+  identity?: string;
+}): StudioPromptSections {
+  const composition = input.intensity >= 4
+    ? 'Use a readable head-to-knee or full-body composition that keeps every participating adult face identifiable, the complete action visible, hands and contact points anatomically coherent, and the camera angle free of accidental obstruction.'
+    : input.intensity === 3
+      ? 'Use a candid head-to-knee or full-body view with the complete head, face, torso and pelvis in frame; keep both hands visible, weight distribution natural and anatomy unobstructed.'
+      : input.category === 'transgender'
+        ? 'Use a relaxed three-quarter view that clearly preserves her feminine face, chest, waist and hips without a centered mannequin pose or an ambiguous body silhouette.'
+        : 'Keep the pose readable with relaxed shoulders, natural weight distribution, expressive eye contact and an unforced candid moment.';
+  return {
+    identity: CATEGORY_SUBJECTS[input.category] + compactIdentity(input.identity),
+    scene: compactScene(input.scene),
+    exposureAndAction: INTENSITY_ACTIONS[input.intensity][input.category],
+    composition,
+    quality: RENDER_PROMPTS[input.animeStyle || 'realistic'],
+  };
+}
+
 export function buildStudioPromptEnhancement(input: {
   category: CompanionCategory;
   intensity: NsfwIntensity;
@@ -71,18 +102,13 @@ export function buildStudioPromptEnhancement(input: {
   scene?: string;
   identity?: string;
 }): string {
-  const quality = RENDER_PROMPTS[input.animeStyle || 'realistic'];
-  const composition = input.intensity >= 3
-    ? 'Use a candid head-to-knee or full-body view with the entire head and face visible and the torso and pelvis in frame, with both hands inside the image. Shift the weight naturally through one hip, keep the shoulders and hips slightly asymmetrical, relax the free hand, and capture a believable moment between movements rather than a rigid pose.'
-    : input.category === 'transgender'
-      ? 'Use a relaxed three-quarter view that establishes her feminine face, chest, waist, and hips without a centered mannequin pose.'
-      : 'Keep the action readable with relaxed shoulders, natural weight distribution, and an unforced candid expression.';
+  const sections = buildStudioPromptSections(input);
   return [
-    CATEGORY_SUBJECTS[input.category] + compactIdentity(input.identity),
-    compactScene(input.scene),
-    INTENSITY_ACTIONS[input.intensity][input.category],
-    composition,
-    quality,
+    sections.identity,
+    sections.scene,
+    sections.exposureAndAction,
+    sections.composition,
+    sections.quality,
   ].join(' ');
 }
 
