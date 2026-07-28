@@ -116,6 +116,13 @@ export default function AdminShopPage() {
     setOpen(true);
   };
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('mode') !== 'create') return;
+    setEditingId(null);
+    setForm({ ...EMPTY });
+    setOpen(true);
+  }, []);
+
   const openEdit = (item: ShopItem) => {
     const { id, ...rest } = item;
     setEditingId(id);

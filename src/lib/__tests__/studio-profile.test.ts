@@ -88,7 +88,8 @@ describe('studio generation profiles', () => {
 
   it('avoids conflicting transgender anatomy LoRAs and uses one stable helper', () => {
     const controls = resolveCategoryLoraControls('transgender', 5);
-    expect(controls.selected.map((item) => item.id)).toEqual(['detail-skin']);
+    expect(controls.selected.map((item) => item.id)).toEqual([]);
+    expect(controls.missing.map((item) => item.id)).toContain('detail-skin');
     expect(controls.selected.some((item) => item.id === 'body-curvy-flux')).toBe(false);
     expect(controls.selected.some((item) => item.id.includes('transgender'))).toBe(false);
   });

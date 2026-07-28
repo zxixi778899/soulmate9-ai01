@@ -32,16 +32,18 @@ describe('ai-modules resolve', () => {
   });
 
   it('detects nsfw keywords with word boundaries', () => {
-    expect(detectNsfwIntent('kiss me hard')).toBe(true);
+    expect(detectNsfwIntent('have sex with me')).toBe(true);
     expect(detectNsfwIntent('hello there')).toBe(false);
   });
 
   it('routes free users to SFW even with nsfw keywords', () => {
     const cfg = createDefaultAiModules();
+    cfg.chat.tiers.free.fallback_endpoint_ids = ['runpod-qwen35-9b-abliterated'];
     const r = resolveChatCall(cfg, {
       tier: 'free',
       intimacyLevel: 6,
-      message: 'kiss me hard',
+      message: 'have sex with me',
+      rolloutPercent: 100,
     });
     expect(r.channel).toBe('sfw');
     expect(r.blockedReason).toBe('tier_no_nsfw');
@@ -52,11 +54,13 @@ describe('ai-modules resolve', () => {
   it('skips Together when key is missing and uses RunPod', () => {
     const cfg = createDefaultAiModules();
     cfg.chat.tiers.free.sfw_endpoint_id = 'together-llama-8b';
-    cfg.chat.fallback_endpoint_id = 'together-llama-8b';
+    cfg.chat.tiers.free.fallback_endpoint_ids = ['runpod-qwen35-9b-abliterated'];
+    cfg.chat.fallback_endpoint_id = 'runpod-qwen35-9b-abliterated';
     const r = resolveChatCall(cfg, {
       tier: 'free',
       intimacyLevel: 1,
       message: 'hello',
+      rolloutPercent: 100,
     });
     expect(r.endpoint.provider).toBe('runpod');
   });
@@ -66,7 +70,8 @@ describe('ai-modules resolve', () => {
     const r = resolveChatCall(cfg, {
       tier: 'pro',
       intimacyLevel: cfg.chat.nsfw_min_intimacy,
-      message: 'kiss me hard',
+      message: 'have sex with me',
+      rolloutPercent: 100,
     });
     expect(r.channel).toBe('nsfw');
     expect(r.endpoint.nsfw_capable).toBe(true);
@@ -77,7 +82,8 @@ describe('ai-modules resolve', () => {
     const r = resolveChatCall(cfg, {
       tier: 'pro',
       intimacyLevel: 1,
-      message: 'kiss me hard',
+      message: 'have sex with me',
+      rolloutPercent: 100,
     });
     expect(r.channel).toBe('sfw');
     expect(r.blockedReason).toBe('intimacy_locked');

@@ -365,6 +365,13 @@ function AdminGirlfriendsMediaPageInner() {
     setForm(emptyForm());
   };
 
+  useEffect(() => {
+    if (searchParams.get('mode') !== 'create') return;
+    setCreating(true);
+    setSelected(null);
+    setForm(emptyForm());
+  }, [searchParams]);
+
   const openEdit = (g: Girlfriend) => {
     setCreating(false);
     setSelected(g);

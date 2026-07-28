@@ -47,8 +47,8 @@ describe('image scene semantics', () => {
       presetId: 'pony-adult-composition-control',
       sampler: 'dpmpp_sde',
       steps: 36,
-      width: 896,
-      height: 1152,
+      width: 1024,
+      height: 1344,
     });
   });
 });

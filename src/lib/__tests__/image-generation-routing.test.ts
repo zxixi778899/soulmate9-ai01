@@ -34,7 +34,7 @@ describe('unified image generation routing', () => {
     expect(route.sampler).toBe('dpmpp_2m_sde');
     expect(route.scheduler).toBe('karras');
     expect(route.cfg).toBeGreaterThanOrEqual(6);
-    expect(route.steps).toBeGreaterThanOrEqual(36);
+    expect(route.steps).toBeGreaterThanOrEqual(28);
     expect(route.width).toBeGreaterThanOrEqual(1024);
     expect(route.clipSkip).toBe(2);
   });

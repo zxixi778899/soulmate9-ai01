@@ -460,7 +460,7 @@ export default function AdminProviderRoutesPage() {
           <CardContent className="p-6 space-y-6">
             <div className="space-y-2">
               <Label className="text-gray-300">用户通知切换阈值 (ms)</Label>
-              <p className="text-xs text-gray-500">超过此时间后向用户显示"正在切换供应商"提示</p>
+              <p className="text-xs text-gray-500">超过此时间后向用户显示&quot;正在切换供应商&quot;提示</p>
               <Input
                 type="number"
                 value={config.settings.user_notify_switch_ms}

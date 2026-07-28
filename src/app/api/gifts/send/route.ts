@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Apply intimacy boost if girlfriend_id provided
-    let intimacyBoost = gift.intimacy_boost || 0;
+    const intimacyBoost = gift.intimacy_boost || 0;
     if (girlfriendId && intimacyBoost > 0) {
       await client.rpc('boost_intimacy', {
         gf_id: girlfriendId,

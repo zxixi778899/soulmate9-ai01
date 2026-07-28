@@ -337,7 +337,7 @@ Browser/PWA
 
 - 将现有重复入口收敛：girlfriends/images/videos/character-cards/featured；studio/comfy/generate-cards；tokens/credits；pages/navigation。
 - 抽取 `AdminPageHeader`、`AdminMetricCard`、`AdminDataTable`、`AdminFilterBar`、`AdminConfirmAction`、`AdminErrorState`。
-- 修复 dashboard 双实现问题：当前 `src/app/(main)/admin/page.tsx` 与 `src/components/admin/AdminOverview.tsx` 指标、视觉和数据结构不同，只保留一个真实来源。
+- Dashboard 已统一到 `/admin/control` 与 `/api/admin/control-center`；旧首页仅保留重定向，避免形成第二套指标来源。
 - Dashboard 增加运营、收入、成本、安全四类卡片和“需要处理”列表；所有“Live”标记必须来自真实健康状态。
 - 新增 `/api/admin/ops/summary` 聚合接口，避免首页发起十几个请求；短缓存 30–60 秒并记录查询耗时。
 

@@ -1,32 +1,14 @@
-﻿'use client';
+'use client';
 
-/**
- * 后台导航信息架构（中文）
- * 1. 伴侣资源库：卡片资料 + 图/视频/音频绑定（无生图）
- * 2. 创作中心：Comfy 出图/出视频 + Civitai 模型/LoRA + 公共资产
- * 3. 商城：服装/道具/礼物
- * 其余：运营 / 用户与权限 / 系统
- */
+/** 后台只保留业务域入口；细分工具统一从系统总控或业务页进入。 */
 import {
   LayoutDashboard,
   Heart,
-  CheckSquare,
   Sparkles,
-  Library,
-  FolderOpen,
   ShoppingBag,
-  Gift,
-  Bitcoin,
-  Image as ImageIcon,
   Users,
-  Home,
-  LayoutTemplate,
   Brain,
-  Network,
   Settings,
-  Palette,
-  SlidersHorizontal,
-  Cpu,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -34,9 +16,8 @@ export type AdminNavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** 侧栏副标题 */
   hint?: string;
-  /** 合并后的旧路径，高亮时视为同一入口 */
+  /** 被合并的旧路径仍用于保持侧栏高亮。 */
   aliases?: string[];
 };
 
@@ -48,104 +29,71 @@ export type AdminNavGroup = {
 
 export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
-    title: '总览',
-    items: [{ label: '仪表盘', href: '/admin', icon: LayoutDashboard }],
-  },
-  {
-    title: '伴侣资源库',
-    description: '站内伴侣卡片 · 图/视频/音频绑定 · 不含生图',
+    title: '管理',
     items: [
       {
-        label: '伴侣与媒体',
+        label: '系统总控',
+        href: '/admin/control',
+        icon: LayoutDashboard,
+        hint: '状态、管理和新建入口',
+        aliases: ['/admin'],
+      },
+      {
+        label: '用户管理',
+        href: '/admin/users',
+        icon: Users,
+        hint: '账户、会员、积分与代币',
+        aliases: ['/admin/tokens', '/admin/credits'],
+      },
+      {
+        label: '伴侣管理',
         href: '/admin/girlfriends',
         icon: Heart,
-        hint: '资料 + 头像/肖像/视频/音频',
-        aliases: ['/admin/images', '/admin/videos', '/admin/character-cards', '/admin/featured'],
+        hint: '资料、媒体、发布与审核',
+        aliases: [
+          '/admin/review',
+          '/admin/images',
+          '/admin/videos',
+          '/admin/character-cards',
+          '/admin/featured',
+          '/admin/lore',
+        ],
       },
       {
-        label: '审核队列',
-        href: '/admin/review',
-        icon: CheckSquare,
-        hint: '用户投稿公开审核',
+        label: '对话与 AI',
+        href: '/admin/models',
+        icon: Brain,
+        hint: '模型、方案、路由和服务状态',
+        aliases: ['/admin/ai-modules', '/admin/ai-hub', '/admin/provider-routes'],
       },
-    ],
-  },
-  {
-    title: '创作中心',
-    description: 'Comfy 生成 · 模型/LoRA · 公共图库',
-    items: [
       {
-        label: '创作工作台',
+        label: '创建与素材',
         href: '/admin/studio',
         icon: Sparkles,
-        hint: '出图 / 出视频 / 音频 · 按伴侣归档',
-        aliases: ['/admin/comfy', '/admin/generate-cards'],
+        hint: '生成、预设、模型与素材库',
+        aliases: [
+          '/admin/comfy',
+          '/admin/generate-cards',
+          '/admin/model-library',
+          '/admin/assets',
+          '/admin/creator-previews',
+          '/admin/presets',
+        ],
       },
       {
-        label: '模型与 LoRA',
-        href: '/admin/model-library',
-        icon: Library,
-        hint: 'Civitai 搜索入库 · 下载清单',
-      },
-      {
-        label: '公共资产库',
-        href: '/admin/assets',
-        icon: FolderOpen,
-        hint: '生成结果保留 · 选用到伴侣',
-      },
-      {
-        label: '捏脸预览',
-        href: '/admin/creator-previews',
-        icon: Palette,
-        hint: '3 性别 × 3 画风预览图配置',
-      },
-      {
-        label: '生成预设',
-        href: '/admin/presets',
-        icon: SlidersHorizontal,
-        hint: '场景模板 · LoRA栈 · 生成参数',
-      },
-    ],
-  },
-  {
-    title: '商城',
-    description: '服装 · 道具 · 直播礼物特效',
-    items: [
-      {
-        label: '商品管理',
+        label: '商城管理',
         href: '/admin/shop',
         icon: ShoppingBag,
-        hint: '图/视频 · 价格 · 亲密加成',
+        hint: '商品、礼物与支付',
+        aliases: ['/admin/gifts', '/admin/crypto'],
       },
       {
-        label: '礼物与特效',
-        href: '/admin/gifts',
-        icon: Gift,
-        hint: '对话送礼 · 全屏特效配置',
+        label: '网站设置',
+        href: '/admin/homepage',
+        icon: Settings,
+        hint: '页面、导航、广告和全站配置',
+        aliases: ['/admin/pages', '/admin/navigation', '/admin/ads', '/admin/settings'],
       },
-      {
-        label: '加密货币',
-        href: '/admin/crypto',
-        icon: Bitcoin,
-      },
-      {
-        label: '广告位',
-        href: '/admin/ads',
-        icon: ImageIcon,
-      },
-    ],
-  },
-  {
-    title: '运营与系统',
-    items: [
-      { label: '用户管理', href: '/admin/users', icon: Users, hint: '账户 · 积分 · 会员 · 代币套餐', aliases: ['/admin/tokens', '/admin/credits'] },
-      { label: '全站模块', href: '/admin/homepage', icon: Home },
-      { label: '页面/导航', href: '/admin/pages', icon: LayoutTemplate, aliases: ['/admin/navigation'] },
-      { label: 'AI 对话模型', href: '/admin/models', icon: Brain },
-      { label: 'AI 模块方案', href: '/admin/ai-modules', icon: Brain },
-      { label: 'AI Hub', href: '/admin/ai-hub', icon: Cpu, hint: '端点状态 · 服务注册 · 健康检查' },
-      { label: '路由线路', href: '/admin/provider-routes', icon: Network, hint: '多供应商路由 · 故障转移 · 熔断' },
-      { label: '站点设置', href: '/admin/settings', icon: Settings },
     ],
   },
 ];

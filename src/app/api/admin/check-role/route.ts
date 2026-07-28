@@ -1,71 +1,30 @@
 import { NextResponse } from 'next/server';
-import { getAuthUser } from '@/lib/supabase-server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isWhitelistedAdminEmail } from '@/lib/require-admin';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
-  try {
-    const { user, error } = await getAuthUser(request);
-    if (error || !user) {
-      return NextResponse.json(
-        {
-          isAdmin: false,
-          reason: 'unauthorized',
-          detail: error || 'No session',
-        },
-        { status: 401 },
-      );
-    }
-
-    let profile: { role?: string; email?: string } | null = null;
-    let profileError: string | null = null;
-    try {
-      const supabase = getSupabaseClient();
-      const res = await supabase
-        .from('profiles')
-        .select('role, email')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      profile = res.data;
-      profileError = res.error?.message || null;
-    } catch (e) {
-      profileError = e instanceof Error ? e.message : String(e);
-    }
-
-    let role = profile?.role || 'user';
-    let isAdmin = role === 'admin' || role === 'superadmin' || role === 'reviewer';
-    let via: 'role' | 'email_whitelist' | null = isAdmin ? 'role' : null;
-
-    // Bootstrap: ALLOWED_ADMIN_EMAILS (works in production when env is set)
-    if (!isAdmin) {
-      const email = (user.email || profile?.email || '').toLowerCase();
-      if (isWhitelistedAdminEmail(email)) {
-        isAdmin = true;
-        via = 'email_whitelist';
-        if (role === 'user') role = 'admin';
-      }
-    }
-
-    return NextResponse.json({
-      isAdmin,
-      role,
-      via,
-      email: user.email || profile?.email || null,
-      hasProfile: !!profile,
-      profileError,
-      // Help first-time setup without leaking secrets
-      whitelistConfigured: !!(process.env.ALLOWED_ADMIN_EMAILS || '').trim(),
-    });
-  } catch (e) {
+/**
+ * 管理端入口权限探测。
+ * 统一复用 requireAdmin，避免页面入口与实际管理 API 使用两套权限规则。
+ */
+export async function GET(request: Request): Promise<NextResponse> {
+  const authorization = await requireAdmin(request, 'reviewer');
+  if (authorization.error) {
+    const body = await authorization.error.json().catch(() => ({ error: 'Forbidden' }));
     return NextResponse.json(
       {
         isAdmin: false,
-        reason: 'error',
-        detail: e instanceof Error ? e.message : 'Unknown error',
+        reason: authorization.error.status === 401 ? 'unauthorized' : 'forbidden',
+        error: typeof body.error === 'string' ? body.error : 'Admin access required',
       },
-      { status: 500 },
+      { status: authorization.error.status },
     );
   }
+
+  return NextResponse.json({
+    isAdmin: true,
+    role: authorization.profile?.role || 'reviewer',
+    email: authorization.user?.email || authorization.profile?.email || null,
+    hasProfile: Boolean(authorization.profile),
+  });
 }
