@@ -89,6 +89,32 @@ describe('companion generation prompt', () => {
     expect(first).toContain('do not replace them with a generic beauty face');
   });
 
+  it('uses structured identity once and ignores stale legacy image prompts', () => {
+    const result = buildCompanionGenerationPrompt({
+      id: 'dylan-live-data',
+      name: 'Dylan',
+      age: 21,
+      gender: 'Male',
+      appearance_race: 'Slavic',
+      appearance_hair_color: 'Raven black',
+      appearance_hair: 'Crew cut',
+      appearance_eyes: 'Honey brown',
+      appearance_body: 'Broad-shouldered',
+      appearance_style: 'Casual masculine',
+      image_prompt: '1boy, Dylan, 23 years old, sports bra and leggings',
+    }, {
+      action: 'a neutral full-body front view on a plain studio background',
+      adult: false,
+    });
+
+    expect(result.positive).toContain('21-year-old adult man');
+    expect(result.positive).toContain('Raven black hair color');
+    expect(result.positive).toContain('Scene direction: a neutral full-body front view');
+    expect(result.positive).not.toContain('23 years old');
+    expect(result.positive).not.toContain('sports bra');
+    expect(result.positive.match(/21-year-old/g)).toHaveLength(1);
+    expect(result.positive.match(/Raven black/g)).toHaveLength(1);
+  });
   it('keeps identity-pack prompts non-explicit when adult mode is disabled', () => {
     const result = buildCompanionGenerationPrompt({
       id: 'identity-safe',

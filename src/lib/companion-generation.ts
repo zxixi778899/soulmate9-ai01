@@ -1,6 +1,5 @@
 import { HIGH_NSFW_PROMPT, STUDIO_PROMPTS, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
-import { assembleGirlfriendFromRow } from '@/lib/prompt/girlfriend';
 
 const ACTIONS: Record<CompanionCategory, string[]> = {
   female: [
@@ -89,7 +88,6 @@ export function buildCompanionIdentitySpecification(row: Record<string, unknown>
     row.appearance_body ? `${String(row.appearance_body)} body build and proportions` : '',
     row.personality ? `${String(row.personality)} temperament and presence` : '',
     row.appearance_style ? `${String(row.appearance_style)} visual and wardrobe style` : '',
-    row.image_prompt ? `additional appearance details: ${String(row.image_prompt).replace(/\s+/g, ' ').trim().slice(0, 240)}` : '',
     explicitFeatures,
     faceShape,
     featureCue,
@@ -112,11 +110,6 @@ export function buildCompanionGenerationPrompt(
   });
   const preset = STUDIO_PROMPTS[category];
   const action = options?.action?.trim() || pick(ACTIONS[category], options?.random);
-  const assembled = assembleGirlfriendFromRow(row, action, {
-    adult: options?.adult !== false,
-    useEmptyNegative: false,
-    gender: category === 'anime' ? 'cartoon' : category,
-  });
   const identitySpecification = buildCompanionIdentitySpecification(row);
   const baseInfo = [
     String(row.name || 'adult companion'),
@@ -130,19 +123,18 @@ export function buildCompanionGenerationPrompt(
     String(row.personality || ''),
     String(row.appearance_style || profile.style),
     String(row.appearance_face || row.distinguishing_features || ''),
-    String(row.image_prompt || ''),
   ].filter(Boolean).join(', ');
   const quality = category === 'anime'
-    ? 'A premium anime illustration with deliberate linework, expressive eyes, rich cel shading, and a readable composition.'
-    : 'A polished editorial photograph with lifelike texture, controlled light, clear eyes, and natural depth.';
+    ? 'Render this as a premium anime illustration with deliberate linework, expressive eyes, rich cel shading, and a readable composition.'
+    : 'Render this as a polished editorial photograph with lifelike texture, controlled light, clear eyes, and natural depth.';
   return {
     category,
     baseInfo,
     action,
     quality,
     identitySpecification,
-    positive: `${identitySpecification} ${assembled.positive} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
-    negative: `${assembled.negative}, ${preset.negative}, generic face, duplicate identity, same face as another character`,
+    positive: `${identitySpecification} Scene direction: ${action}. ${quality} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
+    negative: `${preset.negative}, generic face, duplicate identity, same face as another character`,
   };
 }
 
