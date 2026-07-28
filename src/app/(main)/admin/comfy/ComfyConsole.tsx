@@ -101,7 +101,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [negative, setNegative] = useState('');
   const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
   const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('realistic');
-  const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(5);
+  const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(1);
   const [width, setWidth] = useState(832);
   const [height, setHeight] = useState(1216);
   const [steps, setSteps] = useState(28);
@@ -767,21 +767,39 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   };
 
   const generate = async () => {
-    if (genMode === 'img2video') {
-      toast.message('图生视频接口预留中，请先用文生图/图生图');
-      return;
-    }
     if (!prompt.trim()) {
       toast.error('请填写正向提示词');
       return;
     }
-    if (genMode === 'img2img' && !inputImage.trim()) {
-      toast.error('图生图需要参考图 URL');
+    if ((genMode === 'img2img' || genMode === 'img2video') && !inputImage.trim()) {
+      toast.error(genMode === 'img2video' ? '图生视频需要人设图或参考图' : '图生图需要参考图 URL');
+      return;
+    }
+    const companionId = productionGirlfriendId || girlfriendId || '';
+    if (genMode === 'img2video' && !companionId) {
+      toast.error('请先选择对应人设，视频会保存到该人设资源库');
       return;
     }
     setGenerating(true);
     setLastResult([]);
     try {
+      if (genMode === 'img2video') {
+        const videoRes = await authedFetch('/api/admin/animations', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'generate_custom', companion_id: companionId, input_image: inputImage.trim(), prompt, negative_prompt: negative, duration_seconds: 5, fps: 8, motion_strength: nsfwIntensity >= 4 ? 7 : 5, nsfw_intensity: nsfwIntensity }),
+        });
+        const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
+        if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');
+        const ready = Array.isArray(videoData.results) ? videoData.results.find((item: Any) => item.status === 'ready' && item.video_url) : null;
+        if (!ready) {
+          const failed = Array.isArray(videoData.results) ? videoData.results.find((item: Any) => item.error) : null;
+          throw new Error(failed?.error || '视频生成完成但未返回地址');
+        }
+        setLastResult([{ id: ready.animation_id, url: ready.video_url, media_type: 'video', duration_seconds: 5 }]);
+        setLastGenerationTrace({ category: companionCategory, intensity: nsfwIntensity, checkpoint: 'AnimateDiff img2video', steps: 20, cfg: 7, sampler: 'euler_ancestral', scheduler: 'normal', referenceDenoise: nsfwIntensity >= 4 ? 0.63 : 0.55, identitySource: 'selected_reference_image', loras: [] });
+        toast.success('5 秒人设动画已生成并保存');
+        return;
+      }
       const res = await authedFetch('/api/admin/comfy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1442,10 +1460,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="text-xs font-semibold text-slate-100 mb-2 flex items-center gap-1">
                 <Settings2 className="h-3.5 w-3.5" /> 生成模式
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
                 {([
                   { id: 'txt2img' as const, label: '文生图', icon: FileImage },
                   { id: 'img2img' as const, label: '图生图', icon: ImagePlus },
+                  { id: 'img2video' as const, label: '图生视频', icon: Play },
                 ]).map((m) => (
                   <button
                     key={m.id}
@@ -1724,7 +1743,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="text-[11px] font-medium text-slate-300">
                 {genMode === 'txt2img' && '文生图'}
                 {genMode === 'img2img' && '图生图'}
-                {genMode === 'img2video' && '图生视频（预留）'}
+                {genMode === 'img2video' && '图生视频 · 默认 5 秒'}
               </div>
             </div>
             {lastGenerationTrace && (
@@ -1759,8 +1778,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {lastResult.map((a, idx) => (
                   <div key={a.id || a.url || idx} className="rounded-lg border border-slate-700 overflow-hidden bg-black/40">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={a.url} alt="" className="w-full object-contain max-h-[70vh] bg-black" />
+                    {a.media_type === 'video' ? (
+                      <video src={a.url} controls loop playsInline className="w-full max-h-[70vh] bg-black" />
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={a.url} alt="" className="w-full object-contain max-h-[70vh] bg-black" />
+                    )}
                     <div className="p-2 flex flex-wrap gap-1">
                       <Button size="sm" variant="outline" className="h-7 text-[10px] border-slate-700 flex-1" onClick={async () => { try { await navigator.clipboard.writeText(a.url || ''); toast.success('已复制 URL'); } catch { toast.message(a.url || ''); } }}>
                         <Copy className="h-3 w-3 mr-1" /> 复制

@@ -67,6 +67,7 @@ export function buildAnimateDiffWorkflow(opts: {
   frames: number;
   fps: number;
   motion_strength: number;
+  negative_prompt?: string;
   width: number;
   height: number;
 }): Record<string, unknown> {
@@ -100,7 +101,7 @@ export function buildAnimateDiffWorkflow(opts: {
     '4': {
       class_type: 'CLIPTextEncode',
       inputs: {
-        text:
+        text: opts.negative_prompt ||
           'static, frozen, jittery, flickering, morphing face, deformed, blurry, low quality, watermark, text',
         clip: ['1', 1],
       },
@@ -204,6 +205,7 @@ export async function generateAnimation(
   presetId: string,
   referenceImageUrl: string,
   supabase: SupabaseClient,
+  options?: { prompt?: string; negativePrompt?: string; durationSeconds?: number; fps?: number; motionStrength?: number },
 ): Promise<CompanionAnimation> {
   const config = getAnimateDiffConfig();
   if (!config.apiKey || !config.endpointId) {
@@ -213,7 +215,7 @@ export async function generateAnimation(
   }
 
   const preset = getPresetById(presetId);
-  if (!preset) {
+  if (!preset && !options?.prompt) {
     throw new Error(`Unknown animation preset: ${presetId}`);
   }
 
@@ -230,7 +232,11 @@ export async function generateAnimation(
     eye_color: companion?.eye_color || undefined,
   };
 
-  const prompt = buildAnimationPrompt(preset, companionAttrs);
+  const prompt = options?.prompt?.trim() || buildAnimationPrompt(preset!, companionAttrs);
+  const durationSeconds = Math.min(10, Math.max(2, options?.durationSeconds ?? 5));
+  const fps = Math.min(12, Math.max(6, options?.fps ?? preset?.fps ?? 8));
+  const frames = Math.round(durationSeconds * fps);
+  const motionStrength = Math.min(10, Math.max(1, options?.motionStrength ?? preset?.motion_strength ?? 5));
 
   // Resolve reference image to worker-usable form
   const referenceImage = resolveReferenceForWorker(referenceImageUrl);
@@ -238,9 +244,10 @@ export async function generateAnimation(
   const workflow = buildAnimateDiffWorkflow({
     prompt,
     reference_image: referenceImage,
-    frames: preset.frames,
-    fps: preset.fps,
-    motion_strength: preset.motion_strength,
+    frames,
+    fps,
+    motion_strength: motionStrength,
+    negative_prompt: options?.negativePrompt,
     width: 512,
     height: 768,
   });
@@ -253,7 +260,7 @@ export async function generateAnimation(
       preset_id: presetId,
       video_url: '',
       thumbnail_url: '',
-      duration_ms: (preset.frames / preset.fps) * 1000,
+      duration_ms: Math.round((frames / fps) * 1000),
       format: 'webm',
       status: 'generating',
     })

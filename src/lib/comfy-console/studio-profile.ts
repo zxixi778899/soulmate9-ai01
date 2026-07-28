@@ -31,10 +31,10 @@ const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>
     anime: 'The adult character performs clearly visible solo masturbation, before climax and without visible sexual fluids.',
   },
   5: {
-    female: 'She masturbates to climax with her natural breasts and vulva clearly visible and a small amount of anatomically coherent sexual fluid.',
-    male: 'He masturbates his large penis to climax with his masculine body, testicles, and visible semen clearly shown.',
-    transgender: 'She masturbates her large penis to climax while her developed breasts and feminine curves remain clearly visible, with visible semen shown coherently.',
-    anime: 'The adult character performs explicit solo masturbation to climax with mature stylized anatomy and restrained visible sexual fluids.',
+    female: 'She has clearly visible, consensual intercourse with another unmistakably adult partner; the requested sexual position and body contact are anatomically coherent and fully readable.',
+    male: 'He has clearly visible, consensual intercourse with another unmistakably adult partner; the requested sexual position and body contact are anatomically coherent and fully readable.',
+    transgender: 'She has clearly visible, consensual intercourse with another unmistakably adult partner; her established feminine identity and anatomy remain consistent and the requested sexual position is fully readable.',
+    anime: 'The unmistakably adult character has clearly visible, consensual intercourse with another unmistakably adult partner, with mature stylized anatomy and coherent body contact.',
   },
 };
 
@@ -96,7 +96,7 @@ export function studioIntensityLabel(intensity: NsfwIntensity): string {
     2: '内衣局部裸露 · 生殖器遮挡',
     3: '全裸展示 · 无性行为',
     4: '明确自慰 · 未高潮 · 无体液',
-    5: '自慰高潮 · 对应身体特征与体液',
+    5: '明确性交动作 · 仅限自愿成年角色',
   } as const)[intensity];
 }
 

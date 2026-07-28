@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { logger } from '@/lib/logger';
+import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { DEFAULT_ANIMATION_PRESETS, getPresetById } from '@/lib/animation-presets';
 import {
   isAnimationConfigured,
@@ -80,8 +81,23 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const action = String(body.action || '');
 
-    if (action !== 'generate') {
-      return NextResponse.json({ error: 'Unknown action. Use "generate".' }, { status: 400 });
+    if (action !== 'generate' && action !== 'generate_custom') {
+      return NextResponse.json(
+        { error: 'Unknown action. Use "generate" or "generate_custom".' },
+        { status: 400 },
+      );
+    }
+
+    const animationLimit = { maxRequests: 12, windowMs: 60 * 60 * 1000 };
+    const rateLimit = await checkRateLimitAsync(`admin-animation:${guard.user!.id}`, {
+      maxRequests: 12,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: '生成过于频繁，请稍后再试' },
+        { status: 429, headers: rateLimitHeaders(rateLimit, animationLimit) },
+      );
     }
 
     if (!isAnimationConfigured()) {
@@ -95,7 +111,12 @@ export async function POST(req: NextRequest) {
     }
 
     const companionId = String(body.companion_id || '');
-    const presetIds: string[] = Array.isArray(body.preset_ids) ? body.preset_ids : [];
+    if (action === 'generate_custom' && !String(body.prompt || '').trim()) {
+      return NextResponse.json({ error: 'prompt is required for custom animation' }, { status: 400 });
+    }
+    const presetIds: string[] = action === 'generate_custom'
+      ? [`custom-${Date.now()}`]
+      : Array.isArray(body.preset_ids) ? body.preset_ids : [];
 
     if (!companionId) {
       return NextResponse.json({ error: 'companion_id is required' }, { status: 400 });
@@ -105,7 +126,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate preset IDs
-    const invalid = presetIds.filter((id) => !getPresetById(id));
+    const invalid = action === 'generate_custom'
+      ? []
+      : presetIds.filter((id) => !getPresetById(id));
     if (invalid.length > 0) {
       return NextResponse.json(
         { error: `Invalid preset_ids: ${invalid.join(', ')}` },
@@ -124,7 +147,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Companion not found' }, { status: 404 });
     }
 
-    const referenceImage = companion.portrait_url || companion.avatar_url || '';
+    const suppliedReference = typeof body.input_image === 'string' ? body.input_image.trim() : '';
+    const referenceImage = suppliedReference || companion.portrait_url || companion.avatar_url || '';
     if (!referenceImage) {
       return NextResponse.json(
         { error: 'Companion has no portrait/avatar image to use as reference' },
@@ -133,12 +157,44 @@ export async function POST(req: NextRequest) {
     }
 
     // Trigger generation for each preset (fire-and-forget batch)
-    const results: Array<{ preset_id: string; status: string; error?: string }> = [];
+    const results: Array<{ preset_id: string; status: string; video_url?: string; animation_id?: string; error?: string }> = [];
 
     for (const presetId of presetIds) {
       try {
-        await generateAnimation(companionId, presetId, referenceImage, supabase);
-        results.push({ preset_id: presetId, status: 'ready' });
+        const animation = await generateAnimation(
+          companionId,
+          presetId,
+          referenceImage,
+          supabase,
+          action === 'generate_custom'
+            ? {
+                prompt: String(body.prompt || ''),
+                negativePrompt: String(body.negative_prompt || ''),
+                durationSeconds: Number(body.duration_seconds || 5),
+                fps: Number(body.fps || 8),
+                motionStrength: Number(body.motion_strength || 5),
+              }
+            : undefined,
+        );
+        const { error: assetError } = await supabase.from('generation_assets').insert({
+          created_by: guard.user!.id,
+          girlfriend_id: companionId,
+          kind: 'animation',
+          storage_key: `portraits/${companionId}/animations/${presetId}.webm`,
+          url: animation.video_url,
+          prompt: String(body.prompt || ''),
+          negative_prompt: String(body.negative_prompt || ''),
+          meta: { asset_role: 'animation', preset_id: presetId, duration_seconds: Number(body.duration_seconds || 5), source_image: referenceImage },
+        });
+        if (assetError) {
+          logger.warn('[admin/animations] generation_assets insert failed', { error: assetError.message, companionId, presetId });
+        }
+        results.push({
+          preset_id: presetId,
+          status: 'ready',
+          video_url: animation.video_url,
+          animation_id: animation.id,
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         logger.error('[admin/animations] generation failed for preset', {

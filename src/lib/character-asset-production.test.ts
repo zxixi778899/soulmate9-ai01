@@ -12,8 +12,7 @@ describe('character asset production', () => {
     expect(CHARACTER_ID_PACK).toEqual([
       'identity-front',
       'identity-profile',
-      'identity-half',
-      'identity-full',
+      'identity-back',
       'character-art',
     ]);
     expect(CHARACTER_ID_PACK.every((role) =>
@@ -24,6 +23,7 @@ describe('character asset production', () => {
   it('uses identity consistency after the initial front reference', () => {
     expect(getCharacterProductionPreset('identity-front').consistency).toBe(false);
     expect(getCharacterProductionPreset('identity-profile').consistency).toBe(true);
+    expect(getCharacterProductionPreset('identity-back').consistency).toBe(true);
     expect(getCharacterProductionPreset('character-art').consistency).toBe(true);
   });
 

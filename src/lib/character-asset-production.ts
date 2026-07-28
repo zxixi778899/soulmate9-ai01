@@ -3,6 +3,7 @@ import type { AnimeRenderStyle } from '@/lib/comfy-console/studio-profile';
 export const CHARACTER_ASSET_ROLES = [
   'identity-front',
   'identity-profile',
+  'identity-back',
   'identity-half',
   'identity-full',
   'character-art',
@@ -44,6 +45,17 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     shortLabel: '侧脸',
     description: '记录鼻梁、下颌、发际线和侧面轮廓。',
     scene: 'a clean three-quarter profile identity portrait, face turned about sixty degrees, complete head in frame, visible nose bridge and jawline, neutral background and even lighting',
+    width: 832,
+    height: 1216,
+    consistency: true,
+    referenceRole: 'identity',
+  },
+  {
+    role: 'identity-back',
+    label: '角色 ID · 背面',
+    shortLabel: '背面',
+    description: '记录后脑、发型背面、肩背轮廓和身体比例，完成标准三视图。',
+    scene: 'a clean back-view identity turnaround, the same adult character facing directly away from camera, complete head, hair silhouette, shoulders, torso and body proportions visible, fitted simple clothing, neutral studio background and even lighting',
     width: 832,
     height: 1216,
     consistency: true,
@@ -131,8 +143,7 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
 export const CHARACTER_ID_PACK: CharacterAssetRole[] = [
   'identity-front',
   'identity-profile',
-  'identity-half',
-  'identity-full',
+  'identity-back',
   'character-art',
 ];
 
