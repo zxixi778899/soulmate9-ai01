@@ -185,9 +185,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     const preset = getCharacterProductionPreset(role);
     const usesIdentityImage = role === 'character-art' || role === 'album';
     const identityAsset = companionAssets.find((item) => item.meta?.asset_role === 'identity-front')
-      || companionAssets.find((item) => item.meta?.asset_role === 'avatar-closeup')
-      || companionAssets.find((item) => String(item.meta?.asset_role || '').startsWith('identity-'));
-    const identityImage = String(identityAsset?.url || scopedGirlfriend?.avatar_url || scopedGirlfriend?.portrait_url || scopedGirlfriend?.card_url || '');
+      || companionAssets.find((item) => item.meta?.asset_role === 'identity-profile')
+      || companionAssets.find((item) => item.meta?.asset_role === 'identity-back');
+    const identityImage = String(identityAsset?.url || '');
     setAssetRole(role);
     setKind('girlfriend');
     setGenerationSurface('companion');
@@ -199,13 +199,23 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     const assembled = scopedGirlfriend
       ? buildCompanionGenerationPrompt(scopedGirlfriend as Record<string, unknown>, {
           action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
-          adult: usesIdentityImage && nsfwIntensity >= 3,
+          adult: false,
         })
       : null;
     if (assembled) {
       setCompanionCategory(assembled.category);
-      setPrompt(assembled.positive);
-      setNegative(assembled.negative);
+      if (usesIdentityImage) {
+        const quality = animeRenderStyle === 'realistic'
+          ? 'professional editorial photography, coherent anatomy, natural skin texture, controlled lighting, clean composition, high detail'
+          : animeRenderStyle === '2d'
+            ? 'premium 2D animation key art, stable linework, coherent anatomy, rich cel shading, clean composition, high detail'
+            : 'premium 3D character render, coherent anatomy, stable materials, cinematic lighting, clean composition, high detail';
+        setPrompt(`Scene and action: ${preset.scene}. Quality: ${quality}.`);
+        setNegative(studioNegativePrompt(assembled.category, animeRenderStyle));
+      } else {
+        setPrompt(assembled.positive);
+        setNegative(assembled.negative);
+      }
     }
     setPromptProfileApplied(true);
     applyRecommendedLoras(assembled?.category || companionCategory, animeRenderStyle, nsfwIntensity);
@@ -789,8 +799,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${overrides?.girlfriendId ? `&girlfriend_id=${encodeURIComponent(overrides.girlfriendId)}` : ''}&asset_role=${encodeURIComponent(String(overrides?.assetRole || assetRole))}`);
               const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
               if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-                const saved = Array.isArray(pollData.assets) && pollData.assets.length > 0 ? pollData.assets : await finalizeAssets(jobId, pollData.images, executedOverrides);
-                generatedAssets.push(...(saved || pollData.images.map((url: string) => ({ url, id: null }))));
+                const saved = await finalizeAssets(jobId, pollData.images, executedOverrides);
+                if (!saved?.length) throw new Error(`${preset.label} asset catalog registration failed`);
+                generatedAssets.push(...saved);
                 done = true;
                 break;
               }
@@ -909,13 +920,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${activeGfId ? `&girlfriend_id=${encodeURIComponent(activeGfId)}` : ''}&asset_role=${encodeURIComponent(String(assetRole))}`);
             const pollData = await readResponseJson(pollRes).catch(() => ({} as any));
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-              let polledAssets: Any[] = Array.isArray(pollData.assets) && pollData.assets.length > 0
-                ? pollData.assets
-                : pollData.images.map((url: string) => ({ url, storage_key: '', id: null }));
-              if (!pollData.assets?.length) {
-                const saved = await finalizeAssets(jobId, pollData.images);
-                if (saved) polledAssets = saved;
-              }
+              const saved = await finalizeAssets(jobId, pollData.images);
+              if (!saved?.length) throw new Error('Generation completed but asset catalog registration failed');
+              const polledAssets: Any[] = saved;
               setLastResult(polledAssets);
               toast.success(`生成成功 ${polledAssets.length} 张`);
               if (tab === 'library') loadAssets();

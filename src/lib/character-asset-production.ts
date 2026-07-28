@@ -175,6 +175,7 @@ export function identityReferenceRolePriority(role: CharacterAssetRole): Charact
   if (role === 'identity-front') return ['avatar-closeup'];
   if (role === 'identity-profile') return ['identity-front', 'avatar-closeup'];
   if (role === 'identity-back') return ['identity-profile', 'identity-front', 'avatar-closeup'];
+  if (role === 'character-art' || role === 'album' || role === 'scene') return ['identity-front', 'identity-profile', 'identity-back'];
   return ['identity-front', 'avatar-closeup', 'identity-profile', 'identity-back'];
 }
 
@@ -182,6 +183,8 @@ export function identityTurnaroundDenoise(role: CharacterAssetRole, requested: n
   if (role === 'identity-front') return 0.72;
   if (role === 'identity-profile') return 0.68;
   if (role === 'identity-back') return 0.76;
+  if (role === 'character-art') return 0.58;
+  if (role === 'album' || role === 'scene') return 0.62;
   return Math.min(0.45, Math.max(0.25, requested));
 }
 export function normalizeCharacterAssetRole(value: unknown): CharacterAssetRole {

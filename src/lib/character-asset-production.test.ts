@@ -34,9 +34,12 @@ describe('character asset production', () => {
     expect(identityReferenceRolePriority('identity-front')).toEqual(['avatar-closeup']);
     expect(identityReferenceRolePriority('identity-profile')).toEqual(['identity-front', 'avatar-closeup']);
     expect(identityReferenceRolePriority('identity-back')).toEqual(['identity-profile', 'identity-front', 'avatar-closeup']);
+    expect(identityReferenceRolePriority('character-art')).toEqual(['identity-front', 'identity-profile', 'identity-back']);
     expect(identityTurnaroundDenoise('identity-front', 0.35)).toBe(0.72);
     expect(identityTurnaroundDenoise('identity-profile', 0.35)).toBe(0.68);
     expect(identityTurnaroundDenoise('identity-back', 0.35)).toBe(0.76);
+    expect(identityTurnaroundDenoise('character-art', 0.35)).toBe(0.58);
+    expect(identityTurnaroundDenoise('album', 0.35)).toBe(0.62);
     expect(getCharacterProductionPreset('identity-front').scene).toContain('STRICT FULL-BODY FRONT');
     expect(getCharacterProductionPreset('identity-profile').scene).toContain('90-DEGREE LEFT SIDE');
     expect(getCharacterProductionPreset('identity-back').scene).toContain('face and eyes are not visible');

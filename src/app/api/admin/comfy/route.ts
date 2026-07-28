@@ -921,11 +921,18 @@ if (body.action === 'finalize') {
     const assets: Array<Record<string, unknown>> = [];
     for (const imageUrl of imageUrls.slice(0, 4)) {
       try {
-        const resp = await fetch(imageUrl);
-        if (!resp.ok) throw new Error(`download ${resp.status}`);
-        const contentType = resp.headers.get('content-type') || 'image/png';
-        const b64 = `data:${contentType};base64,${Buffer.from(await resp.arrayBuffer()).toString('base64')}`;
-        const { key, url } = await uploadImageBase64(b64, folder, contentType);
+        const existingKey = extractKeyFromUrl(imageUrl) || '';
+        let key = existingKey;
+        let url = imageUrl;
+        if (!existingKey.startsWith(`${folder}/`)) {
+          const resp = await fetch(imageUrl);
+          if (!resp.ok) throw new Error(`download ${resp.status}`);
+          const contentType = resp.headers.get('content-type') || 'image/png';
+          const b64 = `data:${contentType};base64,${Buffer.from(await resp.arrayBuffer()).toString('base64')}`;
+          const uploaded = await uploadImageBase64(b64, folder, contentType);
+          key = uploaded.key;
+          url = uploaded.url;
+        }
 
         const row = {
           created_by: admin.user!.id,
@@ -1170,7 +1177,8 @@ if (body.action === 'verify_loras') {
         }
       }
     }
-    const identityReferenceUrls = [...storedIdentityUrls, consistencyReference].filter(Boolean);
+    const requiresTurnaroundReference = assetRole === 'character-art' || assetRole === 'album' || assetRole === 'scene';
+    const identityReferenceUrls = [...storedIdentityUrls, ...(requiresTurnaroundReference ? [] : [consistencyReference])].filter(Boolean);
     const identityAssets = girlfriendId && identityReferenceUrls.length
       ? companionIdentityAssets(girlfriendId, identityReferenceUrls, {
           category,

@@ -61,36 +61,14 @@ export async function GET(req: NextRequest) {
                 ? base64Data
                 : `data:image/png;base64,${base64Data}`;
             const { key, url } = await uploadImageBase64(raw, folder, 'image/png');
-            const row = {
-              created_by: user.id,
+            assets.push({
+              id: null,
               kind: 'girlfriend',
               girlfriend_id: girlfriendId || null,
               storage_key: key,
               url,
-              prompt: null,
-              negative_prompt: null,
-              workflow_id: null,
-              endpoint_id: endpointId || null,
-              ckpt_name: null,
-              lora_name: null,
-              width: null,
-              height: null,
-              steps: null,
-              cfg: null,
-              seed: null,
-              meta: { job_id: jobId, finalized: true, asset_role: assetRole, source: 'status_poll' },
-            };
-            const { data: saved, error: insErr } = await client
-              .from('generation_assets')
-              .insert(row)
-              .select('*')
-              .single();
-            if (insErr) {
-              logger.warn('[runpod/status] admin asset insert failed', { err: insErr.message });
-              assets.push({ ...row, id: null, warning: insErr.message });
-            } else {
-              assets.push(saved);
-            }
+              meta: { job_id: jobId, finalized: false, asset_role: assetRole, source: 'status_poll' },
+            });
           } catch (e) {
             logger.error('[runpod/status] admin upload failed', { error: e });
           }
