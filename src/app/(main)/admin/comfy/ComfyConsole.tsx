@@ -31,6 +31,7 @@ import {
 } from '@/lib/companion-category';
 import { getPresetsForCategory, type GenPreset } from './presets';
 import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
+import { resolveCompanionProfile } from '@/lib/companion-profile';
 import {
   buildStudioPromptEnhancement,
   loraUsageZh,
@@ -195,27 +196,19 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setIdentityConsistency(preset.consistency);
     setWidth(preset.width);
     setHeight(preset.height);
-    setPrompt(buildStudioPromptEnhancement({
-      category: companionCategory,
-      intensity: nsfwIntensity,
-      animeStyle: animeRenderStyle,
-      identity: scopedGirlfriend
-        ? [
-            scopedGirlfriend.name,
-            scopedGirlfriend.appearance_race,
-            scopedGirlfriend.appearance_hair_color,
-            scopedGirlfriend.appearance_hair,
-            scopedGirlfriend.appearance_eyes,
-            scopedGirlfriend.appearance_body,
-            scopedGirlfriend.appearance_face,
-            scopedGirlfriend.distinguishing_features,
-          ].filter(Boolean).join(', ')
-        : undefined,
-      scene: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
-    }));
+    const assembled = scopedGirlfriend
+      ? buildCompanionGenerationPrompt(scopedGirlfriend as Record<string, unknown>, {
+          action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
+          adult: usesIdentityImage && nsfwIntensity >= 3,
+        })
+      : null;
+    if (assembled) {
+      setCompanionCategory(assembled.category);
+      setPrompt(assembled.positive);
+      setNegative(assembled.negative);
+    }
     setPromptProfileApplied(true);
-    setNegative(studioNegativePrompt(companionCategory, animeRenderStyle));
-    applyRecommendedLoras(companionCategory, animeRenderStyle, nsfwIntensity);
+    applyRecommendedLoras(assembled?.category || companionCategory, animeRenderStyle, nsfwIntensity);
     if (usesIdentityImage && !identityImage) toast.warning('尚无人设参考图，请先生成头像特写和三视图');
     else toast.success(`已切换：${preset.label}，${usesIdentityImage ? '已调用人设参考图' : '将读取伴侣基础信息'}`);
   };
@@ -406,13 +399,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   function fillPromptFromGirlfriend(row: Any, opts?: { force?: boolean; toastOn?: boolean }) {
     if (!row) return false;
     try {
-      const assembled = buildCompanionGenerationPrompt(row as Record<string, unknown>, { adult: true });
-      const nextPrompt = buildStudioPromptEnhancement({
-        category: assembled.category,
-        intensity: nsfwIntensity,
-        animeStyle: animeRenderStyle,
-        scene: STUDIO_PROMPTS[assembled.category].prompt,
+      const assembled = buildCompanionGenerationPrompt(row as Record<string, unknown>, {
+        action: `${STUDIO_PROMPTS[resolveCompanionProfile(row as Record<string, unknown>).category].prompt}. ${styleProductionHint(animeRenderStyle)}`,
+        adult: nsfwIntensity >= 3,
       });
+      const nextPrompt = assembled.positive;
+      setCompanionCategory(assembled.category);
       const nextNeg = String(assembled.negative || GIRLFRIEND_NEGATIVE_FLUX).trim();
       if (!nextPrompt) return false;
       if (opts?.force) {
