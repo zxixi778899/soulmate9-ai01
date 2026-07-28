@@ -1034,7 +1034,7 @@ if (body.action === 'verify_loras') {
     const minimumSteps = categoryForParams === 'transgender' ? 32 : 28;
     const steps = Math.max(minimumSteps, Number(body.steps || wf?.defaults.steps || minimumSteps));
     const cfgScale = Math.min(2, Math.max(1, Number(body.cfg || wf?.defaults.cfg || 1.4)));
-    const allowedSamplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_sde']);
+    const allowedSamplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_sde']);
     const allowedSchedulers = new Set(['simple', 'normal', 'karras', 'sgm_uniform']);
     const requestedSampler = String(body.sampler_name || 'euler');
     const requestedScheduler = String(body.scheduler || 'simple');

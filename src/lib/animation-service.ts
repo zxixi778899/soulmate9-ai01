@@ -68,6 +68,10 @@ export function buildAnimateDiffWorkflow(opts: {
   fps: number;
   motion_strength: number;
   negative_prompt?: string;
+  steps?: number;
+  cfg?: number;
+  sampler?: string;
+  scheduler?: string;
   width: number;
   height: number;
 }): Record<string, unknown> {
@@ -133,10 +137,10 @@ export function buildAnimateDiffWorkflow(opts: {
       class_type: 'KSampler',
       inputs: {
         seed,
-        steps: 20,
-        cfg: 7,
-        sampler_name: 'euler_ancestral',
-        scheduler: 'normal',
+        steps: Math.min(40, Math.max(12, opts.steps ?? 20)),
+        cfg: Math.min(10, Math.max(1, opts.cfg ?? 7)),
+        sampler_name: opts.sampler || 'euler_ancestral',
+        scheduler: opts.scheduler || 'normal',
         denoise,
         model: ['2', 0],
         positive: ['3', 0],
@@ -205,7 +209,17 @@ export async function generateAnimation(
   presetId: string,
   referenceImageUrl: string,
   supabase: SupabaseClient,
-  options?: { prompt?: string; negativePrompt?: string; durationSeconds?: number; fps?: number; motionStrength?: number },
+  options?: {
+    prompt?: string;
+    negativePrompt?: string;
+    durationSeconds?: number;
+    fps?: number;
+    motionStrength?: number;
+    steps?: number;
+    cfg?: number;
+    sampler?: string;
+    scheduler?: string;
+  },
 ): Promise<CompanionAnimation> {
   const config = getAnimateDiffConfig();
   if (!config.apiKey || !config.endpointId) {
@@ -248,6 +262,10 @@ export async function generateAnimation(
     fps,
     motion_strength: motionStrength,
     negative_prompt: options?.negativePrompt,
+    steps: options?.steps,
+    cfg: options?.cfg,
+    sampler: options?.sampler,
+    scheduler: options?.scheduler,
     width: 512,
     height: 768,
   });

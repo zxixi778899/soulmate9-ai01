@@ -47,6 +47,11 @@ import {
   subjectFromGirlfriendRow,
 } from '@/lib/prompt/girlfriend';
 import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
+import {
+  buildCreativePromptPreset,
+  resolveCreativeGenerationPreset,
+  type CreativeGenerationMode,
+} from '@/lib/creative-generation-presets';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import {
   CHARACTER_ID_PACK,
@@ -521,6 +526,39 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const checkpoints: Any[] = config?.checkpoints || [];
   const allLoras: Any[] = config?.loras || [];
   const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity });
+  const recommendedPreset = resolveCreativeGenerationPreset({
+    mode: genMode,
+    surface: generationSurface,
+    category: companionCategory,
+    renderStyle: animeRenderStyle,
+    intensity: nsfwIntensity,
+    assetRole,
+    scene: prompt,
+    identityConsistency,
+  });
+  const applyRecommendedParameters = (
+    mode: CreativeGenerationMode = genMode,
+    intensity: NsfwIntensity = nsfwIntensity,
+  ) => {
+    const preset = resolveCreativeGenerationPreset({
+      mode,
+      surface: generationSurface,
+      category: companionCategory,
+      renderStyle: animeRenderStyle,
+      intensity,
+      assetRole,
+      scene: prompt,
+      identityConsistency,
+    });
+    setWidth(preset.width);
+    setHeight(preset.height);
+    setSteps(preset.steps);
+    setCfg(preset.cfg);
+    setSampler(preset.sampler);
+    setScheduler(preset.scheduler);
+    if (preset.denoise != null) setDenoise(preset.denoise);
+    return preset;
+  };
   const loras: Any[] = useMemo(
     () => allLoras.filter((lora) => isLoraAllowedForContext(lora, { surface: generationSurface, category: companionCategory, modelFamily: generationRoute.modelFamily })),
     [allLoras, companionCategory, generationRoute.modelFamily, generationSurface],
@@ -786,7 +824,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       if (genMode === 'img2video') {
         const videoRes = await authedFetch('/api/admin/animations', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'generate_custom', companion_id: companionId, input_image: inputImage.trim(), prompt, negative_prompt: negative, duration_seconds: 5, fps: 8, motion_strength: nsfwIntensity >= 4 ? 7 : 5, nsfw_intensity: nsfwIntensity }),
+          body: JSON.stringify({ action: 'generate_custom', companion_id: companionId, input_image: inputImage.trim(), prompt, negative_prompt: negative, duration_seconds: recommendedPreset.durationSeconds || 5, fps: recommendedPreset.fps || 8, motion_strength: recommendedPreset.motionStrength || 5, steps: recommendedPreset.steps, cfg: recommendedPreset.cfg, sampler: recommendedPreset.sampler, scheduler: recommendedPreset.scheduler, nsfw_intensity: nsfwIntensity }),
         });
         const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
         if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');
@@ -1369,7 +1407,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div className="mb-3 grid gap-3 rounded-md border border-fuchsia-500/20 bg-fuchsia-950/10 p-3 md:grid-cols-[220px_1fr]">
               <div>
                 <Label className="mb-2 block text-[11px] text-slate-200">NSFW 强度：{nsfwIntensity}/5</Label>
-                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => { const next = Number(event.target.value) as NsfwIntensity; setNsfwIntensity(next); setPrompt(buildStudioPromptEnhancement({ category: companionCategory, intensity: next, animeStyle: animeRenderStyle })); setPromptProfileApplied(true); applyRecommendedLoras(companionCategory, animeRenderStyle, next); }} className="w-full accent-rose-500" />
+                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => { const next = Number(event.target.value) as NsfwIntensity; setNsfwIntensity(next); setPrompt(buildCreativePromptPreset({ mode: genMode, category: companionCategory, intensity: next, renderStyle: animeRenderStyle, scene: prompt })); setPromptProfileApplied(true); applyRecommendedLoras(companionCategory, animeRenderStyle, next); applyRecommendedParameters(genMode, next); }} className="w-full accent-rose-500" />
                 <p className="mt-1 text-[10px] font-medium text-rose-200">当前：{studioIntensityLabel(nsfwIntensity)}</p>
                 <p className="mt-1 text-[10px] text-slate-400">滑块会立即重写动作等级和 LoRA 权重；AI 优化只负责选择合适场景，不再堆叠提示词。</p>
               </div>
@@ -1384,7 +1422,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                       variant={animeRenderStyle === style ? 'default' : 'outline'}
                       onClick={() => {
                         setAnimeRenderStyle(style);
-                        setPrompt(buildStudioPromptEnhancement({ category: companionCategory, intensity: nsfwIntensity, animeStyle: style }));
+                        setPrompt(buildCreativePromptPreset({ mode: genMode, category: companionCategory, intensity: nsfwIntensity, renderStyle: style, scene: prompt }));
                         setPromptProfileApplied(true);
                         applyRecommendedLoras(companionCategory, style);
                       }}
@@ -1423,6 +1461,20 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             </div>
           </section>
 
+          <section className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-cyan-500/30 bg-cyan-950/20 p-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-cyan-100">推荐参数 · {recommendedPreset.label}</div>
+              <div className="mt-1 text-[11px] text-slate-300">
+                {recommendedPreset.modelFamily} · {recommendedPreset.sampler} / {recommendedPreset.scheduler} · Steps {recommendedPreset.steps} · CFG {recommendedPreset.cfg} · {recommendedPreset.width}×{recommendedPreset.height}
+                {recommendedPreset.denoise != null ? ` · Denoise ${recommendedPreset.denoise.toFixed(2)}` : ''}
+                {recommendedPreset.durationSeconds ? ` · ${recommendedPreset.durationSeconds} 秒 / ${recommendedPreset.frames} 帧` : ''}
+              </div>
+              <div className="mt-1 text-[10px] text-slate-400">{recommendedPreset.reason}</div>
+            </div>
+            <Button type="button" size="sm" variant="outline" className="border-cyan-500/50 text-cyan-100" onClick={() => { const preset = applyRecommendedParameters(); toast.success(`已应用${preset.label}`); }}>
+              应用推荐参数
+            </Button>
+          </section>
           <section className="grid gap-3 rounded-md border border-slate-700 bg-[#17181b] p-3 md:grid-cols-[1fr_1fr_1.2fr]">
             <div>
               <Label className="mb-1 block text-[11px] text-slate-300">采样方法 (Sampler)</Label>
@@ -1432,6 +1484,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                   <SelectItem value="euler">Euler（FLUX 推荐）</SelectItem>
                   <SelectItem value="euler_ancestral">Euler ancestral</SelectItem>
                   <SelectItem value="dpmpp_2m">DPM++ 2M</SelectItem>
+                  <SelectItem value="dpmpp_2m_sde">DPM++ 2M SDE</SelectItem>
                   <SelectItem value="dpmpp_sde">DPM++ SDE</SelectItem>
                 </SelectContent>
               </Select>
@@ -1471,7 +1524,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     type="button"
                     onClick={() => {
                       setGenMode(m.id);
-                      if (m.id === 'img2img' && identityConsistency) setDenoise((value) => Math.min(value, 0.45));
+                      const preset = applyRecommendedParameters(m.id);
+                      setPrompt(buildCreativePromptPreset({ mode: m.id, category: companionCategory, intensity: nsfwIntensity, renderStyle: animeRenderStyle, scene: prompt }));
+                      setPromptProfileApplied(true);
+                      toast.success(`已应用${preset.label}参数`);
                     }}
                     className={cn(
                       'flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px]',

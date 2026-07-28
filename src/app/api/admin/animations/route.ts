@@ -173,6 +173,10 @@ export async function POST(req: NextRequest) {
                 durationSeconds: Number(body.duration_seconds || 5),
                 fps: Number(body.fps || 8),
                 motionStrength: Number(body.motion_strength || 5),
+                steps: Number(body.steps || 20),
+                cfg: Number(body.cfg || 7),
+                sampler: String(body.sampler || 'euler_ancestral'),
+                scheduler: String(body.scheduler || 'normal'),
               }
             : undefined,
         );
