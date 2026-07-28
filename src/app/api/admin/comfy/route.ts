@@ -343,7 +343,8 @@ export async function POST(req: NextRequest) {
     }
     const kind = String(form.get('kind') || 'girlfriend');
     const girlfriendId = String(form.get('girlfriend_id') || form.get('girlfriendId') || '').trim() || null;
-    const folder = assetFolder(girlfriendId);
+    const assetRole = normalizeCharacterAssetRole(form.get('asset_role'));
+    const folder = assetFolder(girlfriendId, assetRole);
     const files: File[] = [];
     for (const f of form.getAll('files')) {
       if (f instanceof File) files.push(f);
@@ -391,7 +392,20 @@ export async function POST(req: NextRequest) {
           steps: null,
           cfg: null,
           seed: null,
-          meta: { source: 'admin_upload', original_name: file.name },
+          meta: {
+            source: 'admin_upload',
+            original_name: file.name,
+            asset_role: assetRole,
+            reference_role: assetRole.startsWith('identity-') || assetRole === 'avatar-closeup'
+              ? 'identity'
+              : assetRole === 'pose-reference'
+                ? 'pose'
+                : assetRole === 'style-reference'
+                  ? 'style'
+                  : assetRole === 'composition-reference'
+                    ? 'composition'
+                    : 'identity',
+          },
         };
         const { data: saved, error: insErr } = await admin.supabase
           .from('generation_assets')
@@ -441,6 +455,8 @@ export async function POST(req: NextRequest) {
     const intensity = Math.min(5, Math.max(1, Math.round(Number(body.nsfw_intensity || 3)))) as NsfwIntensity;
     const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';
     const currentPrompt = String(body.prompt || '').trim();
+    const generationMode = body.gen_mode === 'img2video' ? 'img2video' : body.gen_mode === 'img2img' ? 'img2img' : 'txt2img';
+    const requestedAssetRole = normalizeCharacterAssetRole(body.asset_role);
     const companion = body.companion && typeof body.companion === 'object'
       ? body.companion as Record<string, unknown>
       : {};
@@ -454,11 +470,13 @@ export async function POST(req: NextRequest) {
       companion.appearance_body,
       companion.appearance,
     ].filter(Boolean).map(String).join(', ');
-    const systemPrompt = `Analyze the requested adults-only image and return strict JSON only. Keys: "prompt", "negative", "pairing", "protagonist", "power_dynamic", "tags". pairing must be solo|female_male|male_male|female_female|trans_pair|group_4i. protagonist must be female|male|transgender|femboy|ensemble. power_dynamic must be neutral|male_dominant|male_submissive|sm. Interpret Chinese role labels: \u7537\u5973, \u7537\u7537, \u5973\u5973, \u5973\u4e3b, \u7537\u4e3b, \u8de8\u6027\u522b, 4i, \u4f2a\u5a18, SM, \u7537\u653b, \u7537\u53d7. The prompt is one concise natural-English setting/action/framing description for consenting adults. Never infer minors or non-consent.`;
+    const systemPrompt = `Analyze the requested adults-only image and return strict JSON only. Keys: "prompt", "negative", "pairing", "protagonist", "power_dynamic", "tags". pairing must be solo|female_male|male_male|female_female|trans_pair|group_4i. protagonist must be female|male|transgender|femboy|ensemble. power_dynamic must be neutral|male_dominant|male_submissive|sm. Interpret Chinese role labels: \u7537\u5973, \u7537\u7537, \u5973\u5973, \u5973\u4e3b, \u7537\u4e3b, \u8de8\u6027\u522b, 4i, \u4f2a\u5a18, SM, \u7537\u653b, \u7537\u53d7. The prompt is one concise natural-English setting/action/framing description for consenting adults. For img2img, describe only the requested scene, action, wardrobe, framing and lighting while preserving the supplied identity. For img2video, describe coherent motion originating from the supplied still image, stable identity, stable camera and temporal continuity. Never infer minors or non-consent.`;
     const userPrompt = [
       `Selected category: ${category}`,
       `Render style: ${animeStyle}`,
       `Selected NSFW intensity: ${intensity}/5`,
+      `Generation mode: ${generationMode}`,
+      `Asset role: ${requestedAssetRole}`,
       `Companion profile, used only to infer a fitting location: ${profile}`,
       `Current prompt, used only to preserve its location or framing: ${currentPrompt || 'a modern sofa in a private living room'}`,
       'Return a short setting such as "on a modern sofa in a private living room, medium full-body framing".',
@@ -498,11 +516,16 @@ export async function POST(req: NextRequest) {
       const sceneSemantics = normalizeLlmImageScene(parsed, fallbackSemantics);
       const optimizedScene = String(parsed.prompt || '').trim();
       if (!optimizedScene) throw new Error('LLM returned an empty scene');
+      const modeInstruction = generationMode === 'img2video'
+        ? 'Animate the exact supplied still for five seconds with stable facial identity, coherent natural motion, subtle hair and fabric movement, smooth temporal continuity, no morphing and no scene cuts.'
+        : generationMode === 'img2img'
+          ? 'Use the supplied avatar and identity turnaround references to preserve the exact face, hair, body proportions and distinguishing features; change only the requested scene, action, wardrobe, framing and lighting.'
+          : 'Create the complete frame from the companion profile and requested scene.';
       const optimizedPrompt = buildStudioPromptEnhancement({
         category,
         intensity,
         animeStyle,
-        scene: `${optimizedScene}. ${buildSceneCastPrompt(sceneSemantics)}`,
+        scene: `${optimizedScene}. ${buildSceneCastPrompt(sceneSemantics)}. ${modeInstruction}`,
         identity,
       });
       const generationRoute = resolveImageGenerationRoute({
@@ -1102,8 +1125,35 @@ if (body.action === 'verify_loras') {
     }
 
     const suppliedReference = String(body.input_image || '').trim();
-    const identityAssets = girlfriendId && consistencyReference
-      ? companionIdentityAssets(girlfriendId, [consistencyReference], {
+    const storedIdentityUrls: string[] = [];
+    if (girlfriendId && characterConsistency) {
+      const { data: storedIdentityRows, error: storedIdentityError } = await admin.supabase
+        .from('generation_assets')
+        .select('url, meta, created_at')
+        .eq('girlfriend_id', girlfriendId)
+        .order('created_at', { ascending: false })
+        .limit(40);
+      if (storedIdentityError) {
+        logger.warn('[comfy] identity asset lookup failed', {
+          girlfriend_id: girlfriendId,
+          error: storedIdentityError.message,
+        });
+      } else {
+        const rolePriority = ['avatar-closeup', 'identity-front', 'identity-profile', 'identity-back'];
+        for (const role of rolePriority) {
+          const match = (storedIdentityRows || []).find((row) => {
+            const meta = row.meta && typeof row.meta === 'object'
+              ? row.meta as Record<string, unknown>
+              : {};
+            return String(meta.asset_role || '') === role && typeof row.url === 'string' && row.url.trim();
+          });
+          if (match?.url) storedIdentityUrls.push(String(match.url).trim());
+        }
+      }
+    }
+    const identityReferenceUrls = [...storedIdentityUrls, consistencyReference].filter(Boolean);
+    const identityAssets = girlfriendId && identityReferenceUrls.length
+      ? companionIdentityAssets(girlfriendId, identityReferenceUrls, {
           category,
           renderStyle: animeStyle,
           modelFamily: generationRoute.modelFamily,
@@ -1143,9 +1193,7 @@ if (body.action === 'verify_loras') {
       referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
-        ? category === 'transgender' || animeStyle !== 'realistic'
-          ? 0.92
-          : 0.86
+        ? Math.min(0.45, Math.max(0.25, denoise))
         : Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
     const assetRole = normalizeCharacterAssetRole(body.asset_role);

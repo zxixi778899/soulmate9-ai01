@@ -125,6 +125,7 @@ export const GIRLFRIEND_NEGATIVE_FLUX =
 
 export interface GirlfriendSubject {
   name?: string;
+  age?: number;
   race?: string;
   hair?: string;
   hairColor?: string;
@@ -813,14 +814,15 @@ export function buildExpressionClause(subject: GirlfriendSubject, scene: SceneRe
  */
 export function buildSubjectClause(s: GirlfriendSubject, gender: GenderStyle = 'female'): string {
   const genderLabel: Record<GenderStyle, string> = {
-    female: 'beautiful young adult woman 18-25',
-    male: 'handsome young adult man 18-30',
-    transgender: 'beautiful young transgender woman 18-28',
+    female: 'beautiful adult woman',
+    male: 'handsome adult man',
+    transgender: 'beautiful adult transgender woman',
     cartoon: 'attractive anime character',
   };
   const name = resolvePersonName(s.name, gender === 'male' ? 'a handsome young man' : 'a beautiful young woman');
   const parts: string[] = [
     name,
+    s.age ? `${s.age}-year-old` : '',
     genderLabel[gender],
     gender === 'cartoon' ? '' : buildFaceIdentityClause(s),
   ].filter(Boolean);
@@ -876,6 +878,7 @@ export function subjectFromGirlfriendRow(row: Record<string, unknown>): Girlfrie
       : {};
 
   return {
+    age: Number(row.age) >= 18 ? Math.round(Number(row.age)) : undefined,
     name: resolvePersonName(
       rawName,
       extractPersonName(imagePrompt) || extractPersonName(appearanceField) || '',
@@ -979,14 +982,15 @@ export function assembleGirlfriendPrompt(
       : '';
 
   const genderIdentity: Record<GenderStyle, string> = {
-    female: 'a stunningly beautiful seductive adult female AI companion, age 18-25',
-    male: 'a stunningly handsome seductive adult male AI companion, age 18-30',
-    transgender: 'a stunningly beautiful seductive adult AI companion, age 18-28',
+    female: 'a stunningly beautiful seductive adult female AI companion',
+    male: 'a stunningly handsome seductive adult male AI companion',
+    transgender: 'a stunningly beautiful seductive adult transgender AI companion',
     cartoon: 'a gorgeous attractive anime companion character',
   };
 
   const conciseIdentity = joinParts([
     fixedSubject.name,
+    fixedSubject.age ? `exactly ${fixedSubject.age} years old` : '',
     genderIdentity[gender],
     fixedSubject.race ? `${fixedSubject.race} features` : '',
     hair ? (/\bhair\b/i.test(hair) ? hair : `${hair} hair`) : '',

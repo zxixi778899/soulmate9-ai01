@@ -30,10 +30,72 @@ export type CompanionGenerationResult = {
   baseInfo: string;
   action: string;
   quality: string;
+  identitySpecification: string;
   positive: string;
   negative: string;
 };
 
+function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function stableIdentityCue(row: Record<string, unknown>, salt: string, options: string[]): string {
+  const seed = [row.id, row.slug, row.name, row.age, row.gender, salt].map((value) => String(value || '')).join('|');
+  return options[stableHash(seed) % options.length] || options[0];
+}
+
+export function buildCompanionIdentitySpecification(row: Record<string, unknown>): string {
+  const profile = resolveCompanionProfile(row);
+  const exactAge = Math.max(18, Math.round(Number(row.age) || 25));
+  const gender = profile.category === 'male'
+    ? 'adult man'
+    : profile.category === 'transgender'
+      ? 'adult transgender woman'
+      : 'adult woman';
+  const faceShape = stableIdentityCue(row, 'face', [
+    'oval face with high cheekbones',
+    'heart-shaped face with a narrow chin',
+    'soft square face with a defined jawline',
+    'round face with full cheeks',
+    'long face with elegant cheekbones',
+    'diamond-shaped face with broad cheekbones',
+  ]);
+  const featureCue = stableIdentityCue(row, 'feature', [
+    'straight narrow nose and softly arched brows',
+    'small upturned nose and wide-set eyes',
+    'prominent nose bridge and deep-set eyes',
+    'full lower lip and thick straight brows',
+    'defined cupid bow and gently hooded eyes',
+    'subtle cheek dimples and naturally full lips',
+    'light freckles across the nose and cheeks',
+    'a small beauty mark near one cheek',
+  ]);
+  const explicitFeatures = [
+    row.appearance_face,
+    row.distinguishing_features,
+    row.appearance_features,
+  ].map((value) => String(value || '').trim()).filter(Boolean).join(', ');
+  const parts = [
+    `${exactAge}-year-old ${gender}`,
+    row.appearance_race ? `${String(row.appearance_race)} ethnicity and facial heritage` : '',
+    row.appearance_hair_color ? `${String(row.appearance_hair_color)} hair color` : '',
+    row.appearance_hair ? `${String(row.appearance_hair)} hairstyle` : '',
+    row.appearance_eyes ? `${String(row.appearance_eyes)} eyes` : '',
+    row.appearance_body ? `${String(row.appearance_body)} body build and proportions` : '',
+    row.personality ? `${String(row.personality)} temperament and presence` : '',
+    row.appearance_style ? `${String(row.appearance_style)} visual and wardrobe style` : '',
+    row.image_prompt ? `additional appearance details: ${String(row.image_prompt).replace(/\s+/g, ' ').trim().slice(0, 240)}` : '',
+    explicitFeatures,
+    faceShape,
+    featureCue,
+  ].filter(Boolean);
+  return `Identity specification for ${String(row.name || 'this companion')}: ${parts.join('; ')}. Preserve this exact age, gender presentation, ethnicity, face geometry, hair, eyes, physique, temperament and signature features in every view; do not replace them with a generic beauty face.`;
+}
 function pick<T>(items: T[], seed = Math.random()): T {
   return items[Math.min(items.length - 1, Math.floor(seed * items.length))];
 }
@@ -55,16 +117,20 @@ export function buildCompanionGenerationPrompt(
     useEmptyNegative: false,
     gender: category === 'anime' ? 'cartoon' : category,
   });
+  const identitySpecification = buildCompanionIdentitySpecification(row);
   const baseInfo = [
     String(row.name || 'adult companion'),
     String(row.age ? `age ${row.age}` : 'age 25+'),
-    String(row.personality || ''),
-    String(row.appearance_race || ''),
-    String(row.appearance_hair || ''),
+    String(row.gender || profile.gender || category),
     String(row.appearance_hair_color || ''),
+    String(row.appearance_hair || ''),
     String(row.appearance_eyes || ''),
     String(row.appearance_body || ''),
+    String(row.appearance_race || ''),
+    String(row.personality || ''),
     String(row.appearance_style || profile.style),
+    String(row.appearance_face || row.distinguishing_features || ''),
+    String(row.image_prompt || ''),
   ].filter(Boolean).join(', ');
   const quality = category === 'anime'
     ? 'A premium anime illustration with deliberate linework, expressive eyes, rich cel shading, and a readable composition.'
@@ -74,8 +140,9 @@ export function buildCompanionGenerationPrompt(
     baseInfo,
     action,
     quality,
-    positive: `${assembled.positive} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
-    negative: `${assembled.negative}, ${preset.negative}`,
+    identitySpecification,
+    positive: `${identitySpecification} ${assembled.positive} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
+    negative: `${assembled.negative}, ${preset.negative}, generic face, duplicate identity, same face as another character`,
   };
 }
 

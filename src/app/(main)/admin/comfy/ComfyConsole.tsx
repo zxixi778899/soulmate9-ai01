@@ -478,6 +478,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           companion_category: companionCategory,
           anime_render_style: animeRenderStyle,
           nsfw_intensity: nsfwIntensity,
+          gen_mode: genMode,
+          asset_role: assetRole,
           companion: scopedGirlfriend || undefined,
         }),
       });
@@ -502,7 +504,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     } finally {
       setOptimizingPrompt(false);
     }
-  }, [animeRenderStyle, companionCategory, nsfwIntensity, prompt, scopedGirlfriend]);
+  }, [animeRenderStyle, assetRole, companionCategory, genMode, nsfwIntensity, prompt, scopedGirlfriend]);
 
   /** 一键调用：选中 LoRA + 强度 + 触发词写入提示词 */
   function applyLora(lora: Any, opts?: { appendTriggers?: boolean; goGenerate?: boolean }) {
@@ -761,9 +763,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       for (const role of roles) {
         const preset = getCharacterProductionPreset(role);
         try {
+          const isIdentityAsset = role === 'avatar-closeup' || role.startsWith('identity-');
           const assembled = buildCompanionGenerationPrompt(girlfriend as Record<string, unknown>, {
             action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
-            adult: nsfwIntensity >= 3,
+            adult: isIdentityAsset ? false : nsfwIntensity >= 3,
           });
           const overrides = { girlfriendId: id, prompt: assembled.positive, negative: assembled.negative, assetRole: role };
           const res = await authedFetch('/api/admin/comfy', {
@@ -1073,7 +1076,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     try {
       const fd = new FormData();
       fd.append('action', 'upload_assets');
-      if (girlfriendId) fd.append('girlfriend_id', girlfriendId);
+      const activeGirlfriendId = productionGirlfriendId || girlfriendId;
+      if (activeGirlfriendId) fd.append('girlfriend_id', activeGirlfriendId);
+      fd.append('asset_role', assetRole);
       fd.append('kind', kind || 'girlfriend');
       for (const f of files) fd.append('files', f);
       const res = await authedFetch('/api/admin/comfy', { method: 'POST', body: fd });
@@ -1101,7 +1106,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       const fd = new FormData();
       fd.append('action', 'upload_assets');
       fd.append('kind', 'reference');
-      if (girlfriendId) fd.append('girlfriend_id', girlfriendId);
+      const activeGirlfriendId = productionGirlfriendId || girlfriendId;
+      if (activeGirlfriendId) fd.append('girlfriend_id', activeGirlfriendId);
+      fd.append('asset_role', assetRole);
       fd.append('files', file);
       const res = await authedFetch('/api/admin/comfy', { method: 'POST', body: fd });
       const data = await readResponseJson(res).catch(() => ({} as Any));
@@ -1910,6 +1917,18 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                       <Button size="sm" variant="outline" className="h-7 text-[10px] border-slate-700" onClick={() => { setInputImage(a.url || ''); setGenMode('img2img'); toast.message('已设为参考图'); }}>
                         作参考
                       </Button>
+                      {a.media_type !== 'video' ? (
+                        <Button size="sm" variant="outline" className="h-7 text-[10px] border-cyan-800 text-cyan-300" onClick={() => {
+                          setInputImage(a.url || '');
+                          setGenMode('img2video');
+                          setAssetRole('character-art');
+                          setPrompt(buildCreativePromptPreset({ mode: 'img2video', category: companionCategory, intensity: nsfwIntensity, renderStyle: animeRenderStyle, scene: prompt }));
+                          setPromptProfileApplied(true);
+                          toast.message('已选择该立绘/相册图片，可直接生成 5 秒视频');
+                        }}>
+                          <Play className="mr-1 h-3 w-3" />生成视频
+                        </Button>
+                      ) : null}
                       <Button size="sm" variant="outline" className="h-7 text-[10px] border-red-900 text-red-400" onClick={() => deleteAsset(a)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>

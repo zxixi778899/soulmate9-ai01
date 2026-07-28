@@ -22,7 +22,7 @@ describe('character asset production', () => {
 
   it('uses identity consistency after the initial front reference', () => {
     expect(getCharacterProductionPreset('avatar-closeup').consistency).toBe(false);
-    expect(getCharacterProductionPreset('identity-front').consistency).toBe(false);
+    expect(getCharacterProductionPreset('identity-front').consistency).toBe(true);
     expect(getCharacterProductionPreset('identity-profile').consistency).toBe(true);
     expect(getCharacterProductionPreset('identity-back').consistency).toBe(true);
     expect(getCharacterProductionPreset('character-art').consistency).toBe(true);

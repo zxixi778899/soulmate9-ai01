@@ -7,8 +7,8 @@ export type ImageModelFamily = 'flux' | 'pony' | 'illustrious';
 
 /**
  * Single unified ComfyUI endpoint — ALL image generation goes through here.
- * The worker has all checkpoints (FLUX / Pony / Illustrious) and LoRAs
- * mounted on its network volume. LoRAs are auto-selected downstream by
+ * Currently only flux1-dev-fp8.safetensors is available on the worker.
+ * All routes use FLUX parameters; LoRAs are auto-selected downstream by
  * resolveModelLoraPlan() based on model family + category + intensity.
  */
 export const UNIFIED_COMFY_ENDPOINT = 'wozrrlcdipyl3p';
@@ -34,8 +34,9 @@ const env = (name: string, fallback: string): string => process.env[name]?.trim(
 
 /**
  * Resolve generation parameters for the unified ComfyUI endpoint.
- * Model family / checkpoint / sampler still vary by context to build
- * the correct ComfyUI workflow graph, but ALL requests hit the same endpoint.
+ * ALL requests use the FLUX checkpoint (the only one currently deployed).
+ * Model family is kept as a routing hint for downstream LoRA selection,
+ * but checkpoint/sampler/scheduler/cfg are always FLUX-compatible.
  */
 export function resolveImageGenerationRoute(input: {
   surface: ImageSurface;
@@ -54,6 +55,7 @@ export function resolveImageGenerationRoute(input: {
   const complexScene = isComplexAdultScene(semantics);
   // Single endpoint for all model families
   const endpointId = env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT);
+  const fluxCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
 
   // ─── Turbo preview mode ───────────────────────────────────────────────────
   // Quick draft for companion chat: 12 steps + low cfg produces a recognizable
@@ -63,7 +65,7 @@ export function resolveImageGenerationRoute(input: {
       surface: input.surface,
       modelFamily: 'flux',
       endpointId,
-      checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
+      checkpoint: fluxCheckpoint,
       sampler: 'euler',
       scheduler: 'simple',
       steps: 12,
@@ -77,76 +79,77 @@ export function resolveImageGenerationRoute(input: {
     };
   }
 
-  // ─── Step-count optimization rationale ─────────────────────────────────────
-  // Empirical testing shows diminishing quality returns beyond these thresholds:
-  //   FLUX (euler/simple): 20 steps for companion and product surfaces.
-  //   Pony (dpmpp_2m_sde/karras): 28 steps with sampler/cfg carrying scene complexity.
-  //   Illustrious (dpmpp/karras): 26 standard, 32 complex.
-  // Reducing from the previous 32-44 range cuts GPU time ~30-40% with no
-  // perceptible quality loss on A/B blind tests.
-
+  // ─── 2D / Anime style (FLUX pipeline) ─────────────────────────────────────
+  // Uses FLUX with anime-oriented prompt. LoRA routing will select
+  // flux_detail_enhancer for anime category downstream.
   if (input.surface === 'companion' && renderStyle === '2d') {
     return {
       surface: input.surface,
-      modelFamily: 'illustrious',
+      modelFamily: 'flux',
       endpointId,
-      checkpoint: env('RUNPOD_ILLUSTRIOUS_CHECKPOINT', 'waiMatureIllustrious_v20.safetensors'),
-      sampler: complexScene ? 'dpmpp_sde' : 'dpmpp_2m_sde',
-      scheduler: 'karras',
-      steps: complexScene ? 32 : 26,
-      cfg: complexScene ? 6.5 : 5.8,
-      clipSkip: 2,
+      checkpoint: fluxCheckpoint,
+      sampler: 'euler',
+      scheduler: 'simple',
+      steps: complexScene ? 24 : 22,
+      cfg: 1.8,
+      clipSkip: 1,
       width: 832,
       height: 1216,
-      presetId: complexScene ? 'illustrious-2d-multi-control' : 'illustrious-2d-portrait',
-      promptPrefix: 'masterpiece, best quality, very aesthetic, mature adult character, consistent design, clean line work.',
+      presetId: complexScene ? 'flux-2d-multi-control' : 'flux-2d-portrait',
+      promptPrefix: complexScene
+        ? 'High-quality mature anime illustration, detailed character design, clean line art, vibrant colors, dynamic multi-character composition, professional anime key visual.'
+        : 'High-quality mature anime illustration, detailed character design, clean line art, vibrant colors, beautiful single character portrait, professional anime key visual.',
       reason: complexScene
-        ? 'Multi-character 2D art uses a higher-control Illustrious preset.'
-        : 'Single-character 2D art uses the Illustrious portrait preset.',
+        ? 'Multi-character 2D art uses a higher-step FLUX anime preset.'
+        : 'Single-character 2D art uses the FLUX anime portrait preset.',
     };
   }
 
+  // ─── Adult / NSFW anatomy (FLUX pipeline) ─────────────────────────────────
+  // Uses FLUX with explicit natural-language prompt. LoRA routing will select
+  // flux_nsfw_klein_v2 + flux_uncensored for intensity >= 3 downstream.
   const needsAdultAnatomy = input.surface === 'companion' && renderStyle === 'realistic' &&
     (intensity >= 3 || category === 'transgender' || complexScene);
   if (needsAdultAnatomy) {
-    const subjectTags = category === 'transgender'
-      ? '1girl, solo, transgender female, futanari, feminine face, breasts, penis, testicles'
-      : category === 'male'
-        ? '1boy, solo, male, masculine face, broad shoulders, male body'
-        : '1girl, solo, female, feminine face, female body';
-    const anatomyTags = intensity >= 3
-      ? category === 'transgender'
-        ? 'visible breasts, visible penis, visible testicles'
-        : category === 'male'
-          ? 'visible penis, visible testicles'
-          : 'visible breasts, visible vulva'
-      : '';
     const highControl = semantics.powerDynamic === 'sm' || semantics.pairing === 'group_4i';
+    const subjectDesc = category === 'transgender'
+      ? 'a feminine transgender woman with breasts and penis'
+      : category === 'male'
+        ? 'a masculine man with broad shoulders'
+        : 'a feminine woman';
+    const anatomyDesc = intensity >= 3
+      ? category === 'transgender'
+        ? ', visible breasts, visible penis and testicles, fully nude'
+        : category === 'male'
+          ? ', visible penis and testicles, fully nude'
+          : ', visible breasts and vulva, fully nude'
+      : ', tasteful nudity';
     return {
       surface: input.surface,
-      modelFamily: 'pony',
+      modelFamily: 'flux',
       endpointId,
-      checkpoint: env('RUNPOD_PONY_CHECKPOINT', 'ponyRealism_V22.safetensors'),
-      sampler: highControl ? 'dpmpp_sde' : 'dpmpp_2m_sde',
-      scheduler: 'karras',
-      steps: 28,
-      cfg: highControl ? 7 : 6.5,
-      clipSkip: 2,
+      checkpoint: fluxCheckpoint,
+      sampler: 'euler',
+      scheduler: 'simple',
+      steps: highControl ? 24 : 22,
+      cfg: 1.8,
+      clipSkip: 1,
       width: 1024,
       height: complexScene ? 1344 : 1536,
-      presetId: highControl ? 'pony-adult-composition-control' : complexScene ? 'pony-adult-pair' : 'pony-adult-portrait',
-      promptPrefix: `score_9, score_8_up, score_7_up, source_realistic, ${subjectTags}, ${anatomyTags}, full body, complete head, face visible, eyes in focus, detailed skin, natural skin texture, realistic photography, sharp focus, clean exposure, BREAK.`,
+      presetId: highControl ? 'flux-adult-composition-control' : complexScene ? 'flux-adult-pair' : 'flux-adult-portrait',
+      promptPrefix: `Explicit realistic photographic portrait of ${subjectDesc}${anatomyDesc}, full body visible, complete head in frame, face clearly visible, eyes in focus, detailed natural skin texture with pores, realistic photography, sharp focus, clean exposure, professional lighting.`,
       reason: category === 'transgender'
-        ? 'Transgender anatomy uses the Pony-native adult pipeline.'
-        : 'Explicit or multi-person adult anatomy uses the Pony-native adult pipeline.',
+        ? 'Transgender anatomy uses the FLUX explicit pipeline with NSFW LoRAs.'
+        : 'Explicit adult anatomy uses the FLUX pipeline with NSFW LoRAs.',
     };
   }
 
+  // ─── Default: FLUX companion / product ────────────────────────────────────
   return {
     surface: input.surface,
     modelFamily: 'flux',
     endpointId,
-    checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
+    checkpoint: fluxCheckpoint,
     sampler: 'euler',
     scheduler: 'simple',
     steps: 20,
