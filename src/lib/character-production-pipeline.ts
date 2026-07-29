@@ -100,9 +100,9 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
   },
   {
     id: 'turnaround',
-    label: '三视图 · IP-Adapter 锁脸',
+    label: '三视图 · 外观参考',
     shortLabel: '三视图',
-    description: 'IP-Adapter 锁定面部身份 + 文生图自由构图，生成正面/侧面/背面三视图参考。',
+    description: '生成正面/侧面/背面全身外观参考图，记录角色精确外貌特征，为立绘和视频提供一致性锚定。',
     assetRole: 'identity-turnaround',
     mode: 'txt2img',
     useIpAdapter: true,
@@ -115,9 +115,9 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
   },
   {
     id: 'character-art',
-    label: '角色立绘 · 图生图',
+    label: '角色立绘 · 广告主视觉',
     shortLabel: '立绘',
-    description: '图生图自动选择半身头像 + 三视图作为参考，生成角色主视觉立绘。',
+    description: '基于头像+三视图一致性参考，生成伴侣广告级立绘主视觉，用于推广展示。',
     assetRole: 'character-art',
     mode: 'img2img',
     useIpAdapter: true,
@@ -156,11 +156,11 @@ const PROMPT_SYSTEM_TEMPLATE = `You are an expert FLUX.1 image prompt engineer. 
 Rules:
 - Output ONLY the prompt text, no explanation.
 - Keep under 300 characters.
-- For avatar: waist-up studio portrait, natural expression, plain background, soft light.
-- For turnaround: three full-body views (front, side, back) side by side on one image, plain background, even lighting, full head to feet.
-- For character-art: polished full-height key art, confident pose, signature outfit, clean silhouette.
-- For video: describe subtle natural motion (breathing, hair sway, gentle smile).
-- Use natural photography language. Never use: orthographic, wireframe, T-pose, character sheet.
+- For avatar: waist-up studio portrait, natural expression, plain background, soft light. This is an identity anchor — clarity over artistry.
+- For turnaround: neutral full-body appearance reference sheet, three views (front, side, back) side by side, plain white background, even flat lighting, relaxed standing pose, full head to feet visible. Purpose: document the character's exact appearance (face, hair, body, outfit) for consistency. NOT artistic — clinical and clear.
+- For character-art: premium companion advertising key visual. Full-height, alluring confident pose, signature outfit, cinematic lighting, magazine-cover quality. This is the FINAL PRODUCT used for promotion — make it stunning, aspirational, and eye-catching. Sell the fantasy.
+- For video: describe subtle natural motion (breathing, hair sway, gentle smile, slight body turn).
+- Use natural photography language. Never use: orthographic, wireframe, T-pose, character sheet, reference sheet.
 - Include the character's key features briefly (hair, eyes, build).
 - Language: English only.`;
 
@@ -249,9 +249,11 @@ function buildStageNegative(stage: PipelineStageConfig): string {
     case 'avatar':
       return `${anti3d}, close-up, headshot, face only, cropped shoulders, bokeh, blurry`;
     case 'turnaround':
-      return `${anti3d}, single view, one view only, headshot, half-body, portrait, collage, overlapping figures, bokeh, blurry`;
+      // Neutral reference: reject artistic/dramatic styling, keep it clinical
+      return `${anti3d}, single view, one view only, headshot, half-body, portrait, collage, overlapping figures, dramatic lighting, artistic, bokeh, blurry, background scenery`;
     case 'character-art':
-      return `${anti3d}, close-up, headshot, half-body, cropped legs, bokeh, blurry, low quality`;
+      // Advertising quality: reject anything that looks amateur or non-promotional
+      return `${anti3d}, close-up, headshot, half-body, cropped legs, bokeh, blurry, low quality, amateur, flat lighting, passport photo, mugshot, ID photo`;
     case 'video':
       return `${anti3d}, static, frozen, jitter, flicker, distorted face, extra limbs`;
     default:

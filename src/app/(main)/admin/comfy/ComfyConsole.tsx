@@ -18,7 +18,7 @@ import {
   Loader2, Play, Trash2, RefreshCw, HardDrive, Workflow, ImageIcon,
   Settings2, BookOpen, Save, RotateCcw, Sparkles, Layers, ExternalLink,
   Zap, Upload, Download, CheckSquare, Square, Copy, ImagePlus, FileImage,
-  Users, Search,
+  Users, Search, X, Maximize2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -158,6 +158,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [pipelineResults, setPipelineResults] = useState<PipelineStageResult[]>([]);
   const [pipelineAssets, setPipelineAssets] = useState<Record<string, string>>({});
+  const pipelineCancelRef = useRef(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
 
   const applyRecommendedLoras = (
@@ -881,6 +883,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const runPipelineGeneration = async (companionId: string) => {
     const girlfriend = batchGirlfriends.find((item) => String(item.id) === companionId) || scopedGirlfriend;
     if (!girlfriend) return toast.error('请先选择伴侣');
+    pipelineCancelRef.current = false;
     setPipelineRunning(true);
     setPipelineResults(CHARACTER_PIPELINE_STAGES.map((s) => ({ stageId: s.id, status: 'pending' as const })));
     setPipelineAssets({});
@@ -896,6 +899,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     };
 
     for (const stage of CHARACTER_PIPELINE_STAGES) {
+      if (pipelineCancelRef.current) {
+        setPipelineResults((prev) => prev.map((r) => r.status === 'pending' ? { ...r, status: 'skipped' } : r));
+        toast.info('管线已取消');
+        break;
+      }
       setPipelineResults((prev) => prev.map((r) => r.stageId === stage.id ? { ...r, status: 'running' } : r));
       try {
         // 1. AI prompt generation
@@ -1518,7 +1526,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     {pipelineRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
                     {pipelineRunning ? '管线生产中…' : '开始全管线生产（头像→三视图→立绘→视频）'}
                   </Button>
-                  <span className="text-[10px] text-slate-400">AI 自动生成提示词 · 自动匹配 LoRA · IP-Adapter 锁脸</span>
+                  {pipelineRunning && (
+                    <Button type="button" size="sm" variant="outline" className="border-red-500/50 text-red-300 hover:bg-red-950/40" onClick={() => { pipelineCancelRef.current = true; }}>
+                      <X className="mr-1 h-3.5 w-3.5" /> 取消
+                    </Button>
+                  )}
+                  <span className="text-[10px] text-slate-400">AI 自动生成提示词 · 自动匹配 LoRA · 一致性参考</span>
                 </div>
                 {/* Pipeline stage indicators */}
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1531,6 +1544,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         status === 'completed' && 'border-emerald-500/60 bg-emerald-950/30',
                         status === 'running' && 'border-cyan-400/60 bg-cyan-950/30',
                         status === 'failed' && 'border-red-500/60 bg-red-950/30',
+                        status === 'skipped' && 'border-slate-600 bg-slate-900/30 opacity-60',
                         status === 'pending' && 'border-slate-700 bg-slate-900/50',
                       )}>
                         <div className="flex items-center justify-center gap-1">
@@ -1542,7 +1556,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         <p className="mt-1 text-[11px] font-medium text-slate-200">{stage.shortLabel}</p>
                         <p className="text-[9px] text-slate-500">{stage.mode === 'txt2img' ? '文生图' : stage.mode === 'img2img' ? '图生图' : '图生视频'}</p>
                         {result?.imageUrl && (
-                          <img src={result.imageUrl} alt={stage.shortLabel} className="mx-auto mt-1 h-12 w-auto rounded border border-slate-700 object-contain" />
+                          <button type="button" className="group relative mx-auto mt-1 block cursor-zoom-in" onClick={() => setLightboxUrl(result.imageUrl!)}>
+                            <img src={result.imageUrl} alt={stage.shortLabel} className="mx-auto h-12 w-auto rounded border border-slate-700 object-contain" />
+                            <span className="absolute inset-0 flex items-center justify-center rounded bg-black/50 opacity-0 transition group-hover:opacity-100"><Maximize2 className="h-4 w-4 text-white" /></span>
+                          </button>
                         )}
                         {result?.error && <p className="mt-1 text-[9px] text-red-300">{result.error}</p>}
                       </div>
@@ -2585,6 +2602,16 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           <li>当前仅展示已接通的文生图与图生图；采样器、调度器、Steps、CFG、Seed 和 LoRA 均写入真实工作流。</li>
         </ol>
       </footer>
+
+      {/* Lightbox for full-size image viewing */}
+      {lightboxUrl && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/85 backdrop-blur-sm" onClick={() => setLightboxUrl(null)}>
+          <button type="button" className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" onClick={() => setLightboxUrl(null)}>
+            <X className="h-5 w-5" />
+          </button>
+          <img src={lightboxUrl} alt="大图预览" className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
 
     </div>
   );
