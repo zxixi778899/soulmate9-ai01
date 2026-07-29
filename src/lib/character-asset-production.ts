@@ -5,6 +5,7 @@ export const CHARACTER_ASSET_ROLES = [
   'identity-front',
   'identity-profile',
   'identity-back',
+  'identity-turnaround',
   'identity-half',
   'identity-full',
   'character-art',
@@ -35,7 +36,7 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     label: '人设头像 · 半身像',
     shortLabel: '半身头像',
     description: '根据伴侣基础信息生成半身像头像（头到腰部以上），作为后续三视图与立绘的首要身份参考。',
-    scene: 'a waist-up portrait photograph of the same adult character, complete head and shoulders above the waist inside the frame, both eyes looking toward camera, complete hairline visible, natural relaxed expression and soft posture, plain studio background, soft even light on the face and upper body, no hands or props covering the face',
+    scene: 'waist-up studio portrait of the same adult character, head and shoulders fully in frame, looking at the camera, natural relaxed expression, plain light-gray studio background, soft even light',
     width: 832,
     height: 1216,
     consistency: false,
@@ -71,6 +72,17 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     scene: 'Full-body rear-view catalog photograph, person standing straight with back facing camera, entire head to feet visible with margin, fitted simple white outfit, plain light-gray studio backdrop, flat even lighting, sharp focus, professional fashion catalog shot',
     width: 832,
     height: 1216,
+    consistency: true,
+    referenceRole: 'identity',
+  },
+  {
+    role: 'identity-turnaround',
+    label: '角色 ID · 三视图参考图',
+    shortLabel: '三视图',
+    description: '单张横图：正面、侧面、背面三个全身视图并排，作为角色一致性的标准三视图参考。',
+    scene: 'character model sheet on one plain light-gray studio background, three full-body views of the same adult character arranged side by side from left to right: front view, side profile view, back view, standing in a relaxed neutral pose, simple fitted white outfit, head to feet visible, even soft light',
+    width: 1216,
+    height: 832,
     consistency: true,
     referenceRole: 'identity',
   },
@@ -166,20 +178,22 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
 
 export const CHARACTER_ID_PACK: CharacterAssetRole[] = [
   'avatar-closeup',
-  'identity-front',
-  'identity-profile',
-  'identity-back',
+  'identity-turnaround',
 ];
 
 export function identityReferenceRolePriority(role: CharacterAssetRole): CharacterAssetRole[] {
+  if (role === 'identity-turnaround') return ['avatar-closeup'];
   if (role === 'identity-front') return ['avatar-closeup'];
   if (role === 'identity-profile') return ['identity-front', 'avatar-closeup'];
   if (role === 'identity-back') return ['identity-profile', 'identity-front', 'avatar-closeup'];
-  if (role === 'character-art' || role === 'album' || role === 'scene') return ['identity-front', 'identity-profile', 'identity-back'];
-  return ['identity-front', 'avatar-closeup', 'identity-profile', 'identity-back'];
+  if (role === 'character-art' || role === 'album' || role === 'scene') {
+    return ['identity-turnaround', 'identity-front', 'identity-profile', 'identity-back'];
+  }
+  return ['identity-turnaround', 'avatar-closeup', 'identity-front', 'identity-profile', 'identity-back'];
 }
 
 export function identityTurnaroundDenoise(role: CharacterAssetRole, requested: number): number {
+  if (role === 'identity-turnaround') return 0.72;
   if (role === 'identity-front') return 0.72;
   if (role === 'identity-profile') return 0.68;
   if (role === 'identity-back') return 0.76;

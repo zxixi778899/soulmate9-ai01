@@ -184,7 +184,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const applyProductionPreset = (role: CharacterAssetRole) => {
     const preset = getCharacterProductionPreset(role);
     const wantsIdentityRef = role === 'character-art' || role === 'album' || role === 'scene';
-    const identityAsset = companionAssets.find((item) => item.meta?.asset_role === 'identity-front')
+    const identityAsset = companionAssets.find((item) => item.meta?.asset_role === 'identity-turnaround')
+      || companionAssets.find((item) => item.meta?.asset_role === 'identity-front')
       || companionAssets.find((item) => item.meta?.asset_role === 'identity-profile')
       || companionAssets.find((item) => item.meta?.asset_role === 'identity-back')
       || companionAssets.find((item) => item.meta?.asset_role === 'avatar-closeup');
@@ -1376,9 +1377,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
                 <Button type="button" size="sm" className="bg-cyan-600 hover:bg-cyan-500" disabled={batchRunning} onClick={() => void runBatchGeneration([productionGirlfriendId], true)}>
                   {batchRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-                  一键生成半身头像 + 三视图
+                  一键生成半身头像 + 三视图参考图
                 </Button>
-                <span className="text-[10px] text-slate-400">读取当前伴侣基础信息，依次保存到头像、正面、侧面、背面文件夹。</span>
+                <span className="text-[10px] text-slate-400">读取当前伴侣基础信息，依次保存到头像、三视图两个文件夹。</span>
               </div>
             ) : null}
             {productionGirlfriendId ? (
@@ -1393,7 +1394,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="flex items-center gap-2 text-sm font-bold text-white"><Users className="h-4 w-4 text-violet-300" /> 批量生产角色资产</h2>
-                  <p className="mt-1 text-[11px] text-slate-300">自动读取每位伴侣资料并归档到独立目录。身份生产包包含半身头像、正面、侧面和背面三视图。</p>
+                  <p className="mt-1 text-[11px] text-slate-300">自动读取每位伴侣资料并归档到独立目录。身份生产包包含半身头像和单张三视图参考图（正/侧/背三联）。</p>
                   <div className="mt-2 inline-flex border border-violet-500/40 bg-slate-950 p-1">
                     <button type="button" onClick={() => setBatchIdentityPack(true)} className={cn('h-7 px-2 text-[11px]', batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>身份图组 + 立绘</button>
                     <button type="button" onClick={() => setBatchIdentityPack(false)} className={cn('h-7 px-2 text-[11px]', !batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>仅当前任务</button>
