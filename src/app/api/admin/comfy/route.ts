@@ -1131,9 +1131,9 @@ if (body.action === 'verify_loras') {
         ? 'Clean 2D character sheet rendering, stable linework, consistent proportions, flat even lighting.'
         : animeStyle === '3d'
           ? 'High-fidelity 3D-rendered character with realistic skin shading, subsurface scattering, consistent proportions, even studio lighting, no cinematic effects.'
-          : 'Sharp catalog reference photograph, flat even lighting, neutral exposure, full detail head to toe, no artistic bokeh.';
+          : 'Sharp catalog reference photograph, flat even studio lighting, neutral exposure, full detail from head to toe, sharp focus, high resolution, 8k photograph, shot on Canon EOS R5 with 85mm lens, natural skin texture with visible pores, no artistic bokeh.';
       prompt = `${productionPreset.scene}. Subject: ${briefIdentity}. ${qualityHint} ${styleProductionHint(animeStyle)}`;
-      negative = 'cropped above knees, close-up, headshot only, portrait framing, face filling frame, cinematic depth of field, bokeh background, dramatic lighting, hallway, environment, props covering body, 3D render, 3D model, CG, CGI, mannequin, figurine, doll, featureless face, smooth plastic skin, white featureless body, anatomy model, character turnaround sheet, wireframe';
+      negative = 'close-up, headshot, portrait framing, face filling frame, cropped above knees, half-body, bust shot, cinematic depth of field, bokeh background, dramatic lighting, hallway, environment, props covering body, 3D render, 3D model, CG, CGI, digital sculpture, clay render, wireframe, anatomical model, orthographic projection, blueprint, T-pose, A-pose, mannequin, figurine, doll, miniature, featureless face, smooth plastic skin, white featureless body, character turnaround sheet';
       category = normalizeCompanionCategory({
         gender: String(databaseCompanion.gender || ''),
         style: String(databaseCompanion.style || ''),
@@ -1327,9 +1327,11 @@ if (body.action === 'verify_loras') {
         negative_prompt: negative,
         width,
         height,
-        num_inference_steps: Math.max(generationRoute.steps, body.steps ? steps : generationRoute.steps),
+        num_inference_steps: isIdentityAsset
+          ? Math.max(28, body.steps ? steps : 28)
+          : Math.max(generationRoute.steps, body.steps ? steps : generationRoute.steps),
         guidance_scale: generationRoute.modelFamily === 'flux'
-          ? Math.min(3.5, Math.max(isIdentityAsset ? 2.2 : 1, Number(body.cfg || generationRoute.cfg)))
+          ? Math.min(3.5, Math.max(isIdentityAsset ? 2.5 : 1, Number(body.cfg || generationRoute.cfg)))
           : Math.min(9, Math.max(3, Number(body.cfg || generationRoute.cfg))),
         sampler_name: generationRoute.modelFamily === 'flux' && body.sampler_name ? samplerName : generationRoute.sampler,
         scheduler: generationRoute.modelFamily === 'flux' && body.scheduler ? scheduler : generationRoute.scheduler,
