@@ -1243,9 +1243,13 @@ if (body.action === 'verify_loras') {
     if (referencePlan.promptHints.length > 0) {
       prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
-    const effectiveInputImage =
-      referencePlan.primaryIdentity?.url ||
-      referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
+    // Identity turnaround views MUST be txt2img — using the avatar as img2img
+    // reference forces the same close-up composition, defeating the purpose.
+    const isTurnaroundView = assetRole.startsWith('identity-');
+    const effectiveInputImage = isTurnaroundView
+      ? undefined
+      : referencePlan.primaryIdentity?.url ||
+        referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
         ? identityTurnaroundDenoise(assetRole, denoise)
