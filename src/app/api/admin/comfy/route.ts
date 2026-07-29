@@ -1063,8 +1063,8 @@ if (body.action === 'verify_loras') {
     let height = Number(body.height || wf?.defaults.height || 1216);
     const categoryForParams = String(body.companion_category || 'female');
     const minimumSteps = categoryForParams === 'transgender' ? 32 : 28;
-    const steps = Math.max(minimumSteps, Number(body.steps || wf?.defaults.steps || minimumSteps));
-    const cfgScale = Math.min(2, Math.max(1, Number(body.cfg || wf?.defaults.cfg || 1.4)));
+    const steps = Math.max(minimumSteps, Number(body.steps || body.num_inference_steps || wf?.defaults.steps || minimumSteps));
+    const cfgScale = Math.min(3.5, Math.max(1, Number(body.cfg || body.guidance_scale || wf?.defaults.cfg || 1.8)));
     const allowedSamplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_sde']);
     const allowedSchedulers = new Set(['simple', 'normal', 'karras', 'sgm_uniform']);
     const requestedSampler = String(body.sampler_name || 'euler');
@@ -1337,12 +1337,10 @@ if (body.action === 'verify_loras') {
         negative_prompt: negative,
         width,
         height,
-        num_inference_steps: isIdentityAsset
-          ? Math.max(28, body.steps ? steps : 28)
-          : Math.max(generationRoute.steps, body.steps ? steps : generationRoute.steps),
+        num_inference_steps: steps,
         guidance_scale: generationRoute.modelFamily === 'flux'
-          ? Math.min(3.5, Math.max(isIdentityAsset ? 3.0 : 1, Number(body.cfg || generationRoute.cfg)))
-          : Math.min(9, Math.max(3, Number(body.cfg || generationRoute.cfg))),
+          ? Math.min(3.5, Math.max(isIdentityAsset ? 3.0 : 2.5, Number(body.cfg || body.guidance_scale || generationRoute.cfg)))
+          : Math.min(9, Math.max(3, Number(body.cfg || body.guidance_scale || generationRoute.cfg))),
         sampler_name: generationRoute.modelFamily === 'flux' && body.sampler_name ? samplerName : generationRoute.sampler,
         scheduler: generationRoute.modelFamily === 'flux' && body.scheduler ? scheduler : generationRoute.scheduler,
         clip_skip: generationRoute.clipSkip,

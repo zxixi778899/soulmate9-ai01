@@ -33,8 +33,8 @@ describe('unified image generation routing', () => {
     expect(route.promptPrefix).toContain(anatomyDesc);
     expect(route.sampler).toBe('euler');
     expect(route.scheduler).toBe('simple');
-    expect(route.cfg).toBeLessThanOrEqual(2);
-    expect(route.steps).toBeGreaterThanOrEqual(22);
+    expect(route.cfg).toBeLessThanOrEqual(3.5);
+    expect(route.steps).toBeGreaterThanOrEqual(28);
     expect(route.width).toBeGreaterThanOrEqual(1024);
     expect(route.clipSkip).toBe(1);
     expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
