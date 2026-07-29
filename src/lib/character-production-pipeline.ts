@@ -16,6 +16,13 @@ import { getCharacterProductionPreset, styleProductionHint, type CharacterAssetR
 import { resolveModelLoraPlan, type RoutedLora } from './model-lora-routing';
 import { logger } from './logger';
 
+/**
+ * Set to true once ComfyUI_IPAdapter_plus + models are installed on the worker.
+ * Until then, IP-Adapter nodes are skipped and the pipeline falls back to
+ * pure txt2img (no face lock) for the turnaround stage.
+ */
+const IP_ADAPTER_INSTALLED = process.env.RUNPOD_IPADAPTER_INSTALLED === '1';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type PipelineStageId = 'avatar' | 'turnaround' | 'character-art' | 'video';
@@ -339,7 +346,7 @@ export function buildStageGenerationParams(
     base.denoising_strength = stage.denoise ?? 0.58;
   }
 
-  if (stage.useIpAdapter && refs.ipAdapterImage) {
+  if (IP_ADAPTER_INSTALLED && stage.useIpAdapter && refs.ipAdapterImage) {
     base.ip_adapter_image = refs.ipAdapterImage;
     base.ip_adapter_weight = stage.ipAdapterWeight ?? 0.75;
   }

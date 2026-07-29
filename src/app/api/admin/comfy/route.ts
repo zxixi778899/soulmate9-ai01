@@ -1256,8 +1256,12 @@ if (body.action === 'verify_loras') {
         : Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
     // IP-Adapter: face reference without composition lock (from request body or auto-resolved)
-    const ipAdapterImage = String(body.ip_adapter_image || '').trim() || undefined;
-    const ipAdapterWeight = body.ip_adapter_weight != null
+    // Only pass through when worker has ComfyUI_IPAdapter_plus installed
+    const ipAdapterEnabled = process.env.RUNPOD_IPADAPTER_INSTALLED === '1';
+    const ipAdapterImage = ipAdapterEnabled
+      ? (String(body.ip_adapter_image || '').trim() || undefined)
+      : undefined;
+    const ipAdapterWeight = ipAdapterEnabled && body.ip_adapter_weight != null
       ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight)))
       : undefined;
     const folder = assetFolder(girlfriendId, assetRole);
