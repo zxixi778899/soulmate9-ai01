@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { runpodClient } from '@/lib/runpod';
 import { uploadDataUrl, uploadImageBase64, resolveImageUrl } from '@/lib/storage';
 import { normalizeCharacterAssetRole } from '@/lib/character-asset-production';
@@ -12,7 +13,7 @@ import { logger } from '@/lib/logger';
  * Two modes:
  *  - Chat mode (default): persists image to chat_messages + chat_media.
  *  - Admin mode (admin_source=true): uploads to girlfriends/{id}/{asset_role}/
- *    and inserts a generation_assets record — same as the synchronous generate path.
+ *    and inserts a generation_assets record directly — no separate finalize needed.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -51,6 +52,15 @@ export async function GET(req: NextRequest) {
         const folder = girlfriendId
           ? `girlfriends/${girlfriendId}/${assetRole}`
           : 'comfy-outputs';
+
+        // Use service-role client for generation_assets insert
+        let adminDb: ReturnType<typeof getSupabaseClient> | null = null;
+        try {
+          adminDb = getSupabaseClient();
+        } catch (e) {
+          logger.warn('[runpod/status] admin db unavailable, assets will need finalize', { error: e });
+        }
+
         const assets: Array<Record<string, unknown>> = [];
         for (const base64Data of result.images.slice(0, 4)) {
           if (!base64Data) continue;
@@ -61,13 +71,59 @@ export async function GET(req: NextRequest) {
                 ? base64Data
                 : `data:image/png;base64,${base64Data}`;
             const { key, url } = await uploadImageBase64(raw, folder, 'image/png');
-            assets.push({
+
+            // Insert into generation_assets directly (no separate finalize needed)
+            let savedRow: Record<string, unknown> | null = null;
+            if (adminDb) {
+              const row = {
+                created_by: user.id,
+                kind: 'girlfriend',
+                girlfriend_id: girlfriendId || null,
+                storage_key: key,
+                url,
+                prompt: null,
+                negative_prompt: null,
+                workflow_id: null,
+                endpoint_id: endpointId || null,
+                ckpt_name: null,
+                lora_name: null,
+                width: null,
+                height: null,
+                steps: null,
+                cfg: null,
+                seed: null,
+                meta: {
+                  job_id: jobId,
+                  finalized: true,
+                  asset_role: assetRole,
+                  reference_role: assetRole.startsWith('identity-') || assetRole === 'avatar-closeup'
+                    ? 'identity'
+                    : 'identity',
+                  source: 'status_poll',
+                },
+              };
+              const { data: saved, error: insErr } = await adminDb
+                .from('generation_assets')
+                .insert(row)
+                .select('*')
+                .single();
+              if (insErr) {
+                logger.warn('[runpod/status] generation_assets insert failed', {
+                  err: insErr.message,
+                  key,
+                });
+              } else {
+                savedRow = saved;
+              }
+            }
+
+            assets.push(savedRow || {
               id: null,
               kind: 'girlfriend',
               girlfriend_id: girlfriendId || null,
               storage_key: key,
               url,
-              meta: { job_id: jobId, finalized: false, asset_role: assetRole, source: 'status_poll' },
+              meta: { job_id: jobId, finalized: !adminDb, asset_role: assetRole, source: 'status_poll' },
             });
           } catch (e) {
             logger.error('[runpod/status] admin upload failed', { error: e });

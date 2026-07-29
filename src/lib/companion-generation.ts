@@ -100,7 +100,7 @@ function pick<T>(items: T[], seed = Math.random()): T {
 
 export function buildCompanionGenerationPrompt(
   row: Record<string, unknown>,
-  options?: { action?: string; adult?: boolean; random?: number },
+  options?: { action?: string; adult?: boolean; random?: number; sceneOnly?: boolean },
 ): CompanionGenerationResult {
   const profile = resolveCompanionProfile(row);
   const category = normalizeCompanionCategory({
@@ -127,6 +127,20 @@ export function buildCompanionGenerationPrompt(
   const quality = category === 'anime'
     ? 'Render this as a premium anime illustration with deliberate linework, expressive eyes, rich cel shading, and a readable composition.'
     : 'Render this as a polished editorial photograph with lifelike texture, controlled light, clear eyes, and natural depth.';
+
+  // sceneOnly: identity is controlled by reference image, prompt only describes scene+action+quality
+  if (options?.sceneOnly) {
+    return {
+      category,
+      baseInfo,
+      action,
+      quality,
+      identitySpecification,
+      positive: `Scene direction: ${action}. ${quality} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
+      negative: `${preset.negative}, generic face, duplicate identity, same face as another character, different person, face swap`,
+    };
+  }
+
   return {
     category,
     baseInfo,

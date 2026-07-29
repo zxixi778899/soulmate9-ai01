@@ -1179,6 +1179,23 @@ if (body.action === 'verify_loras') {
     }
     const requiresTurnaroundReference = assetRole === 'character-art' || assetRole === 'album' || assetRole === 'scene';
     const identityReferenceUrls = [...storedIdentityUrls, ...(requiresTurnaroundReference ? [] : [consistencyReference])].filter(Boolean);
+
+    // ─── Scene-only prompt: identity controlled by reference image ───────────
+    // When identity reference images are available, the prompt should ONLY
+    // describe scene + action + quality. Character appearance is preserved
+    // by the reference image via img2img / IP-Adapter, not by text.
+    if (requiresTurnaroundReference && identityReferenceUrls.length > 0 && databaseCompanion) {
+      const productionPreset = getCharacterProductionPreset(assetRole);
+      const sceneOnlyResult = buildCompanionGenerationPrompt(databaseCompanion, {
+        action: `${productionPreset.scene}. ${styleProductionHint(animeStyle)}`,
+        adult: generationIntensity >= 3,
+        sceneOnly: true,
+      });
+      prompt = `${generationRoute.promptPrefix} ${sceneOnlyResult.positive}`;
+      negative = sceneOnlyResult.negative;
+      category = sceneOnlyResult.category;
+    }
+
     const identityAssets = girlfriendId && identityReferenceUrls.length
       ? companionIdentityAssets(girlfriendId, identityReferenceUrls, {
           category,

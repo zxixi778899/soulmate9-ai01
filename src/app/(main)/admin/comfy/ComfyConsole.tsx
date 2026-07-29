@@ -183,16 +183,18 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   };
   const applyProductionPreset = (role: CharacterAssetRole) => {
     const preset = getCharacterProductionPreset(role);
-    const usesIdentityImage = role === 'character-art' || role === 'album';
+    const wantsIdentityRef = role === 'character-art' || role === 'album' || role === 'scene';
     const identityAsset = companionAssets.find((item) => item.meta?.asset_role === 'identity-front')
       || companionAssets.find((item) => item.meta?.asset_role === 'identity-profile')
-      || companionAssets.find((item) => item.meta?.asset_role === 'identity-back');
+      || companionAssets.find((item) => item.meta?.asset_role === 'identity-back')
+      || companionAssets.find((item) => item.meta?.asset_role === 'avatar-closeup');
     const identityImage = String(identityAsset?.url || '');
+    const hasIdentityRef = wantsIdentityRef && identityImage.length > 0;
     setAssetRole(role);
     setKind('girlfriend');
     setGenerationSurface('companion');
-    setGenMode(usesIdentityImage ? 'img2img' : 'txt2img');
-    if (usesIdentityImage) setInputImage(identityImage);
+    setGenMode(hasIdentityRef ? 'img2img' : 'txt2img');
+    setInputImage(hasIdentityRef ? identityImage : '');
     setIdentityConsistency(preset.consistency);
     setWidth(preset.width);
     setHeight(preset.height);
@@ -200,11 +202,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       ? buildCompanionGenerationPrompt(scopedGirlfriend as Record<string, unknown>, {
           action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
           adult: false,
+          sceneOnly: hasIdentityRef,
         })
       : null;
     if (assembled) {
       setCompanionCategory(assembled.category);
-      if (usesIdentityImage) {
+      if (hasIdentityRef) {
+        // Identity controlled by reference image — prompt only scene+action+quality
         const quality = animeRenderStyle === 'realistic'
           ? 'professional editorial photography, coherent anatomy, natural skin texture, controlled lighting, clean composition, high detail'
           : animeRenderStyle === '2d'
@@ -219,8 +223,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
     setPromptProfileApplied(true);
     applyRecommendedLoras(assembled?.category || companionCategory, animeRenderStyle, nsfwIntensity);
-    if (usesIdentityImage && !identityImage) toast.warning('尚无人设参考图，请先生成头像特写和三视图');
-    else toast.success(`已切换：${preset.label}，${usesIdentityImage ? '已调用人设参考图' : '将读取伴侣基础信息'}`);
+    if (wantsIdentityRef && !identityImage) toast.warning('尚无人设参考图，将用完整描述生成；建议先生成头像特写和三视图');
+    else toast.success(`已切换：${preset.label}，${hasIdentityRef ? '人设图控制一致性' : '将读取伴侣基础信息'}`);
   };
 
   const applyCategoryPrompt = (category: CompanionCategory) => {
