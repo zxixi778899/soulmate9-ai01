@@ -1245,13 +1245,12 @@ if (body.action === 'verify_loras') {
     if (referencePlan.promptHints.length > 0) {
       prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
-    // Identity turnaround views use txt2img (no img2img composition lock).
-    // IP-Adapter provides face identity without locking composition.
-    const isTurnaroundView = assetRole.startsWith('identity-');
-    const effectiveInputImage = isTurnaroundView
-      ? undefined
-      : referencePlan.primaryIdentity?.url ||
-        referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
+    // Determine the effective input image for img2img.
+    // Pipeline explicitly sends input_image for stages that need it (turnaround, character-art).
+    // If not supplied, fall back to the reference plan's best identity asset.
+    const effectiveInputImage =
+      referencePlan.primaryIdentity?.url ||
+      referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
         ? identityTurnaroundDenoise(assetRole, denoise)

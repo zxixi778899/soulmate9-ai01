@@ -100,17 +100,17 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
   },
   {
     id: 'turnaround',
-    label: '三视图 · 外观参考',
+    label: '三视图 · 图生图',
     shortLabel: '三视图',
-    description: '生成正面/侧面/背面全身外观参考图，记录角色精确外貌特征，为立绘和视频提供一致性锚定。',
+    description: '以半身头像为参考图，描述体型外观+服装，图生图生成正面/侧面/背面三视图，为立绘和视频提供一致性锚定。',
     assetRole: 'identity-turnaround',
-    mode: 'txt2img',
-    useIpAdapter: true,
+    mode: 'img2img',
+    useIpAdapter: false,
     width: 1216,
     height: 832,
     steps: 28,
     guidance: 3.0,
-    ipAdapterWeight: 0.75,
+    denoise: 0.72,
     referenceStages: ['avatar'],
   },
   {
@@ -156,12 +156,12 @@ const PROMPT_SYSTEM_TEMPLATE = `You are an expert FLUX.1 image prompt engineer. 
 Rules:
 - Output ONLY the prompt text, no explanation.
 - Keep under 300 characters.
-- For avatar: waist-up studio portrait, natural expression, plain background, soft light. This is an identity anchor — clarity over artistry.
-- For turnaround: neutral full-body appearance reference sheet, three views (front, side, back) side by side, plain white background, even flat lighting, relaxed standing pose, full head to feet visible. Purpose: document the character's exact appearance (face, hair, body, outfit) for consistency. NOT artistic — clinical and clear.
-- For character-art: premium companion advertising key visual. Full-height, alluring confident pose, signature outfit, cinematic lighting, magazine-cover quality. This is the FINAL PRODUCT used for promotion — make it stunning, aspirational, and eye-catching. Sell the fantasy.
+- FLUX best practices: natural language, no weighting syntax, no commas-as-tags. Describe scenes like a photographer directing a shoot.
+- For avatar: waist-up portrait using the character's basic attributes (age, gender, ethnicity, style, hair color, hairstyle, body type, temperament). Plain background, soft studio light, natural expression. This is the identity anchor.
+- For turnaround: describe the character's body type/appearance + outfit/clothing clearly. Three full-body views (front, side, back) side by side, plain white background, even flat lighting, relaxed standing pose. This is an appearance reference sheet for consistency — clinical, not artistic.
+- For character-art: a scene with action — WHERE is she, WHAT is she doing, HOW does she look doing it. Full-height, cinematic lighting, magazine-cover quality. Adjust sensuality by NSFW level: 1=casual/modest, 2=flirty/suggestive, 3=lingerie/revealing, 4=explicit posing, 5=full NSFW scene. This is the FINAL advertising product.
 - For video: describe subtle natural motion (breathing, hair sway, gentle smile, slight body turn).
-- Use natural photography language. Never use: orthographic, wireframe, T-pose, character sheet, reference sheet.
-- Include the character's key features briefly (hair, eyes, build).
+- Never use: orthographic, wireframe, T-pose, character sheet, reference sheet, 3D render.
 - Language: English only.`;
 
 /**
@@ -209,6 +209,7 @@ async function callLlmForPrompt(
 Character: ${brief}
 Style: ${ctx.animeStyle}
 Category: ${ctx.category}
+NSFW level: ${ctx.nsfwIntensity}/5
 
 Generate the optimal FLUX prompt for this stage:`;
 
@@ -295,10 +296,10 @@ export function resolveStageReference(
 
   switch (stage.id) {
     case 'turnaround':
-      // IP-Adapter face reference = avatar (locks face, not composition)
-      return { ipAdapterImage: avatarUrl || undefined };
+      // img2img reference = avatar (provides face/body consistency for the turnaround)
+      return { inputImage: avatarUrl || undefined };
     case 'character-art':
-      // img2img input = turnaround (composition reference), IP-Adapter = avatar (face)
+      // img2img input = turnaround (structural reference), IP-Adapter = avatar (face identity)
       return {
         inputImage: turnaroundUrl || avatarUrl || undefined,
         ipAdapterImage: avatarUrl || undefined,
