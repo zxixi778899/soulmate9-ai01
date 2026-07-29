@@ -193,13 +193,16 @@ export function identityReferenceRolePriority(role: CharacterAssetRole): Charact
 }
 
 export function identityTurnaroundDenoise(role: CharacterAssetRole, requested: number): number {
+  // Identity reference sheets: moderate denoise (composition is intentionally structured)
   if (role === 'identity-turnaround') return 0.72;
   if (role === 'identity-front') return 0.72;
   if (role === 'identity-profile') return 0.68;
   if (role === 'identity-back') return 0.76;
-  if (role === 'character-art') return 0.58;
-  if (role === 'album' || role === 'scene') return 0.62;
-  return Math.min(0.45, Math.max(0.25, requested));
+  // Final products: HIGH denoise — reference is for consistency only, not composition lock.
+  // Generate genuinely new images; the reference provides loose structural guidance only.
+  if (role === 'character-art') return Math.max(0.9, requested);
+  if (role === 'album' || role === 'scene') return Math.max(0.88, requested);
+  return Math.min(0.95, Math.max(0.75, requested));
 }
 export function normalizeCharacterAssetRole(value: unknown): CharacterAssetRole {
   const role = String(value || '');

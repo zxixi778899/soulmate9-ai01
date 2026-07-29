@@ -125,7 +125,7 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     height: 1216,
     steps: 28,
     guidance: 3.0,
-    denoise: 0.58,
+    denoise: 0.92,
     ipAdapterWeight: 0.65,
     referenceStages: ['avatar', 'turnaround'],
   },

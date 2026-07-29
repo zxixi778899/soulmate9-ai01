@@ -1076,9 +1076,11 @@ if (body.action === 'verify_loras') {
     const denoise =
       body.denoise != null
         ? Number(body.denoise)
-        : body.input_image
-          ? Number(wf?.defaults.denoise ?? 0.55)
-          : 1;
+        : body.denoising_strength != null
+          ? Number(body.denoising_strength)
+          : body.input_image
+            ? Number(wf?.defaults.denoise ?? 0.55)
+            : 1;
     let negative = String(
       body.negative || wf?.defaults.negative || 'blurry, low quality, watermark',
     );
