@@ -32,12 +32,12 @@ export type CharacterProductionPreset = {
 export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
   {
     role: 'avatar-closeup',
-    label: '人设头像 · 正脸特写',
-    shortLabel: '头像特写',
-    description: '根据伴侣基础信息生成正脸特写，作为后续三视图与立绘的首要身份参考。',
-    scene: 'a close-up front-facing identity headshot of the same adult character, face filling most of the frame, both eyes looking toward camera, complete hairline and chin visible, neutral relaxed expression, plain studio background, soft even facial light, no hands or props covering the face',
-    width: 1024,
-    height: 1024,
+    label: '人设头像 · 半身像',
+    shortLabel: '半身头像',
+    description: '根据伴侣基础信息生成半身像头像（头到腰部以上），作为后续三视图与立绘的首要身份参考。',
+    scene: 'a waist-up portrait photograph of the same adult character, complete head and shoulders above the waist inside the frame, both eyes looking toward camera, complete hairline visible, natural relaxed expression and soft posture, plain studio background, soft even light on the face and upper body, no hands or props covering the face',
+    width: 832,
+    height: 1216,
     consistency: false,
     referenceRole: 'identity',
   },

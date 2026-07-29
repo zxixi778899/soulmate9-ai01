@@ -1128,7 +1128,10 @@ if (body.action === 'verify_loras') {
       const productionPreset = getCharacterProductionPreset(assetRole);
       const briefIdentity = buildCompanionIdentityBrief(databaseCompanion);
       prompt = `${productionPreset.scene}, ${briefIdentity}`;
-      negative = '3D render, CG, mannequin, doll, plastic skin, wireframe, T-pose, close-up, headshot, half-body, bokeh, blurry';
+      // Avatar is a waist-up half-body portrait; turnaround views stay full-body.
+      negative = assetRole === 'avatar-closeup'
+        ? '3D render, CG, mannequin, doll, plastic skin, wireframe, close-up, headshot, face only, cropped shoulders, bokeh, blurry'
+        : '3D render, CG, mannequin, doll, plastic skin, wireframe, T-pose, close-up, headshot, half-body, bokeh, blurry';
       category = normalizeCompanionCategory({
         gender: String(databaseCompanion.gender || ''),
         style: String(databaseCompanion.style || ''),

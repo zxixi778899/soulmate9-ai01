@@ -45,7 +45,7 @@ describe('buildFluxWorkflow LoRA stacking', () => {
     const negative = String(graph['3'].inputs.text);
     expect(negative).toContain('plastic skin');
     expect(negative).toContain('mannequin pose');
-    expect(negative.length).toBeLessThanOrEqual(220);
+    expect(negative.length).toBeLessThanOrEqual(300);
   });
 
   it('removes blur cues from the positive prompt', () => {

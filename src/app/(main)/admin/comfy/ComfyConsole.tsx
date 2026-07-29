@@ -30,7 +30,7 @@ import {
   type CompanionCategory,
 } from '@/lib/companion-category';
 import { getPresetsForCategory, type GenPreset } from './presets';
-import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
+import { buildCompanionGenerationPrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
 import {
   buildStudioPromptEnhancement,
@@ -205,9 +205,15 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           sceneOnly: hasIdentityRef,
         })
       : null;
+    const isIdentityAsset = role === 'avatar-closeup' || role.startsWith('identity-');
     if (assembled) {
       setCompanionCategory(assembled.category);
-      if (hasIdentityRef) {
+      if (isIdentityAsset) {
+        // 身份资产用精简提示词：场景预设控制构图，数据库简报控制一致性（与服务端一致，避免 1200+ 长提示词）
+        const brief = buildCompanionIdentityBrief(scopedGirlfriend as Record<string, unknown>);
+        setPrompt(`${preset.scene}, ${brief}`);
+        setNegative(assembled.negative);
+      } else if (hasIdentityRef) {
         // Identity controlled by reference image — prompt only scene+action+quality
         const quality = animeRenderStyle === 'realistic'
           ? 'professional editorial photography, coherent anatomy, natural skin texture, controlled lighting, clean composition, high detail'
@@ -223,7 +229,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
     setPromptProfileApplied(true);
     applyRecommendedLoras(assembled?.category || companionCategory, animeRenderStyle, nsfwIntensity);
-    if (wantsIdentityRef && !identityImage) toast.warning('尚无人设参考图，将用完整描述生成；建议先生成头像特写和三视图');
+    if (wantsIdentityRef && !identityImage) toast.warning('尚无人设参考图，将用完整描述生成；建议先生成半身头像和三视图');
     else toast.success(`已切换：${preset.label}，${hasIdentityRef ? '人设图控制一致性' : '将读取伴侣基础信息'}`);
   };
 
@@ -776,7 +782,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
             adult: isIdentityAsset ? false : nsfwIntensity >= 3,
           });
-          const overrides = { girlfriendId: id, prompt: assembled.positive, negative: assembled.negative, assetRole: role };
+          // 身份资产用精简提示词（场景+数据库简报），与服务端一致，避免 1200+ 长提示词
+          const promptForRole = isIdentityAsset
+            ? `${preset.scene}, ${buildCompanionIdentityBrief(girlfriend as Record<string, unknown>)}`
+            : assembled.positive;
+          const overrides = { girlfriendId: id, prompt: promptForRole, negative: assembled.negative, assetRole: role };
           const res = await authedFetch('/api/admin/comfy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1366,7 +1376,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
                 <Button type="button" size="sm" className="bg-cyan-600 hover:bg-cyan-500" disabled={batchRunning} onClick={() => void runBatchGeneration([productionGirlfriendId], true)}>
                   {batchRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-                  一键生成头像特写 + 三视图
+                  一键生成半身头像 + 三视图
                 </Button>
                 <span className="text-[10px] text-slate-400">读取当前伴侣基础信息，依次保存到头像、正面、侧面、背面文件夹。</span>
               </div>
@@ -1383,7 +1393,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="flex items-center gap-2 text-sm font-bold text-white"><Users className="h-4 w-4 text-violet-300" /> 批量生产角色资产</h2>
-                  <p className="mt-1 text-[11px] text-slate-300">自动读取每位伴侣资料并归档到独立目录。身份生产包包含头像特写、正面、侧面和背面三视图。</p>
+                  <p className="mt-1 text-[11px] text-slate-300">自动读取每位伴侣资料并归档到独立目录。身份生产包包含半身头像、正面、侧面和背面三视图。</p>
                   <div className="mt-2 inline-flex border border-violet-500/40 bg-slate-950 p-1">
                     <button type="button" onClick={() => setBatchIdentityPack(true)} className={cn('h-7 px-2 text-[11px]', batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>身份图组 + 立绘</button>
                     <button type="button" onClick={() => setBatchIdentityPack(false)} className={cn('h-7 px-2 text-[11px]', !batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>仅当前任务</button>

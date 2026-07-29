@@ -20,6 +20,10 @@ describe('character asset production', () => {
     expect(CHARACTER_ID_PACK.every((role) =>
       CHARACTER_PRODUCTION_PRESETS.some((preset) => preset.role === role),
     )).toBe(true);
+    const avatar = getCharacterProductionPreset('avatar-closeup');
+    expect(avatar.scene).toContain('waist-up portrait');
+    expect(avatar.scene).not.toContain('close-up');
+    expect(avatar.scene).not.toContain('headshot');
   });
 
   it('uses identity consistency after the initial front reference', () => {
@@ -40,9 +44,11 @@ describe('character asset production', () => {
     expect(identityTurnaroundDenoise('identity-back', 0.35)).toBe(0.76);
     expect(identityTurnaroundDenoise('character-art', 0.35)).toBe(0.58);
     expect(identityTurnaroundDenoise('album', 0.35)).toBe(0.62);
-    expect(getCharacterProductionPreset('identity-front').scene).toContain('STRICT FULL-BODY FRONT');
-    expect(getCharacterProductionPreset('identity-profile').scene).toContain('90-DEGREE LEFT SIDE');
-    expect(getCharacterProductionPreset('identity-back').scene).toContain('face and eyes are not visible');
+    expect(getCharacterProductionPreset('identity-front').scene).toContain('Full-body front-facing catalog photograph');
+    expect(getCharacterProductionPreset('identity-profile').scene).toContain('side-profile catalog photograph');
+    expect(getCharacterProductionPreset('identity-profile').scene).toContain('left side facing camera');
+    expect(getCharacterProductionPreset('identity-back').scene).toContain('rear-view catalog photograph');
+    expect(getCharacterProductionPreset('identity-back').scene).toContain('back facing camera');
   });
   it('keeps render styles mutually exclusive', () => {
     expect(styleProductionHint('realistic')).toContain('real camera photograph');
