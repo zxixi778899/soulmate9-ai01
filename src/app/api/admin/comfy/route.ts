@@ -1130,10 +1130,10 @@ if (body.action === 'verify_loras') {
       const qualityHint = animeStyle === '2d'
         ? 'Clean 2D character sheet rendering, stable linework, consistent proportions, flat even lighting.'
         : animeStyle === '3d'
-          ? 'Clean 3D character model reference, consistent materials, even studio lighting, no cinematic effects.'
+          ? 'High-fidelity 3D-rendered character with realistic skin shading, subsurface scattering, consistent proportions, even studio lighting, no cinematic effects.'
           : 'Sharp catalog reference photograph, flat even lighting, neutral exposure, full detail head to toe, no artistic bokeh.';
       prompt = `${productionPreset.scene}. Subject: ${briefIdentity}. ${qualityHint} ${styleProductionHint(animeStyle)}`;
-      negative = 'cropped above knees, close-up, headshot only, portrait framing, face filling frame, cinematic depth of field, bokeh background, dramatic lighting, hallway, environment, props covering body';
+      negative = 'cropped above knees, close-up, headshot only, portrait framing, face filling frame, cinematic depth of field, bokeh background, dramatic lighting, hallway, environment, props covering body, 3D render, 3D model, CG, CGI, mannequin, figurine, doll, featureless face, smooth plastic skin, white featureless body, anatomy model, character turnaround sheet, wireframe';
       category = normalizeCompanionCategory({
         gender: String(databaseCompanion.gender || ''),
         style: String(databaseCompanion.style || ''),

@@ -57,7 +57,7 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     label: '角色 ID · 侧脸',
     shortLabel: '侧脸',
     description: '记录鼻梁、下颌、发际线和侧面轮廓。',
-    scene: 'STRICT FULL-BODY 90-DEGREE LEFT SIDE VIEW, not a portrait, not front-facing and not a three-quarter view. The same adult character stands in exact side profile from head to feet, nose pointing left, one eye maximum visible, both hands and both feet inside frame with generous margin, arms separated from torso, simple fitted neutral clothing, seamless light-gray studio backdrop, flat even catalog lighting, real human with natural skin, no hallway, no cinematic environment, no crop, no 3D render, no wireframe',
+    scene: 'FULL-BODY PHOTOGRAPH taken from the character\'s left side, not a portrait, not front-facing, not a three-quarter angle. A real adult person photographed in natural side profile, left shoulder and left hip closest to camera, face showing natural profile contour with visible eyelash and lip line, complete head to feet inside frame with generous margin, arms relaxed and separated from torso, simple fitted neutral clothing, seamless light-gray studio backdrop, flat even catalog lighting, photorealistic human with visible skin texture and pores, natural individual hair strands, real fabric wrinkles, NOT a 3D model, NOT a mannequin, NOT a figurine, NOT a doll, no smooth plastic skin, no featureless body, no white body, no hallway, no cinematic environment, no crop',
     width: 832,
     height: 1216,
     consistency: true,
