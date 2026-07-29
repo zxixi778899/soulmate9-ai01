@@ -102,6 +102,18 @@ export function buildFluxWorkflow(opts: {
     strength_clip?: number;
   }>;
   model_family?: 'flux' | 'pony' | 'illustrious' | 'sdxl';
+  /**
+   * IP-Adapter face reference (worker-local filename registered via RunPod `images` payload).
+   * When set, inserts IPAdapterApply nodes to lock facial identity WITHOUT locking composition.
+   * Requires ComfyUI_IPAdapter_plus custom nodes + ip-adapter model on the worker.
+   */
+  ip_adapter_image?: string;
+  /** IP-Adapter weight 0–1. Default 0.75. Higher = stronger face similarity. */
+  ip_adapter_weight?: number;
+  /** IP-Adapter model filename in models/ipadapter/. Default: ip-adapter.safetensors */
+  ip_adapter_model?: string;
+  /** CLIP Vision model filename in models/clip_vision/. Default: sigclip_vision_384.safetensors */
+  clip_vision_model?: string;
 }): Record<string, unknown> {
   const modelFamily = opts.model_family || 'flux';
   const isFlux = modelFamily === 'flux';
@@ -168,9 +180,9 @@ export function buildFluxWorkflow(opts: {
   }
 
   // Node IDs: 1 Checkpoint → 2 pos CLIP → 3 neg CLIP → 4 latent → 5 KSampler → 6 VAE → 7 Save
-  // Optional LoRA node 14
+  // Optional LoRA node 14+, IP-Adapter nodes 30-33
   const lastLoraNodeId = loraStack.length ? String(14 + loraStack.length - 1) : '1';
-  const modelRef: [string, number] = [lastLoraNodeId, 0];
+  let modelRef: [string, number] = [lastLoraNodeId, 0];
   const clipSkip = isFlux ? 1 : Math.min(2, Math.max(1, Math.round(opts.clip_skip || 2)));
   const clipRef: [string, number] = clipSkip > 1 ? ['20', 0] : [lastLoraNodeId, 1];
   const vaeRef: [string, number] = ['1', 2];
@@ -198,6 +210,45 @@ export function buildFluxWorkflow(opts: {
         },
       }
     : {};
+
+  // ─── IP-Adapter face identity nodes (optional) ─────────────────────────────
+  // Locks facial identity from a reference image WITHOUT locking composition.
+  // Requires ComfyUI_IPAdapter_plus custom nodes on the worker.
+  const useIpAdapter = !!opts.ip_adapter_image;
+  const ipAdapterNodes: Record<string, unknown> = {};
+  if (useIpAdapter) {
+    const ipWeight = Math.min(1.0, Math.max(0.3, opts.ip_adapter_weight ?? 0.75));
+    const ipModel = opts.ip_adapter_model || 'ip-adapter.safetensors';
+    const clipVision = opts.clip_vision_model || 'sigclip_vision_384.safetensors';
+    ipAdapterNodes['30'] = {
+      class_type: 'IPAdapterApply',
+      inputs: {
+        model: [lastLoraNodeId, 0],
+        ipadapter: ['31', 0],
+        clip_vision: ['32', 0],
+        image: ['33', 0],
+        weight: ipWeight,
+        noise: 0.0,
+        weight_type: 'standard',
+        start_at: 0.0,
+        end_at: 1.0,
+      },
+    };
+    ipAdapterNodes['31'] = {
+      class_type: 'IPAdapterModelLoader',
+      inputs: { ipadapter_file: ipModel },
+    };
+    ipAdapterNodes['32'] = {
+      class_type: 'CLIPVisionLoader',
+      inputs: { clip_name: clipVision },
+    };
+    ipAdapterNodes['33'] = {
+      class_type: 'LoadImage',
+      inputs: { image: opts.ip_adapter_image },
+    };
+    // KSampler now takes model from IPAdapterApply output instead of LoRA chain
+    modelRef = ['30', 0];
+  }
 
   // img2img path
   if (opts.input_image) {
@@ -257,7 +308,7 @@ export function buildFluxWorkflow(opts: {
         inputs: { pixels: ['12', 0], vae: vaeRef },
       },
     };
-    Object.assign(graph, loraNodes, clipSkipNodes);
+    Object.assign(graph, loraNodes, clipSkipNodes, ipAdapterNodes);
     return graph;
   }
 
@@ -303,7 +354,7 @@ export function buildFluxWorkflow(opts: {
       inputs: { filename_prefix: 'soulmate', images: ['6', 0] },
     },
   };
-  Object.assign(graph, loraNodes, clipSkipNodes);
+  Object.assign(graph, loraNodes, clipSkipNodes, ipAdapterNodes);
   return graph;
 }
 
@@ -337,6 +388,10 @@ export interface RunPodGenerateOptions {
     strength_clip?: number;
   }>;
   model_family?: 'flux' | 'pony' | 'illustrious' | 'sdxl';
+  /** IP-Adapter face reference image (URL, base64, or worker filename). Locks face only. */
+  ip_adapter_image?: string;
+  /** IP-Adapter weight 0–1 (default 0.75). Higher = stronger face similarity. */
+  ip_adapter_weight?: number;
   /** Override default RUNPOD_ENDPOINT_ID for this call */
   endpoint_id?: string;
   /** Resume an existing RunPod job (skip /run submit). */
@@ -699,6 +754,23 @@ class RunPodClient {
       }
     }
 
+    // Resolve IP-Adapter face reference image (same mechanism as input_image)
+    let ipAdapterImageName: string | undefined;
+    let ipAdapterImageB64: string | undefined;
+    if (options.ip_adapter_image) {
+      try {
+        const resolved = await resolveInputImageBase64(options.ip_adapter_image);
+        if (resolved) {
+          ipAdapterImageName = `ipadapter_face.${resolved.name.split('.').pop() || 'png'}`;
+          ipAdapterImageB64 = resolved.base64;
+        }
+      } catch (err) {
+        logger.warn('[runpod] failed to resolve ip_adapter_image, skipping IP-Adapter', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     const promptText = String(options.prompt || '').trim();
     if (!promptText) {
       throw new Error('prompt is required (empty positive prompt)');
@@ -733,19 +805,18 @@ class RunPodClient {
       lora_strength_model: options.lora_strength_model,
       lora_strength_clip: options.lora_strength_clip,
       loras: options.loras,
+      ip_adapter_image: ipAdapterImageName || (options.ip_adapter_image && !options.ip_adapter_image.startsWith('http') && !options.ip_adapter_image.startsWith('data:') ? options.ip_adapter_image : undefined),
+      ip_adapter_weight: options.ip_adapter_weight,
     });
 
-    const imagesPayload =
-      inputImageName && inputImageB64
-        ? {
-            images: [
-              {
-                name: inputImageName,
-                image: inputImageB64,
-              },
-            ],
-          }
-        : {};
+    const imageEntries: Array<{ name: string; image: string }> = [];
+    if (inputImageName && inputImageB64) {
+      imageEntries.push({ name: inputImageName, image: inputImageB64 });
+    }
+    if (ipAdapterImageName && ipAdapterImageB64) {
+      imageEntries.push({ name: ipAdapterImageName, image: ipAdapterImageB64 });
+    }
+    const imagesPayload = imageEntries.length ? { images: imageEntries } : {};
 
     /**
      * Payload strategies — RunPod Comfy / FLUX handlers are inconsistent.

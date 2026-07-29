@@ -60,6 +60,16 @@ import {
   styleProductionHint,
   type CharacterAssetRole,
 } from '@/lib/character-asset-production';
+import {
+  CHARACTER_PIPELINE_STAGES,
+  generateStagePrompt,
+  resolvePipelineLoras,
+  resolveStageReference,
+  buildStageGenerationParams,
+  type PipelineStageConfig,
+  type PipelineStageResult,
+  type PipelineContext,
+} from '@/lib/character-production-pipeline';
 
 type Any = Record<string, any>;
 
@@ -144,6 +154,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchProgress, setBatchProgress] = useState<Array<{ id: string; name: string; status: 'pending' | 'running' | 'success' | 'failed'; error?: string }>>([]);
+  // ─── Pipeline state (4-stage character production) ─────────────────────────
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [pipelineResults, setPipelineResults] = useState<PipelineStageResult[]>([]);
+  const [pipelineAssets, setPipelineAssets] = useState<Record<string, string>>({});
 
 
   const applyRecommendedLoras = (
@@ -863,6 +877,130 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     else toast.success(`角色生产包完成：共生成 ${succeeded} 项资产`);
   };
 
+  // ─── 4-Stage Pipeline: avatar → turnaround → character-art → video ─────────
+  const runPipelineGeneration = async (companionId: string) => {
+    const girlfriend = batchGirlfriends.find((item) => String(item.id) === companionId) || scopedGirlfriend;
+    if (!girlfriend) return toast.error('请先选择伴侣');
+    setPipelineRunning(true);
+    setPipelineResults(CHARACTER_PIPELINE_STAGES.map((s) => ({ stageId: s.id, status: 'pending' as const })));
+    setPipelineAssets({});
+    const localAssets: Record<string, string> = { ...pipelineAssets };
+    const gender = String(girlfriend.gender || '').toLowerCase();
+    const ctx: PipelineContext = {
+      companionId,
+      companion: girlfriend as Record<string, unknown>,
+      category: gender.includes('trans') ? 'transgender' : gender.includes('male') && !gender.includes('female') ? 'male' : 'female',
+      animeStyle: animeRenderStyle,
+      nsfwIntensity,
+      existingAssets: localAssets,
+    };
+
+    for (const stage of CHARACTER_PIPELINE_STAGES) {
+      setPipelineResults((prev) => prev.map((r) => r.stageId === stage.id ? { ...r, status: 'running' } : r));
+      try {
+        // 1. AI prompt generation
+        const { prompt, negative } = await generateStagePrompt(stage, ctx);
+        // 2. Auto LoRA
+        const loras = resolvePipelineLoras(stage, ctx);
+        // 3. Auto reference resolution
+        const refs = resolveStageReference(stage, ctx);
+        // 4. Build params
+        const params = buildStageGenerationParams(stage, prompt, negative, loras, refs);
+
+        if (stage.mode === 'img2video') {
+          // Video: call AnimateDiff via /api/admin/animations
+          const videoRes = await authedFetch('/api/admin/animations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'generate_custom',
+              companion_id: companionId,
+              input_image: refs.inputImage || localAssets['avatar-closeup'] || '',
+              prompt,
+              negative_prompt: negative,
+              duration_seconds: stage.video?.durationSeconds ?? 5,
+              fps: stage.video?.fps ?? 8,
+              motion_strength: stage.video?.motionStrength ?? 5,
+              steps: stage.steps,
+              cfg: stage.guidance,
+            }),
+          });
+          const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
+          if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');
+          const videoUrl = String(videoData.url || videoData.video_url || '');
+          if (videoUrl) localAssets[stage.assetRole] = videoUrl;
+          setPipelineResults((prev) => prev.map((r) => r.stageId === stage.id ? { ...r, status: 'completed', prompt, negative, videoUrl, loras } : r));
+        } else {
+          // Image: call /api/admin/comfy
+          const res = await authedFetch('/api/admin/comfy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...generationBody({ girlfriendId: companionId, prompt, negative, assetRole: stage.assetRole as CharacterAssetRole }),
+              ...params,
+              character_consistency: stage.id !== 'avatar',
+              width: stage.width,
+              height: stage.height,
+              num_images: 1,
+            }),
+          });
+          const data = await readResponseJson(res).catch(() => ({} as Any));
+          if (!res.ok) throw new Error(data.error || `${stage.shortLabel}生成失败`);
+
+          // Handle async (pending) jobs
+          if (data.pending && data.job_id) {
+            const jobId = String(data.job_id);
+            let imageUrl = '';
+            for (let attempt = 0; attempt < 60; attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+              const statusRes = await authedFetch(`/api/runpod/status?job_id=${jobId}&admin_source=true&girlfriend_id=${companionId}&asset_role=${stage.assetRole}`);
+              const statusData = await readResponseJson(statusRes).catch(() => ({} as Any));
+              if (statusData.status === 'COMPLETED' || statusData.status === 'completed') {
+                const images = statusData.images || statusData.output?.images || [];
+                imageUrl = images[0]?.url || images[0]?.data || (typeof images[0] === 'string' ? images[0] : '');
+                break;
+              }
+              if (statusData.status === 'FAILED' || statusData.status === 'failed') {
+                throw new Error(statusData.error || `${stage.shortLabel} GPU 任务失败`);
+              }
+            }
+            if (!imageUrl) throw new Error(`${stage.shortLabel} 超时`);
+            localAssets[stage.assetRole] = imageUrl;
+            setPipelineResults((prev) => prev.map((r) => r.stageId === stage.id ? { ...r, status: 'completed', prompt, negative, imageUrl, jobId, loras } : r));
+          } else {
+            // Synchronous result
+            const images = data.images || [];
+            const imageUrl = images[0]?.url || images[0] || '';
+            if (imageUrl) localAssets[stage.assetRole] = imageUrl;
+            setPipelineResults((prev) => prev.map((r) => r.stageId === stage.id ? { ...r, status: 'completed', prompt, negative, imageUrl, loras } : r));
+          }
+        }
+        setPipelineAssets({ ...localAssets });
+        ctx.existingAssets = { ...localAssets };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : '生成失败';
+        setPipelineResults((prev) => prev.map((r) => r.stageId === stage.id ? { ...r, status: 'failed', error: msg } : r));
+        toast.error(`${stage.shortLabel}：${msg}`);
+        // Stop pipeline on failure (subsequent stages depend on this one)
+        break;
+      }
+    }
+    // Auto-bind avatar
+    if (localAssets['avatar-closeup']) {
+      try {
+        await authedFetch('/api/admin/girlfriends', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: companionId, avatar_url: localAssets['avatar-closeup'] }),
+        });
+      } catch { /* non-critical */ }
+    }
+    setPipelineRunning(false);
+    void loadCompanionAssets(companionId);
+    const completed = Object.keys(localAssets).length;
+    if (completed > 0) toast.success(`管线完成：生成 ${completed} 项资产`);
+  };
+
   const syncInstalled = async () => {
     setSyncingInstalled(true);
     try {
@@ -1310,7 +1448,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-white">系统角色生产</h2>
-                <p className="mt-1 text-[11px] text-slate-400">选择伴侣后按顺序建立身份图组、角色立绘和场景资源；模型、LoRA、尺寸与参考强度自动匹配。</p>
+                <p className="mt-1 text-[11px] text-slate-400">4 阶段自动管线：文生图半身头像 → IP-Adapter 锁脸三视图 → 图生图立绘 → 图生视频。提示词 AI 生成，LoRA 自动匹配。</p>
               </div>
               <Link href="/admin/girlfriends" className="text-xs font-medium text-violet-300 hover:text-violet-200">新建/编辑伴侣基础信息 →</Link>
             </div>
@@ -1342,9 +1480,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {[
-                  { title: '1. 身份图组', roles: CHARACTER_ID_PACK.slice(0, 4) },
-                  { title: '2. 立绘 / 相册', roles: ['character-art', 'album'] as CharacterAssetRole[] },
-                  { title: '3. 场景与参考', roles: ['scene', 'pose-reference', 'style-reference', 'composition-reference'] as CharacterAssetRole[] },
+                  { title: '1. 管线阶段', roles: ['avatar-closeup', 'identity-turnaround', 'character-art'] as CharacterAssetRole[] },
+                  { title: '2. 相册 / 场景', roles: ['album', 'scene'] as CharacterAssetRole[] },
+                  { title: '3. 参考与辅助', roles: ['pose-reference', 'style-reference', 'composition-reference'] as CharacterAssetRole[] },
                 ].map((group) => (
                   <div key={group.title} className="border-l border-slate-700 pl-3">
                     <p className="mb-2 text-[11px] font-semibold text-slate-200">{group.title}</p>
@@ -1374,12 +1512,43 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
             </div>
             {productionGirlfriendId ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
-                <Button type="button" size="sm" className="bg-cyan-600 hover:bg-cyan-500" disabled={batchRunning} onClick={() => void runBatchGeneration([productionGirlfriendId], true)}>
-                  {batchRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-                  一键生成半身头像 + 三视图参考图
-                </Button>
-                <span className="text-[10px] text-slate-400">读取当前伴侣基础信息，依次保存到头像、三视图两个文件夹。</span>
+              <div className="mt-3 border-t border-slate-800 pt-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" size="sm" className="bg-cyan-600 hover:bg-cyan-500" disabled={pipelineRunning || batchRunning} onClick={() => void runPipelineGeneration(productionGirlfriendId)}>
+                    {pipelineRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+                    {pipelineRunning ? '管线生产中…' : '开始全管线生产（头像→三视图→立绘→视频）'}
+                  </Button>
+                  <span className="text-[10px] text-slate-400">AI 自动生成提示词 · 自动匹配 LoRA · IP-Adapter 锁脸</span>
+                </div>
+                {/* Pipeline stage indicators */}
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {CHARACTER_PIPELINE_STAGES.map((stage, idx) => {
+                    const result = pipelineResults.find((r) => r.stageId === stage.id);
+                    const status = result?.status || 'pending';
+                    return (
+                      <div key={stage.id} className={cn(
+                        'rounded-lg border p-2 text-center transition',
+                        status === 'completed' && 'border-emerald-500/60 bg-emerald-950/30',
+                        status === 'running' && 'border-cyan-400/60 bg-cyan-950/30',
+                        status === 'failed' && 'border-red-500/60 bg-red-950/30',
+                        status === 'pending' && 'border-slate-700 bg-slate-900/50',
+                      )}>
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-[10px] font-bold text-slate-400">{idx + 1}</span>
+                          {status === 'running' && <Loader2 className="h-3 w-3 animate-spin text-cyan-300" />}
+                          {status === 'completed' && <CheckSquare className="h-3 w-3 text-emerald-400" />}
+                          {status === 'failed' && <Trash2 className="h-3 w-3 text-red-400" />}
+                        </div>
+                        <p className="mt-1 text-[11px] font-medium text-slate-200">{stage.shortLabel}</p>
+                        <p className="text-[9px] text-slate-500">{stage.mode === 'txt2img' ? '文生图' : stage.mode === 'img2img' ? '图生图' : '图生视频'}</p>
+                        {result?.imageUrl && (
+                          <img src={result.imageUrl} alt={stage.shortLabel} className="mx-auto mt-1 h-12 w-auto rounded border border-slate-700 object-contain" />
+                        )}
+                        {result?.error && <p className="mt-1 text-[9px] text-red-300">{result.error}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : null}
             {productionGirlfriendId ? (

@@ -1243,8 +1243,8 @@ if (body.action === 'verify_loras') {
     if (referencePlan.promptHints.length > 0) {
       prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
-    // Identity turnaround views MUST be txt2img — using the avatar as img2img
-    // reference forces the same close-up composition, defeating the purpose.
+    // Identity turnaround views use txt2img (no img2img composition lock).
+    // IP-Adapter provides face identity without locking composition.
     const isTurnaroundView = assetRole.startsWith('identity-');
     const effectiveInputImage = isTurnaroundView
       ? undefined
@@ -1254,6 +1254,11 @@ if (body.action === 'verify_loras') {
       ? characterConsistency
         ? identityTurnaroundDenoise(assetRole, denoise)
         : Math.min(0.95, Math.max(0.5, denoise))
+      : undefined;
+    // IP-Adapter: face reference without composition lock (from request body or auto-resolved)
+    const ipAdapterImage = String(body.ip_adapter_image || '').trim() || undefined;
+    const ipAdapterWeight = body.ip_adapter_weight != null
+      ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight)))
       : undefined;
     const folder = assetFolder(girlfriendId, assetRole);
     const loraStrength =
@@ -1346,6 +1351,8 @@ if (body.action === 'verify_loras') {
         lora_strength_model: loraStrength,
         lora_strength_clip: loraStrength,
         loras: effectiveLoras,
+        ip_adapter_image: ipAdapterImage,
+        ip_adapter_weight: ipAdapterWeight,
         endpoint_id: body.endpoint_id || generationRoute.endpointId || endpointId,
         submit_only: true,
       };
