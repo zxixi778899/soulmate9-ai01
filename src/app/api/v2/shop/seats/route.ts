@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getStripe } from '@/lib/stripe-server';
 import { logger } from '@/lib/logger';
-import { COMPANION_SEAT_PACKAGES } from '@/lib/constants';
-import { getSeatStatus, packageById } from '@/lib/companion-seats';
+import { COMPANION_SEAT_PACKAGES, getSeatStatus, packageById } from '@/lib/companion-seats';
 
 /**
  * GET  /api/v2/shop/seats — packages + current seat status

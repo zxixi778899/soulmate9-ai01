@@ -63,7 +63,7 @@ export default function UpgradeModal({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-sm">Pro</span>
-                <span className="text-xs text-white/40">$19.99/mo</span>
+                <span className="text-xs text-white/40">$9.99/mo</span>
               </div>
               <p className="text-xs text-white/50 truncate">{t('upgrade.proPerks')}</p>
             </div>

@@ -20,73 +20,45 @@ import { toast } from 'sonner';
 import { useMembership } from '@/hooks/useMembership';
 import { useAuth } from '@/components/AuthProvider';
 
-type BillingCycle = 'monthly' | 'quarterly' | 'yearly';
+type BillingCycle = 'monthly' | 'yearly';
 
 const PLANS = [
   {
     id: 'free',
     name: 'Free',
     priceMonthly: '$0',
-    priceQuarterly: '$0',
     priceYearly: '$0',
     periodMonthly: 'forever',
-    periodQuarterly: 'forever',
     periodYearly: 'forever',
     color: 'text-muted-foreground',
     border: 'border-border/40',
     features: [
       '40 messages per day',
-      '3 image generations/day',
-      '3 voice messages/day',
+      '3 companions',
+      '3 trial image generations',
+      'Shallow memory',
       'Intimacy up to Level 3',
-      'Up to 3 companions',
       'Basic chat',
-    ],
-  },
-  {
-    id: 'basic',
-    name: 'Basic',
-    priceMonthly: '$9.99',
-    priceQuarterly: '$25.47',
-    priceYearly: '$83.92',
-    periodMonthly: '/month',
-    periodQuarterly: '/quarter',
-    periodYearly: '/year',
-    quarterlyNote: 'Save 15% · $8.49/mo',
-    yearlyNote: 'Save 30% · $6.99/mo',
-    color: 'text-sky-400',
-    border: 'border-sky-500/30',
-    features: [
-      '150 messages per day',
-      '5 image generations/day',
-      '15 voice messages/day',
-      'Intimacy up to Level 5',
-      'Up to 8 companions',
-      'Standard memory depth',
-      'Standard outfit access',
     ],
   },
   {
     id: 'pro',
     name: 'Pro',
-    priceMonthly: '$19.99',
-    priceQuarterly: '$50.97',
-    priceYearly: '$167.92',
+    priceMonthly: '$9.99',
+    priceYearly: '$119.88',
     periodMonthly: '/month',
-    periodQuarterly: '/quarter',
     periodYearly: '/year',
-    quarterlyNote: 'Save 15% · $16.99/mo',
-    yearlyNote: 'Save 30% · $13.99/mo',
+    yearlyNote: 'Save 15% · $9.99/mo',
     color: 'text-purple-400',
     border: 'border-purple-500/30',
     popular: true,
     features: [
       '300 messages per day',
-      'All intimacy levels (Soulmate)',
-      'Up to 15 companions',
+      '10 companions',
+      '16k context window',
+      'Full memory depth',
+      '100 Credits / month',
       'NSFW content',
-      '10 image generations/day',
-      '40 voice messages/day',
       'Priority support',
     ],
   },
@@ -94,22 +66,19 @@ const PLANS = [
     id: 'unlimited',
     name: 'Unlimited',
     priceMonthly: '$29.99',
-    priceQuarterly: '$76.47',
-    priceYearly: '$251.92',
+    priceYearly: '$359.88',
     periodMonthly: '/month',
-    periodQuarterly: '/quarter',
     periodYearly: '/year',
-    quarterlyNote: 'Save 15% · $25.49/mo',
-    yearlyNote: 'Save 30% · $20.99/mo',
+    yearlyNote: 'Save 20% · $29.99/mo',
     color: 'text-amber-400',
     border: 'border-amber-500/30',
     features: [
-      'Everything in Pro',
-      'Unlimited messages',
+      'Unlimited messages (fair use)',
       'Unlimited companions',
-      '50 image generations/day',
-      '200 voice messages/day',
-      'Video generation',
+      '32k context window',
+      'Priority queue',
+      '300 Credits / month',
+      'Video generation access',
       'Infinite memory depth',
       'Early access to new features',
     ],
@@ -123,7 +92,7 @@ const CRYPTO_CURRENCIES = [
 ];
 
 function getPlanPrice(planId: string): string {
-  const prices: Record<string, string> = { basic: '$9.99', pro: '$19.99', unlimited: '$29.99' };
+  const prices: Record<string, string> = { pro: '$9.99', unlimited: '$29.99' };
   return prices[planId] || '$9.99';
 }
 
@@ -132,7 +101,7 @@ function PricingContent() {
   const searchParams = useSearchParams();
   const canceled = searchParams.get('canceled') === 'true';
   const [loading, setLoading] = useState<string | null>(null);
-  const [billing, setBilling] = useState<BillingCycle>('quarterly');
+  const [billing, setBilling] = useState<BillingCycle>('monthly');
 
   // Crypto payment state
   const [cryptoPlan, setCryptoPlan] = useState<string | null>(null);
@@ -152,7 +121,7 @@ function PricingContent() {
 
   const { tier } = useMembership();
   const { user } = useAuth();
-  const TIER_ORDER: Record<string, number> = { free: 0, basic: 1, pro: 2, unlimited: 3, admin: 4 };
+  const TIER_ORDER: Record<string, number> = { free: 0, pro: 1, unlimited: 2, admin: 3 };
   const currentRank = TIER_ORDER[tier] ?? 0;
 
   const handleUpgrade = async (planId: string) => {
@@ -283,27 +252,18 @@ function PricingContent() {
               Monthly
             </button>
             <button
-              onClick={() => setBilling('quarterly')}
-              className={`px-4 py-1.5 rounded-full text-sm transition-all flex items-center gap-1.5 ${
-                billing === 'quarterly' ? 'bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-semibold' : 'text-muted-foreground'
-              }`}
-            >
-              Quarterly
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px] px-1.5">Save 15%</Badge>
-            </button>
-            <button
               onClick={() => setBilling('yearly')}
               className={`px-4 py-1.5 rounded-full text-sm transition-all flex items-center gap-1.5 ${
                 billing === 'yearly' ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white font-semibold' : 'text-muted-foreground'
               }`}
             >
               Yearly
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px] px-1.5">Save 30%</Badge>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px] px-1.5">Save 15–20%</Badge>
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
           {PLANS.map((plan) => (
             <Card
               key={plan.id}
@@ -331,7 +291,6 @@ function PricingContent() {
                 <CardTitle className={`text-lg font-semibold ${plan.color}`}>
                   <div className="flex items-center gap-2">
                     {plan.id === 'free' && <Heart className="h-4 w-4" />}
-                    {plan.id === 'basic' && <Zap className="h-4 w-4" />}
                     {plan.id === 'pro' && <Crown className="h-4 w-4" />}
                     {plan.id === 'unlimited' && <Star className="h-4 w-4" />}
                     {plan.name}
@@ -339,21 +298,17 @@ function PricingContent() {
                 </CardTitle>
                 <div className="mt-2">
                   <span className="text-3xl font-bold">
-                    {billing === 'yearly' ? plan.priceYearly : billing === 'quarterly' ? plan.priceQuarterly : plan.priceMonthly}
+                    {billing === 'yearly' ? plan.priceYearly : plan.priceMonthly}
                   </span>
                   <span className="text-sm text-muted-foreground ml-1">
-                    {billing === 'yearly' ? plan.periodYearly : billing === 'quarterly' ? plan.periodQuarterly : plan.periodMonthly}
+                    {billing === 'yearly' ? plan.periodYearly : plan.periodMonthly}
                   </span>
                 </div>
                 {billing === 'yearly' && plan.yearlyNote && (
                   <p className="text-[11px] text-emerald-400 mt-1">{plan.yearlyNote}</p>
                 )}
-                {billing === 'quarterly' && plan.quarterlyNote && (
-                  <p className="text-[11px] text-emerald-400 mt-1">{plan.quarterlyNote}</p>
-                )}
                 <CardDescription className="text-xs text-muted-foreground/60">
                   {plan.id === 'free' && 'Get started free'}
-                  {plan.id === 'basic' && 'Great value to start'}
                   {plan.id === 'pro' && 'For serious connections'}
                   {plan.id === 'unlimited' && 'The ultimate experience'}
                 </CardDescription>
@@ -363,7 +318,6 @@ function PricingContent() {
                 {plan.features.map((feature) => (
                   <div key={feature} className="flex items-start gap-2 text-sm">
                     <Check className={`h-4 w-4 shrink-0 mt-0.5 ${
-                      plan.id === 'basic' ? 'text-sky-400' :
                       plan.id === 'pro' ? 'text-purple-400' :
                       plan.id === 'unlimited' ? 'text-amber-400' :
                       'text-muted-foreground'
@@ -377,9 +331,7 @@ function PricingContent() {
                 <Button
                   onClick={() => handleUpgrade(plan.id)}
                   className={`w-full h-11 text-sm font-medium ${
-                    plan.id === 'basic'
-                      ? 'bg-gradient-to-r from-sky-500 to-cyan-600 text-white hover:opacity-90'
-                      : plan.id === 'pro'
+                    plan.id === 'pro'
                       ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white hover:opacity-90'
                       : plan.id === 'unlimited'
                       ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-90'

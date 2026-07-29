@@ -8,7 +8,7 @@ const CHECKOUT_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
 
 /**
  * POST /api/stripe/checkout
- * Body: { plan: 'basic' | 'pro' | 'unlimited' | 'basic_yearly' | ..., billing?: 'monthly' | 'quarterly' | 'yearly' }
+ * Body: { plan: 'pro' | 'unlimited', billing?: 'monthly' | 'yearly' }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -35,11 +35,11 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as {
       plan?: string;
-      billing?: 'monthly' | 'quarterly' | 'yearly';
+      billing?: 'monthly' | 'yearly';
     };
 
     let plan = body.plan || 'pro';
-    let billing: 'monthly' | 'quarterly' | 'yearly' = body.billing || 'monthly';
+    let billing: 'monthly' | 'yearly' = body.billing || 'monthly';
 
     // Accept plan_yearly shorthand
     if (plan.endsWith('_yearly')) {
@@ -47,32 +47,18 @@ export async function POST(req: NextRequest) {
       plan = plan.replace(/_yearly$/, '');
     }
 
-    if (!['basic', 'pro', 'unlimited'].includes(plan)) {
+    // Legacy 'basic' → map to 'pro' (grandfathered)
+    if (plan === 'basic') plan = 'pro';
+
+    if (!['pro', 'unlimited'].includes(plan)) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
     }
 
     const priceMap: Record<string, string> = {
-      basic: process.env.NEXT_PUBLIC_STRIPE_BASIC_PRICE_ID || process.env.STRIPE_BASIC_PRICE_ID || '',
       pro: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || process.env.STRIPE_PRO_PRICE_ID || '',
       unlimited:
         process.env.NEXT_PUBLIC_STRIPE_UNLIMITED_PRICE_ID ||
         process.env.STRIPE_UNLIMITED_PRICE_ID ||
-        '',
-      basic_quarterly:
-        process.env.NEXT_PUBLIC_STRIPE_BASIC_QUARTERLY_PRICE_ID ||
-        process.env.STRIPE_BASIC_QUARTERLY_PRICE_ID ||
-        '',
-      pro_quarterly:
-        process.env.NEXT_PUBLIC_STRIPE_PRO_QUARTERLY_PRICE_ID ||
-        process.env.STRIPE_PRO_QUARTERLY_PRICE_ID ||
-        '',
-      unlimited_quarterly:
-        process.env.NEXT_PUBLIC_STRIPE_UNLIMITED_QUARTERLY_PRICE_ID ||
-        process.env.STRIPE_UNLIMITED_QUARTERLY_PRICE_ID ||
-        '',
-      basic_yearly:
-        process.env.NEXT_PUBLIC_STRIPE_BASIC_YEARLY_PRICE_ID ||
-        process.env.STRIPE_BASIC_YEARLY_PRICE_ID ||
         '',
       pro_yearly:
         process.env.NEXT_PUBLIC_STRIPE_PRO_YEARLY_PRICE_ID ||
@@ -84,7 +70,7 @@ export async function POST(req: NextRequest) {
         '',
     };
 
-    const priceKey = billing === 'yearly' ? `${plan}_yearly` : billing === 'quarterly' ? `${plan}_quarterly` : plan;
+    const priceKey = billing === 'yearly' ? `${plan}_yearly` : plan;
     const priceId = priceMap[priceKey] || '';
 
     if (!priceId && process.env.NODE_ENV === 'production') {
@@ -99,9 +85,8 @@ export async function POST(req: NextRequest) {
 
     // Dynamic price_data when Price IDs are not configured (dev / bootstrap)
     const fallbackAmounts: Record<string, Record<string, number>> = {
-      basic: { monthly: 999, quarterly: 2547, yearly: 8392 },
-      pro: { monthly: 1999, quarterly: 5097, yearly: 16792 },
-      unlimited: { monthly: 2999, quarterly: 7647, yearly: 25192 },
+      pro: { monthly: 999, yearly: 11988 },
+      unlimited: { monthly: 2999, yearly: 35988 },
     };
 
     // Listed prices are tax-exclusive; Stripe Tax adds tax at checkout (customer pays).
@@ -117,11 +102,9 @@ export async function POST(req: NextRequest) {
                 unit_amount: fallbackAmounts[plan][billing],
                 recurring: billing === 'yearly'
                   ? { interval: 'year' }
-                  : billing === 'quarterly'
-                    ? { interval: 'month', interval_count: 3 }
-                    : { interval: 'month' },
+                  : { interval: 'month' },
                 product_data: {
-                  name: `SoulMate ${plan === 'basic' ? 'Basic' : plan === 'pro' ? 'Pro' : 'Unlimited'} (${billing})`,
+                  name: `SoulMate ${plan === 'pro' ? 'Pro' : 'Unlimited'} (${billing})`,
                   tax_code: 'txcd_10000000', // General - Electronically Supplied Services
                 },
                 tax_behavior: 'exclusive',
@@ -134,7 +117,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         type: 'subscription',
         user_id: user.id,
-        plan: billing === 'yearly' ? `${plan}_yearly` : billing === 'quarterly' ? `${plan}_quarterly` : plan,
+        plan: billing === 'yearly' ? `${plan}_yearly` : plan,
         billing,
       },
       success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,

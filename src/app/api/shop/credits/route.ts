@@ -4,10 +4,9 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
 
 const CREDIT_PLANS = [
-  { id: 'credits-500', name: 'Starter', amount: 500, price: '$4.99', price_cents: 499 },
-  { id: 'credits-1000', name: 'Popular', amount: 1100, price: '$9.99', price_cents: 999 },
-  { id: 'credits-2500', name: 'Best Value', amount: 3000, price: '$24.99', price_cents: 2499 },
-  { id: 'credits-5000', name: 'Mega', amount: 6500, price: '$49.99', price_cents: 4999 },
+  { id: 'credits-100', name: 'Starter', amount: 100, price: '$4.99', price_cents: 499 },
+  { id: 'credits-500', name: 'Popular', amount: 500, price: '$19.99', price_cents: 1999 },
+  { id: 'credits-1200', name: 'Power User', amount: 1200, price: '$29.99', price_cents: 2999 },
 ];
 
 export async function GET(req: NextRequest) {

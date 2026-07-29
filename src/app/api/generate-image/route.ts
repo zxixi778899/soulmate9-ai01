@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
         .gte('created_at', dayStart.toISOString());
       if ((count || 0) >= resolved.dailyLimit) {
         // Over daily limit -> deduct credits instead of blocking
-        const cost = CREDIT_COSTS.image_gen_extra;
+        const cost = CREDIT_COSTS.image_gen;
         const { data: balProfile } = await client
           .from('profiles')
           .select('credits_remaining')

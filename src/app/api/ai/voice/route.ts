@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3) Charge credits before generating.
-    const cost = CREDIT_COSTS.tts_extra;
+    const cost = CREDIT_COSTS.tts;
     const deducted = await deductCredits(client, user.id, cost, 'tts_extra', girlfriendId);
     if (!deducted.ok) {
       if (deducted.error === 'insufficient_credits') {

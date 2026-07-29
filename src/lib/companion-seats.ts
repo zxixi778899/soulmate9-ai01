@@ -1,8 +1,12 @@
 /**
  * Companion friend-seat limits: tier base + permanent purchased extras.
+ * Seat packages are no longer sold; existing bonus seats remain functional.
  */
-import { baseCompanionSeatLimit, COMPANION_SEAT_PACKAGES } from '@/lib/constants';
+import { baseCompanionSeatLimit } from '@/lib/constants';
 import { logger } from '@/lib/logger';
+
+/** @deprecated Seat packs removed — kept for backward-compat with existing purchases. */
+export const COMPANION_SEAT_PACKAGES: readonly { id: string; name: string; seats: number; price_cents: number; sort_order: number }[] = [];
 
 export type SeatClient = {
   from: (table: string) => any;

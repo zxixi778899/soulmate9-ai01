@@ -1690,7 +1690,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {(membership.tier === 'free' || membership.tier === 'basic') && !membership.loading && (
+      {membership.tier === 'free' && !membership.loading && (
         <div className="mx-3 sm:mx-6 mb-1 space-y-1">
           <div className="flex items-center gap-2 px-1">
             <div className="flex-1 h-1 rounded-full bg-white/[0.08] overflow-hidden">

@@ -31,16 +31,28 @@ export function usdCentsToCredits(cents: number): number {
 export const DAILY_CHECKIN_REWARD = 10; // flat 10 credits per day
 
 // ─── Feature Costs (credits) ─────────────────────────────────────────────────
+// Text chat is covered by subscription; Credits are for GPU media only.
+// Failed / timed-out / rejected generations are auto-refunded.
 
 export const CREDIT_COSTS = {
-  /** Per message beyond membership daily limit */
-  chat_message_extra: 2,
-  /** Per image beyond membership daily limit */
-  image_gen_extra: 20,
-  /** Per video generation (always costs credits) */
-  video_gen: 100,
-  /** Per TTS beyond membership daily limit */
-  tts_extra: 5,
+  /** Normal image generation */
+  image_gen: 5,
+  /** HD or multi-image generation */
+  image_gen_hd: 10,
+  /** Voice message (1–3 credits depending on length) */
+  tts: 2,
+  /** 5-second video */
+  video_5s: 25,
+  /** 10-second video */
+  video_10s: 45,
+} as const;
+
+/** @deprecated backward-compat alias */
+export const LEGACY_CREDIT_COSTS = {
+  chat_message_extra: 0, // text is now subscription-only
+  image_gen_extra: CREDIT_COSTS.image_gen,
+  video_gen: CREDIT_COSTS.video_5s,
+  tts_extra: CREDIT_COSTS.tts,
 } as const;
 
 export type CreditCostKey = keyof typeof CREDIT_COSTS;
@@ -60,13 +72,12 @@ export const GIFT_CREDIT_COSTS: Record<string, number> = {
   castle: 500,
 };
 
-// ─── Token Packages (aligned with 1000 = $9.90) ─────────────────────────────
+// ─── Credit Packages ─────────────────────────────────────────────────────────
 
 export const TOKEN_PACKAGES = [
-  { id: 'credits-500', name: 'Starter', token_count: 500, bonus_tokens: 0, price_cents: 499, sort_order: 1 },
-  { id: 'credits-1000', name: 'Popular', token_count: 1000, bonus_tokens: 100, price_cents: 999, sort_order: 2 },
-  { id: 'credits-2500', name: 'Best Value', token_count: 2500, bonus_tokens: 500, price_cents: 2499, sort_order: 3 },
-  { id: 'credits-5000', name: 'Mega', token_count: 5000, bonus_tokens: 1500, price_cents: 4999, sort_order: 4 },
+  { id: 'credits-100', name: 'Starter', token_count: 100, bonus_tokens: 0, price_cents: 499, sort_order: 1 },
+  { id: 'credits-500', name: 'Popular', token_count: 500, bonus_tokens: 0, price_cents: 1999, sort_order: 2 },
+  { id: 'credits-1200', name: 'Power User', token_count: 1200, bonus_tokens: 0, price_cents: 2999, sort_order: 3 },
 ] as const;
 
 // ─── Ledger Reasons ──────────────────────────────────────────────────────────
@@ -77,10 +88,12 @@ export type CreditReason =
   | 'image_gen_extra'
   | 'video_gen'
   | 'tts_extra'
+  | 'media_gen'
   | 'gift_send'
   | 'shop_purchase'
   | 'token_purchase'
   | 'signup_bonus'
+  | 'subscription_grant'
   | 'admin_grant'
   | 'refund'
   | 'achievement';

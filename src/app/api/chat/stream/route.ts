@@ -29,7 +29,7 @@ import {
   sanitizeHistoryContent,
 } from '@/lib/chat-reply-sanitize';
 import { moderateText, type ContentMode } from '@/lib/content-moderation';
-import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
+import { deductCredits } from '@/lib/credit-system';
 import { getIntimacyLevel } from '@/lib/constants';
 
 export const runtime = 'nodejs';
@@ -169,8 +169,8 @@ export async function POST(request: NextRequest) {
       .gte('created_at', today);
 
     if (count && count >= dailyLimit) {
-      // Over limit → deduct credits instead of blocking
-      const cost = CREDIT_COSTS.chat_message_extra;
+      // Over limit → text is subscription-only, no credit charge (soft limit)
+      const cost = 0;
       const balance = profile?.credits_remaining ?? 0;
       if (balance < cost) {
         return NextResponse.json({

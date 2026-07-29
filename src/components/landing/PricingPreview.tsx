@@ -15,11 +15,9 @@ const plans = [
     features: [
       '3 companions',
       '40 messages / day',
-      '3 AI images / day',
-      '3 voice / day',
+      '3 trial AI images',
+      'Shallow memory',
       'Intimacy up to Level 3',
-      'Basic personality',
-      'Standard portraits',
     ],
     cta: 'Start Free',
     color: '#8B8BA3',
@@ -27,38 +25,17 @@ const plans = [
     icon: Zap,
   },
   {
-    name: 'Basic',
-    price: '$9.99',
-    period: '/ month',
-    description: 'A meaningful connection',
-    features: [
-      '8 companions',
-      '150 messages / day',
-      '5 AI images / day',
-      '15 voice / day',
-      'Intimacy up to Level 5',
-      'Standard memory depth',
-      'Standard outfits',
-    ],
-    cta: 'Go Basic',
-    color: '#38bdf8',
-    highlighted: false,
-    icon: Zap,
-  },
-  {
     name: 'Pro',
-    price: '$19.99',
+    price: '$9.99',
     period: '/ month',
     description: 'The full experience',
     features: [
-      '15 companions',
+      '10 companions',
       '300 messages / day',
-      'Full intimacy levels',
-      'Advanced AI personality',
-      '10 AI images / day',
-      '40 voice / day',
-      'HD portrait generation',
-      'Proactive messages',
+      '16k context window',
+      'Full memory depth',
+      '100 Credits / month',
+      'NSFW content',
       'Priority support',
     ],
     cta: 'Go Pro',
@@ -73,13 +50,12 @@ const plans = [
     description: 'No limits, no boundaries',
     features: [
       'Unlimited companions',
-      'Unlimited messages',
-      '50 AI images / day',
-      'Exclusive personality models',
-      '4K portrait generation',
-      'Voice messages',
-      'Video generation',
-      'VIP support',
+      'Unlimited messages (fair use)',
+      '32k context window',
+      'Priority queue',
+      '300 Credits / month',
+      'Video generation access',
+      'Infinite memory',
     ],
     cta: 'Go Unlimited',
     color: '#A78BFA',
@@ -114,7 +90,7 @@ export function PricingPreview() {
         </motion.div>
 
         {/* Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6">
           {plans.map((plan, i) => (
             <motion.div
               key={plan.name}
