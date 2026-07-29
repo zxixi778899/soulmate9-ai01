@@ -26,7 +26,7 @@ import { loadAiModules } from '@/lib/ai-modules/store';
 import { resolveChatCall } from '@/lib/ai-modules/resolve';
 import { invokeChat } from '@/lib/ai-modules/invoke';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
-import { COMPACT_ADULT_NEGATIVE, COMPANION_CATEGORIES, type CompanionCategory } from '@/lib/companion-category';
+import { COMPACT_ADULT_NEGATIVE, COMPANION_CATEGORIES, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
 import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
 import { buildSceneCastPrompt, classifyImageScene, normalizeLlmImageScene } from '@/lib/image-scene-semantics';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
@@ -34,7 +34,7 @@ import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole, styleProductionHint } from '@/lib/character-asset-production';
-import { buildCompanionGenerationPrompt } from '@/lib/companion-generation';
+import { buildCompanionGenerationPrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -1123,21 +1123,32 @@ if (body.action === 'verify_loras') {
       if (!databaseCompanion) {
         return NextResponse.json({ error: 'Companion database record is required for identity generation' }, { status: 400 });
       }
+      // Turnaround prompt structure: COMPOSITION FIRST, brief identity SECOND, quality THIRD.
+      // This ensures FLUX prioritizes the full-body/angle instruction over face details.
       const productionPreset = getCharacterProductionPreset(assetRole);
-      const authoritativePrompt = buildCompanionGenerationPrompt(databaseCompanion, {
-        action: `${productionPreset.scene}. ${styleProductionHint(animeStyle)}`,
-        adult: false,
+      const briefIdentity = buildCompanionIdentityBrief(databaseCompanion);
+      const qualityHint = animeStyle === '2d'
+        ? 'Clean 2D character sheet rendering, stable linework, consistent proportions, flat even lighting.'
+        : animeStyle === '3d'
+          ? 'Clean 3D character model reference, consistent materials, even studio lighting, no cinematic effects.'
+          : 'Sharp catalog reference photograph, flat even lighting, neutral exposure, full detail head to toe, no artistic bokeh.';
+      prompt = `${productionPreset.scene}. Subject: ${briefIdentity}. ${qualityHint} ${styleProductionHint(animeStyle)}`;
+      negative = 'cropped above knees, close-up, headshot only, portrait framing, face filling frame, cinematic depth of field, bokeh background, dramatic lighting, hallway, environment, props covering body';
+      category = normalizeCompanionCategory({
+        gender: String(databaseCompanion.gender || ''),
+        style: String(databaseCompanion.style || ''),
+        tags: databaseCompanion.tags,
       });
-      category = authoritativePrompt.category;
-      prompt = authoritativePrompt.positive;
-      negative = authoritativePrompt.negative;
     }
     const surface = (body.generation_surface || (kind === 'girlfriend' ? 'companion' : kind) || 'companion') as ImageSurface;
     const sceneSemantics = classifyImageScene(prompt, category);
     const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics });
     if (body.width == null) width = generationRoute.width;
     if (body.height == null) height = generationRoute.height;
-    prompt = `${generationRoute.promptPrefix} ${buildSceneCastPrompt(sceneSemantics)} ${prompt}`;
+    // Identity assets skip the portrait promptPrefix — composition instruction is already first
+    if (!isIdentityAsset) {
+      prompt = `${generationRoute.promptPrefix} ${buildSceneCastPrompt(sceneSemantics)} ${prompt}`;
+    }
     if (surface === 'companion' && body.prompt_profile_applied !== true && !isIdentityAsset) {
       prompt = buildStudioPromptEnhancement({
         category,

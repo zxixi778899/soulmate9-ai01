@@ -94,6 +94,27 @@ export function buildCompanionIdentitySpecification(row: Record<string, unknown>
   ].filter(Boolean);
   return `Identity specification for ${String(row.name || 'this companion')}: ${parts.join('; ')}. Preserve this exact age, gender presentation, ethnicity, face geometry, hair, eyes, physique, temperament and signature features in every view; do not replace them with a generic beauty face.`;
 }
+
+/**
+ * Brief identity cue for turnaround/reference sheets where COMPOSITION must
+ * dominate the prompt. Only the most visually distinctive traits are included
+ * so the model doesn't over-focus on facial details and crop to a headshot.
+ */
+export function buildCompanionIdentityBrief(row: Record<string, unknown>): string {
+  const profile = resolveCompanionProfile(row);
+  const age = Math.max(18, Math.round(Number(row.age) || 25));
+  const gender = profile.category === 'male' ? 'man' : profile.category === 'transgender' ? 'transgender woman' : 'woman';
+  const parts = [
+    `${age}-year-old ${gender}`,
+    row.appearance_hair_color ? `${String(row.appearance_hair_color)} hair` : '',
+    row.appearance_hair ? String(row.appearance_hair) : '',
+    row.appearance_eyes ? `${String(row.appearance_eyes)} eyes` : '',
+    row.appearance_body ? `${String(row.appearance_body)} build` : '',
+    row.appearance_race ? `${String(row.appearance_race)} ethnicity` : '',
+  ].filter(Boolean);
+  return parts.join(', ');
+}
+
 function pick<T>(items: T[], seed = Math.random()): T {
   return items[Math.min(items.length - 1, Math.floor(seed * items.length))];
 }
