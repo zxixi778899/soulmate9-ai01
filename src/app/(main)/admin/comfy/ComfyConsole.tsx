@@ -303,8 +303,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const loadAssets = useCallback(async () => {
     setAssetsLoading(true);
     try {
+      const activeId = productionGirlfriendId || girlfriendId;
       const qs = new URLSearchParams({ view: 'assets', limit: '120' });
-      if (girlfriendId) qs.set('girlfriend_id', girlfriendId);
+      if (activeId) qs.set('girlfriend_id', activeId);
       else qs.set('scope', 'public');
       const res = await authedFetch(`/api/admin/comfy?${qs.toString()}`);
       const data = await readResponseJson(res).catch(() => ({} as any));
@@ -317,7 +318,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     } finally {
       setAssetsLoading(false);
     }
-  }, [girlfriendId]);
+  }, [productionGirlfriendId, girlfriendId]);
 
   const loadCompanionAssets = useCallback(async (id: string) => {
     if (!id) {
@@ -762,12 +763,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     let succeeded = 0;
     let failed = 0;
 
-    for (const girlfriend of selected) {
-      const id = String(girlfriend.id);
-      setBatchProgress((items) => items.map((item) => item.id === id ? { ...item, status: 'running' } : item));
-      let companionFailed = false;
-      for (const role of roles) {
-        const preset = getCharacterProductionPreset(role);
+    // Phase-based: iterate roles FIRST (avatar phase → turnaround phase), then companions.
+    // Failure on one task does NOT block remaining tasks.
+    for (const role of roles) {
+      const preset = getCharacterProductionPreset(role);
+      for (const girlfriend of selected) {
+        const id = String(girlfriend.id);
+        setBatchProgress((items) => items.map((item) => item.id === id && item.status === 'pending' ? { ...item, status: 'running' } : item));
         try {
           const isIdentityAsset = role === 'avatar-closeup' || role.startsWith('identity-');
           const assembled = buildCompanionGenerationPrompt(girlfriend as Record<string, unknown>, {
@@ -817,30 +819,31 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           }
           succeeded += 1;
         } catch (error) {
-          companionFailed = true;
           failed += 1;
           setBatchProgress((items) => items.map((item) => item.id === id
             ? { ...item, status: 'failed', error: `${preset.shortLabel}：${error instanceof Error ? error.message : '生成失败'}` }
             : item));
-          break;
+          // Continue with next task — do NOT break
         }
       }
-      if (!companionFailed) {
-        setBatchProgress((items) => items.map((item) => item.id === id ? { ...item, status: 'success' } : item));
-      }
     }
+    // Mark remaining running/pending as success if no error recorded
+    setBatchProgress((items) => items.map((item) => item.status === 'running' || item.status === 'pending' ? { ...item, status: 'success' } : item));
     setLastResult(generatedAssets);
-    if (produceIdentityPack && selected.length === 1) {
-      const avatarAsset = generatedAssets.find((item) => item.meta?.asset_role === 'avatar-closeup');
-      const avatarUrl = String(avatarAsset?.url || '');
-      if (avatarUrl) {
-        try {
-          await authedFetch('/api/admin/girlfriends', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: String(selected[0].id), avatar_url: avatarUrl }),
-          });
-        } catch { /* 资源已保存，绑定头像失败时仍可在资源库手动更换 */ }
+    if (produceIdentityPack) {
+      for (const girlfriend of selected) {
+        const gid = String(girlfriend.id);
+        const avatarAsset = generatedAssets.find((item) => item.meta?.asset_role === 'avatar-closeup' && String(item.meta?.girlfriend_id || '') === gid);
+        const avatarUrl = String(avatarAsset?.url || '');
+        if (avatarUrl) {
+          try {
+            await authedFetch('/api/admin/girlfriends', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: gid, avatar_url: avatarUrl }),
+            });
+          } catch { /* 资源已保存，绑定头像失败时仍可在资源库手动更换 */ }
+        }
       }
     }
     setBatchRunning(false);

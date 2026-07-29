@@ -104,32 +104,22 @@ export function buildCompanionIdentitySpecification(row: Record<string, unknown>
 export function buildCompanionIdentityBrief(row: Record<string, unknown>): string {
   const profile = resolveCompanionProfile(row);
   const age = Math.max(18, Math.round(Number(row.age) || 25));
-  const gender = profile.category === 'male' ? 'man' : profile.category === 'transgender' ? 'transgender woman' : 'woman';
+  const gender = profile.category === 'male' ? 'man' : profile.category === 'transgender' ? 'trans woman' : 'woman';
 
-  // Stable body proportion cues — FLUX responds to visual ratios, not numbers
   const heightCm = stableIdentityCue(row, 'height', [
     '165cm', '168cm', '170cm', '172cm', '175cm', '178cm', '180cm', '183cm', '185cm', '188cm',
   ]);
-  const proportionCue = stableIdentityCue(row, 'proportion', [
-    'compact 6.5-head-tall figure, shorter legs relative to torso',
-    'balanced 7-head-tall figure, average leg-to-torso ratio',
-    'tall 7.5-head-tall figure, long legs relative to torso',
-    'very tall 8-head-tall figure, elongated limbs and narrow frame',
-    'stocky 6-head-tall figure, broad shoulders and shorter limbs',
-    'athletic 7-head-tall figure, broad shoulders, long legs, narrow waist',
-  ]);
 
+  // Keep brief — FLUX needs short prompts for full-body coherence
   const parts = [
     `${age}-year-old ${gender}`,
-    row.appearance_race ? `${String(row.appearance_race)} ethnicity` : '',
-    row.appearance_hair_color ? `${String(row.appearance_hair_color)} hair` : '',
-    row.appearance_hair ? String(row.appearance_hair) : '',
+    row.appearance_race ? String(row.appearance_race) : '',
+    row.appearance_hair_color && row.appearance_hair
+      ? `${String(row.appearance_hair_color)} ${String(row.appearance_hair)} hair`
+      : row.appearance_hair ? `${String(row.appearance_hair)} hair` : '',
     row.appearance_eyes ? `${String(row.appearance_eyes)} eyes` : '',
-    row.appearance_face ? `${String(row.appearance_face)} face` : '',
-    row.distinguishing_features ? String(row.distinguishing_features) : '',
     row.appearance_body ? `${String(row.appearance_body)} build` : '',
-    `${heightCm}, ${proportionCue}`,
-    row.appearance_style ? `${String(row.appearance_style)} style` : '',
+    heightCm,
   ].filter(Boolean);
   return parts.join(', ');
 }

@@ -1123,17 +1123,12 @@ if (body.action === 'verify_loras') {
       if (!databaseCompanion) {
         return NextResponse.json({ error: 'Companion database record is required for identity generation' }, { status: 400 });
       }
-      // Turnaround prompt structure: COMPOSITION FIRST, brief identity SECOND, quality THIRD.
-      // This ensures FLUX prioritizes the full-body/angle instruction over face details.
+      // Keep prompt SHORT — FLUX loses coherence with overly long prompts.
+      // Scene presets already include quality/composition cues.
       const productionPreset = getCharacterProductionPreset(assetRole);
       const briefIdentity = buildCompanionIdentityBrief(databaseCompanion);
-      const qualityHint = animeStyle === '2d'
-        ? 'Clean 2D character sheet rendering, stable linework, consistent proportions, flat even lighting.'
-        : animeStyle === '3d'
-          ? 'High-fidelity 3D-rendered character with realistic skin shading, subsurface scattering, consistent proportions, even studio lighting, no cinematic effects.'
-          : 'Sharp catalog reference photograph, flat even studio lighting, neutral exposure, full detail from head to toe, sharp focus, high resolution, 8k photograph, shot on Canon EOS R5 with 85mm lens, natural skin texture with visible pores, no artistic bokeh.';
-      prompt = `${productionPreset.scene}. Subject: ${briefIdentity}. ${qualityHint} ${styleProductionHint(animeStyle)}`;
-      negative = '3D render, 3D model, CG, CGI, mannequin, figurine, doll, clay render, digital sculpture, wireframe, featureless, plastic skin, T-pose, A-pose, miniature, close-up, headshot, portrait framing, cropped above knees, half-body, bust shot, bokeh, dramatic lighting, hallway, environment';
+      prompt = `${productionPreset.scene}, ${briefIdentity}`;
+      negative = '3D render, CG, mannequin, doll, plastic skin, wireframe, T-pose, close-up, headshot, half-body, bokeh, blurry';
       category = normalizeCompanionCategory({
         gender: String(databaseCompanion.gender || ''),
         style: String(databaseCompanion.style || ''),
