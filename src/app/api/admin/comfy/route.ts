@@ -1329,7 +1329,7 @@ if (body.action === 'verify_loras') {
         height,
         num_inference_steps: Math.max(generationRoute.steps, body.steps ? steps : generationRoute.steps),
         guidance_scale: generationRoute.modelFamily === 'flux'
-          ? Math.min(3.5, Math.max(1, Number(body.cfg || generationRoute.cfg)))
+          ? Math.min(3.5, Math.max(isIdentityAsset ? 2.2 : 1, Number(body.cfg || generationRoute.cfg)))
           : Math.min(9, Math.max(3, Number(body.cfg || generationRoute.cfg))),
         sampler_name: generationRoute.modelFamily === 'flux' && body.sampler_name ? samplerName : generationRoute.sampler,
         scheduler: generationRoute.modelFamily === 'flux' && body.scheduler ? scheduler : generationRoute.scheduler,

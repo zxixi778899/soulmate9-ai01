@@ -106,12 +106,17 @@ export function buildCompanionIdentityBrief(row: Record<string, unknown>): strin
   const age = Math.max(18, Math.round(Number(row.age) || 25));
   const gender = profile.category === 'male' ? 'man' : profile.category === 'transgender' ? 'transgender woman' : 'woman';
 
-  // Stable height/weight derived from character data for consistent proportions
+  // Stable body proportion cues — FLUX responds to visual ratios, not numbers
   const heightCm = stableIdentityCue(row, 'height', [
     '165cm', '168cm', '170cm', '172cm', '175cm', '178cm', '180cm', '183cm', '185cm', '188cm',
   ]);
-  const weightCue = stableIdentityCue(row, 'weight', [
-    '55kg slim', '60kg lean', '65kg athletic', '70kg fit', '75kg muscular', '80kg broad', '85kg stocky',
+  const proportionCue = stableIdentityCue(row, 'proportion', [
+    'compact 6.5-head-tall figure, shorter legs relative to torso',
+    'balanced 7-head-tall figure, average leg-to-torso ratio',
+    'tall 7.5-head-tall figure, long legs relative to torso',
+    'very tall 8-head-tall figure, elongated limbs and narrow frame',
+    'stocky 6-head-tall figure, broad shoulders and shorter limbs',
+    'athletic 7-head-tall figure, broad shoulders, long legs, narrow waist',
   ]);
 
   const parts = [
@@ -123,7 +128,7 @@ export function buildCompanionIdentityBrief(row: Record<string, unknown>): strin
     row.appearance_face ? `${String(row.appearance_face)} face` : '',
     row.distinguishing_features ? String(row.distinguishing_features) : '',
     row.appearance_body ? `${String(row.appearance_body)} build` : '',
-    `height ${heightCm}, weight ${weightCue}`,
+    `${heightCm}, ${proportionCue}`,
     row.appearance_style ? `${String(row.appearance_style)} style` : '',
   ].filter(Boolean);
   return parts.join(', ');
