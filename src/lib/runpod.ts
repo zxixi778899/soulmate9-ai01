@@ -163,7 +163,7 @@ export function buildFluxWorkflow(opts: {
   let negText = '';
   for (const part of negativeParts) {
     const candidate = negText ? `${negText}, ${part}` : part;
-    if (candidate.length > (isFlux ? 220 : 1200)) break;
+    if (candidate.length > (isFlux ? 300 : 1200)) break;
     negText = candidate;
   }
 

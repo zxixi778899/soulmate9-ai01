@@ -1133,7 +1133,7 @@ if (body.action === 'verify_loras') {
           ? 'High-fidelity 3D-rendered character with realistic skin shading, subsurface scattering, consistent proportions, even studio lighting, no cinematic effects.'
           : 'Sharp catalog reference photograph, flat even studio lighting, neutral exposure, full detail from head to toe, sharp focus, high resolution, 8k photograph, shot on Canon EOS R5 with 85mm lens, natural skin texture with visible pores, no artistic bokeh.';
       prompt = `${productionPreset.scene}. Subject: ${briefIdentity}. ${qualityHint} ${styleProductionHint(animeStyle)}`;
-      negative = 'close-up, headshot, portrait framing, face filling frame, cropped above knees, half-body, bust shot, cinematic depth of field, bokeh background, dramatic lighting, hallway, environment, props covering body, 3D render, 3D model, CG, CGI, digital sculpture, clay render, wireframe, anatomical model, orthographic projection, blueprint, T-pose, A-pose, mannequin, figurine, doll, miniature, featureless face, smooth plastic skin, white featureless body, character turnaround sheet';
+      negative = '3D render, 3D model, CG, CGI, mannequin, figurine, doll, clay render, digital sculpture, wireframe, featureless, plastic skin, T-pose, A-pose, miniature, close-up, headshot, portrait framing, cropped above knees, half-body, bust shot, bokeh, dramatic lighting, hallway, environment';
       category = normalizeCompanionCategory({
         gender: String(databaseCompanion.gender || ''),
         style: String(databaseCompanion.style || ''),
@@ -1331,7 +1331,7 @@ if (body.action === 'verify_loras') {
           ? Math.max(28, body.steps ? steps : 28)
           : Math.max(generationRoute.steps, body.steps ? steps : generationRoute.steps),
         guidance_scale: generationRoute.modelFamily === 'flux'
-          ? Math.min(3.5, Math.max(isIdentityAsset ? 2.5 : 1, Number(body.cfg || generationRoute.cfg)))
+          ? Math.min(3.5, Math.max(isIdentityAsset ? 3.0 : 1, Number(body.cfg || generationRoute.cfg)))
           : Math.min(9, Math.max(3, Number(body.cfg || generationRoute.cfg))),
         sampler_name: generationRoute.modelFamily === 'flux' && body.sampler_name ? samplerName : generationRoute.sampler,
         scheduler: generationRoute.modelFamily === 'flux' && body.scheduler ? scheduler : generationRoute.scheduler,
