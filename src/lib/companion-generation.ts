@@ -97,20 +97,34 @@ export function buildCompanionIdentitySpecification(row: Record<string, unknown>
 
 /**
  * Brief identity cue for turnaround/reference sheets where COMPOSITION must
- * dominate the prompt. Only the most visually distinctive traits are included
- * so the model doesn't over-focus on facial details and crop to a headshot.
+ * dominate the prompt. Includes enough visual detail for cross-view consistency
+ * (face, body, style, height/weight) without the verbose face-geometry focus
+ * that causes FLUX to crop to a headshot.
  */
 export function buildCompanionIdentityBrief(row: Record<string, unknown>): string {
   const profile = resolveCompanionProfile(row);
   const age = Math.max(18, Math.round(Number(row.age) || 25));
   const gender = profile.category === 'male' ? 'man' : profile.category === 'transgender' ? 'transgender woman' : 'woman';
+
+  // Stable height/weight derived from character data for consistent proportions
+  const heightCm = stableIdentityCue(row, 'height', [
+    '165cm', '168cm', '170cm', '172cm', '175cm', '178cm', '180cm', '183cm', '185cm', '188cm',
+  ]);
+  const weightCue = stableIdentityCue(row, 'weight', [
+    '55kg slim', '60kg lean', '65kg athletic', '70kg fit', '75kg muscular', '80kg broad', '85kg stocky',
+  ]);
+
   const parts = [
     `${age}-year-old ${gender}`,
+    row.appearance_race ? `${String(row.appearance_race)} ethnicity` : '',
     row.appearance_hair_color ? `${String(row.appearance_hair_color)} hair` : '',
     row.appearance_hair ? String(row.appearance_hair) : '',
     row.appearance_eyes ? `${String(row.appearance_eyes)} eyes` : '',
+    row.appearance_face ? `${String(row.appearance_face)} face` : '',
+    row.distinguishing_features ? String(row.distinguishing_features) : '',
     row.appearance_body ? `${String(row.appearance_body)} build` : '',
-    row.appearance_race ? `${String(row.appearance_race)} ethnicity` : '',
+    `height ${heightCm}, weight ${weightCue}`,
+    row.appearance_style ? `${String(row.appearance_style)} style` : '',
   ].filter(Boolean);
   return parts.join(', ');
 }
