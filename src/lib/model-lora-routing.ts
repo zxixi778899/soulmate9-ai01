@@ -69,19 +69,36 @@ function configuredCandidates(
 ): string[] {
   const prefix = family === 'pony' ? 'RUNPOD_PONY' : family === 'illustrious' ? 'RUNPOD_ILLUSTRIOUS' : 'RUNPOD_FLUX';
   const normalizedCategory = category === 'anime' ? 'FEMALE' : category.toUpperCase();
-  const values = [
-    process.env[`${prefix}_${normalizedCategory}_LORAS`],
-    intensity >= 3 ? process.env[`${prefix}_NSFW_LORAS`] : '',
-    animeStyle === '2d' ? process.env[`${prefix}_2D_LORAS`] : '',
-    animeStyle === '3d' ? process.env[`${prefix}_3D_LORAS`] : '',
-    process.env[`${prefix}_LORAS`],
-  ];
-  const configured = [...new Set(values.flatMap(splitList))];
+  const categoryConfigured = process.env[`${prefix}_${normalizedCategory}_LORAS`];
+  const nsfwConfigured = intensity >= 3 ? process.env[`${prefix}_NSFW_LORAS`] : '';
+  const values = family === 'flux' && intensity >= 3
+    ? [
+        nsfwConfigured,
+        categoryConfigured,
+        animeStyle === '2d' ? process.env[`${prefix}_2D_LORAS`] : '',
+        animeStyle === '3d' ? process.env[`${prefix}_3D_LORAS`] : '',
+        process.env[`${prefix}_LORAS`],
+      ]
+    : [
+        categoryConfigured,
+        nsfwConfigured,
+        animeStyle === '2d' ? process.env[`${prefix}_2D_LORAS`] : '',
+        animeStyle === '3d' ? process.env[`${prefix}_3D_LORAS`] : '',
+        process.env[`${prefix}_LORAS`],
+      ];
+  const configured = [...new Set(values.flatMap(splitList))].filter((name) =>
+    family !== 'flux' || intensity < 3 || !/uncensored/i.test(name) || !nsfwConfigured,
+  );
   if (configured.length > 0) return configured;
   const defaults = DEFAULT_FAMILY_LORAS[family];
+  const categoryDefaults = defaults[category] || defaults.female || [];
+  const compatibleCategoryDefaults = family === 'flux' && intensity >= 3
+    ? categoryDefaults.filter((name) => !/uncensored/i.test(name))
+    : categoryDefaults;
   return [...new Set([
-    ...(defaults[category] || defaults.female || []),
-    ...(intensity >= 3 ? defaults.nsfw || [] : []),
+    ...(family === 'flux' && intensity >= 3 ? defaults.nsfw || [] : []),
+    ...compatibleCategoryDefaults,
+    ...(family !== 'flux' && intensity >= 3 ? defaults.nsfw || [] : []),
     ...(animeStyle === '2d' ? defaults['2d'] || [] : []),
   ])];
 }
@@ -162,7 +179,11 @@ export function resolveModelLoraPlan(input: {
   const inventoryCandidates = configured.length === 0 && canAutoSelectInventory
     ? rankInventory(inventory.files, input.category, input.intensity)
     : [];
-  const names = [...new Set([...requested.map((item) => item.name), ...configured, ...inventoryCandidates])];
+  const requestedNames = requested.map((item) => item.name);
+  const prioritizedNames = input.modelFamily === 'flux' && input.intensity >= 3
+    ? [...configured, ...requestedNames]
+    : [...requestedNames, ...configured];
+  const names = [...new Set([...prioritizedNames, ...inventoryCandidates])];
   const inventoryVerified = inventory.files.size > 0;
   const allowUnverified = input.modelFamily === 'flux';
   const verifiedNames = names.filter(

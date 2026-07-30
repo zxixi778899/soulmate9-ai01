@@ -471,17 +471,31 @@ export async function POST(req: NextRequest) {
       companion.appearance_body,
       companion.appearance,
     ].filter(Boolean).map(String).join(', ');
-    const systemPrompt = `Analyze the requested adults-only image and return strict JSON only. Keys: "prompt", "negative", "pairing", "protagonist", "power_dynamic", "tags". pairing must be solo|female_male|male_male|female_female|trans_pair|group_4i. protagonist must be female|male|transgender|femboy|ensemble. power_dynamic must be neutral|male_dominant|male_submissive|sm. Interpret Chinese role labels: \u7537\u5973, \u7537\u7537, \u5973\u5973, \u5973\u4e3b, \u7537\u4e3b, \u8de8\u6027\u522b, 4i, \u4f2a\u5a18, SM, \u7537\u653b, \u7537\u53d7. The prompt is one concise natural-English setting/action/framing description for consenting adults. For img2img, describe only the requested scene, action, wardrobe, framing and lighting while preserving the supplied identity. For img2video, describe coherent motion originating from the supplied still image, stable identity, stable camera and temporal continuity. Never infer minors or non-consent.`;
+    const previousPrompts: string[] = Array.isArray(body.previous_prompts)
+      ? body.previous_prompts.filter((value: unknown): value is string => typeof value === 'string').slice(-5)
+      : [];
+    const variationSeed = String(body.variation_seed || `${Date.now()}-${Math.random()}`).slice(0, 120);
+    const systemPrompt = `You are the final prompt writer for a photorealistic adult companion image system. Return strict JSON only with keys: "prompt", "negative", "pairing", "protagonist", "power_dynamic", "tags".
+
+Write a NEW natural-English generation prompt on every request. Do not copy a stock template and do not merely polish the current prompt. Treat the supplied companion profile, mode, asset role, NSFW level and user scene intent as constraints, then invent one specific lived-in moment.
+
+For realistic images, make the result feel like a real person photographed during a real event: choose a plausible location, available light source, neutral skin-preserving color, ordinary environmental evidence, a physically achievable action with preparation and follow-through, stable center of gravity, purposeful hands, contact pressure, material response, a spontaneous micro-expression, and a believable 35mm or 50mm camera position. Avoid generic beauty language, symmetrical mannequin posing, neon wash on skin, cinematic teal-orange grading, luxury-set clichés and excessive bokeh.
+
+The five levels control body language and action complexity, not a reusable sentence: 1=candid everyday pause; 2=plausible flirtation; 3=confident sensual action; 4=explicit intimate action with clear support/contact; 5=complex consensual adult action with coherent bodies, contact and reactions. All characters are unmistakably adults and all interaction is consensual.
+
+For txt2img, include only the supplied identity facts needed to preserve this specific companion; never invent a different age, ethnicity, face, hair, eyes or physique. For img2img, identity comes from reference images, so describe only the newly invented scene, action, wardrobe, framing, lighting and physical interaction. For img2video, describe natural five-second motion from the supplied still with stable identity, camera and temporal continuity. Do not reuse distinctive wording or scene staging from the previous prompts. Interpret Chinese scene requests accurately.`;
     const userPrompt = [
+      `Variation seed: ${variationSeed}`,
       `Selected category: ${category}`,
       `Render style: ${animeStyle}`,
       `Selected NSFW intensity: ${intensity}/5`,
       `Generation mode: ${generationMode}`,
       `Asset role: ${requestedAssetRole}`,
-      `Companion profile, used only to infer a fitting location: ${profile}`,
-      `Current prompt, used only to preserve its location or framing: ${currentPrompt || 'a modern sofa in a private living room'}`,
-      'Return a short setting such as "on a modern sofa in a private living room, medium full-body framing".',
-      `Negative prompt must be concise and include: ${studioNegativePrompt(category, animeStyle)}`,
+      `Authoritative companion profile: ${profile}`,
+      `User scene intent (a constraint, not final prose): ${currentPrompt || 'invent a plausible scene suited to this companion'}`,
+      `Recent prompts that must not be repeated: ${previousPrompts.length ? JSON.stringify(previousPrompts) : 'none'}`,
+      `Mandatory negative concepts: ${studioNegativePrompt(category, animeStyle)}`,
+      'Write 90-180 words optimized for FLUX.1 Dev: use fluent natural-language sentences in this order—specific subject or reference-image instruction, one physically clear action, spatial relationship to the environment or other adults, framing and camera distance, motivated light source, restrained color, then material and skin detail. Use concrete nouns and verbs. State left/right/front/behind and contact points when relevant. Do not use SDXL tag soup, score tags, BREAK, emphasis weights, parentheses weights, embedding syntax, model names, LoRA names, masterpiece/best quality spam, duplicated adjectives, or negative instructions inside the positive prompt. Return one coherent paragraph without headings or repeated identity facts.',
     ].join('\n');
     try {
       const aiConfig = await loadAiModules(admin.supabase);
@@ -502,7 +516,7 @@ export async function POST(req: NextRequest) {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.72,
+        temperature: 0.96,
         maxTokens: 900,
         userId: admin.user!.id,
         taskType: 'prompt_optimization',
@@ -515,20 +529,11 @@ export async function POST(req: NextRequest) {
       const parsed = JSON.parse(cleaned) as Record<string, unknown>;
       const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
       const sceneSemantics = normalizeLlmImageScene(parsed, fallbackSemantics);
-      const optimizedScene = String(parsed.prompt || '').trim();
-      if (!optimizedScene) throw new Error('LLM returned an empty scene');
-      const modeInstruction = generationMode === 'img2video'
-        ? 'Animate the exact supplied still for five seconds with stable facial identity, coherent natural motion, subtle hair and fabric movement, smooth temporal continuity, no morphing and no scene cuts.'
-        : generationMode === 'img2img'
-          ? 'Use the supplied avatar and identity turnaround references to preserve the exact face, hair, body proportions and distinguishing features; change only the requested scene, action, wardrobe, framing and lighting.'
-          : 'Create the complete frame from the companion profile and requested scene.';
-      const optimizedPrompt = buildStudioPromptEnhancement({
-        category,
-        intensity,
-        animeStyle,
-        scene: `${optimizedScene}. ${buildSceneCastPrompt(sceneSemantics)}. ${modeInstruction}`,
-        identity,
-      });
+      const optimizedPrompt = String(parsed.prompt || '').replace(/\s+/g, ' ').trim();
+      if (optimizedPrompt.length < 120) throw new Error('LLM returned an incomplete prompt');
+      if (previousPrompts.some((previous) => previous.trim() === optimizedPrompt)) {
+        throw new Error('LLM repeated a previous prompt');
+      }
       const generationRoute = resolveImageGenerationRoute({
         surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intensity, sceneSemantics,
       });
@@ -549,8 +554,8 @@ export async function POST(req: NextRequest) {
         source: 'llm',
         scene_semantics: sceneSemantics,
         generation_preset: generationRoute,
-        prompt: `${generationRoute.promptPrefix} ${optimizedPrompt}`,
-        negative: String(parsed.negative || studioNegativePrompt(category, animeStyle)).trim(),
+        prompt: optimizedPrompt,
+        negative: `${String(parsed.negative || '').trim()}, ${studioNegativePrompt(category, animeStyle)}`.replace(/^,\s*/, ''),
         loras,
         pipeline: {
           identitySource: identity ? 'companion_record' : 'manual_prompt',
@@ -1147,11 +1152,12 @@ if (body.action === 'verify_loras') {
     const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics });
     if (body.width == null) width = generationRoute.width;
     if (body.height == null) height = generationRoute.height;
-    // Identity assets skip the portrait promptPrefix — composition instruction is already first
-    if (!isIdentityAsset) {
+    const llmAuthoredPrompt = body.prompt_source === 'llm';
+    // Identity assets and LLM-authored prompts already contain their complete composition. — composition instruction is already first
+    if (!isIdentityAsset && !llmAuthoredPrompt) {
       prompt = `${generationRoute.promptPrefix} ${buildSceneCastPrompt(sceneSemantics)} ${prompt}`;
     }
-    if (surface === 'companion' && body.prompt_profile_applied !== true && !isIdentityAsset) {
+    if (surface === 'companion' && body.prompt_profile_applied !== true && !isIdentityAsset && !llmAuthoredPrompt) {
       prompt = buildStudioPromptEnhancement({
         category,
         intensity: generationIntensity,
@@ -1159,7 +1165,7 @@ if (body.action === 'verify_loras') {
         scene: prompt,
       });
     }
-    if (surface === 'companion' && !isIdentityAsset) {
+    if (surface === 'companion' && !isIdentityAsset && !llmAuthoredPrompt) {
       negative = `${studioNegativePrompt(category, animeStyle)}, ${COMPACT_ADULT_NEGATIVE}`;
     }
 
@@ -1203,6 +1209,7 @@ if (body.action === 'verify_loras') {
         action: `${productionPreset.scene}. ${styleProductionHint(animeStyle)}`,
         adult: generationIntensity >= 3,
         sceneOnly: true,
+        intensity: generationIntensity,
       });
       prompt = `${generationRoute.promptPrefix} ${sceneOnlyResult.positive}`;
       negative = sceneOnlyResult.negative;

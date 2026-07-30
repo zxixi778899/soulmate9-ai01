@@ -128,9 +128,62 @@ function pick<T>(items: T[], seed = Math.random()): T {
   return items[Math.min(items.length - 1, Math.floor(seed * items.length))];
 }
 
+export type CompanionSceneIntensity = 1 | 2 | 3 | 4 | 5;
+
+type RealSceneKind = 'home' | 'outdoor' | 'water' | 'mirror' | 'work' | 'nightlife' | 'intimate' | 'neutral';
+
+const REAL_SCENE_DIRECTIONS: Record<RealSceneKind, string> = {
+  home: 'Use soft window light or an ordinary practical lamp with neutral walls and believable household clutter. Show fabric compression against furniture, small wrinkles, and objects placed for use rather than decoration.',
+  outdoor: 'Use weather-consistent daylight, restrained natural greens and sky tones, slight wind affecting hair and clothing, and grounded foot contact with the real surface. Keep the background recognisable instead of dissolving it into artificial bokeh.',
+  water: 'Use physically plausible wet hair, irregular water droplets, damp fabric and reflected ambient light. Keep skin color neutral beneath the moisture and avoid glossy oil-like skin or blue-magenta color contamination.',
+  mirror: 'Make the phone, reflected gaze, hand grip and reflection geometry agree. Use ordinary bathroom or dressing-room light, minor lens distortion and a casually imperfect crop instead of a polished advertisement pose.',
+  work: 'Use credible task lighting and a lived-in workspace with touched objects, subtle clothing creases and hands genuinely handling a relevant prop. The subject is caught between actions rather than presenting a mannequin pose.',
+  nightlife: 'Let colored signs remain mostly in the background while a neutral practical key light protects real skin tone. Keep blacks readable, saturation restrained and the environment grounded rather than bathing the entire body in cyan and magenta.',
+  intimate: 'Use soft neutral bedside or window light, naturally compressed bedding, plausible support from the mattress or furniture, and clear contact points. Preserve real skin variation without glamour retouching.',
+  neutral: 'Use a believable available-light location, neutral white balance, restrained local color, real material texture and a background with small signs of everyday use.',
+};
+
+const INTENSITY_BODY_LANGUAGE: Record<CompanionSceneIntensity, string> = {
+  1: 'Capture an unguarded pause between actions: shoulders at different heights, weight settled through one leg or the furniture, relaxed fingers, and a small spontaneous expression.',
+  2: 'Use quietly flirtatious but plausible body language: a gentle torso turn, one hand occupied by the environment, an off-center stance, and eye contact that feels noticed rather than performed.',
+  3: 'Use confident sensual body language with a supported spine, visible balance, naturally bent joints, and clothing or bedding reacting to the pose. Keep the gesture continuous and physically achievable.',
+  4: 'Use an intimate action with clear preparation and follow-through, anatomically readable contact points, stable support from limbs or furniture, and responsive expressions instead of frozen posing.',
+  5: 'Stage the complex adult action as one believable moment in progress: every body has a stable center of gravity, contact creates visible compression, hands have a clear purpose, and expressions respond naturally to the shared action.',
+};
+
+function inferRealSceneKind(action: string): RealSceneKind {
+  const value = action.toLowerCase();
+  if (/mirror|selfie|vanity|fitting room|phone/.test(value)) return 'mirror';
+  if (/shower|bath|pool|spring|water|wet|rain/.test(value)) return 'water';
+  if (/office|desk|library|gym|kitchen|cafe|work/.test(value)) return 'work';
+  if (/bed|bedroom|sheets|couch|sofa|massage|intimate/.test(value)) return 'intimate';
+  if (/night|neon|club|bar|city light|rooftop|balcony/.test(value)) return 'nightlife';
+  if (/outdoor|beach|garden|street|park|cherry|motorcycle/.test(value)) return 'outdoor';
+  if (/apartment|living room|home|window|reading/.test(value)) return 'home';
+  return 'neutral';
+}
+
+export function buildCompanionSceneRealism(
+  row: Record<string, unknown>,
+  action: string,
+  intensity: CompanionSceneIntensity,
+): string {
+  const kind = inferRealSceneKind(action);
+  const livedInDetail = stableIdentityCue(row, `scene-${kind}`, [
+    'Include one slightly displaced everyday object and one naturally rumpled material.',
+    'Allow a few loose hairs, uneven fabric tension and a tiny asymmetry in the expression.',
+    'Show subtle pressure marks where the body meets clothing or furniture and imperfectly arranged surroundings.',
+    'Keep one hand occupied by a real object while the other relaxes naturally, with no decorative hand posing.',
+    'Use a fleeting mid-breath expression and a minor off-axis camera position, as if photographed by someone present.',
+  ]);
+  return `${REAL_SCENE_DIRECTIONS[kind]} ${INTENSITY_BODY_LANGUAGE[intensity]} ${livedInDetail} Use a 35mm or 50mm documentary perspective at believable eye level, without perfect centering or excessive background blur.`;
+}
+
+export const COMPANION_REALISM_NEGATIVE = 'oversaturated, teal-orange grading, cyan skin, magenta skin, neon color cast on skin, crushed blacks, blown highlights, HDR halo, excessive contrast, beauty filter, airbrushed skin, plastic skin, waxy skin, poreless skin, uncanny valley, synthetic eyes, doll face, generic influencer face, mannequin pose, frozen gesture, rigid symmetry, perfectly centered composition, decorative hand pose, floating hands, weightless body, impossible balance, disconnected contact, excessive bokeh, fake luxury set';
+
 export function buildCompanionGenerationPrompt(
   row: Record<string, unknown>,
-  options?: { action?: string; adult?: boolean; random?: number; sceneOnly?: boolean },
+  options?: { action?: string; adult?: boolean; random?: number; sceneOnly?: boolean; intensity?: CompanionSceneIntensity },
 ): CompanionGenerationResult {
   const profile = resolveCompanionProfile(row);
   const category = normalizeCompanionCategory({
@@ -139,8 +192,11 @@ export function buildCompanionGenerationPrompt(
     tags: row.tags,
   });
   const preset = STUDIO_PROMPTS[category];
+  const isIllustrated = /anime|manga|cartoon|2d|3d|cgi/i.test(profile.style);
   const action = options?.action?.trim() || pick(ACTIONS[category], options?.random);
   const identitySpecification = buildCompanionIdentitySpecification(row);
+  const intensity = options?.intensity || (options?.adult === false ? 1 : 3);
+  const sceneRealism = isIllustrated ? '' : buildCompanionSceneRealism(row, action, intensity);
   const baseInfo = [
     String(row.name || 'adult companion'),
     String(row.age ? `age ${row.age}` : 'age 25+'),
@@ -154,9 +210,13 @@ export function buildCompanionGenerationPrompt(
     String(row.appearance_style || profile.style),
     String(row.appearance_face || row.distinguishing_features || ''),
   ].filter(Boolean).join(', ');
-  const quality = category === 'anime'
+  const quality = isIllustrated
     ? 'Render this as a premium anime illustration with deliberate linework, expressive eyes, rich cel shading, and a readable composition.'
-    : 'Render this as a candid real-camera editorial photograph with neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off, readable shadows, practical or window light, real fabric texture, and moderate depth of field. Keep the pose relaxed and asymmetrical with believable weight distribution, natural hands, a subtle micro-expression, and an unforced gaze. Preserve pores and small human imperfections without beauty filtering, glossy skin, or teal-magenta cinematic grading.';
+    : `Photograph this as a real event rather than a staged AI portrait. ${sceneRealism} Preserve the companion's distinctive facial asymmetry, natural skin variation, pores, fine hair, real fabric texture and personal mannerisms. Use neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off and readable shadows.`;
+
+  const negative = isIllustrated
+    ? `${preset.negative}, generic face, duplicate identity, same face as another character`
+    : `${preset.negative}, ${COMPANION_REALISM_NEGATIVE}, generic face, duplicate identity, same face as another character`;
 
   // sceneOnly: identity is controlled by reference image, prompt only describes scene+action+quality
   if (options?.sceneOnly) {
@@ -167,7 +227,7 @@ export function buildCompanionGenerationPrompt(
       quality,
       identitySpecification,
       positive: `Scene direction: ${action}. ${quality} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
-      negative: `${preset.negative}, generic face, duplicate identity, same face as another character, different person, face swap`,
+      negative: `${negative}, different person, face swap`,
     };
   }
 
@@ -178,10 +238,9 @@ export function buildCompanionGenerationPrompt(
     quality,
     identitySpecification,
     positive: `${identitySpecification} Scene direction: ${action}. ${quality} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
-    negative: `${preset.negative}, generic face, duplicate identity, same face as another character`,
+    negative,
   };
 }
-
 export function randomCompanionAction(category: CompanionCategory, random = Math.random()): string {
   return pick(ACTIONS[category], random);
 }

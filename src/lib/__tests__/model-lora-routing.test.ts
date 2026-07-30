@@ -27,6 +27,29 @@ describe('model-specific LoRA routing', () => {
     expect(plan.selected.every((item) => item.strength_model > 0)).toBe(true);
   });
 
+  it('prioritizes the FLUX NSFW LoRA and removes the redundant uncensored LoRA', () => {
+    process.env.RUNPOD_INSTALLED_LORAS_FLUX = [
+      'flux_nsfw_klein_v2.safetensors',
+      'flux_realism_xlabs.safetensors',
+      'flux_add_details.safetensors',
+      'flux_uncensored.safetensors',
+    ].join(',');
+    process.env.RUNPOD_FLUX_FEMALE_LORAS = 'flux_realism_xlabs.safetensors,flux_add_details.safetensors,flux_uncensored.safetensors';
+    process.env.RUNPOD_FLUX_NSFW_LORAS = 'flux_nsfw_klein_v2.safetensors';
+    const plan = resolveModelLoraPlan({
+      modelFamily: 'flux',
+      category: 'female',
+      intensity: 5,
+      maxLoras: 3,
+    });
+    expect(plan.selected.map((item) => item.name)).toEqual([
+      'flux_nsfw_klein_v2.safetensors',
+      'flux_realism_xlabs.safetensors',
+      'flux_add_details.safetensors',
+    ]);
+    expect(plan.selected.some((item) => item.name.includes('uncensored'))).toBe(false);
+    expect(plan.selected.reduce((sum, item) => sum + item.strength_model, 0)).toBeLessThanOrEqual(1.65);
+  });
   it('fails closed when the Pony endpoint inventory is unavailable', () => {
     delete process.env.RUNPOD_INSTALLED_LORAS_PONY;
     delete process.env.RUNPOD_INSTALLED_LORAS_SDXL;

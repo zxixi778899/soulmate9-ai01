@@ -51,11 +51,13 @@ describe('companion generation prompt', () => {
     expect(result.positive).toContain('green eyes');
     expect(result.positive).toContain('athletic body build');
     expect(result.action).toContain('intimate bedroom');
-    expect(result.positive).toContain('Render this as');
     if (style === 'realistic') {
+      expect(result.positive).toContain('Photograph this as a real event');
       expect(result.positive).toContain('neutral white balance');
-      expect(result.positive).toContain('relaxed and asymmetrical');
-      expect(result.positive).toContain('small human imperfections');
+      expect(result.positive).toContain('supported spine');
+      expect(result.positive).toContain('natural skin variation');
+    } else {
+      expect(result.positive).toContain('Render this as');
     }
     expect(result.negative).toContain('child');
     expect(result.negative).toContain('underage');
@@ -140,5 +142,67 @@ describe('companion generation prompt', () => {
     expect(result.positive).toContain('27-year-old adult woman');
     expect(result.positive).not.toContain('Explicit sexual content');
     expect(result.negative).toContain('generic face');
+  });
+});
+
+describe('companion scene realism', () => {
+  const companion = {
+    id: 'real-person-17',
+    name: 'Elena',
+    age: 29,
+    gender: 'Female',
+    appearance_race: 'Mediterranean',
+    appearance_hair_color: 'dark brown',
+    appearance_hair: 'wavy shoulder-length',
+    appearance_eyes: 'hazel',
+    appearance_body: 'athletic pear-shaped',
+    personality: 'observant and playful',
+  };
+
+  it('adapts color, materials and physical interaction to the scene', () => {
+    const water = buildCompanionGenerationPrompt(companion, {
+      action: 'walking out of a swimming pool with wet hair',
+      intensity: 2,
+      adult: false,
+    });
+    const nightlife = buildCompanionGenerationPrompt(companion, {
+      action: 'waiting outside a neon-lit city bar at night',
+      intensity: 2,
+      adult: false,
+    });
+    expect(water.positive).toContain('irregular water droplets');
+    expect(water.positive).toContain('damp fabric');
+    expect(nightlife.positive).toContain('colored signs remain mostly in the background');
+    expect(nightlife.positive).toContain('neutral practical key light');
+  });
+
+  it('uses materially different body language for levels 1 through 5', () => {
+    const prompts = ([1, 2, 3, 4, 5] as const).map((intensity) =>
+      buildCompanionGenerationPrompt(companion, {
+        action: 'sitting on a lived-in sofa beside a window',
+        intensity,
+        adult: intensity >= 3,
+      }).positive,
+    );
+    expect(new Set(prompts).size).toBe(5);
+    expect(prompts[0]).toContain('unguarded pause between actions');
+    expect(prompts[1]).toContain('quietly flirtatious but plausible');
+    expect(prompts[2]).toContain('supported spine');
+    expect(prompts[3]).toContain('preparation and follow-through');
+    expect(prompts[4]).toContain('stable center of gravity');
+  });
+
+  it('keeps identity-reference prompts scene-only while retaining lived-in realism', () => {
+    const result = buildCompanionGenerationPrompt(companion, {
+      action: 'taking a casual bathroom mirror selfie with a phone',
+      intensity: 1,
+      adult: false,
+      sceneOnly: true,
+    });
+    expect(result.positive).not.toContain('Identity specification for Elena');
+    expect(result.positive).toContain('reflection geometry agree');
+    expect(result.positive).toContain('casually imperfect crop');
+    expect(result.negative).toContain('generic influencer face');
+    expect(result.negative).toContain('mannequin pose');
   });
 });

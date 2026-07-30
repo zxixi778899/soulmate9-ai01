@@ -169,6 +169,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [pipelineResults, setPipelineResults] = useState<PipelineStageResult[]>([]);
   const [pipelineAssets, setPipelineAssets] = useState<Record<string, string>>({});
   const pipelineCancelRef = useRef(false);
+  const llmPromptHistoryRef = useRef<string[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   // ─── Resource library (companion folder browser) ─────────────────────────
   const [resourceLibraryOpen, setResourceLibraryOpen] = useState(false);
@@ -249,14 +250,15 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setIdentityConsistency(preset.consistency);
     setWidth(preset.width);
     setHeight(preset.height);
+    const isIdentityAsset = role === 'avatar-closeup' || role.startsWith('identity-');
     const assembled = scopedGirlfriend
       ? buildCompanionGenerationPrompt(scopedGirlfriend as Record<string, unknown>, {
           action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
-          adult: false,
+          adult: isIdentityAsset ? false : nsfwIntensity >= 3,
           sceneOnly: hasIdentityRef,
+          intensity: isIdentityAsset ? 1 : nsfwIntensity,
         })
       : null;
-    const isIdentityAsset = role === 'avatar-closeup' || role.startsWith('identity-');
     if (assembled) {
       setCompanionCategory(assembled.category);
       if (isIdentityAsset) {
@@ -265,14 +267,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         setPrompt(`${preset.scene}, ${brief}`);
         setNegative(assembled.negative);
       } else if (hasIdentityRef) {
-        // Identity controlled by reference image — prompt only scene+action+quality
-        const quality = animeRenderStyle === 'realistic'
-          ? 'candid real-camera editorial photography, neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off, readable shadows, practical or window light, real fabric texture, moderate depth of field, relaxed asymmetrical posture, believable weight distribution, natural hands interacting with the environment, subtle micro-expression, unforced gaze, visible pores and small human imperfections, coherent anatomy'
-          : animeRenderStyle === '2d'
-            ? 'premium 2D animation key art, stable linework, coherent anatomy, rich cel shading, clean composition, high detail'
-            : 'premium 3D character render, coherent anatomy, stable materials, cinematic lighting, clean composition, high detail';
-        setPrompt(`Scene and action: ${preset.scene}. Quality: ${quality}.`);
-        setNegative(studioNegativePrompt(assembled.category, animeRenderStyle));
+        // Identity is controlled by the reference image; retain scene and level-specific realism.
+        setPrompt(assembled.positive);
+        setNegative(assembled.negative);
       } else {
         setPrompt(assembled.positive);
         setNegative(assembled.negative);
@@ -475,6 +472,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       const assembled = buildCompanionGenerationPrompt(row as Record<string, unknown>, {
         action: `${STUDIO_PROMPTS[resolveCompanionProfile(row as Record<string, unknown>).category].prompt}. ${styleProductionHint(animeRenderStyle)}`,
         adult: nsfwIntensity >= 3,
+        intensity: nsfwIntensity,
       });
       const nextPrompt = assembled.positive;
       setCompanionCategory(assembled.category);
@@ -546,13 +544,17 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           gen_mode: genMode,
           asset_role: assetRole,
           companion: scopedGirlfriend || undefined,
+          previous_prompts: llmPromptHistoryRef.current,
+          variation_seed: globalThis.crypto.randomUUID(),
         }),
       });
       const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok || data.source !== 'llm') {
         throw new Error(data.error || 'LLM 提示词优化失败');
       }
-      setPrompt(String(data.prompt || ''));
+      const generatedPrompt = String(data.prompt || '');
+      setPrompt(generatedPrompt);
+      llmPromptHistoryRef.current = [...llmPromptHistoryRef.current, generatedPrompt].filter(Boolean).slice(-5);
       setPromptProfileApplied(true);
       setNegative(String(data.negative || studioNegativePrompt(companionCategory, animeRenderStyle)));
       const planned = Array.isArray(data.loras) ? data.loras : [];
@@ -732,7 +734,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     });
   };
 
-  const generationBody = (overrides?: { girlfriendId?: string; prompt?: string; negative?: string; assetRole?: CharacterAssetRole }) => ({
+  const generationBody = (overrides?: { girlfriendId?: string; prompt?: string; negative?: string; assetRole?: CharacterAssetRole; promptSource?: 'llm' }) => ({
     action: 'generate',
     girlfriend_id: overrides?.girlfriendId || productionGirlfriendId || girlfriendId || undefined,
     workflow_id: workflowId,
@@ -772,7 +774,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     companion_category: companionCategory,
     anime_render_style: animeRenderStyle,
     nsfw_intensity: nsfwIntensity,
-    prompt_profile_applied: overrides?.prompt ? false : promptProfileApplied,
+    prompt_profile_applied: overrides?.promptSource === 'llm' || (overrides?.prompt ? false : promptProfileApplied),
+    prompt_source: overrides?.promptSource,
     asset_role: overrides?.assetRole || assetRole,
     reference_role: getCharacterProductionPreset(overrides?.assetRole || assetRole).referenceRole,
     kind,
@@ -833,6 +836,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           const assembled = buildCompanionGenerationPrompt(girlfriend as Record<string, unknown>, {
             action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
             adult: isIdentityAsset ? false : nsfwIntensity >= 3,
+            intensity: isIdentityAsset ? 1 : nsfwIntensity,
           });
           // 身份资产用精简提示词（场景+数据库简报），与服务端一致，避免 1200+ 长提示词
           const promptForRole = isIdentityAsset
@@ -1080,10 +1084,43 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setGenerating(true);
     setLastResult([]);
     try {
+      // The editor contains intent only. The LLM writes the final, varied prompt for every generation.
+      const promptRes = await authedFetch('/api/admin/comfy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'optimize_prompt',
+          prompt,
+          companion_category: companionCategory,
+          anime_render_style: animeRenderStyle,
+          nsfw_intensity: nsfwIntensity,
+          gen_mode: genMode,
+          asset_role: assetRole,
+          companion: scopedGirlfriend || undefined,
+          previous_prompts: llmPromptHistoryRef.current,
+          variation_seed: globalThis.crypto.randomUUID(),
+        }),
+      });
+      const promptData = await readResponseJson(promptRes).catch(() => ({} as Any));
+      if (!promptRes.ok || promptData.source !== 'llm' || !String(promptData.prompt || '').trim()) {
+        throw new Error(promptData.error || 'LLM failed to create a unique generation prompt');
+      }
+      const effectivePrompt = String(promptData.prompt).trim();
+      const effectiveNegative = String(promptData.negative || negative).trim();
+      const fluxPreset = promptData.generation_preset && typeof promptData.generation_preset === 'object'
+        ? promptData.generation_preset as Any
+        : recommendedPreset;
+      const effectiveLoras = Array.isArray(promptData.loras) ? promptData.loras : [];
+      llmPromptHistoryRef.current = [...llmPromptHistoryRef.current, effectivePrompt].slice(-5);
+      setPrompt(effectivePrompt);
+      setNegative(effectiveNegative);
+      setPromptProfileApplied(true);
+      setSelectedLoras(effectiveLoras);
+
       if (genMode === 'img2video') {
         const videoRes = await authedFetch('/api/admin/animations', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'generate_custom', companion_id: companionId, input_image: inputImage.trim(), prompt, negative_prompt: negative, duration_seconds: recommendedPreset.durationSeconds || 5, fps: recommendedPreset.fps || 8, motion_strength: recommendedPreset.motionStrength || 5, steps: recommendedPreset.steps, cfg: recommendedPreset.cfg, sampler: recommendedPreset.sampler, scheduler: recommendedPreset.scheduler, nsfw_intensity: nsfwIntensity }),
+          body: JSON.stringify({ action: 'generate_custom', companion_id: companionId, input_image: inputImage.trim(), prompt: effectivePrompt, negative_prompt: effectiveNegative, duration_seconds: recommendedPreset.durationSeconds || 5, fps: recommendedPreset.fps || 8, motion_strength: recommendedPreset.motionStrength || 5, steps: recommendedPreset.steps, cfg: recommendedPreset.cfg, sampler: recommendedPreset.sampler, scheduler: recommendedPreset.scheduler, nsfw_intensity: nsfwIntensity }),
         });
         const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
         if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');
@@ -1100,7 +1137,17 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       const res = await authedFetch('/api/admin/comfy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(generationBody()),
+        body: JSON.stringify({
+          ...generationBody({ prompt: effectivePrompt, negative: effectiveNegative, promptSource: 'llm' }),
+          ckpt_id: fluxPreset.checkpoint,
+          sampler_name: fluxPreset.sampler,
+          scheduler: fluxPreset.scheduler,
+          steps: fluxPreset.steps,
+          cfg: fluxPreset.cfg,
+          width: fluxPreset.width,
+          height: fluxPreset.height,
+          loras: effectiveLoras,
+        }),
       });
       const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '生成失败');
