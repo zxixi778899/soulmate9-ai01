@@ -52,6 +52,11 @@ describe('companion generation prompt', () => {
     expect(result.positive).toContain('athletic body build');
     expect(result.action).toContain('intimate bedroom');
     expect(result.positive).toContain('Render this as');
+    if (style === 'realistic') {
+      expect(result.positive).toContain('neutral white balance');
+      expect(result.positive).toContain('relaxed and asymmetrical');
+      expect(result.positive).toContain('small human imperfections');
+    }
     expect(result.negative).toContain('child');
     expect(result.negative).toContain('underage');
   });

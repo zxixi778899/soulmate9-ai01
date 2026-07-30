@@ -46,7 +46,7 @@ const CATEGORY_SUBJECTS: Record<CompanionCategory, string> = {
 };
 
 const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
-  'realistic': 'Photograph it like an unretouched editorial frame made with a real camera: believable skin pores and small imperfections, natural exposure, restrained color, and soft directional light.',
+  'realistic': 'Photograph it as a candid real-camera editorial frame with neutral white balance and accurate, varied skin tones. Use restrained saturation, gentle highlight roll-off, readable shadow detail, practical or window light, real fabric texture and moderate depth of field. Keep a relaxed asymmetrical posture with believable weight, a subtle micro-expression, natural gaze, and hands resting on or interacting with the environment. Preserve pores, fine facial texture and small human imperfections without beauty filtering or cinematic teal-magenta grading.',
   '2d': 'Render it as a high-resolution 2D anime frame with clean line art, consistent cel shading, expressive eyes, and no photographic or 3D elements.',
   '3d': 'Render it as a high-resolution 3D animated film frame with a coherent modeled character, PBR materials, detailed hair, and cinematic lighting, with no flat line art.',
 };
@@ -127,7 +127,7 @@ export function studioIntensityLabel(intensity: NsfwIntensity): string {
 }
 
 export function studioNegativePrompt(category: CompanionCategory, animeStyle: AnimeRenderStyle = 'realistic'): string {
-  const shared = 'score_4, score_5, score_6, worst quality, low quality, blur, soft focus, motion blur, excessive film grain, chromatic noise, jpeg artifacts, low resolution, plastic skin, waxy face, mannequin pose, rigid symmetry, over-smoothed skin, vacant expression, cropped head, head out of frame, headless body, cut-off face, child, teen, underage, youthful face, ambiguous age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals';
+  const shared = 'score_4, score_5, score_6, worst quality, low quality, blur, soft focus, motion blur, excessive film grain, chromatic noise, jpeg artifacts, low resolution, oversaturated, neon color cast on skin, magenta skin, cyan skin, orange skin, teal-orange grading, crushed blacks, blown highlights, HDR halo, excessive contrast, beauty filter, airbrushed skin, plastic skin, waxy face, uncanny valley, doll-like face, synthetic eyes, dead eyes, mannequin pose, frozen gesture, rigid symmetry, perfectly centered symmetry, mirrored limbs, floating hands, disconnected contact with props, over-smoothed skin, vacant expression, cropped head, head out of frame, headless body, cut-off face, child, teen, underage, youthful face, ambiguous age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals';
   const anatomy = category === 'transgender'
     ? 'cisgender woman, vagina, flat chest, cropped pelvis, genital area out of frame, duplicated genitals, detached genitals, male-only silhouette, caricature, fetish stereotype'
     : category === 'male'

@@ -57,6 +57,8 @@ describe('character asset production', () => {
   });
   it('keeps render styles mutually exclusive', () => {
     expect(styleProductionHint('realistic')).toContain('real camera photograph');
+    expect(styleProductionHint('realistic')).toContain('neutral white balance');
+    expect(styleProductionHint('realistic')).toContain('relaxed asymmetrical posture');
     expect(styleProductionHint('2d')).toContain('only as coherent 2D');
     expect(styleProductionHint('3d')).toContain('only as coherent 3D');
   });

@@ -300,7 +300,7 @@ export function buildFluxWorkflow(opts: {
           upscale_method: 'lanczos',
           width,
           height,
-          crop: 'center',
+          crop: 'pad',
         },
       },
       '13': {
@@ -748,9 +748,12 @@ class RunPodClient {
           inputImageB64 = resolved.base64;
         }
       } catch (err) {
-        logger.warn('[runpod] failed to resolve input_image, falling back to txt2img', {
-          error: err instanceof Error ? err.message : String(err),
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('[runpod] failed to resolve input_image — img2img cannot proceed without reference', {
+          input_image: options.input_image.slice(0, 120),
+          error: msg,
         });
+        throw new Error(`参考图加载失败，img2img 无法执行: ${msg}`);
       }
     }
 

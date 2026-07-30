@@ -628,23 +628,24 @@ export async function POST(request: NextRequest) {
           success: true,
         }).catch(() => {});
 
-        // Extract and persist memories before the stream closes.
+        // Close the stream FIRST so the client is never blocked on post-processing.
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+
+        // Best-effort memory extraction AFTER stream close (with timeout guard).
         if (messageText && messageText !== '[media]') {
-          // Await persistence before a serverless runtime can freeze after stream close.
-          await extractMemories(client, user.id, girlfriend_id, messageText, gf.name).catch(
-            (memoryError: unknown) => {
-              logger.warn('chat/stream: memory extraction failed', {
-                err: memoryError instanceof Error ? memoryError.message : String(memoryError),
-              });
-            },
-          );
+          await Promise.race([
+            extractMemories(client, user.id, girlfriend_id, messageText, gf.name),
+            new Promise((r) => setTimeout(r, 12_000)),
+          ]).catch((memoryError: unknown) => {
+            logger.warn('chat/stream: memory extraction failed', {
+              err: memoryError instanceof Error ? memoryError.message : String(memoryError),
+            });
+          });
         }
 
         // Check achievements (fire and forget)
         checkAchievements(client, user.id).catch(() => {});
-
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : 'Unknown error';
         logger.error('[chat-stream] streaming failed', { err: errMsg.slice(0, 200) });

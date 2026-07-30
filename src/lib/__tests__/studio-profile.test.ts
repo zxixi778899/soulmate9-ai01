@@ -60,6 +60,17 @@ describe('studio generation profiles', () => {
     expect(level3.transgender).toContain('developed breasts, feminine curves, a large penis, and testicles clearly visible');
   });
 
+  it('constrains realistic output to natural color and candid body language', () => {
+    const prompt = buildStudioPromptEnhancement({ category: 'female', intensity: 1 });
+    const negative = studioNegativePrompt('female');
+    expect(prompt).toContain('neutral white balance');
+    expect(prompt).toContain('restrained saturation');
+    expect(prompt).toContain('relaxed asymmetrical posture');
+    expect(prompt).toContain('subtle micro-expression');
+    expect(negative).toContain('neon color cast on skin');
+    expect(negative).toContain('uncanny valley');
+    expect(negative).toContain('frozen gesture');
+  });
   it('keeps 2D and 3D anime directions mutually distinct', () => {
     const twoD = buildStudioPromptEnhancement({
       category: 'female',

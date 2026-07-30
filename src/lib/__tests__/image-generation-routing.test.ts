@@ -40,6 +40,16 @@ describe('unified image generation routing', () => {
     expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
   });
 
+  it('uses natural color and non-mannequin direction for realistic previews', () => {
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      renderStyle: 'realistic',
+      nsfwIntensity: 1,
+    });
+    expect(route.promptPrefix).toContain('neutral white balance');
+    expect(route.promptPrefix).toContain('restrained saturation');
+    expect(route.promptPrefix).toContain('relaxed asymmetrical posture');
+  });
   it('routes 2D and 3D both to FLUX (only checkpoint available)', () => {
     expect(resolveImageGenerationRoute({
       surface: 'companion',

@@ -18,7 +18,7 @@ import {
   Loader2, Play, Trash2, RefreshCw, HardDrive, Workflow, ImageIcon,
   Settings2, BookOpen, Save, RotateCcw, Sparkles, Layers, ExternalLink,
   Zap, Upload, Download, CheckSquare, Square, Copy, ImagePlus, FileImage,
-  Users, Search, X, Maximize2,
+  Users, Search, X, Maximize2, FolderOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -83,6 +83,16 @@ const CAT_LABEL: Record<string, string> = {
 
 
 const CAT_ORDER = ['body', 'action', 'outfit', 'prop', 'detail'];
+
+/** Companion asset folder definitions for the resource library browser */
+const RESOURCE_FOLDERS: Array<{ id: string; label: string; match: (role: string) => boolean }> = [
+  { id: 'avatar-closeup', label: '半身头像', match: (r) => r === 'avatar-closeup' },
+  { id: 'identity-turnaround', label: '三视图', match: (r) => r === 'identity-turnaround' || r.startsWith('identity-') },
+  { id: 'character-art', label: '立绘', match: (r) => r === 'character-art' },
+  { id: 'album', label: '相册 / 场景', match: (r) => r === 'album' || r === 'scene' },
+  { id: 'animation', label: '视频', match: (r) => r === 'animation' },
+  { id: 'other', label: '其他', match: () => true },
+];
 
 type ComfyConsoleProps = { girlfriendId?: string; embedded?: boolean };
 
@@ -160,6 +170,28 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [pipelineAssets, setPipelineAssets] = useState<Record<string, string>>({});
   const pipelineCancelRef = useRef(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  // ─── Resource library (companion folder browser) ─────────────────────────
+  const [resourceLibraryOpen, setResourceLibraryOpen] = useState(false);
+  const [resourceFolderFilter, setResourceFolderFilter] = useState<string>('all');
+  const [libraryFolderFilter, setLibraryFolderFilter] = useState<string>('all');
+
+  /** Group companion assets into folders by asset_role for the resource library */
+  const resourceFolders = useMemo(() => {
+    const grouped: Array<{ id: string; label: string; assets: Any[] }> = [];
+    for (const folder of RESOURCE_FOLDERS) {
+      if (folder.id === 'other') continue; // handled last
+      const matched = companionAssets.filter((a) => {
+        const role = String(a.meta?.asset_role || a.asset_role || '');
+        return folder.match(role);
+      });
+      if (matched.length > 0) grouped.push({ id: folder.id, label: folder.label, assets: matched });
+    }
+    // "other" catches anything not matched above
+    const matchedIds = new Set(grouped.flatMap((g) => g.assets.map((a) => a.id || a.url)));
+    const otherAssets = companionAssets.filter((a) => !matchedIds.has(a.id || a.url));
+    if (otherAssets.length > 0) grouped.push({ id: 'other', label: '其他', assets: otherAssets });
+    return grouped;
+  }, [companionAssets]);
 
 
   const applyRecommendedLoras = (
@@ -199,7 +231,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   };
   const applyProductionPreset = (role: CharacterAssetRole) => {
     const preset = getCharacterProductionPreset(role);
-    const wantsIdentityRef = role === 'character-art' || role === 'album' || role === 'scene';
+    // avatar-closeup is ALWAYS pure txt2img — no reference image, no img2img redraw
+    const isAvatar = role === 'avatar-closeup';
+    const wantsIdentityRef = !isAvatar && (role === 'character-art' || role === 'album' || role === 'scene');
     const identityAsset = companionAssets.find((item) => item.meta?.asset_role === 'identity-turnaround')
       || companionAssets.find((item) => item.meta?.asset_role === 'identity-front')
       || companionAssets.find((item) => item.meta?.asset_role === 'identity-profile')
@@ -210,8 +244,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setAssetRole(role);
     setKind('girlfriend');
     setGenerationSurface('companion');
-    setGenMode(hasIdentityRef ? 'img2img' : 'txt2img');
-    setInputImage(hasIdentityRef ? identityImage : '');
+    setGenMode(isAvatar ? 'txt2img' : hasIdentityRef ? 'img2img' : 'txt2img');
+    setInputImage(isAvatar ? '' : hasIdentityRef ? identityImage : '');
     setIdentityConsistency(preset.consistency);
     setWidth(preset.width);
     setHeight(preset.height);
@@ -233,7 +267,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       } else if (hasIdentityRef) {
         // Identity controlled by reference image — prompt only scene+action+quality
         const quality = animeRenderStyle === 'realistic'
-          ? 'professional editorial photography, coherent anatomy, natural skin texture, controlled lighting, clean composition, high detail'
+          ? 'candid real-camera editorial photography, neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off, readable shadows, practical or window light, real fabric texture, moderate depth of field, relaxed asymmetrical posture, believable weight distribution, natural hands interacting with the environment, subtle micro-expression, unforced gaze, visible pores and small human imperfections, coherent anatomy'
           : animeRenderStyle === '2d'
             ? 'premium 2D animation key art, stable linework, coherent anatomy, rich cel shading, clean composition, high detail'
             : 'premium 3D character render, coherent anatomy, stable materials, cinematic lighting, clean composition, high detail';
@@ -246,7 +280,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
     setPromptProfileApplied(true);
     applyRecommendedLoras(assembled?.category || companionCategory, animeRenderStyle, nsfwIntensity);
-    if (wantsIdentityRef && !identityImage) toast.warning('尚无人设参考图，将用完整描述生成；建议先生成半身头像和三视图');
+    if (isAvatar) toast.success(`已切换：${preset.label}，纯文生图（不使用参考图）`);
+    else if (wantsIdentityRef && !identityImage) toast.warning('尚无人设参考图，将用完整描述生成；建议先生成半身头像和三视图');
     else toast.success(`已切换：${preset.label}，${hasIdentityRef ? '人设图控制一致性' : '将读取伴侣基础信息'}`);
   };
 
@@ -1571,7 +1606,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             {productionGirlfriendId ? (
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                 <span className="text-slate-300">当前任务：<strong className="text-cyan-200">{getCharacterProductionPreset(assetRole).label}</strong> · 自动保存至 <code>girlfriends/{productionGirlfriendId}/{assetRole}</code></span>
-                <Link href={`/admin/assets?girlfriendId=${encodeURIComponent(productionGirlfriendId)}`} className="text-violet-300 hover:text-violet-200">查看角色资源文件夹 →</Link>
+                <span className="flex items-center gap-2">
+                  <button type="button" className="text-cyan-300 hover:text-cyan-200" onClick={() => { setResourceFolderFilter('all'); setResourceLibraryOpen(true); }}>
+                    <FolderOpen className="mr-0.5 inline h-3 w-3" />打开资源库
+                  </button>
+                  <Link href={`/admin/assets?girlfriendId=${encodeURIComponent(productionGirlfriendId)}`} className="text-violet-300 hover:text-violet-200">查看角色资源文件夹 →</Link>
+                </span>
               </div>
             ) : <p className="mt-3 text-[11px] text-amber-300">先选择伴侣；如果还没有角色，请到“伴侣与媒体”填写基础信息。</p>}
           </section>
@@ -2018,17 +2058,31 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <div className="space-y-2 rounded-lg border border-amber-900/40 bg-amber-950/20 p-2">
                   <div className="flex items-center justify-between gap-2">
                     <Label className="text-[11px] text-amber-200/90">参考图</Label>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={referenceImageUploading}
-                      onClick={() => referenceImageInputRef.current?.click()}
-                      className="h-7 border-amber-700/60 bg-amber-950/40 px-2 text-[11px] text-amber-100 hover:bg-amber-900/50"
-                    >
-                      {referenceImageUploading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Upload className="mr-1 h-3 w-3" />}
-                      上传图片
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      {(productionGirlfriendId || girlfriendId) && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setResourceFolderFilter('all'); setResourceLibraryOpen(true); }}
+                          className="h-7 border-cyan-700/60 bg-cyan-950/40 px-2 text-[11px] text-cyan-100 hover:bg-cyan-900/50"
+                        >
+                          <FolderOpen className="mr-1 h-3 w-3" />
+                          从资源库选择
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={referenceImageUploading}
+                        onClick={() => referenceImageInputRef.current?.click()}
+                        className="h-7 border-amber-700/60 bg-amber-950/40 px-2 text-[11px] text-amber-100 hover:bg-amber-900/50"
+                      >
+                        {referenceImageUploading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Upload className="mr-1 h-3 w-3" />}
+                        上传图片
+                      </Button>
+                    </div>
                     <input
                       ref={referenceImageInputRef}
                       type="file"
@@ -2372,6 +2426,34 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </Button>
             </div>
           </div>
+          {/* Folder filter tabs */}
+          {(productionGirlfriendId || girlfriendId) && assets.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setLibraryFolderFilter('all')}
+                className={cn(
+                  'rounded-md px-2.5 py-1.5 text-[11px] font-medium transition',
+                  libraryFolderFilter === 'all' ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700',
+                )}
+              >
+                全部
+              </button>
+              {RESOURCE_FOLDERS.map((folder) => (
+                <button
+                  key={folder.id}
+                  type="button"
+                  onClick={() => setLibraryFolderFilter(folder.id)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1.5 text-[11px] font-medium transition',
+                    libraryFolderFilter === folder.id ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700',
+                  )}
+                >
+                  {folder.label}
+                </button>
+              ))}
+            </div>
+          )}
           {assetsLoading ? (
             <div className="flex h-40 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin" />
@@ -2385,7 +2467,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {assets.map((a, idx) => {
+              {(libraryFolderFilter === 'all'
+                ? assets
+                : assets.filter((a) => {
+                    const role = String(a.meta?.asset_role || a.asset_role || '');
+                    const folder = RESOURCE_FOLDERS.find((f) => f.id === libraryFolderFilter);
+                    return folder ? folder.match(role) : true;
+                  })
+              ).map((a, idx) => {
                 const k = assetKey(a);
                 const selected = selectedAssetKeys.includes(k);
                 return (
@@ -2610,6 +2699,116 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <X className="h-5 w-5" />
           </button>
           <img src={lightboxUrl} alt="大图预览" className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+
+      {/* Resource Library — companion asset folder browser */}
+      {resourceLibraryOpen && (
+        <div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setResourceLibraryOpen(false)}>
+          <div
+            className="flex max-h-[85vh] w-[90vw] max-w-4xl flex-col rounded-xl border border-slate-700 bg-[#0d1117] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-cyan-400" />
+                <h3 className="text-sm font-bold text-white">伴侣资源库</h3>
+                <span className="text-[11px] text-slate-400">
+                  {productionGirlfriendId || girlfriendId} · {companionAssets.length} 项资产
+                </span>
+              </div>
+              <button type="button" className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white" onClick={() => setResourceLibraryOpen(false)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {/* Folder tabs */}
+            <div className="flex flex-wrap gap-1.5 border-b border-slate-800 px-4 py-2">
+              <button
+                type="button"
+                onClick={() => setResourceFolderFilter('all')}
+                className={cn(
+                  'rounded-md px-2.5 py-1.5 text-[11px] font-medium transition',
+                  resourceFolderFilter === 'all' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700',
+                )}
+              >
+                全部 ({companionAssets.length})
+              </button>
+              {resourceFolders.map((folder) => (
+                <button
+                  key={folder.id}
+                  type="button"
+                  onClick={() => setResourceFolderFilter(folder.id)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1.5 text-[11px] font-medium transition',
+                    resourceFolderFilter === folder.id ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700',
+                  )}
+                >
+                  {folder.label} ({folder.assets.length})
+                </button>
+              ))}
+            </div>
+            {/* Asset grid */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {companionAssets.length === 0 ? (
+                <div className="flex h-40 flex-col items-center justify-center gap-2 text-slate-500">
+                  <ImageIcon className="h-8 w-8 opacity-40" />
+                  <p className="text-sm">该伴侣暂无资产，请先通过管线生成</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                  {(resourceFolderFilter === 'all'
+                    ? companionAssets
+                    : resourceFolders.find((f) => f.id === resourceFolderFilter)?.assets || []
+                  ).map((a, idx) => {
+                    const role = String(a.meta?.asset_role || a.asset_role || '');
+                    const folderLabel = RESOURCE_FOLDERS.find((f) => f.id !== 'other' && f.match(role))?.label || '其他';
+                    const isVideo = String(a.media_type || '').includes('video') || role === 'animation';
+                    return (
+                      <div key={a.id || a.url || idx} className="group relative overflow-hidden rounded-lg border border-slate-700 bg-slate-900/50">
+                        {isVideo ? (
+                          <video src={a.url} muted loop playsInline className="aspect-[3/4] w-full object-cover" onMouseEnter={(e) => (e.target as HTMLVideoElement).play()} onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()} />
+                        ) : (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
+                        )}
+                        {/* Folder badge */}
+                        <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-cyan-200">{folderLabel}</span>
+                        {/* Hover overlay with actions */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/60 opacity-0 transition group-hover:opacity-100">
+                          {!isVideo && (
+                            <button
+                              type="button"
+                              className="rounded-md bg-cyan-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-cyan-500"
+                              onClick={() => {
+                                setInputImage(a.url || '');
+                                setGenMode('img2img');
+                                setResourceLibraryOpen(false);
+                                toast.success('已设为参考图');
+                              }}
+                            >
+                              设为参考图
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="rounded-md bg-white/15 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-white/25"
+                            onClick={() => setLightboxUrl(a.url || '')}
+                          >
+                            查看大图
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            {/* Footer hint */}
+            <div className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-500">
+              点击「设为参考图」将自动切换到图生图模式并填入参考图 URL。文件夹按资产角色自动归档：girlfriends/&#123;id&#125;/&#123;role&#125;/
+            </div>
+          </div>
         </div>
       )}
 

@@ -1192,9 +1192,18 @@ export default function ChatPage() {
         }
       };
 
+      // Timeout guard: if no data arrives within 90s, assume stream is dead.
+      let streamTimer: ReturnType<typeof setTimeout> | undefined;
+      const resetStreamTimer = () => {
+        clearTimeout(streamTimer);
+        streamTimer = setTimeout(() => { reader.cancel(); }, 90_000);
+      };
+      resetStreamTimer();
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        resetStreamTimer();
 
         sseBuf += decoder.decode(value, { stream: true });
         const parts = sseBuf.split('\n');
@@ -1232,6 +1241,7 @@ export default function ChatPage() {
           }
         }
       }
+      clearTimeout(streamTimer);
 
       // Client-side sanitize as last line of defense
       if (fullContent) {
@@ -1246,6 +1256,9 @@ export default function ChatPage() {
 
       setIsTyping(false);
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'read' } : m)));
+
+      // Unlock send immediately — post-processing below is non-critical.
+      if (!opts?.silent) setIsSending(false);
 
       // 3 AI quick-reply chips for next turn (retention)
       if (fullContent) {
@@ -1363,8 +1376,8 @@ export default function ChatPage() {
         ]);
       }
       setIsTyping(false);
+      if (!opts?.silent) setIsSending(false);
     }
-    if (!opts?.silent) setIsSending(false);
   };
 
   /** Retry chip on selfie failure bubble — re-run last photo request */

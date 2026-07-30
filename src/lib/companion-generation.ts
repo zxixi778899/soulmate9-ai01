@@ -156,7 +156,7 @@ export function buildCompanionGenerationPrompt(
   ].filter(Boolean).join(', ');
   const quality = category === 'anime'
     ? 'Render this as a premium anime illustration with deliberate linework, expressive eyes, rich cel shading, and a readable composition.'
-    : 'Render this as a polished editorial photograph with lifelike texture, controlled light, clear eyes, and natural depth.';
+    : 'Render this as a candid real-camera editorial photograph with neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off, readable shadows, practical or window light, real fabric texture, and moderate depth of field. Keep the pose relaxed and asymmetrical with believable weight distribution, natural hands, a subtle micro-expression, and an unforced gaze. Preserve pores and small human imperfections without beauty filtering, glossy skin, or teal-magenta cinematic grading.';
 
   // sceneOnly: identity is controlled by reference image, prompt only describes scene+action+quality
   if (options?.sceneOnly) {

@@ -74,7 +74,7 @@ export function resolveImageGenerationRoute(input: {
       width: 832,
       height: 1216,
       presetId: 'flux-companion-turbo',
-      promptPrefix: 'A sharp in-focus real-camera editorial portrait with the complete head visible, clear eyes, relaxed posture, natural skin pores, restrained grain, and believable texture.',
+      promptPrefix: 'A candid in-focus real-camera editorial frame with neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off, readable shadows, natural pores, relaxed asymmetrical posture, believable weight distribution, and an unforced expression.',
       reason: 'Turbo preview: minimal steps for fast companion draft.',
     };
   }
@@ -159,7 +159,7 @@ export function resolveImageGenerationRoute(input: {
     height: input.surface === 'companion' ? 1216 : 1024,
     presetId: input.surface === 'companion' ? 'flux-companion-natural' : `flux-${input.surface}-product`,
     promptPrefix: input.surface === 'companion'
-      ? 'A sharp in-focus real-camera editorial portrait with the complete head visible, clear eyes, relaxed posture, natural skin pores, restrained grain, and believable texture.'
+      ? 'A candid in-focus real-camera editorial frame with neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off, readable shadows, natural pores, relaxed asymmetrical posture, believable weight distribution, and an unforced expression.'
       : 'Clean commercial product photography with accurate materials and controlled lighting.',
     reason: renderStyle === '3d'
       ? '3D companion rendering uses the FLUX pipeline.'

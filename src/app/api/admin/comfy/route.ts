@@ -1248,9 +1248,11 @@ if (body.action === 'verify_loras') {
     // Determine the effective input image for img2img.
     // Pipeline explicitly sends input_image for stages that need it (turnaround, character-art).
     // If not supplied, fall back to the reference plan's best identity asset.
-    const effectiveInputImage =
-      referencePlan.primaryIdentity?.url ||
-      referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
+    // avatar-closeup is ALWAYS pure txt2img — no reference image, no img2img redraw.
+    const effectiveInputImage = assetRole === 'avatar-closeup'
+      ? undefined
+      : referencePlan.primaryIdentity?.url ||
+        referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
         ? identityTurnaroundDenoise(assetRole, denoise)
@@ -1258,7 +1260,8 @@ if (body.action === 'verify_loras') {
       : undefined;
     // IP-Adapter: face reference without composition lock (from request body or auto-resolved)
     // Only pass through when worker has ComfyUI_IPAdapter_plus installed
-    const ipAdapterEnabled = process.env.RUNPOD_IPADAPTER_INSTALLED === '1';
+    // avatar-closeup never uses IP-Adapter (pure txt2img identity anchor)
+    const ipAdapterEnabled = process.env.RUNPOD_IPADAPTER_INSTALLED === '1' && assetRole !== 'avatar-closeup';
     const ipAdapterImage = ipAdapterEnabled
       ? (String(body.ip_adapter_image || '').trim() || undefined)
       : undefined;
