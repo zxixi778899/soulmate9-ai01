@@ -1352,9 +1352,15 @@ if (body.action === 'verify_loras') {
           resolvedReferenceImage
         )
       : undefined;
-    const defaultIpAdapterWeight = assetRole === 'identity-turnaround' || assetRole.startsWith('identity-')
-      ? 0.82
-      : 0.7;
+    // Turnaround is a multi-view sheet: a strong identity weight (0.82) over-locks the
+    // single waist-up reference, so FLUX ghosts the panels or crops to chest-up instead
+    // of rendering separated full-body front/side/back views. 0.6 keeps identity while
+    // leaving enough freedom for the three-panel layout (verified across seeds).
+    const defaultIpAdapterWeight = assetRole === 'identity-turnaround'
+      ? 0.6
+      : assetRole.startsWith('identity-')
+        ? 0.82
+        : 0.7;
     const ipAdapterWeight = ipAdapterEnabled
       ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight ?? defaultIpAdapterWeight)))
       : undefined;

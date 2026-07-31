@@ -105,7 +105,10 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     steps: 28,
     guidance: 3.0,
     denoise: 0.72,
-    ipAdapterWeight: 0.82,
+    // 0.82 over-locks the waist-up avatar reference → FLUX ghosts the panels or
+    // crops to chest-up. 0.6 keeps identity while allowing the full-body
+    // front/side/back layout (verified live across seeds).
+    ipAdapterWeight: 0.6,
     referenceStages: ['avatar'],
   },
   {
