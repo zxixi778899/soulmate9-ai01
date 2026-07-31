@@ -49,45 +49,39 @@ function assetFolder(girlfriendId?: string | null, assetRole?: unknown): string 
 
 function mergeInstalledLoras(config: ComfyConsoleConfig): ComfyConsoleConfig {
   const installed = getVerifiedInstalledLoraSet();
-  if (!installed.size) return config;
-  const catalog = catalogToLoraAssets();
-  const existingFiles = new Set(config.loras.map((item) => item.filename).filter(Boolean));
-  const catalogByFile = new Map(catalog.filter((item) => item.filename).map((item) => [item.filename, item]));
+  const catalogByFile = new Map(
+    catalogToLoraAssets().filter((item) => item.filename).map((item) => [item.filename, item]),
+  );
   const registryByFile = new Map(LORA_REGISTRY.map((item) => [item.file, item]));
-  const verifiedLoras = config.loras.map((item) => installed.has(item.filename)
-    ? {
-        ...item,
-        label: item.label.startsWith('[同步盘已验证]') ? item.label : `[同步盘已验证] ${item.label}`,
-        usage: `同步盘 models/loras 已存在此文件。${loraUsageZh(item)}`,
-        source: 'runpod-volume',
-      }
-    : item);
-  const additions = [...installed].filter((file) => !existingFiles.has(file)).map((file) => {
+  const none = config.loras.find((item) => item.id === 'none') || {
+    id: 'none',
+    label: '(不使用 LoRA)',
+    filename: '',
+    default_strength: 0,
+    category: 'none',
+  };
+  const verifiedLoras = [...installed].sort().map((file) => {
     const known = catalogByFile.get(file);
-    if (known) return { ...known, label: `[同步盘已验证] ${known.label}`, source: 'runpod-volume' };
+    if (known) {
+      return { ...known, label: `[运行卷已验证] ${known.label}`, source: 'runpod-volume' };
+    }
     const registry = registryByFile.get(file);
     const stem = file.replace(/\.safetensors$/i, '');
     return {
       id: `volume:${stem.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()}`,
-      label: `[同步盘已验证] ${registry?.label || stem}`,
+      label: `[运行卷已验证] ${registry?.label || stem}`,
       filename: file,
-      default_strength: registry?.strength ?? 0.55,
+      default_strength: registry?.strength ?? 0.35,
       category: registry?.category === 'pose' ? 'action' : registry?.category || 'style',
       nsfw: registry?.category === 'pose' || /nsfw|ahegao|lingerie|bikini|latex|bunny/i.test(file),
-      usage: loraUsageZh({
-        id: stem,
-        label: registry?.label || stem,
-        filename: file,
-        category: registry?.category === 'pose' ? 'action' : registry?.category || 'style',
-      }),
+      usage: '此文件已由运行时挂载卷清单确认，可用于生成。',
       trigger_words: registry?.trigger_words || [],
       workflows: ['wf-girlfriend'],
       source: 'runpod-volume',
     };
   });
-  return { ...config, loras: [...verifiedLoras, ...additions] };
+  return { ...config, loras: [none, ...verifiedLoras] };
 }
-
 /**
  * GET /api/admin/comfy
  *   ?view=config | assets | help | loras

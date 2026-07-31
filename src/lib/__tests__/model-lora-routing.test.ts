@@ -67,12 +67,22 @@ describe('model-specific LoRA routing', () => {
       intensity: 1,
       identityAsset: true,
     });
-    expect(plan.selected).toEqual([
-      expect.objectContaining({
-        name: 'flux_realism_xlabs.safetensors',
-        strength_model: 0.3,
-      }),
-    ]);
+    expect(plan.selected).toEqual([]);
+    expect(plan.configured).toEqual([]);
+  });
+  it('fails closed when the FLUX endpoint inventory is unavailable', () => {
+    delete process.env.RUNPOD_INSTALLED_LORAS;
+    delete process.env.RUNPOD_INSTALLED_LORAS_FLUX;
+    delete process.env.RUNPOD_FLUX_LORAS;
+    delete process.env.RUNPOD_FLUX_FEMALE_LORAS;
+    const plan = resolveModelLoraPlan({
+      modelFamily: 'flux',
+      category: 'female',
+      intensity: 1,
+      requested: [{ name: 'flux_style_photoreal_v1.safetensors', strength_model: 0.3, strength_clip: 0.3 }],
+    });
+    expect(plan.selected).toEqual([]);
+    expect(plan.missing).toContain('flux_style_photoreal_v1.safetensors');
   });
   it('fails closed when the Pony endpoint inventory is unavailable', () => {
     delete process.env.RUNPOD_INSTALLED_LORAS_PONY;

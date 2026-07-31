@@ -14,6 +14,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import loraCatalog from '../../data/lora-catalog.json';
 
 // ─── Category types ──────────────────────────────────────────
 export type LoraCategory = 'style' | 'body' | 'detail' | 'outfit' | 'pose' | 'face';
@@ -38,174 +39,42 @@ export interface LoraEntry {
  * NOTE: sanitizeLoraForVolume also accepts any .safetensors filename directly
  * (permissive mode) — the registry is for metadata/strength defaults only.
  */
-export const LORA_REGISTRY: readonly LoraEntry[] = [
-  // ── Civitai LoRAs (actual files on volume) ──
-  {
-    file: 'AIDILETTA © - 2.0 - FLUX.safetensors',
-    category: 'style',
-    strength: 0.7,
-    label: 'AIDILETTA 2.0 (character)',
-    trigger_words: [],
-  },
-  {
-    file: 'flux see through lingenie 512X768.safetensors',
-    category: 'style',
-    strength: 0.6,
-    label: 'See-through lingerie',
-    trigger_words: [],
-  },
-  {
-    file: 'ZIT see through lingerie outfit V2.safetensors',
-    category: 'style',
-    strength: 0.6,
-    label: 'ZIT lingerie V2',
-    trigger_words: [],
-  },
-  // ── Legacy / generic ──
-  {
-    file: 'MASC V1.0.safetensors',
-    category: 'body',
-    strength: 0.62,
-    label: 'MASC adult masculine body',
-    trigger_words: ['adult masculine man', 'masculine physique'],
-  },
-  {
-    file: 'rdanimefluxv1rapid.safetensors',
-    category: 'style',
-    strength: 0.72,
-    label: 'RD Anime FLUX 2D',
-    trigger_words: ['anime'],
-  },
-  {
-    file: 'flux_style_photoreal_v1.safetensors',
-    category: 'style',
-    strength: 0.55,
-    label: 'Photoreal (default)',
-    trigger_words: [],
-  },
-  {
-    file: 'flux_style_hyperreal_aidma_v1.safetensors',
-    category: 'style',
-    strength: 0.50,
-    label: 'Hyperreal (AIDMA)',
-    trigger_words: [],
-  },
-  // ── Body ──
-  {
-    file: 'flux_body_curvy_v1.safetensors',
-    category: 'body',
-    strength: 0.50,
-    label: 'Curvy body',
-    trigger_words: [],
-  },
-  {
-    file: 'flux_body_pear_v1.safetensors',
-    category: 'body',
-    strength: 0.50,
-    label: 'Pear body',
-    trigger_words: [],
-  },
-  // ── Detail ──
-  {
-    file: 'flux_detail_skin_v1.safetensors',
-    category: 'detail',
-    strength: 0.40,
-    label: 'Skin detail',
-    trigger_words: [],
-  },
-  {
-    file: 'flux_detail_skin_nplastic_v1.safetensors',
-    category: 'detail',
-    strength: 0.35,
-    label: 'Skin natural (no plastic)',
-    trigger_words: [],
-  },
-  {
-    file: 'flux_detail_hands_v1.safetensors',
-    category: 'detail',
-    strength: 0.35,
-    label: 'Hand detail',
-    trigger_words: [],
-  },
-  // ── Style (cinematic) ──
-  {
-    file: 'flux_style_cinematic_v1.safetensors',
-    category: 'style',
-    strength: 0.55,
-    label: 'Cinematic',
-    trigger_words: [],
-  },
-  // ── Outfit ──
-  {
-    file: 'flux_outfit_lingerie_v1.safetensors',
-    category: 'outfit',
-    strength: 0.65,
-    label: 'Lingerie',
-    trigger_words: [],
-  },
-  {
-    file: 'flux_outfit_bunny_v1.safetensors',
-    category: 'outfit',
-    strength: 0.65,
-    label: 'Bunny suit',
-    trigger_words: [],
-  },
-  {
-    file: 'flux_outfit_maid_v1.safetensors',
-    category: 'outfit',
-    strength: 0.65,
-    label: 'Maid outfit',
-    trigger_words: [],
-  },
-  {
-    file: 'flux_outfit_bikini_v1.safetensors',
-    category: 'outfit',
-    strength: 0.60,
-    label: 'Bikini',
-    trigger_words: [],
-  },
-  {
-    file: 'flux_outfit_latex_v1.safetensors',
-    category: 'outfit',
-    strength: 0.60,
-    label: 'Latex',
-    trigger_words: [],
-  },
-  {
-    file: 'flux_outfit_school_v1.safetensors',
-    category: 'outfit',
-    strength: 0.60,
-    label: 'School uniform',
-    trigger_words: [],
-  },
-  // ── Pose / NSFW ──
-  {
-    file: 'flux_pose_nsfw_dynamic_v1.safetensors',
-    category: 'pose',
-    strength: 0.60,
-    label: 'NSFW dynamic pose',
-    trigger_words: [],
-  },
-  // ── Face ──
-  {
-    file: 'flux_face_ahegao_v1.safetensors',
-    category: 'face',
-    strength: 0.50,
-    label: 'Ahegao expression',
-    trigger_words: [],
-  },
-] as const;
+type CatalogRegistryRow = {
+  filename: string;
+  label: string;
+  category: string;
+  default_strength: number;
+  trigger_words?: string[];
+};
+
+/** Metadata catalog only. Runtime presence is always verified separately. */
+export const LORA_REGISTRY: readonly LoraEntry[] = (
+  (loraCatalog.loras || []) as CatalogRegistryRow[]
+).map((item) => ({
+  file: item.filename,
+  label: item.label,
+  category: item.category === 'action' ? 'pose' : item.category as LoraCategory,
+  strength: item.default_strength,
+  trigger_words: item.trigger_words || [],
+}));
 
 // ─── Installed set helpers ───────────────────────────────────
 
 function parseEnvInstalled(): string[] {
-  const raw = process.env.RUNPOD_INSTALLED_LORAS || process.env.COMFY_INSTALLED_LORAS || '';
+  const raw = [
+    process.env.RUNPOD_INSTALLED_LORAS,
+    process.env.RUNPOD_INSTALLED_LORAS_FLUX,
+    process.env.RUNPOD_INSTALLED_LORAS_PONY,
+    process.env.RUNPOD_INSTALLED_LORAS_ILLUSTRIOUS,
+    process.env.RUNPOD_INSTALLED_LORAS_SDXL,
+    process.env.COMFY_INSTALLED_LORAS,
+  ].filter(Boolean).join(',');
   if (!raw.trim()) return [];
-  return raw
+  return [...new Set(raw
     .split(/[,;\n]/)
     .map((s) => s.trim())
     .filter(Boolean)
-    .map((s) => (s.endsWith('.safetensors') ? s : `${s}.safetensors`));
+    .map((s) => (s.endsWith('.safetensors') ? s : `${s}.safetensors`)))];
 }
 
 /** Runtime inventory reported from the mounted RunPod volume. */
@@ -218,11 +87,9 @@ export function hasVerifiedLoraInventory(): boolean {
   return getVerifiedInstalledLoraSet().size > 0;
 }
 
-/** Legacy allowlist used to keep generation backward compatible. */
+/** Authoritative runtime allowlist. Static metadata never proves a file exists. */
 export function getInstalledLoraSet(): Set<string> {
-  const set = new Set<string>(LORA_REGISTRY.map((e) => e.file));
-  for (const extra of parseEnvInstalled()) set.add(extra);
-  return set;
+  return getVerifiedInstalledLoraSet();
 }
 
 export function isLoraInstalled(name: string | null | undefined): boolean {
@@ -291,11 +158,6 @@ export function sanitizeLoraForVolume(
     return { lora_name: base, changed: base !== raw, reason: 'basename' };
   }
 
-  // Permissive mode: accept any .safetensors filename directly
-  // (admin knows what's on the volume — don't block unknown LoRAs)
-  if (base.endsWith('.safetensors') && !hasVerifiedLoraInventory()) {
-    return { lora_name: base, changed: base !== raw, reason: 'unverified-permissive' };
-  }
 
   // Fallback chain
   const fb =

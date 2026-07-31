@@ -21,11 +21,11 @@ const splitList = (value: string | undefined): string[] =>
 
 const DEFAULT_FAMILY_LORAS: Record<ImageModelFamily, Partial<Record<CompanionCategory | 'nsfw' | '2d', string[]>>> = {
   flux: {
-    female: ['flux_realism_xlabs.safetensors', 'flux_add_details.safetensors', 'flux_uncensored.safetensors'],
-    male: ['flux_krea_realism.safetensors', 'flux_add_details.safetensors', 'flux_uncensored.safetensors'],
-    transgender: ['flux_hyperrealism_aidma.safetensors', 'flux_add_details.safetensors', 'flux_uncensored.safetensors'],
-    anime: ['flux_detail_enhancer.safetensors'],
-    nsfw: ['flux_nsfw_klein_v2.safetensors'],
+    female: [],
+    male: [],
+    transgender: [],
+    anime: [],
+    nsfw: [],
   },
   pony: {
     female: ['pony_detailifier_v5.safetensors'],
@@ -167,6 +167,17 @@ export function resolveModelLoraPlan(input: {
   maxLoras?: number;
   identityAsset?: boolean;
 }): ModelLoraPlan {
+  // Identity anchors use the base checkpoint only. Style/detail LoRAs can change
+  // age, facial geometry and colour before a stable identity exists.
+  if (input.identityAsset) {
+    return {
+      selected: [],
+      configured: [],
+      missing: [],
+      inventorySource: inventoryForFamily(input.modelFamily).source,
+      triggerWords: [],
+    };
+  }
   const maxLoras = input.identityAsset
     ? 1
     : Math.min(4, Math.max(1, input.maxLoras || 3));
@@ -190,11 +201,7 @@ export function resolveModelLoraPlan(input: {
     !input.identityAsset ||
     !/(?:add[_-]?details?|detail|skin|micro|hyperreal|aidma|nsfw|uncensored|pose|body|anatomy)/i.test(name),
   );
-  const inventoryVerified = inventory.files.size > 0;
-  const allowUnverified = input.modelFamily === 'flux';
-  const verifiedNames = names.filter(
-    (name) => inventory.files.has(name) || (!inventoryVerified && allowUnverified),
-  );
+  const verifiedNames = names.filter((name) => inventory.files.has(name));
   const fallbackNames = verifiedNames.length === 0 && canAutoSelectInventory
     ? rankInventory(inventory.files, input.category, input.intensity)
     : [];
@@ -218,7 +225,7 @@ export function resolveModelLoraPlan(input: {
       strength_clip: Number((item.strength_clip * scale).toFixed(2)),
     })),
     configured: names,
-    missing: names.filter((name) => !inventory.files.has(name) && (inventoryVerified || !allowUnverified)),
+    missing: names.filter((name) => !inventory.files.has(name)),
     inventorySource: inventory.source,
     triggerWords: [...new Set(selected.flatMap((item) => triggersForLora(item.name)))],
   };

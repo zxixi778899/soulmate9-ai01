@@ -62,46 +62,8 @@ export type LoraCatalog = {
 
 export const LORA_CATALOG = catalogJson as unknown as LoraCatalog;
 
-const PRACTICAL_LORAS: CatalogLora[] = [
-  {
-    id: 'body-masculine-flux', label: '成年男性体型 MASC', category: 'body',
-    filename: 'MASC V1.0.safetensors', default_strength: 0.62, nsfw: false,
-    usage: '男性外观与体型控制：强化成年男性面部、肩背、胸腹和阳刚轮廓；生殖结构仍由提示词与底模负责。',
-    trigger_words: ['adult masculine man', 'masculine physique'], workflows: ['wf-girlfriend'], source: 'civitai',
-    page_url: 'https://civitai.com/models/879573', version_id: 1967998,
-    sha256: 'AB521113F14E583263FE9E6BB819F8ED32E6B605CDCC08F4942B3C61EEADF79E',
-    download_url: 'https://civitai.com/api/download/models/1967998',
-    search_keywords: 'FLUX realistic masculine men MASC',
-    download: { type: 'civitai_version', hint: 'FLUX.1 D；SafeTensor 扫描通过' },
-  },
-  {
-    id: 'style-anime-2d-flux', label: '二次元 2D 赛璐璐', category: 'style',
-    filename: 'rdanimefluxv1rapid.safetensors', default_strength: 0.72, nsfw: false,
-    usage: '2D 动漫插画：稳定线稿、赛璐璐上色、动漫五官和发型；不要与写实风格 LoRA 叠加。',
-    trigger_words: ['anime'],
-    workflows: ['wf-girlfriend'], source: 'civitai',
-    page_url: 'https://civitai.com/models/772320',
-    version_id: 863817,
-    sha256: '49D581E274F0D50492E4A7A72DA49BA8F3C69DD3549AEF6FD86554F1A2B28F5F',
-    download_url: 'https://civitai.com/api/download/models/863817',
-    search_keywords: 'FLUX anime 2D cel shading',
-    download: { type: 'manual_or_script', hint: '优先选择 FLUX.1 D 原生 2D 动漫 LoRA' },
-  },
-  {
-    id: 'style-anime-3d-flux', label: '二次元 3D CGI', category: 'style',
-    filename: 'flux_style_anime_3d_v1.safetensors', default_strength: 0.68, nsfw: true,
-    usage: '3D 动漫 CGI：稳定角色建模、PBR 材质、发丝和电影灯光；不要与 2D 线稿 LoRA 叠加。',
-    trigger_words: ['3d anime cgi', 'stylized PBR character', 'cinematic render'],
-    workflows: ['wf-girlfriend'], source: 'civitai',
-    page_url: 'https://civitai.com/models?types=LORA&baseModels=Flux.1%20D&query=anime%203d%20cgi',
-    search_keywords: 'FLUX anime 3D CGI PBR',
-    download: { type: 'manual_or_script', hint: '优先选择 FLUX.1 D 原生 3D 动漫 LoRA' },
-  },
-];
-
 export function getCatalogLoras(): CatalogLora[] {
-  const existing = new Set((LORA_CATALOG.loras || []).map((lora) => lora.id));
-  return [...(LORA_CATALOG.loras || []), ...PRACTICAL_LORAS.filter((lora) => !existing.has(lora.id))];
+  return LORA_CATALOG.loras || [];
 }
 
 export function getCatalogLoraById(id: string): CatalogLora | undefined {

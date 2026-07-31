@@ -107,7 +107,7 @@ export function resolveImageGenerationRoute(input: {
 
   // ─── Adult / NSFW anatomy (FLUX pipeline) ─────────────────────────────────
   // Uses FLUX with explicit natural-language prompt. LoRA routing will select
-  // flux_nsfw_klein_v2 + flux_uncensored for intensity >= 3 downstream.
+  // Model-family routing may add only runtime-verified LoRAs downstream.
   const needsAdultAnatomy = input.surface === 'companion' && renderStyle === 'realistic' &&
     (intensity >= 3 || category === 'transgender' || complexScene);
   if (needsAdultAnatomy) {

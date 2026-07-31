@@ -1,16 +1,16 @@
 {
-  "version": 4,
-  "updated": "2026-07-28",
+  "version": 5,
+  "updated": "2026-07-30",
+  "base_model": "multi-family",
   "target_volume": "p1dup48kuq",
   "volume_path": "/runpod-volume/models/loras",
   "region": "US-CA-2",
   "notes": [
-    "v4: 多模型族(FLUX/Pony/Illustrious)实际部署清单",
-    "路由规则由 src/lib/model-lora-routing.ts DEFAULT_FAMILY_LORAS 控制",
-    "Vercel env RUNPOD_INSTALLED_LORAS 必须与 installed=true 的 filename 一致",
-    "强度由 resolveModelLoraPlan() 按 intensity 自动计算，total cap 1.65",
-    "Civitai 下载需 token=f4dfc61f5bfffd47b9b3dd8b7da12a13",
-    "HuggingFace 公开镜像无需认证"
+    "v5：目录与 CD1/CD2 下载清单同步，共 15 个有真实 Civitai version ID 的文件。",
+    "installed=false 表示静态目录不证明文件已下载；可用性只由 RUNPOD_INSTALLED_LORAS_* 运行时清单决定。",
+    "身份头像和三视图始终使用基础模型，不自动加载 LoRA。",
+    "下载鉴权只允许通过环境变量 CIVITAI_TOKEN 注入，仓库不保存令牌。",
+    "上游模型名、版本名、原始文件名、底模、大小与 SHA256 于 2026-07-30 通过 Civitai 官方 model-versions API 核对。"
   ],
   "families": [
     "flux",
@@ -19,365 +19,534 @@
   ],
   "categories": [
     {
-      "id": "realism",
-      "label": "写实/真实感",
+      "label": "风格",
+      "id": "style",
       "order": 1
     },
     {
+      "label": "细节",
       "id": "detail",
-      "label": "细节增强",
       "order": 2
     },
     {
-      "id": "nsfw",
-      "label": "NSFW 专用",
+      "label": "体型",
+      "id": "body",
       "order": 3
     },
     {
-      "id": "uncensored",
-      "label": "解除审查",
+      "label": "动作",
+      "id": "action",
       "order": 4
     },
     {
-      "id": "2d",
-      "label": "2D/平面",
+      "label": "服装",
+      "id": "outfit",
       "order": 5
     }
   ],
   "loras": [
     {
-      "id": "flux-realism-xlabs",
-      "filename": "flux_realism_xlabs.safetensors",
-      "label": "FLUX 写实 (XLabs)",
-      "family": "flux",
-      "category": "realism",
-      "installed": true,
-      "size_mb": 21.4,
-      "default_strength": 0.58,
+      "id": "flux-style-photoreal-v1",
+      "label": "FLUX 写实摄影",
+      "category": "style",
+      "filename": "flux_style_photoreal_v1.safetensors",
+      "default_strength": 0.3,
       "nsfw": false,
-      "routing": {
-        "female": true
-      },
+      "usage": "仅用于场景成片的轻量写实风格；头像和三视图禁用。",
       "trigger_words": [
-        "realistic",
-        "photorealistic",
-        "raw photo"
-      ],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/Muapi/flux-lora-collection/resolve/main/flux_realism_xlabs.safetensors",
-      "usage": "女性写实人像主LoRA。搭配 add_details + uncensored 三件套。"
-    },
-    {
-      "id": "flux-krea-realism",
-      "filename": "flux_krea_realism.safetensors",
-      "label": "FLUX Krea 写实",
-      "family": "flux",
-      "category": "realism",
-      "installed": true,
-      "size_mb": 85.6,
-      "default_strength": 0.58,
-      "nsfw": false,
-      "routing": {
-        "male": true
-      },
-      "trigger_words": [
-        "realistic",
-        "photorealistic",
-        "natural lighting"
-      ],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/LarryAIDraw/flux-krea-realism-lora/resolve/main/flux_krea_realism.safetensors",
-      "usage": "男性写实主LoRA。Krea风格自然光影。搭配 add_details + uncensored。"
-    },
-    {
-      "id": "flux-hyperrealism-aidma",
-      "filename": "flux_hyperrealism_aidma.safetensors",
-      "label": "FLUX 超写实 (AIDMA)",
-      "family": "flux",
-      "category": "realism",
-      "installed": true,
-      "size_mb": 73.1,
-      "default_strength": 0.58,
-      "nsfw": false,
-      "routing": {
-        "transgender": true
-      },
-      "trigger_words": [
-        "hyperrealistic",
-        "ultra detailed",
         "photorealistic"
       ],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/Muapi/flux-lora-collection/resolve/main/flux_hyperrealism_aidma.safetensors",
-      "usage": "跨性别超写实主LoRA。AIDMA Hyperrealism风格。搭配 add_details + uncensored。"
-    },
-    {
-      "id": "flux-add-details",
-      "filename": "flux_add_details.safetensors",
-      "label": "FLUX 细节增强 (Shakker)",
-      "family": "flux",
-      "category": "detail",
-      "installed": true,
-      "size_mb": 655.6,
-      "default_strength": 0.5,
-      "nsfw": false,
-      "routing": {
-        "female": true,
-        "male": true,
-        "transgender": true
-      },
-      "trigger_words": [
-        "detailed",
-        "high quality",
-        "sharp focus"
+      "workflows": [
+        "wf-girlfriend"
       ],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/Shakker-Labs/FLUX.1-dev-LoRA-add-details/resolve/main/FLUX-dev-lora-add_details.safetensors",
-      "usage": "通用细节增强辅助LoRA。所有FLUX写实路由必挂。强度不宜过高(0.4-0.55)。"
+      "source": "civitai",
+      "version_id": 1084957,
+      "civitai_version_id": 1084957,
+      "sha256": "1DFADD058CF7BEDF41F0DDC8BD83F9AC3B285A36C60ACAB618EEAC72A4568B99",
+      "download_url": "https://civitai.com/api/download/models/1084957",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "FLUX Immersive Photorealistic (LoRA)",
+      "version_name": "Zphyr_FLUX_Photoreal_LoRA",
+      "upstream_filename": "Zphyr_FLUX_Photorealistic_LoRA.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 111.36
     },
     {
-      "id": "flux-detail-enhancer",
-      "filename": "flux_detail_enhancer.safetensors",
-      "label": "FLUX 细节增强器",
-      "family": "flux",
+      "id": "flux-detail-skin-v1",
+      "label": "FLUX 自然皮肤细节",
       "category": "detail",
-      "installed": true,
-      "size_mb": 164,
-      "default_strength": 0.5,
+      "filename": "flux_detail_skin_v1.safetensors",
+      "default_strength": 0.2,
       "nsfw": false,
-      "routing": {
-        "anime": true
-      },
+      "usage": "成片皮肤细节，低强度按需使用。",
       "trigger_words": [
-        "detailed",
-        "intricate details",
-        "high resolution"
+        "natural skin texture"
       ],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/Muapi/flux-lora-collection/resolve/main/flux_detail_enhancer.safetensors",
-      "usage": "FLUX anime/2.5D风格细节增强。用于anime路由。"
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 827325,
+      "civitai_version_id": 827325,
+      "sha256": "C9FAB54482CD63A1996788730D91C96DD832C5165B8E0C365920EEF60CDE715E",
+      "download_url": "https://civitai.com/api/download/models/827325",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Flux Skin Texture",
+      "version_name": "FluxRealSkin-v2.0",
+      "upstream_filename": "fluxRealSkin-V2.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 164
     },
     {
-      "id": "flux-uncensored",
-      "filename": "flux_uncensored.safetensors",
-      "label": "FLUX 解除审查",
-      "family": "flux",
-      "category": "uncensored",
-      "installed": true,
-      "size_mb": 37.9,
-      "default_strength": 0.5,
+      "id": "flux-detail-skin-nplastic-v1",
+      "label": "FLUX 去塑料皮肤",
+      "category": "detail",
+      "filename": "flux_detail_skin_nplastic_v1.safetensors",
+      "default_strength": 0.2,
       "nsfw": false,
-      "routing": {
-        "female": true,
-        "male": true,
-        "transgender": true
-      },
-      "trigger_words": [],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/aifeifei798/flux-lora-uncensored/resolve/main/flux-lora-uncensored.safetensors",
-      "usage": "解除FLUX内容限制。所有写实路由必挂，允许生成NSFW内容。无需触发词。"
+      "usage": "降低蜡像感，低强度按需使用。",
+      "trigger_words": [
+        "natural skin"
+      ],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 1301668,
+      "civitai_version_id": 1301668,
+      "sha256": "DA97701B932C33E2F3AE53A889DDC9C8139BD3D5FC12BE52C2400478A5D88EE1",
+      "download_url": "https://civitai.com/api/download/models/1301668",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Photorealistic Skin - No plastic [FLUX]",
+      "version_name": "FLUX v0.1",
+      "upstream_filename": "aidmaRealisticSkin-FLUX-v0.1.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 73.14
     },
     {
-      "id": "flux-nsfw-klein-v2",
-      "filename": "flux_nsfw_klein_v2.safetensors",
-      "label": "FLUX NSFW Klein V2",
+      "id": "flux-detail-hands-v1",
+      "label": "FLUX 手部细节",
+      "category": "detail",
+      "filename": "flux_detail_hands_v1.safetensors",
+      "default_strength": 0.2,
+      "nsfw": false,
+      "usage": "手部特写按需使用。",
+      "trigger_words": [
+        "detailed hands"
+      ],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 1003317,
+      "civitai_version_id": 1003317,
+      "sha256": "DB03488D97D57FC4024322BA799DBF4EF3C894DFEEB2560D1FBED994F842A335",
+      "download_url": "https://civitai.com/api/download/models/1003317",
+      "base_model": "FLUX.1",
       "family": "flux",
-      "category": "nsfw",
-      "installed": true,
-      "size_mb": 158,
-      "default_strength": 0.65,
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Hand Detail FLUX & XL",
+      "version_name": "v3.0-FLUX",
+      "upstream_filename": "Detailed_Hands-000001.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 85.59
+    },
+    {
+      "id": "flux-body-curvy-v1",
+      "label": "FLUX 曲线体型",
+      "category": "body",
+      "filename": "flux_body_curvy_v1.safetensors",
+      "default_strength": 0.35,
+      "nsfw": false,
+      "usage": "明确要求曲线体型时使用。",
+      "trigger_words": [
+        "curvy body"
+      ],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 1668530,
+      "civitai_version_id": 1668530,
+      "sha256": "A2740BF10F7C747BBD8F7A93FDA830D79EBAE890ACAD4F3AB4E8A293C58CDA5A",
+      "download_url": "https://civitai.com/api/download/models/1668530",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Hourglass Body Shape",
+      "version_name": "v3.2 FLUX",
+      "upstream_filename": "hourglassv32_FLUX.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 292.27
+    },
+    {
+      "id": "flux-body-pear-v1",
+      "label": "FLUX 梨形体型",
+      "category": "body",
+      "filename": "flux_body_pear_v1.safetensors",
+      "default_strength": 0.35,
+      "nsfw": false,
+      "usage": "明确要求梨形体型时使用。",
+      "trigger_words": [
+        "pear body"
+      ],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 1276427,
+      "civitai_version_id": 1276427,
+      "sha256": "CA5800DDB7713E592764D5494E4897F20E788F445EDEF5967396443F18292091",
+      "download_url": "https://civitai.com/api/download/models/1276427",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Mewtwo Body type (Pear body)",
+      "version_name": "v1.0",
+      "upstream_filename": "mew2bodi.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 164
+    },
+    {
+      "id": "flux-pose-nsfw-dynamic-v1",
+      "label": "FLUX 成人动态姿势",
+      "category": "action",
+      "filename": "flux_pose_nsfw_dynamic_v1.safetensors",
+      "default_strength": 0.4,
       "nsfw": true,
-      "routing": {
-        "nsfw": true
-      },
+      "usage": "仅成人场景动作图按需使用。",
       "trigger_words": [
-        "explicit",
-        "nsfw"
+        "dynamic pose"
       ],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/AntiLeecher/Flux-Klein-NSFW-Lora/resolve/main/Flux%20Klein%20-%20NSFW%20v2.safetensors",
-      "usage": "FLUX专用NSFW LoRA。intensity>=3时自动挂载。增强解剖学细节。"
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 746602,
+      "civitai_version_id": 746602,
+      "sha256": "84CE473CDEAA1DDD016CDF0406E08B43BB14C01D2C94EF48DA2A035BB0B925C2",
+      "download_url": "https://civitai.com/api/download/models/746602",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "NSFW MASTER",
+      "version_name": "v1.0",
+      "upstream_filename": "NSFW_master.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 164
+    },
+    {
+      "id": "flux-outfit-lingerie-v1",
+      "label": "FLUX 内衣服装",
+      "category": "outfit",
+      "filename": "flux_outfit_lingerie_v1.safetensors",
+      "default_strength": 0.45,
+      "nsfw": true,
+      "usage": "明确选择内衣服装时使用。",
+      "trigger_words": [
+        "lingerie"
+      ],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 869894,
+      "civitai_version_id": 869894,
+      "sha256": "08BA76E7799FFB4B5031C2B5B628A3AA58C86673DEA2D2CE9ADE197B220FD997",
+      "download_url": "https://civitai.com/api/download/models/869894",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Lingerie Model Photography Flux1.d Lora",
+      "version_name": "v1.0",
+      "upstream_filename": "lingerie_model_flux_lora.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 73.14
+    },
+    {
+      "id": "flux-outfit-bikini-v1",
+      "label": "FLUX 比基尼服装",
+      "category": "outfit",
+      "filename": "flux_outfit_bikini_v1.safetensors",
+      "default_strength": 0.4,
+      "nsfw": false,
+      "usage": "明确选择比基尼时使用。",
+      "trigger_words": [
+        "bikini"
+      ],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 1184191,
+      "civitai_version_id": 1184191,
+      "sha256": "341076066E09C344E3216E625C9C672A6005EB1E7F7434AD5F741C6DFFD55D17",
+      "download_url": "https://civitai.com/api/download/models/1184191",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Bikini Model #1 (Flux)",
+      "version_name": "v1.0",
+      "upstream_filename": "bikinim1_flux_v1.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 327.88
+    },
+    {
+      "id": "flux-outfit-latex-v1",
+      "label": "FLUX 乳胶头套",
+      "category": "outfit",
+      "filename": "flux_outfit_latex_v1.safetensors",
+      "default_strength": 0.4,
+      "nsfw": true,
+      "usage": "仅在明确要求乳胶头套时使用，不可当作通用乳胶服装 LoRA。",
+      "trigger_words": [
+        "latex outfit"
+      ],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 734230,
+      "civitai_version_id": 734230,
+      "sha256": "206AC14630340CAF2E1BA2D7F5514E37DEF6FDB1BD930CD8B879E67C6EF3A683",
+      "download_url": "https://civitai.com/api/download/models/734230",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Latex Hood",
+      "version_name": "Flux v1.0",
+      "upstream_filename": "latexHood.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 49.94
+    },
+    {
+      "id": "flux-style-cinematic-v1",
+      "label": "FLUX 电影摄影",
+      "category": "style",
+      "filename": "flux_style_cinematic_v1.safetensors",
+      "default_strength": 0.3,
+      "nsfw": false,
+      "usage": "场景成片的电影光线风格；头像和三视图禁用。",
+      "trigger_words": [
+        "cinematic"
+      ],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 953083,
+      "civitai_version_id": 953083,
+      "sha256": "BB7CE7A60A82298D25BAA6D7CE8D277A46E2E7990D6897B1C8C888D53AB5480C",
+      "download_url": "https://civitai.com/api/download/models/953083",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Realism cinematic photographic style F1D",
+      "version_name": "Realism F1D v1.5",
+      "upstream_filename": "realism style v2.safetensors",
+      "upstream_base_model": "Flux.1 D",
+      "size_mb": 969.25
     },
     {
       "id": "pony-detailifier-v5",
-      "filename": "pony_detailifier_v5.safetensors",
-      "label": "Pony 细节化 V5",
-      "family": "pony",
+      "label": "Pony Detailifier v5",
       "category": "detail",
-      "installed": true,
-      "size_mb": 18.4,
-      "default_strength": 0.55,
+      "filename": "pony_detailifier_v5.safetensors",
+      "default_strength": 0.35,
       "nsfw": false,
-      "routing": {
-        "female": true,
-        "male": true,
-        "transgender": true,
-        "anime": true,
-        "nsfw": true
-      },
+      "usage": "仅用于 Pony 系列模型的细节增强。",
       "trigger_words": [
         "detailerlora"
       ],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/Muapi/pony-lora-collection/resolve/main/pony_detailifier_v5.safetensors",
-      "usage": "Pony模型万能细节LoRA。所有Pony路由统一使用。触发词: detailerlora。"
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 624633,
+      "civitai_version_id": 624633,
+      "sha256": "DFE0D5AA6199F9E474709AF357A88092A35949266AD03361E6F6F92430DADF05",
+      "download_url": "https://civitai.com/api/download/models/624633",
+      "base_model": "Pony",
+      "family": "pony",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Detailifier",
+      "version_name": "Pony v5.0",
+      "upstream_filename": "detailer_v5.safetensors",
+      "upstream_base_model": "Pony",
+      "size_mb": 217.9
     },
     {
       "id": "illustrious-micro-details-v6",
-      "filename": "AddMicroDetails_Illustrious_v6.safetensors",
-      "label": "Illustrious 微细节 V6",
-      "family": "illustrious",
+      "label": "Illustrious Add Micro Details v6",
       "category": "detail",
-      "installed": true,
-      "size_mb": 217.9,
-      "default_strength": 0.55,
+      "filename": "AddMicroDetails_Illustrious_v6.safetensors",
+      "default_strength": 0.3,
       "nsfw": false,
-      "routing": {
-        "female": true,
-        "male": true,
-        "transgender": true,
-        "anime": true
-      },
-      "trigger_words": [
-        "micro details",
-        "detailed skin"
+      "usage": "仅用于 Illustrious 模型的微细节增强。",
+      "trigger_words": [],
+      "workflows": [
+        "wf-girlfriend"
       ],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/Muapi/illustrious-lora-collection/resolve/main/AddMicroDetails_Illustrious_v6.safetensors",
-      "usage": "Illustrious底模微细节增强。皮肤纹理、衣物褶皱。所有Illustrious路由主LoRA。"
+      "source": "civitai",
+      "version_id": 2832991,
+      "civitai_version_id": 2832991,
+      "sha256": "CE12AF9C5E510A745618F76F1197C5776CD283E5DDDD707FC0371AFD940B4454",
+      "download_url": "https://civitai.com/api/download/models/2832991",
+      "base_model": "Illustrious",
+      "family": "illustrious",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Add Micro Details - Concept",
+      "version_name": "v6.0_Illustrious",
+      "upstream_filename": "AddMicroDetails_Illustrious_v6.safetensors",
+      "upstream_base_model": "Illustrious",
+      "size_mb": 217.89
+    },
+    {
+      "id": "illustrious-detail-slider-v1",
+      "label": "Illustrious Detail Slider v1",
+      "category": "detail",
+      "filename": "StS-Illustrious-Detail-Slider-v1.0.safetensors",
+      "default_strength": 0.3,
+      "nsfw": false,
+      "usage": "仅用于 Illustrious 模型的细节滑块。",
+      "trigger_words": [],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "civitai",
+      "version_id": 1122976,
+      "civitai_version_id": 1122976,
+      "sha256": "2E7A68EC7E2EBA5A07881E885E072213BBB1B03CBF881D852F0F85623AD99349",
+      "download_url": "https://civitai.com/api/download/models/1122976",
+      "base_model": "Illustrious",
+      "family": "illustrious",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Detail Slider LoRA | Illustrious-XL",
+      "version_name": "v1.0 - Initial Release",
+      "upstream_filename": "StS-Illustrious-Detail-Slider-v1.0.safetensors",
+      "upstream_base_model": "Illustrious",
+      "size_mb": 8.38
     },
     {
       "id": "illustrious-background-detailer-v3",
-      "filename": "BackgroundDetailerV3-000004.safetensors",
-      "label": "Illustrious 背景细节 V3",
-      "family": "illustrious",
+      "label": "Illustrious Background Detailer V3",
       "category": "detail",
-      "installed": false,
-      "size_mb": 218,
-      "default_strength": 0.5,
+      "filename": "BackgroundDetailerV3-000004.safetensors",
+      "default_strength": 0.3,
       "nsfw": false,
-      "routing": {
-        "female": true,
-        "male": true,
-        "transgender": true,
-        "anime": true
-      },
+      "usage": "Pony Beta V3 背景细节版本；仅在 Pony 路线按需使用。",
       "trigger_words": [
         "detailed background"
       ],
-      "source": "civitai",
-      "civitai_model_id": 422243,
-      "civitai_version_id": 726791,
-      "download_url": "https://civitai.com/api/download/models/726791?token=f4dfc61f5bfffd47b9b3dd8b7da12a13",
-      "usage": "Illustrious背景/场景细节增强。风景、建筑、室内环境。搭配MicroDetails使用。",
-      "notes": "RunPod serverless自定义镜像当前故障，文件已下载到本地待推送"
-    },
-    {
-      "id": "illustrious-detail-slider",
-      "filename": "StS-Illustrious-Detail-Slider-v1.0.safetensors",
-      "label": "Illustrious 细节滑块",
-      "family": "illustrious",
-      "category": "2d",
-      "installed": true,
-      "size_mb": 8.4,
-      "default_strength": 0.5,
-      "nsfw": false,
-      "routing": {
-        "2d": true
-      },
-      "trigger_words": [
-        "detail slider"
+      "workflows": [
+        "wf-girlfriend"
       ],
-      "source": "huggingface",
-      "download_url": "https://huggingface.co/Muapi/illustrious-lora-collection/resolve/main/StS-Illustrious-Detail-Slider-v1.0.safetensors",
-      "usage": "Illustrious 2D/平面风格细节控制。animeStyle='2d'时挂载。"
+      "source": "civitai",
+      "version_id": 726791,
+      "civitai_version_id": 726791,
+      "sha256": "DF9E5D5356D662FEE519FF2C448EE1422A43B516BF26798B6AEE4EED410391B3",
+      "download_url": "https://civitai.com/api/download/models/726791",
+      "base_model": "Pony",
+      "family": "pony",
+      "installed": false,
+      "notes": "目录元数据；只有运行时挂载卷清单确认后才可用。",
+      "model_name": "Background/Scenery Detailer",
+      "version_name": "Pony Beta V3",
+      "upstream_filename": "BackgroundDetailerV3-000004.safetensors",
+      "upstream_base_model": "Pony",
+      "size_mb": 217.88
     }
   ],
   "routing_rules": {
-    "description": "由 model-lora-routing.ts DEFAULT_FAMILY_LORAS 硬编码，env可覆盖",
-    "flux": {
-      "female": [
-        "flux_realism_xlabs.safetensors",
-        "flux_add_details.safetensors",
-        "flux_uncensored.safetensors"
+    "description": "不自动加载静态目录 LoRA；仅允许运行时已验证文件，身份资产禁用 LoRA。",
+    "illustrious": {
+      "anime": [
+        "illustrious-micro-details-v6"
       ],
       "male": [
-        "flux_krea_realism.safetensors",
-        "flux_add_details.safetensors",
-        "flux_uncensored.safetensors"
+        "illustrious-micro-details-v6"
+      ],
+      "female": [
+        "illustrious-micro-details-v6"
       ],
       "transgender": [
-        "flux_hyperrealism_aidma.safetensors",
-        "flux_add_details.safetensors",
-        "flux_uncensored.safetensors"
+        "illustrious-micro-details-v6"
       ],
-      "anime": [
-        "flux_detail_enhancer.safetensors"
-      ],
-      "nsfw": [
-        "flux_nsfw_klein_v2.safetensors"
+      "2d": [
+        "illustrious-detail-slider-v1"
       ]
     },
     "pony": {
-      "all": [
-        "pony_detailifier_v5.safetensors"
-      ]
-    },
-    "illustrious": {
-      "female": [
-        "AddMicroDetails_Illustrious_v6.safetensors",
-        "BackgroundDetailerV3-000004.safetensors"
+      "anime": [
+        "pony-detailifier-v5"
       ],
       "male": [
-        "AddMicroDetails_Illustrious_v6.safetensors",
-        "BackgroundDetailerV3-000004.safetensors"
+        "pony-detailifier-v5"
+      ],
+      "female": [
+        "pony-detailifier-v5"
+      ],
+      "nsfw": [
+        "pony-detailifier-v5"
       ],
       "transgender": [
-        "AddMicroDetails_Illustrious_v6.safetensors",
-        "BackgroundDetailerV3-000004.safetensors"
-      ],
-      "anime": [
-        "AddMicroDetails_Illustrious_v6.safetensors",
-        "BackgroundDetailerV3-000004.safetensors"
-      ],
-      "2d": [
-        "StS-Illustrious-Detail-Slider-v1.0.safetensors"
+        "pony-detailifier-v5"
       ]
+    },
+    "flux": {
+      "anime": [],
+      "male": [],
+      "female": [],
+      "nsfw": [],
+      "transgender": []
     }
   },
   "generation_params": {
-    "flux": {
-      "steps": 22,
-      "cfg": 1,
-      "sampler": "euler",
-      "scheduler": "simple"
+    "illustrious": {
+      "clip_skip": 2,
+      "scheduler": "karras",
+      "cfg": 6,
+      "steps": 30,
+      "sampler": "dpmpp_2m_sde"
     },
     "pony": {
-      "steps": 28,
-      "cfg": 7,
-      "sampler": "euler_ancestral",
-      "scheduler": "normal",
-      "clip_skip": 2
+      "clip_skip": 2,
+      "scheduler": "karras",
+      "cfg": 6,
+      "steps": 30,
+      "sampler": "dpmpp_2m_sde"
     },
-    "illustrious": {
-      "steps": 26,
-      "cfg": 7,
-      "sampler": "euler_ancestral",
-      "scheduler": "normal",
-      "clip_skip": 2
-    },
-    "turbo": {
-      "steps": 12,
+    "flux": {
+      "scheduler": "simple",
       "cfg": 1,
-      "sampler": "euler",
-      "scheduler": "simple"
+      "steps": 28,
+      "sampler": "euler"
     }
   },
   "stacking_tips": [
-    "FLUX: 最多3个LoRA (主写实 + add_details + uncensored)，NSFW时+klein_v2替换uncensored",
-    "Pony: 单LoRA (detailifier_v5) 即可，触发词 detailerlora 必须加入prompt",
-    "Illustrious: 2个LoRA (MicroDetails + BackgroundDetailer)，2D风格用DetailSlider替换",
-    "强度自动计算: base=0.5~0.72(按intensity)，每个递减0.08，total cap 1.65",
-    "文件名必须与 /runpod-volume/models/loras/ 下完全一致"
-  ]
+    "身份头像/三视图：零 LoRA，先获得稳定身份锚点。",
+    "立绘/相册：IP-Adapter 保持人物一致性，LoRA 只补充明确的服装、动作或轻量风格。",
+    "写实和皮肤细节 LoRA 总强度建议不超过 0.5，避免老化、偏色和塑料感。"
+  ],
+  "apply_recipes": []
 }

@@ -132,28 +132,28 @@ const CATEGORY_BASE: Record<CompanionCategory, {
     style: 'Photograph the scene as an intimate editorial with lifelike skin, subtle pores and peach fuzz, controlled warm light, natural depth, and a clearly focused subject.',
     negative: `male body, masculine face, flat chest, plastic skin, airbrushed, cartoon, painting, ${BLOCKED}`,
     quality: 'Keep the face and anatomy coherent, the eyes expressive, and the lighting and color treatment professionally controlled.',
-    loraHint: 'flux_realism_xlabs + flux_add_details + flux_uncensored',
+    loraHint: 'identity assets: none; scenes: verified style/detail LoRA only',
   },
   male: {
     subject: 'A striking adult man age 25+, athletic masculine physique, broad shoulders, defined muscular torso and abs, v-line, bare toned skin, visible muscle definition',
     style: 'Photograph the scene as an intimate masculine editorial with lifelike skin, visible texture, controlled warm light, natural depth, and a clearly focused subject.',
     negative: `female body, breasts, feminine face, soft body, chubby, plastic skin, airbrushed, cartoon, painting, ${BLOCKED}`,
     quality: 'Keep the face and anatomy coherent, preserve a strong masculine presence, and use controlled editorial light and color.',
-    loraHint: 'flux_krea_realism + flux_add_details + flux_uncensored',
+    loraHint: 'identity assets: none; scenes: verified style/detail LoRA only',
   },
   transgender: {
     subject: 'An unmistakably adult transgender woman age 25+, feminine face, developed natural breasts, narrow waist, curvy hips and thighs, and coherent external male genital anatomy when exposed; one consistent body with both feminine and masculine sexual characteristics',
     style: 'Photograph the scene as an intimate editorial with lifelike skin, subtle pores and peach fuzz, controlled warm light, natural depth, and a clearly focused subject.',
     negative: `duplicated genitals, detached genitals, female-only anatomy, male-only silhouette, caricature, fetishized stereotype, plastic skin, airbrushed, cartoon, painting, ${BLOCKED}`,
     quality: 'Keep the face and anatomy coherent, preserve authentic beauty, and use controlled editorial light and color.',
-    loraHint: 'flux_hyperrealism_aidma + flux_add_details + flux_uncensored',
+    loraHint: 'identity assets: none; scenes: verified style/detail LoRA only',
   },
   anime: {
     subject: 'An unmistakably adult anime character age 25+, mature facial features, voluptuous adult proportions, expressive seductive eyes, detailed anime anatomy',
     style: 'Illustrate the scene as a premium adult anime key visual with deliberate linework, rich cel shading, expressive color, a readable background, and a dynamic composition.',
     negative: `childlike proportions, school uniform, loli, shota, photorealistic, photograph, 3d render, flat color, sketch, ${BLOCKED}`,
     quality: 'Keep the anatomy readable, the eyes expressive, the linework clean, and the cel shading deliberate throughout the frame.',
-    loraHint: 'flux_detail_enhancer (FLUX) / pony_detailifier_v5 (Pony) / AddMicroDetails_Illustrious_v6 (Illustrious)',
+    loraHint: 'verified family-compatible LoRA only',
   },
 };
 
