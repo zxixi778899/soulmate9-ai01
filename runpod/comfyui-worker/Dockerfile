@@ -19,6 +19,17 @@ RUN sed -i "s/self.flipped_img_txt = original_block.flipped_img_txt/self.flipped
     && grep -q "getattr(original_block, 'flipped_img_txt', False)" \
       /comfyui/custom_nodes/comfyui-ipadapter-flux/flux/layers.py
 
+# Fix a second ComfyUI 5.8.6 incompatibility: the FLUX model now calls
+# diffusion_model.forward_orig(..., timestep_zero_index=...), but the node's
+# replacement forward_orig_ipa() lacks that parameter, so sampling crashes with
+# "forward_orig_ipa() got an unexpected keyword argument 'timestep_zero_index'".
+# Insert the parameter into the signature (always None for IP-Adapter txt2img,
+# which uses no ref_latents, so the body can safely ignore it).
+RUN sed -i 's/^    control=None,$/    control=None,\n    timestep_zero_index=None,/' \
+      /comfyui/custom_nodes/comfyui-ipadapter-flux/utils.py \
+    && grep -q "timestep_zero_index=None," \
+      /comfyui/custom_nodes/comfyui-ipadapter-flux/utils.py
+
 # Shakker's loader registers a custom ipadapter-flux model directory and checks
 # SigLIP below folder_paths.models_dir. Link both to the runtime network volume.
 RUN mkdir -p /comfyui/models/clip_vision \
