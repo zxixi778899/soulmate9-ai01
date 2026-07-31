@@ -104,15 +104,15 @@ export function buildFluxWorkflow(opts: {
   model_family?: 'flux' | 'pony' | 'illustrious' | 'sdxl';
   /**
    * IP-Adapter face reference (worker-local filename registered via RunPod `images` payload).
-   * When set, inserts IPAdapterApply nodes to lock facial identity WITHOUT locking composition.
-   * Requires ComfyUI_IPAdapter_plus custom nodes + ip-adapter model on the worker.
+   * When set, inserts Shakker Labs' FLUX IP-Adapter nodes to preserve identity
+   * without reusing the reference composition.
    */
   ip_adapter_image?: string;
   /** IP-Adapter weight 0–1. Default 0.75. Higher = stronger face similarity. */
   ip_adapter_weight?: number;
-  /** IP-Adapter model filename in models/ipadapter/. Default: ip-adapter.safetensors */
+  /** FLUX IP-Adapter filename in models/ipadapter-flux/. Default: ip-adapter.bin */
   ip_adapter_model?: string;
-  /** CLIP Vision model filename in models/clip_vision/. Default: sigclip_vision_384.safetensors */
+  /** SigLIP model id/directory consumed by the Shakker loader. */
   clip_vision_model?: string;
 }): Record<string, unknown> {
   const modelFamily = opts.model_family || 'flux';
@@ -121,9 +121,11 @@ export function buildFluxWorkflow(opts: {
   const width = opts.width ?? 832;
   const height = opts.height ?? 1216;
   const steps = Math.max(opts.steps ?? 20, 12);
-  // FLUX.1-dev: cfg 1.0–3.5; higher often darkens/destroys image
+  // The Comfy single-file FLUX.1-dev FP8 checkpoint is distilled for CFG 1.
+  // Higher values amplify colour casts and destroy low-frequency structure.
+  // Enforce this at the final workflow boundary so stale callers cannot regress it.
   const guidance = isFlux
-    ? Math.min(Math.max(opts.guidance ?? 1.0, 1.0), 3.5)
+    ? 1.0
     : Math.min(Math.max(opts.guidance ?? 6.0, 3.0), 9.0);
   const sampler_name = opts.sampler_name || (isFlux ? 'euler' : 'dpmpp_2m_sde');
   const scheduler = opts.scheduler || (isFlux ? 'simple' : 'karras');
@@ -213,40 +215,37 @@ export function buildFluxWorkflow(opts: {
 
   // ─── IP-Adapter face identity nodes (optional) ─────────────────────────────
   // Locks facial identity from a reference image WITHOUT locking composition.
-  // Requires ComfyUI_IPAdapter_plus custom nodes on the worker.
+  // Requires Shakker-Labs/ComfyUI-IPAdapter-Flux on the worker.
   const useIpAdapter = !!opts.ip_adapter_image;
   const ipAdapterNodes: Record<string, unknown> = {};
   if (useIpAdapter) {
-    const ipWeight = Math.min(1.0, Math.max(0.3, opts.ip_adapter_weight ?? 0.75));
-    const ipModel = opts.ip_adapter_model || 'ip-adapter.safetensors';
-    const clipVision = opts.clip_vision_model || 'sigclip_vision_384.safetensors';
+    const ipWeight = Math.min(1.0, Math.max(0.3, opts.ip_adapter_weight ?? 0.72));
+    const ipModel = opts.ip_adapter_model || 'ip-adapter.bin';
+    const clipVision = opts.clip_vision_model || 'google/siglip-so400m-patch14-384';
     ipAdapterNodes['30'] = {
-      class_type: 'IPAdapterApply',
+      class_type: 'ApplyIPAdapterFlux',
       inputs: {
         model: [lastLoraNodeId, 0],
-        ipadapter: ['31', 0],
-        clip_vision: ['32', 0],
+        ipadapter_flux: ['31', 0],
         image: ['33', 0],
         weight: ipWeight,
-        noise: 0.0,
-        weight_type: 'standard',
-        start_at: 0.0,
-        end_at: 1.0,
+        start_percent: 0.0,
+        end_percent: 0.85,
       },
     };
     ipAdapterNodes['31'] = {
-      class_type: 'IPAdapterModelLoader',
-      inputs: { ipadapter_file: ipModel },
-    };
-    ipAdapterNodes['32'] = {
-      class_type: 'CLIPVisionLoader',
-      inputs: { clip_name: clipVision },
+      class_type: 'IPAdapterFluxLoader',
+      inputs: {
+        ipadapter: ipModel,
+        clip_vision: clipVision,
+        provider: 'cuda',
+      },
     };
     ipAdapterNodes['33'] = {
       class_type: 'LoadImage',
       inputs: { image: opts.ip_adapter_image },
     };
-    // KSampler now takes model from IPAdapterApply output instead of LoRA chain
+    // KSampler now takes model from the FLUX IP-Adapter output.
     modelRef = ['30', 0];
   }
 
@@ -812,6 +811,22 @@ class RunPodClient {
       ip_adapter_weight: options.ip_adapter_weight,
     });
 
+    const samplerNode = workflow['5'] as { inputs?: Record<string, unknown> } | undefined;
+    const checkpointNode = workflow['1'] as { class_type?: string; inputs?: Record<string, unknown> } | undefined;
+    logger.info('[runpod] workflow resolved', {
+      model_family: options.model_family || 'flux',
+      checkpoint_loader: checkpointNode?.class_type,
+      checkpoint: options.ckpt_name || 'flux1-dev-fp8.safetensors',
+      width: options.width ?? 832,
+      height: options.height ?? 1216,
+      steps: samplerNode?.inputs?.steps,
+      cfg: samplerNode?.inputs?.cfg,
+      sampler: samplerNode?.inputs?.sampler_name,
+      scheduler: samplerNode?.inputs?.scheduler,
+      img2img: !!inputImageName,
+      ip_adapter: !!ipAdapterImageName,
+      lora_count: options.loras?.length || (options.lora_name ? 1 : 0),
+    });
     const imageEntries: Array<{ name: string; image: string }> = [];
     if (inputImageName && inputImageB64) {
       imageEntries.push({ name: inputImageName, image: inputImageB64 });

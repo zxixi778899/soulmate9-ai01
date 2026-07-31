@@ -1,7 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildFluxWorkflow } from '../runpod';
 import { assembleGirlfriendFromRow } from '../prompt/girlfriend';
 
+const ORIGINAL_ENV = { ...process.env };
+
+beforeEach(() => {
+  process.env.RUNPOD_INSTALLED_LORAS = [
+    'flux_style_photoreal_v1.safetensors',
+    'flux_body_curvy_v1.safetensors',
+    'Anet_Valence_futanari_FLUX-000004.safetensors',
+    'realistic-mtf-trans.safetensors',
+  ].join(',');
+});
+
+afterEach(() => {
+  process.env = { ...ORIGINAL_ENV };
+});
 describe('buildFluxWorkflow LoRA stacking', () => {
   it('chains multiple LoRA loaders and samples from the final loader', () => {
     const graph = buildFluxWorkflow({
@@ -35,6 +49,38 @@ describe('buildFluxWorkflow LoRA stacking', () => {
     expect(graph['15'].inputs.lora_name).toBe('realistic-mtf-trans.safetensors');
     expect(graph['5'].inputs.model).toEqual(['15', 0]);
     expect(graph['2'].inputs.clip).toEqual(['15', 1]);
+  });
+
+  it('forces CFG 1 for FLUX even when a stale caller requests higher guidance', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'An adult woman in neutral daylight, sharp eyes, natural skin.',
+      model_family: 'flux',
+      guidance: 3.5,
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+
+    expect(graph['5'].inputs.cfg).toBe(1);
+  });
+  it('uses the Shakker FLUX IP-Adapter graph for identity references', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'An adult woman walking through a sunlit kitchen.',
+      model_family: 'flux',
+      ip_adapter_image: 'identity.png',
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+
+    expect(graph['30'].class_type).toBe('ApplyIPAdapterFlux');
+    expect(graph['30'].inputs.model).toEqual(['1', 0]);
+    expect(graph['30'].inputs.ipadapter_flux).toEqual(['31', 0]);
+    expect(graph['30'].inputs.image).toEqual(['33', 0]);
+    expect(graph['30'].inputs.weight).toBe(0.72);
+    expect(graph['31'].class_type).toBe('IPAdapterFluxLoader');
+    expect(graph['31'].inputs).toEqual({
+      ipadapter: 'ip-adapter.bin',
+      clip_vision: 'google/siglip-so400m-patch14-384',
+      provider: 'cuda',
+    });
+    expect(graph['33'].class_type).toBe('LoadImage');
+    expect(graph['5'].inputs.model).toEqual(['30', 0]);
+    expect(graph['32']).toBeUndefined();
   });
 
   it('keeps a compact quality negative instead of dropping a long negative prompt', () => {

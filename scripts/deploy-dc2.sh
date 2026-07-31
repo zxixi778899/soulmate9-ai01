@@ -155,10 +155,11 @@ cat << 'DOWNLOAD_SCRIPT'
    mkdir -p /runpod-volume/models/loras
 
    # 下载 FLUX checkpoint (如果卷上没有)
-   if [ ! -f "/runpod-volume/models/checkpoints/flux1-dev-fp8.safetensors" ]; then
+   if [ $(stat -c%s "/runpod-volume/models/checkpoints/flux1-dev-fp8.safetensors" 2>/dev/null || echo 0) -lt 16000000000 ]; then
      echo "Downloading flux1-dev-fp8..."
-     wget -q --show-progress -O /runpod-volume/models/checkpoints/flux1-dev-fp8.safetensors \
-       "https://huggingface.co/Kijai/flux-fp8/resolve/main/flux1-dev-fp8.safetensors"
+     wget -q --show-progress -O /runpod-volume/models/checkpoints/flux1-dev-fp8.safetensors.part \
+       "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors"
+     mv /runpod-volume/models/checkpoints/flux1-dev-fp8.safetensors.part /runpod-volume/models/checkpoints/flux1-dev-fp8.safetensors
    fi
 
    # 下载 LoRA 文件
@@ -171,21 +172,12 @@ done
 
 echo ""
 echo "   # ── IP-Adapter 模型 (身份锁脸, 不锁构图) ──"
-echo "   mkdir -p /runpod-volume/models/ipadapter"
-echo "   mkdir -p /runpod-volume/models/clip_vision"
+echo "   # FLUX IP-Adapter + SigLIP models"
+echo "   bash scripts/install-ipadapter.sh"
 echo ""
-echo "   # IP-Adapter FLUX model (InstantX, ~98MB)"
-echo "   wget -q --show-progress -O /runpod-volume/models/ipadapter/ip-adapter.safetensors \\"
-echo "     \"https://huggingface.co/InstantX/FLUX.1-dev-IP-Adapter/resolve/main/ip-adapter.safetensors\""
-echo ""
-echo "   # CLIP Vision model for IP-Adapter (~3.5GB)"
-echo "   wget -q --show-progress -O /runpod-volume/models/clip_vision/sigclip_vision_384.safetensors \\"
-echo "     \"https://huggingface.co/Comfy-Org/sigclip_vision_384/resolve/main/sigclip_vision_patch14_384.safetensors\""
-echo ""
-echo "   # ── 安装 ComfyUI_IPAdapter_plus 自定义节点 ──"
-echo "   cd /comfyui/custom_nodes"
-echo "   git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus.git"
-echo "   pip install -r ComfyUI_IPAdapter_plus/requirements.txt 2>/dev/null || true"
+echo "   # Build the custom worker image (custom nodes cannot load from a network volume)"
+echo "   docker build --platform linux/amd64 -t <registry>/soulmate9-comfyui:flux-ipadapter runpod/comfyui-worker"
+echo "   docker push <registry>/soulmate9-comfyui:flux-ipadapter"
 echo ""
 
 echo ""

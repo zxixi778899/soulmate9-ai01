@@ -68,13 +68,25 @@ fi
 
 echo ""; echo "── Checkpoint ──"
 CK="$V/models/checkpoints/flux1-dev-fp8.safetensors"
-if [ -f "$CK" ] && [ $(stat -c%s "$CK" 2>/dev/null||echo 0) -gt 1000000000 ]; then
-  echo "  OK flux1-dev-fp8 已存在 ($(du -h "$CK"|cut -f1))"
+MIN_CHECKPOINT_BYTES=16000000000
+CK_BYTES=$(stat -c%s "$CK" 2>/dev/null || echo 0)
+if [ "$CK_BYTES" -ge "$MIN_CHECKPOINT_BYTES" ]; then
+  echo "  OK Comfy-Org FLUX single-file checkpoint ($(du -h "$CK"|cut -f1))"
 else
-  echo "  下载 flux1-dev-fp8 (~11.9GB)..."
-  wget -q --show-progress -O "$CK" "https://huggingface.co/Kijai/flux-fp8/resolve/main/flux1-dev-fp8.safetensors"
+  if [ "$CK_BYTES" -gt 0 ]; then
+    echo "  REPAIR incompatible 11.9GB Kijai diffusion-only file: $CK"
+  fi
+  echo "  Downloading Comfy-Org FLUX single-file checkpoint (~17.2GB)..."
+  wget -q --show-progress -O "$CK.part" \
+    "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors"
+  DOWNLOADED_BYTES=$(stat -c%s "$CK.part" 2>/dev/null || echo 0)
+  if [ "$DOWNLOADED_BYTES" -lt "$MIN_CHECKPOINT_BYTES" ]; then
+    echo "  FAIL incomplete checkpoint ($DOWNLOADED_BYTES bytes)" >&2
+    rm -f "$CK.part"
+    exit 1
+  fi
+  mv "$CK.part" "$CK"
 fi
-
 echo ""; echo "═══ 结果 ═══"
 echo "LoRA: $(ls "$L" 2>/dev/null|wc -l) 个文件"
 ls -lhS "$L/" 2>/dev/null | head -25
