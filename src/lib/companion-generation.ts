@@ -124,6 +124,18 @@ export function buildCompanionIdentityBrief(row: Record<string, unknown>): strin
   return parts.join(', ');
 }
 
+export function buildCompanionAgeNegativePrompt(row: Record<string, unknown>): string {
+  const age = Math.max(18, Math.round(Number(row.age) || 25));
+  const texture = 'over-sharpened skin, exaggerated pores, harsh clarity, deep facial creases, waxy retouching';
+  if (age <= 24) {
+    return `middle-aged appearance, elderly appearance, aged face, deep wrinkles, pronounced crow's feet, weathered skin, sagging skin, ${texture}`;
+  }
+  if (age <= 34) {
+    return `elderly appearance, prematurely aged face, deep wrinkles, pronounced crow's feet, weathered skin, ${texture}`;
+  }
+  return `incorrect apparent age, artificially aged face, ${texture}`;
+}
+
 function pick<T>(items: T[], seed = Math.random()): T {
   return items[Math.min(items.length - 1, Math.floor(seed * items.length))];
 }

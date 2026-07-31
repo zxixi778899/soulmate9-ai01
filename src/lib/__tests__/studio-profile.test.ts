@@ -70,6 +70,8 @@ describe('studio generation profiles', () => {
     expect(negative).toContain('neon color cast on skin');
     expect(negative).toContain('uncanny valley');
     expect(negative).toContain('frozen gesture');
+    expect(negative).not.toContain('youthful face');
+    expect(negative).toContain('adolescent features');
   });
   it('keeps 2D and 3D anime directions mutually distinct', () => {
     const twoD = buildStudioPromptEnhancement({

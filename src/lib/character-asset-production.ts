@@ -36,7 +36,7 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     label: '人设头像 · 半身像',
     shortLabel: '半身头像',
     description: '根据伴侣基础信息生成半身像头像（头到腰部以上），作为后续三视图与立绘的首要身份参考。',
-    scene: 'waist-up studio portrait of the same adult character, head and shoulders fully in frame, looking at the camera, natural relaxed expression, plain light-gray studio background, soft even light',
+    scene: 'waist-up real-camera portrait of the same adult character, complete head and upper torso in frame, warm approachable eye contact and a relaxed subtle smile, plain warm-gray background, soft diffused daylight, neutral white balance, accurate natural skin tone, restrained saturation, gentle contrast, minimal retouching',
     width: 832,
     height: 1216,
     consistency: false,

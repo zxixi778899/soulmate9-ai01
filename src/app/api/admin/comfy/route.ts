@@ -33,7 +33,7 @@ import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole, styleProductionHint } from '@/lib/character-asset-production';
-import { buildCompanionGenerationPrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
+import { buildCompanionAgeNegativePrompt, buildCompanionGenerationPrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -1179,7 +1179,7 @@ if (body.action === 'verify_loras') {
       prompt = `${productionPreset.scene}, ${briefIdentity}`;
       // Composition forbids differ per role: avatar = half-body, turnaround = 3-view sheet, others = full-body.
       negative = assetRole === 'avatar-closeup'
-        ? '3D render, CG, mannequin, doll, plastic skin, wireframe, close-up, headshot, face only, cropped shoulders, bokeh, blurry'
+        ? `3D render, CG, mannequin, doll, plastic skin, wireframe, close-up, headshot, face only, cropped shoulders, bokeh, blurry, oversaturated, neon color cast, orange skin, magenta skin, beauty filter, generic influencer face, ${buildCompanionAgeNegativePrompt(databaseCompanion)}`
         : assetRole === 'identity-turnaround'
           ? '3D render, CG, mannequin, doll, plastic skin, wireframe, single view, one view only, headshot, half-body, portrait, collage, overlapping figures, bokeh, blurry'
           : '3D render, CG, mannequin, doll, plastic skin, wireframe, T-pose, close-up, headshot, half-body, bokeh, blurry';
@@ -1213,6 +1213,7 @@ if (body.action === 'verify_loras') {
 
     const suppliedReference = String(body.input_image || '').trim();
     const storedIdentityUrls: string[] = [];
+    let storedAvatarUrl = '';
     if (girlfriendId && characterConsistency) {
       const { data: storedIdentityRows, error: storedIdentityError } = await admin.supabase
         .from('generation_assets')
@@ -1226,6 +1227,13 @@ if (body.action === 'verify_loras') {
           error: storedIdentityError.message,
         });
       } else {
+        const avatarMatch = (storedIdentityRows || []).find((row) => {
+          const meta = row.meta && typeof row.meta === 'object'
+            ? row.meta as Record<string, unknown>
+            : {};
+          return String(meta.asset_role || '') === 'avatar-closeup' && typeof row.url === 'string' && row.url.trim();
+        });
+        storedAvatarUrl = avatarMatch?.url ? String(avatarMatch.url).trim() : '';
         const rolePriority = identityReferenceRolePriority(assetRole);
         for (const role of rolePriority) {
           const match = (storedIdentityRows || []).find((row) => {
@@ -1307,15 +1315,29 @@ if (body.action === 'verify_loras') {
         ? identityTurnaroundDenoise(assetRole, denoise)
         : Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
+    const requiresIdentityReference = assetRole !== 'avatar-closeup' && (
+      assetRole.startsWith('identity-') ||
+      assetRole === 'character-art' ||
+      assetRole === 'album' ||
+      assetRole === 'scene'
+    );
+    if (requiresIdentityReference && !effectiveInputImage) {
+      return NextResponse.json({
+        error: 'Generate or upload the companion avatar/turnaround reference before creating this asset',
+      }, { status: 400 });
+    }
     // IP-Adapter: face reference without composition lock (from request body or auto-resolved)
-    // Only pass through when worker has ComfyUI_IPAdapter_plus installed
-    // avatar-closeup never uses IP-Adapter (pure txt2img identity anchor)
-    const ipAdapterEnabled = process.env.RUNPOD_IPADAPTER_INSTALLED === '1' && assetRole !== 'avatar-closeup';
+    // IP-Adapter is installed in the production worker. Keep it enabled by default;
+    // RUNPOD_IPADAPTER_INSTALLED=0 is the explicit emergency off switch.
+    const ipAdapterEnabled = process.env.RUNPOD_IPADAPTER_INSTALLED !== '0' && assetRole !== 'avatar-closeup';
     const ipAdapterImage = ipAdapterEnabled
-      ? (String(body.ip_adapter_image || '').trim() || undefined)
+      ? (String(body.ip_adapter_image || '').trim() || storedAvatarUrl || consistencyReference || effectiveInputImage)
       : undefined;
-    const ipAdapterWeight = ipAdapterEnabled && body.ip_adapter_weight != null
-      ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight)))
+    const defaultIpAdapterWeight = assetRole === 'identity-turnaround' || assetRole.startsWith('identity-')
+      ? 0.82
+      : 0.7;
+    const ipAdapterWeight = ipAdapterEnabled
+      ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight ?? defaultIpAdapterWeight)))
       : undefined;
     const folder = assetFolder(girlfriendId, assetRole);
     const loraStrength =
@@ -1365,6 +1387,7 @@ if (body.action === 'verify_loras') {
       animeStyle,
       requested: normalizedLoras,
       maxLoras: generationIntensity >= 3 ? 3 : 2,
+      identityAsset: isIdentityAsset,
     });
     const effectiveLoras = compatibleLoraPlan.selected;
     if (compatibleLoraPlan.triggerWords.length > 0) {

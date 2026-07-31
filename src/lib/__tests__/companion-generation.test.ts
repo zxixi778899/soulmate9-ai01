@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCompanionAgeNegativePrompt,
   buildCompanionGenerationPrompt,
   buildCompanionIdentitySpecification,
 } from '@/lib/companion-generation';
@@ -20,6 +21,13 @@ describe('companion profiles', () => {
 });
 
 describe('companion generation prompt', () => {
+  it('protects a young adult identity from premature aging artifacts', () => {
+    const negative = buildCompanionAgeNegativePrompt({ age: 21 });
+    expect(negative).toContain('middle-aged appearance');
+    expect(negative).toContain('deep wrinkles');
+    expect(negative).toContain('over-sharpened skin');
+  });
+
   it.each([
     ['Female', 'realistic', 'female'],
     ['Male', 'realistic', 'male'],

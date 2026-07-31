@@ -16,12 +16,6 @@ import { getCharacterProductionPreset, styleProductionHint, type CharacterAssetR
 import { resolveModelLoraPlan, type RoutedLora } from './model-lora-routing';
 import { logger } from './logger';
 
-/**
- * Set to true once ComfyUI_IPAdapter_plus + models are installed on the worker.
- * Until then, IP-Adapter nodes are skipped and the pipeline falls back to
- * pure txt2img (no face lock) for the turnaround stage.
- */
-const IP_ADAPTER_INSTALLED = process.env.RUNPOD_IPADAPTER_INSTALLED === '1';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,12 +99,13 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     description: '以半身头像为参考图，描述体型外观+服装，图生图生成正面/侧面/背面三视图，为立绘和视频提供一致性锚定。',
     assetRole: 'identity-turnaround',
     mode: 'img2img',
-    useIpAdapter: false,
+    useIpAdapter: true,
     width: 1216,
     height: 832,
     steps: 28,
     guidance: 3.0,
     denoise: 0.72,
+    ipAdapterWeight: 0.82,
     referenceStages: ['avatar'],
   },
   {
@@ -296,8 +291,11 @@ export function resolveStageReference(
 
   switch (stage.id) {
     case 'turnaround':
-      // img2img reference = avatar (provides face/body consistency for the turnaround)
-      return { inputImage: avatarUrl || undefined };
+      // The avatar drives img2img structure and IP-Adapter facial identity together.
+      return {
+        inputImage: avatarUrl || undefined,
+        ipAdapterImage: avatarUrl || undefined,
+      };
     case 'character-art':
       // img2img input = turnaround (structural reference), IP-Adapter = avatar (face identity)
       return {
@@ -349,7 +347,7 @@ export function buildStageGenerationParams(
     base.denoising_strength = stage.denoise ?? 0.58;
   }
 
-  if (IP_ADAPTER_INSTALLED && stage.useIpAdapter && refs.ipAdapterImage) {
+  if (stage.useIpAdapter && refs.ipAdapterImage) {
     base.ip_adapter_image = refs.ipAdapterImage;
     base.ip_adapter_weight = stage.ipAdapterWeight ?? 0.75;
   }

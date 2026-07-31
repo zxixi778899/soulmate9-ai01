@@ -19,7 +19,7 @@ describe('character asset production', () => {
       CHARACTER_PRODUCTION_PRESETS.some((preset) => preset.role === role),
     )).toBe(true);
     const avatar = getCharacterProductionPreset('avatar-closeup');
-    expect(avatar.scene).toContain('waist-up studio portrait');
+    expect(avatar.scene).toContain('waist-up real-camera portrait');
     expect(avatar.scene).not.toContain('close-up');
     expect(avatar.scene).not.toContain('headshot');
     const turnaround = getCharacterProductionPreset('identity-turnaround');

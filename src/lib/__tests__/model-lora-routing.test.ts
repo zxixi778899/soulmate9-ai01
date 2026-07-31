@@ -50,6 +50,30 @@ describe('model-specific LoRA routing', () => {
     expect(plan.selected.some((item) => item.name.includes('uncensored'))).toBe(false);
     expect(plan.selected.reduce((sum, item) => sum + item.strength_model, 0)).toBeLessThanOrEqual(1.65);
   });
+  it('keeps identity anchors free of detail and adult LoRAs', () => {
+    process.env.RUNPOD_INSTALLED_LORAS_FLUX = [
+      'flux_realism_xlabs.safetensors',
+      'flux_add_details.safetensors',
+      'flux_uncensored.safetensors',
+    ].join(',');
+    process.env.RUNPOD_FLUX_FEMALE_LORAS = [
+      'flux_realism_xlabs.safetensors',
+      'flux_add_details.safetensors',
+      'flux_uncensored.safetensors',
+    ].join(',');
+    const plan = resolveModelLoraPlan({
+      modelFamily: 'flux',
+      category: 'female',
+      intensity: 1,
+      identityAsset: true,
+    });
+    expect(plan.selected).toEqual([
+      expect.objectContaining({
+        name: 'flux_realism_xlabs.safetensors',
+        strength_model: 0.3,
+      }),
+    ]);
+  });
   it('fails closed when the Pony endpoint inventory is unavailable', () => {
     delete process.env.RUNPOD_INSTALLED_LORAS_PONY;
     delete process.env.RUNPOD_INSTALLED_LORAS_SDXL;

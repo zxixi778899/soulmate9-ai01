@@ -165,8 +165,11 @@ export function resolveModelLoraPlan(input: {
   animeStyle?: AnimeRenderStyle;
   requested?: RoutedLora[];
   maxLoras?: number;
+  identityAsset?: boolean;
 }): ModelLoraPlan {
-  const maxLoras = Math.min(4, Math.max(1, input.maxLoras || 3));
+  const maxLoras = input.identityAsset
+    ? 1
+    : Math.min(4, Math.max(1, input.maxLoras || 3));
   const inventory = inventoryForFamily(input.modelFamily);
   const configured = configuredCandidates(
     input.modelFamily,
@@ -183,7 +186,10 @@ export function resolveModelLoraPlan(input: {
   const prioritizedNames = input.modelFamily === 'flux' && input.intensity >= 3
     ? [...configured, ...requestedNames]
     : [...requestedNames, ...configured];
-  const names = [...new Set([...prioritizedNames, ...inventoryCandidates])];
+  const names = [...new Set([...prioritizedNames, ...inventoryCandidates])].filter((name) =>
+    !input.identityAsset ||
+    !/(?:add[_-]?details?|detail|skin|micro|hyperreal|aidma|nsfw|uncensored|pose|body|anatomy)/i.test(name),
+  );
   const inventoryVerified = inventory.files.size > 0;
   const allowUnverified = input.modelFamily === 'flux';
   const verifiedNames = names.filter(
@@ -195,11 +201,12 @@ export function resolveModelLoraPlan(input: {
   const allowed = [...new Set([...verifiedNames, ...fallbackNames])].slice(0, maxLoras);
   const selected = allowed.map((name, index) => {
     const explicit = requested.find((item) => item.name === name);
-    const strength = strengthForIntensity(input.intensity, index);
+    const strength = input.identityAsset ? 0.3 : strengthForIntensity(input.intensity, index);
+    const maxStrength = input.identityAsset ? 0.32 : 0.9;
     return {
       name,
-      strength_model: Number(Math.min(0.9, explicit?.strength_model ?? strength).toFixed(2)),
-      strength_clip: Number(Math.min(0.9, explicit?.strength_clip ?? explicit?.strength_model ?? strength).toFixed(2)),
+      strength_model: Number(Math.min(maxStrength, explicit?.strength_model ?? strength).toFixed(2)),
+      strength_clip: Number(Math.min(maxStrength, explicit?.strength_clip ?? explicit?.strength_model ?? strength).toFixed(2)),
     };
   });
   const total = selected.reduce((sum, item) => sum + item.strength_model, 0);
