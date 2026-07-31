@@ -1295,17 +1295,25 @@ if (body.action === 'verify_loras') {
     if (referencePlan.promptHints.length > 0) {
       prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
-    // Determine the effective input image for img2img.
-    // Pipeline explicitly sends input_image for stages that need it (turnaround, character-art).
-    // If not supplied, fall back to the reference plan's best identity asset.
-    // avatar-closeup is ALWAYS pure txt2img — no reference image, no img2img redraw.
-    const effectiveInputImage = assetRole === 'avatar-closeup'
+    const resolvedReferenceImage =
+      referencePlan.primaryIdentity?.url ||
+      referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
+    // IP-Adapter keeps identity without copying the portrait composition.
+    // Turnarounds start from an empty wide latent when the custom node is available.
+    // Stock workers retain a high-denoise img2img fallback.
+    const ipAdapterEnabled =
+      process.env.RUNPOD_IPADAPTER_INSTALLED === '1' &&
+      assetRole !== 'avatar-closeup';
+    const useIdentityOnlyTurnaround =
+      ipAdapterEnabled && assetRole === 'identity-turnaround';
+    const effectiveInputImage = assetRole === 'avatar-closeup' || useIdentityOnlyTurnaround
       ? undefined
-      : referencePlan.primaryIdentity?.url ||
-        referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
+      : resolvedReferenceImage;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
-        ? identityTurnaroundDenoise(assetRole, denoise)
+        ? assetRole === 'identity-turnaround'
+          ? 0.88
+          : identityTurnaroundDenoise(assetRole, denoise)
         : Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
     const requiresIdentityReference = assetRole !== 'avatar-closeup' && (
@@ -1314,17 +1322,25 @@ if (body.action === 'verify_loras') {
       assetRole === 'album' ||
       assetRole === 'scene'
     );
-    if (requiresIdentityReference && !effectiveInputImage) {
+    const hasIdentityReference = Boolean(
+      resolvedReferenceImage ||
+      storedAvatarUrl ||
+      consistencyReference ||
+      suppliedReference
+    );
+    if (requiresIdentityReference && !hasIdentityReference) {
       return NextResponse.json({
         error: 'Generate or upload the companion avatar/turnaround reference before creating this asset',
       }, { status: 400 });
     }
-    // IP-Adapter: face reference without composition lock (from request body or auto-resolved)
-    // Custom nodes are absent from the stock worker, so FLUX IP-Adapter is explicit opt-in.
-    // Until the custom image is deployed, img2img still consumes the avatar reference.
-    const ipAdapterEnabled = process.env.RUNPOD_IPADAPTER_INSTALLED === '1' && assetRole !== 'avatar-closeup';
+    // IP-Adapter: identity reference without composition lock (request or auto-resolved avatar).
     const ipAdapterImage = ipAdapterEnabled
-      ? (String(body.ip_adapter_image || '').trim() || storedAvatarUrl || consistencyReference || effectiveInputImage)
+      ? (
+          String(body.ip_adapter_image || '').trim() ||
+          storedAvatarUrl ||
+          consistencyReference ||
+          resolvedReferenceImage
+        )
       : undefined;
     const defaultIpAdapterWeight = assetRole === 'identity-turnaround' || assetRole.startsWith('identity-')
       ? 0.82

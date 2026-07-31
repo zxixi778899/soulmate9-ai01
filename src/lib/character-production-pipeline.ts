@@ -100,8 +100,8 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     assetRole: 'identity-turnaround',
     mode: 'img2img',
     useIpAdapter: true,
-    width: 1216,
-    height: 832,
+    width: 1344,
+    height: 768,
     steps: 28,
     guidance: 3.0,
     denoise: 0.72,
@@ -176,7 +176,10 @@ export async function generateStagePrompt(
     const aiPrompt = await callLlmForPrompt(stage, brief, ctx);
     if (aiPrompt && aiPrompt.length > 20 && aiPrompt.length < 500) {
       const negative = buildStageNegative(stage);
-      return { prompt: aiPrompt, negative };
+      const prompt = stage.id === 'turnaround'
+        ? `${aiPrompt}. ${preset.scene}`
+        : aiPrompt;
+      return { prompt, negative };
     }
   } catch (err) {
     logger.warn('[pipeline] AI prompt generation failed, using template', {
@@ -291,11 +294,9 @@ export function resolveStageReference(
 
   switch (stage.id) {
     case 'turnaround':
-      // The avatar drives img2img structure and IP-Adapter facial identity together.
-      return {
-        inputImage: avatarUrl || undefined,
-        ipAdapterImage: avatarUrl || undefined,
-      };
+      // Keep the avatar as an identity reference only. Feeding a portrait into img2img
+      // copies its portrait composition and prevents a true three-view layout.
+      return { ipAdapterImage: avatarUrl || undefined };
     case 'character-art':
       // img2img input = turnaround (structural reference), IP-Adapter = avatar (face identity)
       return {
