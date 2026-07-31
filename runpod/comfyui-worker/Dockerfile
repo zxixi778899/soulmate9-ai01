@@ -9,6 +9,16 @@ RUN git clone --depth 1 https://github.com/Shakker-Labs/ComfyUI-IPAdapter-Flux.g
     && python -m pip install --no-cache-dir \
       -r /comfyui/custom_nodes/comfyui-ipadapter-flux/requirements.txt
 
+# Fix Shakker node incompatibility with current ComfyUI: the upstream FLUX
+# DoubleStreamBlock no longer exposes 'flipped_img_txt', so the direct attribute
+# access in flux/layers.py raises AttributeError and crashes ApplyIPAdapterFlux
+# at generation time ("'DoubleStreamBlock' object has no attribute
+# 'flipped_img_txt'"). Use a getattr fallback (False = normal attention path).
+RUN sed -i "s/self.flipped_img_txt = original_block.flipped_img_txt/self.flipped_img_txt = getattr(original_block, 'flipped_img_txt', False)/" \
+      /comfyui/custom_nodes/comfyui-ipadapter-flux/flux/layers.py \
+    && grep -q "getattr(original_block, 'flipped_img_txt', False)" \
+      /comfyui/custom_nodes/comfyui-ipadapter-flux/flux/layers.py
+
 # Shakker's loader registers a custom ipadapter-flux model directory and checks
 # SigLIP below folder_paths.models_dir. Link both to the runtime network volume.
 RUN mkdir -p /comfyui/models/clip_vision \
