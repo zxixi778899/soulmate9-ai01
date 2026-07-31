@@ -183,7 +183,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
         )}
         <button
           type="button"
-          aria-label="Delete friend"
+          aria-label="Remove friend"
           disabled={deleting}
           onClick={(e) => onDelete(friend, e)}
           className="h-8 w-8 rounded-lg bg-[#FF2D78]/15 flex items-center justify-center text-[#ff6ba6] hover:bg-[#FF2D78]/25 touch-manipulation transition-colors disabled:opacity-50"
@@ -350,15 +350,15 @@ export default function ChatsPage() {
     e.preventDefault(); e.stopPropagation();
     const zh = locale === 'zh';
     const confirmMsg = zh
-      ? `确定要移除「${gf.name}」吗？好友关系将解除，亲密值归零。此操作不可撤销。`
-      : `Remove "${gf.name}" from friends? The friendship will be removed and intimacy will reset to 0. This cannot be undone.`;
+      ? `确定要解除与「${gf.name}」的好友关系吗？亲密值将归零。`
+      : `Remove "${gf.name}" from friends? Intimacy will reset to 0.`;
     if (!window.confirm(confirmMsg)) return;
     setDeletingId(gf.id);
     try {
       const res = await authedFetch(`/api/girlfriends?id=${encodeURIComponent(gf.id)}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const errMsg = (data as { error?: string }).error || (zh ? '删除失败' : 'Delete failed');
+        const errMsg = (data as { error?: string }).error || (zh ? '操作失败' : 'Action failed');
         toast.error(errMsg);
         return;
       }
@@ -366,7 +366,7 @@ export default function ChatsPage() {
       setLastMessages((prev) => { const n = { ...prev }; delete n[gf.id]; return n; });
       setIntimacyMap((prev) => { const n = { ...prev }; delete n[gf.id]; return n; });
       if (selectedId === gf.id) { setSelectedId(null); setGirlfriend(null); setMessages([]); }
-      toast.success(zh ? '已移除好友' : 'Friend removed');
+      toast.success(zh ? '已解除好友关系' : 'Friend removed');
       notifyDataChange('girlfriends');
       notifyDataChange('chat');
     } catch { toast.error(zh ? '网络错误' : 'Network error'); }
@@ -838,9 +838,9 @@ export default function ChatsPage() {
       )}>
         {selectedId && !isLoading && girlfriend ? (
           <div className="relative flex h-full flex-col overflow-hidden">
-            {/* Portrait background — 30% opacity */}
+            {/* Portrait background — 50% opacity */}
             {(girlfriend?.portrait_url || girlfriend?.card_url || girlfriend?.avatar_url) && (
-              <div className="pointer-events-none absolute inset-0 z-0 opacity-30" style={{ backgroundImage: `url(${girlfriend.portrait_url || girlfriend.card_url || girlfriend.avatar_url})`, backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat' }} />
+              <div className="pointer-events-none absolute inset-0 z-0 opacity-50" style={{ backgroundImage: `url(${girlfriend.portrait_url || girlfriend.card_url || girlfriend.avatar_url})`, backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat' }} />
             )}
             <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0b0b12]/70 via-[#0b0b12]/50 to-[#0b0b12]/90" />
 

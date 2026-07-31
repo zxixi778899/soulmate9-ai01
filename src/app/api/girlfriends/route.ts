@@ -92,6 +92,7 @@ export async function GET(req: NextRequest) {
     .from('girlfriends')
     .select('*')
     .eq('user_id', user.id)
+    .neq('review_status', 'removed')
     .order('created_at', { ascending: false });
 
   if (filter === 'draft') {
@@ -370,9 +371,11 @@ export async function DELETE(request: NextRequest) {
     }
   }
 
+  // Soft-delete: mark as removed instead of hard-deleting so companion data is preserved.
+  // "Delete" only removes the friend relationship, not the companion itself.
   const { error } = await client
     .from('girlfriends')
-    .delete()
+    .update({ review_status: 'removed', is_public: false })
     .eq('id', id)
     .eq('user_id', user.id);
 
@@ -380,8 +383,8 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Sync: invalidate cached girlfriend lists so deletion propagates
+  // Sync: invalidate cached girlfriend lists so removal propagates
   invalidateGirlfriends();
 
-  return NextResponse.json({ success: true, intimacy_reset: true });
+  return NextResponse.json({ success: true, intimacy_reset: true, soft_removed: true });
 }

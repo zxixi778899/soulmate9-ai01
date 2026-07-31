@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import {
   Menu, X, User, LogOut, Crown, Flame, ArrowLeft,
   Heart, MessageCircle, ShoppingBag, Wand2, Home, Coins,
@@ -24,16 +24,22 @@ export default function GlobalTopNav() {
   const { t } = useTranslation();
 
   const [balance, setBalance] = useState<number | null>(null);
-  useEffect(() => {
+  const loadBalance = useCallback((): void => {
     if (!user) {
       setBalance(null);
       return;
     }
-    authedFetch('/api/shop/credits')
+    void authedFetch('/api/shop/credits')
       .then((r) => r.json())
       .then((d) => setBalance(Number((d as { credits_remaining?: number }).credits_remaining) || 0))
       .catch(() => {});
   }, [user]);
+
+  useEffect(() => {
+    loadBalance();
+    window.addEventListener('soulmate:credits-updated', loadBalance);
+    return () => window.removeEventListener('soulmate:credits-updated', loadBalance);
+  }, [loadBalance]);
 
   // Hooks must run unconditionally — hide admin/chat chrome only after all hooks.
   const hideChrome =

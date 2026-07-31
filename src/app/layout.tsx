@@ -9,6 +9,7 @@ import SupportAgent from '@/components/SupportAgent';
 import { AgeVerification } from '@/components/AgeVerification';
 import { PostHogProvider } from '@/components/PostHogProvider';
 import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
+import RetentionLoop from '@/components/RetentionLoop';
 import { Toaster } from '@/components/ui/sonner';
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from '@/lib/constants';
 import './globals.css';
@@ -119,6 +120,7 @@ export default function RootLayout({
               </ErrorBoundary>
               <Toaster position="top-center" richColors />
               <BottomNav />
+              <RetentionLoop />
               <SupportAgent />
             </I18nProvider>
           </AuthProvider>
