@@ -60,6 +60,18 @@ describe('buildFluxWorkflow LoRA stacking', () => {
 
     expect(graph['5'].inputs.cfg).toBe(1);
   });
+  it('uses a current ComfyUI ImageScale crop value for img2img', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'A three-view adult character turnaround sheet.',
+      model_family: 'flux',
+      input_image: 'avatar.png',
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+
+    expect(graph['12'].class_type).toBe('ImageScale');
+    expect(graph['12'].inputs.crop).toBe('disabled');
+    expect(['disabled', 'center']).toContain(graph['12'].inputs.crop);
+  });
+
   it('uses the Shakker FLUX IP-Adapter graph for identity references', () => {
     const graph = buildFluxWorkflow({
       prompt: 'An adult woman walking through a sunlit kitchen.',

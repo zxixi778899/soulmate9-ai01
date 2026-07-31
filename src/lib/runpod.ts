@@ -299,7 +299,7 @@ export function buildFluxWorkflow(opts: {
           upscale_method: 'lanczos',
           width,
           height,
-          crop: 'pad',
+          crop: 'disabled',
         },
       },
       '13': {
