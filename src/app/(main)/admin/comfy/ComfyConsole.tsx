@@ -549,7 +549,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         }),
       });
       const data = await readResponseJson(res).catch(() => ({} as Any));
-      if (!res.ok || data.source !== 'llm') {
+      if (!res.ok || (data.source !== 'llm' && data.source !== 'preset')) {
         throw new Error(data.error || 'LLM 提示词优化失败');
       }
       const generatedPrompt = String(data.prompt || '');
@@ -565,7 +565,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       if (missingLoras.length > 0) {
         toast.warning(`???? LoRA ?????${missingLoras.map((item: Any) => item.id).join(', ')}`);
       }
-      toast.success(`LLM 已按${COMPANION_CATEGORY_LABELS[companionCategory].zh}和强度 ${nsfwIntensity}/5 重写提示词`);
+      if (data.source === 'preset') {
+        toast.warning('LLM 不可用，已使用本地预设降级');
+      } else {
+        toast.success(`LLM 已按${COMPANION_CATEGORY_LABELS[companionCategory].zh}和强度 ${nsfwIntensity}/5 重写提示词`);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'LLM 提示词优化失败');
     } finally {
@@ -1102,7 +1106,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         }),
       });
       const promptData = await readResponseJson(promptRes).catch(() => ({} as Any));
-      if (!promptRes.ok || promptData.source !== 'llm' || !String(promptData.prompt || '').trim()) {
+      if (!promptRes.ok || (promptData.source !== 'llm' && promptData.source !== 'preset') || !String(promptData.prompt || '').trim()) {
         throw new Error(promptData.error || 'LLM failed to create a unique generation prompt');
       }
       const effectivePrompt = String(promptData.prompt).trim();

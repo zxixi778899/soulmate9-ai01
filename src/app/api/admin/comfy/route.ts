@@ -21,7 +21,6 @@ import {
 } from '@/lib/storage';
 import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
-import { captureException } from '@/lib/sentry';
 import { loadAiModules } from '@/lib/ai-modules/store';
 import { resolveChatCall } from '@/lib/ai-modules/resolve';
 import { invokeChat } from '@/lib/ai-modules/invoke';
@@ -570,11 +569,54 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
           .map((item) => ({ id: item.id, reasonZh: item.reasonZh })),
       });
     } catch (error) {
-      captureException(error, { tags: { route: 'admin-comfy', action: 'optimize_prompt' } });
-      logger.error('[comfy] LLM prompt optimization failed', {
+      logger.warn('[comfy] LLM prompt optimization failed, using preset fallback', {
         error: error instanceof Error ? error.message : String(error),
       });
-      return NextResponse.json({ error: 'LLM prompt optimization failed. No preset fallback was used.' }, { status: 502 });
+      // Preset fallback: assemble a usable prompt from companion identity + user scene intent
+      const identityParts = [
+        companion.name, companion.appearance_race, companion.appearance_body,
+        companion.appearance_hair_color, companion.appearance_hair, companion.appearance_eyes,
+      ].filter(Boolean).map(String);
+      const sceneBase = currentPrompt || 'relaxed candid moment, natural soft window light, warm neutral tones';
+      const fallbackPrompt = generationMode === 'img2img' || generationMode === 'img2video'
+        ? sceneBase
+        : [identityParts.join(', '), sceneBase].filter(Boolean).join(', ');
+      const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
+      const generationRoute = resolveImageGenerationRoute({
+        surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intensity, sceneSemantics: fallbackSemantics,
+      });
+      const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
+      const installed = getInstalledLoraSet();
+      const scale = studioLoraStrengthScale(intensity);
+      const recommendations = recommendedStudioLoras(category, animeStyle);
+      const loras = recommendations
+        .map((item) => {
+          const asset = cfg.loras.find((candidate) => candidate.id === item.id);
+          return asset?.filename && installed.has(asset.filename)
+            ? { id: asset.id, strength: Number(Math.min(1.05, item.strength * scale).toFixed(2)) }
+            : null;
+        })
+        .filter((item): item is { id: string; strength: number } => item !== null);
+      return NextResponse.json({
+        success: true,
+        source: 'preset',
+        scene_semantics: fallbackSemantics,
+        generation_preset: generationRoute,
+        prompt: fallbackPrompt,
+        negative: studioNegativePrompt(category, animeStyle),
+        loras,
+        pipeline: {
+          identitySource: identity ? 'companion_record' : 'manual_prompt',
+          identity,
+          category,
+          intensity,
+          prompt: fallbackPrompt,
+          loras,
+        },
+        missing_loras: recommendations
+          .filter((item) => !loras.some((selected) => selected.id === item.id))
+          .map((item) => ({ id: item.id, reasonZh: item.reasonZh })),
+      });
     }
   }
   if (body.action === 'reset_config') {
