@@ -1187,6 +1187,16 @@ if (body.action === 'verify_loras') {
     const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics });
     if (body.width == null) width = generationRoute.width;
     if (body.height == null) height = generationRoute.height;
+    // Identity assets have fixed production dimensions — the turnaround is a wide
+    // three-panel contact sheet (1344×768) and the avatar is a portrait (832×1216).
+    // FLUX renders whatever latent size it is given, so enforce the preset size
+    // server-side; a stale client width/height must not turn the sheet into a
+    // portrait headshot.
+    if (isIdentityAsset) {
+      const productionDims = getCharacterProductionPreset(assetRole);
+      width = productionDims.width;
+      height = productionDims.height;
+    }
     const llmAuthoredPrompt = body.prompt_source === 'llm';
     // Identity assets and LLM-authored prompts already contain their complete composition. — composition instruction is already first
     if (!isIdentityAsset && !llmAuthoredPrompt) {
