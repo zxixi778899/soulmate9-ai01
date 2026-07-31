@@ -47,8 +47,8 @@ describe('character asset production', () => {
     expect(identityTurnaroundDenoise('identity-front', 0.35)).toBe(0.72);
     expect(identityTurnaroundDenoise('identity-profile', 0.35)).toBe(0.68);
     expect(identityTurnaroundDenoise('identity-back', 0.35)).toBe(0.76);
-    expect(identityTurnaroundDenoise('character-art', 0.35)).toBe(0.58);
-    expect(identityTurnaroundDenoise('album', 0.35)).toBe(0.62);
+    expect(identityTurnaroundDenoise('character-art', 0.35)).toBe(0.9);
+    expect(identityTurnaroundDenoise('album', 0.35)).toBe(0.88);
     expect(getCharacterProductionPreset('identity-front').scene).toContain('Full-body front-facing catalog photograph');
     expect(getCharacterProductionPreset('identity-profile').scene).toContain('side-profile catalog photograph');
     expect(getCharacterProductionPreset('identity-profile').scene).toContain('left side facing camera');

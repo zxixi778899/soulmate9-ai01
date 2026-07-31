@@ -57,6 +57,7 @@ import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import {
   CHARACTER_ID_PACK,
   getCharacterProductionPreset,
+  identityReferenceRolePriority,
   styleProductionHint,
   type CharacterAssetRole,
 } from '@/lib/character-asset-production';
@@ -234,12 +235,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     const preset = getCharacterProductionPreset(role);
     // avatar-closeup is ALWAYS pure txt2img — no reference image, no img2img redraw
     const isAvatar = role === 'avatar-closeup';
-    const wantsIdentityRef = !isAvatar && (role === 'character-art' || role === 'album' || role === 'scene');
-    const identityAsset = companionAssets.find((item) => item.meta?.asset_role === 'identity-turnaround')
-      || companionAssets.find((item) => item.meta?.asset_role === 'identity-front')
-      || companionAssets.find((item) => item.meta?.asset_role === 'identity-profile')
-      || companionAssets.find((item) => item.meta?.asset_role === 'identity-back')
-      || companionAssets.find((item) => item.meta?.asset_role === 'avatar-closeup');
+    const wantsIdentityRef = !isAvatar && preset.consistency;
+    const identityAsset = identityReferenceRolePriority(role)
+      .map((referenceRole) => companionAssets.find((item) => item.meta?.asset_role === referenceRole))
+      .find((item) => Boolean(item));
     const identityImage = String(identityAsset?.url || '');
     const hasIdentityRef = wantsIdentityRef && identityImage.length > 0;
     setAssetRole(role);

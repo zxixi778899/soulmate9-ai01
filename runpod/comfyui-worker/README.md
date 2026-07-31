@@ -21,6 +21,7 @@ Build from this directory: `runpod/comfyui-worker`.
 - Max workers: 1
 - GPU: 24 GB VRAM minimum
 - Do not override the container start command
+- Web app environment after the image is live: `RUNPOD_IPADAPTER_INSTALLED=1`
 
 The official worker mounts the serverless volume at `/runpod-volume` and
 discovers models from `/runpod-volume/models`.

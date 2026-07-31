@@ -1320,9 +1320,9 @@ if (body.action === 'verify_loras') {
       }, { status: 400 });
     }
     // IP-Adapter: face reference without composition lock (from request body or auto-resolved)
-    // IP-Adapter is installed in the production worker. Keep it enabled by default;
-    // RUNPOD_IPADAPTER_INSTALLED=0 is the explicit emergency off switch.
-    const ipAdapterEnabled = process.env.RUNPOD_IPADAPTER_INSTALLED !== '0' && assetRole !== 'avatar-closeup';
+    // Custom nodes are absent from the stock worker, so FLUX IP-Adapter is explicit opt-in.
+    // Until the custom image is deployed, img2img still consumes the avatar reference.
+    const ipAdapterEnabled = process.env.RUNPOD_IPADAPTER_INSTALLED === '1' && assetRole !== 'avatar-closeup';
     const ipAdapterImage = ipAdapterEnabled
       ? (String(body.ip_adapter_image || '').trim() || storedAvatarUrl || consistencyReference || effectiveInputImage)
       : undefined;
