@@ -29,7 +29,7 @@ describe('character production reference routing', () => {
     const params = buildStageGenerationParams(stage!, 'prompt', 'negative', [], refs);
     expect(params.input_image).toBeUndefined();
     expect(params.ip_adapter_image).toBe('https://example.com/avatar.png');
-    expect(params.ip_adapter_weight).toBe(0.82);
+    expect(params.ip_adapter_weight).toBe(0.6);
     expect(params.width).toBe(1344);
     expect(params.height).toBe(768);
   });
