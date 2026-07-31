@@ -16,6 +16,7 @@ export type ProviderId =
   | 'coze'
   | 'anthropic'
   | 'openrouter'
+  | 'dashscope'
   | 'local';
 
 /** One callable model endpoint */

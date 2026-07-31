@@ -30,7 +30,7 @@ function endpoint(cfg: AiModulesConfig, id?: string | null): ModelEndpoint | nul
 function baseUrl(ep: ModelEndpoint): string { return ep.api_base_url || (ep.api_base_env ? process.env[ep.api_base_env] || '' : '') || (ep.provider === 'runpod' ? process.env.RUNPOD_VLLM_URL || '' : ''); }
 export function isEndpointConfigured(ep?: ModelEndpoint | null): boolean {
   if (!ep || ep.health_status === 'disabled') return false;
-  const key = ep.api_key_env ? process.env[ep.api_key_env] : ep.provider === 'together' ? process.env.TOGETHER_API_KEY : ep.provider === 'runpod' ? process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY : ep.provider === 'openai' ? process.env.OPENAI_API_KEY : '';
+  const key = ep.api_key_env ? process.env[ep.api_key_env] : ep.provider === 'together' ? process.env.TOGETHER_API_KEY : ep.provider === 'runpod' ? process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY : ep.provider === 'openai' ? process.env.OPENAI_API_KEY : ep.provider === 'dashscope' ? process.env.DASHSCOPE_API_KEY : '';
   return !!key && (ep.provider !== 'runpod' || !!baseUrl(ep));
 }
 function ordered(cfg: AiModulesConfig, ids: Array<string | null | undefined>): ModelEndpoint[] {

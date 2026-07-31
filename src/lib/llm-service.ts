@@ -120,6 +120,42 @@ async function postRunPod(input: Record<string, unknown>, signal: AbortSignal): 
 
 // ── Non-streaming ──
 
+/**
+ * DashScope (Alibaba Bailian) — OpenAI-compatible, low-latency, no cold start.
+ * SFW utility tasks only: content filter rejects NSFW with HTTP 400.
+ */
+async function callDashScopeChat(
+  messages: { role: string; content: string }[],
+  options: GenOptions,
+): Promise<string> {
+  const key = process.env.DASHSCOPE_API_KEY || '';
+  if (!key) throw new Error('DashScope not configured');
+  const model = process.env.DASHSCOPE_MODEL || 'qwen-plus';
+  const res = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+      temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+      top_p: options.topP ?? DEFAULT_TOP_P,
+      enable_thinking: false,
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`DashScope HTTP ${res.status}: ${body.slice(0, 160)}`);
+  }
+  const data = await res.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) throw new Error('DashScope returned empty');
+  return String(content).trim();
+}
 
 async function callTogetherChat(
   messages: { role: string; content: string }[],
@@ -159,6 +195,17 @@ export async function generateText(options: GenOptions): Promise<string> {
   const messages = buildInput(options);
   const errors: string[] = [];
 
+  // 1) DashScope (Bailian) — stable, no cold start, covered by savings plan.
+  if (process.env.DASHSCOPE_API_KEY) {
+    try {
+      return await callDashScopeChat(messages as { role: string; content: string }[], options);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+      logger.warn('[llm] dashscope generate failed, trying RunPod', { err: errors[errors.length - 1] });
+    }
+  }
+
+  // 2) RunPod vLLM (self-hosted, uncensored)
   if (isConfigured()) {
     try {
       const data = await postRunPod({

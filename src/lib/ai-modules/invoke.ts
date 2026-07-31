@@ -10,8 +10,8 @@ export interface InvokeChatOptions {
 export interface InvokeChatResult { content: string; provider: string; model: string; endpoint_id: string; fallback_count: number; latency_ms: number; input_tokens: number; output_tokens: number; cost_usd: number; }
 interface CircuitState { failures: number; openedAt: number | null; resetMs?: number; }
 const circuits = new Map<string, CircuitState>();
-function key(ep: ModelEndpoint): string { return ep.api_key_env ? process.env[ep.api_key_env] || '' : ep.provider === 'together' ? process.env.TOGETHER_API_KEY || '' : ep.provider === 'runpod' ? process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY || '' : ep.provider === 'openai' ? process.env.OPENAI_API_KEY || '' : ep.provider === 'openrouter' ? process.env.OPENROUTER_API_KEY || '' : ''; }
-function base(ep: ModelEndpoint): string { return (ep.api_base_url || (ep.api_base_env ? process.env[ep.api_base_env] || '' : '') || (ep.provider === 'runpod' ? process.env.RUNPOD_VLLM_URL || '' : ep.provider === 'together' ? 'https://api.together.xyz/v1' : ep.provider === 'openai' ? 'https://api.openai.com/v1' : ep.provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : '')).replace(/\/$/, ''); }
+function key(ep: ModelEndpoint): string { return ep.api_key_env ? process.env[ep.api_key_env] || '' : ep.provider === 'together' ? process.env.TOGETHER_API_KEY || '' : ep.provider === 'runpod' ? process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY || '' : ep.provider === 'openai' ? process.env.OPENAI_API_KEY || '' : ep.provider === 'openrouter' ? process.env.OPENROUTER_API_KEY || '' : ep.provider === 'dashscope' ? process.env.DASHSCOPE_API_KEY || '' : ''; }
+function base(ep: ModelEndpoint): string { return (ep.api_base_url || (ep.api_base_env ? process.env[ep.api_base_env] || '' : '') || (ep.provider === 'runpod' ? process.env.RUNPOD_VLLM_URL || '' : ep.provider === 'together' ? 'https://api.together.xyz/v1' : ep.provider === 'openai' ? 'https://api.openai.com/v1' : ep.provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : ep.provider === 'dashscope' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' : '')).replace(/\/$/, ''); }
 function circuitOpen(ep: ModelEndpoint): boolean { const state = circuits.get(ep.id); if (!state?.openedAt) return false; if (Date.now() - state.openedAt >= (state.resetMs || ep.circuit_breaker?.reset_ms || 60000)) { circuits.delete(ep.id); return false; } return true; }
 function recordFailure(ep: ModelEndpoint, error?: unknown): void {
   const state = circuits.get(ep.id) || { failures: 0, openedAt: null };
@@ -29,7 +29,8 @@ async function completion(ep: ModelEndpoint, messages: Array<{ role: string; con
   const doFetch = (thinkingOff: boolean) => fetch(`${apiBase}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: ep.model_id, messages, max_tokens: maxTokens, temperature, ...(thinkingOff ? { enable_thinking: false, chat_template_kwargs: { enable_thinking: false } } : {}) }), signal: AbortSignal.timeout(ep.timeout_ms || 30000) });
   // Qwen3-family models default to thinking mode on vLLM servers; the reasoning
   // trace can eat the whole max_tokens budget and leave `content` empty.
-  const isQwen3 = /qwen3/i.test(ep.model_id);
+  // DashScope (Bailian) hosts Qwen family only — same guard applies.
+  const isQwen3 = ep.provider === 'dashscope' || /qwen3/i.test(ep.model_id);
   let response = await doFetch(isQwen3);
   if (!response.ok) { const body = await response.text().catch(() => ''); throw new Error(`${ep.provider} HTTP ${response.status}: ${body.slice(0, 160)}`); }
   let data: unknown = await response.json();
@@ -108,7 +109,7 @@ export async function invokeChatStreamReal(opts: InvokeChatOptions): Promise<{ r
       continue;
     }
 
-    const isQwen3 = /qwen3/i.test(ep.model_id);
+    const isQwen3 = ep.provider === 'dashscope' || /qwen3/i.test(ep.model_id);
     const body: Record<string, unknown> = {
       model: ep.model_id,
       messages: opts.messages,

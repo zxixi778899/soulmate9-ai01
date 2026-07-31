@@ -199,10 +199,6 @@ async function callLlmForPrompt(
   brief: string,
   ctx: PipelineContext,
 ): Promise<string | null> {
-  const apiKey = process.env.RUNPOD_API_KEY || '';
-  const endpointId = process.env.RUNPOD_VLLM_ENDPOINT_ID || 'm4va2u0uqugd9v';
-  if (!apiKey) return null;
-
   const userMessage = `Stage: ${stage.id} (${stage.description})
 Character: ${brief}
 Style: ${ctx.animeStyle}
@@ -211,15 +207,49 @@ NSFW level: ${ctx.nsfwIntensity}/5
 
 Generate the optimal FLUX prompt for this stage:`;
 
+  const messages = [
+    { role: 'system', content: PROMPT_SYSTEM_TEMPLATE },
+    { role: 'user', content: userMessage },
+  ];
+
+  // 1) DashScope (Bailian) — stable, no cold start, covered by savings plan.
+  const dashscopeKey = process.env.DASHSCOPE_API_KEY || '';
+  if (dashscopeKey) {
+    try {
+      const res = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${dashscopeKey}` },
+        body: JSON.stringify({
+          model: process.env.DASHSCOPE_MODEL || 'qwen-plus',
+          messages,
+          max_tokens: 200,
+          temperature: 0.7,
+          top_p: 0.9,
+          enable_thinking: false,
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const content = data?.choices?.[0]?.message?.content;
+        if (content) return String(content).trim();
+      }
+    } catch {
+      // fall through to RunPod
+    }
+  }
+
+  // 2) RunPod vLLM runsync (uncensored, but cold starts / capacity issues)
+  const apiKey = process.env.RUNPOD_API_KEY || '';
+  const endpointId = process.env.RUNPOD_VLLM_ENDPOINT_ID || 'm4va2u0uqugd9v';
+  if (!apiKey) return null;
+
   const res = await fetch(`https://api.runpod.ai/v2/${endpointId}/runsync`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       input: {
-        messages: [
-          { role: 'system', content: PROMPT_SYSTEM_TEMPLATE },
-          { role: 'user', content: userMessage },
-        ],
+        messages,
         sampling_params: {
           max_tokens: 200,
           temperature: 0.7,
