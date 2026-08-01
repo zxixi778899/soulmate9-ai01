@@ -19,7 +19,7 @@ const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>
     anime: 'The adult character wears lingerie, nightwear, or an adult fantasy costume and poses seductively with genitals covered and no sexual act.',
   },
   3: {
-    female: 'She poses fully nude with her natural breasts and vulva remain clearly visible, without performing a sexual act.',
+    female: 'She poses fully nude with her natural breasts and vulva clearly visible, without performing a sexual act.',
     male: 'He poses fully nude with his muscular torso, large penis, and testicles clearly visible, without performing a sexual act.',
     transgender: 'She poses fully nude with developed breasts, feminine curves, a large penis, and testicles clearly visible, without performing a sexual act.',
     anime: 'The adult character poses fully nude with mature stylized anatomy clearly visible, without performing a sexual act.',
@@ -31,7 +31,7 @@ const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>
     anime: 'The adult character performs clearly visible solo masturbation, before climax and without visible sexual fluids.',
   },
   5: {
-    female: 'She has clearly visible, consensual sex with another unmistakably adult partner; her natural breasts and vulva remain clearly visible, and the requested act through to climax with any visible sexual fluids are anatomically coherent and fully readable.',
+    female: 'She has clearly visible, consensual sex with another unmistakably adult partner; her natural breasts and vulva clearly visible, and the requested act through to climax with any visible sexual fluids are anatomically coherent and fully readable.',
     male: 'He has clearly visible, consensual sex with another unmistakably adult partner; his large penis and testicles remain visible, and the requested act through to climax with any visible semen are anatomically coherent and fully readable.',
     transgender: 'She has clearly visible, consensual sex with another unmistakably adult partner; her developed breasts, feminine curves, large penis, and testicles remain visible and consistent, and the requested act through to climax with any visible semen are fully readable.',
     anime: 'The unmistakably adult character has clearly visible, consensual sex with another unmistakably adult partner, with mature stylized anatomy, coherent contact, climax, and any requested sexual fluids.',
@@ -46,7 +46,7 @@ const CATEGORY_SUBJECTS: Record<CompanionCategory, string> = {
 };
 
 const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
-  'realistic': 'Photograph it as a candid real-camera editorial frame with neutral white balance and accurate, varied skin tones. Use restrained saturation, gentle highlight roll-off, readable shadow detail, practical or window light, real fabric texture and moderate depth of field. Keep a relaxed asymmetrical posture with believable weight, a subtle micro-expression, natural gaze, and hands resting on or interacting with the environment. Preserve pores, fine facial texture and small human imperfections without beauty filtering or cinematic teal-magenta grading.',
+  'realistic': 'Natural candid photograph, practical soft light, neutral skin tone, real texture, relaxed posture, natural hands.',
   '2d': 'Render it as a high-resolution 2D anime frame with clean line art, consistent cel shading, expressive eyes, and no photographic or 3D elements.',
   '3d': 'Render it as a high-resolution 3D animated film frame with a coherent modeled character, PBR materials, detailed hair, and cinematic lighting, with no flat line art.',
 };
@@ -54,14 +54,14 @@ const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
 function compactIdentity(identity?: string): string {
   const clean = String(identity || '').replace(/\s+/g, ' ').trim();
   return clean
-    ? ' This is the same established character in every image. Preserve exactly these identity details: ' + clean.slice(0, 420) + '. Do not replace them with a generic face or body.'
+    ? ` Same established character: ${clean.slice(0, 240)}.`
     : '';
 }
 
 function compactScene(scene?: string): string {
   const clean = String(scene || '').replace(/\s+/g, ' ').trim();
-  if (!clean) return 'Choose a distinctive, believable private or everyday setting that fits this companion instead of a generic sofa scene.';
-  return `The scene direction is: ${clean.replace(/[.]+$/, '')}.`;
+  if (!clean) return 'A believable lived-in private setting.';
+  return clean.replace(/[.]+$/, '') + '.';
 }
 
 export function studioIntensityDirection(category: CompanionCategory, intensity: NsfwIntensity): string {
@@ -83,15 +83,15 @@ export function buildStudioPromptSections(input: {
   scene?: string;
   identity?: string;
 }): StudioPromptSections {
-  const composition = input.intensity >= 4
-    ? 'Use a readable head-to-knee or full-body composition with the complete torso and pelvis in frame. Keep every participating adult face identifiable, place weight naturally through one hip or a stable support, and keep the complete action, hands, and contact points anatomically coherent and free of accidental obstruction.'
+const composition = input.intensity >= 4
+    ? 'Vertical head-to-knee or full-body framing; faces, hands, pelvis and contact points visible; physically stable pose.'
     : input.intensity === 3
-      ? 'Use a candid head-to-knee or full-body view with the complete head, face, torso and pelvis in frame; keep both hands visible, weight distribution natural and anatomy unobstructed.'
+      ? 'Vertical head-to-knee or full-body framing; head, hands, torso and pelvis visible; natural weight.'
       : input.category === 'transgender'
-        ? 'Use a relaxed three-quarter view that clearly preserves her feminine face, chest, waist and hips without a centered mannequin pose or an ambiguous body silhouette.'
-        : 'Keep the pose readable with relaxed shoulders, natural weight distribution, expressive eye contact and an unforced candid moment.';
+        ? 'Relaxed three-quarter full-body view with feminine face, chest, waist and hips clearly readable.'
+        : 'Relaxed three-quarter full-body view, natural weight and candid eye contact.';
   return {
-    identity: CATEGORY_SUBJECTS[input.category] + compactIdentity(input.identity),
+    identity: input.identity ? compactIdentity(input.identity).trim() : CATEGORY_SUBJECTS[input.category],
     scene: compactScene(input.scene),
     exposureAndAction: studioIntensityDirection(input.category, input.intensity),
     composition,
@@ -131,14 +131,14 @@ export function studioIntensityLabel(intensity: NsfwIntensity): string {
 }
 
 export function studioNegativePrompt(category: CompanionCategory, animeStyle: AnimeRenderStyle = 'realistic'): string {
-  const shared = 'score_4, score_5, score_6, worst quality, low quality, blur, soft focus, motion blur, excessive film grain, chromatic noise, jpeg artifacts, low resolution, oversaturated, neon color cast on skin, magenta skin, cyan skin, orange skin, teal-orange grading, crushed blacks, blown highlights, HDR halo, excessive contrast, beauty filter, airbrushed skin, plastic skin, waxy face, uncanny valley, doll-like face, synthetic eyes, dead eyes, mannequin pose, frozen gesture, rigid symmetry, perfectly centered symmetry, mirrored limbs, floating hands, disconnected contact with props, over-smoothed skin, vacant expression, cropped head, head out of frame, headless body, cut-off face, child, teen, underage, childlike face, adolescent features, ambiguous adult age, duplicate person, extra limbs, fused anatomy, malformed hands, malformed genitals';
+  const shared = 'child, teen, underage, young-looking, low resolution, blur, deformed anatomy, extra limbs, fused hands, malformed hands, duplicate person, cropped head, cropped feet, rigid pose, plastic skin, oversaturated skin, text, watermark';
   const anatomy = category === 'transgender'
-    ? 'cisgender woman, vagina, flat chest, cropped pelvis, genital area out of frame, duplicated genitals, detached genitals, male-only silhouette, caricature, fetish stereotype'
+    ? 'cisgender woman, vagina, flat chest, duplicated genitals, detached genitals, caricature'
     : category === 'male'
-      ? 'woman, female body, feminine breasts, vagina, transgender woman, feminine silhouette, narrow female shoulders, broken pelvis, bad anatomy'
+      ? 'woman, feminine breasts, vagina, transgender woman'
       : category === 'female'
-        ? 'man, male body, penis, testicles, transgender woman, masculine face, broad masculine torso, broken pelvis, bad anatomy'
-        : 'broken pelvis, bad anatomy';
+        ? 'man, penis, testicles, transgender woman, masculine face'
+        : 'broken pelvis';
   const style = animeStyle === '2d'
     ? 'photorealistic, photograph, 3d render, plastic CGI, muddy line art'
     : animeStyle === '3d'
@@ -151,27 +151,19 @@ export function recommendedStudioLoras(
   category: CompanionCategory,
   animeStyle: AnimeRenderStyle = 'realistic',
 ): Array<{ id: string; strength: number; reasonZh: string }> {
-  const subjectCategory = category === 'anime' ? 'female' : category;
-  const genderLoras = subjectCategory === 'transgender'
-    ? [
-        { id: 'detail-skin', strength: 0.28, reasonZh: '\u4ec5\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282\uff0c\u4e0d\u5e72\u9884\u8de8\u6027\u522b\u8eab\u4f53\u7ed3\u6784' },
-      ]
-    : subjectCategory === 'male'
-      ? [
-          { id: 'body-masculine-flux', strength: 0.62, reasonZh: '\u5f3a\u5316\u6210\u5e74\u7537\u6027\u4f53\u578b\u4e0e\u89e3\u5256' },
-          { id: 'detail-skin', strength: 0.36, reasonZh: '\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282' },
-        ]
-      : [
-          { id: 'body-curvy-flux', strength: 0.58, reasonZh: '\u5f3a\u5316\u6210\u5e74\u5973\u6027\u81ea\u7136\u66f2\u7ebf' },
-          { id: 'detail-skin', strength: 0.36, reasonZh: '\u589e\u5f3a\u771f\u5b9e\u76ae\u80a4\u7ec6\u8282' },
-        ];
-  const styleLora = animeStyle === '2d'
-    ? { id: 'style-anime-2d-flux', strength: 0.68, reasonZh: '\u7a33\u5b9a 2D \u7ebf\u7a3f\u4e0e\u8d5b\u7490\u7490\u4e0a\u8272' }
-    : animeStyle === '3d'
-      ? { id: 'style-anime-3d-flux', strength: 0.64, reasonZh: '\u7a33\u5b9a 3D \u52a8\u753b\u6750\u8d28\u4e0e\u89d2\u8272\u5efa\u6a21' }
-      : null;
-  if (!styleLora) return [genderLoras[0]];
-  return [styleLora];
+  if (animeStyle === '2d') {
+    return [{
+      id: 'illustrious-micro-details-v6',
+      strength: 0.3,
+      reasonZh: '仅在 Illustrious 路线增强二维人物微细节；运行卷确认存在后才加载。',
+    }];
+  }
+  if (animeStyle === '3d') return [];
+  return [{
+    id: 'flux-detail-skin-v1',
+    strength: category === 'transgender' ? 0.2 : 0.24,
+    reasonZh: 'FLUX 写实成片的低强度自然皮肤细节；不用于头像或三视图。',
+  }];
 }
 
 export type CategoryLoraControl = {

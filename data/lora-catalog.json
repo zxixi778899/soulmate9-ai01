@@ -72,7 +72,11 @@
       "version_name": "Zphyr_FLUX_Photoreal_LoRA",
       "upstream_filename": "Zphyr_FLUX_Photorealistic_LoRA.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 111.36
+      "size_mb": 111.36,
+      "description_zh": "仅用于场景成片的轻量写实风格；头像和三视图禁用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 1084957，目录 SHA256 1DFADD058CF7BEDF41F0DDC8BD83F9AC3B285A36C60ACAB618EEAC72A4568B99；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅用于最终场景图，身份头像和三视图禁用；强度过高会改变肤色与脸型。"
     },
     {
       "id": "flux-detail-skin-v1",
@@ -101,7 +105,11 @@
       "version_name": "FluxRealSkin-v2.0",
       "upstream_filename": "fluxRealSkin-V2.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 164
+      "size_mb": 164,
+      "description_zh": "成片皮肤细节，低强度按需使用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 827325，目录 SHA256 C9FAB54482CD63A1996788730D91C96DD832C5165B8E0C365920EEF60CDE715E；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅低强度增强细节；叠加多个细节 LoRA 容易过锐、老化或产生塑料皮肤。"
     },
     {
       "id": "flux-detail-skin-nplastic-v1",
@@ -130,7 +138,11 @@
       "version_name": "FLUX v0.1",
       "upstream_filename": "aidmaRealisticSkin-FLUX-v0.1.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 73.14
+      "size_mb": 73.14,
+      "description_zh": "降低蜡像感，低强度按需使用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 1301668，目录 SHA256 DA97701B932C33E2F3AE53A889DDC9C8139BD3D5FC12BE52C2400478A5D88EE1；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅低强度增强细节；叠加多个细节 LoRA 容易过锐、老化或产生塑料皮肤。"
     },
     {
       "id": "flux-detail-hands-v1",
@@ -159,7 +171,11 @@
       "version_name": "v3.0-FLUX",
       "upstream_filename": "Detailed_Hands-000001.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 85.59
+      "size_mb": 85.59,
+      "description_zh": "手部特写按需使用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 1003317，目录 SHA256 DB03488D97D57FC4024322BA799DBF4EF3C894DFEEB2560D1FBED994F842A335；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅低强度增强细节；叠加多个细节 LoRA 容易过锐、老化或产生塑料皮肤。"
     },
     {
       "id": "flux-body-curvy-v1",
@@ -188,7 +204,11 @@
       "version_name": "v3.2 FLUX",
       "upstream_filename": "hourglassv32_FLUX.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 292.27
+      "size_mb": 292.27,
+      "description_zh": "明确要求曲线体型时使用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 1668530，目录 SHA256 A2740BF10F7C747BBD8F7A93FDA830D79EBAE890ACAD4F3AB4E8A293C58CDA5A；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅在角色设定明确匹配时使用；会改变体型，不用于身份锚点。"
     },
     {
       "id": "flux-body-pear-v1",
@@ -217,7 +237,11 @@
       "version_name": "v1.0",
       "upstream_filename": "mew2bodi.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 164
+      "size_mb": 164,
+      "description_zh": "明确要求梨形体型时使用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 1276427，目录 SHA256 CA5800DDB7713E592764D5494E4897F20E788F445EDEF5967396443F18292091；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅在角色设定明确匹配时使用；会改变体型，不用于身份锚点。"
     },
     {
       "id": "flux-pose-nsfw-dynamic-v1",
@@ -246,7 +270,11 @@
       "version_name": "v1.0",
       "upstream_filename": "NSFW_master.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 164
+      "size_mb": 164,
+      "description_zh": "仅成人场景动作图按需使用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 746602，目录 SHA256 84CE473CDEAA1DDD016CDF0406E08B43BB14C01D2C94EF48DA2A035BB0B925C2；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅在动作与提示词明确匹配时使用；强度过高容易破坏肢体和接触关系。"
     },
     {
       "id": "flux-outfit-lingerie-v1",
@@ -275,7 +303,11 @@
       "version_name": "v1.0",
       "upstream_filename": "lingerie_model_flux_lora.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 73.14
+      "size_mb": 73.14,
+      "description_zh": "明确选择内衣服装时使用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 869894，目录 SHA256 08BA76E7799FFB4B5031C2B5B628A3AA58C86673DEA2D2CE9ADE197B220FD997；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅在服装明确匹配时使用；不可替代人物身份控制。"
     },
     {
       "id": "flux-outfit-bikini-v1",
@@ -304,7 +336,11 @@
       "version_name": "v1.0",
       "upstream_filename": "bikinim1_flux_v1.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 327.88
+      "size_mb": 327.88,
+      "description_zh": "明确选择比基尼时使用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 1184191，目录 SHA256 341076066E09C344E3216E625C9C672A6005EB1E7F7434AD5F741C6DFFD55D17；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅在服装明确匹配时使用；不可替代人物身份控制。"
     },
     {
       "id": "flux-outfit-latex-v1",
@@ -333,7 +369,11 @@
       "version_name": "Flux v1.0",
       "upstream_filename": "latexHood.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 49.94
+      "size_mb": 49.94,
+      "description_zh": "仅在明确要求乳胶头套时使用，不可当作通用乳胶服装 LoRA。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 734230，目录 SHA256 206AC14630340CAF2E1BA2D7F5514E37DEF6FDB1BD930CD8B879E67C6EF3A683；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅在服装明确匹配时使用；不可替代人物身份控制。"
     },
     {
       "id": "flux-style-cinematic-v1",
@@ -362,11 +402,15 @@
       "version_name": "Realism F1D v1.5",
       "upstream_filename": "realism style v2.safetensors",
       "upstream_base_model": "Flux.1 D",
-      "size_mb": 969.25
+      "size_mb": 969.25,
+      "description_zh": "场景成片的电影光线风格；头像和三视图禁用。",
+      "compatibility_zh": "仅兼容 FLUX.1 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 953083，目录 SHA256 BB7CE7A60A82298D25BAA6D7CE8D277A46E2E7990D6897B1C8C888D53AB5480C；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅用于最终场景图，身份头像和三视图禁用；强度过高会改变肤色与脸型。"
     },
     {
       "id": "pony-detailifier-v5",
-      "label": "Pony Detailifier v5",
+      "label": "Pony 细节增强 v5",
       "category": "detail",
       "filename": "pony_detailifier_v5.safetensors",
       "default_strength": 0.35,
@@ -391,11 +435,15 @@
       "version_name": "Pony v5.0",
       "upstream_filename": "detailer_v5.safetensors",
       "upstream_base_model": "Pony",
-      "size_mb": 217.9
+      "size_mb": 217.9,
+      "description_zh": "仅用于 Pony 系列模型的细节增强。",
+      "compatibility_zh": "仅兼容 Pony 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 624633，目录 SHA256 DFE0D5AA6199F9E474709AF357A88092A35949266AD03361E6F6F92430DADF05；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅低强度增强细节；叠加多个细节 LoRA 容易过锐、老化或产生塑料皮肤。"
     },
     {
       "id": "illustrious-micro-details-v6",
-      "label": "Illustrious Add Micro Details v6",
+      "label": "Illustrious 微细节增强 v6",
       "category": "detail",
       "filename": "AddMicroDetails_Illustrious_v6.safetensors",
       "default_strength": 0.3,
@@ -418,11 +466,15 @@
       "version_name": "v6.0_Illustrious",
       "upstream_filename": "AddMicroDetails_Illustrious_v6.safetensors",
       "upstream_base_model": "Illustrious",
-      "size_mb": 217.89
+      "size_mb": 217.89,
+      "description_zh": "仅用于 Illustrious 模型的微细节增强。",
+      "compatibility_zh": "仅兼容 Illustrious 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 2832991，目录 SHA256 CE12AF9C5E510A745618F76F1197C5776CD283E5DDDD707FC0371AFD940B4454；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅低强度增强细节；叠加多个细节 LoRA 容易过锐、老化或产生塑料皮肤。"
     },
     {
       "id": "illustrious-detail-slider-v1",
-      "label": "Illustrious Detail Slider v1",
+      "label": "Illustrious 细节滑块 v1",
       "category": "detail",
       "filename": "StS-Illustrious-Detail-Slider-v1.0.safetensors",
       "default_strength": 0.3,
@@ -445,11 +497,15 @@
       "version_name": "v1.0 - Initial Release",
       "upstream_filename": "StS-Illustrious-Detail-Slider-v1.0.safetensors",
       "upstream_base_model": "Illustrious",
-      "size_mb": 8.38
+      "size_mb": 8.38,
+      "description_zh": "仅用于 Illustrious 模型的细节滑块。",
+      "compatibility_zh": "仅兼容 Illustrious 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 1122976，目录 SHA256 2E7A68EC7E2EBA5A07881E885E072213BBB1B03CBF881D852F0F85623AD99349；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅低强度增强细节；叠加多个细节 LoRA 容易过锐、老化或产生塑料皮肤。"
     },
     {
-      "id": "illustrious-background-detailer-v3",
-      "label": "Illustrious Background Detailer V3",
+      "id": "pony-background-detailer-v3",
+      "label": "Pony 背景细节增强 v3",
       "category": "detail",
       "filename": "BackgroundDetailerV3-000004.safetensors",
       "default_strength": 0.3,
@@ -474,7 +530,11 @@
       "version_name": "Pony Beta V3",
       "upstream_filename": "BackgroundDetailerV3-000004.safetensors",
       "upstream_base_model": "Pony",
-      "size_mb": 217.88
+      "size_mb": 217.88,
+      "description_zh": "Pony Beta V3 背景细节版本；仅在 Pony 路线按需使用。",
+      "compatibility_zh": "仅兼容 Pony 底模；不得跨底模加载。",
+      "authenticity_zh": "来源 civitai，版本 ID 726791，目录 SHA256 DF9E5D5356D662FEE519FF2C448EE1422A43B516BF26798B6AEE4EED410391B3；只有运行卷文件名、大小和 SHA256 校验一致才视为真实可用。",
+      "risk_zh": "仅低强度增强细节；叠加多个细节 LoRA 容易过锐、老化或产生塑料皮肤。"
     }
   ],
   "routing_rules": {

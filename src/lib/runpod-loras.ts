@@ -31,6 +31,10 @@ export interface LoraEntry {
   label: string;
   /** ComfyUI trigger words (empty for FLUX) */
   trigger_words: string[];
+  sha256?: string;
+  base_model?: string;
+  version_id?: number;
+  description_zh?: string;
 }
 
 /**
@@ -45,6 +49,10 @@ type CatalogRegistryRow = {
   category: string;
   default_strength: number;
   trigger_words?: string[];
+  sha256?: string;
+  base_model?: string;
+  version_id?: number;
+  description_zh?: string;
 };
 
 /** Metadata catalog only. Runtime presence is always verified separately. */
@@ -56,6 +64,10 @@ export const LORA_REGISTRY: readonly LoraEntry[] = (
   category: item.category === 'action' ? 'pose' : item.category as LoraCategory,
   strength: item.default_strength,
   trigger_words: item.trigger_words || [],
+  sha256: item.sha256,
+  base_model: item.base_model,
+  version_id: item.version_id,
+  description_zh: item.description_zh,
 }));
 
 // ─── Installed set helpers ───────────────────────────────────
@@ -252,6 +264,9 @@ export type LoraHealthEntry = {
   fileSizeBytes?: number;
   /** Whether the file passes the minimum size threshold. */
   sizeValid?: boolean;
+  hashValid?: boolean;
+  expectedSha256?: string;
+  actualSha256?: string;
 };
 
 export type LoraHealthReport = {
@@ -278,7 +293,7 @@ export type LoraHealthReport = {
  *
  * Call this from the admin API to give the operator a health dashboard.
  */
-export function verifyLoraHealth(fileSizes?: Record<string, number>): LoraHealthReport {
+export function verifyLoraHealth(fileSizes?: Record<string, number>, fileHashes?: Record<string, string>): LoraHealthReport {
   const installed = getVerifiedInstalledLoraSet();
   const inventoryAvailable = installed.size > 0;
   const issues: string[] = [];
@@ -287,6 +302,9 @@ export function verifyLoraHealth(fileSizes?: Record<string, number>): LoraHealth
     const present = installed.has(entry.file);
     const size = fileSizes?.[entry.file];
     const sizeValid = size != null ? size >= MIN_LORA_FILE_BYTES : undefined;
+    const actualHash = fileHashes?.[entry.file]?.toUpperCase();
+    const expectedHash = entry.sha256?.toUpperCase();
+    const hashValid = actualHash && expectedHash ? actualHash === expectedHash : undefined;
 
     let status: LoraHealthEntry['status'];
     let note: string;
@@ -297,10 +315,17 @@ export function verifyLoraHealth(fileSizes?: Record<string, number>): LoraHealth
         ? 'NOT found in runtime mounted-volume inventory'
         : 'Registry entry only; runtime volume inventory unavailable';
       if (inventoryAvailable) issues.push(`${entry.label}: missing from volume`);
+    } else if (hashValid === false) {
+      status = 'suspect';
+      note = 'SHA256 mismatch; file is not the verified catalog version';
+      issues.push(`${entry.label}: SHA256 mismatch`);
     } else if (sizeValid === false) {
       status = 'suspect';
       note = `File too small (${(size! / 1024).toFixed(1)} KB < ${MIN_LORA_FILE_BYTES / 1024} KB) — likely corrupted or placeholder`;
       issues.push(`${entry.label}: suspect (${(size! / 1024).toFixed(1)} KB)`);
+    } else if (expectedHash && !actualHash) {
+      status = 'unknown';
+      note = 'File exists on volume, but SHA256 was not supplied; authenticity is not confirmed';
     } else {
       status = 'ok';
       note = size != null
@@ -316,6 +341,9 @@ export function verifyLoraHealth(fileSizes?: Record<string, number>): LoraHealth
       note,
       fileSizeBytes: size,
       sizeValid,
+      hashValid,
+      expectedSha256: expectedHash,
+      actualSha256: actualHash,
     };
   });
 
@@ -378,7 +406,7 @@ export function verifyLoraIntegrity(
  *
  * @param fileSizeBytes - Optional known file size for size validation.
  */
-export function checkLoraAuthenticity(filename: string, fileSizeBytes?: number): string | null {
+export function checkLoraAuthenticity(filename: string, fileSizeBytes?: number, actualSha256?: string): string | null {
   const trimmed = filename.trim();
   if (!trimmed) return 'Empty filename';
   if (!trimmed.endsWith('.safetensors')) return 'Not a .safetensors file';
@@ -390,6 +418,16 @@ export function checkLoraAuthenticity(filename: string, fileSizeBytes?: number):
       return `File too small (${(fileSizeBytes / 1024).toFixed(1)} KB < ${MIN_LORA_FILE_BYTES / 1024} KB minimum) — likely corrupted`;
     }
   }
+
+  const catalogEntry = LORA_REGISTRY.find((entry) => entry.file === trimmed);
+  if (!catalogEntry) return 'File is not registered in the verified LoRA catalog';
+  if (!catalogEntry.version_id || !catalogEntry.sha256 || !catalogEntry.base_model) {
+    return 'Catalog provenance incomplete: version ID, SHA256, or base model is missing';
+  }
+  if (actualSha256 && actualSha256.toUpperCase() !== catalogEntry.sha256.toUpperCase()) {
+    return 'SHA256 mismatch; file is not the registered upstream version';
+  }
+  if (!actualSha256) return 'SHA256 not supplied; authenticity is not confirmed';
 
   const installed = getVerifiedInstalledLoraSet();
   if (!installed.size) {

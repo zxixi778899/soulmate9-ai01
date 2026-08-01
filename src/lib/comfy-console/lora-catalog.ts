@@ -14,6 +14,10 @@ export type CatalogLora = {
   default_strength: number;
   nsfw?: boolean;
   usage: string;
+  description_zh?: string;
+  compatibility_zh?: string;
+  authenticity_zh?: string;
+  risk_zh?: string;
   trigger_words: string[];
   workflows?: string[];
   source?: string;
@@ -80,6 +84,10 @@ export function catalogToLoraAssets(): Array<{
   category?: string;
   nsfw?: boolean;
   usage?: string;
+  description_zh?: string;
+  compatibility_zh?: string;
+  authenticity_zh?: string;
+  risk_zh?: string;
   trigger_words?: string[];
   page_url?: string;
   search_keywords?: string;
@@ -104,8 +112,12 @@ export function catalogToLoraAssets(): Array<{
     category: l.category,
     nsfw: !!l.nsfw,
     usage: l.usage,
+    description_zh: l.description_zh || l.usage,
+    compatibility_zh: l.compatibility_zh,
+    authenticity_zh: l.authenticity_zh,
+    risk_zh: l.risk_zh,
     trigger_words: l.trigger_words || [],
-    page_url: l.page_url,
+    page_url: l.page_url || (l.version_id ? `https://civitai.com/api/v1/model-versions/${l.version_id}` : undefined),
     search_keywords: l.search_keywords,
     workflows: l.workflows,
     base_model: /illustrious/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'Illustrious' as const : /pony/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'Pony' as const : /sdxl/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'SDXL' as const : 'FLUX.1' as const,

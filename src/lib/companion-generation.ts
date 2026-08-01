@@ -1,6 +1,6 @@
-import { STUDIO_PROMPTS, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
+import { normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
-import { studioIntensityDirection } from '@/lib/comfy-console/studio-profile';
+import { buildStudioPromptEnhancement, studioNegativePrompt } from '@/lib/comfy-console/studio-profile';
 
 const ACTIONS: Record<CompanionCategory, string[]> = {
   female: [
@@ -182,14 +182,24 @@ export function buildCompanionSceneRealism(
   intensity: CompanionSceneIntensity,
 ): string {
   const kind = inferRealSceneKind(action);
-  const livedInDetail = stableIdentityCue(row, `scene-${kind}`, [
-    'Include one slightly displaced everyday object and one naturally rumpled material.',
-    'Allow a few loose hairs, uneven fabric tension and a tiny asymmetry in the expression.',
-    'Show subtle pressure marks where the body meets clothing or furniture and imperfectly arranged surroundings.',
-    'Keep one hand occupied by a real object while the other relaxes naturally, with no decorative hand posing.',
-    'Use a fleeting mid-breath expression and a minor off-axis camera position, as if photographed by someone present.',
-  ]);
-  return `${REAL_SCENE_DIRECTIONS[kind]} ${INTENSITY_BODY_LANGUAGE[intensity]} ${livedInDetail} Use a 35mm or 50mm documentary perspective at believable eye level, without perfect centering or excessive background blur.`;
+  const setting: Record<RealSceneKind, string> = {
+    home: 'soft window light, an ordinary lived-in room, lightly rumpled fabric',
+    outdoor: 'weather-consistent daylight, a recognizable background, light wind in hair and clothing',
+    water: 'soft reflected light, naturally wet hair, irregular droplets and damp fabric',
+    mirror: 'ordinary room light, correct reflection geometry and a casual camera angle',
+    work: 'credible task light, a used workspace and one relevant object in hand',
+    nightlife: 'neutral light on skin with colored city lights confined to the background',
+    intimate: 'soft bedside light, naturally compressed bedding and visible physical support',
+    neutral: 'believable available light, a lived-in setting and real material texture',
+  };
+  const gesture = ({
+    1: 'an unguarded pause, relaxed shoulders and shifted weight',
+    2: 'quiet flirtation, one occupied hand and off-center weight',
+    3: 'a supported spine, naturally bent joints and continuous movement',
+    4: 'clear preparation, stable support and coherent hand contact',
+    5: 'stable centers of gravity, purposeful hands and responsive expressions',
+  } as const)[intensity];
+  return `${setting[kind]}, ${gesture}, eye-level 35mm camera`;
 }
 
 export const COMPANION_REALISM_NEGATIVE = 'oversaturated, teal-orange grading, cyan skin, magenta skin, neon color cast on skin, crushed blacks, blown highlights, HDR halo, excessive contrast, beauty filter, airbrushed skin, plastic skin, waxy skin, poreless skin, uncanny valley, synthetic eyes, doll face, generic influencer face, mannequin pose, frozen gesture, rigid symmetry, perfectly centered composition, decorative hand pose, floating hands, weightless body, impossible balance, disconnected contact, excessive bokeh, fake luxury set';
@@ -204,13 +214,12 @@ export function buildCompanionGenerationPrompt(
     style: profile.style,
     tags: row.tags,
   });
-  const preset = STUDIO_PROMPTS[category];
   const isIllustrated = /anime|manga|cartoon|2d|3d|cgi/i.test(profile.style);
   const action = options?.action?.trim() || pick(ACTIONS[category], options?.random);
   const identitySpecification = buildCompanionIdentitySpecification(row);
+  const identityBrief = buildCompanionIdentityBrief(row);
   const intensity = options?.intensity || (options?.adult === false ? 1 : 3);
   const sceneRealism = isIllustrated ? '' : buildCompanionSceneRealism(row, action, intensity);
-  const intensityDirection = studioIntensityDirection(category, intensity);
   const baseInfo = [
     String(row.name || 'adult companion'),
     String(row.age ? `age ${row.age}` : 'age 25+'),
@@ -224,15 +233,16 @@ export function buildCompanionGenerationPrompt(
     String(row.appearance_style || profile.style),
     String(row.appearance_face || row.distinguishing_features || ''),
   ].filter(Boolean).join(', ');
-  const quality = isIllustrated
-    ? 'Render this as a premium anime illustration with deliberate linework, expressive eyes, rich cel shading, and a readable composition.'
-    : `Photograph this as a real event rather than a staged AI portrait. ${sceneRealism} Preserve the companion's distinctive facial asymmetry, natural skin variation, pores, fine hair, real fabric texture and personal mannerisms. Use neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off and readable shadows.`;
+  const quality = isIllustrated ? '2D anime' : 'realistic photograph';
+  const negative = `${studioNegativePrompt(category, isIllustrated ? '2d' : 'realistic')}, different person, face swap`;
+  const positive = buildStudioPromptEnhancement({
+    category,
+    intensity,
+    animeStyle: isIllustrated ? '2d' : 'realistic',
+    identity: options?.sceneOnly ? undefined : identityBrief,
+    scene: [action, sceneRealism].filter(Boolean).join(', '),
+  });
 
-  const negative = isIllustrated
-    ? `${preset.negative}, generic face, duplicate identity, same face as another character`
-    : `${preset.negative}, ${COMPANION_REALISM_NEGATIVE}, generic face, duplicate identity, same face as another character`;
-
-  // sceneOnly: identity is controlled by reference image, prompt only describes scene+action+quality
   if (options?.sceneOnly) {
     return {
       category,
@@ -240,18 +250,17 @@ export function buildCompanionGenerationPrompt(
       action,
       quality,
       identitySpecification,
-      positive: `Scene direction: ${action}. ${options?.adult === false ? '' : intensityDirection} ${quality}`.trim(),
-      negative: `${negative}, different person, face swap`,
+      positive,
+      negative,
     };
   }
-
   return {
     category,
     baseInfo,
     action,
     quality,
     identitySpecification,
-    positive: `${identitySpecification} Scene direction: ${action}. ${options?.adult === false ? '' : intensityDirection} ${quality}`.trim(),
+    positive,
     negative,
   };
 }

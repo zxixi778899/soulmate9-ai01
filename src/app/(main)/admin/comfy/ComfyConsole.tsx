@@ -2373,7 +2373,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         一键调用
                       </Button>
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed"><span className="font-semibold text-violet-300">用途：</span>{loraUsageZh(l)}</p>
+                    <p className="text-[11px] text-slate-300 leading-relaxed"><span className="font-semibold text-violet-300">用途：</span>{l.description_zh || l.usage || loraUsageZh(l)}</p>
+                    {l.compatibility_zh && <p className="text-[10px] text-cyan-300/80"><span className="font-semibold">适用模型：</span>{l.compatibility_zh}</p>}
+                    {l.authenticity_zh && <p className="text-[10px] text-emerald-300/80"><span className="font-semibold">真实性：</span>{l.authenticity_zh}</p>}
+                    {l.risk_zh && <p className="text-[10px] text-amber-300/80"><span className="font-semibold">注意：</span>{l.risk_zh}</p>}
                     <p className="text-[10px] font-mono text-cyan-400/70 break-all">{l.filename}</p>
                     {(l.trigger_words?.length ?? 0) > 0 && (
                       <div className="flex flex-wrap gap-1">

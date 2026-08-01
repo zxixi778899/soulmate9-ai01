@@ -25,15 +25,15 @@ import { loadAiModules } from '@/lib/ai-modules/store';
 import { resolveChatCall } from '@/lib/ai-modules/resolve';
 import { invokeChat } from '@/lib/ai-modules/invoke';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
-import { COMPACT_ADULT_NEGATIVE, COMPANION_CATEGORIES, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
+import { COMPANION_CATEGORIES, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
 import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
-import { buildSceneCastPrompt, classifyImageScene, normalizeLlmImageScene } from '@/lib/image-scene-semantics';
+import { classifyImageScene, normalizeLlmImageScene } from '@/lib/image-scene-semantics';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
-import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole, styleProductionHint } from '@/lib/character-asset-production';
-import { buildCompanionAgeNegativePrompt, buildCompanionGenerationPrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
+import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
+import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -488,7 +488,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       `User scene intent (a constraint, not final prose): ${currentPrompt || 'invent a plausible scene suited to this companion'}`,
       `Recent prompts that must not be repeated: ${previousPrompts.length ? JSON.stringify(previousPrompts) : 'none'}`,
       `Mandatory negative concepts: ${studioNegativePrompt(category, animeStyle)}`,
-      'Write 70-130 words optimized for FLUX.1 Dev and keep the paragraph under 1000 characters. Put the most important visual facts first: use fluent natural-language sentences in this order—specific subject or reference-image instruction, one physically clear action, spatial relationship to the environment or other adults, framing and camera distance, motivated light source, restrained color, then material and skin detail. Use concrete nouns and verbs. State left/right/front/behind and contact points when relevant. Do not use SDXL tag soup, score tags, BREAK, emphasis weights, parentheses weights, embedding syntax, model names, LoRA names, masterpiece/best quality spam, duplicated adjectives, or negative instructions inside the positive prompt. Return one coherent paragraph without headings or repeated identity facts.',
+      'Write 45-75 words optimized for FLUX.1 Dev and keep the paragraph under 650 characters. Use at most four short sentences. Put the most important visual facts first: use fluent natural-language sentences in this order—specific subject or reference-image instruction, one physically clear action, spatial relationship to the environment or other adults, framing and camera distance, motivated light source, restrained color, then material and skin detail. Use concrete nouns and verbs. State left/right/front/behind and contact points when relevant. Do not use SDXL tag soup, score tags, BREAK, emphasis weights, parentheses weights, embedding syntax, model names, LoRA names, masterpiece/best quality spam, duplicated adjectives, or negative instructions inside the positive prompt. Return one coherent paragraph without headings or repeated identity facts.',
     ].join('\n');
     try {
       const aiConfig = await loadAiModules(admin.supabase);
@@ -523,10 +523,10 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
       const sceneSemantics = normalizeLlmImageScene(parsed, fallbackSemantics);
       const optimizedPromptRaw = String(parsed.prompt || '').replace(/\s+/g, ' ').trim();
-      const optimizedPrompt = optimizedPromptRaw.length <= 1000
+      const optimizedPrompt = optimizedPromptRaw.length <= 650
         ? optimizedPromptRaw
-        : optimizedPromptRaw.slice(0, 1000).replace(/\s+\S*$/, '').trim();
-      if (optimizedPrompt.length < 120) throw new Error('LLM returned an incomplete prompt');
+        : optimizedPromptRaw.slice(0, 650).replace(/\s+\S*$/, '').trim();
+      if (optimizedPrompt.length < 80) throw new Error('LLM returned an incomplete prompt');
       if (previousPrompts.some((previous) => previous.trim() === optimizedPrompt)) {
         throw new Error('LLM repeated a previous prompt');
       }
@@ -551,7 +551,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
         scene_semantics: sceneSemantics,
         generation_preset: generationRoute,
         prompt: optimizedPrompt,
-        negative: `${String(parsed.negative || '').trim()}, ${studioNegativePrompt(category, animeStyle)}`.replace(/^,\s*/, ''),
+        negative: studioNegativePrompt(category, animeStyle),
         loras,
         pipeline: {
           identitySource: identity ? 'companion_record' : 'manual_prompt',
@@ -1043,12 +1043,14 @@ if (body.action === 'verify_loras') {
     // Accept optional file_sizes map from volume scan: { "filename.safetensors": bytes }
     const fileSizes: Record<string, number> | undefined =
       body.file_sizes && typeof body.file_sizes === 'object' ? body.file_sizes : undefined;
-    const report = verifyLoraHealth(fileSizes);
+    const fileHashes: Record<string, string> | undefined =
+      body.file_hashes && typeof body.file_hashes === 'object' ? body.file_hashes : undefined;
+    const report = verifyLoraHealth(fileSizes, fileHashes);
     // If specific files requested, check each (with size when available)
     const files: string[] = Array.isArray(body.files) ? body.files : [];
     const fileChecks = files.map((f) => ({
       file: f,
-      issue: checkLoraAuthenticity(f, fileSizes?.[f]),
+      issue: checkLoraAuthenticity(f, fileSizes?.[f], fileHashes?.[f]),
     }));
     const verifyConfig = await loadComfyConfig(admin.supabase);
     const installed = new Set(report.entries.filter((entry) => entry.status === 'ok').map((entry) => entry.file));
@@ -1058,13 +1060,19 @@ if (body.action === 'verify_loras') {
         id: lora.id,
         label: lora.label,
         file: lora.filename,
-        purpose_zh: loraUsageZh(lora),
+        purpose_zh: lora.description_zh || lora.usage || loraUsageZh(lora),
         status: installed.has(lora.filename)
           ? 'ok'
           : report.inventorySource === 'runtime-volume'
             ? 'missing'
             : 'unknown',
         size_bytes: fileSizes?.[lora.filename],
+        sha256: fileHashes?.[lora.filename] || null,
+        expected_sha256: LORA_REGISTRY.find((entry) => entry.file === lora.filename)?.sha256 || null,
+        base_model: lora.base_model || null,
+        compatibility_zh: lora.compatibility_zh || null,
+        authenticity_zh: lora.authenticity_zh || null,
+        risk_zh: lora.risk_zh || null,
         source_url: lora.page_url || null,
       }));
     return NextResponse.json({
@@ -1198,11 +1206,9 @@ if (body.action === 'verify_loras') {
       height = productionDims.height;
     }
     const llmAuthoredPrompt = body.prompt_source === 'llm';
-    // Identity assets and LLM-authored prompts already contain their complete composition. — composition instruction is already first
-    if (!isIdentityAsset && !llmAuthoredPrompt) {
-      prompt = `${generationRoute.promptPrefix} ${buildSceneCastPrompt(sceneSemantics)} ${prompt}`;
-    }
-    if (surface === 'companion' && body.prompt_profile_applied !== true && !isIdentityAsset && !llmAuthoredPrompt) {
+    // One assembly path only: authored prompts pass through untouched; manual scene
+    // intent is assembled exactly once by the shared FLUX companion builder.
+    if (surface === 'companion' && !isIdentityAsset && !llmAuthoredPrompt && body.prompt_profile_applied !== true) {
       prompt = buildStudioPromptEnhancement({
         category,
         intensity: generationIntensity,
@@ -1210,9 +1216,7 @@ if (body.action === 'verify_loras') {
         scene: prompt,
       });
     }
-    if (surface === 'companion' && !isIdentityAsset && !llmAuthoredPrompt) {
-      negative = `${studioNegativePrompt(category, animeStyle)}, ${COMPACT_ADULT_NEGATIVE}`;
-    }
+    if (!negative.trim()) negative = studioNegativePrompt(category, animeStyle);
 
     const suppliedReference = String(body.input_image || '').trim();
     const storedIdentityUrls: string[] = [];
@@ -1252,22 +1256,6 @@ if (body.action === 'verify_loras') {
     const isFinalProductAsset = assetRole === 'character-art' || assetRole === 'album' || assetRole === 'scene';
     const identityReferenceUrls = [...storedIdentityUrls, ...(isFinalProductAsset ? [] : [consistencyReference])].filter(Boolean);
 
-    // ─── Scene-only prompt: identity controlled by reference image ───────────
-    // When identity reference images are available, the prompt should ONLY
-    // describe scene + action + quality. Character appearance is preserved
-    // by the reference image via img2img / IP-Adapter, not by text.
-    if (isFinalProductAsset && identityReferenceUrls.length > 0 && databaseCompanion && !llmAuthoredPrompt) {
-      const productionPreset = getCharacterProductionPreset(assetRole);
-      const sceneOnlyResult = buildCompanionGenerationPrompt(databaseCompanion, {
-        action: `${productionPreset.scene}. ${styleProductionHint(animeStyle)}`,
-        adult: generationIntensity >= 3,
-        sceneOnly: true,
-        intensity: generationIntensity,
-      });
-      prompt = `${generationRoute.promptPrefix} ${sceneOnlyResult.positive}`;
-      negative = sceneOnlyResult.negative;
-      category = sceneOnlyResult.category;
-    }
 
     const identityAssets = girlfriendId && identityReferenceUrls.length
       ? companionIdentityAssets(girlfriendId, identityReferenceUrls, {

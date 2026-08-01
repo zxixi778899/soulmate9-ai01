@@ -56,6 +56,9 @@ export interface ImageRouterOptions {
   /** Reference image for character consistency */
   image_url?: string;
   strength?: number;
+  /** Identity reference for txt2img. Preserves identity without copying composition. */
+  ip_adapter_image?: string;
+  ip_adapter_weight?: number;
   /** LoRA stack (only used if provider supports it) */
   loras?: Array<{ name: string; strength_model?: number; strength_clip?: number }>;
   /** Checkpoint name */
@@ -228,6 +231,8 @@ async function executeRunPod(
     negative_prompt: opts.negative_prompt,
     input_image: config.supports_reference ? opts.image_url : undefined,
     denoising_strength: opts.image_url ? (opts.strength ?? 0.78) : undefined,
+    ip_adapter_image: config.supports_reference ? opts.ip_adapter_image : undefined,
+    ip_adapter_weight: opts.ip_adapter_image ? (opts.ip_adapter_weight ?? 0.7) : undefined,
     width: opts.width || 704,
     height: opts.height || 960,
     num_images: 1,

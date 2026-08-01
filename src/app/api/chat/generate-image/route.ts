@@ -123,19 +123,21 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle();
     const tier = membershipFromProfile((profile as Record<string, unknown>) || null);
-    const adultRequested = /\b(nude|naked|nsfw|explicit|sex|sexy|lingerie|fuck|cock|pussy|dick|cum|orgasm|blowjob|anal|breast|nipple|horny|moan|undress|strip|bdsm|spank|ride|aroused|climax|erotic|hardcore|fetish|kink|threesome|oral|deepthroat|creampie|facial|bondage|dominat|submiss|collar|leash|whip|gag|choker|thigh.?high|garter|corset|bustier|negligee|see.?through|topless|bottomless|spread|bent.?over|on.?knees|suck|lick|tease|seduce)\b|裸|自慰|高潮|乳房|阴道|阴茎|精液|性爱|口交|肛交|内衣|露点|色情|调教/i.test(userRequest);
+    const adultRequested = /\b(nude|naked|nsfw|explicit|sex|sexy|lingerie|fuck|cock|pussy|dick|cum|orgasm|blowjob|anal|breast|nipple|horny|moan|undress|strip|bdsm|spank|ride|aroused|climax|erotic|hardcore|fetish|kink|threesome|oral|deepthroat|creampie|facial|bondage|dominat|submiss|collar|leash|whip|gag|choker|thigh.?high|garter|corset|bustier|negligee|see.?through|topless|bottomless|spread|bent.?over|on.?knees|suck|lick|tease|seduce)\b|\u88f8|\u81ea\u6170|\u9ad8\u6f6e|\u4e73\u623f|\u9634\u9053|\u9634\u830e|\u7cbe\u6db2|\u6027\u7231|\u53e3\u4ea4|\u809b\u4ea4|\u5185\u8863|\u9732\u70b9|\u8272\u60c5|\u8c03\u6559/i.test(userRequest);
     const { data: intimacyRow } = await client
       .from('intimacy_scores')
       .select('score')
       .eq('girlfriend_id', girlfriend_id)
       .eq('user_id', user.id)
+      .order('score', { ascending: false })
+      .limit(1)
       .maybeSingle();
     const intimacyScore = Number(intimacyRow?.score || 0);
     const intimacyPolicy = getIntimacyGenerationPolicy(intimacyScore);
 
     if (adultRequested && !intimacyPolicy.adultAllowed) {
       return NextResponse.json({
-        error: zh ? '亲密值达到 300 后解锁成人聊天与生图。' : 'Reach 300 intimacy to unlock adult chat and image generation.',
+        error: zh ? '\u4eb2\u5bc6\u503c\u8fbe\u5230 300 \u540e\u89e3\u9501\u6210\u4eba\u804a\u5929\u4e0e\u751f\u56fe\u3002' : 'Reach 300 intimacy to unlock adult chat and image generation.',
         code: 'intimacy_locked',
         ...getIntimacyUnlockPayload(intimacyScore),
       }, { status: 403 });
@@ -246,14 +248,17 @@ export async function POST(request: NextRequest) {
       chatContext.reverse();
     }
 
-    const intent = buildImageActionFromChat(userRequest || 'send me a selfie', chatContext);
+    const intent = buildImageActionFromChat(
+      userRequest || 'Create a full-body character artwork matching our conversation',
+      chatContext,
+    );
     const framing = intimacyPolicy.level >= 3
       ? 'candid three-quarter full-body framing, torso and pelvis visible, shifted weight, relaxed shoulders, asymmetrical natural gesture'
       : intent.kind === 'selfie'
       ? 'close selfie framing, looking directly at the camera'
       : intent.kind === 'body'
         ? 'medium full-body framing'
-        : 'balanced portrait framing';
+        : 'full-body vertical character artwork, complete head, hands, torso and legs in frame';
     const sceneBits = [envTag || 'a private modern room', poseTag, moodTag, framing]
       .filter(Boolean)
       .join(', ');
@@ -312,7 +317,6 @@ export async function POST(request: NextRequest) {
       identity,
     });
 
-    prompt = `${generationRoute.promptPrefix} ${prompt}`;
 
     const genderStyle = detectGenderStyle(gfRecord);
     const generationProfile = resolveImageGenerationProfile(genderStyle, effectiveAdult);
@@ -415,11 +419,7 @@ export async function POST(request: NextRequest) {
     // Preserve identity from the saved portrait without copying its composition.
     const useConsistency =
       resolved.config.use_consistency_default !== false && Boolean(referenceImage);
-    const denoise = useConsistency
-      ? intimacyPolicy.level >= 3
-        ? 0.58
-        : 0.42
-      : 1;
+    const ipAdapterWeight = intimacyPolicy.level >= 4 ? 0.62 : 0.7;
 
     const sceneCfg = resolved.config;
     const generationSeed = Math.floor(Math.random() * 2 ** 32);
@@ -434,8 +434,8 @@ export async function POST(request: NextRequest) {
       num_inference_steps: generationRoute.steps,
       guidance_scale: generationRoute.cfg,
       seed: generationSeed,
-      image_url: useConsistency ? referenceImage : undefined,
-      strength: useConsistency ? denoise : undefined,
+      ip_adapter_image: useConsistency ? referenceImage : undefined,
+      ip_adapter_weight: useConsistency ? ipAdapterWeight : undefined,
       loras: intelligentLoras,
       ckpt_name: generationRoute.checkpoint,
       sampler_name: generationRoute.sampler,
@@ -463,7 +463,7 @@ export async function POST(request: NextRequest) {
           loras: intelligentLoras,
           lora_inventory_source: compatibleLoraPlan.inventorySource,
           missing_loras: compatibleLoraPlan.missing,
-          referenceDenoise: useConsistency ? denoise : null,
+          ipAdapterWeight: useConsistency ? ipAdapterWeight : null,
           referencePlan: referencePlan.trace,
           referenceRoles: referencePlan.selected.map((asset) => asset.role),
           attempts: routerResult.attempts,
@@ -514,14 +514,32 @@ export async function POST(request: NextRequest) {
           ? `${gfName} sends you a new teasing photo—just for you 🔥`
           : `${gfName} sends you a brand-new photo 📸`;
 
-    await client.from('chat_messages').insert({
+    const { data: savedMessage, error: messageError } = await client.from('chat_messages').insert({
       user_id: user.id,
       girlfriend_id,
       role: 'assistant',
       content: caption,
       media_url: generatedUrl,
       media_type: 'image',
+    }).select('id').maybeSingle();
+    if (messageError) logger.warn('[Chat Generate Image] chat message insert failed', { error: messageError.message });
+
+    const { error: mediaError } = await client.from('chat_media').insert({
+      user_id: user.id,
+      girlfriend_id,
+      message_id: savedMessage?.id || null,
+      media_type: 'image',
+      url: generatedUrl,
+      metadata: {
+        source: 'chat_generation',
+        scene: 'chat_character_art',
+        intimacy_level: intimacyPolicy.level,
+        nsfw_intensity: intimacyPolicy.nsfwIntensity,
+        prompt_summary: prompt.slice(0, 500),
+        asset_role: 'character-art',
+      },
     });
+    if (mediaError) logger.warn('[Chat Generate Image] album insert failed', { error: mediaError.message });
 
     void logModelUsage({
       provider: 'runpod',
@@ -556,7 +574,7 @@ export async function POST(request: NextRequest) {
         files: intelligentLoras.map((lora) => lora.name),
         provider: routerResult.provider,
         attempts: routerResult.attempts,
-        referenceDenoise: useConsistency ? denoise : null,
+        ipAdapterWeight: useConsistency ? ipAdapterWeight : null,
         missingCategoryLoras: categoryControl.missing.map((item) => item.id),
       },
       daily_limit: resolved.dailyLimit,

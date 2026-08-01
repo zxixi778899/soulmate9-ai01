@@ -17,11 +17,7 @@ describe('unified image generation routing', () => {
     }).endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
   });
 
-  it.each([
-    ['female', 'feminine woman', 'visible breasts and vulva'],
-    ['male', 'masculine man', 'visible penis and testicles'],
-    ['transgender', 'transgender woman', 'visible breasts, visible penis'],
-  ] as const)('uses FLUX natural-language prompt and parameters for %s NSFW', (category, subjectDesc, anatomyDesc) => {
+  it.each(['female', 'male', 'transgender'] as const)('uses FLUX parameters for %s NSFW without a second prompt prefix', (category) => {
     const route = resolveImageGenerationRoute({
       surface: 'companion',
       category,
@@ -29,8 +25,7 @@ describe('unified image generation routing', () => {
       nsfwIntensity: 5,
     });
     expect(route.modelFamily).toBe('flux');
-    expect(route.promptPrefix).toContain(subjectDesc);
-    expect(route.promptPrefix).toContain(anatomyDesc);
+    expect(route).not.toHaveProperty('promptPrefix');
     expect(route.sampler).toBe('euler');
     expect(route.scheduler).toBe('simple');
     expect(route.cfg).toBe(1);
@@ -41,16 +36,6 @@ describe('unified image generation routing', () => {
     expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
   });
 
-  it('uses natural color and non-mannequin direction for realistic previews', () => {
-    const route = resolveImageGenerationRoute({
-      surface: 'companion',
-      renderStyle: 'realistic',
-      nsfwIntensity: 1,
-    });
-    expect(route.promptPrefix).toContain('neutral white balance');
-    expect(route.promptPrefix).toContain('restrained saturation');
-    expect(route.promptPrefix).toContain('relaxed asymmetrical posture');
-  });
   it('routes 2D and 3D both to FLUX (only checkpoint available)', () => {
     expect(resolveImageGenerationRoute({
       surface: 'companion',
@@ -60,11 +45,6 @@ describe('unified image generation routing', () => {
       surface: 'companion',
       renderStyle: '3d',
     }).modelFamily).toBe('flux');
-    // 2D uses anime-oriented prompt
-    expect(resolveImageGenerationRoute({
-      surface: 'companion',
-      renderStyle: '2d',
-    }).promptPrefix).toContain('anime');
   });
 
   it.each(['outfit', 'prop', 'advert'] as const)('keeps %s assets on FLUX via unified endpoint', (surface) => {

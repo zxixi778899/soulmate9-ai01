@@ -4,6 +4,7 @@ import { CATEGORY_PRESETS } from '@/app/(main)/admin/comfy/presets';
 import {
   checkLoraAuthenticity,
   getVerifiedInstalledLoraSet,
+  LORA_REGISTRY,
   verifyLoraHealth,
 } from '@/lib/runpod-loras';
 
@@ -44,9 +45,11 @@ describe('LoRA authenticity inventory', () => {
     expect(verifyLoraHealth().unknown).toBeGreaterThan(0);
   });
 
-  it('verifies only filenames reported by the mounted-volume inventory', () => {
-    process.env.RUNPOD_INSTALLED_LORAS = 'real-style.safetensors';
-    expect(checkLoraAuthenticity('real-style.safetensors')).toBeNull();
-    expect(checkLoraAuthenticity('invented-style.safetensors')).toContain('Not found on volume');
+it('verifies only registered files reported by the mounted-volume inventory', () => {
+    const registered = LORA_REGISTRY[0];
+    process.env.RUNPOD_INSTALLED_LORAS = registered.file;
+    expect(checkLoraAuthenticity(registered.file, 1024 * 1024, registered.sha256)).toBeNull();
+    expect(checkLoraAuthenticity('invented-style.safetensors')).toContain('not registered');
+    expect(checkLoraAuthenticity(registered.file, 1024 * 1024, 'BAD_HASH')).toContain('SHA256 mismatch');
   });
 });

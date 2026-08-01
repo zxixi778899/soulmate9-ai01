@@ -40,6 +40,10 @@ export type LoraAsset = {
   category?: string;
   nsfw?: boolean;
   usage?: string;
+  description_zh?: string;
+  compatibility_zh?: string;
+  authenticity_zh?: string;
+  risk_zh?: string;
   trigger_words?: string[];
   page_url?: string;
   search_keywords?: string;
@@ -240,8 +244,8 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
         description: '性感伴侣卡：特征+动作+环境+质量；3/4 身材展示；明亮面部光；可挂身材/质感 LoRA',
         defaults: {
           ckpt_id: 'flux-fp8',
-          lora_id: 'body-curvy-flux',
-          lora_strength: 0.75,
+          lora_id: 'none',
+          lora_strength: 0,
           width: 832,
           height: 1216,
           steps: 28,

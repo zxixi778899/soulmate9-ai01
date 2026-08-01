@@ -26,7 +26,6 @@ export type ImageGenerationRoute = {
   width: number;
   height: number;
   presetId: string;
-  promptPrefix: string;
   reason: string;
 };
 
@@ -74,7 +73,6 @@ export function resolveImageGenerationRoute(input: {
       width: 832,
       height: 1216,
       presetId: 'flux-companion-turbo',
-      promptPrefix: 'A candid in-focus real-camera editorial frame with neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off, readable shadows, natural pores, relaxed asymmetrical posture, believable weight distribution, and an unforced expression.',
       reason: 'Turbo preview: minimal steps for fast companion draft.',
     };
   }
@@ -96,9 +94,6 @@ export function resolveImageGenerationRoute(input: {
       width: 832,
       height: 1216,
       presetId: complexScene ? 'flux-2d-multi-control' : 'flux-2d-portrait',
-      promptPrefix: complexScene
-        ? 'High-quality mature anime illustration, detailed character design, clean line art, vibrant colors, dynamic multi-character composition, professional anime key visual.'
-        : 'High-quality mature anime illustration, detailed character design, clean line art, vibrant colors, beautiful single character portrait, professional anime key visual.',
       reason: complexScene
         ? 'Multi-character 2D art uses a higher-step FLUX anime preset.'
         : 'Single-character 2D art uses the FLUX anime portrait preset.',
@@ -112,18 +107,6 @@ export function resolveImageGenerationRoute(input: {
     (intensity >= 3 || category === 'transgender' || complexScene);
   if (needsAdultAnatomy) {
     const highControl = semantics.powerDynamic === 'sm' || semantics.pairing === 'group_4i';
-    const subjectDesc = category === 'transgender'
-      ? 'a feminine transgender woman with breasts and penis'
-      : category === 'male'
-        ? 'a masculine man with broad shoulders'
-        : 'a feminine woman';
-    const anatomyDesc = intensity >= 3
-      ? category === 'transgender'
-        ? ', visible breasts, visible penis and testicles, fully nude'
-        : category === 'male'
-          ? ', visible penis and testicles, fully nude'
-          : ', visible breasts and vulva, fully nude'
-      : ', tasteful nudity';
     return {
       surface: input.surface,
       modelFamily: 'flux',
@@ -138,7 +121,6 @@ export function resolveImageGenerationRoute(input: {
       width: 768,
       height: 1152,
       presetId: highControl ? 'flux-adult-composition-control' : complexScene ? 'flux-adult-pair' : 'flux-adult-portrait',
-      promptPrefix: `Explicit realistic photographic portrait of ${subjectDesc}${anatomyDesc}, full body visible, complete head in frame, face clearly visible, eyes in focus, detailed natural skin texture with pores, realistic photography, sharp focus, clean exposure, professional lighting.`,
       reason: category === 'transgender'
         ? 'Transgender anatomy uses the FLUX explicit pipeline with NSFW LoRAs.'
         : 'Explicit adult anatomy uses the FLUX pipeline with NSFW LoRAs.',
@@ -159,9 +141,6 @@ export function resolveImageGenerationRoute(input: {
     width: input.surface === 'companion' ? 832 : 1024,
     height: input.surface === 'companion' ? 1216 : 1024,
     presetId: input.surface === 'companion' ? 'flux-companion-natural' : `flux-${input.surface}-product`,
-    promptPrefix: input.surface === 'companion'
-      ? 'A candid in-focus real-camera editorial frame with neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off, readable shadows, natural pores, relaxed asymmetrical posture, believable weight distribution, and an unforced expression.'
-      : 'Clean commercial product photography with accurate materials and controlled lighting.',
     reason: renderStyle === '3d'
       ? '3D companion rendering uses the FLUX pipeline.'
       : `${input.surface} generation uses the FLUX product pipeline.`,

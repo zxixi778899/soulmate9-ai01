@@ -117,7 +117,7 @@ async function generateImage(input: {
     nsfwIntensity: 1,
   });
   const result = await routeImageGeneration({
-    prompt: `${route.promptPrefix} ${input.prompt}`,
+    prompt: input.prompt,
     negative_prompt: input.negativePrompt,
     width: route.width,
     height: route.height,

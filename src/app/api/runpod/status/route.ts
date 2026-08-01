@@ -156,27 +156,61 @@ export async function GET(req: NextRequest) {
       );
       const validUrls = urls.filter(Boolean);
 
-      // Persist to chat_messages + chat_media when girlfriend context is provided
+      // Persist once to chat + album when girlfriend context is provided.
       if (girlfriendId && client && validUrls.length > 0) {
-        const caption = scene === 'chat_selfie'
-          ? '拍好啦～这是专门为你拍的新照片 💕'
-          : '新的照片来啦 📸';
         try {
-          await client.from('chat_messages').insert({
-            user_id: user.id,
-            girlfriend_id: girlfriendId,
-            role: 'assistant',
-            content: caption,
-            media_url: validUrls[0],
-            media_type: 'image',
-          });
-          await client.from('chat_media').insert({
-            user_id: user.id,
-            girlfriend_id: girlfriendId,
-            media_type: 'image',
-            url: validUrls[0],
-            metadata: { job_id: jobId, scene },
-          });
+          const { data: existingMedia } = await client
+            .from('chat_media')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('girlfriend_id', girlfriendId)
+            .contains('metadata', { job_id: jobId })
+            .limit(1)
+            .maybeSingle();
+
+          if (!existingMedia) {
+            const { data: intimacyRow } = await client
+              .from('intimacy_scores')
+              .select('score, level')
+              .eq('user_id', user.id)
+              .eq('girlfriend_id', girlfriendId)
+              .order('score', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            const caption = scene === 'chat_selfie'
+              ? '\u4e3a\u4f60\u751f\u6210\u4e86\u4e00\u5f20\u7b26\u5408\u6211\u4eec\u5f53\u524d\u804a\u5929\u60c5\u5883\u7684\u65b0\u7acb\u7ed8 \ud83d\udc97'
+              : '\u65b0\u7684\u7167\u7247\u6765\u5566 \ud83d\udcf8';
+            const { data: message, error: messageError } = await client
+              .from('chat_messages')
+              .insert({
+                user_id: user.id,
+                girlfriend_id: girlfriendId,
+                role: 'assistant',
+                content: caption,
+                media_url: validUrls[0],
+                media_type: 'image',
+              })
+              .select('id')
+              .maybeSingle();
+            if (messageError) throw messageError;
+
+            const { error: mediaError } = await client.from('chat_media').insert({
+              user_id: user.id,
+              girlfriend_id: girlfriendId,
+              message_id: message?.id || null,
+              media_type: 'image',
+              url: validUrls[0],
+              metadata: {
+                job_id: jobId,
+                scene,
+                source: 'chat_generation',
+                asset_role: 'character-art',
+                intimacy_score: Number(intimacyRow?.score || 0),
+                intimacy_level: Number(intimacyRow?.level || 1),
+              },
+            });
+            if (mediaError) throw mediaError;
+          }
         } catch (e) {
           logger.warn('[runpod/status] chat persist failed', { error: e });
         }

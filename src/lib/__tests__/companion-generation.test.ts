@@ -54,18 +54,18 @@ describe('companion generation prompt', () => {
     expect(result.baseInfo).toContain('Alex');
     expect(result.baseInfo).toContain('28');
     expect(result.identitySpecification).toContain('28-year-old');
-    expect(result.positive).toContain('black hair color');
-    expect(result.positive).toContain('long hairstyle');
+    expect(result.positive).toContain('black long hair');
     expect(result.positive).toContain('green eyes');
-    expect(result.positive).toContain('athletic body build');
+    expect(result.positive).toContain('green eyes');
+    expect(result.positive).toContain('athletic build');
     expect(result.action).toContain('intimate bedroom');
     if (style === 'realistic') {
-      expect(result.positive).toContain('Photograph this as a real event');
-      expect(result.positive).toContain('neutral white balance');
+      expect(result.positive).toContain('Natural candid photograph');
+      expect(result.positive).toContain('neutral skin tone');
       expect(result.positive).toContain('supported spine');
-      expect(result.positive).toContain('natural skin variation');
+      expect(result.positive.length).toBeLessThan(700);
     } else {
-      expect(result.positive).toContain('Render this as');
+      expect(result.positive).toContain('high-resolution 2D anime frame');
     }
     expect(result.negative).toContain('child');
     expect(result.negative).toContain('underage');
@@ -122,9 +122,9 @@ describe('companion generation prompt', () => {
       adult: false,
     });
 
-    expect(result.positive).toContain('21-year-old adult man');
-    expect(result.positive).toContain('Raven black hair color');
-    expect(result.positive).toContain('Scene direction: a neutral full-body front view');
+    expect(result.positive).toContain('21-year-old man');
+    expect(result.positive).toContain('Raven black Crew cut hair');
+    expect(result.positive).toContain('a neutral full-body front view');
     expect(result.positive).not.toContain('23 years old');
     expect(result.positive).not.toContain('sports bra');
     expect(result.positive.match(/21-year-old/g)).toHaveLength(1);
@@ -147,9 +147,9 @@ describe('companion generation prompt', () => {
       action: 'neutral front-facing identity portrait',
       adult: false,
     });
-    expect(result.positive).toContain('27-year-old adult woman');
+    expect(result.positive).toContain('27-year-old woman');
     expect(result.positive).not.toContain('Explicit sexual content');
-    expect(result.negative).toContain('generic face');
+    expect(result.negative).toContain('different person');
   });
 });
 
@@ -178,10 +178,10 @@ describe('companion scene realism', () => {
       intensity: 2,
       adult: false,
     });
-    expect(water.positive).toContain('irregular water droplets');
+    expect(water.positive).toContain('irregular droplets');
     expect(water.positive).toContain('damp fabric');
-    expect(nightlife.positive).toContain('colored signs remain mostly in the background');
-    expect(nightlife.positive).toContain('neutral practical key light');
+    expect(nightlife.positive).toContain('colored city lights confined to the background');
+    expect(nightlife.positive).toContain('neutral light on skin');
   });
 
   it('uses materially different body language for levels 1 through 5', () => {
@@ -193,11 +193,11 @@ describe('companion scene realism', () => {
       }).positive,
     );
     expect(new Set(prompts).size).toBe(5);
-    expect(prompts[0]).toContain('unguarded pause between actions');
-    expect(prompts[1]).toContain('quietly flirtatious but plausible');
+    expect(prompts[0]).toContain('unguarded pause');
+    expect(prompts[1]).toContain('quiet flirtation');
     expect(prompts[2]).toContain('supported spine');
-    expect(prompts[3]).toContain('preparation and follow-through');
-    expect(prompts[4]).toContain('stable center of gravity');
+    expect(prompts[3]).toContain('clear preparation');
+    expect(prompts[4]).toContain('stable centers of gravity');
   });
 
   it('keeps identity-reference prompts scene-only while retaining lived-in realism', () => {
@@ -208,9 +208,9 @@ describe('companion scene realism', () => {
       sceneOnly: true,
     });
     expect(result.positive).not.toContain('Identity specification for Elena');
-    expect(result.positive).toContain('reflection geometry agree');
-    expect(result.positive).toContain('casually imperfect crop');
-    expect(result.negative).toContain('generic influencer face');
-    expect(result.negative).toContain('mannequin pose');
+    expect(result.positive).toContain('correct reflection geometry');
+    expect(result.positive).toContain('casual camera angle');
+    expect(result.negative).toContain('different person');
+    expect(result.negative).toContain('rigid pose');
   });
 });

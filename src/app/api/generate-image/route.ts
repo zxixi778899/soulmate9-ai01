@@ -150,7 +150,6 @@ export async function POST(request: NextRequest) {
       nsfwIntensity: Math.min(5, Math.max(1, Number(body.nsfw_intensity || 1))) as 1 | 2 | 3 | 4 | 5,
       sceneSemantics,
     });
-    prompt = `${generationRoute.promptPrefix} ${prompt}`;
     let width = generationRoute.width || sceneCfg.width;
     let height = generationRoute.height || sceneCfg.height;
     if (typeof body.size === 'string' && body.size.includes('x')) {

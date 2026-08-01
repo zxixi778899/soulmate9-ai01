@@ -1778,7 +1778,7 @@ export default function ChatPage() {
         outfits={outfits}
         selectedOutfit={selectedOutfit}
         onEquipOutfit={handleEquipOutfit}
-        onSelfie={() => void generateSelfie('send me a sexy selfie')}
+        onSelfie={() => void generateSelfie('Create a full-body character artwork matching our current conversation')}
         isGenerating={isGenerating}
         onMemories={() => setShowMemories(true)}
       />

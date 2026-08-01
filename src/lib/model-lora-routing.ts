@@ -35,10 +35,10 @@ const DEFAULT_FAMILY_LORAS: Record<ImageModelFamily, Partial<Record<CompanionCat
     nsfw: ['pony_detailifier_v5.safetensors'],
   },
   illustrious: {
-    female: ['AddMicroDetails_Illustrious_v6.safetensors', 'BackgroundDetailerV3-000004.safetensors'],
-    male: ['AddMicroDetails_Illustrious_v6.safetensors', 'BackgroundDetailerV3-000004.safetensors'],
-    transgender: ['AddMicroDetails_Illustrious_v6.safetensors', 'BackgroundDetailerV3-000004.safetensors'],
-    anime: ['AddMicroDetails_Illustrious_v6.safetensors', 'BackgroundDetailerV3-000004.safetensors'],
+    female: ['AddMicroDetails_Illustrious_v6.safetensors'],
+    male: ['AddMicroDetails_Illustrious_v6.safetensors'],
+    transgender: ['AddMicroDetails_Illustrious_v6.safetensors'],
+    anime: ['AddMicroDetails_Illustrious_v6.safetensors'],
     '2d': ['StS-Illustrious-Detail-Slider-v1.0.safetensors'],
   },
 };
@@ -153,7 +153,7 @@ export function validateModelLoraName(
   if (inventory.files.size === 0 && family !== 'flux') {
     return { name: null, reason: 'inventory-unavailable-strict' };
   }
-  if (inventory.files.size === 0) return { name: base, reason: 'unverified-permissive' };
+  if (inventory.files.size === 0) return { name: null, reason: 'inventory-unavailable-strict' };
   if (inventory.files.has(base)) return { name: base };
   return { name: null, reason: `missing-from-${inventory.source}` };
 }

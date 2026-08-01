@@ -24,6 +24,7 @@ describe('studio generation profiles', () => {
     const female = buildStudioPromptEnhancement({ category: 'female', intensity: 5 });
     const male = buildStudioPromptEnhancement({ category: 'male', intensity: 5 });
     expect(female).toContain('vulva clearly visible');
+    expect(female.length).toBeLessThan(750);
     expect(female).not.toContain('large penis');
     expect(male).toContain('large penis');
     expect(male).toContain('testicles');
@@ -65,22 +66,24 @@ describe('studio generation profiles', () => {
     const prompt = buildStudioPromptEnhancement({ category: 'female', intensity: 2, scene });
     expect(scene.length).toBeGreaterThan(320);
     expect(prompt).toContain(scene);
-    expect(prompt.indexOf('sensual lingerie')).toBeLessThan(prompt.indexOf('The scene direction is'));
+    expect(prompt.indexOf('sensual lingerie')).toBeLessThan(prompt.indexOf(scene));
+    expect(prompt.length).toBeLessThan(950);
     expect(prompt).not.toContain('modern sofa');
   });
 
   it('constrains realistic output to natural color and candid body language', () => {
     const prompt = buildStudioPromptEnhancement({ category: 'female', intensity: 1 });
     const negative = studioNegativePrompt('female');
-    expect(prompt).toContain('neutral white balance');
-    expect(prompt).toContain('restrained saturation');
-    expect(prompt).toContain('relaxed asymmetrical posture');
-    expect(prompt).toContain('subtle micro-expression');
-    expect(negative).toContain('neon color cast on skin');
-    expect(negative).toContain('uncanny valley');
-    expect(negative).toContain('frozen gesture');
+    expect(prompt).toContain('neutral skin tone');
+    expect(prompt).toContain('practical soft light');
+    expect(prompt).toContain('relaxed posture');
+    expect(prompt).toContain('natural hands');
+    expect(negative).toContain('plastic skin');
+    expect(negative).toContain('rigid pose');
+    expect(negative.length).toBeLessThan(400);
     expect(negative).not.toContain('youthful face');
-    expect(negative).toContain('adolescent features');
+    expect(negative).toContain('underage');
+    expect(negative.length).toBeLessThan(400);
   });
   it('keeps 2D and 3D anime directions mutually distinct', () => {
     const twoD = buildStudioPromptEnhancement({
@@ -101,27 +104,27 @@ describe('studio generation profiles', () => {
 
   it('recommends category-specific practical LoRAs', () => {
     expect(recommendedStudioLoras('transgender')).toEqual([
-      expect.objectContaining({ id: 'detail-skin', strength: 0.28 }),
+      expect.objectContaining({ id: 'flux-detail-skin-v1', strength: 0.2 }),
     ]);
-    expect(recommendedStudioLoras('female', '2d').map((item) => item.id)).toContain('style-anime-2d-flux');
-    expect(recommendedStudioLoras('male', '3d').map((item) => item.id)).toContain('style-anime-3d-flux');
-    expect(recommendedStudioLoras('transgender', '2d').map((item) => item.id)).toEqual(['style-anime-2d-flux']);
+    expect(recommendedStudioLoras('female', '2d').map((item) => item.id)).toContain('illustrious-micro-details-v6');
+    expect(recommendedStudioLoras('male', '3d')).toEqual([]);
+    expect(recommendedStudioLoras('transgender', '2d').map((item) => item.id)).toEqual(['illustrious-micro-details-v6']);
   });
 
   it('avoids conflicting transgender anatomy LoRAs and uses one stable helper', () => {
     const controls = resolveCategoryLoraControls('transgender', 5);
     expect(controls.selected.map((item) => item.id)).toEqual([]);
-    expect(controls.missing.map((item) => item.id)).toContain('detail-skin');
+    expect(controls.missing.map((item) => item.id)).toContain('flux-detail-skin-v1');
     expect(controls.selected.some((item) => item.id === 'body-curvy-flux')).toBe(false);
     expect(controls.selected.some((item) => item.id.includes('transgender'))).toBe(false);
   });
 
   it('forces explicit transgender levels to include chest and pelvis in one frame', () => {
     const prompt = buildStudioPromptEnhancement({ category: 'transgender', intensity: 4 });
-    expect(prompt).toContain('torso and pelvis in frame');
-    expect(prompt).toContain('weight naturally through one hip');
+    expect(prompt).toContain('pelvis and contact points visible');
+    expect(prompt).toContain('physically stable pose');
     expect(prompt).not.toContain('frontal full-body');
-    expect(studioNegativePrompt('transgender')).toContain('cropped pelvis');
+    expect(studioNegativePrompt('transgender')).toContain('duplicated genitals');
   });
 
   it('always exposes a Chinese usage description', () => {
