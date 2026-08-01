@@ -131,11 +131,12 @@ export function resolveImageGenerationRoute(input: {
       checkpoint: fluxCheckpoint,
       sampler: 'euler',
       scheduler: 'simple',
-      steps: highControl ? 32 : complexScene ? 30 : 28,
+      steps: highControl ? 30 : complexScene ? 28 : 26,
       cfg: 1,
       clipSkip: 1,
-      width: 1024,
-      height: complexScene ? 1344 : 1536,
+      // Native 2:3 FLUX canvas; 44% fewer latent pixels than 1024x1536.
+      width: 768,
+      height: 1152,
       presetId: highControl ? 'flux-adult-composition-control' : complexScene ? 'flux-adult-pair' : 'flux-adult-portrait',
       promptPrefix: `Explicit realistic photographic portrait of ${subjectDesc}${anatomyDesc}, full body visible, complete head in frame, face clearly visible, eyes in focus, detailed natural skin texture with pores, realistic photography, sharp focus, clean exposure, professional lighting.`,
       reason: category === 'transgender'

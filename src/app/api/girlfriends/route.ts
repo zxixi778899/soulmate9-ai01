@@ -93,6 +93,8 @@ export async function GET(req: NextRequest) {
     .select('*')
     .eq('user_id', user.id)
     .neq('review_status', 'removed')
+    .order('is_pinned', { ascending: false })
+    .order('pinned_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
 
   if (filter === 'draft') {
@@ -207,6 +209,8 @@ export async function POST(request: NextRequest) {
     appearance_style: appearance_style || null,
     is_public: false,
     review_status: 'draft',
+    is_pinned: true,
+    pinned_at: new Date().toISOString(),
     character_card: {
       ...characterCard,
       appearance: {
@@ -253,6 +257,23 @@ export async function POST(request: NextRequest) {
       last_daily_reset: new Date().toISOString().split('T')[0],
     });
 
+  // The generated character art is also the companion's first private album item.
+  if (portraitKey) {
+    const { error: mediaError } = await client.from('chat_media').insert({
+      user_id: user.id,
+      girlfriend_id: girlfriend.id,
+      media_type: 'image',
+      url: portraitKey,
+      metadata: { source: 'character_creator', asset_role: 'character-art', intimacy_level: 3 },
+    });
+    if (mediaError) {
+      logger.warn('[girlfriends] creator portrait album save failed', {
+        girlfriend_id: girlfriend.id,
+        error: mediaError.message,
+      });
+    }
+  }
+
   // Sync: invalidate cached girlfriend lists so other tabs/pages see the new companion
   invalidateGirlfriends();
 
@@ -279,6 +300,16 @@ export async function PATCH(request: NextRequest) {
 
   // If toggling to public (pending review)
   const patchData: Record<string, unknown> = { ...updates };
+
+  // Pin/unpin handling
+  if (updates.is_pinned === true) {
+    patchData.is_pinned = true;
+    patchData.pinned_at = new Date().toISOString();
+  } else if (updates.is_pinned === false) {
+    patchData.is_pinned = false;
+    patchData.pinned_at = null;
+  }
+
   if (review_status === 'pending') {
     patchData.review_status = 'pending';
     patchData.submitted_at = new Date().toISOString();

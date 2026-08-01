@@ -19,7 +19,7 @@ describe('creative generation presets', () => {
     expect(preset.modelFamily).toBe('flux');
   });
 
-  it('routes explicit realistic art to Pony parameters', () => {
+  it('routes explicit realistic art to FLUX parameters', () => {
     const preset = resolveCreativeGenerationPreset({
       mode: 'img2img',
       surface: 'companion',
@@ -28,10 +28,10 @@ describe('creative generation presets', () => {
       intensity: 5,
       assetRole: 'character-art',
     });
-    expect(preset.modelFamily).toBe('pony');
-    expect(preset.sampler).toContain('dpmpp');
-    expect(preset.scheduler).toBe('karras');
-    expect(preset.steps).toBeGreaterThanOrEqual(28);
+    expect(preset.modelFamily).toBe('flux');
+    expect(preset.sampler).toBe('euler');
+    expect(preset.scheduler).toBe('simple');
+    expect(preset.steps).toBeGreaterThanOrEqual(26);
   });
 
   it('uses a five-second 40-frame animation preset', () => {

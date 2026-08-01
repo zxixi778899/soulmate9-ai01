@@ -488,7 +488,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       `User scene intent (a constraint, not final prose): ${currentPrompt || 'invent a plausible scene suited to this companion'}`,
       `Recent prompts that must not be repeated: ${previousPrompts.length ? JSON.stringify(previousPrompts) : 'none'}`,
       `Mandatory negative concepts: ${studioNegativePrompt(category, animeStyle)}`,
-      'Write 90-180 words optimized for FLUX.1 Dev: use fluent natural-language sentences in this order—specific subject or reference-image instruction, one physically clear action, spatial relationship to the environment or other adults, framing and camera distance, motivated light source, restrained color, then material and skin detail. Use concrete nouns and verbs. State left/right/front/behind and contact points when relevant. Do not use SDXL tag soup, score tags, BREAK, emphasis weights, parentheses weights, embedding syntax, model names, LoRA names, masterpiece/best quality spam, duplicated adjectives, or negative instructions inside the positive prompt. Return one coherent paragraph without headings or repeated identity facts.',
+      'Write 70-130 words optimized for FLUX.1 Dev and keep the paragraph under 1000 characters. Put the most important visual facts first: use fluent natural-language sentences in this order—specific subject or reference-image instruction, one physically clear action, spatial relationship to the environment or other adults, framing and camera distance, motivated light source, restrained color, then material and skin detail. Use concrete nouns and verbs. State left/right/front/behind and contact points when relevant. Do not use SDXL tag soup, score tags, BREAK, emphasis weights, parentheses weights, embedding syntax, model names, LoRA names, masterpiece/best quality spam, duplicated adjectives, or negative instructions inside the positive prompt. Return one coherent paragraph without headings or repeated identity facts.',
     ].join('\n');
     try {
       const aiConfig = await loadAiModules(admin.supabase);
@@ -522,7 +522,10 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const parsed = JSON.parse(cleaned) as Record<string, unknown>;
       const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
       const sceneSemantics = normalizeLlmImageScene(parsed, fallbackSemantics);
-      const optimizedPrompt = String(parsed.prompt || '').replace(/\s+/g, ' ').trim();
+      const optimizedPromptRaw = String(parsed.prompt || '').replace(/\s+/g, ' ').trim();
+      const optimizedPrompt = optimizedPromptRaw.length <= 1000
+        ? optimizedPromptRaw
+        : optimizedPromptRaw.slice(0, 1000).replace(/\s+\S*$/, '').trim();
       if (optimizedPrompt.length < 120) throw new Error('LLM returned an incomplete prompt');
       if (previousPrompts.some((previous) => previous.trim() === optimizedPrompt)) {
         throw new Error('LLM repeated a previous prompt');
@@ -1253,7 +1256,7 @@ if (body.action === 'verify_loras') {
     // When identity reference images are available, the prompt should ONLY
     // describe scene + action + quality. Character appearance is preserved
     // by the reference image via img2img / IP-Adapter, not by text.
-    if (isFinalProductAsset && identityReferenceUrls.length > 0 && databaseCompanion) {
+    if (isFinalProductAsset && identityReferenceUrls.length > 0 && databaseCompanion && !llmAuthoredPrompt) {
       const productionPreset = getCharacterProductionPreset(assetRole);
       const sceneOnlyResult = buildCompanionGenerationPrompt(databaseCompanion, {
         action: `${productionPreset.scene}. ${styleProductionHint(animeStyle)}`,
@@ -1354,7 +1357,7 @@ if (body.action === 'verify_loras') {
     // guides identity without copying the portrait composition.
     const defaultIpAdapterWeight = assetRole.startsWith('identity-')
       ? 0.82
-      : 0.7;
+      : 0.68;
     const ipAdapterWeight = ipAdapterEnabled
       ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight ?? defaultIpAdapterWeight)))
       : undefined;

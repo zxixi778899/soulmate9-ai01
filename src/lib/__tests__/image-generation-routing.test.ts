@@ -34,8 +34,9 @@ describe('unified image generation routing', () => {
     expect(route.sampler).toBe('euler');
     expect(route.scheduler).toBe('simple');
     expect(route.cfg).toBe(1);
-    expect(route.steps).toBeGreaterThanOrEqual(28);
-    expect(route.width).toBeGreaterThanOrEqual(1024);
+    expect(route.steps).toBeGreaterThanOrEqual(26);
+    expect(route.width).toBe(768);
+    expect(route.height).toBe(1152);
     expect(route.clipSkip).toBe(1);
     expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
   });

@@ -8,6 +8,7 @@ import {
   timeSlotOfDay,
 } from '@/lib/proactive-templates';
 import { resolveReplyLocale } from '@/lib/chat-locale';
+import { dailyProactiveTarget, generateContextualProactiveMessage } from '@/lib/proactive-generation';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,8 +98,8 @@ export async function POST(request: NextRequest) {
         already = 0;
       }
 
-      // Fixed target: 2 per day (random content, staggered timing)
-      const target = force ? 1 : DAILY_PROACTIVE_TARGET;
+      // Stable random target: one or two messages per companion/day.
+      const target = force ? 1 : dailyProactiveTarget([user.id, gf.id, dayKey].join(':'));
       if (!force && already >= target) continue;
 
       // Stagger: the 2nd message lands 2–6h after the 1st (stable per pair+day,
@@ -161,7 +162,21 @@ export async function POST(request: NextRequest) {
 
       for (const pick of picks) {
         // Prefer holiday/weekend flavors when applicable
-        const content = pick.content;
+        const { data: historyRows } = await client
+          .from('chat_messages')
+          .select('role, content')
+          .eq('user_id', user.id)
+          .eq('girlfriend_id', gf.id)
+          .order('created_at', { ascending: false })
+          .limit(8);
+        const content = await generateContextualProactiveMessage({
+          name: gf.name,
+          personality: String(gf.personality || ''),
+          intimacyLevel: Number(scoreRow?.level) || 1,
+          locale,
+          history: (historyRows || []).slice().reverse(),
+          fallback: pick.content,
+        });
         if (holiday && (pick.category === 'miss_you' || pick.category === 'busy')) {
           // keep emotional base
         }
@@ -228,9 +243,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: msg, messages: [] }, { status: 500 });
   }
 }
-
-/** Fixed daily quota: exactly 2 proactive messages per companion per day. */
-const DAILY_PROACTIVE_TARGET = 2;
 
 /** Stable per-seed hash → used to vary the 2nd-message gap (2–6h) day to day. */
 function dailyHash(seed: string): number {

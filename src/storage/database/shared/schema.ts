@@ -64,6 +64,8 @@ export const girlfriends = pgTable(
     character_card: jsonb("character_card"),
     avatar_url: text("avatar_url"),
     is_active: boolean("is_active").default(true).notNull(),
+    is_pinned: boolean("is_pinned").default(false).notNull(),
+    pinned_at: timestamp("pinned_at", { withTimezone: true }),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

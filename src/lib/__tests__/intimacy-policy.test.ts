@@ -59,8 +59,8 @@ describe('intimacy generation policy', () => {
         intensity: policy.nsfwIntensity,
       });
     });
-    expect(prompts[0]).toContain('fully clothed');
-    expect(prompts[1]).toContain('vulva covered');
+    expect(prompts[0]).toContain('everyday sexy outfit');
+    expect(prompts[1]).toContain('genitals remain covered');
     expect(prompts[2]).toContain('without performing a sexual act');
     expect(prompts[3]).toContain('before climax');
     expect(prompts[4]).toContain('to climax');

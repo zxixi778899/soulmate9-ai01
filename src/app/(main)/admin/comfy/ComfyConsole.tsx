@@ -49,7 +49,6 @@ import {
 } from '@/lib/prompt/girlfriend';
 import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
 import {
-  buildCreativePromptPreset,
   resolveCreativeGenerationPreset,
   type CreativeGenerationMode,
 } from '@/lib/creative-generation-presets';
@@ -244,8 +243,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setAssetRole(role);
     setKind('girlfriend');
     setGenerationSurface('companion');
-    setGenMode(isAvatar ? 'txt2img' : hasIdentityRef ? 'img2img' : 'txt2img');
-    setInputImage(isAvatar ? '' : hasIdentityRef ? identityImage : '');
+    const isFinalProduct = role === 'character-art' || role === 'album' || role === 'scene';
+    setGenMode(isAvatar || isFinalProduct ? 'txt2img' : hasIdentityRef ? 'img2img' : 'txt2img');
+    setInputImage(isAvatar || isFinalProduct ? '' : hasIdentityRef ? identityImage : '');
     setIdentityConsistency(preset.consistency);
     setWidth(preset.width);
     setHeight(preset.height);
@@ -1776,9 +1776,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div className="mb-3 grid gap-3 rounded-md border border-fuchsia-500/20 bg-fuchsia-950/10 p-3 md:grid-cols-[220px_1fr]">
               <div>
                 <Label className="mb-2 block text-[11px] text-slate-200">NSFW 强度：{nsfwIntensity}/5</Label>
-                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => { const next = Number(event.target.value) as NsfwIntensity; setNsfwIntensity(next); setPrompt(buildCreativePromptPreset({ mode: genMode, category: companionCategory, intensity: next, renderStyle: animeRenderStyle, scene: prompt })); setPromptProfileApplied(true); applyRecommendedLoras(companionCategory, animeRenderStyle, next); applyRecommendedParameters(genMode, next); }} className="w-full accent-rose-500" />
+                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => { const next = Number(event.target.value) as NsfwIntensity; setNsfwIntensity(next); setPromptProfileApplied(false); applyRecommendedLoras(companionCategory, animeRenderStyle, next); applyRecommendedParameters(genMode, next); }} className="w-full accent-rose-500" />
                 <p className="mt-1 text-[10px] font-medium text-rose-200">当前：{studioIntensityLabel(nsfwIntensity)}</p>
-                <p className="mt-1 text-[10px] text-slate-400">滑块会立即重写动作等级和 LoRA 权重；AI 优化只负责选择合适场景，不再堆叠提示词。</p>
+                <p className="mt-1 text-[10px] text-slate-400">滑块只更新等级、参数和 LoRA；生成时由 AI 按当前场景意图重写一次，避免重复堆叠提示词。</p>
               </div>
               <div>
                 <Label className="mb-2 block text-[11px] text-slate-200">渲染风格</Label>
@@ -1791,8 +1791,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                       variant={animeRenderStyle === style ? 'default' : 'outline'}
                       onClick={() => {
                         setAnimeRenderStyle(style);
-                        setPrompt(buildCreativePromptPreset({ mode: genMode, category: companionCategory, intensity: nsfwIntensity, renderStyle: style, scene: prompt }));
-                        setPromptProfileApplied(true);
+                        setPromptProfileApplied(false);
                         applyRecommendedLoras(companionCategory, style);
                       }}
                       className={cn('h-8', animeRenderStyle === style && 'bg-violet-600')}
@@ -1894,8 +1893,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     onClick={() => {
                       setGenMode(m.id);
                       const preset = applyRecommendedParameters(m.id);
-                      setPrompt(buildCreativePromptPreset({ mode: m.id, category: companionCategory, intensity: nsfwIntensity, renderStyle: animeRenderStyle, scene: prompt }));
-                      setPromptProfileApplied(true);
+                      setPromptProfileApplied(false);
                       toast.success(`已应用${preset.label}参数`);
                     }}
                     className={cn(
@@ -2235,8 +2233,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                           setInputImage(a.url || '');
                           setGenMode('img2video');
                           setAssetRole('character-art');
-                          setPrompt(buildCreativePromptPreset({ mode: 'img2video', category: companionCategory, intensity: nsfwIntensity, renderStyle: animeRenderStyle, scene: prompt }));
-                          setPromptProfileApplied(true);
+                          setPromptProfileApplied(false);
                           toast.message('已选择该立绘/相册图片，可直接生成 5 秒视频');
                         }}>
                           <Play className="mr-1 h-3 w-3" />生成视频

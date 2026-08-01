@@ -1,5 +1,5 @@
 /**
- * Cron: daily girlfriend re-engagement messages (fixed 2 per companion per day).
+ * Cron: daily girlfriend re-engagement messages (stable random 1-2 per companion per day).
  * Secure with CRON_SECRET Bearer token.
  * Sends at most 1 per run per pair — multiple runs across the day naturally
  * stagger the two messages; content is random and never repeats within a day.
@@ -13,6 +13,7 @@ import {
   getCurrentHolidayKey,
   isWeekendDay,
 } from '@/lib/proactive-templates';
+import { dailyProactiveTarget, generateContextualProactiveMessage } from '@/lib/proactive-generation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -97,7 +98,7 @@ export async function GET(req: NextRequest) {
         already = 0;
       }
 
-      const target = 2;
+      const target = dailyProactiveTarget([pair.user_id, pair.girlfriend_id, dayKey].join(':'));
       if (already >= target) {
         skipped++;
         continue;
@@ -113,20 +114,51 @@ export async function GET(req: NextRequest) {
       // One message per cron run; random content each time
       const picks = pickDailyTemplates({
         count: 1,
-        intimacyScore: 10,
+        intimacyScore: 0,
         locale: 'en',
         now,
         randomize: true,
       });
 
+      const [{ data: girlfriend }, { data: historyRows }, { data: scoreRow }] = await Promise.all([
+        sb.from('girlfriends').select('name, personality').eq('id', pair.girlfriend_id).maybeSingle(),
+        sb.from('chat_messages')
+          .select('role, content')
+          .eq('user_id', pair.user_id)
+          .eq('girlfriend_id', pair.girlfriend_id)
+          .order('created_at', { ascending: false })
+          .limit(8),
+        sb.from('intimacy_scores')
+          .select('score, level')
+          .eq('user_id', pair.user_id)
+          .eq('girlfriend_id', pair.girlfriend_id)
+          .maybeSingle(),
+      ]);
+      const history = (historyRows || []).slice().reverse();
+      const hasChineseHistory = history.some((item) =>
+        Array.from(String(item.content || '')).some((char) => {
+          const code = char.charCodeAt(0);
+          return code >= 0x3400 && code <= 0x9fff;
+        }),
+      );
+      const locale = hasChineseHistory ? 'zh' : 'en';
+
       for (const pick of picks) {
+        const content = await generateContextualProactiveMessage({
+          name: String(girlfriend?.name || 'Your companion'),
+          personality: String(girlfriend?.personality || ''),
+          intimacyLevel: Number(scoreRow?.level) || 1,
+          locale,
+          history,
+          fallback: pick.content,
+        });
         const { data: msg, error } = await sb
           .from('chat_messages')
           .insert({
             user_id: pair.user_id,
             girlfriend_id: pair.girlfriend_id,
             role: 'assistant',
-            content: pick.content,
+            content,
             is_proactive: true,
             metadata: {
               proactive: true,

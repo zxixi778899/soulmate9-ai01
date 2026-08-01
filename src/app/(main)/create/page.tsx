@@ -105,7 +105,7 @@ export default function CreatePage() {
   const { t, locale } = useTranslation();
   const zh = locale === 'zh';
 
-  // Steps: 0 = preset, 1 = appearance, 2 = personality & identity
+  // Steps: 0 = gender, 1 = style + appearance, 2 = custom identity
   const [step, setStep] = useState(0);
   const stepLabels = [
     t('creator.stepPreset') || (zh ? '预览' : 'Preview'),
@@ -480,7 +480,7 @@ export default function CreatePage() {
                 ) : (
                   <>
                     {presets.length > 0 && (
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="hidden gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {presets.map((preset) => (
                           <button
                             key={preset.id}
@@ -505,7 +505,7 @@ export default function CreatePage() {
                       </div>
                     )}
                     {/* Visual style tabs */}
-                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <div className="hidden items-center justify-center gap-2 flex-wrap">
                       {getOpts('visual_style').map((v) => (
                         <button
                           key={v.value}

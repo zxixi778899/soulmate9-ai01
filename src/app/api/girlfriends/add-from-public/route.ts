@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
     appearance_style: publicGf.appearance_style || null,
     is_public: false,
     review_status: 'draft',
+    is_pinned: true,
+    pinned_at: new Date().toISOString(),
     character_card: publicGf.character_card || {
       name: publicGf.name,
       age: publicGf.age,
@@ -97,6 +99,17 @@ export async function POST(request: NextRequest) {
       level: 1,
       last_daily_reset: new Date().toISOString().split('T')[0],
     });
+
+  const albumUrl = girlfriend.portrait_url || girlfriend.avatar_url;
+  if (albumUrl) {
+    await client.from('chat_media').insert({
+      user_id: user.id,
+      girlfriend_id: girlfriend.id,
+      media_type: 'image',
+      url: albumUrl,
+      metadata: { source: 'public_friend', asset_role: 'character-art', intimacy_level: 1 },
+    });
+  }
 
   return NextResponse.json({ girlfriend, alreadyOwned: false });
 }
