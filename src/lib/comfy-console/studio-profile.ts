@@ -64,6 +64,25 @@ function compactScene(scene?: string): string {
   return clean.replace(/[.]+$/, '') + '.';
 }
 
+export function compactFluxPrompt(value: string, maxCharacters = 650): string {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+
+  const clauses = normalized.split(/[.!?]\s+|,\s+/);
+  const seen = new Set<string>();
+  const unique = clauses.filter((clause) => {
+    const key = clause.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const rebuilt = unique.join(', ');
+  if (rebuilt.length <= maxCharacters) return rebuilt;
+  const clipped = rebuilt.slice(0, maxCharacters + 1);
+  const boundary = Math.max(clipped.lastIndexOf('. '), clipped.lastIndexOf(', '), clipped.lastIndexOf(' '));
+  const end = boundary > Math.floor(maxCharacters * 0.7) ? boundary : maxCharacters;
+  return clipped.slice(0, end).replace(/[,. ]+$/, '').trim() + '.';
+}
 export function studioIntensityDirection(category: CompanionCategory, intensity: NsfwIntensity): string {
   return INTENSITY_ACTIONS[intensity][category];
 }
@@ -150,6 +169,7 @@ export function studioNegativePrompt(category: CompanionCategory, animeStyle: An
 export function recommendedStudioLoras(
   category: CompanionCategory,
   animeStyle: AnimeRenderStyle = 'realistic',
+  intensity: NsfwIntensity = 1,
 ): Array<{ id: string; strength: number; reasonZh: string }> {
   if (animeStyle === '2d') {
     return [{
@@ -159,13 +179,26 @@ export function recommendedStudioLoras(
     }];
   }
   if (animeStyle === '3d') return [];
+  if (intensity === 2) {
+    return [{
+      id: 'flux-outfit-lingerie-v1',
+      strength: 0.42,
+      reasonZh: 'NSFW 2级优先使用内衣服装 LoRA，仅控制服装，不改变人物身份。',
+    }];
+  }
+  if (intensity >= 4) {
+    return [{
+      id: 'flux-pose-nsfw-dynamic-v1',
+      strength: intensity === 5 ? 0.48 : 0.42,
+      reasonZh: 'NSFW 4-5级优先使用成人动作 LoRA，增强动作与接触关系，避免高强度破坏身份。',
+    }];
+  }
   return [{
     id: 'flux-detail-skin-v1',
     strength: category === 'transgender' ? 0.2 : 0.24,
     reasonZh: 'FLUX 写实成片的低强度自然皮肤细节；不用于头像或三视图。',
   }];
 }
-
 export type CategoryLoraControl = {
   id: string;
   filename: string;
@@ -182,7 +215,7 @@ export function resolveCategoryLoraControls(
   const scale = studioLoraStrengthScale(intensity);
   const selected: CategoryLoraControl[] = [];
   const missing: Array<{ id: string; reasonZh: string }> = [];
-  for (const recommendation of recommendedStudioLoras(category, animeStyle)) {
+  for (const recommendation of recommendedStudioLoras(category, animeStyle, intensity)) {
     const catalog = getCatalogLoraById(recommendation.id);
     if (!catalog?.filename || !isLoraInstalled(catalog.filename)) {
       missing.push({ id: recommendation.id, reasonZh: recommendation.reasonZh });

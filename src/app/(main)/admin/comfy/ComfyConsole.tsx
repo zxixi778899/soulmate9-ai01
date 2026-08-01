@@ -34,6 +34,7 @@ import { buildCompanionGenerationPrompt, buildCompanionIdentityBrief } from '@/l
 import { resolveCompanionProfile } from '@/lib/companion-profile';
 import {
   buildStudioPromptEnhancement,
+  compactFluxPrompt,
   loraUsageZh,
   recommendedStudioLoras,
   studioIntensityLabel,
@@ -200,7 +201,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     animeStyle: AnimeRenderStyle = animeRenderStyle,
     intensity: NsfwIntensity = nsfwIntensity,
   ) => {
-    const recommendations = recommendedStudioLoras(category, animeStyle);
+    const recommendations = recommendedStudioLoras(category, animeStyle, intensity);
     const available = recommendations
       .map((item) => ({ item, asset: (config?.loras || []).find((l: Any) => l.id === item.id) }))
       .filter((entry) => entry.asset && (!entry.asset.filename || installedLoras.includes(String(entry.asset.filename))))
@@ -215,12 +216,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   };
 
   const applyPreset = (p: GenPreset) => {
-    setPrompt(buildStudioPromptEnhancement({
+    setPrompt(compactFluxPrompt(buildStudioPromptEnhancement({
       category: companionCategory,
       intensity: nsfwIntensity,
       animeStyle: animeRenderStyle,
       scene: p.prompt,
-    }));
+    })));
     setPromptProfileApplied(true);
     setNegative(`${studioNegativePrompt(companionCategory, animeRenderStyle)}, ${p.negative}`);
     setWidth(p.width);
@@ -267,10 +268,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         setNegative(assembled.negative);
       } else if (hasIdentityRef) {
         // Identity is controlled by the reference image; retain scene and level-specific realism.
-        setPrompt(assembled.positive);
+        setPrompt(compactFluxPrompt(assembled.positive));
         setNegative(assembled.negative);
       } else {
-        setPrompt(assembled.positive);
+        setPrompt(compactFluxPrompt(assembled.positive));
         setNegative(assembled.negative);
       }
     }
@@ -284,12 +285,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const applyCategoryPrompt = (category: CompanionCategory) => {
     const preset = STUDIO_PROMPTS[category];
     setCompanionCategory(category);
-    setPrompt(buildStudioPromptEnhancement({
+    setPrompt(compactFluxPrompt(buildStudioPromptEnhancement({
       category,
       intensity: nsfwIntensity,
       animeStyle: animeRenderStyle,
       scene: preset.prompt,
-    }));
+    })));
     setPromptProfileApplied(true);
     setNegative(`${studioNegativePrompt(category, animeRenderStyle)}, ${preset.negative}`);
     applyRecommendedLoras(category);
@@ -473,7 +474,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         adult: nsfwIntensity >= 3,
         intensity: nsfwIntensity,
       });
-      const nextPrompt = assembled.positive;
+      const nextPrompt = compactFluxPrompt(assembled.positive);
       setCompanionCategory(assembled.category);
       const nextNeg = String(assembled.negative || GIRLFRIEND_NEGATIVE_FLUX).trim();
       if (!nextPrompt) return false;
@@ -747,7 +748,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     lora_id: loraId === 'none' ? null : loraId,
     lora_strength: loraStrength,
     loras: selectedLoras,
-    prompt: overrides?.prompt ?? prompt,
+    prompt: compactFluxPrompt(overrides?.prompt ?? prompt),
     negative: overrides?.negative ?? negative,
     width,
     height,

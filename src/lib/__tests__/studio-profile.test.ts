@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildStudioPromptEnhancement,
+  compactFluxPrompt,
   loraUsageZh,
   recommendedStudioLoras,
   resolveCategoryLoraControls,
@@ -111,10 +112,24 @@ describe('studio generation profiles', () => {
     expect(recommendedStudioLoras('transgender', '2d').map((item) => item.id)).toEqual(['illustrious-micro-details-v6']);
   });
 
+  it('deduplicates and caps the final FLUX prompt', () => {
+    const repeated = 'Calliope, Caucasian, petite, ash brown hair, ice blue eyes. '.repeat(8) + 'She stands beside a window.';
+    const prompt = compactFluxPrompt(repeated);
+    expect(prompt.length).toBeLessThanOrEqual(650);
+    expect(prompt.match(/Calliope/gi)?.length).toBe(1);
+    expect(prompt).toContain('stands beside a window');
+  });
+
+  it('routes realistic LoRAs by NSFW intensity', () => {
+    expect(recommendedStudioLoras('female', 'realistic', 2)[0]?.id).toBe('flux-outfit-lingerie-v1');
+    expect(recommendedStudioLoras('female', 'realistic', 4)[0]?.id).toBe('flux-pose-nsfw-dynamic-v1');
+    expect(recommendedStudioLoras('female', 'realistic', 5)[0]?.strength)
+      .toBeGreaterThan(recommendedStudioLoras('female', 'realistic', 4)[0]?.strength || 0);
+  });
   it('avoids conflicting transgender anatomy LoRAs and uses one stable helper', () => {
     const controls = resolveCategoryLoraControls('transgender', 5);
     expect(controls.selected.map((item) => item.id)).toEqual([]);
-    expect(controls.missing.map((item) => item.id)).toContain('flux-detail-skin-v1');
+    expect(controls.missing.map((item) => item.id)).toContain('flux-pose-nsfw-dynamic-v1');
     expect(controls.selected.some((item) => item.id === 'body-curvy-flux')).toBe(false);
     expect(controls.selected.some((item) => item.id.includes('transgender'))).toBe(false);
   });

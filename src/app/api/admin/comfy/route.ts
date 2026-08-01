@@ -30,7 +30,7 @@ import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-gene
 import { classifyImageScene, normalizeLlmImageScene } from '@/lib/image-scene-semantics';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
-import { buildStudioPromptEnhancement, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
+import { buildStudioPromptEnhancement, compactFluxPrompt, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
@@ -536,7 +536,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
       const installed = getInstalledLoraSet();
       const scale = studioLoraStrengthScale(intensity);
-      const recommendations = recommendedStudioLoras(category, animeStyle);
+      const recommendations = recommendedStudioLoras(category, animeStyle, intensity);
       const loras = recommendations
         .map((item) => {
           const asset = cfg.loras.find((candidate) => candidate.id === item.id);
@@ -585,7 +585,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
       const installed = getInstalledLoraSet();
       const scale = studioLoraStrengthScale(intensity);
-      const recommendations = recommendedStudioLoras(category, animeStyle);
+      const recommendations = recommendedStudioLoras(category, animeStyle, intensity);
       const loras = recommendations
         .map((item) => {
           const asset = cfg.loras.find((candidate) => candidate.id === item.id);
@@ -1293,6 +1293,7 @@ if (body.action === 'verify_loras') {
     if (referencePlan.promptHints.length > 0) {
       prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
+    prompt = compactFluxPrompt(prompt);
     const resolvedReferenceImage =
       referencePlan.primaryIdentity?.url ||
       referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
@@ -1403,6 +1404,7 @@ if (body.action === 'verify_loras') {
     if (compatibleLoraPlan.triggerWords.length > 0) {
       prompt = `${compatibleLoraPlan.triggerWords.join(', ')}. ${prompt}`;
     }
+    prompt = compactFluxPrompt(prompt);
 
     try {
       const singleLoraAllowed = lora ? isLoraAllowedForContext(lora, { surface, category, modelFamily: generationRoute.modelFamily }) : false;
