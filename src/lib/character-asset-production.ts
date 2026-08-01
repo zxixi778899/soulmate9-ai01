@@ -113,7 +113,7 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     label: '角色立绘',
     shortLabel: '立绘',
     description: '用于角色卡、详情页和运营展示的标准主视觉。',
-    scene: 'full-length head-to-toe advertising key art of the character, entire body visible from head to feet with clear margin above the head and below the feet, confident natural standing pose, recognizable signature outfit, clean readable silhouette, cinematic magazine lighting with a clear well-lit face, layered environment with restrained detail, wide full-body framing rather than a portrait crop',
+    scene: 'a full-length head-to-toe lifestyle portrait of the adult companion, her entire body visible from head to feet with clear margin above and below, caught in a seductive intimate moment as she glances over her shoulder with a soft inviting gaze, relaxed confident body language, a signature outfit that flatters her figure, warm cinematic mood lighting, clean readable silhouette, wide full-body framing rather than a portrait crop',
     width: 832,
     height: 1216,
     consistency: true,
