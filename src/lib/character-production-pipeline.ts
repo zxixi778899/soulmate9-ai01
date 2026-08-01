@@ -3,7 +3,8 @@
  *
  * Stages:
  *   1. txt2img → 半身头像 (avatar-closeup) — the IP-Adapter identity anchor
- *   2. IP-Adapter + img2img → 角色立绘 (character-art, face locked from avatar, composition free)
+ *   2. txt2img + IP-Adapter → 角色立绘 (character-art, face locked from avatar,
+ *      composition/content fully driven by the prompt — no img2img structure copy)
  *   3. img2video → 动态视频 (animation, avatar as reference)
  *
  * The three-view turnaround stage was removed: FLUX cannot reliably render a
@@ -99,17 +100,18 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     id: 'character-art',
     label: '角色立绘 · 广告主视觉',
     shortLabel: '立绘',
-    description: '以半身头像为 IP-Adapter 身份参考，生成伴侣广告级全身立绘主视觉，用于推广展示。',
+    description: '文生图 + IP-Adapter 锁脸：仅用半身头像锁定五官身份，构图、姿势、服装与场景完全由提示词控制，生成伴侣广告级全身立绘主视觉。',
     assetRole: 'character-art',
-    mode: 'img2img',
+    mode: 'txt2img',
     useIpAdapter: true,
     width: 832,
     height: 1216,
     steps: 28,
     guidance: 3.0,
-    denoise: 0.92,
-    // Face identity from the avatar; 0.65 keeps the face consistent while leaving
-    // the pose, wardrobe and scene free for an advertising key visual.
+    // Face identity from the avatar via IP-Adapter only (no img2img base image).
+    // 0.65 keeps the face consistent while the prompt fully controls pose, wardrobe,
+    // framing and scene — feeding the avatar as an img2img base used to drag the
+    // output back into a portrait crop, so it is intentionally omitted here.
     ipAdapterWeight: 0.65,
     referenceStages: ['avatar'],
   },
@@ -143,7 +145,7 @@ Rules:
 - FLUX best practices: write short natural-language sentences, like a photographer directing a single shot. No weighting syntax (no parentheses/colons), no comma-tag lists, no ALL-CAPS, no negative words (never say "no blur", "avoid X").
 - Put the most important subject and framing first.
 - For avatar: a waist-up studio portrait of the character from their basic attributes (age, gender, ethnicity, hair color and style, eye color, build, temperament). Plain warm-gray background, soft diffused daylight, relaxed natural expression, clean eye contact. This is the identity anchor that later stages lock onto, so the face must be clear and unobstructed.
-- For character-art: a full-height advertising key visual — WHERE the character is, WHAT they are doing, and a signature outfit. Confident natural pose, clean readable silhouette, cinematic magazine lighting. Adjust sensuality by NSFW level: 1=casual/modest, 2=flirty/suggestive, 3=lingerie/revealing, 4=explicit posing, 5=full NSFW scene. This is the final promotional product.
+- For character-art: the face is already locked by IP-Adapter, so the prompt must drive EVERYTHING else. START with an explicit full-length framing statement (e.g. "Full-length head-to-toe advertising key art, entire body visible from head to feet with margin above and below"). Then describe WHERE the character is, WHAT they are doing, and a signature outfit. Confident natural pose, clean readable silhouette, cinematic magazine lighting. Never a close-up, never waist-up, never cropped legs. Adjust sensuality by NSFW level: 1=casual/modest, 2=flirty/suggestive, 3=lingerie/revealing, 4=explicit posing, 5=full NSFW scene. This is the final promotional product.
 - For video: describe subtle natural motion only (gentle breathing, soft hair sway, a slow smile, a slight body turn).
 - Never use: orthographic, wireframe, T-pose, character sheet, reference sheet, turnaround, multiple views, 3D render.
 - Language: English only.`;
@@ -306,11 +308,11 @@ export function resolveStageReference(
 
   switch (stage.id) {
     case 'character-art':
-      // IP-Adapter = avatar (face identity). The avatar also feeds img2img at a high
-      // denoise (0.92) so it adds only a loose structural hint, not a composition lock,
-      // leaving the pose, wardrobe and scene free for an advertising key visual.
+      // txt2img + IP-Adapter only: the avatar locks facial identity, while the
+      // prompt fully controls composition, pose, wardrobe and scene. Deliberately
+      // NO inputImage — feeding the avatar as an img2img base dragged the output
+      // back into a portrait crop instead of a full-height advertising key visual.
       return {
-        inputImage: avatarUrl || undefined,
         ipAdapterImage: avatarUrl || undefined,
       };
     case 'video':

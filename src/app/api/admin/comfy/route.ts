@@ -1311,7 +1311,11 @@ if (body.action === 'verify_loras') {
     const ipAdapterEnabled =
       process.env.RUNPOD_IPADAPTER_INSTALLED === '1' &&
       assetRole !== 'avatar-closeup';
-    const effectiveInputImage = assetRole === 'avatar-closeup'
+    // Final products (character-art/album/scene) are txt2img + IP-Adapter: the
+    // avatar locks the face, the prompt controls composition. Feeding the avatar
+    // as an img2img base dragged the output back into a portrait crop, so it is
+    // intentionally omitted. Legacy identity-* sheets keep the img2img path.
+    const effectiveInputImage = (assetRole === 'avatar-closeup' || isFinalProductAsset)
       ? undefined
       : resolvedReferenceImage;
     const effectiveDenoise = effectiveInputImage

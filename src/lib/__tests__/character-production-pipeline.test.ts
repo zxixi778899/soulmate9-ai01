@@ -41,17 +41,18 @@ describe('character production reference routing', () => {
     expect(params.height).toBe(1216);
   });
 
-  it('uses the avatar for both composition hint and facial identity in character art', () => {
+  it('locks the face via IP-Adapter only (txt2img, prompt controls composition) in character art', () => {
     const stage = CHARACTER_PIPELINE_STAGES.find((item) => item.id === 'character-art');
     expect(stage).toBeDefined();
+    expect(stage!.mode).toBe('txt2img');
     const refs = resolveStageReference(stage!, context);
-    expect(refs.inputImage).toBe('https://example.com/avatar.png');
+    expect(refs.inputImage).toBeUndefined();
     expect(refs.ipAdapterImage).toBe('https://example.com/avatar.png');
     const params = buildStageGenerationParams(stage!, 'prompt', 'negative', [], refs);
-    expect(params.input_image).toBe('https://example.com/avatar.png');
+    expect(params.input_image).toBeUndefined();
+    expect(params.denoising_strength).toBeUndefined();
     expect(params.ip_adapter_image).toBe('https://example.com/avatar.png');
     expect(params.ip_adapter_weight).toBe(0.65);
-    expect(params.denoising_strength).toBe(0.92);
     expect(params.character_consistency).toBe(true);
     expect(params.width).toBe(832);
     expect(params.height).toBe(1216);
