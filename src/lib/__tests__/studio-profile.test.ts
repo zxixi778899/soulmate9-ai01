@@ -34,8 +34,8 @@ describe('studio generation profiles', () => {
       buildStudioPromptEnhancement({ category: 'female', intensity }),
     );
     expect(new Set(prompts).size).toBe(5);
-    expect(prompts[0]).toContain('fully clothed');
-    expect(prompts[1]).toContain('keeping her vulva covered');
+    expect(prompts[0]).toContain('everyday sexy outfit');
+    expect(prompts[1]).toContain('sensual lingerie');
     expect(prompts[2]).toContain('fully nude');
     expect(prompts[3]).toContain('before climax');
     expect(prompts[4]).toContain('to climax');
@@ -52,12 +52,21 @@ describe('studio generation profiles', () => {
       male: buildStudioPromptEnhancement({ category: 'male', intensity: 3 }),
       transgender: buildStudioPromptEnhancement({ category: 'transgender', intensity: 3 }),
     };
-    expect(level2.female).toContain('vulva covered');
-    expect(level2.male).toContain('penis covered');
-    expect(level2.transgender).toContain('penis covered');
+    expect(level2.female).toContain('genitals remain covered');
+    expect(level2.male).toContain('genitals remain covered');
+    expect(level2.transgender).toContain('genitals remain covered');
     expect(level3.female).toContain('vulva clearly visible');
     expect(level3.male).toContain('penis, and testicles clearly visible');
     expect(level3.transgender).toContain('developed breasts, feminine curves, a large penis, and testicles clearly visible');
+  });
+
+  it('preserves a long custom scene direction and keeps action before context', () => {
+    const scene = 'A distinctive penthouse dressing room where she crosses the rug, opens the walnut wardrobe, chooses a red silk robe, turns toward the rain-streaked window, and meets the camera with a private smile while warm lamps reveal books, perfume bottles, travel photographs, naturally rumpled fabric, a half-open suitcase, fresh flowers, and a handwritten note beside a small jewelry box.';
+    const prompt = buildStudioPromptEnhancement({ category: 'female', intensity: 2, scene });
+    expect(scene.length).toBeGreaterThan(320);
+    expect(prompt).toContain(scene);
+    expect(prompt.indexOf('sensual lingerie')).toBeLessThan(prompt.indexOf('The scene direction is'));
+    expect(prompt).not.toContain('modern sofa');
   });
 
   it('constrains realistic output to natural color and candid body language', () => {

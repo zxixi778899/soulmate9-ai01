@@ -7,19 +7,19 @@ export type NsfwIntensity = 1 | 2 | 3 | 4 | 5;
 
 const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>> = {
   1: {
-    female: 'She remains fully clothed and poses flirtatiously without exposing her breasts or vulva.',
-    male: 'He remains fully clothed and poses flirtatiously without exposing his penis.',
-    transgender: 'She remains fully clothed and poses flirtatiously without exposing her breasts or penis.',
-    anime: 'The adult character remains fully clothed and poses flirtatiously without exposed nipples or genitals.',
+    female: 'She wears an everyday sexy outfit and shares a relaxed, flirtatious moment; her nipples and vulva remain covered.',
+    male: 'He wears an everyday sexy outfit and shares a relaxed, flirtatious moment; his genitals remain covered.',
+    transgender: 'She wears an everyday sexy outfit and shares a relaxed, flirtatious moment; her nipples and genitals remain covered.',
+    anime: 'The adult character wears an everyday sexy outfit and poses flirtatiously with nipples and genitals covered.',
   },
   2: {
-    female: 'She wears lingerie, reveals part of her breasts, and slowly touches her body while keeping her vulva covered.',
-    male: 'He wears low underwear, reveals his chest, and slowly touches his body while keeping his penis covered.',
-    transgender: 'She wears lingerie, reveals her breasts, and slowly touches her body while keeping her penis covered.',
-    anime: 'The adult character wears revealing underwear and touches their body while nipples and genitals remain covered.',
+    female: 'She wears sensual lingerie, a sheer nightdress, or an adult fantasy costume and poses seductively; her genitals remain covered and there is no sexual act.',
+    male: 'He wears fitted underwear, sleepwear, or an adult fantasy costume and poses seductively; his genitals remain covered and there is no sexual act.',
+    transgender: 'She wears sensual lingerie, a sheer nightdress, or an adult fantasy costume and poses seductively; her genitals remain covered and there is no sexual act.',
+    anime: 'The adult character wears lingerie, nightwear, or an adult fantasy costume and poses seductively with genitals covered and no sexual act.',
   },
   3: {
-    female: 'She poses fully nude with her natural breasts and vulva clearly visible, without performing a sexual act.',
+    female: 'She poses fully nude with her natural breasts and vulva remain clearly visible, without performing a sexual act.',
     male: 'He poses fully nude with his muscular torso, large penis, and testicles clearly visible, without performing a sexual act.',
     transgender: 'She poses fully nude with developed breasts, feminine curves, a large penis, and testicles clearly visible, without performing a sexual act.',
     anime: 'The adult character poses fully nude with mature stylized anatomy clearly visible, without performing a sexual act.',
@@ -31,10 +31,10 @@ const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>
     anime: 'The adult character performs clearly visible solo masturbation, before climax and without visible sexual fluids.',
   },
   5: {
-    female: 'She has clearly visible, consensual intercourse with another unmistakably adult partner; the requested sexual position and body contact are anatomically coherent and fully readable.',
-    male: 'He has clearly visible, consensual intercourse with another unmistakably adult partner; the requested sexual position and body contact are anatomically coherent and fully readable.',
-    transgender: 'She has clearly visible, consensual intercourse with another unmistakably adult partner; her established feminine identity and anatomy remain consistent and the requested sexual position is fully readable.',
-    anime: 'The unmistakably adult character has clearly visible, consensual intercourse with another unmistakably adult partner, with mature stylized anatomy and coherent body contact.',
+    female: 'She has clearly visible, consensual sex with another unmistakably adult partner; her natural breasts and vulva remain clearly visible, and the requested act through to climax with any visible sexual fluids are anatomically coherent and fully readable.',
+    male: 'He has clearly visible, consensual sex with another unmistakably adult partner; his large penis and testicles remain visible, and the requested act through to climax with any visible semen are anatomically coherent and fully readable.',
+    transgender: 'She has clearly visible, consensual sex with another unmistakably adult partner; her developed breasts, feminine curves, large penis, and testicles remain visible and consistent, and the requested act through to climax with any visible semen are fully readable.',
+    anime: 'The unmistakably adult character has clearly visible, consensual sex with another unmistakably adult partner, with mature stylized anatomy, coherent contact, climax, and any requested sexual fluids.',
   },
 };
 
@@ -60,8 +60,12 @@ function compactIdentity(identity?: string): string {
 
 function compactScene(scene?: string): string {
   const clean = String(scene || '').replace(/\s+/g, ' ').trim();
-  if (!clean || clean.length > 320) return 'The scene takes place on a modern sofa in a private living room.';
+  if (!clean) return 'Choose a distinctive, believable private or everyday setting that fits this companion instead of a generic sofa scene.';
   return `The scene direction is: ${clean.replace(/[.]+$/, '')}.`;
+}
+
+export function studioIntensityDirection(category: CompanionCategory, intensity: NsfwIntensity): string {
+  return INTENSITY_ACTIONS[intensity][category];
 }
 
 export type StudioPromptSections = {
@@ -80,7 +84,7 @@ export function buildStudioPromptSections(input: {
   identity?: string;
 }): StudioPromptSections {
   const composition = input.intensity >= 4
-    ? 'Use a readable head-to-knee or full-body composition that keeps every participating adult face identifiable, the complete action visible, hands and contact points anatomically coherent, and the camera angle free of accidental obstruction.'
+    ? 'Use a readable head-to-knee or full-body composition with the complete torso and pelvis in frame. Keep every participating adult face identifiable, place weight naturally through one hip or a stable support, and keep the complete action, hands, and contact points anatomically coherent and free of accidental obstruction.'
     : input.intensity === 3
       ? 'Use a candid head-to-knee or full-body view with the complete head, face, torso and pelvis in frame; keep both hands visible, weight distribution natural and anatomy unobstructed.'
       : input.category === 'transgender'
@@ -89,7 +93,7 @@ export function buildStudioPromptSections(input: {
   return {
     identity: CATEGORY_SUBJECTS[input.category] + compactIdentity(input.identity),
     scene: compactScene(input.scene),
-    exposureAndAction: INTENSITY_ACTIONS[input.intensity][input.category],
+    exposureAndAction: studioIntensityDirection(input.category, input.intensity),
     composition,
     quality: RENDER_PROMPTS[input.animeStyle || 'realistic'],
   };
@@ -105,8 +109,8 @@ export function buildStudioPromptEnhancement(input: {
   const sections = buildStudioPromptSections(input);
   return [
     sections.identity,
-    sections.scene,
     sections.exposureAndAction,
+    sections.scene,
     sections.composition,
     sections.quality,
   ].join(' ');

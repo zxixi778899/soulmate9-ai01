@@ -1,5 +1,6 @@
-import { HIGH_NSFW_PROMPT, STUDIO_PROMPTS, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
+import { STUDIO_PROMPTS, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
+import { studioIntensityDirection } from '@/lib/comfy-console/studio-profile';
 
 const ACTIONS: Record<CompanionCategory, string[]> = {
   female: [
@@ -209,6 +210,7 @@ export function buildCompanionGenerationPrompt(
   const identitySpecification = buildCompanionIdentitySpecification(row);
   const intensity = options?.intensity || (options?.adult === false ? 1 : 3);
   const sceneRealism = isIllustrated ? '' : buildCompanionSceneRealism(row, action, intensity);
+  const intensityDirection = studioIntensityDirection(category, intensity);
   const baseInfo = [
     String(row.name || 'adult companion'),
     String(row.age ? `age ${row.age}` : 'age 25+'),
@@ -238,7 +240,7 @@ export function buildCompanionGenerationPrompt(
       action,
       quality,
       identitySpecification,
-      positive: `Scene direction: ${action}. ${quality} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
+      positive: `Scene direction: ${action}. ${options?.adult === false ? '' : intensityDirection} ${quality}`.trim(),
       negative: `${negative}, different person, face swap`,
     };
   }
@@ -249,7 +251,7 @@ export function buildCompanionGenerationPrompt(
     action,
     quality,
     identitySpecification,
-    positive: `${identitySpecification} Scene direction: ${action}. ${quality} ${options?.adult === false ? '' : HIGH_NSFW_PROMPT}`.trim(),
+    positive: `${identitySpecification} Scene direction: ${action}. ${options?.adult === false ? '' : intensityDirection} ${quality}`.trim(),
     negative,
   };
 }
