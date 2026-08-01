@@ -90,8 +90,8 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     assetRole: 'avatar-closeup',
     mode: 'txt2img',
     useIpAdapter: false,
-    width: 832,
-    height: 1216,
+    width: 768,
+    height: 1024,
     steps: 28,
     guidance: 3.0,
     referenceStages: [],
@@ -112,7 +112,7 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     // 0.65 keeps the face consistent while the prompt fully controls pose, wardrobe,
     // framing and scene — feeding the avatar as an img2img base used to drag the
     // output back into a portrait crop, so it is intentionally omitted here.
-    ipAdapterWeight: 0.65,
+    ipAdapterWeight: 0.62,
     referenceStages: ['avatar'],
   },
   {
@@ -264,7 +264,7 @@ function buildStageNegative(stage: PipelineStageConfig): string {
   const anti3d = '3D render, CG, mannequin, doll, plastic skin, wireframe, clay render, T-pose';
   switch (stage.id) {
     case 'avatar':
-      return `${anti3d}, close-up, headshot, face only, cropped shoulders, bokeh, blurry`;
+      return `${anti3d}, full body, distant subject, tiny face, cropped forehead, cropped chin, obscured face, profile view, bokeh, blurry`;
     case 'character-art':
       // Advertising quality: reject anything that looks amateur or non-promotional
       return `${anti3d}, close-up, headshot, half-body, cropped legs, bokeh, blurry, low quality, amateur, flat lighting, passport photo, mugshot, ID photo`;
@@ -287,7 +287,8 @@ export function resolvePipelineLoras(
     category: ctx.category === 'anime' ? 'female' : ctx.category,
     intensity: stage.id === 'avatar' ? 1 : (ctx.nsfwIntensity as 1 | 2 | 3 | 4 | 5),
     animeStyle: ctx.animeStyle,
-    maxLoras: 3,
+    maxLoras: stage.id === 'avatar' ? 1 : 2,
+    identityAsset: stage.id === 'avatar',
   });
   return plan.selected;
 }

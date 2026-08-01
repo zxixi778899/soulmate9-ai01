@@ -119,12 +119,12 @@ async function generateImage(input: {
   const result = await routeImageGeneration({
     prompt: input.prompt,
     negative_prompt: input.negativePrompt,
-    width: route.width,
-    height: route.height,
+    width: 768,
+    height: 1024,
     num_inference_steps: route.steps,
     guidance_scale: route.cfg,
-    image_url: input.referenceImage,
-    strength: input.referenceImage ? 0.38 : undefined,
+    ip_adapter_image: input.referenceImage,
+    ip_adapter_weight: input.referenceImage ? 0.62 : undefined,
     ckpt_name: route.checkpoint,
     sampler_name: route.sampler,
     scheduler: route.scheduler,
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
       animeStyle: renderStyle,
       identity: prompt,
       scene: [
-        'a relaxed three-quarter portrait with natural posture and clear face',
+        'a chest-up identity portrait at eye level, face large and unobstructed, both eyes sharp, full hairline and chin visible, shoulders relaxed, looking naturally toward the camera, plain warm neutral background',
         ...referencePlan.promptHints,
       ].join('. '),
     });

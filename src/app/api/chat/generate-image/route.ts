@@ -347,12 +347,16 @@ export async function POST(request: NextRequest) {
       strength_clip: lora.strength,
     }));
     const categoryFiles = new Set(categoryLoras.map((lora) => lora.name));
-    const useCategoryOnly = categoryControl.selected.length > 0;
+    const genericByScene = loraPlan.secondary && genericLoras[1]
+      ? [genericLoras[1], genericLoras[0]]
+      : genericLoras;
+    const dedupedGeneric = genericByScene.filter((lora) => !categoryFiles.has(lora.name));
+    // The level-specific outfit/action LoRA must win over a generic skin LoRA.
+    // Level 1 keeps detail first; levels 2-5 prioritize the semantic scene LoRA.
     const requestedCompatibleLoras = generationRoute.modelFamily === 'flux'
-      ? [
-          ...categoryLoras,
-          ...(useCategoryOnly ? [] : genericLoras.filter((lora) => !categoryFiles.has(lora.name))),
-        ]
+      ? intimacyPolicy.nsfwIntensity === 1
+        ? [...categoryLoras, ...dedupedGeneric]
+        : [...dedupedGeneric, ...categoryLoras]
       : [];
     const compatibleLoraPlan = resolveModelLoraPlan({
       modelFamily: generationRoute.modelFamily,
@@ -360,7 +364,7 @@ export async function POST(request: NextRequest) {
       intensity: intimacyPolicy.nsfwIntensity,
       animeStyle,
       requested: requestedCompatibleLoras,
-      maxLoras: intimacyPolicy.nsfwIntensity >= 3 ? 3 : 2,
+      maxLoras: 2,
     });
     const intelligentLoras = compatibleLoraPlan.selected;
     const modelLoraTriggers = compatibleLoraPlan.triggerWords;
@@ -379,8 +383,8 @@ export async function POST(request: NextRequest) {
     // Face / body reference for character consistency
     const refCandidates = [
       (gf as { face_reference_url?: string }).face_reference_url,
-      (gf as { portrait_url?: string }).portrait_url,
       (gf as { avatar_url?: string }).avatar_url,
+      (gf as { portrait_url?: string }).portrait_url,
       (gf as { card_url?: string }).card_url,
     ];
     const referenceImages: string[] = [];
@@ -419,7 +423,9 @@ export async function POST(request: NextRequest) {
     // Preserve identity from the saved portrait without copying its composition.
     const useConsistency =
       resolved.config.use_consistency_default !== false && Boolean(referenceImage);
-    const ipAdapterWeight = intimacyPolicy.level >= 4 ? 0.62 : 0.7;
+    // The avatar is an identity cue, not a composition template. Explicit and
+    // multi-person scenes need more prompt freedom than a simple portrait.
+    const ipAdapterWeight = ({ 1: 0.72, 2: 0.68, 3: 0.64, 4: 0.58, 5: 0.54 } as const)[intimacyPolicy.level];
 
     const sceneCfg = resolved.config;
     const generationSeed = Math.floor(Math.random() * 2 ** 32);

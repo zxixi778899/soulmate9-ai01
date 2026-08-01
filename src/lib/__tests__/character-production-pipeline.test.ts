@@ -3,6 +3,7 @@ import {
   CHARACTER_PIPELINE_STAGES,
   buildStageGenerationParams,
   resolveStageReference,
+  resolvePipelineLoras,
   type PipelineContext,
 } from '@/lib/character-production-pipeline';
 
@@ -37,8 +38,9 @@ describe('character production reference routing', () => {
     expect(params.input_image).toBeUndefined();
     expect(params.ip_adapter_image).toBeUndefined();
     expect(params.character_consistency).toBe(false);
-    expect(params.width).toBe(832);
-    expect(params.height).toBe(1216);
+    expect(resolvePipelineLoras(stage!, context)).toEqual([]);
+    expect(params.width).toBe(768);
+    expect(params.height).toBe(1024);
   });
 
   it('locks the face via IP-Adapter only (txt2img, prompt controls composition) in character art', () => {
@@ -52,7 +54,7 @@ describe('character production reference routing', () => {
     expect(params.input_image).toBeUndefined();
     expect(params.denoising_strength).toBeUndefined();
     expect(params.ip_adapter_image).toBe('https://example.com/avatar.png');
-    expect(params.ip_adapter_weight).toBe(0.65);
+    expect(params.ip_adapter_weight).toBe(0.62);
     expect(params.character_consistency).toBe(true);
     expect(params.width).toBe(832);
     expect(params.height).toBe(1216);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   GIRLFRIEND_SCENE_RECIPES,
   NSFW_AMPLIFIER,
@@ -7,6 +7,21 @@ import {
   pickScenePoseAndOutfit,
   type GirlfriendSubject,
 } from '@/lib/prompt/girlfriend';
+
+const originalInstalledLoras = process.env.RUNPOD_INSTALLED_LORAS;
+
+beforeEach(() => {
+  process.env.RUNPOD_INSTALLED_LORAS = [
+    'flux_style_photoreal_v1.safetensors',
+    'flux_outfit_lingerie_v1.safetensors',
+    'flux_pose_nsfw_dynamic_v1.safetensors',
+  ].join(',');
+});
+
+afterEach(() => {
+  if (originalInstalledLoras === undefined) delete process.env.RUNPOD_INSTALLED_LORAS;
+  else process.env.RUNPOD_INSTALLED_LORAS = originalInstalledLoras;
+});
 
 const subject: GirlfriendSubject = {
   name: 'Alex',

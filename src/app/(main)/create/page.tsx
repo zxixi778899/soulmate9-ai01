@@ -338,6 +338,7 @@ export default function CreatePage() {
           appearance_race: ethnicity,
           tags: [...selectedTags, ethnicity, occupation, relLabel],
           outfit_id: selectedOutfit,
+          avatar_url: portraitUrl || undefined,
           portrait_url: portraitUrl || undefined,
           meta: {
             visual_style: visualStyle, ethnicity, gender,
