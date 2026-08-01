@@ -10,39 +10,40 @@ import {
 } from './character-asset-production';
 
 describe('character asset production', () => {
-  it('defines the avatar + turnaround-sheet identity pack', () => {
-    expect(CHARACTER_ID_PACK).toEqual([
-      'avatar-closeup',
-      'identity-turnaround',
-    ]);
+  it('defines the avatar as the single identity anchor pack', () => {
+    expect(CHARACTER_ID_PACK).toEqual(['avatar-closeup']);
     expect(CHARACTER_ID_PACK.every((role) =>
       CHARACTER_PRODUCTION_PRESETS.some((preset) => preset.role === role),
     )).toBe(true);
     const avatar = getCharacterProductionPreset('avatar-closeup');
-    expect(avatar.scene).toContain('waist-up real-camera portrait');
-    expect(avatar.scene).not.toContain('close-up');
+    expect(avatar.scene).toContain('waist-up studio portrait');
+    expect(avatar.scene).toContain('upper torso fully in frame');
     expect(avatar.scene).not.toContain('headshot');
-    const turnaround = getCharacterProductionPreset('identity-turnaround');
-    expect(turnaround.scene).toContain('character model sheet');
-    expect(turnaround.scene).toContain('three full-body views');
-    expect(turnaround.width).toBeGreaterThan(turnaround.height);
+    expect(avatar.width).toBe(832);
+    expect(avatar.height).toBe(1216);
   });
 
   it('uses identity consistency after the initial avatar reference', () => {
     expect(getCharacterProductionPreset('avatar-closeup').consistency).toBe(false);
-    expect(getCharacterProductionPreset('identity-turnaround').consistency).toBe(true);
     expect(getCharacterProductionPreset('identity-front').consistency).toBe(true);
     expect(getCharacterProductionPreset('identity-profile').consistency).toBe(true);
     expect(getCharacterProductionPreset('identity-back').consistency).toBe(true);
     expect(getCharacterProductionPreset('character-art').consistency).toBe(true);
   });
 
-  it('chains turnaround references and allows enough composition change', () => {
-    expect(identityReferenceRolePriority('identity-turnaround')).toEqual(['avatar-closeup']);
+  it('anchors every downstream asset to the avatar reference', () => {
+    // Final products and legacy sheets all resolve the avatar first.
+    expect(identityReferenceRolePriority('character-art')[0]).toBe('avatar-closeup');
+    expect(identityReferenceRolePriority('album')[0]).toBe('avatar-closeup');
+    expect(identityReferenceRolePriority('scene')[0]).toBe('avatar-closeup');
+    expect(identityReferenceRolePriority('identity-turnaround')[0]).toBe('avatar-closeup');
+    // Legacy identity sheets keep their chained fallbacks for existing DB assets.
     expect(identityReferenceRolePriority('identity-front')).toEqual(['avatar-closeup']);
     expect(identityReferenceRolePriority('identity-profile')).toEqual(['identity-front', 'avatar-closeup']);
     expect(identityReferenceRolePriority('identity-back')).toEqual(['identity-profile', 'identity-front', 'avatar-closeup']);
-    expect(identityReferenceRolePriority('character-art')).toEqual(['identity-turnaround', 'identity-front', 'identity-profile', 'identity-back']);
+  });
+
+  it('allows enough composition change for final products', () => {
     expect(identityTurnaroundDenoise('identity-turnaround', 0.35)).toBe(0.72);
     expect(identityTurnaroundDenoise('identity-front', 0.35)).toBe(0.72);
     expect(identityTurnaroundDenoise('identity-profile', 0.35)).toBe(0.68);
@@ -55,6 +56,7 @@ describe('character asset production', () => {
     expect(getCharacterProductionPreset('identity-back').scene).toContain('rear-view catalog photograph');
     expect(getCharacterProductionPreset('identity-back').scene).toContain('back facing camera');
   });
+
   it('keeps render styles mutually exclusive', () => {
     expect(styleProductionHint('realistic')).toContain('real camera photograph');
     expect(styleProductionHint('realistic')).toContain('neutral white balance');

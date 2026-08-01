@@ -88,7 +88,7 @@ const CAT_ORDER = ['body', 'action', 'outfit', 'prop', 'detail'];
 /** Companion asset folder definitions for the resource library browser */
 const RESOURCE_FOLDERS: Array<{ id: string; label: string; match: (role: string) => boolean }> = [
   { id: 'avatar-closeup', label: '半身头像', match: (r) => r === 'avatar-closeup' },
-  { id: 'identity-turnaround', label: '三视图', match: (r) => r === 'identity-turnaround' || r.startsWith('identity-') },
+  { id: 'identity-reference', label: '身份参考图(旧)', match: (r) => r.startsWith('identity-') },
   { id: 'character-art', label: '立绘', match: (r) => r === 'character-art' },
   { id: 'album', label: '相册 / 场景', match: (r) => r === 'album' || r === 'scene' },
   { id: 'animation', label: '视频', match: (r) => r === 'animation' },
@@ -165,7 +165,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchProgress, setBatchProgress] = useState<Array<{ id: string; name: string; status: 'pending' | 'running' | 'success' | 'failed'; error?: string }>>([]);
-  // ─── Pipeline state (4-stage character production) ─────────────────────────
+  // ─── Pipeline state (3-stage character production) ─────────────────────────
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [pipelineResults, setPipelineResults] = useState<PipelineStageResult[]>([]);
   const [pipelineAssets, setPipelineAssets] = useState<Record<string, string>>({});
@@ -277,7 +277,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setPromptProfileApplied(true);
     applyRecommendedLoras(assembled?.category || companionCategory, animeRenderStyle, nsfwIntensity);
     if (isAvatar) toast.success(`已切换：${preset.label}，纯文生图（不使用参考图）`);
-    else if (wantsIdentityRef && !identityImage) toast.warning('尚无人设参考图，将用完整描述生成；建议先生成半身头像和三视图');
+    else if (wantsIdentityRef && !identityImage) toast.warning('尚无人设参考图，将用完整描述生成；建议先生成半身头像');
     else toast.success(`已切换：${preset.label}，${hasIdentityRef ? '人设图控制一致性' : '将读取伴侣基础信息'}`);
   };
 
@@ -827,7 +827,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     let succeeded = 0;
     let failed = 0;
 
-    // Phase-based: iterate roles FIRST (avatar phase → turnaround phase), then companions.
+    // Phase-based: iterate roles FIRST (avatar phase → character-art phase), then companions.
     // Failure on one task does NOT block remaining tasks.
     for (const role of roles) {
       const preset = getCharacterProductionPreset(role);
@@ -921,7 +921,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     else toast.success(`角色生产包完成：共生成 ${succeeded} 项资产`);
   };
 
-  // ─── 4-Stage Pipeline: avatar → turnaround → character-art → video ─────────
+  // ─── 3-Stage Pipeline: avatar → character-art → video ──────────────────────
   const runPipelineGeneration = async (companionId: string) => {
     const girlfriend = batchGirlfriends.find((item) => String(item.id) === companionId) || scopedGirlfriend;
     if (!girlfriend) return toast.error('请先选择伴侣');
@@ -1541,7 +1541,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-white">系统角色生产</h2>
-                <p className="mt-1 text-[11px] text-slate-400">4 阶段自动管线：文生图半身头像 → IP-Adapter 锁脸三视图 → 图生图立绘 → 图生视频。提示词 AI 生成，LoRA 自动匹配。</p>
+                <p className="mt-1 text-[11px] text-slate-400">3 阶段自动管线：文生图半身头像（IP-Adapter 身份锚点）→ 图生图广告立绘 → 图生视频。提示词 AI 生成，LoRA 自动匹配。</p>
               </div>
               <Link href="/admin/girlfriends" className="text-xs font-medium text-violet-300 hover:text-violet-200">新建/编辑伴侣基础信息 →</Link>
             </div>
@@ -1573,7 +1573,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {[
-                  { title: '1. 管线阶段', roles: ['avatar-closeup', 'identity-turnaround', 'character-art'] as CharacterAssetRole[] },
+                  { title: '1. 管线阶段', roles: ['avatar-closeup', 'character-art'] as CharacterAssetRole[] },
                   { title: '2. 相册 / 场景', roles: ['album', 'scene'] as CharacterAssetRole[] },
                   { title: '3. 参考与辅助', roles: ['pose-reference', 'style-reference', 'composition-reference'] as CharacterAssetRole[] },
                 ].map((group) => (
@@ -1609,7 +1609,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="button" size="sm" className="bg-cyan-600 hover:bg-cyan-500" disabled={pipelineRunning || batchRunning} onClick={() => void runPipelineGeneration(productionGirlfriendId)}>
                     {pipelineRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-                    {pipelineRunning ? '管线生产中…' : '开始全管线生产（头像→三视图→立绘→视频）'}
+                    {pipelineRunning ? '管线生产中…' : '开始全管线生产（头像→立绘→视频）'}
                   </Button>
                   {pipelineRunning && (
                     <Button type="button" size="sm" variant="outline" className="border-red-500/50 text-red-300 hover:bg-red-950/40" onClick={() => { pipelineCancelRef.current = true; }}>
@@ -1670,7 +1670,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="flex items-center gap-2 text-sm font-bold text-white"><Users className="h-4 w-4 text-violet-300" /> 批量生产角色资产</h2>
-                  <p className="mt-1 text-[11px] text-slate-300">自动读取每位伴侣资料并归档到独立目录。身份生产包包含半身头像和单张三视图参考图（正/侧/背三联）。</p>
+                  <p className="mt-1 text-[11px] text-slate-300">自动读取每位伴侣资料并归档到独立目录。身份生产包包含半身头像（IP-Adapter 身份锚点）。</p>
                   <div className="mt-2 inline-flex border border-violet-500/40 bg-slate-950 p-1">
                     <button type="button" onClick={() => setBatchIdentityPack(true)} className={cn('h-7 px-2 text-[11px]', batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>身份图组 + 立绘</button>
                     <button type="button" onClick={() => setBatchIdentityPack(false)} className={cn('h-7 px-2 text-[11px]', !batchIdentityPack ? 'bg-violet-600 text-white' : 'text-slate-300')}>仅当前任务</button>

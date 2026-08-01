@@ -35,8 +35,8 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     role: 'avatar-closeup',
     label: '人设头像 · 半身像',
     shortLabel: '半身头像',
-    description: '根据伴侣基础信息生成半身像头像（头到腰部以上），作为后续三视图与立绘的首要身份参考。',
-    scene: 'waist-up real-camera portrait of the same adult character, complete head and upper torso in frame, warm approachable eye contact and a relaxed subtle smile, plain warm-gray background, soft diffused daylight, neutral white balance, accurate natural skin tone, restrained saturation, gentle contrast, minimal retouching',
+    description: '根据伴侣基础信息生成半身像头像（头到腰部以上），作为立绘与后续所有资产的 IP-Adapter 身份锚点。',
+    scene: 'A waist-up studio portrait of the same adult character, head and upper torso fully in frame, relaxed natural expression with warm approachable eye contact, plain warm-gray background, soft diffused daylight, neutral white balance, accurate natural skin tone, gentle contrast',
     width: 832,
     height: 1216,
     consistency: false,
@@ -113,7 +113,7 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
     label: '角色立绘',
     shortLabel: '立绘',
     description: '用于角色卡、详情页和运营展示的标准主视觉。',
-    scene: 'a polished full-height character key art image, confident natural pose, recognizable signature outfit, clean readable silhouette, layered environment with restrained detail and clear face lighting',
+    scene: 'a polished full-height advertising key art of the character, confident natural pose, recognizable signature outfit, clean readable silhouette, cinematic magazine lighting with a clear well-lit face, layered environment with restrained detail',
     width: 832,
     height: 1216,
     consistency: true,
@@ -178,18 +178,17 @@ export const CHARACTER_PRODUCTION_PRESETS: CharacterProductionPreset[] = [
 
 export const CHARACTER_ID_PACK: CharacterAssetRole[] = [
   'avatar-closeup',
-  'identity-turnaround',
 ];
 
 export function identityReferenceRolePriority(role: CharacterAssetRole): CharacterAssetRole[] {
-  if (role === 'identity-turnaround') return ['avatar-closeup'];
+  // The waist-up avatar is the single IP-Adapter identity anchor for every
+  // downstream asset (character-art, album, scene, video). Legacy identity-*
+  // reference sheets are kept only as secondary fallbacks so existing DB assets
+  // still resolve, but new productions never generate them.
   if (role === 'identity-front') return ['avatar-closeup'];
   if (role === 'identity-profile') return ['identity-front', 'avatar-closeup'];
   if (role === 'identity-back') return ['identity-profile', 'identity-front', 'avatar-closeup'];
-  if (role === 'character-art' || role === 'album' || role === 'scene') {
-    return ['identity-turnaround', 'identity-front', 'identity-profile', 'identity-back'];
-  }
-  return ['identity-turnaround', 'avatar-closeup', 'identity-front', 'identity-profile', 'identity-back'];
+  return ['avatar-closeup', 'identity-turnaround', 'identity-front', 'identity-profile', 'identity-back'];
 }
 
 export function identityTurnaroundDenoise(role: CharacterAssetRole, requested: number): number {

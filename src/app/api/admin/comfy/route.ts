@@ -1170,12 +1170,10 @@ if (body.action === 'verify_loras') {
       const productionPreset = getCharacterProductionPreset(assetRole);
       const briefIdentity = buildCompanionIdentityBrief(databaseCompanion);
       prompt = `${productionPreset.scene}, ${briefIdentity}`;
-      // Composition forbids differ per role: avatar = half-body, turnaround = 3-view sheet, others = full-body.
+      // Composition forbids differ per role: avatar = half-body, other identity roles = full-body.
       negative = assetRole === 'avatar-closeup'
         ? `3D render, CG, mannequin, doll, plastic skin, wireframe, close-up, headshot, face only, cropped shoulders, bokeh, blurry, oversaturated, neon color cast, orange skin, magenta skin, beauty filter, generic influencer face, ${buildCompanionAgeNegativePrompt(databaseCompanion)}`
-        : assetRole === 'identity-turnaround'
-          ? '3D render, CG, mannequin, doll, plastic skin, wireframe, single view, one view only, headshot, half-body, portrait, collage, overlapping figures, bokeh, blurry'
-          : '3D render, CG, mannequin, doll, plastic skin, wireframe, T-pose, close-up, headshot, half-body, bokeh, blurry';
+        : '3D render, CG, mannequin, doll, plastic skin, wireframe, T-pose, close-up, headshot, half-body, bokeh, blurry';
       category = normalizeCompanionCategory({
         gender: String(databaseCompanion.gender || ''),
         style: String(databaseCompanion.style || ''),
@@ -1187,11 +1185,10 @@ if (body.action === 'verify_loras') {
     const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics });
     if (body.width == null) width = generationRoute.width;
     if (body.height == null) height = generationRoute.height;
-    // Identity assets have fixed production dimensions — the turnaround is a wide
-    // three-panel contact sheet (1344×768) and the avatar is a portrait (832×1216).
-    // FLUX renders whatever latent size it is given, so enforce the preset size
-    // server-side; a stale client width/height must not turn the sheet into a
-    // portrait headshot.
+    // Identity assets have fixed production dimensions — the avatar is a portrait
+    // (832×1216). FLUX renders whatever latent size it is given, so enforce the
+    // preset size server-side; a stale client width/height must not turn the
+    // portrait into the wrong aspect ratio.
     if (isIdentityAsset) {
       const productionDims = getCharacterProductionPreset(assetRole);
       width = productionDims.width;
@@ -1249,14 +1246,14 @@ if (body.action === 'verify_loras') {
         }
       }
     }
-    const requiresTurnaroundReference = assetRole === 'character-art' || assetRole === 'album' || assetRole === 'scene';
-    const identityReferenceUrls = [...storedIdentityUrls, ...(requiresTurnaroundReference ? [] : [consistencyReference])].filter(Boolean);
+    const isFinalProductAsset = assetRole === 'character-art' || assetRole === 'album' || assetRole === 'scene';
+    const identityReferenceUrls = [...storedIdentityUrls, ...(isFinalProductAsset ? [] : [consistencyReference])].filter(Boolean);
 
     // ─── Scene-only prompt: identity controlled by reference image ───────────
     // When identity reference images are available, the prompt should ONLY
     // describe scene + action + quality. Character appearance is preserved
     // by the reference image via img2img / IP-Adapter, not by text.
-    if (requiresTurnaroundReference && identityReferenceUrls.length > 0 && databaseCompanion) {
+    if (isFinalProductAsset && identityReferenceUrls.length > 0 && databaseCompanion) {
       const productionPreset = getCharacterProductionPreset(assetRole);
       const sceneOnlyResult = buildCompanionGenerationPrompt(databaseCompanion, {
         action: `${productionPreset.scene}. ${styleProductionHint(animeStyle)}`,
@@ -1308,22 +1305,18 @@ if (body.action === 'verify_loras') {
     const resolvedReferenceImage =
       referencePlan.primaryIdentity?.url ||
       referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
-    // IP-Adapter keeps identity without copying the portrait composition.
-    // Turnarounds start from an empty wide latent when the custom node is available.
-    // Stock workers retain a high-denoise img2img fallback.
+    // IP-Adapter keeps identity without copying the portrait composition. The
+    // avatar is generated without any reference; every other identity asset uses
+    // the avatar as its IP-Adapter anchor.
     const ipAdapterEnabled =
       process.env.RUNPOD_IPADAPTER_INSTALLED === '1' &&
       assetRole !== 'avatar-closeup';
-    const useIdentityOnlyTurnaround =
-      ipAdapterEnabled && assetRole === 'identity-turnaround';
-    const effectiveInputImage = assetRole === 'avatar-closeup' || useIdentityOnlyTurnaround
+    const effectiveInputImage = assetRole === 'avatar-closeup'
       ? undefined
       : resolvedReferenceImage;
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
-        ? assetRole === 'identity-turnaround'
-          ? 0.88
-          : identityTurnaroundDenoise(assetRole, denoise)
+        ? identityTurnaroundDenoise(assetRole, denoise)
         : Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
     const requiresIdentityReference = assetRole !== 'avatar-closeup' && (
@@ -1340,7 +1333,7 @@ if (body.action === 'verify_loras') {
     );
     if (requiresIdentityReference && !hasIdentityReference) {
       return NextResponse.json({
-        error: 'Generate or upload the companion avatar/turnaround reference before creating this asset',
+        error: 'Generate or upload the companion avatar reference before creating this asset',
       }, { status: 400 });
     }
     // IP-Adapter: identity reference without composition lock (request or auto-resolved avatar).
@@ -1352,15 +1345,12 @@ if (body.action === 'verify_loras') {
           resolvedReferenceImage
         )
       : undefined;
-    // Turnaround is a multi-view sheet: a strong identity weight (0.82) over-locks the
-    // single waist-up reference, so FLUX ghosts the panels or crops to chest-up instead
-    // of rendering separated full-body front/side/back views. 0.6 keeps identity while
-    // leaving enough freedom for the three-panel layout (verified across seeds).
-    const defaultIpAdapterWeight = assetRole === 'identity-turnaround'
-      ? 0.6
-      : assetRole.startsWith('identity-')
-        ? 0.82
-        : 0.7;
+    // Identity reference sheets lock hard to the avatar; final products
+    // (character-art, album, scene) use a slightly looser weight so the reference
+    // guides identity without copying the portrait composition.
+    const defaultIpAdapterWeight = assetRole.startsWith('identity-')
+      ? 0.82
+      : 0.7;
     const ipAdapterWeight = ipAdapterEnabled
       ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight ?? defaultIpAdapterWeight)))
       : undefined;

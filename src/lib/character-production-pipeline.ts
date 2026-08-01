@@ -1,13 +1,16 @@
 /**
- * Character Production Pipeline — 4-stage automated character asset creation.
+ * Character Production Pipeline — 3-stage automated character asset creation.
  *
  * Stages:
- *   1. txt2img → 半身头像 (avatar-closeup)
- *   2. IP-Adapter + txt2img → 三视图参考图 (identity-turnaround, face locked, composition free)
- *   3. img2img → 角色立绘 (character-art, auto-select avatar + turnaround as references)
- *   4. img2video → 动态视频 (animation, auto-select avatar/turnaround as reference)
+ *   1. txt2img → 半身头像 (avatar-closeup) — the IP-Adapter identity anchor
+ *   2. IP-Adapter + img2img → 角色立绘 (character-art, face locked from avatar, composition free)
+ *   3. img2video → 动态视频 (animation, avatar as reference)
  *
- * Each stage auto-generates prompts via AI (Qwen3-8B), auto-selects LoRAs,
+ * The three-view turnaround stage was removed: FLUX cannot reliably render a
+ * clean separated front/side/back sheet from a single identity reference, so the
+ * avatar alone now anchors identity for every downstream stage via IP-Adapter.
+ *
+ * Each stage auto-generates prompts via AI (Qwen-Plus), auto-selects LoRAs,
  * and auto-resolves reference images from previously generated assets.
  */
 
@@ -19,7 +22,7 @@ import { logger } from './logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type PipelineStageId = 'avatar' | 'turnaround' | 'character-art' | 'video';
+export type PipelineStageId = 'avatar' | 'character-art' | 'video';
 
 export interface PipelineStageConfig {
   id: PipelineStageId;
@@ -82,7 +85,7 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     id: 'avatar',
     label: '半身头像 · 文生图',
     shortLabel: '半身头像',
-    description: '文生图生成半身像头像，作为后续所有阶段的身份锚点。',
+    description: '文生图生成半身像头像，作为后续所有阶段的 IP-Adapter 身份锚点（锁脸参考图）。',
     assetRole: 'avatar-closeup',
     mode: 'txt2img',
     useIpAdapter: false,
@@ -93,29 +96,10 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     referenceStages: [],
   },
   {
-    id: 'turnaround',
-    label: '三视图 · 图生图',
-    shortLabel: '三视图',
-    description: '以半身头像为参考图，描述体型外观+服装，图生图生成正面/侧面/背面三视图，为立绘和视频提供一致性锚定。',
-    assetRole: 'identity-turnaround',
-    mode: 'img2img',
-    useIpAdapter: true,
-    width: 1344,
-    height: 768,
-    steps: 28,
-    guidance: 3.0,
-    denoise: 0.72,
-    // 0.82 over-locks the waist-up avatar reference → FLUX ghosts the panels or
-    // crops to chest-up. 0.6 keeps identity while allowing the full-body
-    // front/side/back layout (verified live across seeds).
-    ipAdapterWeight: 0.6,
-    referenceStages: ['avatar'],
-  },
-  {
     id: 'character-art',
     label: '角色立绘 · 广告主视觉',
     shortLabel: '立绘',
-    description: '基于头像+三视图一致性参考，生成伴侣广告级立绘主视觉，用于推广展示。',
+    description: '以半身头像为 IP-Adapter 身份参考，生成伴侣广告级全身立绘主视觉，用于推广展示。',
     assetRole: 'character-art',
     mode: 'img2img',
     useIpAdapter: true,
@@ -124,14 +108,16 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     steps: 28,
     guidance: 3.0,
     denoise: 0.92,
+    // Face identity from the avatar; 0.65 keeps the face consistent while leaving
+    // the pose, wardrobe and scene free for an advertising key visual.
     ipAdapterWeight: 0.65,
-    referenceStages: ['avatar', 'turnaround'],
+    referenceStages: ['avatar'],
   },
   {
     id: 'video',
     label: '动态视频 · 图生视频',
     shortLabel: '视频',
-    description: '图生视频自动选择半身头像 + 三视图 + 提示词，生成角色动态短视频。',
+    description: '图生视频自动选择半身头像 + 提示词，生成角色动态短视频。',
     assetRole: 'animation',
     mode: 'img2video',
     useIpAdapter: false,
@@ -139,7 +125,7 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     height: 768,
     steps: 20,
     guidance: 7.0,
-    referenceStages: ['avatar', 'turnaround'],
+    referenceStages: ['avatar'],
     video: {
       durationSeconds: 5,
       fps: 8,
@@ -150,16 +136,16 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
 
 // ─── AI Prompt Generation ─────────────────────────────────────────────────────
 
-const PROMPT_SYSTEM_TEMPLATE = `You are an expert FLUX.1 image prompt engineer. Generate a concise, optimized prompt for the given stage.
+const PROMPT_SYSTEM_TEMPLATE = `You are an expert FLUX.1 image prompt engineer. Write one concise positive prompt for the given stage.
 Rules:
-- Output ONLY the prompt text, no explanation.
-- Keep under 300 characters.
-- FLUX best practices: natural language, no weighting syntax, no commas-as-tags. Describe scenes like a photographer directing a shoot.
-- For avatar: waist-up portrait using the character's basic attributes (age, gender, ethnicity, style, hair color, hairstyle, body type, temperament). Plain background, soft studio light, natural expression. This is the identity anchor.
-- For turnaround: describe the character's body type/appearance + outfit/clothing clearly. Three full-body views (front, side, back) side by side, plain white background, even flat lighting, relaxed standing pose. This is an appearance reference sheet for consistency — clinical, not artistic.
-- For character-art: a scene with action — WHERE is she, WHAT is she doing, HOW does she look doing it. Full-height, cinematic lighting, magazine-cover quality. Adjust sensuality by NSFW level: 1=casual/modest, 2=flirty/suggestive, 3=lingerie/revealing, 4=explicit posing, 5=full NSFW scene. This is the FINAL advertising product.
-- For video: describe subtle natural motion (breathing, hair sway, gentle smile, slight body turn).
-- Never use: orthographic, wireframe, T-pose, character sheet, reference sheet, 3D render.
+- Output ONLY the prompt text, no explanation, no quotes.
+- Keep it under 220 characters.
+- FLUX best practices: write short natural-language sentences, like a photographer directing a single shot. No weighting syntax (no parentheses/colons), no comma-tag lists, no ALL-CAPS, no negative words (never say "no blur", "avoid X").
+- Put the most important subject and framing first.
+- For avatar: a waist-up studio portrait of the character from their basic attributes (age, gender, ethnicity, hair color and style, eye color, build, temperament). Plain warm-gray background, soft diffused daylight, relaxed natural expression, clean eye contact. This is the identity anchor that later stages lock onto, so the face must be clear and unobstructed.
+- For character-art: a full-height advertising key visual — WHERE the character is, WHAT they are doing, and a signature outfit. Confident natural pose, clean readable silhouette, cinematic magazine lighting. Adjust sensuality by NSFW level: 1=casual/modest, 2=flirty/suggestive, 3=lingerie/revealing, 4=explicit posing, 5=full NSFW scene. This is the final promotional product.
+- For video: describe subtle natural motion only (gentle breathing, soft hair sway, a slow smile, a slight body turn).
+- Never use: orthographic, wireframe, T-pose, character sheet, reference sheet, turnaround, multiple views, 3D render.
 - Language: English only.`;
 
 /**
@@ -179,10 +165,7 @@ export async function generateStagePrompt(
     const aiPrompt = await callLlmForPrompt(stage, brief, ctx);
     if (aiPrompt && aiPrompt.length > 20 && aiPrompt.length < 500) {
       const negative = buildStageNegative(stage);
-      const prompt = stage.id === 'turnaround'
-        ? `${aiPrompt}. ${preset.scene}`
-        : aiPrompt;
-      return { prompt, negative };
+      return { prompt: aiPrompt, negative };
     }
   } catch (err) {
     logger.warn('[pipeline] AI prompt generation failed, using template', {
@@ -280,9 +263,6 @@ function buildStageNegative(stage: PipelineStageConfig): string {
   switch (stage.id) {
     case 'avatar':
       return `${anti3d}, close-up, headshot, face only, cropped shoulders, bokeh, blurry`;
-    case 'turnaround':
-      // Neutral reference: reject artistic/dramatic styling, keep it clinical
-      return `${anti3d}, single view, one view only, headshot, half-body, portrait, collage, overlapping figures, dramatic lighting, artistic, bokeh, blurry, background scenery`;
     case 'character-art':
       // Advertising quality: reject anything that looks amateur or non-promotional
       return `${anti3d}, close-up, headshot, half-body, cropped legs, bokeh, blurry, low quality, amateur, flat lighting, passport photo, mugshot, ID photo`;
@@ -303,7 +283,7 @@ export function resolvePipelineLoras(
   const plan = resolveModelLoraPlan({
     modelFamily: 'flux',
     category: ctx.category === 'anime' ? 'female' : ctx.category,
-    intensity: stage.id === 'avatar' || stage.id === 'turnaround' ? 1 : (ctx.nsfwIntensity as 1 | 2 | 3 | 4 | 5),
+    intensity: stage.id === 'avatar' ? 1 : (ctx.nsfwIntensity as 1 | 2 | 3 | 4 | 5),
     animeStyle: ctx.animeStyle,
     maxLoras: 3,
   });
@@ -314,7 +294,7 @@ export function resolvePipelineLoras(
 
 /**
  * Resolve the best reference image URL for a stage from existing assets.
- * Priority: avatar-closeup > identity-turnaround > character-art
+ * The avatar-closeup is the single identity anchor for every downstream stage.
  */
 export function resolveStageReference(
   stage: PipelineStageConfig,
@@ -323,22 +303,19 @@ export function resolveStageReference(
   if (stage.referenceStages.length === 0) return {};
 
   const avatarUrl = ctx.existingAssets['avatar-closeup'] || '';
-  const turnaroundUrl = ctx.existingAssets['identity-turnaround'] || '';
 
   switch (stage.id) {
-    case 'turnaround':
-      // Keep the avatar as an identity reference only. Feeding a portrait into img2img
-      // copies its portrait composition and prevents a true three-view layout.
-      return { ipAdapterImage: avatarUrl || undefined };
     case 'character-art':
-      // img2img input = turnaround (structural reference), IP-Adapter = avatar (face identity)
+      // IP-Adapter = avatar (face identity). The avatar also feeds img2img at a high
+      // denoise (0.92) so it adds only a loose structural hint, not a composition lock,
+      // leaving the pose, wardrobe and scene free for an advertising key visual.
       return {
-        inputImage: turnaroundUrl || avatarUrl || undefined,
+        inputImage: avatarUrl || undefined,
         ipAdapterImage: avatarUrl || undefined,
       };
     case 'video':
       // AnimateDiff reference = avatar (best face clarity)
-      return { inputImage: avatarUrl || turnaroundUrl || undefined };
+      return { inputImage: avatarUrl || undefined };
     default:
       return {};
   }

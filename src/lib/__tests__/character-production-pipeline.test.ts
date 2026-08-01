@@ -14,34 +14,58 @@ const context: PipelineContext = {
   nsfwIntensity: 1,
   existingAssets: {
     'avatar-closeup': 'https://example.com/avatar.png',
-    'identity-turnaround': 'https://example.com/turnaround.png',
   },
 };
 
+describe('character production pipeline definition', () => {
+  it('is a 3-stage pipeline: avatar → character-art → video', () => {
+    expect(CHARACTER_PIPELINE_STAGES.map((stage) => stage.id)).toEqual([
+      'avatar',
+      'character-art',
+      'video',
+    ]);
+  });
+});
+
 describe('character production reference routing', () => {
-  it('uses the avatar only for IP-Adapter identity when generating turnaround views', () => {
-    const stage = CHARACTER_PIPELINE_STAGES.find((item) => item.id === 'turnaround');
+  it('generates the avatar with no reference (pure txt2img identity anchor)', () => {
+    const stage = CHARACTER_PIPELINE_STAGES.find((item) => item.id === 'avatar');
     expect(stage).toBeDefined();
     const refs = resolveStageReference(stage!, context);
-    expect(refs).toEqual({
-      ipAdapterImage: 'https://example.com/avatar.png',
-    });
+    expect(refs).toEqual({});
     const params = buildStageGenerationParams(stage!, 'prompt', 'negative', [], refs);
     expect(params.input_image).toBeUndefined();
-    expect(params.ip_adapter_image).toBe('https://example.com/avatar.png');
-    expect(params.ip_adapter_weight).toBe(0.6);
-    expect(params.width).toBe(1344);
-    expect(params.height).toBe(768);
+    expect(params.ip_adapter_image).toBeUndefined();
+    expect(params.character_consistency).toBe(false);
+    expect(params.width).toBe(832);
+    expect(params.height).toBe(1216);
   });
 
-  it('uses turnaround for composition and avatar for facial identity in character art', () => {
+  it('uses the avatar for both composition hint and facial identity in character art', () => {
     const stage = CHARACTER_PIPELINE_STAGES.find((item) => item.id === 'character-art');
     expect(stage).toBeDefined();
     const refs = resolveStageReference(stage!, context);
-    expect(refs.inputImage).toBe('https://example.com/turnaround.png');
+    expect(refs.inputImage).toBe('https://example.com/avatar.png');
     expect(refs.ipAdapterImage).toBe('https://example.com/avatar.png');
     const params = buildStageGenerationParams(stage!, 'prompt', 'negative', [], refs);
-    expect(params.input_image).toBe('https://example.com/turnaround.png');
+    expect(params.input_image).toBe('https://example.com/avatar.png');
     expect(params.ip_adapter_image).toBe('https://example.com/avatar.png');
+    expect(params.ip_adapter_weight).toBe(0.65);
+    expect(params.denoising_strength).toBe(0.92);
+    expect(params.character_consistency).toBe(true);
+    expect(params.width).toBe(832);
+    expect(params.height).toBe(1216);
+  });
+
+  it('feeds the avatar into img2video for the animation stage', () => {
+    const stage = CHARACTER_PIPELINE_STAGES.find((item) => item.id === 'video');
+    expect(stage).toBeDefined();
+    const refs = resolveStageReference(stage!, context);
+    expect(refs.inputImage).toBe('https://example.com/avatar.png');
+    const params = buildStageGenerationParams(stage!, 'prompt', 'negative', [], refs);
+    expect(params.input_image).toBe('https://example.com/avatar.png');
+    expect(params.gen_mode).toBe('img2video');
+    expect(params.width).toBe(512);
+    expect(params.height).toBe(768);
   });
 });
