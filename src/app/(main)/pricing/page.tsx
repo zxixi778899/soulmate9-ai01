@@ -39,7 +39,8 @@ const PLANS = [
     border: 'border-border/40',
     features: [
       '40 messages per day',
-      '3 companions',
+      '5 companions',
+      'Created companions counted separately',
       '3 trial image generations',
       'Shallow memory',
       'Intimacy up to Level 3',
@@ -59,7 +60,8 @@ const PLANS = [
     popular: true,
     features: [
       '300 messages per day',
-      '10 companions',
+      '20 companions',
+      'Created companions counted separately',
       '16k context window',
       'Full memory depth',
       '100 Credits / month',

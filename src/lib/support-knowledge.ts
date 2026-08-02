@@ -71,7 +71,7 @@ export const SUPPORT_FAQS: FaqItem[] = [
   },
   {
     q: 'How many companions can I have?',
-    a: 'Free users can have up to 3 companions. Basic gets 5, Pro gets 8, and Unlimited gets 12. You can purchase additional seats in the Shop.',
+    a: 'Friend slots depend on your plan: Free gets 5, Pro gets 20, and Unlimited is unlimited. Companions you create with a Creation Card are counted separately and never use up your friend slots.',
     category: 'features',
   },
   {

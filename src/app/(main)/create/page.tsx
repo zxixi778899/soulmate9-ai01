@@ -365,7 +365,7 @@ export default function CreatePage() {
       const data = await readResponseJson<{ error?: string; code?: string; cards_remaining?: number }>(res);
       if (!res.ok) {
         if (data.code === 'SEAT_LIMIT') {
-          setError(t('creator.seatLimit') || (zh ? '好友席位已满，请到商城购买席位或升级套餐' : 'Friend seats full — buy more seats in Shop or upgrade plan'));
+          setError(t('creator.seatLimit') || (zh ? '好友数量已达上限，升级套餐即可添加更多好友' : 'Friend limit reached — upgrade your plan to add more friends'));
           return;
         }
         if (data.code === 'NO_CARDS') {

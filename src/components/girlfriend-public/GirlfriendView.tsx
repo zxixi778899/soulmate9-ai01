@@ -90,8 +90,8 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
       }
       const err = result && 'error' in result ? result : null;
       if (err?.code === 'SEAT_LIMIT') {
-        toast.error('Friend seats full', {
-          description: 'Upgrade membership or buy permanent seats',
+        toast.error('Friend limit reached', {
+          description: 'Upgrade your plan to add more friends',
           action: { label: 'Shop', onClick: () => router.push('/pricing') },
         });
       } else {
@@ -117,8 +117,8 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
       }
       const err = result && 'error' in result ? result : null;
       if (err?.code === 'SEAT_LIMIT') {
-        toast.error('Friend seats full', {
-          description: 'Upgrade membership or buy permanent seats',
+        toast.error('Friend limit reached', {
+          description: 'Upgrade your plan to add more friends',
           action: { label: 'Shop', onClick: () => router.push('/pricing') },
         });
       } else {

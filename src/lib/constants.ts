@@ -25,7 +25,7 @@ export const MEMBERSHIP_TIERS = {
     tts_per_day: 3,
     video_gen: false,
     memory_depth: 'shallow' as const,
-    max_girlfriends: 3,
+    max_girlfriends: 5,
     outfit_access: 'basic' as const,
     context_window: 8192,
     monthly_credits: 0,
@@ -39,7 +39,7 @@ export const MEMBERSHIP_TIERS = {
     tts_per_day: 0, // voice via Credits
     video_gen: false,
     memory_depth: 'deep' as const,
-    max_girlfriends: 10,
+    max_girlfriends: 20,
     outfit_access: 'premium' as const,
     context_window: 16384,
     monthly_credits: 100,
@@ -78,8 +78,11 @@ export function getPriceCents(tier: keyof typeof MEMBERSHIP_TIERS, billing: Bill
 
 export function baseCompanionSeatLimit(tier: string): number {
   if (tier === 'unlimited' || tier === 'admin') return -1;
-  if (tier === 'pro') return MEMBERSHIP_TIERS.pro.max_girlfriends;
-  // Legacy 'basic' users get pro limit (grandfathered)
+  // Legacy 'basic'/'premium' users are grandfathered to the Pro limit
+  // (same normalization as /api/membership).
+  if (tier === 'pro' || tier === 'basic' || tier === 'premium') {
+    return MEMBERSHIP_TIERS.pro.max_girlfriends;
+  }
   return MEMBERSHIP_TIERS.free.max_girlfriends;
 }
 

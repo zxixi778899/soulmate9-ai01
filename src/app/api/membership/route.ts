@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const today = new Date().toISOString().split('T')[0];
 
   // Parallelize independent reads — was 4 sequential round-trips.
-  const [profileResult, todayMessagesResult, totalGirlfriendsResult, topIntimacyResult, subscriptionResult] =
+  const [profileResult, todayMessagesResult, totalGirlfriendsResult, publicFriendsResult, createdCompanionsResult, topIntimacyResult, subscriptionResult] =
     await Promise.all([
       client
         .from('profiles')
@@ -28,6 +28,16 @@ export async function GET(req: NextRequest) {
         .from('user_friends')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id),
+      client
+        .from('user_friends')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('source', 'public'),
+      client
+        .from('user_friends')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('source', 'created'),
       client
         .from('intimacy_scores')
         .select('score')
@@ -48,6 +58,8 @@ export async function GET(req: NextRequest) {
   const profile = profileResult.data;
   const todayMessages = todayMessagesResult.count;
   const totalGirlfriends = totalGirlfriendsResult.count;
+  const publicFriends = publicFriendsResult.count;
+  const createdCompanions = createdCompanionsResult.count;
   const topIntimacy = topIntimacyResult.data;
   const subscription = subscriptionResult.data;
   const rawTier = profile?.membership_tier || 'free';
@@ -63,13 +75,13 @@ export async function GET(req: NextRequest) {
       image_gen_per_day: 3,
       tts_per_day: 3,
       max_intimacy_level: 5,
-      max_girlfriends: 3,
+      max_girlfriends: 5,
       features: [
         '40 messages/day',
         '3 AI images/day',
         '3 voice messages/day',
         'All 5 intimacy levels; adult mode unlocks at Level 3',
-        'Up to 3 companions',
+        'Up to 5 companions',
         'Basic chat',
       ],
     },
@@ -80,11 +92,11 @@ export async function GET(req: NextRequest) {
       image_gen_per_day: 10,
       tts_per_day: 40,
       max_intimacy_level: 5,
-      max_girlfriends: 15,
+      max_girlfriends: 20,
       features: [
         '300 messages/day',
         'All 5 intimacy levels',
-        'Up to 15 companions',
+        'Up to 20 companions',
         'NSFW content',
         '10 AI images/day',
         '40 voice messages/day',
@@ -127,6 +139,8 @@ export async function GET(req: NextRequest) {
     usage: {
       messages_sent_today: todayMessages || 0,
       total_girlfriends: totalGirlfriends || 0,
+      public_friends: publicFriends || 0,
+      created_companions: createdCompanions || 0,
       highest_intimacy: topIntimacy?.score || 0,
     },
     is_free: tier === 'free',

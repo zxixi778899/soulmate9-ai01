@@ -17,7 +17,8 @@ export type SeatStatus = {
   baseLimit: number; // -1 unlimited
   bonusSeats: number;
   effectiveLimit: number; // -1 unlimited
-  used: number;
+  used: number; // public friends only
+  createdCount: number; // creation-card companions (independent, not counted in used)
   remaining: number | null; // null unlimited
   canAdd: boolean;
 };
@@ -46,13 +47,30 @@ export async function getBonusSeats(client: SeatClient, userId: string): Promise
 }
 
 export async function countOwnedCompanions(client: SeatClient, userId: string): Promise<number> {
-  // Count from user_friends (friend list size = seat usage)
+  // Friend seats count ONLY friends added from the public catalog
+  // (source='public'). Companions created with a creation card
+  // (source='created') are tracked separately and never occupy friend seats.
   const { count, error } = await client
     .from('user_friends')
     .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('source', 'public');
   if (error) {
     logger.warn('[companion-seats] count failed', { error: error.message });
+    return 0;
+  }
+  return count || 0;
+}
+
+/** Companions created via creation cards — independent of the friend limit. */
+export async function countCreatedCompanions(client: SeatClient, userId: string): Promise<number> {
+  const { count, error } = await client
+    .from('user_friends')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('source', 'created');
+  if (error) {
+    logger.warn('[companion-seats] created count failed', { error: error.message });
     return 0;
   }
   return count || 0;
@@ -79,7 +97,10 @@ export async function getSeatStatus(client: SeatClient, userId: string): Promise
   // to 'free' and falsely trigger SEAT_LIMIT).
   const bonus = await getBonusSeats(client, userId);
   const baseLimit = baseCompanionSeatLimit(tier);
-  const used = await countOwnedCompanions(client, userId);
+  const [used, createdCount] = await Promise.all([
+    countOwnedCompanions(client, userId),
+    countCreatedCompanions(client, userId),
+  ]);
   if (baseLimit < 0) {
     return {
       tier,
@@ -87,6 +108,7 @@ export async function getSeatStatus(client: SeatClient, userId: string): Promise
       bonusSeats: bonus,
       effectiveLimit: -1,
       used,
+      createdCount,
       remaining: null,
       canAdd: true,
     };
@@ -99,6 +121,7 @@ export async function getSeatStatus(client: SeatClient, userId: string): Promise
     bonusSeats: bonus,
     effectiveLimit,
     used,
+    createdCount,
     remaining,
     canAdd: remaining > 0,
   };
@@ -114,7 +137,7 @@ export async function assertCanAddCompanion(
     ok: false,
     seats,
     code: 'SEAT_LIMIT',
-    error: `Companion seat limit reached (${seats.used}/${seats.effectiveLimit}). Upgrade your plan or buy more seats.`,
+    error: `Friend limit reached (${seats.used}/${seats.effectiveLimit}). Upgrade your plan to add more friends. Creation-card companions don't count toward this limit.`,
   };
 }
 
