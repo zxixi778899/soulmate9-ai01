@@ -484,7 +484,7 @@ export default function ProfilePage() {
                     {locale === 'zh' ? '暂无可购买的创建卡' : 'No creation cards available right now'}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div className="flex gap-2.5 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory [scrollbar-width:thin]">
                     {cardProducts.map((p) => {
                       const amount = Math.max(1, Number(p.virtual_meta?.card_amount || 1));
                       const promoVideo = String(p.virtual_meta?.video_url || '');
@@ -492,7 +492,7 @@ export default function ProfilePage() {
                       return (
                         <div
                           key={p.id}
-                          className="group relative rounded-xl overflow-hidden border border-white/[0.08] bg-white/[0.03] hover:border-[#FF2D78]/50 hover:shadow-[0_0_18px_rgba(255,45,120,0.15)] transition-all"
+                          className="group relative shrink-0 w-[150px] sm:w-[176px] snap-start rounded-xl overflow-hidden border border-white/[0.08] bg-white/[0.03] hover:border-[#FF2D78]/50 hover:shadow-[0_0_18px_rgba(255,45,120,0.15)] transition-all"
                         >
                           <div className="relative aspect-[3/4]">
                             {p.preview_url ? (

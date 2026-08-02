@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { authedFetch } from "@/lib/supabase";
 import { useTranslation } from "@/lib/i18n/context";
-import { Coins, TrendingUp, TrendingDown, CalendarCheck, MessageCircle, Image, Video, Gift, ShoppingBag, Zap, Loader2, ShieldCheck, Film, Sparkles, Layers } from "lucide-react";
+import { Coins, TrendingUp, TrendingDown, CalendarCheck, MessageCircle, Image, Video, Gift, ShoppingBag, Zap, Loader2, ShieldCheck, Film } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -16,7 +16,6 @@ import {
 type Transaction = { id: number; delta: number; reason: string; ref_id: string | null; balance_after: number; created_at: string; };
 type HistoryData = { transactions: Transaction[]; total: number; page: number; limit: number; balance: number; today: { earned: number; spent: number; net: number }; };
 type TokenPackage = { id: string; name: string; token_count: number; bonus_tokens: number; price_cents: number; sort_order: number; is_active: boolean; video_url?: string; image_url?: string; };
-type CreationCardProduct = { id: string; name: string; price_credits: number; preview_url?: string; rarity?: string; virtual_meta?: Record<string, unknown> };
 
 const REASON_META: Record<string, { label: string; icon: typeof Coins; color: string }> = {
   daily_checkin: { label: "Daily Check-in", icon: CalendarCheck, color: "text-emerald-400" },
@@ -33,13 +32,6 @@ const REASON_META: Record<string, { label: string; icon: typeof Coins; color: st
   achievement: { label: "Achievement", icon: Zap, color: "text-amber-400" },
 };
 
-const RARITY_CHIP: Record<string, string> = {
-  legendary: "bg-gradient-to-r from-[#ffd700] to-[#f59e0b] text-black",
-  epic: "bg-gradient-to-r from-[#ff2e88] to-[#c026d3] text-white",
-  rare: "bg-gradient-to-r from-[#00e5ff] to-[#3b82f6] text-black",
-  common: "bg-white/15 text-white/80",
-};
-
 export default function WalletPage() {
   const { locale } = useTranslation();
   const zh = locale === "zh";
@@ -47,8 +39,6 @@ export default function WalletPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [packages, setPackages] = useState<TokenPackage[]>([]);
-  const [cards, setCards] = useState<CreationCardProduct[]>([]);
-  const [cardBalance, setCardBalance] = useState<number | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
 
   useEffect(() => {
@@ -67,33 +57,6 @@ export default function WalletPage() {
       .then((d) => {
         if (d.packages?.length) setPackages(d.packages as TokenPackage[]);
       })
-      .catch(() => {});
-  }, []);
-
-  // Fetch companion creation cards + current card balance
-  useEffect(() => {
-    authedFetch("/api/shop/v2/products?limit=60")
-      .then((r) => r.json())
-      .then((d) => {
-        const list = ((d.products || []) as Array<Record<string, unknown>>).filter(
-          (p) =>
-            p.subcategory === "creation_card" ||
-            String((p.virtual_meta as Record<string, unknown> | null)?.kind || "") === "creation_card",
-        ) as unknown as CreationCardProduct[];
-        list.sort((a, b) => Number(a.virtual_meta?.card_amount || 1) - Number(b.virtual_meta?.card_amount || 1));
-        setCards(list);
-      })
-      .catch(() => {});
-    authedFetch("/api/creator/cards")
-      .then((r) => r.json())
-      .then((d) => { if (typeof d.cards === "number") setCardBalance(d.cards); })
-      .catch(() => {});
-  }, []);
-
-  const refreshBalance = useCallback(() => {
-    authedFetch("/api/credits/history?page=1&limit=20")
-      .then((r) => r.json())
-      .then((d) => setData(d as HistoryData))
       .catch(() => {});
   }, []);
 
@@ -119,34 +82,6 @@ export default function WalletPage() {
     setBuying(null);
   }, [zh]);
 
-  const handleBuyCard = useCallback(async (p: CreationCardProduct) => {
-    if (buying) return;
-    setBuying(p.id);
-    try {
-      const res = await authedFetch("/api/shop/v2/purchase", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product_id: p.id }),
-      });
-      const d = await res.json();
-      if (res.ok) {
-        toast.success(zh ? "购买成功，创建卡已到账" : "Purchase successful — cards added");
-        authedFetch("/api/creator/cards")
-          .then((r) => r.json())
-          .then((s) => { if (typeof s.cards === "number") setCardBalance(s.cards); })
-          .catch(() => {});
-        refreshBalance();
-      } else if (res.status === 402) {
-        toast.error(zh ? "积分不足，请先充值" : "Insufficient credits");
-      } else {
-        toast.error((d as { error?: string }).error || (zh ? "购买失败" : "Purchase failed"));
-      }
-    } catch {
-      toast.error(zh ? "网络错误" : "Network error");
-    }
-    setBuying(null);
-  }, [buying, zh, refreshBalance]);
-
   const totalPages = data ? Math.ceil(data.total / 20) : 1;
 
   // Accurate credit costs — single source of truth from credit-system.ts
@@ -163,7 +98,7 @@ export default function WalletPage() {
     { icon: CalendarCheck, color: "text-emerald-400", label: zh ? "每日签到" : "Daily Check-in", value: `+${DAILY_CHECKIN_REWARD}` },
   ];
 
-  const hasProducts = cards.length > 0 || packages.length > 0;
+  const hasProducts = packages.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -173,12 +108,6 @@ export default function WalletPage() {
             <Coins className="w-6 h-6 text-yellow-400" />
             {zh ? "我的积分" : "My Credits"}
           </h1>
-          {cardBalance !== null && (
-            <span className="text-xs text-cyan-300 flex items-center gap-1.5 bg-cyan-400/10 border border-cyan-400/25 rounded-full px-3 py-1.5">
-              <Layers className="w-3.5 h-3.5" />
-              {zh ? `创建卡 × ${cardBalance}` : `Creation cards × ${cardBalance}`}
-            </span>
-          )}
         </div>
 
         {/* ── Top row: balance + today stats ── */}
@@ -214,67 +143,14 @@ export default function WalletPage() {
           </div>
         </div>
 
-        {/* ── One-row rail: creation cards + credit packages (enlarged) ── */}
+        {/* ── One-row rail: credit packages (enlarged) ── */}
         {hasProducts && (
           <div className="mb-10">
             <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-cyan-300" />
-              {zh ? "创建卡 & 积分充值" : "Creation Cards & Credits"}
+              <Coins className="w-4 h-4 text-yellow-400" />
+              {zh ? "积分充值" : "Credit Packs"}
             </h2>
             <div className="flex gap-4 overflow-x-auto pb-3 -mx-1 px-1 snap-x snap-mandatory [scrollbar-width:thin]">
-              {/* Companion creation cards */}
-              {cards.map((p) => {
-                const amount = Math.max(1, Number(p.virtual_meta?.card_amount || 1));
-                const promoVideo = String(p.virtual_meta?.video_url || "");
-                const busy = buying === p.id;
-                const rarity = p.rarity || "common";
-                return (
-                  <div
-                    key={p.id}
-                    className="group relative shrink-0 w-[200px] sm:w-[232px] snap-start rounded-2xl overflow-hidden border border-cyan-400/25 bg-gray-900/80 shadow-lg hover:border-cyan-300/50 hover:shadow-cyan-500/15 transition-all hover:-translate-y-0.5"
-                  >
-                    <div className="relative aspect-[3/4] bg-black/40">
-                      {p.preview_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.preview_url} alt={p.name} loading="lazy" className={cn("h-full w-full object-cover transition-transform duration-500", promoVideo ? "" : "group-hover:scale-105")} />
-                      ) : (
-                        <div className="flex h-full items-center justify-center bg-gradient-to-br from-cyan-500/25 to-purple-600/25">
-                          <Sparkles className="w-10 h-10 text-white/40" />
-                        </div>
-                      )}
-                      {promoVideo && (
-                        <video
-                          src={promoVideo}
-                          muted loop playsInline preload="none"
-                          className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-                          onMouseEnter={(e) => { e.currentTarget.play().catch(() => {}); }}
-                          onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
-                        />
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/10 pointer-events-none" />
-                      <span className={cn("absolute top-2 right-2 text-[9px] font-black tracking-wide px-1.5 py-0.5 rounded", RARITY_CHIP[rarity] || RARITY_CHIP.common)}>
-                        {rarity.toUpperCase()}
-                      </span>
-                      <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-none">
-                        <div className="text-sm font-bold truncate">{p.name}</div>
-                        <div className="text-[11px] text-cyan-300 flex items-center gap-1 mt-0.5">
-                          <Layers className="w-3 h-3" />
-                          {zh ? "创建卡" : "Cards"} ×{amount}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => void handleBuyCard(p)}
-                      disabled={busy}
-                      className="w-full flex items-center justify-center gap-1.5 h-11 text-sm font-bold text-white bg-gradient-to-r from-cyan-500/85 to-blue-600/85 hover:from-cyan-500 hover:to-blue-600 disabled:opacity-50 transition-all"
-                    >
-                      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
-                      {p.price_credits} {zh ? "积分" : "credits"}
-                    </button>
-                  </div>
-                );
-              })}
-
               {/* Credit packages */}
               {packages.map((pkg) => {
                 const busy = buying === pkg.id;
@@ -282,7 +158,7 @@ export default function WalletPage() {
                 return (
                   <div
                     key={pkg.id}
-                    className="group relative shrink-0 w-[200px] sm:w-[232px] snap-start rounded-2xl overflow-hidden border border-yellow-500/25 bg-gray-900/80 shadow-lg hover:border-yellow-400/50 hover:shadow-yellow-500/15 transition-all hover:-translate-y-0.5"
+                    className="group relative shrink-0 w-[220px] sm:w-[260px] snap-start rounded-2xl overflow-hidden border border-yellow-500/25 bg-gray-900/80 shadow-lg hover:border-yellow-400/50 hover:shadow-yellow-500/15 transition-all hover:-translate-y-0.5"
                   >
                     <div className="relative aspect-[3/4] bg-black/40">
                       {pkg.video_url ? (
@@ -327,7 +203,7 @@ export default function WalletPage() {
               })}
             </div>
             <p className="text-[10px] text-gray-600 mt-1 text-center">
-              {zh ? "创建卡用积分购买 · 积分包通过 Stripe 安全支付，即时到账" : "Cards buy with credits · Credit packs via Stripe, delivered instantly"}
+              {zh ? "积分包通过 Stripe 安全支付，即时到账" : "Credit packs via Stripe — delivered instantly"}
             </p>
           </div>
         )}
