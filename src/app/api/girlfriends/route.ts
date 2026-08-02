@@ -295,6 +295,12 @@ export async function PATCH(request: NextRequest) {
 
   // base64 data URL  OSS key
   const updates: Record<string, unknown> = { ...rest };
+  // Strip admin-controlled fields — owners cannot set these directly.
+  // Public visibility and slug are only managed via /api/admin/review.
+  delete updates.is_public;
+  delete updates.slug;
+  delete updates.submitted_at;
+  delete updates.approved_at;
   if (pAvatar !== undefined) updates.avatar_url = await ensureImageKey(pAvatar, 'girlfriends');
   if (pPortrait !== undefined) updates.portrait_url = await ensureImageKey(pPortrait, 'girlfriends');
 
@@ -313,15 +319,15 @@ export async function PATCH(request: NextRequest) {
   if (review_status === 'pending') {
     patchData.review_status = 'pending';
     patchData.submitted_at = new Date().toISOString();
-    patchData.is_public = false; // will become public after approval
+    patchData.is_public = false; // will become public after admin approval
   } else if (review_status) {
-    patchData.review_status = review_status;
-    if (review_status === 'approved') {
-      patchData.is_public = true;
-      if (!updates.slug) {
-        patchData.slug = makeGirlfriendSlug(reqName);
-      }
-    }
+    // Owners can only submit for review (pending). Approval / rejection /
+    // removal are admin-only operations handled by /api/admin/review.
+    // Prevent self-approval or direct public visibility.
+    return NextResponse.json(
+      { error: 'Only admins can change review status to ' + review_status },
+      { status: 403 },
+    );
   }
 
   const { data: girlfriend, error } = await client
