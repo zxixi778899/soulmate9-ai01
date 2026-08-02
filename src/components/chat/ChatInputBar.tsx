@@ -14,6 +14,7 @@ import {
   Shirt,
   Brain,
   Camera,
+  Plus,
 } from 'lucide-react';
 import { CHAT_ENVS, CHAT_MOODS, CHAT_POSES } from './types';
 import { cn } from '@/lib/utils';
@@ -116,6 +117,10 @@ export function ChatInputBar(props: {
   const [tray, setTray] = useState<'gift' | 'outfit' | null>(null);
   const [mounted, setMounted] = useState(false);
   const [barH, setBarH] = useState(120);
+  /** tools panel collapsed behind the "+" button — opens on tap */
+  const [moreOpen, setMoreOpen] = useState(false);
+  /** quick replies only surface while the input is focused */
+  const [inputFocused, setInputFocused] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -149,8 +154,13 @@ export function ChatInputBar(props: {
   }, [input]);
 
   const livePlaceholder = placeholder || placeholderPool[phIdx % placeholderPool.length];
+  // Quick replies pop up only while the input is focused (with the keyboard),
+  // they never sit permanently above the chat.
   const showSmart =
-    !hasText && !hasMedia && (smartSuggestions.length > 0 || smartSuggestionsLoading);
+    inputFocused &&
+    !hasText &&
+    !hasMedia &&
+    (smartSuggestions.length > 0 || smartSuggestionsLoading);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -160,10 +170,11 @@ export function ChatInputBar(props: {
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
     ro?.observe(el);
     return () => ro?.disconnect();
-  }, [tray, showPresets, showSmart, pendingMedia, isRecording]);
+  }, [tray, showPresets, showSmart, pendingMedia, isRecording, moreOpen]);
 
   const toggleTray = (key: 'gift' | 'outfit') => {
     setTray((cur) => (cur === key ? null : key));
+    setMoreOpen(false);
   };
 
   const closeTray = () => setTray(null);
@@ -327,79 +338,86 @@ export function ChatInputBar(props: {
     >
       {livePanel}
 
-      {/* ── Action bar: Gift / Outfit / Selfie / Photo / Voice / Mood / Memory ── */}
-      <div className="max-w-3xl mx-auto px-2 sm:px-3 pt-2">
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide pb-1">
-          <ActionChip
-            active={tray === 'gift'}
-            onClick={() => toggleTray('gift')}
-            icon={<Gift className="h-4 w-4" />}
-            label={t('chat.gifts') || 'Gifts'}
-            accent="#FF2D78"
-          />
-          <ActionChip
-            active={tray === 'outfit'}
-            onClick={() => toggleTray('outfit')}
-            icon={<Shirt className="h-4 w-4" />}
-            label={t('chat.wardrobe') || 'Outfit'}
-            accent="#C026D3"
-          />
-          <ActionChip
-            onClick={() => {
-              closeTray();
-              onSelfie?.();
-            }}
-            disabled={isGenerating}
-            icon={
-              isGenerating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Camera className="h-4 w-4" />
-              )
-            }
-            label={t('chat.selfie')}
-            accent="#FF6BA6"
-          />
-          <ActionChip
-            onClick={() => {
-              closeTray();
-              imageInputRef.current?.click();
-            }}
-            icon={<ImagePlus className="h-4 w-4" />}
-            label={t('chat.photo')}
-            accent="#38bdf8"
-          />
-          <ActionChip
-            onClick={() => {
-              closeTray();
-              onToggleVoice?.();
-            }}
-            active={isRecording}
-            icon={<Mic className="h-4 w-4" />}
-            label={t('chat.voice')}
-            accent="#a78bfa"
-          />
-          <ActionChip
-            active={showPresets}
-            onClick={() => {
-              closeTray();
-              togglePresets();
-            }}
-            icon={<Sparkles className="h-4 w-4" />}
-            label={t('chat.mood')}
-            accent="#fbbf24"
-          />
-          <ActionChip
-            onClick={() => {
-              closeTray();
-              onMemories?.();
-            }}
-            icon={<Brain className="h-4 w-4" />}
-            label={t('chat.memory')}
-            accent="#fb7185"
-          />
+      {/* ── Tools panel: collapsed behind the "+" button, pops up on tap ── */}
+      {moreOpen && (
+        <div className="max-w-3xl mx-auto px-2 sm:px-3 pt-2 animate-in slide-in-from-bottom-2 fade-in duration-150">
+          <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-2">
+            <ToolButton
+              active={tray === 'gift'}
+              onClick={() => toggleTray('gift')}
+              icon={<Gift className="h-4 w-4" />}
+              label={t('chat.gifts') || 'Gifts'}
+              accent="#FF2D78"
+            />
+            <ToolButton
+              active={tray === 'outfit'}
+              onClick={() => toggleTray('outfit')}
+              icon={<Shirt className="h-4 w-4" />}
+              label={t('chat.wardrobe') || 'Outfit'}
+              accent="#C026D3"
+            />
+            <ToolButton
+              onClick={() => {
+                setMoreOpen(false);
+                closeTray();
+                onSelfie?.();
+              }}
+              disabled={isGenerating}
+              icon={
+                isGenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )
+              }
+              label={t('chat.selfie')}
+              accent="#FF6BA6"
+            />
+            <ToolButton
+              onClick={() => {
+                setMoreOpen(false);
+                closeTray();
+                imageInputRef.current?.click();
+              }}
+              icon={<ImagePlus className="h-4 w-4" />}
+              label={t('chat.photo')}
+              accent="#38bdf8"
+            />
+            <ToolButton
+              onClick={() => {
+                setMoreOpen(false);
+                closeTray();
+                onToggleVoice?.();
+              }}
+              active={isRecording}
+              icon={<Mic className="h-4 w-4" />}
+              label={t('chat.voice')}
+              accent="#a78bfa"
+            />
+            <ToolButton
+              active={showPresets}
+              onClick={() => {
+                setMoreOpen(false);
+                closeTray();
+                togglePresets();
+              }}
+              icon={<Sparkles className="h-4 w-4" />}
+              label={t('chat.mood')}
+              accent="#fbbf24"
+            />
+            <ToolButton
+              onClick={() => {
+                setMoreOpen(false);
+                closeTray();
+                onMemories?.();
+              }}
+              icon={<Brain className="h-4 w-4" />}
+              label={t('chat.memory')}
+              accent="#fb7185"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* AI quick replies */}
       {showSmart && (
@@ -420,6 +438,7 @@ export function ChatInputBar(props: {
                   key={`${i}-${line.slice(0, 12)}`}
                   type="button"
                   disabled={smartSuggestionsLoading || line === '…' || isSending}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     if (onSmartSuggestion) onSmartSuggestion(line);
                     else setInput(line);
@@ -526,12 +545,26 @@ export function ChatInputBar(props: {
             }}
           />
 
+          <button
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            className={cn(
+              'glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center transition-transform active:scale-95',
+              moreOpen && 'rotate-45',
+            )}
+            aria-label={moreOpen ? 'Close tools' : 'More tools'}
+          >
+            <Plus className="h-5 w-5 text-[#ff6ba6]" />
+          </button>
+
           <div className="flex-1 min-w-0">
             <textarea
               ref={taRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
               placeholder={livePlaceholder}
               rows={1}
               enterKeyHint="send"
@@ -576,7 +609,7 @@ export function ChatInputBar(props: {
   );
 }
 
-function ActionChip(props: {
+function ToolButton(props: {
   label: string;
   icon: React.ReactNode;
   onClick?: () => void;
@@ -591,22 +624,26 @@ function ActionChip(props: {
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded-full text-[11px] font-medium border transition-all active:scale-95 touch-manipulation disabled:opacity-40',
+        'flex flex-col items-center gap-1 rounded-xl py-1.5 border transition-all active:scale-95 touch-manipulation disabled:opacity-40',
         active
-          ? 'text-white border-transparent shadow-[0_0_16px_rgba(255,45,120,0.35)]'
-          : 'text-white/75 border-white/10 bg-white/[0.04] hover:text-white hover:border-white/20',
+          ? 'border-white/20 bg-white/[0.10]'
+          : 'border-transparent hover:bg-white/[0.06]',
       )}
-      style={
-        active
-          ? {
-              background: `linear-gradient(135deg, ${accent}cc, ${accent}88)`,
-              borderColor: `${accent}66`,
-            }
-          : undefined
-      }
     >
-      <span style={{ color: active ? '#fff' : accent }}>{icon}</span>
-      {label}
+      <span
+        className="flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-white/10"
+        style={{ background: `${accent}26`, color: active ? '#fff' : accent }}
+      >
+        {icon}
+      </span>
+      <span
+        className={cn(
+          'text-[10px] leading-tight text-center truncate w-full px-0.5',
+          active ? 'text-white' : 'text-white/70',
+        )}
+      >
+        {label}
+      </span>
     </button>
   );
 }
