@@ -171,6 +171,7 @@ export default function ProfilePage() {
 
   const saveProfile = async () => {
     setSaving(true);
+    let anyOk = false;
     try {
       // Save display_name to profiles table
       const res = await authedFetch('/api/membership', {
@@ -178,17 +179,21 @@ export default function ProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: displayName }),
       });
+      if (res.ok) anyOk = true;
+    } catch { /* continue */ }
+    try {
       // Save gender + avatar to user_metadata via Supabase Auth
       const sb = createBrowserClient();
       if (sb) {
-        await sb.auth.updateUser({ data: { gender, avatar_url: avatarUrl } });
+        const { error } = await sb.auth.updateUser({ data: { display_name: displayName, gender, avatar_url: avatarUrl } });
+        if (!error) anyOk = true;
       }
-      if (res.ok) {
-        toast.success(t('profile.saved'));
-        notifyDataChange('membership');
-      } else toast.error(t('profile.saveFailed'));
-    } catch {
-      toast.error(t('profile.networkError'));
+    } catch { /* continue */ }
+    if (anyOk) {
+      toast.success(t('profile.saved'));
+      notifyDataChange('membership');
+    } else {
+      toast.error(t('profile.saveFailed'));
     }
     setSaving(false);
   };
@@ -396,9 +401,9 @@ export default function ProfilePage() {
                     className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:border-[#FF2D78]/50 hover:shadow-[0_0_20px_rgba(255,45,120,0.15)] transition-all active:scale-[0.97] text-left"
                   >
                     <div className="relative aspect-[3/4]">
-                      {gf.portrait_url ? (
+                      {(gf.portrait_url || gf.avatar_url) ? (
                         <img
-                          src={gf.portrait_url}
+                          src={gf.portrait_url || gf.avatar_url}
                           alt={gf.name}
                           className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         />
