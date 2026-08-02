@@ -28,6 +28,7 @@ import { PageHeader } from '@/components/game/PageHeader';
 import { notifyDataChange } from '@/hooks/useDataSync';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { cn } from '@/lib/utils';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
 
 type Collection = 'outfit' | 'prop' | 'membership' | 'credits';
 type TabId = Collection | 'seats';
@@ -265,6 +266,12 @@ function EmptyState({ icon: Icon, title, hint }: { icon: typeof Shirt; title: st
 export default function ShopPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { settings } = useSiteSettings();
+
+  // Shop disabled → redirect home
+  useEffect(() => {
+    if (settings && !settings.shop_enabled) router.replace("/");
+  }, [settings, router]);
 
   const [credits, setCredits] = useState<CreditsInfo | null>(null);
   const [products, setProducts] = useState<Product[]>([]);

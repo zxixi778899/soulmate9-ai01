@@ -14,6 +14,7 @@ export type SiteSettings = {
   discord_url: string;
   footer_tagline: string;
   maintenance_mode: boolean;
+  shop_enabled: boolean;
   home_hot_limit: number;
   recharge_banner_title: string;
   recharge_banner_desc: string;
@@ -29,6 +30,7 @@ const DEFAULTS: SiteSettings = {
   discord_url: '',
   footer_tagline: 'AI 伴侣养成 · 高 NSFW · 私密对话',
   maintenance_mode: false,
+  shop_enabled: false,
   home_hot_limit: 12,
   recharge_banner_title: '充值活动 · 首充双倍点券',
   recharge_banner_desc: '限时返利 · 解锁限定皮肤礼包',
@@ -86,9 +88,21 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const current = await loadSettings();
-    const next: SiteSettings = { ...current };
 
+    // Read current state from DB first, fallback to file
+    let current: SiteSettings = { ...DEFAULTS };
+    const { data: dbRows } = await admin.supabase
+      .from('site_settings')
+      .select('key, value');
+    if (dbRows?.length) {
+      const map: Record<string, unknown> = {};
+      for (const row of dbRows) map[row.key] = row.value;
+      current = { ...DEFAULTS, ...map } as SiteSettings;
+    } else {
+      current = await loadSettings();
+    }
+
+    const next: SiteSettings = { ...current };
     (Object.keys(DEFAULTS) as (keyof SiteSettings)[]).forEach((k) => {
       if (k in body) {
         // @ts-expect-error dynamic assign
@@ -96,20 +110,32 @@ export async function PATCH(request: NextRequest) {
       }
     });
 
-    // Try DB upsert first
-    try {
-      for (const [key, value] of Object.entries(next)) {
-        await admin.supabase.from('site_settings').upsert(
-          { key, value, updated_at: new Date().toISOString() },
-          { onConflict: 'key' },
-        );
-      }
-    } catch {
-      /* table may not exist */
+    // DB upsert is the primary persistence layer
+    const upsertErrors: string[] = [];
+    for (const [key, value] of Object.entries(next)) {
+      const { error } = await admin.supabase.from('site_settings').upsert(
+        { key, value, updated_at: new Date().toISOString() },
+        { onConflict: 'key' },
+      );
+      if (error) upsertErrors.push(`${key}: ${error.message}`);
     }
 
-    await saveSettings(next);
+    // File write is optional local cache (fails silently on Vercel read-only fs)
+    try {
+      await saveSettings(next);
+    } catch {
+      // EROFS on Vercel serverless — safe to ignore, DB is source of truth
+    }
+
     invalidateSettings();
+
+    if (upsertErrors.length > 0) {
+      return NextResponse.json(
+        { success: false, error: `DB write partial failure: ${upsertErrors.join('; ')}` },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({ success: true, settings: next });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Save failed';

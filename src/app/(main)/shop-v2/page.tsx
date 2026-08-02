@@ -13,6 +13,8 @@ import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useAuth } from '@/components/AuthProvider';
 import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { useRouter } from 'next/navigation';
 import { Sparkles, Tag, Coins, ShoppingBag, Loader2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -62,6 +64,12 @@ const CATEGORIES = [
 export default function ShopV2Page() {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const router = useRouter();
+  const { settings } = useSiteSettings();
+
+  useEffect(() => {
+    if (settings && !settings.shop_enabled) router.replace("/");
+  }, [settings, router]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');

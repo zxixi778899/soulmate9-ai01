@@ -964,13 +964,6 @@ export function assembleGirlfriendPrompt(
       looksLikeFluxPrompt(rawIn));
 
   const subjectClause = buildSubjectClause(fixedSubject, gender);
-  const rawStripped = rawIsFullCaption ? '' : stripQualityBoilerplate(rawIn);
-  const extra =
-    rawStripped &&
-    rawStripped.length > 8 &&
-    !subjectClause.toLowerCase().includes(rawStripped.toLowerCase().slice(0, 40))
-      ? rawStripped.slice(0, 140)
-      : '';
 
   const { pose, outfit, light, env } = pickScenePoseAndOutfit(fixedSubject, scene, gender);
 
@@ -1011,9 +1004,6 @@ export function assembleGirlfriendPrompt(
     expression,
     GIRLFRIEND_FRAMING,
   ]);
-  // Prefer admin/custom action text when present; otherwise scene recipe.
-  const actionCore = extra || generatedAction;
-  const action = trimPrompt(actionCore.replace(/^(?:she|he|they) (?:is|are)\s+/i, '').replace(/[.]$/, ''), 380);
 
   // ── 3) 质量词 ──
   const quality = QUALITY_BY_GENDER[gender];
@@ -1021,10 +1011,37 @@ export function assembleGirlfriendPrompt(
   // ── 4) NSFW amplifier (elevated) ──
   const nsfwBoost = adult ? ` ${NSFW_AMPLIFIER[gender]}` : '';
 
-  const positive = trimPrompt(
-    `${person}. ${pronoun} is ${action}. ${quality}${nsfwBoost}`,
-    adult ? 1000 : 900,
-  );
+  // When the input is already a complete FLUX caption (from generate-meta or admin),
+  // use it as the primary content directly instead of discarding it.
+  let positive: string;
+  if (rawIsFullCaption) {
+    // Full caption path: the raw prompt IS the image description.
+    // Prepend a short identity anchor if the subject has a real name,
+    // then use the full caption as the core content.
+    const defaultNames = ['a beautiful young woman', 'a handsome young man', 'a young woman'];
+    const hasRealName = !!fixedSubject.name && !defaultNames.includes(fixedSubject.name);
+    const identityAnchor = hasRealName ? `${fixedSubject.name}, ` : '';
+    positive = trimPrompt(
+      `${identityAnchor}${rawIn}. ${quality}${nsfwBoost}`,
+      adult ? 1000 : 900,
+    );
+  } else {
+    // Short/empty input path: assemble scene from subject traits + recipe.
+    const rawStripped = stripQualityBoilerplate(rawIn);
+    const extra =
+      rawStripped &&
+      rawStripped.length > 8 &&
+      !subjectClause.toLowerCase().includes(rawStripped.toLowerCase().slice(0, 40))
+        ? rawStripped.slice(0, 140)
+        : '';
+    // Prefer admin/custom action text when present; otherwise scene recipe.
+    const actionCore = extra || generatedAction;
+    const action = trimPrompt(actionCore.replace(/^(?:she|he|they) (?:is|are)\s+/i, '').replace(/[.]$/, ''), 380);
+    positive = trimPrompt(
+      `${person}. ${pronoun} is ${action}. ${quality}${nsfwBoost}`,
+      adult ? 1000 : 900,
+    );
+  }
 
   // Gender-specific negative prompt
   const negative = opts?.useEmptyNegative === true ? '' : NEGATIVE_BY_GENDER[gender];

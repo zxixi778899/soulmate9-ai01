@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { cn } from '@/lib/utils';
 import {
   Heart, MessageCircle, User, Home, LogIn, Wand2, ShoppingBag, Sparkles,
@@ -13,6 +14,7 @@ export default function BottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { t } = useTranslation();
+  const { settings } = useSiteSettings();
 
   if (pathname?.startsWith('/admin')) return null;
   if (pathname?.startsWith('/chat/')) return null;
@@ -109,7 +111,7 @@ export default function BottomNav() {
             </Link>
             <span className="mt-8 text-[10px] font-medium text-white/40 leading-none">{t('home.create')}</span>
           </div>
-        ) : (
+        ) : settings?.shop_enabled ? (
           <Link
             href="/shop"
             className="flex flex-1 flex-col items-center justify-center gap-0.5 min-h-[48px] text-white/35"
@@ -117,6 +119,8 @@ export default function BottomNav() {
             <ShoppingBag className="h-5 w-5" />
             <span className="text-[10px]">{t('home.shop')}</span>
           </Link>
+        ) : (
+          <div className="flex-1" />
         )}
 
         {rightItems.map((item) => (

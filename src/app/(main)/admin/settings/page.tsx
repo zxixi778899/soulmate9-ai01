@@ -19,6 +19,7 @@ type SiteSettings = {
   discord_url: string;
   footer_tagline: string;
   maintenance_mode: boolean;
+  shop_enabled: boolean;
   home_hot_limit: number;
   recharge_banner_title: string;
   recharge_banner_desc: string;
@@ -116,6 +117,13 @@ export default function AdminSettingsPage() {
                 <p className="text-[11px] text-[#94A3B8]">开启后前台可提示维护（需前台对接）</p>
               </div>
               <Switch checked={settings.maintenance_mode} onCheckedChange={(v) => set('maintenance_mode', v)} />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>商城开关</Label>
+                <p className="text-[11px] text-[#94A3B8]">关闭后前台隐藏商城入口（数据保留，随时可重新开启）</p>
+              </div>
+              <Switch checked={settings.shop_enabled} onCheckedChange={(v) => set('shop_enabled', v)} />
             </div>
           </CardContent>
         </Card>

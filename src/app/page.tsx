@@ -36,6 +36,7 @@ import { useTranslation } from '@/lib/i18n/context';
 import { useAuth } from '@/components/AuthProvider';
 import { HEAT_UNLOCK_HINTS, INTIMACY_LEVELS } from '@/lib/constants';
 import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
+import { useSiteSettings, useSiteAds } from '@/hooks/useSiteSettings';
 
 
 function isHomeVideoUrl(url?: string | null): boolean {
@@ -44,7 +45,7 @@ function isHomeVideoUrl(url?: string | null): boolean {
   return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov') || u.endsWith('.m4v') || u.includes('/video/') || u.includes('/videos/');
 }
 
-const FOOTER_LINKS = {
+const FOOTER_FALLBACK = {
   telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL || 'https://t.me/soulmateai_support',
   x: process.env.NEXT_PUBLIC_X_URL || 'https://x.com/soulmateai',
   discord: process.env.NEXT_PUBLIC_DISCORD_URL || '',
@@ -104,6 +105,8 @@ export default function HomePage() {
   const router = useRouter();
   const { t, locale } = useTranslation();
   const { user } = useAuth();
+  const { settings: siteSettings } = useSiteSettings();
+  const { ads: bannerAds } = useSiteAds('banner');
   const modules = useMemo(
     () => [
       {
@@ -323,7 +326,7 @@ export default function HomePage() {
       if (e.code === 'SEAT_LIMIT') {
         toast.error('Friend seats full', {
           description: 'Upgrade plan or buy permanent seats',
-          action: { label: 'Buy seats', onClick: () => router.push('/shop?tab=seats') },
+          action: { label: 'Buy seats', onClick: () => router.push('/pricing') },
         });
       } else {
         toast.error(e.message || t('home.chatFail'));
@@ -693,8 +696,8 @@ export default function HomePage() {
             badgeClass="text-[#ffd700]"
             icon={<Coins className="h-5 w-5 text-black" />}
             iconBg="from-[#ffd700] to-[#f59e0b]"
-            title={t('home.promoTopup')}
-            desc={t('home.promoTopupDesc')}
+            title={siteSettings?.recharge_banner_title || t('home.promoTopup')}
+            desc={siteSettings?.recharge_banner_desc || t('home.promoTopupDesc')}
             glow="from-amber-500/20"
           />
           <PromoCard
@@ -703,11 +706,37 @@ export default function HomePage() {
             badgeClass="text-[#ff6ba6]"
             icon={<Trophy className="h-5 w-5 text-white" />}
             iconBg="from-[#ff2e88] to-[#c026d3]"
-            title={t('home.promoQuest')}
-            desc={t('home.promoQuestDesc')}
+            title={siteSettings?.achievement_banner_title || t('home.promoQuest')}
+            desc={siteSettings?.achievement_banner_desc || t('home.promoQuestDesc')}
             glow="from-[#ff2e88]/20"
           />
         </section>
+
+
+        {/* Ads Banner (from admin_ads DB) */}
+        {bannerAds.length > 0 && (
+          <section className="space-y-2">
+            {bannerAds.map((ad) => (
+              <a
+                key={ad.id}
+                href={ad.link_url || '#'}
+                target={ad.link_url ? '_blank' : undefined}
+                rel={ad.link_url ? 'noopener noreferrer' : undefined}
+                className="block relative overflow-hidden rounded-2xl ring-1 ring-white/10 hover:ring-[#ff2e88]/40 transition-all group"
+              >
+                <img
+                  src={ad.image_url}
+                  alt={ad.title}
+                  className="w-full h-28 sm:h-36 object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
+                <div className="absolute bottom-2 left-3 z-[2]">
+                  <span className="text-xs sm:text-sm font-bold text-white drop-shadow">{ad.title}</span>
+                </div>
+              </a>
+            ))}
+          </section>
+        )}
 
         {/* Daily */}
         <section className="glass-strong rounded-2xl p-3.5 sm:p-4">
@@ -721,7 +750,7 @@ export default function HomePage() {
               { l: t('auth.login'), d: true, r: '+5', href: '/' },
               { l: t('home.moduleChat'), d: false, r: '+10', href: '/chats' },
               { l: t('chat.sayHello'), d: false, r: '+15', href: '/chats' },
-              { l: t('shop.gifts'), d: false, r: '+20', href: '/shop' },
+              { l: t('shop.gifts'), d: false, r: '+20', href: '/wallet' },
             ].map((q) => (
               <button
                 key={q.l}
@@ -757,7 +786,7 @@ export default function HomePage() {
                 </span>
               </div>
               <p className="text-[12px] text-white/40 leading-relaxed max-w-xs">
-                {t('landing.heroSubtitle')}
+                {siteSettings?.footer_tagline || t('landing.heroSubtitle')}
               </p>
             </div>
 
@@ -766,7 +795,7 @@ export default function HomePage() {
               <ul className="space-y-2 text-sm">
                 <li>
                   <a
-                    href={FOOTER_LINKS.telegram}
+                    href={(siteSettings?.telegram_url || FOOTER_FALLBACK.telegram)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-[#ffb3cd] hover:text-white transition-colors"
@@ -778,10 +807,10 @@ export default function HomePage() {
                 </li>
                 <li>
                   <a
-                    href={`mailto:${FOOTER_LINKS.email}`}
+                    href={`mailto:${(siteSettings?.support_email || FOOTER_FALLBACK.email)}`}
                     className="flex items-center gap-2 text-white/50 hover:text-white transition-colors text-[13px]"
                   >
-                    {FOOTER_LINKS.email}
+                    {(siteSettings?.support_email || FOOTER_FALLBACK.email)}
                   </a>
                 </li>
               </ul>
@@ -792,7 +821,7 @@ export default function HomePage() {
               <ul className="space-y-2 text-sm">
                 <li>
                   <a
-                    href={FOOTER_LINKS.x}
+                    href={(siteSettings?.x_url || FOOTER_FALLBACK.x)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-[#ffb3cd] hover:text-white transition-colors"
@@ -802,10 +831,10 @@ export default function HomePage() {
                     <ExternalLink className="h-3 w-3 opacity-50" />
                   </a>
                 </li>
-                {FOOTER_LINKS.discord ? (
+                {(siteSettings?.discord_url || FOOTER_FALLBACK.discord) ? (
                   <li>
                     <a
-                      href={FOOTER_LINKS.discord}
+                      href={(siteSettings?.discord_url || FOOTER_FALLBACK.discord)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"

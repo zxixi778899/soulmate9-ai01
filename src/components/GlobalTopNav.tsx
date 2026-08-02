@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
@@ -22,6 +23,7 @@ export default function GlobalTopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
+  const { settings } = useSiteSettings();
 
   const [balance, setBalance] = useState<number | null>(null);
   const loadBalance = useCallback((): void => {
@@ -71,7 +73,9 @@ export default function GlobalTopNav() {
     { href: '/pricing', label: 'VIP', icon: Crown },
   ];
 
-  const displayLinks = user ? navLoggedIn : navGuest;
+  const displayLinks = user
+    ? navLoggedIn.filter((l) => l.href !== "/shop" || settings?.shop_enabled)
+    : navGuest;
 
   const goBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {

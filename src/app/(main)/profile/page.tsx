@@ -5,6 +5,7 @@
  */
 
 import { useTranslation } from '@/lib/i18n/context';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { authedFetch } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
@@ -85,6 +86,7 @@ const TIER_META: Record<string, { label: string; color: string }> = {
 
 export default function ProfilePage() {
   const { t } = useTranslation();
+  const { settings: siteSettings } = useSiteSettings();
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -311,7 +313,7 @@ export default function ProfilePage() {
               {[
                 { href: '/chats', icon: MessageCircle, label: t('profile.qChats') },
                 { href: '/explore', icon: Sparkles, label: t('profile.qPool') },
-                { href: '/shop', icon: ShoppingBag, label: t('profile.qShop') },
+                ...(siteSettings?.shop_enabled ? [{ href: '/shop', icon: ShoppingBag, label: t('profile.qShop') }] : []),
                 { href: '/quest', icon: Trophy, label: t('profile.qQuest') },
                 { href: '/wardrobe', icon: Shirt, label: t('profile.qWardrobe') },
                 { href: '/achievements', icon: Star, label: t('profile.qAchieve') },
@@ -362,7 +364,7 @@ export default function ProfilePage() {
               <GamePanel className="p-10 text-center text-white/40 text-sm">
                 {t('profile.noSkins')}
                 <div className="mt-4">
-                  <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/shop')}>
+                  <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/wallet')}>
                     {t('profile.openShop')}
                   </GamePrimaryButton>
                 </div>
@@ -393,7 +395,7 @@ export default function ProfilePage() {
                 <GamePanel className="p-10 text-center text-white/40 text-sm">
                   {t('profile.emptyBag')}
                   <div className="mt-4">
-                    <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/shop')}>
+                    <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/wallet')}>
                       {t('profile.openShop')}
                     </GamePrimaryButton>
                   </div>

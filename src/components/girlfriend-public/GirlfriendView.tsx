@@ -89,7 +89,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
       if (err?.code === 'SEAT_LIMIT') {
         toast.error('Friend seats full', {
           description: 'Upgrade membership or buy permanent seats',
-          action: { label: 'Shop', onClick: () => router.push('/shop?tab=seats') },
+          action: { label: 'Shop', onClick: () => router.push('/pricing') },
         });
       } else {
         toast.error(err?.error || 'Could not open chat');
@@ -116,7 +116,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
       if (err?.code === 'SEAT_LIMIT') {
         toast.error('Friend seats full', {
           description: 'Upgrade membership or buy permanent seats',
-          action: { label: 'Shop', onClick: () => router.push('/shop?tab=seats') },
+          action: { label: 'Shop', onClick: () => router.push('/pricing') },
         });
       } else {
         toast.error(err?.error || 'Failed to add friend');

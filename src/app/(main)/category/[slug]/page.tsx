@@ -98,7 +98,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
       if (e.code === 'SEAT_LIMIT') {
         toast.error('Friend seats full', {
           description: 'Upgrade membership or buy permanent seats',
-          action: { label: 'Buy seats', onClick: () => router.push('/shop?tab=seats') },
+          action: { label: 'Buy seats', onClick: () => router.push('/pricing') },
         });
       } else {
         toast.error(e.message || 'Failed to add friend');
