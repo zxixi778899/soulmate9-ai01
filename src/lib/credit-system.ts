@@ -3,8 +3,8 @@
  *
  * Base rate: 1000 credits = $9.90 USD  →  1 credit ≈ $0.0099
  *
- * All features consume from `profiles.credits_remaining` (canonical balance).
- * The `user_tokens` table is a legacy mirror kept in sync via apply_wallet_ledger.
+ * All features consume from `profiles.credits_remaining` — the sole source of truth.
+ * The legacy `user_tokens` mirror is no longer read or written by application code.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

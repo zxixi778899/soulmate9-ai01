@@ -42,13 +42,7 @@ export async function GET(req: NextRequest) {
       packages = data as typeof FALLBACK_PACKAGES;
     }
 
-    const { data: userTokens } = await supabase
-      .from('user_tokens')
-      .select('balance_tokens')
-      .eq('user_id', auth.user.id)
-      .maybeSingle();
-
-    // Also surface credits_remaining as a secondary balance signal
+    // Canonical balance lives on profiles.credits_remaining (single source of truth).
     const { data: profile } = await supabase
       .from('profiles')
       .select('credits_remaining')
@@ -87,7 +81,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       packages: mergedPackages,
-      user_balance: userTokens?.balance_tokens ?? profile?.credits_remaining ?? 0,
+      user_balance: profile?.credits_remaining ?? 0,
     });
   } catch (err: unknown) {
     logger.error('[shop/tokens] GET error', { error: String(err) });

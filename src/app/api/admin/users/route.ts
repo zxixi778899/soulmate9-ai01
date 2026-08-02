@@ -211,25 +211,6 @@ export async function PATCH(request: NextRequest) {
 
     const warnings: string[] = [];
 
-    // Keep the legacy user_tokens mirror in sync so the shop balance matches
-    if (updates.credits_remaining !== undefined) {
-      const { error: mirrorErr } = await supabase.from('user_tokens').upsert(
-        {
-          user_id: authUid,
-          balance_tokens: updates.credits_remaining,
-          last_updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' },
-      );
-      if (mirrorErr) {
-        logger.error('admin users: user_tokens mirror sync failed', {
-          userId: authUid,
-          error: mirrorErr.message,
-        });
-        warnings.push(`token mirror sync failed: ${mirrorErr.message}`);
-      }
-    }
-
     // Password reset via Supabase Auth admin API (requires service-role key)
     const newPassword = typeof body.new_password === 'string' ? body.new_password.trim() : '';
     if (newPassword) {

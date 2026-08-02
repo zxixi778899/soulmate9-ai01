@@ -565,6 +565,9 @@ export default function ChatPage() {
         if (!stale.length) return prev;
         const zh = String(locale || '').toLowerCase().startsWith('zh');
         const cleaned = prev.filter((m) => !stale.some((s) => s.id === m.id));
+        // Reset generation state so the UI never stays locked on a dead job.
+        clearGenJob(id);
+        setIsGenerating(false);
         return [
           ...cleaned,
           {
@@ -814,9 +817,12 @@ export default function ChatPage() {
         let jobId = data.job_id;
         let retried = false;
         let falAttempted = false;
+        // Hard cap on total wait time (aligns with the 2-min safety net below).
+        // Bounds the initial poll AND the auto-retry so the card can never hang for minutes.
+        const genDeadline = Date.now() + 110_000;
         saveGenJob(id, { job_id: jobId, endpoint_id: data.endpoint_id, startedAt: Date.now(), req });
         const pollStatus = async (jid: string, endpointId?: string): Promise<{ url?: string; failed?: boolean; error?: string; cancelled?: boolean }> => {
-          for (let p = 0; p < 80; p++) {
+          for (let p = 0; p < 80 && Date.now() < genDeadline; p++) {
             if (cancelGenRef.current || genSessionRef.current !== session) return { cancelled: true };
             await new Promise((r) => setTimeout(r, 3000));
             if (cancelGenRef.current || genSessionRef.current !== session) return { cancelled: true };

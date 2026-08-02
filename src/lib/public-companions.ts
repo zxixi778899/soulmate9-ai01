@@ -214,26 +214,50 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
 export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[]> {
   try {
     const sb = getSupabaseClient();
-    // Only fetch featured whose base girlfriend still exists (prevents orphans)
-    const { data, error } = await sb
+    // 1) Fetch active featured entries (no FK join — featured_girlfriends has no
+    //    foreign key to girlfriends, so PostgREST embed syntax fails).
+    const { data: featuredRows, error: fErr } = await sb
       .from('featured_girlfriends')
-      .select('*, girlfriends!inner(id, name, age, slug, tags, short_description, personality, portrait_url, avatar_url, card_url, portrait_video_url, avatar_video_url)')
+      .select('*')
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .limit(limit);
-    if (error || !data?.length) {
-      // Fallback: if join syntax fails, query without join and filter orphans manually
-      if (error) {
-        logger.warn('[public-companions] featured JOIN failed, falling back', { err: error.message });
-      }
-      if (!data?.length) return [];
+    if (fErr) {
+      logger.warn('[public-companions] featured query failed', { err: fErr.message });
+      return [];
     }
+    if (!featuredRows?.length) return [];
 
+    // 2) Resolve base girlfriends in one query, keeping only live (approved + active)
+    //    companions so removed/deleted debris never surfaces on home/explore.
+    const baseIds = Array.from(
+      new Set(
+        (featuredRows as Record<string, unknown>[])
+          .map((f) => String(f.base_girlfriend_id || ''))
+          .filter(Boolean),
+      ),
+    );
+    if (!baseIds.length) return [];
+
+    const { data: baseRows, error: bErr } = await sb
+      .from('girlfriends')
+      .select('id, name, age, slug, tags, short_description, personality, portrait_url, avatar_url, card_url, portrait_video_url, avatar_video_url')
+      .in('id', baseIds)
+      .eq('review_status', 'approved')
+      .eq('is_active', true);
+    if (bErr) {
+      logger.warn('[public-companions] featured base lookup failed', { err: bErr.message });
+      return [];
+    }
+    const baseMap = new Map(
+      ((baseRows || []) as Record<string, unknown>[]).map((b) => [String(b.id), b]),
+    );
+
+    // 3) Merge featured metadata onto live base companions, preserving sort_order.
     const out: PublicCompanionRow[] = [];
-    for (const f of data as Record<string, unknown>[]) {
-      // With !inner join, 'girlfriends' field contains the matched base record
-      const base = (f.girlfriends as Record<string, unknown>) || null;
-      if (!base) continue; // orphan — skip
+    for (const f of featuredRows as Record<string, unknown>[]) {
+      const base = baseMap.get(String(f.base_girlfriend_id || ''));
+      if (!base) continue; // orphan or removed — skip
 
       const img = await resolvePortrait(
         (base.portrait_url as string) || (f.avatar_url as string) || null,

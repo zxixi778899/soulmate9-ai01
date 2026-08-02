@@ -134,22 +134,6 @@ async function handleCheckoutCompleted(
       throw new Error(`credit token wallet: ${grant.error}`);
     }
 
-    // Keep the legacy user_tokens mirror in sync (shop balance reads it first).
-    const { error: mirrorErr } = await admin.from('user_tokens').upsert(
-      {
-        user_id: userId,
-        balance_tokens: grant.balance_after,
-        last_updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' },
-    );
-    if (mirrorErr) {
-      logger.error('stripe-webhook: user_tokens mirror sync failed', {
-        userId,
-        error: mirrorErr.message,
-      });
-    }
-
     await recordPurchase(admin, event.id, {
       user_id: userId,
       item_type: 'tokens',

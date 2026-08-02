@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
         .eq('role', 'user')
         .gte('created_at', today),
       client
-        .from('girlfriends')
+        .from('user_friends')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id),
       client
@@ -50,7 +50,9 @@ export async function GET(req: NextRequest) {
   const totalGirlfriends = totalGirlfriendsResult.count;
   const topIntimacy = topIntimacyResult.data;
   const subscription = subscriptionResult.data;
-  const tier = profile?.membership_tier || 'free';
+  const rawTier = profile?.membership_tier || 'free';
+  // Legacy tiers no longer sold — grandfather basic/premium into pro.
+  const tier = rawTier === 'basic' || rawTier === 'premium' ? 'pro' : rawTier;
 
   // Quotas aligned with MEMBERSHIP_TIERS (competitor-aligned).
   const plans = {
@@ -69,23 +71,6 @@ export async function GET(req: NextRequest) {
         'All 5 intimacy levels; adult mode unlocks at Level 3',
         'Up to 3 companions',
         'Basic chat',
-      ],
-    },
-    basic: {
-      name: 'Basic',
-      price_cents: 999,
-      messages_per_day: 150,
-      image_gen_per_day: 5,
-      tts_per_day: 15,
-      max_intimacy_level: 5,
-      max_girlfriends: 8,
-      features: [
-        '150 messages/day',
-        '5 AI images/day',
-        '15 voice messages/day',
-        'All 5 intimacy levels',
-        'Up to 8 companions',
-        'Standard memory depth',
       ],
     },
     pro: {
@@ -157,7 +142,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { plan } = body; // 'pro' | 'unlimited'
 
-  if (!plan || !['basic', 'pro', 'unlimited'].includes(plan)) {
+  if (!plan || !['pro', 'unlimited'].includes(plan)) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
   }
 

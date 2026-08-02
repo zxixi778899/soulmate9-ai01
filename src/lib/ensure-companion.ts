@@ -20,12 +20,12 @@ export async function ensureCompanionChatId(girl: {
   personality?: string;
   relationship?: string;
 }): Promise<string | null> {
-  // 1) Already a real UUID in user's collection?
+  // 1) Already a friend? (reference list includes both created and public friends)
   try {
-    const listRes = await authedFetch('/api/girlfriends');
+    const listRes = await authedFetch('/api/friends');
     if (listRes.ok) {
       const data = await readResponseJson(listRes).catch(() => ({} as any));
-      const list = (data.girlfriends || []) as Array<{ id: string; name: string }>;
+      const list = (data.friends || []) as Array<{ id: string; name: string }>;
       const byId = list.find((g) => g.id === girl.id);
       if (byId) return byId.id;
       const byName = list.find(
@@ -37,59 +37,32 @@ export async function ensureCompanionChatId(girl: {
     /* continue create */
   }
 
-  // 2) If we have a public slug, prefer the add-from-public clone (keeps seat + ownership check)
+  // 2) Add the public companion as a reference friend (no clone). Consumes a seat.
   if (girl.slug) {
-    try {
-      const add = await authedFetch('/api/girlfriends/add-from-public', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: girl.slug }),
-      });
-      if (add.ok) {
-        const d = await readResponseJson(add).catch(() => ({} as any));
-        const gid = (d.girlfriend?.id || d.id) as string | undefined;
-        if (gid) return gid;
-      }
-    } catch { /* fallthrough to generic create */ }
-  }
-
-  // 3) Create a private clone for this user (uses a friend seat)
-  try {
-    const res = await authedFetch('/api/girlfriends', {
+    const add = await authedFetch('/api/friends', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: girl.name,
-        age: girl.age ?? 22,
-        short_description: girl.tagline || '',
-        personality: girl.personality || (girl.tags || []).join(', '),
-        tags: girl.tags || [],
-        portrait_url: girl.portrait || girl.avatar || undefined,
-        avatar_url: girl.avatar || girl.portrait || undefined,
-        meta: {
-          source: 'catalog',
-          catalog_id: girl.id,
-          relationship: girl.relationship || 'girlfriend',
-        },
-      }),
+      body: JSON.stringify({ slug: girl.slug }),
     });
-    const data = await readResponseJson(res).catch(() => ({} as Record<string, unknown>));
-    if (!res.ok) {
-      const err = new Error(
-        (data as { error?: string }).error || 'Failed to add companion',
-      ) as Error & { code?: string; seats?: unknown };
-      err.code = (data as { code?: string }).code;
-      err.seats = (data as { seats?: unknown }).seats;
-      throw err;
+    const d = await readResponseJson(add).catch(() => ({} as Record<string, unknown>));
+    if (add.ok) {
+      const gid = (
+        (d as { friend?: { id?: string } }).friend?.id ||
+        (d as { girlfriend?: { id?: string } }).girlfriend?.id ||
+        (d as { id?: string }).id
+      ) as string | undefined;
+      if (gid) return gid;
     }
-    return (
-      (data as { girlfriend?: { id?: string } }).girlfriend?.id ||
-      (data as { id?: string }).id ||
-      null
-    );
-  } catch (err) {
+    const err = new Error(
+      (d as { error?: string }).error || 'Failed to add companion',
+    ) as Error & { code?: string; seats?: unknown };
+    err.code = (d as { code?: string }).code;
+    err.seats = (d as { seats?: unknown }).seats;
     throw err;
   }
+
+  // No public slug — cannot create a reference friend for a non-catalog companion.
+  return null;
 }
 
 export async function openCompanionChat(

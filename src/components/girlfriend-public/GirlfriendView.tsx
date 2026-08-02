@@ -54,15 +54,18 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
     { id: string } | null | { error: string; code?: string }
   > => {
     try {
-      const res = await authedFetch('/api/girlfriends/add-from-public', {
+      const res = await authedFetch('/api/friends', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug: girlfriend.slug }),
       });
       const data = await res.json().catch(() => ({} as Record<string, unknown>));
-      if (res.ok && (data as { girlfriend?: { id: string } }).girlfriend) {
+      const friend =
+        (data as { friend?: { id: string } }).friend ||
+        (data as { girlfriend?: { id: string } }).girlfriend;
+      if (res.ok && friend) {
         setAddedFriend(true);
-        return (data as { girlfriend: { id: string } }).girlfriend;
+        return friend;
       }
       return {
         error: String((data as { error?: string }).error || 'Failed to add companion'),

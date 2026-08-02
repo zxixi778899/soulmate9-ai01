@@ -82,12 +82,6 @@ export async function POST(req: NextRequest) {
       const grant = await grantCredits(supabase, userId, totalTokens, 'token_purchase', payment_id);
       if (!grant.ok) throw new Error(`credit token wallet: ${grant.error}`);
 
-      // Keep the legacy user_tokens mirror in sync (shop balance reads it first)
-      await supabase.from('user_tokens').upsert(
-        { user_id: userId, balance_tokens: grant.balance_after, last_updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' },
-      );
-
       await supabase.from('purchase_history').insert({
         user_id: userId,
         item_type: 'tokens',

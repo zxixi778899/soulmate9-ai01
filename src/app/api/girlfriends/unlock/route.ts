@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
+import { deductCredits, checkCreditBalance } from '@/lib/credit-system';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,41 +58,18 @@ export async function POST(request: NextRequest) {
     const price = Math.max(0, Number(gf.unlock_price_tokens) || 0);
 
     if (price > 0) {
-      // Deduct tokens if user_tokens table exists
-      const { data: tokens } = await client
-        .from('user_tokens')
-        .select('balance')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      const balance = Number(tokens?.balance ?? 0);
-      if (balance < price) {
-        return NextResponse.json(
-          { error: 'Insufficient tokens', required: price, balance },
-          { status: 402 },
-        );
-      }
-
-      const { error: debitErr } = await client
-        .from('user_tokens')
-        .update({ balance: balance - price, updated_at: new Date().toISOString() })
-        .eq('user_id', user.id);
-
-      if (debitErr) {
-        logger.error('unlock: debit failed', { debitErr });
+      // Deduct from the canonical credit balance (profiles.credits_remaining + ledger).
+      const result = await deductCredits(client, user.id, price, 'shop_purchase', girlfriendId);
+      if (!result.ok) {
+        if (result.error === 'insufficient_credits') {
+          const { balance } = await checkCreditBalance(client, user.id, price);
+          return NextResponse.json(
+            { error: 'Insufficient tokens', required: price, balance },
+            { status: 402 },
+          );
+        }
+        logger.error('unlock: debit failed', { error: result.error });
         return NextResponse.json({ error: 'Failed to debit tokens' }, { status: 500 });
-      }
-
-      try {
-        await client.from('token_transactions').insert({
-          user_id: user.id,
-          amount: -price,
-          type: 'unlock_girlfriend',
-          description: `Unlock ${gf.name}`,
-          meta: { girlfriend_id: girlfriendId },
-        });
-      } catch {
-        /* optional table */
       }
     }
 

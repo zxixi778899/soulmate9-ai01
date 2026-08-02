@@ -72,12 +72,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Insufficient credits (concurrent request)', code: 'INSUFFICIENT_CREDITS' }, { status: 402 });
     }
 
-    // Sync user_tokens mirror (dual-balance architecture)
-    await supabase
-      .from('user_tokens')
-      .update({ balance_tokens: newCredits, last_updated_at: new Date().toISOString() })
-      .eq('user_id', user.id);
-
     // Add to user_inventory (unified inventory system)
     const isConsumable = item.category === 'consumable' || item.category === 'effect';
     const { data: existing } = await supabase

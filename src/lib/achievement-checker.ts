@@ -9,6 +9,8 @@
 
 import { logger } from '@/lib/logger';
 import { HEAT_ACHIEVEMENT_DEFS } from '@/lib/heat-achievements';
+import { grantCredits } from '@/lib/credit-system';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface UserStats {
   messageCount: number;
@@ -220,10 +222,7 @@ export async function checkAchievements(
           }
 
           try {
-            await supabase.rpc('add_user_tokens', {
-              p_user_id: userId,
-              p_amount: ach.reward_tokens,
-            });
+            await grantCredits(supabase as unknown as SupabaseClient, userId, ach.reward_tokens, 'achievement', ach.id);
           } catch {
             /* ignore */
           }
