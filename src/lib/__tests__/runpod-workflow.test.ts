@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildFluxWorkflow } from '../runpod';
+import { ensureStudioFluxPrompt, studioPromptSatisfiesIntensity } from '../comfy-console/studio-profile';
 import { assembleGirlfriendFromRow } from '../prompt/girlfriend';
 
 const ORIGINAL_ENV = { ...process.env };
@@ -59,6 +60,24 @@ describe('buildFluxWorkflow LoRA stacking', () => {
     }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
 
     expect(graph['5'].inputs.cfg).toBe(1);
+    expect(graph['21'].class_type).toBe('FluxGuidance');
+    expect(graph['21'].inputs.conditioning).toEqual(['2', 0]);
+    expect(graph['21'].inputs.guidance).toBe(3.5);
+    expect(graph['5'].inputs.positive).toEqual(['21', 0]);
+  });
+  it('connects every NSFW level prompt through FLUX guidance to the sampler', () => {
+    for (const intensity of [1, 2, 3, 4, 5] as const) {
+      const prompt = ensureStudioFluxPrompt({
+        prompt: 'A private bedroom with warm window light and a full-body camera view.',
+        category: 'female',
+        intensity,
+      });
+      const graph = buildFluxWorkflow({ prompt, model_family: 'flux' }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+      expect(studioPromptSatisfiesIntensity(String(graph['2'].inputs.text), intensity)).toBe(true);
+      expect(graph['21'].inputs.conditioning).toEqual(['2', 0]);
+      expect(graph['5'].inputs.positive).toEqual(['21', 0]);
+      expect(graph['5'].inputs.cfg).toBe(1);
+    }
   });
   it('uses a current ComfyUI ImageScale crop value for img2img', () => {
     const graph = buildFluxWorkflow({

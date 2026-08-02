@@ -81,6 +81,8 @@ export function buildFluxWorkflow(opts: {
   height?: number;
   steps?: number;
   guidance?: number;
+  /** FLUX conditioning guidance. KSampler CFG remains 1. Default 3.5. */
+  flux_guidance?: number;
   seed?: number;
   sampler_name?: string;
   scheduler?: string;
@@ -127,6 +129,7 @@ export function buildFluxWorkflow(opts: {
   const guidance = isFlux
     ? 1.0
     : Math.min(Math.max(opts.guidance ?? 6.0, 3.0), 9.0);
+  const fluxGuidance = Math.min(5, Math.max(2, opts.flux_guidance ?? 3.5));
   const sampler_name = opts.sampler_name || (isFlux ? 'euler' : 'dpmpp_2m_sde');
   const scheduler = opts.scheduler || (isFlux ? 'simple' : 'karras');
   const batchSize = Math.min(4, Math.max(1, Math.floor(opts.batch_size ?? 1)));
@@ -188,6 +191,7 @@ export function buildFluxWorkflow(opts: {
   const clipSkip = isFlux ? 1 : Math.min(2, Math.max(1, Math.round(opts.clip_skip || 2)));
   const clipRef: [string, number] = clipSkip > 1 ? ['20', 0] : [lastLoraNodeId, 1];
   const vaeRef: [string, number] = ['1', 2];
+  const positiveRef: [string, number] = isFlux ? ['21', 0] : ['2', 0];
 
   const loraNodes = Object.fromEntries(loraStack.map((item, index) => {
     const id = String(14 + index);
@@ -213,6 +217,14 @@ export function buildFluxWorkflow(opts: {
       }
     : {};
 
+  const fluxGuidanceNodes = isFlux
+    ? {
+        '21': {
+          class_type: 'FluxGuidance',
+          inputs: { conditioning: ['2', 0], guidance: fluxGuidance },
+        },
+      }
+    : {};
   // ─── IP-Adapter face identity nodes (optional) ─────────────────────────────
   // Locks facial identity from a reference image WITHOUT locking composition.
   // Requires Shakker-Labs/ComfyUI-IPAdapter-Flux on the worker.
@@ -275,7 +287,7 @@ export function buildFluxWorkflow(opts: {
           scheduler,
           denoise,
           model: modelRef,
-          positive: ['2', 0],
+          positive: positiveRef,
           negative: ['3', 0],
           latent_image: ['13', 0],
         },
@@ -307,7 +319,7 @@ export function buildFluxWorkflow(opts: {
         inputs: { pixels: ['12', 0], vae: vaeRef },
       },
     };
-    Object.assign(graph, loraNodes, clipSkipNodes, ipAdapterNodes);
+    Object.assign(graph, loraNodes, clipSkipNodes, fluxGuidanceNodes, ipAdapterNodes);
     return graph;
   }
 
@@ -339,7 +351,7 @@ export function buildFluxWorkflow(opts: {
         scheduler,
         denoise: 1.0,
         model: modelRef,
-        positive: ['2', 0],
+        positive: positiveRef,
         negative: ['3', 0],
         latent_image: ['4', 0],
       },
@@ -353,7 +365,7 @@ export function buildFluxWorkflow(opts: {
       inputs: { filename_prefix: 'soulmate', images: ['6', 0] },
     },
   };
-  Object.assign(graph, loraNodes, clipSkipNodes, ipAdapterNodes);
+  Object.assign(graph, loraNodes, clipSkipNodes, fluxGuidanceNodes, ipAdapterNodes);
   return graph;
 }
 
@@ -368,6 +380,8 @@ export interface RunPodGenerateOptions {
   height?: number;
   num_inference_steps?: number;
   guidance_scale?: number;
+  /** FLUX conditioning guidance; separate from KSampler CFG. */
+  flux_guidance?: number;
   num_images?: number;
   seed?: number;
   /** Comfy KSampler sampler_name (FLUX: euler) */
@@ -787,6 +801,7 @@ class RunPodClient {
       height: options.height,
       steps: options.num_inference_steps ?? 18,
       guidance: options.guidance_scale ?? 1.0,
+      flux_guidance: options.flux_guidance,
       seed: options.seed,
       sampler_name: options.sampler_name || 'euler',
       scheduler: options.scheduler || 'simple',
@@ -812,6 +827,7 @@ class RunPodClient {
     });
 
     const samplerNode = workflow['5'] as { inputs?: Record<string, unknown> } | undefined;
+    const fluxGuidanceNode = workflow['21'] as { inputs?: Record<string, unknown> } | undefined;
     const checkpointNode = workflow['1'] as { class_type?: string; inputs?: Record<string, unknown> } | undefined;
     logger.info('[runpod] workflow resolved', {
       model_family: options.model_family || 'flux',
@@ -821,6 +837,7 @@ class RunPodClient {
       height: options.height ?? 1216,
       steps: samplerNode?.inputs?.steps,
       cfg: samplerNode?.inputs?.cfg,
+      flux_guidance: fluxGuidanceNode?.inputs?.guidance,
       sampler: samplerNode?.inputs?.sampler_name,
       scheduler: samplerNode?.inputs?.scheduler,
       img2img: !!inputImageName,

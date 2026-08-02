@@ -2190,7 +2190,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <div>基础信息：{String(lastGenerationTrace.identitySource || 'manual_prompt')}</div>
                 <div>分类 / 强度：{String(lastGenerationTrace.category || '-')} / {String(lastGenerationTrace.intensity || '-')}</div>
                 <div>模型：{String(lastGenerationTrace.checkpoint || '-')}</div>
-                <div>参数：Steps {String(lastGenerationTrace.steps || '-')} / CFG {String(lastGenerationTrace.cfg || '-')} / {String(lastGenerationTrace.sampler || '-')} / {String(lastGenerationTrace.scheduler || '-')}</div>
+                <div>参数：Steps {String(lastGenerationTrace.steps || '-')} / CFG {String(lastGenerationTrace.cfg || '-')} / FLUX Guidance {String(lastGenerationTrace.fluxGuidance || '-')} / {String(lastGenerationTrace.sampler || '-')} / {String(lastGenerationTrace.scheduler || '-')}</div>
                 <div>参考图重绘：{lastGenerationTrace.referenceDenoise == null ? '未使用' : String(lastGenerationTrace.referenceDenoise)}</div>
                 <div className="mt-2 text-cyan-200">实际 LoRA：</div>
                 <div className="break-all text-slate-300">

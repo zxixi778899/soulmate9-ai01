@@ -30,7 +30,7 @@ import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-gene
 import { classifyImageScene, normalizeLlmImageScene } from '@/lib/image-scene-semantics';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
-import { buildStudioPromptEnhancement, compactFluxPrompt, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
+import { buildStudioPromptEnhancement, compactFluxPrompt, ensureStudioFluxPrompt, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
@@ -468,13 +468,13 @@ export async function POST(req: NextRequest) {
       ? body.previous_prompts.filter((value: unknown): value is string => typeof value === 'string').slice(-5)
       : [];
     const variationSeed = String(body.variation_seed || `${Date.now()}-${Math.random()}`).slice(0, 120);
-    const systemPrompt = `You are the final prompt writer for a photorealistic adult companion image system. Return strict JSON only with keys: "prompt", "negative", "pairing", "protagonist", "power_dynamic", "tags".
+    const systemPrompt = `You are the final prompt writer for a photorealistic adult companion image system. Return strict JSON only with keys: "scene", "negative", "pairing", "protagonist", "power_dynamic", "tags".
 
 Write a NEW natural-English generation prompt on every request. Do not copy a stock template and do not merely polish the current prompt. Treat the supplied companion profile, mode, asset role, NSFW level and user scene intent as constraints, then invent one specific lived-in moment.
 
 For realistic images, make the result feel like a real person photographed during a real event: choose a plausible location, available light source, neutral skin-preserving color, ordinary environmental evidence, a physically achievable action with preparation and follow-through, stable center of gravity, purposeful hands, contact pressure, material response, a spontaneous micro-expression, and a believable 35mm or 50mm camera position. Avoid generic beauty language, symmetrical mannequin posing, neon wash on skin, cinematic teal-orange grading, luxury-set clichés and excessive bokeh.
 
-The five levels control body language and action complexity, not a reusable sentence: 1=candid everyday pause; 2=plausible flirtation; 3=confident sensual action; 4=explicit intimate action with clear support/contact; 5=complex consensual adult action with coherent bodies, contact and reactions. All characters are unmistakably adults and all interaction is consensual.
+The server applies the exact NSFW level contract after your response. Never weaken, reinterpret, or replace it: 1=everyday sexy clothing with nipples and genitals covered; 2=lingerie, nightwear, or adult fantasy clothing with genitals covered and no sexual act; 3=full nudity with breasts and/or genitals clearly visible and no sexual act; 4=clearly visible solo masturbation before climax; 5=clearly visible consensual sex between unmistakably adult partners through climax, including requested sexual fluids. All characters are unmistakably adults and all interaction is consensual.
 
 For txt2img, include only the supplied identity facts needed to preserve this specific companion; never invent a different age, ethnicity, face, hair, eyes or physique. For img2img, identity comes from reference images, so describe only the newly invented scene, action, wardrobe, framing, lighting and physical interaction. For img2video, describe natural five-second motion from the supplied still with stable identity, camera and temporal continuity. Do not reuse distinctive wording or scene staging from the previous prompts. Interpret Chinese scene requests accurately.`;
     const userPrompt = [
@@ -488,7 +488,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       `User scene intent (a constraint, not final prose): ${currentPrompt || 'invent a plausible scene suited to this companion'}`,
       `Recent prompts that must not be repeated: ${previousPrompts.length ? JSON.stringify(previousPrompts) : 'none'}`,
       `Mandatory negative concepts: ${studioNegativePrompt(category, animeStyle)}`,
-      'Write 45-75 words optimized for FLUX.1 Dev and keep the paragraph under 650 characters. Use at most four short sentences. Put the most important visual facts first: use fluent natural-language sentences in this order—specific subject or reference-image instruction, one physically clear action, spatial relationship to the environment or other adults, framing and camera distance, motivated light source, restrained color, then material and skin detail. Use concrete nouns and verbs. State left/right/front/behind and contact points when relevant. Do not use SDXL tag soup, score tags, BREAK, emphasis weights, parentheses weights, embedding syntax, model names, LoRA names, masterpiece/best quality spam, duplicated adjectives, or negative instructions inside the positive prompt. Return one coherent paragraph without headings or repeated identity facts.',
+      'Write only the variable scene field in 20-35 words: a specific believable location, wardrobe appropriate to the selected level, spatial layout, motivated light, and camera distance. Do not repeat identity, anatomy, consent, age, exposure level, sexual action, quality tags, model names, or negative instructions; the server adds those deterministically. Use concrete nouns and verbs without headings.',
     ].join('\n');
     try {
       const aiConfig = await loadAiModules(admin.supabase);
@@ -522,10 +522,14 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const parsed = JSON.parse(cleaned) as Record<string, unknown>;
       const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
       const sceneSemantics = normalizeLlmImageScene(parsed, fallbackSemantics);
-      const optimizedPromptRaw = String(parsed.prompt || '').replace(/\s+/g, ' ').trim();
-      const optimizedPrompt = optimizedPromptRaw.length <= 650
-        ? optimizedPromptRaw
-        : optimizedPromptRaw.slice(0, 650).replace(/\s+\S*$/, '').trim();
+      const optimizedScene = String(parsed.scene || parsed.prompt || '').replace(/\s+/g, ' ').trim();
+      const optimizedPrompt = ensureStudioFluxPrompt({
+        prompt: optimizedScene,
+        category,
+        intensity,
+        animeStyle,
+        identity,
+      });
       if (optimizedPrompt.length < 80) throw new Error('LLM returned an incomplete prompt');
       if (previousPrompts.some((previous) => previous.trim() === optimizedPrompt)) {
         throw new Error('LLM repeated a previous prompt');
@@ -575,9 +579,15 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
         companion.appearance_hair_color, companion.appearance_hair, companion.appearance_eyes,
       ].filter(Boolean).map(String);
       const sceneBase = currentPrompt || 'relaxed candid moment, natural soft window light, warm neutral tones';
-      const fallbackPrompt = generationMode === 'img2img' || generationMode === 'img2video'
+      const fallbackPrompt = generationMode === 'img2video'
         ? sceneBase
-        : [identityParts.join(', '), sceneBase].filter(Boolean).join(', ');
+        : ensureStudioFluxPrompt({
+            prompt: sceneBase,
+            category,
+            intensity,
+            animeStyle,
+            identity: generationMode === 'txt2img' ? identityParts.join(', ') : undefined,
+          });
       const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
       const generationRoute = resolveImageGenerationRoute({
         surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intensity, sceneSemantics: fallbackSemantics,
@@ -1291,9 +1301,11 @@ if (body.action === 'verify_loras') {
       assets: [...identityAssets, ...manualAssets, ...(cfg.reference_assets || [])],
     });
     if (referencePlan.promptHints.length > 0) {
-      prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
+prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
-    prompt = compactFluxPrompt(prompt);
+    prompt = surface === 'companion' && !isIdentityAsset
+      ? ensureStudioFluxPrompt({ prompt, category, intensity: generationIntensity, animeStyle })
+      : compactFluxPrompt(prompt);
     const resolvedReferenceImage =
       referencePlan.primaryIdentity?.url ||
       referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;

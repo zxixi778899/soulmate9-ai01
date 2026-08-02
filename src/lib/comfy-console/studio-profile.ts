@@ -83,6 +83,36 @@ export function compactFluxPrompt(value: string, maxCharacters = 650): string {
   const end = boundary > Math.floor(maxCharacters * 0.7) ? boundary : maxCharacters;
   return clipped.slice(0, end).replace(/[,. ]+$/, '').trim() + '.';
 }
+export function studioPromptSatisfiesIntensity(prompt: string, intensity: NsfwIntensity): boolean {
+  const value = String(prompt || '').toLowerCase();
+  const contracts: Record<NsfwIntensity, RegExp[]> = {
+    1: [/everyday sexy outfit/, /covered/],
+    2: [/(lingerie|nightdress|sleepwear|fantasy costume)/, /no sexual act/, /covered/],
+    3: [/fully nude/, /clearly visible/, /without performing a sexual act/],
+    4: [/masturbat/, /clearly visible/, /before climax/],
+    5: [/consensual sex/, /unmistakably adult partner/, /climax/],
+  };
+  return contracts[intensity].every((contract) => contract.test(value));
+}
+
+export function ensureStudioFluxPrompt(input: {
+  prompt: string;
+  category: CompanionCategory;
+  intensity: NsfwIntensity;
+  animeStyle?: AnimeRenderStyle;
+  identity?: string;
+}): string {
+  if (studioPromptSatisfiesIntensity(input.prompt, input.intensity)) {
+    return compactFluxPrompt(input.prompt);
+  }
+  return compactFluxPrompt(buildStudioPromptEnhancement({
+    category: input.category,
+    intensity: input.intensity,
+    animeStyle: input.animeStyle,
+    scene: input.prompt,
+    identity: input.identity,
+  }));
+}
 export function studioIntensityDirection(category: CompanionCategory, intensity: NsfwIntensity): string {
   return INTENSITY_ACTIONS[intensity][category];
 }
@@ -110,7 +140,9 @@ const composition = input.intensity >= 4
         ? 'Relaxed three-quarter full-body view with feminine face, chest, waist and hips clearly readable.'
         : 'Relaxed three-quarter full-body view, natural weight and candid eye contact.';
   return {
-    identity: input.identity ? compactIdentity(input.identity).trim() : CATEGORY_SUBJECTS[input.category],
+    identity: input.identity
+      ? `${CATEGORY_SUBJECTS[input.category]}${compactIdentity(input.identity)}`
+      : CATEGORY_SUBJECTS[input.category],
     scene: compactScene(input.scene),
     exposureAndAction: studioIntensityDirection(input.category, input.intensity),
     composition,

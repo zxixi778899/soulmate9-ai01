@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   buildStudioPromptEnhancement,
   compactFluxPrompt,
+  ensureStudioFluxPrompt,
   loraUsageZh,
   recommendedStudioLoras,
   resolveCategoryLoraControls,
   studioLoraStrengthScale,
   studioNegativePrompt,
+  studioPromptSatisfiesIntensity,
 } from '@/lib/comfy-console/studio-profile';
 
 describe('studio generation profiles', () => {
@@ -42,6 +44,15 @@ describe('studio generation profiles', () => {
     expect(prompts[3]).toContain('before climax');
     expect(prompts[4]).toContain('to climax');
     expect(studioLoraStrengthScale(5)).toBeGreaterThan(studioLoraStrengthScale(1));
+  });
+  it('repairs a scene-only prompt with the exact selected intensity contract', () => {
+    const scene = 'She stands beside the bedroom window in late afternoon light.';
+    for (const intensity of [1, 2, 3, 4, 5] as const) {
+      const prompt = ensureStudioFluxPrompt({ prompt: scene, category: 'female', intensity });
+      expect(studioPromptSatisfiesIntensity(prompt, intensity)).toBe(true);
+      expect(prompt).toContain('bedroom window');
+      expect(prompt.length).toBeLessThanOrEqual(650);
+    }
   });
   it('shows category-specific genitals from level 3 onward', () => {
     const level2 = {
