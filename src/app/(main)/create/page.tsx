@@ -468,7 +468,7 @@ export default function CreatePage() {
 
       {/* Scrollable content */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-3 pb-6">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-6xl">
           <AnimatePresence mode="wait">
 
             {/* ─── Step 0: Preview (style + gender) ─────────────────────── */}

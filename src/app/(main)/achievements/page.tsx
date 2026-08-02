@@ -92,7 +92,7 @@ export default function AchievementsPage() {
         backHref="/"
       />
 
-      <div className="px-4 sm:px-6 max-w-5xl mx-auto space-y-4">
+      <div className="px-4 sm:px-6 max-w-7xl mx-auto space-y-4">
         <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff2e88]/15 via-black/40 to-[#a855f7]/10 p-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-white">
@@ -135,7 +135,7 @@ export default function AchievementsPage() {
             No achievements yet. Open admin AI modules and seed Heat achievements, then chat to progress.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {filtered.map((ach) => {
               const progress = ach.user_progress || { unlocked: false, progress_value: 0, reward_claimed: false };
               const rarity = RARITY_CONFIG[ach.rarity || 'common'] || RARITY_CONFIG.common;

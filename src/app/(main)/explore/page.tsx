@@ -152,7 +152,7 @@ export default function ExplorePage() {
 
       {/* Filters bar */}
       <section className="sticky top-0 z-20 border-y border-[#ff2e88]/12 bg-[#08040e]/85 backdrop-blur-2xl">
-        <div className="mx-auto max-w-6xl px-3 sm:px-6 py-2.5 sm:py-3 space-y-2.5">
+        <div className="mx-auto max-w-7xl px-3 sm:px-6 py-2.5 sm:py-3 space-y-2.5">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative flex-1 min-w-[min(100%,140px)]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ff6ba6]/50" />
@@ -227,8 +227,8 @@ export default function ExplorePage() {
 
       {/* Card grid — gacha style */}
       <section className="px-4 sm:px-6 py-6">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
             {girls.map((girl) => (
               <button
                 key={girl.id}

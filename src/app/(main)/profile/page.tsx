@@ -380,7 +380,7 @@ export default function ProfilePage() {
 
       {/* Player card banner */}
       <section className="relative px-4 sm:px-6 pt-4 overflow-hidden">
-        <div className="relative mx-auto max-w-3xl">
+        <div className="relative mx-auto max-w-6xl">
           <GamePanel glow className="p-5 sm:p-6">
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -425,7 +425,7 @@ export default function ProfilePage() {
       </section>
 
       {/* Tabs */}
-      <div className={cn('mx-auto px-4 sm:px-8 mt-5', activeTab === 'dashboard' ? 'max-w-3xl xl:max-w-6xl' : 'max-w-3xl')}>
+      <div className="mx-auto px-4 sm:px-8 mt-5 max-w-3xl xl:max-w-6xl">
         <div className="flex gap-1 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
           {([
             { id: 'dashboard', label: t('profile.tabHome'), icon: Activity },
@@ -449,7 +449,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className={cn('mx-auto px-4 sm:px-8 py-6 space-y-4', activeTab === 'dashboard' ? 'max-w-3xl xl:max-w-6xl' : 'max-w-3xl')}>
+      <div className="mx-auto px-4 sm:px-8 py-6 space-y-4 max-w-3xl xl:max-w-6xl">
         {/* ═══════════ DASHBOARD TAB ═══════════ */}
         {activeTab === 'dashboard' && (
           <>
@@ -484,7 +484,7 @@ export default function ProfilePage() {
                     {locale === 'zh' ? '暂无可购买的创建卡' : 'No creation cards available right now'}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                     {cardProducts.map((p) => {
                       const amount = Math.max(1, Number(p.virtual_meta?.card_amount || 1));
                       const promoVideo = String(p.virtual_meta?.video_url || '');

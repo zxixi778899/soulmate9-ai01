@@ -42,7 +42,7 @@ export function LanguageSwitcher({ variant = 'default' }: { variant?: 'default' 
           className="flex items-center gap-1 rounded-full glass h-9 sm:h-10 px-2 sm:px-2.5 text-xs text-white/70 hover:text-white transition-colors shrink-0"
         >
           <Globe className="h-3.5 w-3.5" />
-          <span>{current?.nativeLabel || 'EN'}</span>
+          <span className="hidden min-[420px]:inline">{current?.nativeLabel || 'EN'}</span>
         </button>
         {open && (
           <>

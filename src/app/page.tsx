@@ -605,7 +605,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between gap-3 mb-3">
             <div>
               <div className="game-chip mb-1">
-                <Flame className="h-3 w-3" /> HOT · 4×5
+                <Flame className="h-3 w-3" /> HOT · TOP 20
               </div>
               <h3 className="text-lg font-bold">{t('home.hotTitle')}</h3>
               <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
@@ -643,7 +643,7 @@ export default function HomePage() {
           </div>
 
           {/* 桌面端：4 列网格 */}
-          <div className="hidden sm:grid sm:grid-cols-4 gap-3">
+          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {hotList.map((g, i) => (
               <HotCard
                 key={g.id}

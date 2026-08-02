@@ -135,7 +135,7 @@ export default function SummonPage() {
       </section>
 
       <section className="relative z-10 mt-12 px-4 sm:px-8 pb-20">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-7xl">
           {pulling ? (
             <div className="flex items-center justify-center py-20">
               <motion.div className="text-2xl font-bold tracking-[0.4em] text-[#ff2e88]"

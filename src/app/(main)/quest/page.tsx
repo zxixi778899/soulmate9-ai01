@@ -108,7 +108,7 @@ export default function QuestPage() {
       <NeonGridBackground />
 
       <section className="relative z-10 pt-6 px-4 sm:px-8">
-        <div className="mx-auto max-w-5xl text-center">
+        <div className="mx-auto max-w-7xl text-center">
           <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.4em] text-[#ffd700]">
             <Trophy className="h-3 w-3" /> Quest · Achievements · Daily
           </div>
@@ -121,7 +121,7 @@ export default function QuestPage() {
 
       {/* Daily check-in — real streak + real token rewards */}
       <section className="relative z-10 mt-8 px-4 sm:px-8">
-        <div className="mx-auto max-w-3xl">
+        <div className="mx-auto max-w-5xl">
           <div className="flex items-center justify-between mb-3 px-2">
             <div className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
               <CalendarCheck className="h-3.5 w-3.5" /> Daily Check-In
@@ -211,12 +211,12 @@ export default function QuestPage() {
 
       {/* Main quests — progress synced from real activity */}
       <section className="relative z-10 mt-10 px-4 sm:px-8 pb-20">
-        <div className="mx-auto max-w-3xl">
+        <div className="mx-auto max-w-5xl">
           <div className="flex items-center justify-between mb-3 px-2">
             <div className="text-[10px] uppercase tracking-wider text-zinc-500">Main Quests</div>
             <div className="text-[10px] text-zinc-600">Progress syncs with your real activity</div>
           </div>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {QUESTS.map((q, i) => {
               const rs = RARITY_STYLES[q.rarity];
               const Icon = q.icon;

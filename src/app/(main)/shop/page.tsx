@@ -88,7 +88,7 @@ const CREDITS_GRADIENT = 'from-amber-400 to-orange-600';
 const SEATS_GRADIENT = 'from-cyan-500 to-blue-700';
 
 /** Unified shelf grid — identical across every collection. */
-const GRID = 'grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4';
+const GRID = 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4';
 
 /** Crypto options offered at checkout (NOWPayments). */
 const CRYPTO_PAY_OPTIONS = [
@@ -598,7 +598,7 @@ export default function ShopPage() {
 
       {/* ── collection tabs ─────────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 bg-[#0d0613]/85 backdrop-blur-xl border-b border-white/5">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex gap-2 overflow-x-auto no-scrollbar">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex gap-2 overflow-x-auto no-scrollbar">
           {tabs.map((tb) => {
             const Icon = tb.icon;
             const active = tab === tb.id;
@@ -631,7 +631,7 @@ export default function ShopPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl px-4 sm:px-8 py-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-8 py-6">
         {/* ── outfits ─────────────────────────────────────────────────────── */}
         {tab === 'outfit' && (
           <section>
