@@ -84,6 +84,36 @@ export async function GET(req: NextRequest) {
     usersScanned = userIds.size;
 
     for (const pair of pairs.values()) {
+      // ── 3-day silence rule: stop proactive if user hasn't replied for 3 consecutive days ──
+      const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString();
+      const { data: lastUserMsg } = await sb
+        .from('chat_messages')
+        .select('created_at')
+        .eq('user_id', pair.user_id)
+        .eq('girlfriend_id', pair.girlfriend_id)
+        .eq('role', 'user')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      const lastReplyAt = lastUserMsg?.[0]?.created_at;
+      if (!lastReplyAt || lastReplyAt < threeDaysAgo) {
+        const windowStart = lastReplyAt || '1970-01-01T00:00:00.000Z';
+        const { data: proactiveSinceReply } = await sb
+          .from('proactive_message_log')
+          .select('sent_at')
+          .eq('user_id', pair.user_id)
+          .eq('girlfriend_id', pair.girlfriend_id)
+          .gte('sent_at', windowStart)
+          .order('sent_at', { ascending: false })
+          .limit(30);
+        const distinctDays = new Set(
+          (proactiveSinceReply || []).map((r: { sent_at: string }) => r.sent_at.slice(0, 10)),
+        );
+        if (distinctDays.size >= 3) {
+          skipped++;
+          continue;
+        }
+      }
+
       // Daily cap via log
       let already = 0;
       try {

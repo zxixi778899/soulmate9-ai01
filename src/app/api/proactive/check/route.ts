@@ -73,6 +73,36 @@ export async function POST(request: NextRequest) {
     }> = [];
 
     for (const gf of girlfriends) {
+      // ── 3-day silence rule: stop proactive if user hasn't replied for 3 consecutive days ──
+      if (!force) {
+        const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString();
+        const { data: lastUserReply } = await client
+          .from('chat_messages')
+          .select('created_at')
+          .eq('user_id', user.id)
+          .eq('girlfriend_id', gf.id)
+          .eq('role', 'user')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        const lastReplyAt = lastUserReply?.[0]?.created_at;
+        // If user never replied OR last reply was more than 3 days ago
+        if (!lastReplyAt || lastReplyAt < threeDaysAgo) {
+          const windowStart = (lastReplyAt || '1970-01-01T00:00:00.000Z');
+          const { data: proactiveSinceReply } = await client
+            .from('proactive_message_log')
+            .select('sent_at')
+            .eq('user_id', user.id)
+            .eq('girlfriend_id', gf.id)
+            .gte('sent_at', windowStart)
+            .order('sent_at', { ascending: false })
+            .limit(30);
+          const distinctDays = new Set(
+            (proactiveSinceReply || []).map((r: { sent_at: string }) => r.sent_at.slice(0, 10)),
+          );
+          if (distinctDays.size >= 3) continue; // 3+ days of unanswered proactive → stop
+        }
+      }
+
       // How many proactive msgs already today for this pair + when the last went out
       let already = 0;
       let lastSentAt: string | null = null;

@@ -13,7 +13,7 @@ import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal
 import { CardMedia } from '@/components/discover/CardMedia';
 import { GIRLS, type DemoGirl, RARITY_COLORS } from '@/lib/demo-data';
 import { fetchCompanionCatalog } from '@/lib/companions';
-import { openCompanionChat } from '@/lib/ensure-companion';
+import { ensureCompanionChatId } from '@/lib/ensure-companion';
 import {
   GameShell, GamePrimaryButton, RarityBadge,
 } from '@/components/game/GameShell';
@@ -105,21 +105,27 @@ export default function ExplorePage() {
         }
       }
       try {
-        const ok = await openCompanionChat(girl, router);
-        if (!ok) {
-          toast.error('Could not open chat — please log in');
+        const chatId = await ensureCompanionChatId(girl);
+        if (!chatId) {
+          toast.error('添加失败 — 请先登录');
           router.push('/login');
+          return;
         }
+        toast.success(`已添加 ${girl.name} 到好友列表`, {
+          description: '前往消息页开始聊天',
+          action: { label: '去聊天', onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
+        });
+        setSelected(null);
       } catch (err) {
         const e = err as Error & { code?: string };
         if (e.code === 'SEAT_LIMIT') {
-          toast.error('Friend seats full', {
-            description: 'Upgrade membership or buy permanent seats',
+          toast.error('好友位已满', {
+            description: '升级会员或购买永久好友位',
             action: { label: 'Buy seats', onClick: () => router.push('/pricing') },
           });
           return;
         }
-        toast.error(e.message || 'Failed to add friend');
+        toast.error(e.message || '添加好友失败');
       }
     } finally {
       setSelecting(false);
@@ -282,7 +288,7 @@ export default function ExplorePage() {
                       }}
                       className="mt-2 w-full h-8 rounded-lg text-[10px] font-black tracking-[0.15em] bg-gradient-to-r from-[#ff2e88] to-[#c026d3] flex items-center justify-center active:scale-95"
                     >
-                      {girl.locked ? 'UNLOCK' : 'SELECT'}
+                      {girl.locked ? 'UNLOCK' : 'ADD'}
                     </div>
                   </div>
                 </div>

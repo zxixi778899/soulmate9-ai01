@@ -21,7 +21,7 @@ import {
 import { toast } from 'sonner';
 import { GIRLS, RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
 import { fetchCompanionCatalog } from '@/lib/companions';
-import { openCompanionChat } from '@/lib/ensure-companion';
+import { ensureCompanionChatId } from '@/lib/ensure-companion';
 import { readResponseJson } from '@/lib/safe-json';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
 import { CardMedia } from '@/components/discover/CardMedia';
@@ -316,11 +316,16 @@ export default function HomePage() {
         );
         girl = { ...girl, locked: false, is_unlocked: true };
       }
-      const ok = await openCompanionChat(girl, router);
-      if (!ok) {
+      const chatId = await ensureCompanionChatId(girl);
+      if (!chatId) {
         toast.error(t('home.chatFail'));
         router.push('/login');
+        return;
       }
+      toast.success(`已添加 ${girl.name} 到好友列表`, {
+        description: '前往消息页开始聊天',
+        action: { label: '去聊天', onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
+      });
     } catch (err) {
       const e = err as Error & { code?: string };
       if (e.code === 'SEAT_LIMIT') {

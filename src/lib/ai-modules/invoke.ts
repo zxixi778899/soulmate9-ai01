@@ -26,7 +26,7 @@ function recordFailure(ep: ModelEndpoint, error?: unknown): void {
 function recordSuccess(ep: ModelEndpoint): void { circuits.delete(ep.id); }
 async function completion(ep: ModelEndpoint, messages: Array<{ role: string; content: string }>, temperature: number, maxTokens: number): Promise<string> {
   const apiBase = base(ep); const apiKey = key(ep); if (!apiBase) throw new Error(`api_base_url missing for ${ep.id}`); if (!apiKey) throw new Error(`API key missing for ${ep.id}`);
-  const doFetch = (thinkingOff: boolean) => fetch(`${apiBase}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: ep.model_id, messages, max_tokens: maxTokens, temperature, ...(thinkingOff ? { enable_thinking: false, chat_template_kwargs: { enable_thinking: false } } : {}) }), signal: AbortSignal.timeout(ep.timeout_ms || 30000) });
+  const doFetch = (thinkingOff: boolean) => fetch(`${apiBase}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: ep.model_id, messages, max_tokens: maxTokens, temperature, ...(thinkingOff ? { enable_thinking: false, chat_template_kwargs: { enable_thinking: false } } : {}) }), signal: AbortSignal.timeout(ep.timeout_ms || 90000) });
   // Qwen3-family models default to thinking mode on vLLM servers; the reasoning
   // trace can eat the whole max_tokens budget and leave `content` empty.
   // DashScope (Bailian) hosts Qwen family only — same guard applies.

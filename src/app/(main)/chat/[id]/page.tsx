@@ -168,7 +168,17 @@ export default function ChatPage() {
     const cached = loadChatCache(id);
     if (cached?.messages?.length) {
       try {
-        setMessages(mergeMessages([], cached.messages) as Message[]);
+        // Filter out stale generation-wait placeholders (older than 5 min)
+        // that would otherwise render as forever-spinning GeneratingCards.
+        const GEN_WAIT_TTL = 5 * 60 * 1000;
+        const freshCached = (cached.messages as Message[]).filter((m) => {
+          const mid = String(m.id || '');
+          if (!mid.startsWith('selfie-wait-') && !mid.startsWith('video-wait-')) return true;
+          const ts = /(?:selfie|video)-wait-(\d+)/.exec(mid);
+          if (!ts) return false;
+          return Date.now() - Number(ts[1]) < GEN_WAIT_TTL;
+        });
+        setMessages(mergeMessages([], freshCached) as Message[]);
       } catch {
         setMessages([]);
       }
@@ -468,6 +478,14 @@ export default function ChatPage() {
     const age = Date.now() - (job.startedAt || 0);
     if (!job.job_id || age > 4 * 60 * 1000) {
       clearGenJob(id);
+      // Remove any stale wait placeholders that may have been restored from cache
+      setMessages((prev) =>
+        prev.filter(
+          (m) =>
+            !String(m.id).startsWith('selfie-wait-') &&
+            !String(m.id).startsWith('video-wait-'),
+        ),
+      );
       return;
     }
     resumedGenRef.current = true;
@@ -530,6 +548,38 @@ export default function ChatPage() {
     return () => { stopped = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isLoading]);
+
+  // Safety net: auto-expire any generation wait placeholders older than 5 min
+  // (handles tab suspension, crashed polling loops, etc.)
+  useEffect(() => {
+    if (invalidChatId) return;
+    const GEN_WAIT_TTL = 5 * 60 * 1000;
+    const iv = setInterval(() => {
+      setMessages((prev) => {
+        const stale = prev.filter((m) => {
+          const mid = String(m.id || '');
+          if (!mid.startsWith('selfie-wait-') && !mid.startsWith('video-wait-')) return false;
+          const ts = /(?:selfie|video)-wait-(\d+)/.exec(mid);
+          return ts ? Date.now() - Number(ts[1]) > GEN_WAIT_TTL : true;
+        });
+        if (!stale.length) return prev;
+        const zh = String(locale || '').toLowerCase().startsWith('zh');
+        const cleaned = prev.filter((m) => !stale.some((s) => s.id === m.id));
+        return [
+          ...cleaned,
+          {
+            id: `selfie-err-${Date.now()}`,
+            role: 'assistant' as const,
+            content: zh
+              ? '照片生成超时了…稍后再让我试一次好不好？'
+              : 'Photo generation timed out… want me to try again?',
+            created_at: new Date().toISOString(),
+          },
+        ];
+      });
+    }, 30_000);
+    return () => clearInterval(iv);
+  }, [invalidChatId, locale]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -897,14 +947,8 @@ export default function ChatPage() {
           media_type: 'image',
         };
         setMessages((prev) => [...prev, newMsg]);
-        const waitMsg: Message = {
-          id: waitId,
-          role: 'assistant',
-          content: waitText,
-          created_at: new Date().toISOString(),
-        };
         saveChatCache(id, {
-          messages: [...messages, waitMsg, newMsg].slice(-200).map((m) => ({
+          messages: [...messages, newMsg].slice(-200).map((m) => ({
             id: m.id,
             role: m.role,
             content: m.content,
@@ -1304,16 +1348,21 @@ export default function ChatPage() {
         const last = prev[prev.length - 1];
         const mood = deriveMood(last?.content, nextIntimacy.score);
         saveChatCache(id, {
-          messages: prev.map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            created_at: m.created_at,
-            is_proactive: m.is_proactive,
-            media_url: m.media_url,
-            media_type: m.media_type,
-            status: m.status,
-          })),
+          messages: prev
+            .filter((m) => {
+              const mid = String(m.id || '');
+              return !mid.startsWith('selfie-wait-') && !mid.startsWith('video-wait-');
+            })
+            .map((m) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              created_at: m.created_at,
+              is_proactive: m.is_proactive,
+              media_url: m.media_url,
+              media_type: m.media_type,
+              status: m.status,
+            })),
           intimacy: nextIntimacy,
           mood: mood.label,
         });

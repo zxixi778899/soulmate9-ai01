@@ -502,6 +502,13 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
         locale: 'en',
         rolloutPercent: 100,
       });
+      // Prompt optimization is a short utility task — prefer the faster 9B endpoint
+      // (0-3 workers, lower cold-start risk) over the 30B primary used for chat.
+      const fastEp = resolved.fallbackChain.find((ep) => ep.id === 'runpod-qwen35-9b-abliterated');
+      if (fastEp && resolved.endpoint.id === 'runpod-qwen3-30b-roleplay') {
+        resolved.fallbackChain = [resolved.endpoint, ...resolved.fallbackChain.filter((ep) => ep.id !== fastEp.id)];
+        resolved.endpoint = fastEp;
+      }
       const result = await invokeChat({
         endpoint: resolved.endpoint,
         fallbackEndpoints: resolved.fallbackChain,
@@ -518,8 +525,25 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
         routeReason: resolved.routeReason,
       });
       const raw = result.content;
-      const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-      const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+      const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      // The LLM is instructed to return {"scene": "..."} but may answer in plain prose.
+      // Tolerate every shape so a healthy LLM is never discarded just because it skipped JSON.
+      let parsed: Record<string, unknown> = {};
+      try {
+        const jsonValue = JSON.parse(cleaned) as unknown;
+        if (jsonValue && typeof jsonValue === 'object') {
+          parsed = jsonValue as Record<string, unknown>;
+        } else if (typeof jsonValue === 'string') {
+          parsed = { scene: jsonValue };
+        }
+      } catch {
+        const sceneMatch = cleaned.match(/"scene"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+        if (sceneMatch) {
+          parsed = { scene: sceneMatch[1].replace(/\\"/g, '"') };
+        } else if (cleaned) {
+          parsed = { scene: cleaned };
+        }
+      }
       const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
       const sceneSemantics = normalizeLlmImageScene(parsed, fallbackSemantics);
       const optimizedScene = String(parsed.scene || parsed.prompt || '').replace(/\s+/g, ' ').trim();

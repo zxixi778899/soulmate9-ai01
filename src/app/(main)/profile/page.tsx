@@ -2,22 +2,24 @@
 
 /**
  * Player profile / settings — game account hub
+ * Enhanced: VIP panel with expiry + credits, card-style friends, full settings
  */
 
 import { useTranslation } from '@/lib/i18n/context';
+import { LOCALES, type Locale } from '@/lib/i18n/types';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
-import { authedFetch } from '@/lib/supabase';
+import { authedFetch, createBrowserClient } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Heart, Crown, MessageCircle, LogOut, Star, ShoppingBag, Shirt,
   Settings, Package, CreditCard, Sparkles, Loader2, Check, Trophy,
   Bell, ExternalLink, Users, Activity, Gift, AlertTriangle, Trash2,
+  Coins, Calendar, RefreshCw, Camera, Globe, User, ChevronRight,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { notifyDataChange } from '@/hooks/useDataSync';
@@ -73,19 +75,32 @@ interface GirlfriendOption {
   id: string;
   name: string;
   portrait_url: string;
+  avatar_url?: string;
+}
+
+interface SubscriptionInfo {
+  subscriptionEnd: string | null;
+  subscriptionStatus: string | null;
+  billingInterval: string | null;
 }
 
 type Tab = 'dashboard' | 'assets' | 'settings';
 
-const TIER_META: Record<string, { label: string; color: string }> = {
-  free: { label: 'Free', color: 'text-white/50' },
-  basic: { label: 'Basic', color: 'text-sky-400' },
-  pro: { label: 'Pro', color: 'text-purple-400' },
-  unlimited: { label: 'Unlimited', color: 'text-amber-400' },
+const TIER_META: Record<string, { label: string; color: string; gradient: string }> = {
+  free: { label: 'Free', color: 'text-white/50', gradient: 'from-white/10 to-white/5' },
+  basic: { label: 'Basic', color: 'text-sky-400', gradient: 'from-sky-500/20 to-sky-900/10' },
+  pro: { label: 'Pro', color: 'text-purple-400', gradient: 'from-purple-500/20 to-purple-900/10' },
+  unlimited: { label: 'Unlimited', color: 'text-amber-400', gradient: 'from-amber-500/20 to-amber-900/10' },
 };
 
+const GENDER_OPTIONS = [
+  { value: 'male', labelEn: 'Male', labelZh: '男' },
+  { value: 'female', labelEn: 'Female', labelZh: '女' },
+  { value: 'other', labelEn: 'Other', labelZh: '其他' },
+] as const;
+
 export default function ProfilePage() {
-  const { t } = useTranslation();
+  const { t, locale, setLocale } = useTranslation();
   const { settings: siteSettings } = useSiteSettings();
   const { user, signOut } = useAuth();
   const router = useRouter();
@@ -96,7 +111,10 @@ export default function ProfilePage() {
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState(user?.user_metadata?.display_name || '');
+  const [gender, setGender] = useState(user?.user_metadata?.gender || '');
+  const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata?.avatar_url || '');
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [backpackItems, setBackpackItems] = useState<BackpackItem[]>([]);
   const [girlfriends, setGirlfriends] = useState<GirlfriendOption[]>([]);
@@ -104,6 +122,8 @@ export default function ProfilePage() {
   const [giftTarget, setGiftTarget] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [subInfo, setSubInfo] = useState<SubscriptionInfo>({ subscriptionEnd: null, subscriptionStatus: null, billingInterval: null });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProfile = useCallback(async () => {
     const [memData, wardrobeData, notifData, backpackData, girlfriendsData] = await Promise.all([
@@ -122,6 +142,11 @@ export default function ProfilePage() {
     }
     setMembershipTier(memData.tier || 'free');
     setCredits(memData.credits_remaining || 0);
+    setSubInfo({
+      subscriptionEnd: memData.subscription_end || null,
+      subscriptionStatus: memData.subscription_status || null,
+      billingInterval: memData.billing_interval || null,
+    });
     setAssets(
       ((wardrobeData.items || []) as Array<Record<string, unknown>>).map((w) => ({
         id: String(w.id),
@@ -147,11 +172,17 @@ export default function ProfilePage() {
   const saveProfile = async () => {
     setSaving(true);
     try {
+      // Save display_name to profiles table
       const res = await authedFetch('/api/membership', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: displayName }),
       });
+      // Save gender + avatar to user_metadata via Supabase Auth
+      const sb = createBrowserClient();
+      if (sb) {
+        await sb.auth.updateUser({ data: { gender, avatar_url: avatarUrl } });
+      }
       if (res.ok) {
         toast.success(t('profile.saved'));
         notifyDataChange('membership');
@@ -160,6 +191,30 @@ export default function ProfilePage() {
       toast.error(t('profile.networkError'));
     }
     setSaving(false);
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(locale === 'zh' ? '图片不能超过5MB' : 'Image must be under 5MB');
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'avatars');
+      const res = await authedFetch('/api/upload', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      setAvatarUrl(data.url || data.key);
+      toast.success(locale === 'zh' ? '头像已上传，记得点保存' : 'Avatar uploaded — remember to save');
+    } catch {
+      toast.error(locale === 'zh' ? '上传失败' : 'Upload failed');
+    }
+    setUploadingAvatar(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleDeleteAccount = async (): Promise<void> => {
@@ -199,7 +254,6 @@ export default function ProfilePage() {
       setGiftTarget('');
       notifyDataChange('girlfriends');
       notifyDataChange('wardrobe');
-      // Refresh backpack
       authedFetch('/api/backpack')
         .then((r) => r.json())
         .then((d) => setBackpackItems((d.items || []) as BackpackItem[]))
@@ -210,6 +264,18 @@ export default function ProfilePage() {
   };
 
   const tier = TIER_META[membershipTier] || TIER_META.free;
+
+  const formatExpiry = (iso: string | null): string => {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    return d.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+    });
+  };
+
+  const isExpired = subInfo.subscriptionEnd
+    ? new Date(subInfo.subscriptionEnd) < new Date()
+    : false;
 
   if (loading) {
     return (
@@ -242,7 +308,7 @@ export default function ProfilePage() {
               <div className="relative">
                 <div className="absolute inset-0 rounded-full bg-[#ff2e88]/40 blur-md game-pulse-ring" />
                 <Avatar className="relative h-20 w-20 ring-2 ring-[#ff2e88]/50">
-                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarImage src={avatarUrl || user?.user_metadata?.avatar_url} />
                   <AvatarFallback className="bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] text-xl font-bold">
                     {(displayName || user?.email || '?').charAt(0).toUpperCase()}
                   </AvatarFallback>
@@ -306,8 +372,71 @@ export default function ProfilePage() {
       </div>
 
       <div className="mx-auto max-w-3xl px-4 sm:px-8 py-6 space-y-4">
+        {/* ═══════════ DASHBOARD TAB ═══════════ */}
         {activeTab === 'dashboard' && (
           <>
+            {/* My Companions — card-style, click to chat */}
+            <GameSectionTitle title={locale === 'zh' ? '我的伴侣' : 'My Companions'} eyebrow="PARTNERS" />
+            {girlfriends.length === 0 ? (
+              <GamePanel className="p-8 text-center">
+                <Users className="h-10 w-10 mx-auto text-white/15 mb-3" />
+                <div className="text-sm text-white/40 mb-4">
+                  {locale === 'zh' ? '还没有伴侣，去卡池探索吧' : 'No companions yet — explore the card pool'}
+                </div>
+                <GamePrimaryButton className="h-10 px-5" onClick={() => router.push('/explore')}>
+                  <Sparkles className="h-4 w-4" /> {locale === 'zh' ? '去探索' : 'Explore'}
+                </GamePrimaryButton>
+              </GamePanel>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {girlfriends.map((gf) => (
+                  <button
+                    key={gf.id}
+                    onClick={() => router.push(`/chat/${gf.id}`)}
+                    className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:border-[#FF2D78]/50 hover:shadow-[0_0_20px_rgba(255,45,120,0.15)] transition-all active:scale-[0.97] text-left"
+                  >
+                    <div className="relative aspect-[3/4]">
+                      {gf.portrait_url ? (
+                        <img
+                          src={gf.portrait_url}
+                          alt={gf.name}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#FF2D78]/30 to-[#8b5cf6]/30 flex items-center justify-center">
+                          <span className="text-3xl font-black text-white/60">
+                            {gf.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                      {/* Chat button overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FF2D78]/90 text-white text-xs font-medium shadow-lg">
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          {locale === 'zh' ? '聊天' : 'Chat'}
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 p-2.5">
+                        <div className="text-sm font-bold truncate text-white">{gf.name}</div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+                {/* Add new companion card */}
+                <button
+                  onClick={() => router.push('/explore')}
+                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/[0.12] bg-white/[0.02] hover:border-[#FF2D78]/40 hover:bg-[#FF2D78]/5 transition-all min-h-[160px]"
+                >
+                  <div className="h-10 w-10 rounded-full bg-white/[0.06] flex items-center justify-center">
+                    <Sparkles className="h-5 w-5 text-white/30" />
+                  </div>
+                  <span className="text-xs text-white/30">{locale === 'zh' ? '探索更多' : 'Explore'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Quick access shortcuts */}
             <GameSectionTitle title={t('profile.shortcuts')} eyebrow="HUB" />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
@@ -356,9 +485,9 @@ export default function ProfilePage() {
           </>
         )}
 
+        {/* ═══════════ ASSETS TAB ═══════════ */}
         {activeTab === 'assets' && (
           <>
-            {/* Wardrobe / skins section */}
             <GameSectionTitle title={t('profile.skinsTitle')} subtitle={`${assets.length} ${t('profile.items')}`} eyebrow="INVENTORY" />
             {assets.length === 0 ? (
               <GamePanel className="p-10 text-center text-white/40 text-sm">
@@ -379,7 +508,7 @@ export default function ProfilePage() {
                       {a.tier}
                       {a.equipped && (
                         <span className="text-emerald-400 flex items-center gap-0.5">
-                          <Check className="h-3 w-3" /> 已装备
+                          <Check className="h-3 w-3" /> {locale === 'zh' ? '已装备' : 'Equipped'}
                         </span>
                       )}
                     </div>
@@ -388,7 +517,6 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Backpack items section */}
             <div className="mt-6">
               <GameSectionTitle title={t('profile.bagTitle')} subtitle={`${backpackItems.length} ${t('profile.items')}`} eyebrow="BACKPACK" />
               {backpackItems.length === 0 ? (
@@ -404,11 +532,9 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {backpackItems.map((item) => (
                     <GamePanel key={item.id} className="p-3 relative group">
-                      {/* Quantity badge */}
                       <div className="absolute top-2 right-2 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-[#FF2D78] text-[10px] font-bold text-white px-1.5">
                         x{item.quantity}
                       </div>
-                      {/* Rarity indicator */}
                       <div className={cn(
                         'absolute top-2 left-2 h-1.5 w-8 rounded-full',
                         item.product.rarity === 'legendary' && 'bg-amber-400',
@@ -416,7 +542,6 @@ export default function ProfilePage() {
                         item.product.rarity === 'rare' && 'bg-blue-500',
                         item.product.rarity === 'common' && 'bg-white/20',
                       )} />
-                      {/* Item preview */}
                       <div className="mt-3 mb-2">
                         {item.product.preview_url ? (
                           <img
@@ -434,7 +559,6 @@ export default function ProfilePage() {
                       <div className="text-[10px] text-white/40 mt-0.5 line-clamp-2 min-h-[28px]">
                         {item.product.description}
                       </div>
-                      {/* Gift button */}
                       <button
                         onClick={() => {
                           setGiftingItem(item.product.id);
@@ -452,51 +576,197 @@ export default function ProfilePage() {
           </>
         )}
 
+        {/* ═══════════ SETTINGS TAB ═══════════ */}
         {activeTab === 'settings' && (
           <>
-            <GameSectionTitle title={t('profile.settingsTitle')} eyebrow="SETTINGS" />
-            <GamePanel className="p-5 space-y-4">
+            {/* ── VIP Membership Panel ── */}
+            <GameSectionTitle title={locale === 'zh' ? 'VIP 会员' : 'VIP Membership'} eyebrow="MEMBERSHIP" />
+            <GamePanel className={cn('p-5 bg-gradient-to-br border', tier.gradient, membershipTier !== 'free' ? 'border-amber-500/20' : 'border-white/[0.08]')}>
+              {/* Tier header */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#ffd700]/25 to-[#ff2e88]/25 border border-[#ffd700]/30 flex items-center justify-center shrink-0">
+                  <Crown className={cn('h-6 w-6', tier.color)} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className={cn('font-bold text-base flex items-center gap-2', tier.color)}>
+                    {tier.label}
+                    {membershipTier !== 'free' && subInfo.subscriptionStatus === 'active' && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+                        {locale === 'zh' ? '生效中' : 'Active'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-white/40 mt-0.5">
+                    {membershipTier === 'free'
+                      ? (locale === 'zh' ? '升级解锁 NSFW、AI 照片与无限聊天' : 'Upgrade to unlock NSFW, AI photos & unlimited chat')
+                      : (locale === 'zh' ? '随时管理或取消你的订阅' : 'Manage or cancel your subscription anytime')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Expiry + billing info */}
+              {membershipTier !== 'free' && (
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className="rounded-xl bg-white/[0.05] border border-white/[0.06] p-3">
+                    <div className="flex items-center gap-1.5 text-[10px] text-white/40 mb-1">
+                      <Calendar className="h-3 w-3" />
+                      {locale === 'zh' ? '到期时间' : 'Expires'}
+                    </div>
+                    <div className={cn('text-sm font-semibold', isExpired ? 'text-red-400' : 'text-white/90')}>
+                      {formatExpiry(subInfo.subscriptionEnd)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.05] border border-white/[0.06] p-3">
+                    <div className="flex items-center gap-1.5 text-[10px] text-white/40 mb-1">
+                      <RefreshCw className="h-3 w-3" />
+                      {locale === 'zh' ? '计费周期' : 'Billing'}
+                    </div>
+                    <div className="text-sm font-semibold text-white/90">
+                      {subInfo.billingInterval === 'year'
+                        ? (locale === 'zh' ? '年付' : 'Yearly')
+                        : subInfo.billingInterval === 'month'
+                          ? (locale === 'zh' ? '月付' : 'Monthly')
+                          : '--'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Credits display */}
+              <div className="rounded-xl bg-white/[0.05] border border-white/[0.06] p-3.5 mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Coins className="h-5 w-5 text-amber-400" />
+                    <div>
+                      <div className="text-lg font-bold text-amber-300 tabular-nums">{credits}</div>
+                      <div className="text-[10px] text-white/40">{locale === 'zh' ? '可用积分' : 'Available credits'}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => router.push('/wallet')}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/90 to-orange-500/90 text-white text-xs font-semibold hover:from-amber-400 hover:to-orange-400 transition-all active:scale-95 shadow-lg shadow-amber-500/20"
+                  >
+                    <Coins className="h-3.5 w-3.5" />
+                    {locale === 'zh' ? '购买积分' : 'Buy Credits'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Renew / Upgrade button */}
+              <GamePrimaryButton className="w-full h-11" onClick={() => router.push('/pricing')}>
+                <Crown className="h-4 w-4" />
+                {membershipTier === 'free'
+                  ? (locale === 'zh' ? '升级会员' : 'Upgrade Now')
+                  : isExpired
+                    ? (locale === 'zh' ? '续费会员' : 'Renew Subscription')
+                    : (locale === 'zh' ? '管理订阅' : 'Manage Subscription')}
+              </GamePrimaryButton>
+            </GamePanel>
+
+            {/* ── Account Settings ── */}
+            <GameSectionTitle title={t('profile.settingsTitle')} eyebrow="PROFILE" />
+            <GamePanel className="p-5 space-y-5">
+              {/* Avatar */}
+              <div className="flex items-center gap-4">
+                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                  <Avatar className="h-16 w-16 ring-2 ring-[#ff2e88]/30">
+                    <AvatarImage src={avatarUrl || user?.user_metadata?.avatar_url} />
+                    <AvatarFallback className="bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] text-lg font-bold">
+                      {(displayName || user?.email || '?').charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {uploadingAvatar ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-white" />
+                    ) : (
+                      <Camera className="h-5 w-5 text-white" />
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => void handleAvatarUpload(e)}
+                  />
+                </div>
+                <div className="text-xs text-white/40">
+                  {locale === 'zh' ? '点击头像更换' : 'Click avatar to change'}
+                  <br />
+                  <span className="text-white/25">JPG / PNG, max 5MB</span>
+                </div>
+              </div>
+
+              {/* Display name */}
               <div>
-                <label className="text-xs text-white/40 mb-1.5 block">{t('profile.displayName')}</label>
+                <label className="text-xs text-white/40 mb-1.5 flex items-center gap-1.5">
+                  <User className="h-3 w-3" /> {t('profile.displayName')}
+                </label>
                 <Input
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={locale === 'zh' ? '输入显示名称' : 'Enter display name'}
                   className="bg-white/5 border-white/10"
                 />
               </div>
+
+              {/* Gender */}
+              <div>
+                <label className="text-xs text-white/40 mb-1.5 block">
+                  {locale === 'zh' ? '性别' : 'Gender'}
+                </label>
+                <div className="flex gap-2">
+                  {GENDER_OPTIONS.map((g) => (
+                    <button
+                      key={g.value}
+                      onClick={() => setGender(g.value)}
+                      className={cn(
+                        'flex-1 h-10 rounded-xl text-sm font-medium border transition-all',
+                        gender === g.value
+                          ? 'bg-[#FF2D78]/20 border-[#FF2D78]/50 text-[#ff6ba6]'
+                          : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:text-white hover:border-white/20',
+                      )}
+                    >
+                      {locale === 'zh' ? g.labelZh : g.labelEn}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Email (read-only) */}
               <div>
                 <label className="text-xs text-white/40 mb-1.5 block">{t('profile.email')}</label>
                 <Input value={user?.email || ''} disabled className="bg-white/5 border-white/10 opacity-60" />
               </div>
-              <GamePrimaryButton className="w-full h-11" disabled={saving} onClick={saveProfile}>
+
+              {/* Language */}
+              <div>
+                <label className="text-xs text-white/40 mb-1.5 flex items-center gap-1.5">
+                  <Globe className="h-3 w-3" /> {locale === 'zh' ? '语言' : 'Language'}
+                </label>
+                <div className="relative">
+                  <select
+                    value={locale}
+                    onChange={(e) => setLocale(e.target.value as Locale)}
+                    className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-[#FF2D78]/50"
+                  >
+                    {LOCALES.map((l) => (
+                      <option key={l.code} value={l.code} className="bg-[#1a1a2e] text-white">
+                        {l.nativeLabel}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 rotate-90 pointer-events-none" />
+                </div>
+              </div>
+
+              <GamePrimaryButton className="w-full h-11" disabled={saving} onClick={() => void saveProfile()}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 {t('profile.save')}
               </GamePrimaryButton>
             </GamePanel>
 
-            <GameSectionTitle title={t('profile.subscription')} eyebrow="VIP" />
-            <GamePanel className="p-5 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#ffd700]/20 to-[#ff2e88]/20 border border-[#ffd700]/30 flex items-center justify-center shrink-0">
-                <Crown className={cn('h-5 w-5', tier.color)} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className={cn('font-bold text-sm flex items-center gap-1.5', tier.color)}>
-                  {tier.label}
-                  {membershipTier === 'free' && (
-                    <span className="text-[10px] text-white/40 font-normal">· {credits} {t('profile.creditsUnit')}</span>
-                  )}
-                </div>
-                <div className="text-xs text-white/40 mt-0.5">
-                  {membershipTier === 'free'
-                    ? t('profile.subFreeHint')
-                    : t('profile.subPaidHint')}
-                </div>
-              </div>
-              <GamePrimaryButton className="!h-10 !px-4 text-xs shrink-0" onClick={() => router.push('/pricing')}>
-                {membershipTier === 'free' ? t('profile.upgrade') : t('profile.manage')}
-              </GamePrimaryButton>
-            </GamePanel>
-
+            {/* ── Danger Zone ── */}
             <GameSectionTitle title={t('profile.dangerTitle')} eyebrow="DANGER" />
             <GamePanel className="p-5 border-red-500/20 space-y-3">
               <div className="flex items-start gap-3">

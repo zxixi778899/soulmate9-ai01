@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const today = new Date().toISOString().split('T')[0];
 
   // Parallelize independent reads — was 4 sequential round-trips.
-  const [profileResult, todayMessagesResult, totalGirlfriendsResult, topIntimacyResult] =
+  const [profileResult, todayMessagesResult, totalGirlfriendsResult, topIntimacyResult, subscriptionResult] =
     await Promise.all([
       client
         .from('profiles')
@@ -35,12 +35,21 @@ export async function GET(req: NextRequest) {
         .order('score', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      client
+        .from('subscriptions')
+        .select('current_period_end, status, billing_interval, plan_id')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'trialing', 'past_due'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
   const profile = profileResult.data;
   const todayMessages = todayMessagesResult.count;
   const totalGirlfriends = totalGirlfriendsResult.count;
   const topIntimacy = topIntimacyResult.data;
+  const subscription = subscriptionResult.data;
   const tier = profile?.membership_tier || 'free';
 
   // Quotas aligned with MEMBERSHIP_TIERS (competitor-aligned).
@@ -127,6 +136,9 @@ export async function GET(req: NextRequest) {
     ...currentPlan,
     max_girlfriends: seats.effectiveLimit,
     seats,
+    subscription_end: subscription?.current_period_end || null,
+    subscription_status: subscription?.status || null,
+    billing_interval: subscription?.billing_interval || null,
     usage: {
       messages_sent_today: todayMessages || 0,
       total_girlfriends: totalGirlfriends || 0,
