@@ -18,7 +18,7 @@ import {
 } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/LockedPortrait';
-import { openCompanionChat } from '@/lib/ensure-companion';
+import { ensureCompanionChatId } from '@/lib/ensure-companion';
 import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
@@ -88,11 +88,17 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
         girl = { ...girl, locked: false, is_unlocked: true };
         setGirls((prev) => prev.map((g) => (g.id === girl.id ? { ...g, locked: false, is_unlocked: true } : g)));
       }
-      const ok = await openCompanionChat(girl, router);
-      if (!ok) {
-        toast.error('Could not open chat — please log in');
+      const chatId = await ensureCompanionChatId(girl);
+      if (!chatId) {
+        toast.error('添加失败 — 请先登录');
         router.push('/login');
+        return;
       }
+      toast.success(`已添加 ${girl.name} 到好友列表`, {
+        description: '前往消息页开始聊天',
+        action: { label: '去聊天', onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
+      });
+      setSelected(null);
     } catch (err) {
       const e = err as Error & { code?: string };
       if (e.code === 'SEAT_LIMIT') {

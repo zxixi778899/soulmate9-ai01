@@ -168,9 +168,9 @@ export default function ChatPage() {
     const cached = loadChatCache(id);
     if (cached?.messages?.length) {
       try {
-        // Filter out stale generation-wait placeholders (older than 5 min)
+        // Filter out stale generation-wait placeholders (older than 2 min)
         // that would otherwise render as forever-spinning GeneratingCards.
-        const GEN_WAIT_TTL = 5 * 60 * 1000;
+        const GEN_WAIT_TTL = 2 * 60 * 1000;
         const freshCached = (cached.messages as Message[]).filter((m) => {
           const mid = String(m.id || '');
           if (!mid.startsWith('selfie-wait-') && !mid.startsWith('video-wait-')) return true;
@@ -476,7 +476,7 @@ export default function ChatPage() {
     let job: { job_id?: string; endpoint_id?: string; startedAt?: number; req?: string } = {};
     try { job = JSON.parse(raw); } catch { job = {}; }
     const age = Date.now() - (job.startedAt || 0);
-    if (!job.job_id || age > 4 * 60 * 1000) {
+    if (!job.job_id || age > 2 * 60 * 1000) {
       clearGenJob(id);
       // Remove any stale wait placeholders that may have been restored from cache
       setMessages((prev) =>
@@ -508,7 +508,7 @@ export default function ChatPage() {
     ]);
     let stopped = false;
     (async () => {
-      const remaining = Math.max(5, Math.floor((4 * 60 * 1000 - age) / 3000));
+      const remaining = Math.max(5, Math.floor((2 * 60 * 1000 - age) / 3000));
       for (let p = 0; p < remaining; p++) {
         if (stopped || cancelGenRef.current || genSessionRef.current !== session) break;
         await new Promise((r) => setTimeout(r, 3000));
@@ -549,11 +549,11 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isLoading]);
 
-  // Safety net: auto-expire any generation wait placeholders older than 5 min
+  // Safety net: auto-expire any generation wait placeholders older than 2 min
   // (handles tab suspension, crashed polling loops, etc.)
   useEffect(() => {
     if (invalidChatId) return;
-    const GEN_WAIT_TTL = 5 * 60 * 1000;
+    const GEN_WAIT_TTL = 2 * 60 * 1000;
     const iv = setInterval(() => {
       setMessages((prev) => {
         const stale = prev.filter((m) => {
