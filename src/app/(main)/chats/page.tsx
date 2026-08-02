@@ -262,14 +262,14 @@ export default function ChatsPage() {
   // ── Load friend list ──
   const loadList = useCallback(async () => {
     const [gfData, msgData, intData] = await Promise.all([
-      authedFetch('/api/girlfriends').then((r) => r.json()),
+      authedFetch('/api/friends').then((r) => r.json()),
       authedFetch('/api/chat/last-messages').then((r) => r.json()),
       authedFetch('/api/intimacy').then((r) => r.json()).catch(() => ({ scores: [] })),
     ]);
-    setFriends(gfData.girlfriends || []);
+    setFriends(gfData.friends || gfData.girlfriends || []);
     const msgMap: Record<string, LastMessage> = {};
     (msgData.messages || []).forEach((m: LastMessage) => { msgMap[m.girlfriend_id] = m; });
-    (gfData.girlfriends || []).forEach((g: Friend) => {
+    (gfData.friends || gfData.girlfriends || []).forEach((g: Friend) => {
       const cache = loadChatCache(g.id);
       const last = cache?.messages?.[cache.messages.length - 1];
       if (last) {
@@ -355,7 +355,7 @@ export default function ChatsPage() {
     if (!window.confirm(confirmMsg)) return;
     setDeletingId(gf.id);
     try {
-      const res = await authedFetch(`/api/girlfriends?id=${encodeURIComponent(gf.id)}`, { method: 'DELETE' });
+      const res = await authedFetch(`/api/friends?id=${encodeURIComponent(gf.id)}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const errMsg = (data as { error?: string }).error || (zh ? '操作失败' : 'Action failed');

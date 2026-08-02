@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
 import { assertCanAddCompanion } from '@/lib/companion-seats';
 
+/**
+ * POST /api/girlfriends/add-from-public
+ * 添加公共伴侣为好友（引用式，不克隆）。
+ * 兼容旧接口签名：body { slug }
+ */
 export async function POST(request: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(request);
+  const { user, client } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -14,18 +18,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'slug is required' }, { status: 400 });
   }
 
-  // Check if user already owns a girlfriend with this slug
-  const { data: existing } = await client
+  // Fetch the public girlfriend
+  const { data: publicGf, error: fetchError } = await client
     .from('girlfriends')
-    .select('id, name')
-    .eq('user_id', user.id)
+    .select('id, name, slug, avatar_url, portrait_url, personality, short_description, character_card')
+    .eq('is_public', true)
     .eq('slug', slug)
+    .eq('review_status', 'approved')
+    .maybeSingle();
+
+  if (fetchError || !publicGf) {
+    return NextResponse.json({ error: 'Public girlfriend not found' }, { status: 404 });
+  }
+
+  // Check if already friends
+  const { data: existing } = await client
+    .from('user_friends')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('girlfriend_id', publicGf.id)
     .maybeSingle();
 
   if (existing) {
-    return NextResponse.json({ girlfriend: existing, alreadyOwned: true });
+    return NextResponse.json({ girlfriend: publicGf, alreadyOwned: true });
   }
 
+  // Seat check
   const seatCheck = await assertCanAddCompanion(client, user.id);
   if (!seatCheck.ok) {
     return NextResponse.json(
@@ -34,82 +52,35 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Fetch the public girlfriend data
-  const { data: publicGf, error: fetchError } = await client
-    .from('girlfriends')
-    .select('*')
-    .eq('is_public', true)
-    .eq('slug', slug)
-    .eq('review_status', 'approved')
-    .single();
-
-  if (fetchError || !publicGf) {
-    return NextResponse.json({ error: 'Public girlfriend not found' }, { status: 404 });
-  }
-
-  // Clone to user's collection
-  const insertData: Record<string, unknown> = {
-    user_id: user.id,
-    name: publicGf.name,
-    age: publicGf.age,
-    personality: publicGf.personality || '',
-    backstory: publicGf.backstory || '',
-    tags: publicGf.tags || [],
-    short_description: publicGf.short_description || '',
-    portrait_url: publicGf.portrait_url || null,
-    avatar_url: publicGf.avatar_url || null,
-    // Keep public slug when present so re-add ownership check works; never insert null
-    slug: publicGf.slug || makeGirlfriendSlug(publicGf.name),
-    appearance_hair: publicGf.appearance_hair || null,
-    appearance_hair_color: publicGf.appearance_hair_color || null,
-    appearance_eyes: publicGf.appearance_eyes || null,
-    appearance_body: publicGf.appearance_body || null,
-    appearance_style: publicGf.appearance_style || null,
-    is_public: false,
-    review_status: 'draft',
-    is_pinned: true,
-    pinned_at: new Date().toISOString(),
-    character_card: publicGf.character_card || {
-      name: publicGf.name,
-      age: publicGf.age,
-      description: publicGf.short_description || '',
-      personality: publicGf.personality || '',
-      tags: publicGf.tags || [],
-      first_mes: `*${publicGf.name} smiles warmly at you* Hey there... I've been waiting for you.`,
-    },
-  };
-
-  const { data: girlfriend, error: insertError } = await client
-    .from('girlfriends')
-    .insert(insertData)
-    .select()
-    .single();
+  // Insert friend reference (no clone)
+  const { error: insertError } = await client
+    .from('user_friends')
+    .insert({ user_id: user.id, girlfriend_id: publicGf.id, source: 'public' });
 
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
   // Create initial intimacy score
-  await client
-    .from('intimacy_scores')
-    .insert({
-      user_id: user.id,
-      girlfriend_id: girlfriend.id,
-      score: 10, // Starting with a small boost since user already knows her
-      level: 1,
-      last_daily_reset: new Date().toISOString().split('T')[0],
-    });
+  await client.from('intimacy_scores').insert({
+    user_id: user.id,
+    girlfriend_id: publicGf.id,
+    score: 10,
+    level: 1,
+    last_daily_reset: new Date().toISOString().split('T')[0],
+  });
 
-  const albumUrl = girlfriend.portrait_url || girlfriend.avatar_url;
+  // Initial album
+  const albumUrl = publicGf.portrait_url || publicGf.avatar_url;
   if (albumUrl) {
     await client.from('chat_media').insert({
       user_id: user.id,
-      girlfriend_id: girlfriend.id,
+      girlfriend_id: publicGf.id,
       media_type: 'image',
       url: albumUrl,
       metadata: { source: 'public_friend', asset_role: 'character-art', intimacy_level: 1 },
     });
   }
 
-  return NextResponse.json({ girlfriend, alreadyOwned: false });
+  return NextResponse.json({ girlfriend: publicGf, alreadyOwned: false });
 }

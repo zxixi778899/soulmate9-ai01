@@ -46,8 +46,9 @@ export async function getBonusSeats(client: SeatClient, userId: string): Promise
 }
 
 export async function countOwnedCompanions(client: SeatClient, userId: string): Promise<number> {
+  // Count from user_friends (friend list size = seat usage)
   const { count, error } = await client
-    .from('girlfriends')
+    .from('user_friends')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId);
   if (error) {

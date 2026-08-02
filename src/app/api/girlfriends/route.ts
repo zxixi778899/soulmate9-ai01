@@ -274,6 +274,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Auto-add to friend list (created companions are automatically friends)
+  await client
+    .from('user_friends')
+    .insert({ user_id: user.id, girlfriend_id: girlfriend.id, source: 'created' })
+    .then(({ error: friendErr }) => {
+      if (friendErr) logger.warn('[girlfriends] auto-add friend failed', { error: friendErr.message });
+    });
+
   // Sync: invalidate cached girlfriend lists so other tabs/pages see the new companion
   invalidateGirlfriends();
 

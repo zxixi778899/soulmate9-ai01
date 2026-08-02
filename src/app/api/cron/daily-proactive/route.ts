@@ -59,21 +59,20 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Also include girlfriends never messaged but owned (sample)
-    const { data: owned } = await sb
-      .from('girlfriends')
-      .select('id, user_id, name')
-      .not('user_id', 'is', null)
+    // Also include friends never messaged (from user_friends)
+    const { data: friendRows } = await sb
+      .from('user_friends')
+      .select('user_id, girlfriend_id')
       .order('created_at', { ascending: false })
       .limit(200);
 
-    for (const g of owned || []) {
-      if (!g.user_id) continue;
-      const key = `${g.user_id}:${g.id}`;
+    for (const f of friendRows || []) {
+      if (!f.user_id) continue;
+      const key = `${f.user_id}:${f.girlfriend_id}`;
       if (!pairs.has(key)) {
         pairs.set(key, {
-          user_id: g.user_id,
-          girlfriend_id: g.id,
+          user_id: f.user_id,
+          girlfriend_id: f.girlfriend_id,
           last_at: '1970-01-01',
         });
       }

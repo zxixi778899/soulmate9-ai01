@@ -37,9 +37,21 @@ export async function POST(request: NextRequest) {
   const force = body.force === true && process.env.NODE_ENV !== 'production';
 
   try {
-    let gfQuery = client.from('girlfriends').select('id, name, personality, tags').eq('user_id', user.id);
-    if (onlyId) gfQuery = gfQuery.eq('id', onlyId);
-    const { data: girlfriends, error: gfError } = await gfQuery.limit(40);
+    // Only send proactive messages to friends (user_friends)
+    let friendQuery = client.from('user_friends').select('girlfriend_id').eq('user_id', user.id);
+    if (onlyId) friendQuery = friendQuery.eq('girlfriend_id', onlyId);
+    const { data: friendRows, error: friendError } = await friendQuery.limit(40);
+    if (friendError) {
+      return NextResponse.json({ error: friendError.message }, { status: 500 });
+    }
+    if (!friendRows?.length) {
+      return NextResponse.json({ messages: [], sent: 0 });
+    }
+    const friendGfIds = friendRows.map((r: { girlfriend_id: string }) => r.girlfriend_id);
+    const { data: girlfriends, error: gfError } = await client
+      .from('girlfriends')
+      .select('id, name, personality, tags')
+      .in('id', friendGfIds);
     if (gfError) {
       return NextResponse.json({ error: gfError.message }, { status: 500 });
     }
