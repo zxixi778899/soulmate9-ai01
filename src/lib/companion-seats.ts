@@ -59,18 +59,24 @@ export async function countOwnedCompanions(client: SeatClient, userId: string): 
 
 export async function getSeatStatus(client: SeatClient, userId: string): Promise<SeatStatus> {
   let tier = 'free';
-  let bonus = 0;
   try {
-    const { data } = await client
+    const { data, error } = await client
       .from('profiles')
-      .select('membership_tier, extra_girlfriend_slots')
+      .select('membership_tier')
       .eq('user_id', userId)
       .maybeSingle();
-    tier = (data as { membership_tier?: string } | null)?.membership_tier || 'free';
-    bonus = Math.max(0, Number((data as { extra_girlfriend_slots?: number } | null)?.extra_girlfriend_slots || 0));
+    if (!error) {
+      tier = (data as { membership_tier?: string } | null)?.membership_tier || 'free';
+    } else {
+      logger.warn('[companion-seats] read tier failed', { error: error.message });
+    }
   } catch {
-    bonus = 0;
+    // keep default tier
   }
+  // Bonus seats live in an optional column; read separately so a missing
+  // column never corrupts the tier read above (which would downgrade the user
+  // to 'free' and falsely trigger SEAT_LIMIT).
+  const bonus = await getBonusSeats(client, userId);
   const baseLimit = baseCompanionSeatLimit(tier);
   const used = await countOwnedCompanions(client, userId);
   if (baseLimit < 0) {

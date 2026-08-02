@@ -9,7 +9,7 @@
 import { authedFetch } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { readResponseJson, errorMessageFromUnknown } from '@/lib/safe-json';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
@@ -149,6 +149,7 @@ export default function CreatePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shakeInvalid, setShakeInvalid] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Data Fetching ───────────────────────────────────────────────────────
 
@@ -246,6 +247,20 @@ export default function CreatePage() {
     if (step === 2) return name.trim().length >= 2 && age >= 18 && Boolean(relationship);
     return false;
   }, [step, ethnicity, hairStyle, eyeColor, bodyType, name, age, relationship]);
+
+  // Clear, actionable feedback when the user taps "Create" with an invalid form
+  // (previously only a subtle shake, which read as a broken button).
+  const handleInvalidCreate = useCallback(() => {
+    setShakeInvalid(true);
+    setTimeout(() => setShakeInvalid(false), 600);
+    if (name.trim().length < 2) {
+      setError(zh ? '请先输入角色名字（至少2个字符）才能创建' : 'Enter a name (at least 2 characters) to create');
+      nameInputRef.current?.focus();
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      setError(zh ? '请完善必填信息后再创建' : 'Please complete the required fields');
+    }
+  }, [name, zh]);
 
   // ─── Portrait Generation ───────────────────────────────────────────────
 
@@ -853,6 +868,7 @@ export default function CreatePage() {
                 {/* Name */}
                 <Section title={`${t('creator.name') || (zh ? '名字' : 'Name')} *`}>
                   <input
+                    ref={nameInputRef}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={t('creator.namePlaceholder') || (zh ? '她的名字' : 'Her name')}
@@ -947,8 +963,7 @@ export default function CreatePage() {
                     disabled={saving}
                     onClick={() => {
                       if (!stepValid) {
-                        setShakeInvalid(true);
-                        setTimeout(() => setShakeInvalid(false), 600);
+                        handleInvalidCreate();
                         return;
                       }
                       handleSubmit();
@@ -1010,8 +1025,7 @@ export default function CreatePage() {
             disabled={saving}
             onClick={() => {
               if (!stepValid) {
-                setShakeInvalid(true);
-                setTimeout(() => setShakeInvalid(false), 600);
+                handleInvalidCreate();
                 return;
               }
               handleSubmit();

@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     tags: tags || [],
     short_description: short_description || '',
     avatar_url: avatarKey || null,
-    voice_id: voice_id || null,
+    voice: String(companionMeta.voice || voice_id || ''),
     portrait_url: portraitKey || null,
     appearance_race: appearance_race || null,
     appearance_hair: appearance_hair || null,
