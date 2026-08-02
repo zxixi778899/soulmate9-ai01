@@ -453,8 +453,8 @@ export default function ProfilePage() {
         {/* ═══════════ DASHBOARD TAB ═══════════ */}
         {activeTab === 'dashboard' && (
           <>
-            {/* Creation cards + video showcase — widescreen side-by-side */}
-            <div className="grid gap-4 xl:grid-cols-2">
+            {/* Creation cards (one-row rail) + video showcase below */}
+            <div className="flex flex-col gap-4">
               {/* ── Creation card shop ── */}
               <GamePanel className="p-5">
                 <div className="flex items-center justify-between gap-2 mb-4">
@@ -492,7 +492,7 @@ export default function ProfilePage() {
                       return (
                         <div
                           key={p.id}
-                          className="group relative shrink-0 w-[150px] sm:w-[176px] snap-start rounded-xl overflow-hidden border border-white/[0.08] bg-white/[0.03] hover:border-[#FF2D78]/50 hover:shadow-[0_0_18px_rgba(255,45,120,0.15)] transition-all"
+                          className="group relative shrink-0 w-[220px] sm:w-[260px] snap-start rounded-xl overflow-hidden border border-white/[0.08] bg-white/[0.03] hover:border-[#FF2D78]/50 hover:shadow-[0_0_18px_rgba(255,45,120,0.15)] transition-all"
                         >
                           <div className="relative aspect-[3/4]">
                             {p.preview_url ? (
