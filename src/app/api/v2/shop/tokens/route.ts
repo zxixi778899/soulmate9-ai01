@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
         // Also fetch credit products from admin shop (products table, category=credits)
-    let creditProducts: Array<{ id: string; name: string; token_count: number; bonus_tokens: number; price_cents: number; sort_order: number; is_active: boolean }> = [];
+    let creditProducts: Array<{ id: string; name: string; token_count: number; bonus_tokens: number; price_cents: number; sort_order: number; is_active: boolean; video_url: string; image_url: string }> = [];
     try {
       const sbAdmin = getSupabaseClient();
       const { data: cpRows } = await sbAdmin
@@ -71,6 +71,8 @@ export async function GET(req: NextRequest) {
             price_cents: Number(r.price_cents || 0),
             sort_order: Number(r.display_order || 0),
             is_active: true,
+            video_url: String(meta.video_url || ''),
+            image_url: String(meta.image_url || ''),
           };
         });
       }

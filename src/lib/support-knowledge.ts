@@ -26,12 +26,12 @@ export const SUPPORT_FAQS: FaqItem[] = [
   },
   {
     q: 'What subscription plans are available?',
-    a: 'We offer 4 tiers: Free ($0), Basic ($9.99/mo), Pro ($19.99/mo), and Unlimited ($29.99/mo). Quarterly plans get 15% off, annual plans get 30% off.',
+    a: 'We offer 3 tiers: Free ($0), Pro ($9.99/mo), and Unlimited ($29.99/mo). Yearly billing saves you money: Pro $101.88/yr (save 15%) and Unlimited $287.88/yr (save 20%).',
     category: 'billing',
   },
   {
     q: 'How do I upgrade my plan?',
-    a: 'Go to the Pricing page, choose your plan, and complete payment via Stripe (card) or crypto (NowPayments). Your benefits activate immediately.',
+    a: 'Go to the Pricing page, choose your plan and billing cycle, then pay with USDT (TRC-20) and submit your transaction hash. Our team verifies the payment (usually within 24 hours) and activates your membership.',
     category: 'billing',
   },
   {
@@ -41,7 +41,7 @@ export const SUPPORT_FAQS: FaqItem[] = [
   },
   {
     q: 'What payment methods do you accept?',
-    a: 'We accept credit/debit cards (via Stripe), cryptocurrency (BTC, ETH, USDT via NowPayments), and local payments in Latin America (Pix/TED via NexaPay).',
+    a: 'Memberships are paid with USDT on the TRC-20 network. Credit packs in the Shop can also be purchased with cryptocurrency via NOWPayments.',
     category: 'billing',
   },
   {

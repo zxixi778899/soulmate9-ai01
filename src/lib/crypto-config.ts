@@ -138,13 +138,13 @@ export const PLAN_PRICES: Record<string, number> = {
 
 export const BILLING_MULTIPLIER: Record<string, { multiplier: number; discount: number }> = {
   monthly: { multiplier: 1, discount: 1.0 },
-  yearly: { multiplier: 12, discount: 0.85 }, // Pro 15% off; Unlimited uses override below
+  yearly: { multiplier: 12, discount: 0.85 }, // Pro 15% off; Unlimited 20% off (see YEARLY_PRICES)
 };
 
-/** Yearly prices in cents (hardcoded for accuracy) */
+/** Yearly prices in cents (hardcoded for accuracy — real yearly discount applied) */
 export const YEARLY_PRICES: Record<string, number> = {
-  pro: 11988,      // $119.88 (save 15%)
-  unlimited: 35988, // $359.88 (save 20%)
+  pro: 10188,       // $101.88/yr (save 15% vs 12 x $9.99)
+  unlimited: 28788, // $287.88/yr (save 20% vs 12 x $29.99)
 };
 
 export function getPlanPriceCents(plan: string, billing: string): number {

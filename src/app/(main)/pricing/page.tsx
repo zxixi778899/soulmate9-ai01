@@ -15,13 +15,18 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, Wallet, AlertCircle, Zap } from 'lucide-react';
+import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, Wallet, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMembership } from '@/hooks/useMembership';
 import { useAuth } from '@/components/AuthProvider';
 
 type BillingCycle = 'monthly' | 'yearly';
 
+/**
+ * Membership is purchased with USDT (TRC-20) only.
+ * Yearly prices include the real yearly discount (Pro 15% off, Unlimited 20% off)
+ * and must stay in sync with src/lib/constants.ts + src/lib/crypto-config.ts.
+ */
 const PLANS = [
   {
     id: 'free',
@@ -45,10 +50,10 @@ const PLANS = [
     id: 'pro',
     name: 'Pro',
     priceMonthly: '$9.99',
-    priceYearly: '$119.88',
+    priceYearly: '$101.88',
     periodMonthly: '/month',
     periodYearly: '/year',
-    yearlyNote: 'Save 15% · $9.99/mo',
+    yearlyNote: 'Save 15% · $8.49/mo equivalent',
     color: 'text-purple-400',
     border: 'border-purple-500/30',
     popular: true,
@@ -66,10 +71,10 @@ const PLANS = [
     id: 'unlimited',
     name: 'Unlimited',
     priceMonthly: '$29.99',
-    priceYearly: '$359.88',
+    priceYearly: '$287.88',
     periodMonthly: '/month',
     periodYearly: '/year',
-    yearlyNote: 'Save 20% · $29.99/mo',
+    yearlyNote: 'Save 20% · $23.99/mo equivalent',
     color: 'text-amber-400',
     border: 'border-amber-500/30',
     features: [
@@ -85,32 +90,21 @@ const PLANS = [
   },
 ];
 
-const CRYPTO_CURRENCIES = [
-  { id: 'USDT', name: 'USDT', network: 'TRC-20', icon: '', placeholder: 'TRC-20 tx hash...' },
-  { id: 'BTC', name: 'Bitcoin', network: 'Bitcoin', icon: '', placeholder: 'BTC tx hash...' },
-  { id: 'ETH', name: 'Ethereum', network: 'ERC-20', icon: '', placeholder: 'ETH tx hash...' },
-];
-
-function getPlanPrice(planId: string): string {
-  const prices: Record<string, string> = { pro: '$9.99', unlimited: '$29.99' };
-  return prices[planId] || '$9.99';
-}
-
 function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const canceled = searchParams.get('canceled') === 'true';
-  const [loading, setLoading] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingCycle>('monthly');
 
-  // Crypto payment state
+  // USDT payment state
   const [cryptoPlan, setCryptoPlan] = useState<string | null>(null);
-  const [cryptoCurrency, setCryptoCurrency] = useState('USDT');
+  const [cryptoBilling, setCryptoBilling] = useState<BillingCycle>('monthly');
   const [cryptoPaymentId, setCryptoPaymentId] = useState<string | null>(null);
   const [cryptoWallet, setCryptoWallet] = useState('');
-  const [cryptoNetwork, setCryptoNetwork] = useState('');
+  const [cryptoNetwork, setCryptoNetwork] = useState('TRC-20');
+  const [cryptoAmount, setCryptoAmount] = useState<number | null>(null);
   const [txHash, setTxHash] = useState('');
-  const [cryptoStep, setCryptoStep] = useState<'select' | 'initiating' | 'pay' | 'submitting' | 'done'>('select');
+  const [cryptoStep, setCryptoStep] = useState<'initiating' | 'pay' | 'submitting' | 'done'>('initiating');
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 
   useEffect(() => {
@@ -124,62 +118,55 @@ function PricingContent() {
   const TIER_ORDER: Record<string, number> = { free: 0, pro: 1, unlimited: 2, admin: 3 };
   const currentRank = TIER_ORDER[tier] ?? 0;
 
-  const handleUpgrade = async (planId: string) => {
-    if (planId === 'free') return;
+  const resetCrypto = () => {
+    setCryptoPlan(null);
+    setCryptoPaymentId(null);
+    setCryptoWallet('');
+    setCryptoAmount(null);
+    setTxHash('');
+    setCryptoStep('initiating');
+  };
+
+  const handleCryptoInitiate = async (planId: string) => {
     if (!user) {
       router.push('/register?next=/pricing');
       return;
     }
-    setLoading(planId);
-
-    try {
-      const res = await authedFetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planId, billing }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        // NOTE: do NOT add a fallback here that calls /api/membership POST to
-        // grant the plan directly — that endpoint must never upgrade a user
-        // without a verified Stripe payment. See src/app/api/membership/route.ts.
-        toast.error(data.error || 'Upgrade failed. Please try again.');
-        setLoading(null);
-        return;
-      }
-
-      window.location.href = data.url;
-    } catch {
-      toast.error('Network error. Please try again.');
-    }
-    setLoading(null);
-  };
-
-  const handleCryptoInitiate = async (planId: string, currencyId: string) => {
+    setCryptoPlan(planId);
+    setCryptoBilling(billing);
+    setCryptoPaymentId(null);
+    setCryptoWallet('');
+    setCryptoAmount(null);
+    setTxHash('');
     setCryptoStep('initiating');
     try {
       const res = await authedFetch('/api/crypto/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, currencyId }),
+        body: JSON.stringify({ planId, currencyId: 'usdt-trc20', billing }),
       });
       const data = await res.json();
 
       if (!data.success) {
-        toast.error(data.error || 'Failed to initiate crypto payment');
-        setCryptoStep('select');
+        toast.error(data.error || 'Failed to initiate USDT payment');
+        resetCrypto();
+        return;
+      }
+
+      if (!data.walletAddress) {
+        toast.error('USDT receiving address is not configured yet. Please try again later.');
+        resetCrypto();
         return;
       }
 
       setCryptoPaymentId(data.paymentId);
       setCryptoWallet(data.walletAddress);
-      setCryptoNetwork(data.network);
+      setCryptoNetwork(data.network || 'TRC-20');
+      setCryptoAmount(Number(data.amountUsd) || null);
       setCryptoStep('pay');
     } catch {
       toast.error('Network error. Please try again.');
-      setCryptoStep('select');
+      resetCrypto();
     }
   };
 
@@ -217,6 +204,8 @@ function PricingContent() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  const formatUsd = (n: number) => `$${n.toFixed(2)}`;
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] px-4 sm:px-6 py-8">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -238,7 +227,7 @@ function PricingContent() {
             <h1 className="text-3xl font-bold">Unlock Full Experience</h1>
           </div>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Upgrade anytime — cancel anytime. Secure checkout via Stripe or crypto.
+            Upgrade anytime — cancel anytime. Secure checkout via USDT (TRC-20).
           </p>
 
           {/* Billing toggle */}
@@ -328,45 +317,41 @@ function PricingContent() {
               </CardContent>
 
               <CardFooter className="flex-col gap-2">
-                <Button
-                  onClick={() => handleUpgrade(plan.id)}
-                  className={`w-full h-11 text-sm font-medium ${
-                    plan.id === 'pro'
-                      ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white hover:opacity-90'
-                      : plan.id === 'unlimited'
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-90'
-                      : ''
-                  }`}
-                  variant={plan.id === 'free' || plan.id === tier || (TIER_ORDER[plan.id] ?? 0) <= currentRank ? 'outline' : 'default'}
-                  disabled={loading === plan.id || plan.id === tier || plan.id === 'free' || (TIER_ORDER[plan.id] ?? 0) <= currentRank}
-                >
-                  {loading === plan.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {plan.id === tier
-                    ? 'Current Plan'
-                    : plan.id === 'free'
-                    ? 'Free Forever'
-                    : (TIER_ORDER[plan.id] ?? 0) <= currentRank
-                    ? 'Included in Your Plan'
-                    : !user
-                    ? 'Sign Up to Subscribe'
-                    : ' Pay with Card'}
-                </Button>
-                {plan.id !== 'free' && (
+                {plan.id === 'free' ? (
                   <Button
+                    className="w-full h-11 text-sm font-medium"
                     variant="outline"
-                    size="sm"
-                    className="w-full h-9 text-xs gap-1.5"
-                    onClick={() => {
-                      setCryptoPlan(plan.id);
-                      setCryptoCurrency('USDT');
-                      setTxHash('');
-                      setCryptoStep('select');
-                      setCryptoPaymentId(null);
-                    }}
+                    disabled
                   >
-                    <Wallet className="h-3.5 w-3.5" />
-                    Pay with Crypto
+                    {tier === 'free' ? 'Current Plan' : 'Free Forever'}
                   </Button>
+                ) : (
+                  <Button
+                    onClick={() => handleCryptoInitiate(plan.id)}
+                    className={`w-full h-11 text-sm font-medium gap-1.5 ${
+                      plan.id === 'pro'
+                        ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white hover:opacity-90'
+                        : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-90'
+                    }`}
+                    variant={plan.id === tier || (TIER_ORDER[plan.id] ?? 0) <= currentRank ? 'outline' : 'default'}
+                    disabled={plan.id === tier || (TIER_ORDER[plan.id] ?? 0) <= currentRank}
+                  >
+                    <Wallet className="h-4 w-4" />
+                    {plan.id === tier
+                      ? 'Current Plan'
+                      : (TIER_ORDER[plan.id] ?? 0) <= currentRank
+                      ? 'Included in Your Plan'
+                      : !user
+                      ? 'Sign Up to Subscribe'
+                      : 'Pay with USDT'}
+                  </Button>
+                )}
+                {plan.id !== 'free' && (TIER_ORDER[plan.id] ?? 0) > currentRank && (
+                  <p className="text-[10px] text-muted-foreground/60 text-center">
+                    {billing === 'yearly'
+                      ? `Billed ${plan.priceYearly} once per year via USDT (TRC-20)`
+                      : `Billed ${plan.priceMonthly} per month via USDT (TRC-20)`}
+                  </p>
                 )}
               </CardFooter>
             </Card>
@@ -375,78 +360,29 @@ function PricingContent() {
 
         <div className="mt-12 text-center space-y-4">
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">💳 Card · Stripe</span>
-            <span className="flex items-center gap-1">₿ Crypto · NOWPayments</span>
+            <span className="flex items-center gap-1">₮ USDT · TRC-20</span>
             <span className="flex items-center gap-1">🔒 Secure checkout</span>
             <span className="flex items-center gap-1">✕ Cancel anytime</span>
           </div>
           <p className="text-[11px] text-muted-foreground/50 max-w-lg mx-auto">
             Subscriptions auto-renew until canceled; manage or cancel anytime in Profile. Refunds are handled per our{' '}
-            <a href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms of Service</a>. Prices exclude applicable taxes; tax is calculated at checkout.
+            <a href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms of Service</a>. Prices exclude applicable taxes.
           </p>
         </div>
       </div>
 
-      {/* Crypto Payment Dialog */}
+      {/* USDT Payment Dialog */}
       <Dialog
         open={!!cryptoPlan}
         onOpenChange={(open) => {
-          if (!open) {
-            setCryptoPlan(null);
-            setCryptoStep('select');
-          }
+          if (!open) resetCrypto();
         }}
       >
         <DialogContent className="sm:max-w-md">
-          {cryptoStep === 'select' && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Wallet className="h-5 w-5" />
-                  Pay with Cryptocurrency
-                </DialogTitle>
-                <DialogDescription>
-                  Choose your cryptocurrency to pay for{' '}
-                  <strong className="text-foreground capitalize">{cryptoPlan}</strong>
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-3 py-2">
-                {CRYPTO_CURRENCIES.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      setCryptoCurrency(c.id);
-                      handleCryptoInitiate(cryptoPlan!, c.id);
-                    }}
-                    className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all hover:border-primary/40 hover:bg-muted/20 ${
-                      cryptoCurrency === c.id
-                        ? 'border-primary/40 bg-primary/5'
-                        : 'border-border/40 bg-card/30'
-                    }`}
-                  >
-                    <span className="text-2xl">{c.icon}</span>
-                    <div className="text-left flex-1">
-                      <div className="font-semibold">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">{c.network} Network</div>
-                    </div>
-                    <span className="text-sm text-muted-foreground">
-                      {getPlanPrice(cryptoPlan!)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              <DialogFooter className="text-xs text-muted-foreground">
-                <p>By proceeding, you agree to our payment terms.</p>
-              </DialogFooter>
-            </>
-          )}
-
           {cryptoStep === 'initiating' && (
             <div className="py-12 text-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
-              <p className="text-muted-foreground">Generating payment address...</p>
+              <p className="text-muted-foreground">Preparing your USDT payment...</p>
             </div>
           )}
 
@@ -455,12 +391,15 @@ function PricingContent() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Wallet className="h-5 w-5" />
-                  Send {cryptoCurrency}
+                  Send USDT
                 </DialogTitle>
                 <DialogDescription>
-                  Send exactly <strong className="text-foreground">
-                    {getPlanPrice(cryptoPlan!)} worth of {cryptoCurrency}
-                  </strong> to the address below on the {cryptoNetwork} network.
+                  Pay for <strong className="text-foreground capitalize">{cryptoPlan}</strong>{' '}
+                  ({cryptoBilling}) — send exactly{' '}
+                  <strong className="text-foreground">
+                    {cryptoAmount != null ? `${formatUsd(cryptoAmount)} USDT` : 'USDT'}
+                  </strong>{' '}
+                  to the address below on the {cryptoNetwork} network.
                 </DialogDescription>
               </DialogHeader>
 
@@ -485,7 +424,7 @@ function PricingContent() {
                   </div>
                   <p className="text-xs text-amber-400 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
-                    Only send {cryptoCurrency} on the {cryptoNetwork} network. Other networks will be lost.
+                    Only send USDT on the {cryptoNetwork} network. Other tokens or networks will be lost.
                   </p>
                 </div>
 
@@ -505,7 +444,7 @@ function PricingContent() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Transaction Hash</label>
                   <Input
-                    placeholder={CRYPTO_CURRENCIES.find(c => c.id === cryptoCurrency)?.placeholder || 'Transaction hash...'}
+                    placeholder="TRC-20 tx hash..."
                     value={txHash}
                     onChange={(e) => setTxHash(e.target.value)}
                     className="font-mono text-xs"
@@ -520,10 +459,7 @@ function PricingContent() {
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => {
-                    setCryptoStep('select');
-                    setCryptoPlan(null);
-                  }}
+                  onClick={resetCrypto}
                 >
                   Cancel
                 </Button>
@@ -553,7 +489,7 @@ function PricingContent() {
                   Payment Submitted!
                 </DialogTitle>
                 <DialogDescription>
-                  Your crypto payment has been recorded. Our team will verify your transaction within 24 hours.
+                  Your USDT payment has been recorded. Our team will verify your transaction within 24 hours.
                   You will receive a notification once your membership is activated.
                 </DialogDescription>
               </DialogHeader>
@@ -565,12 +501,18 @@ function PricingContent() {
                     <span className="font-semibold capitalize">{cryptoPlan}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Amount</span>
-                    <span className="font-semibold">{getPlanPrice(cryptoPlan!)}</span>
+                    <span className="text-muted-foreground">Billing</span>
+                    <span className="font-semibold capitalize">{cryptoBilling}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Currency</span>
-                    <span>{cryptoCurrency}</span>
+                    <span className="text-muted-foreground">Amount</span>
+                    <span className="font-semibold">
+                      {cryptoAmount != null ? `${formatUsd(cryptoAmount)} USDT` : '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Network</span>
+                    <span>{cryptoNetwork}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Status</span>
@@ -581,8 +523,7 @@ function PricingContent() {
 
               <DialogFooter>
                 <Button className="w-full" onClick={() => {
-                  setCryptoPlan(null);
-                  setCryptoStep('select');
+                  resetCrypto();
                   router.refresh();
                 }}>
                   Done

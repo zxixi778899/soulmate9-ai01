@@ -1,7 +1,7 @@
 import type { AiModulesConfig, AppLocale, MembershipTier, ModelEndpoint, ResolveChatContext, ResolveImageContext, ResolvedChatCall, ResolvedImageCall } from './types';
 import { createDefaultAiModules } from './defaults';
 
-const NSFW_KEYWORDS = /\b(sex|sexy|nude|naked|fuck|cock|pussy|dick|cum|orgasm|blowjob|anal|breast|nipple|horny|moan|undress|make love|bdsm|spank|ride me|strip|lingerie|aroused|climax)\b/i;
+const NSFW_KEYWORDS = /\b(sex|sexy|nude|naked|fuck|cock|pussy|dick|cum|orgasm|blowjob|anal|breast|nipple|horny|moan|undress|make love|bdsm|spank|ride me|strip|lingerie|aroused|climax)\b|做爱|操你|干你|口交|肛交|裸体|脱光|高潮|呻吟|乳房|乳头|鸡巴|肉棒|小穴|阴蒂|自慰|舔|插进|硬了|湿了|想要你|搞我|弄我|内射|颜射|丝袜|情趣|调教|快感的/i;
 const COMPLEX_HINTS = /remember|last time|you promised|relationship|feelings?|why did|story|continue|roleplay|conflict|memory|还记得|上次|答应|感情|心情|继续|剧情|矛盾|覚えて|recuerd|souviens|erinner/i;
 
 export function detectNsfwIntent(message?: string): boolean { return !!message && NSFW_KEYWORDS.test(message); }
@@ -60,14 +60,7 @@ export function resolveChatCall(input: AiModulesConfig | null | undefined, ctx: 
   ));
   const fallbackIds = route.fallback_endpoint_ids || [cfg.chat.fallback_endpoint_id];
   const softBudget = route.daily_cost_soft_limit_usd; const overBudget = softBudget !== undefined && (ctx.dailyCostUsd || 0) >= softBudget;
-  const rolloutPercent = ctx.rolloutPercent ?? Number(process.env.AI_GATEWAY_V2_ROLLOUT_PERCENT || 10);
-  const enrolled = isGatewayV2Enrolled(ctx.userId, ctx.tier, rolloutPercent);
   if (!cfg.chat.enabled) return resolved(cfg, ctx, [cfg.chat.fallback_endpoint_id], 'sfw', 'module_disabled', suffix, false, 'chat_module_disabled');
-  if (!enrolled) {
-    const controlIds = [route.default_endpoint_id || route.sfw_endpoint_id, ...(route.fallback_endpoint_ids || []), cfg.chat.fallback_endpoint_id];
-    if (wantsAdult) return resolved(cfg, ctx, controlIds, 'sfw', 'v1_control_adult_downgrade', suffix + '\nKeep the reply romantic and suggestive, but fade to black.', false, 'v2_rollout_control');
-    return resolved(cfg, ctx, controlIds, 'sfw', 'v1_control_group', suffix, false, 'v2_rollout_control');
-  }
   if (wantsAdult) {
     if (!route.allow_nsfw || !route.nsfw_endpoint_id) return resolved(cfg, ctx, [route.default_endpoint_id || route.sfw_endpoint_id, ...fallbackIds], 'sfw', 'nsfw_tier_downgrade', `${suffix}\nKeep the reply romantic and suggestive, but fade to black.`, false, 'tier_no_nsfw');
     if ((ctx.intimacyLevel || 1) < cfg.chat.nsfw_min_intimacy) return resolved(cfg, ctx, [route.default_endpoint_id || route.sfw_endpoint_id, ...fallbackIds], 'sfw', 'nsfw_intimacy_downgrade', `${suffix}\nKeep the reply teasing but not explicit until intimacy unlocks.`, false, 'intimacy_locked');

@@ -85,8 +85,8 @@ export async function POST(req: NextRequest) {
 
     // Dynamic price_data when Price IDs are not configured (dev / bootstrap)
     const fallbackAmounts: Record<string, Record<string, number>> = {
-      pro: { monthly: 999, yearly: 11988 },
-      unlimited: { monthly: 2999, yearly: 35988 },
+      pro: { monthly: 999, yearly: 10188 },
+      unlimited: { monthly: 2999, yearly: 28788 },
     };
 
     // Listed prices are tax-exclusive; Stripe Tax adds tax at checkout (customer pays).

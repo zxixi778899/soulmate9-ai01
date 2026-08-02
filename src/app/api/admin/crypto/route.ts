@@ -111,7 +111,7 @@ export async function PATCH(request: Request) {
       await supabase.from('notifications').insert({
         user_id: payment.user_id,
         title: 'Crypto Payment Confirmed ',
-        message: `Your ${payment.plan_id.toUpperCase()} payment via ${payment.currency} has been confirmed!`,
+        message: `Your ${payment.plan_id.toUpperCase()} (${payment.billing || 'monthly'}) payment via ${payment.currency} has been confirmed!`,
         type: 'payment_confirmed',
         link_url: '/profile',
       });

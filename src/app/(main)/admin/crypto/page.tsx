@@ -23,6 +23,7 @@ interface CryptoPayment {
   user_id: string;
   plan_id: string;
   amount_usd: number;
+  billing: string | null;
   currency: string;
   wallet_address: string;
   tx_hash: string | null;
@@ -274,6 +275,16 @@ export default function AdminCryptoPage() {
                         <span className="text-sm text-[#8B8BA3]">
                           {formatAmount(payment.amount_usd)}
                         </span>
+                        <Badge
+                          variant="outline"
+                          className={`${
+                            payment.billing === 'yearly'
+                              ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                              : 'bg-white/[0.06] text-[#8B8BA3] border-white/10'
+                          } border text-[10px] px-2 py-0`}
+                        >
+                          {payment.billing === 'yearly' ? 'Yearly' : 'Monthly'}
+                        </Badge>
                         <Badge
                           variant="outline"
                           className={`${providerCfg.color} border text-[10px] px-2 py-0`}

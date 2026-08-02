@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { CRYPTO_CURRENCIES, PLAN_PRICES } from '@/lib/crypto-config';
+import { CRYPTO_CURRENCIES, PLAN_PRICES, getPlanPriceCents } from '@/lib/crypto-config';
 import { logger } from '@/lib/logger';
+
+/** Membership checkout is USDT-only — map common client aliases to the config id. */
+const CURRENCY_ALIASES: Record<string, string> = {
+  USDT: 'usdt-trc20',
+  usdt: 'usdt-trc20',
+  'USDT-TRC20': 'usdt-trc20',
+  'usdt-trc20': 'usdt-trc20',
+};
 
 export async function POST(request: Request) {
   try {
@@ -11,20 +19,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { planId, currencyId } = await request.json();
+    const { planId, currencyId, billing } = await request.json();
 
     // Validate plan
     if (!planId || !PLAN_PRICES[planId]) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
     }
 
-    // Validate currency
-    const currency = CRYPTO_CURRENCIES.find((c) => c.id === currencyId);
-    if (!currency) {
-      return NextResponse.json({ error: 'Invalid currency' }, { status: 400 });
+    // Validate currency (membership purchases are USDT-only)
+    const normalizedId = CURRENCY_ALIASES[currencyId] ?? currencyId;
+    const currency = CRYPTO_CURRENCIES.find((c) => c.id === normalizedId);
+    if (!currency || currency.id !== 'usdt-trc20') {
+      return NextResponse.json(
+        { error: 'Only USDT (TRC-20) is accepted for membership' },
+        { status: 400 },
+      );
     }
 
-    const amountUsd = PLAN_PRICES[planId];
+    // Billing cycle — yearly pays the discounted yearly price
+    const cycle: 'monthly' | 'yearly' = billing === 'yearly' ? 'yearly' : 'monthly';
+    const amountCents = getPlanPriceCents(planId, cycle);
+    if (!amountCents) {
+      return NextResponse.json({ error: 'Invalid plan price' }, { status: 400 });
+    }
+    // amount_usd is numeric(12,2) storing dollars (e.g. 9.99)
+    const amountUsd = amountCents / 100;
 
     // Create pending payment record in DB
     const supabase = getSupabaseClient();
@@ -36,6 +55,7 @@ export async function POST(request: Request) {
         amount_usd: amountUsd,
         currency: currency.symbol,
         wallet_address: currency.address,
+        billing: cycle,
         status: 'awaiting_payment',
       })
       .select('id')
@@ -52,6 +72,7 @@ export async function POST(request: Request) {
       walletAddress: currency.address,
       network: currency.network,
       currency: currency.symbol,
+      billing: cycle,
       amountUsd,
       minConfirmations: currency.minConfirmations,
     });

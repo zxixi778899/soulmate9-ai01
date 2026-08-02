@@ -33,7 +33,7 @@ export const MEMBERSHIP_TIERS = {
   pro: {
     name: 'Pro',
     price_cents: 999,
-    yearly_price_cents: 11988, // $119.88/yr (save 15%)
+    yearly_price_cents: 10188, // $101.88/yr = 15% off 12 x $9.99 ($8.49/mo equivalent)
     messages_per_day: 300,
     image_gen_per_day: 0, // images via Credits
     tts_per_day: 0, // voice via Credits
@@ -47,7 +47,7 @@ export const MEMBERSHIP_TIERS = {
   unlimited: {
     name: 'Unlimited',
     price_cents: 2999,
-    yearly_price_cents: 35988, // $359.88/yr (save 20%)
+    yearly_price_cents: 28788, // $287.88/yr = 20% off 12 x $29.99 ($23.99/mo equivalent)
     messages_per_day: -1, // fair-use unlimited
     image_gen_per_day: 0, // images via Credits
     tts_per_day: 0, // voice via Credits

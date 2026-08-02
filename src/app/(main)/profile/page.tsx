@@ -17,6 +17,7 @@ import {
   Settings, Package, CreditCard, Sparkles, Loader2, Check, Trophy,
   Bell, ExternalLink, Users, Activity, Gift, AlertTriangle, Trash2,
   Coins, Calendar, RefreshCw, Camera, Globe, User, ChevronRight,
+  Play, Film,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -78,6 +79,22 @@ interface GirlfriendOption {
   avatar_url?: string;
 }
 
+interface CreationCardProduct {
+  id: string;
+  name: string;
+  price_credits: number;
+  preview_url: string;
+  rarity: string;
+  virtual_meta: Record<string, unknown>;
+}
+
+interface RecentVideo {
+  id: string;
+  girlfriend_id: string;
+  url: string;
+  created_at: string;
+}
+
 interface SubscriptionInfo {
   subscriptionEnd: string | null;
   subscriptionStatus: string | null;
@@ -91,6 +108,13 @@ const TIER_META: Record<string, { label: string; color: string; gradient: string
   basic: { label: 'Basic', color: 'text-sky-400', gradient: 'from-sky-500/20 to-sky-900/10' },
   pro: { label: 'Pro', color: 'text-purple-400', gradient: 'from-purple-500/20 to-purple-900/10' },
   unlimited: { label: 'Unlimited', color: 'text-amber-400', gradient: 'from-amber-500/20 to-amber-900/10' },
+};
+
+const RARITY_CHIP_STYLE: Record<string, string> = {
+  legendary: 'bg-gradient-to-r from-[#ffd700] to-[#f59e0b] text-black',
+  epic: 'bg-gradient-to-r from-[#ff2e88] to-[#c026d3] text-white',
+  rare: 'bg-gradient-to-r from-[#00e5ff] to-[#3b82f6] text-black',
+  common: 'bg-white/15 text-white/80',
 };
 
 const GENDER_OPTIONS = [
@@ -118,6 +142,10 @@ export default function ProfilePage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [backpackItems, setBackpackItems] = useState<BackpackItem[]>([]);
   const [girlfriends, setGirlfriends] = useState<GirlfriendOption[]>([]);
+  const [cardProducts, setCardProducts] = useState<CreationCardProduct[]>([]);
+  const [cardBalance, setCardBalance] = useState<number | null>(null);
+  const [buyingProduct, setBuyingProduct] = useState<string | null>(null);
+  const [recentVideos, setRecentVideos] = useState<RecentVideo[]>([]);
   const [giftingItem, setGiftingItem] = useState<string | null>(null);
   const [giftTarget, setGiftTarget] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -126,12 +154,15 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProfile = useCallback(async () => {
-    const [memData, wardrobeData, notifData, backpackData, girlfriendsData] = await Promise.all([
+    const [memData, wardrobeData, notifData, backpackData, girlfriendsData, shopData, cardsData, mediaData] = await Promise.all([
       authedFetch('/api/membership').then((r) => r.json()),
       authedFetch('/api/wardrobe').then((r) => r.json()).catch(() => ({ items: [] })),
       authedFetch('/api/notifications').then((r) => r.json()).catch(() => ({ notifications: [] })),
       authedFetch('/api/backpack').then((r) => r.json()).catch(() => ({ items: [] })),
       authedFetch('/api/girlfriends').then((r) => r.json()).catch(() => ({ girlfriends: [] })),
+      authedFetch('/api/shop/v2/products?limit=60').then((r) => r.json()).catch(() => ({ products: [] })),
+      authedFetch('/api/creator/cards').then((r) => r.json()).catch(() => ({})),
+      authedFetch('/api/media/recent?type=video&limit=12').then((r) => r.json()).catch(() => ({ media: [] })),
     ]);
     if (memData.usage) {
       setStats({
@@ -160,6 +191,17 @@ export default function ProfilePage() {
     setNotifications(notifData.notifications || []);
     setBackpackItems((backpackData.items || []) as BackpackItem[]);
     setGirlfriends((girlfriendsData.girlfriends || []) as GirlfriendOption[]);
+    setCardProducts(
+      (((shopData.products || []) as Array<Record<string, unknown>>).filter(
+        (p) =>
+          p.subcategory === 'creation_card' ||
+          String((p.virtual_meta as Record<string, unknown> | null)?.kind || '') === 'creation_card',
+      ) as unknown as CreationCardProduct[]).sort(
+        (a, b) => Number(a.virtual_meta?.card_amount || 1) - Number(b.virtual_meta?.card_amount || 1),
+      ),
+    );
+    setCardBalance(typeof cardsData.cards === 'number' ? (cardsData.cards as number) : null);
+    setRecentVideos((mediaData.media || []) as RecentVideo[]);
     setLoading(false);
   }, []);
 
@@ -268,6 +310,37 @@ export default function ProfilePage() {
     }
   };
 
+  const buyCreationCard = async (p: CreationCardProduct): Promise<void> => {
+    if (buyingProduct) return;
+    setBuyingProduct(p.id);
+    try {
+      const res = await authedFetch('/api/shop/v2/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: p.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(locale === 'zh' ? '购买成功，创建卡已到账' : 'Purchase successful — cards added');
+        if (typeof data.new_credits_balance === 'number') setCredits(data.new_credits_balance);
+        authedFetch('/api/creator/cards')
+          .then((r) => r.json())
+          .then((s) => { if (typeof s.cards === 'number') setCardBalance(s.cards); })
+          .catch(() => {});
+        notifyDataChange('membership');
+      } else if (res.status === 402) {
+        toast.error(locale === 'zh' ? '积分不足，请先充值' : 'Insufficient credits', {
+          action: { label: locale === 'zh' ? '去充值' : 'Top up', onClick: () => router.push('/wallet') },
+        });
+      } else {
+        toast.error((data as { error?: string }).error || (locale === 'zh' ? '购买失败' : 'Purchase failed'));
+      }
+    } catch {
+      toast.error(t('profile.networkError'));
+    }
+    setBuyingProduct(null);
+  };
+
   const tier = TIER_META[membershipTier] || TIER_META.free;
 
   const formatExpiry = (iso: string | null): string => {
@@ -352,7 +425,7 @@ export default function ProfilePage() {
       </section>
 
       {/* Tabs */}
-      <div className="mx-auto max-w-3xl px-4 sm:px-8 mt-5">
+      <div className={cn('mx-auto px-4 sm:px-8 mt-5', activeTab === 'dashboard' ? 'max-w-3xl xl:max-w-6xl' : 'max-w-3xl')}>
         <div className="flex gap-1 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
           {([
             { id: 'dashboard', label: t('profile.tabHome'), icon: Activity },
@@ -376,10 +449,167 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-3xl px-4 sm:px-8 py-6 space-y-4">
+      <div className={cn('mx-auto px-4 sm:px-8 py-6 space-y-4', activeTab === 'dashboard' ? 'max-w-3xl xl:max-w-6xl' : 'max-w-3xl')}>
         {/* ═══════════ DASHBOARD TAB ═══════════ */}
         {activeTab === 'dashboard' && (
           <>
+            {/* Creation cards + video showcase — widescreen side-by-side */}
+            <div className="grid gap-4 xl:grid-cols-2">
+              {/* ── Creation card shop ── */}
+              <GamePanel className="p-5">
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="game-chip shrink-0">CARDS</div>
+                    <h3 className="text-base font-bold truncate">
+                      {locale === 'zh' ? '伴侣创建卡' : 'Creation Cards'}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {cardBalance !== null && (
+                      <span className="text-[11px] text-cyan-300 flex items-center gap-1 bg-cyan-400/10 border border-cyan-400/25 rounded-full px-2.5 py-1">
+                        <Sparkles className="h-3 w-3" />
+                        {locale === 'zh' ? '持有 ' + cardBalance + ' 张' : cardBalance + ' owned'}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => router.push('/create')}
+                      className="text-[11px] text-white/45 hover:text-white transition-colors"
+                    >
+                      {locale === 'zh' ? '去创建 ›' : 'Create ›'}
+                    </button>
+                  </div>
+                </div>
+                {cardProducts.length === 0 ? (
+                  <div className="py-10 text-center text-white/35 text-xs">
+                    {locale === 'zh' ? '暂无可购买的创建卡' : 'No creation cards available right now'}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {cardProducts.map((p) => {
+                      const amount = Math.max(1, Number(p.virtual_meta?.card_amount || 1));
+                      const promoVideo = String(p.virtual_meta?.video_url || '');
+                      const busy = buyingProduct === p.id;
+                      return (
+                        <div
+                          key={p.id}
+                          className="group relative rounded-xl overflow-hidden border border-white/[0.08] bg-white/[0.03] hover:border-[#FF2D78]/50 hover:shadow-[0_0_18px_rgba(255,45,120,0.15)] transition-all"
+                        >
+                          <div className="relative aspect-[3/4]">
+                            {p.preview_url ? (
+                              <img
+                                src={p.preview_url}
+                                alt={p.name}
+                                loading="lazy"
+                                className={cn(
+                                  'absolute inset-0 w-full h-full object-cover transition-all duration-500',
+                                  promoVideo ? 'group-hover:opacity-0' : 'group-hover:scale-105',
+                                )}
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/25 to-purple-600/25 flex items-center justify-center">
+                                <Sparkles className="h-6 w-6 text-white/40" />
+                              </div>
+                            )}
+                            {promoVideo && (
+                              <video
+                                src={promoVideo}
+                                muted
+                                loop
+                                playsInline
+                                preload="none"
+                                className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                                onMouseEnter={(e) => { e.currentTarget.play().catch(() => {}); }}
+                                onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                              />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/10 pointer-events-none" />
+                            <span className={cn('absolute top-1.5 right-1.5 text-[8px] font-black tracking-wide px-1.5 py-0.5 rounded', RARITY_CHIP_STYLE[p.rarity] || RARITY_CHIP_STYLE.common)}>
+                              {p.rarity.toUpperCase()}
+                            </span>
+                            <div className="absolute bottom-0 left-0 right-0 p-2 pointer-events-none">
+                              <div className="text-[11px] font-bold truncate">{p.name}</div>
+                              <div className="text-[10px] text-cyan-300 flex items-center gap-0.5">
+                                <Sparkles className="h-2.5 w-2.5" />
+                                {locale === 'zh' ? '创建卡' : 'Cards'} x{amount}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => void buyCreationCard(p)}
+                            disabled={busy}
+                            className="w-full flex items-center justify-center gap-1 h-8 text-[11px] font-bold text-white bg-gradient-to-r from-[#FF2D78]/85 to-[#8b5cf6]/85 hover:from-[#FF2D78] hover:to-[#8b5cf6] disabled:opacity-50 transition-all"
+                          >
+                            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Coins className="h-3 w-3" />}
+                            {p.price_credits}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </GamePanel>
+
+              {/* ── Video showcase ── */}
+              <GamePanel className="p-5">
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="game-chip shrink-0">SHOWCASE</div>
+                    <h3 className="text-base font-bold truncate">
+                      {locale === 'zh' ? '视频展示' : 'Video Showcase'}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => router.push('/studio')}
+                    className="shrink-0 text-[11px] text-white/45 hover:text-white flex items-center gap-1 transition-colors"
+                  >
+                    <Film className="h-3 w-3" />
+                    {locale === 'zh' ? '去创作 ›' : 'Create ›'}
+                  </button>
+                </div>
+                {recentVideos.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <Film className="h-9 w-9 mx-auto text-white/15 mb-3" />
+                    <div className="text-xs text-white/35 mb-4">
+                      {locale === 'zh' ? '还没有视频，为你的伴侣生成第一支短片吧' : 'No videos yet — bring your companion to life'}
+                    </div>
+                    <GamePrimaryButton className="!h-9 !px-4 text-xs" onClick={() => router.push('/studio')}>
+                      <Sparkles className="h-3.5 w-3.5" /> {locale === 'zh' ? '生成视频' : 'Generate'}
+                    </GamePrimaryButton>
+                  </div>
+                ) : (
+                  <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+                    {recentVideos.map((v) => (
+                      <div
+                        key={v.id}
+                        onClick={() => router.push('/chat/' + v.girlfriend_id)}
+                        className="group relative w-[112px] shrink-0 aspect-[3/4] rounded-xl overflow-hidden border border-white/[0.08] hover:border-[#FF2D78]/50 cursor-pointer transition-all"
+                      >
+                        <video
+                          src={v.url}
+                          muted
+                          loop
+                          playsInline
+                          preload="metadata"
+                          className="absolute inset-0 w-full h-full object-cover"
+                          onMouseEnter={(e) => { e.currentTarget.play().catch(() => {}); }}
+                          onMouseLeave={(e) => { e.currentTarget.pause(); }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent pointer-events-none" />
+                        <div className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-black/55 flex items-center justify-center pointer-events-none">
+                          <Play className="h-2.5 w-2.5 fill-white text-white" />
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 p-1.5 pointer-events-none">
+                          <div className="text-[10px] font-semibold truncate">
+                            {girlfriends.find((g) => g.id === v.girlfriend_id)?.name || (locale === 'zh' ? '伴侣' : 'Companion')}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </GamePanel>
+            </div>
+
             {/* My Companions — card-style, click to chat */}
             <GameSectionTitle title={locale === 'zh' ? '我的伴侣' : 'My Companions'} eyebrow="PARTNERS" />
             {girlfriends.length === 0 ? (
@@ -393,7 +623,7 @@ export default function ProfilePage() {
                 </GamePrimaryButton>
               </GamePanel>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
                 {girlfriends.map((gf) => (
                   <button
                     key={gf.id}
