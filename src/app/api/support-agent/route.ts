@@ -1,17 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildSupportSystemPrompt } from '@/lib/support-knowledge';
-import { rateLimitMiddleware, RATE_LIMITS } from '@/lib/rate-limit';
+import { rateLimitMiddleware } from '@/lib/rate-limit';
+import { generateText } from '@/lib/llm-service';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 /**
  * POST /api/support-agent
  *
- * AI customer support agent — uses Together AI (SFW, no RunPod needed).
- * Accepts a conversation history and returns a streamed response.
+ * AI customer support agent. Uses the shared llm-service multi-provider chain
+ * (DashScope -> RunPod vLLM -> Together) so it keeps answering even when a
+ * single provider is down or unconfigured. Always responds as SSE in the
+ * `{ content }` shape the SupportAgent client parses, so the bubble never
+ * renders empty.
  */
+
+function sse(content: string): Response {
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream({
+      start(ctrl) {
+        ctrl.enqueue(encoder.encode('data: ' + JSON.stringify({ content }) + '\n\n'));
+        ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
+        ctrl.close();
+      },
+    }),
+    {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    },
+  );
+}
+
 export async function POST(request: NextRequest) {
   // Rate limit: 20 requests per minute per IP
   const ip = request.headers.get('x-forwarded-for') || 'anonymous';
@@ -46,113 +72,29 @@ export async function POST(request: NextRequest) {
   const apiMessages = [
     { role: 'system', content: systemPrompt },
     ...messages.slice(-10), // Keep last 10 messages for context
-  ];
-
-  const apiKey = process.env.TOGETHER_API_KEY;
-  if (!apiKey) {
-    // Fallback: return a static response if Together AI is not configured
-    return NextResponse.json({
-      content: isZh
-        ? '抱歉，客服系统暂时不可用。请稍后再试，或发送邮件至 support@ozmate.love'
-        : 'Sorry, the support system is temporarily unavailable. Please try again later or email support@ozmate.love',
-    });
-  }
+  ] as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
 
   try {
-    const res = await fetch('https://api.together.xyz/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.TOGETHER_CHAT_MODEL || 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
-        messages: apiMessages,
-        max_tokens: 512,
-        temperature: 0.5,
-        top_p: 0.9,
-        stream: true,
-      }),
-      signal: AbortSignal.timeout(30000),
+    const content = await generateText({
+      messages: apiMessages,
+      temperature: 0.5,
+      maxTokens: 512,
+      topP: 0.9,
     });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      logger.error('[support-agent] Together API error', { status: res.status, body: errText.slice(0, 200) });
-      return NextResponse.json({
-        content: isZh
-          ? '抱歉，我现在无法回答。请稍后再试。'
-          : 'Sorry, I cannot answer right now. Please try again later.',
-      });
-    }
-
-    // Stream the response back as SSE
-    const reader = res.body?.getReader();
-    if (!reader) {
-      return NextResponse.json({ error: 'No response body' }, { status: 500 });
-    }
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed || !trimmed.startsWith('data: ')) continue;
-              const dataStr = trimmed.slice(6);
-              if (dataStr === '[DONE]') {
-                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                continue;
-              }
-              try {
-                const parsed = JSON.parse(dataStr);
-                const delta = parsed?.choices?.[0]?.delta?.content;
-                if (typeof delta === 'string' && delta.length > 0) {
-                  controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify({ content: delta })}\n\n`),
-                  );
-                }
-              } catch {
-                // skip malformed SSE
-              }
-            }
-          }
-        } catch (err) {
-          logger.error('[support-agent] stream error', {
-            err: err instanceof Error ? err.message : String(err),
-          });
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    });
+    const reply =
+      content ||
+      (isZh
+        ? '抱歉，我暂时没想到合适的答案。你可以发邮件到 support@ozmate.love。'
+        : "Sorry, I don't have a good answer right now. You can email support@ozmate.love.");
+    return sse(reply);
   } catch (err) {
-    logger.error('[support-agent] failed', {
+    logger.error('[support-agent] generate failed', {
       err: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json({
-      content: isZh
-        ? '抱歉，出现了错误。请稍后再试。'
-        : 'Sorry, an error occurred. Please try again later.',
-    });
+    return sse(
+      isZh
+        ? '抱歉，客服系统暂时繁忙，请稍后再试，或发邮件到 support@ozmate.love。'
+        : 'Sorry, support is busy right now. Please try again later or email support@ozmate.love.',
+    );
   }
 }

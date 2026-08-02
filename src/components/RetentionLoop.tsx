@@ -155,10 +155,12 @@ export default function RetentionLoop() {
           </div>
         </div>
       ) : (
-        <button type="button" onClick={() => setExpanded(true)} className={cn('group relative flex h-[3.25rem] items-center gap-2 rounded-full border bg-[#0d0915]/92 py-2 pl-2 pr-3 shadow-[0_12px_40px_rgba(0,0,0,.45)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-fuchsia-400/40', rewardReady ? 'border-fuchsia-400/35' : 'border-white/10')} aria-label={t('home.moduleQuest') || 'Open daily quests'} aria-expanded="false">
+        <button type="button" onClick={() => setExpanded(true)} className={cn('group relative flex h-11 w-11 items-center justify-center rounded-full border bg-[#0d0915]/92 shadow-[0_12px_40px_rgba(0,0,0,.45)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-fuchsia-400/40 md:h-[3.25rem] md:w-auto md:gap-2 md:py-2 md:pl-2 md:pr-3', rewardReady ? 'border-fuchsia-400/35' : 'border-white/10')} aria-label={t('home.moduleQuest') || 'Open daily quests'} aria-expanded="false">
           {rewardReady ? <span className="absolute -right-0.5 -top-0.5 h-3 w-3 animate-pulse rounded-full border-2 border-[#0d0915] bg-rose-400" /> : null}
           <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-fuchsia-600 text-white shadow-md shadow-fuchsia-500/25"><Flame className="h-4 w-4" /></span>
-          <span className="text-sm font-black tabular-nums text-white">{checkin?.streak ?? 0}</span><span className="h-5 w-px bg-white/10" /><span className="text-xs font-bold tabular-nums text-fuchsia-200">{completedGoals}/{goals.length}</span>
+          <span className="hidden md:flex items-center gap-2">
+            <span className="text-sm font-black tabular-nums text-white">{checkin?.streak ?? 0}</span><span className="h-5 w-px bg-white/10" /><span className="text-xs font-bold tabular-nums text-fuchsia-200">{completedGoals}/{goals.length}</span>
+          </span>
         </button>
       )}
     </aside>
