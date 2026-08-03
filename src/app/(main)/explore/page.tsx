@@ -83,6 +83,11 @@ export default function ExplorePage() {
   };
 
   const handleSelect = async (girl: DemoGirl) => {
+    // Guest → redirect to login before any API call (otherwise 401 "Unauthorized" toast)
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent('/explore')}`);
+      return;
+    }
     setSelecting(true);
     try {
       // Already friends → skip unlock/add and go straight to chat.

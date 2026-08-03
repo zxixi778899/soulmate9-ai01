@@ -297,6 +297,11 @@ export default function HomePage() {
 
   const enterBond = async (girl: DemoGirl = featured!) => {
     if (!girl) return;
+    // Guest → redirect to login before any API call (otherwise 401 "Unauthorized" toast)
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent('/')}`);
+      return;
+    }
     setBonding(true);
     try {
       // Already friends → skip unlock/add and go straight to chat.
