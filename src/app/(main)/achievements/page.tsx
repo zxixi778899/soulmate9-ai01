@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { GameShell } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
-import { syncRewards } from '@/lib/reward-events';
+import { fireRewardEffect, rewardTr } from '@/lib/reward-events';
 
 interface Achievement {
   id: string;
@@ -53,9 +53,6 @@ export default function AchievementsPage() {
 
   useEffect(() => {
     void loadAchievements();
-    // Celebrate any unlocks earned while the user was elsewhere, then
-    // refresh so the list reflects the latest state.
-    void syncRewards({ force: true }).then(() => void loadAchievements());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -66,14 +63,31 @@ export default function AchievementsPage() {
         achievements?: Achievement[];
         total_unlocked?: number;
         source?: string;
+        achievements_unlocked?: Array<{ code: string; name: string; reward: number }>;
       }>(res).catch(() => ({
         achievements: [] as Achievement[],
         total_unlocked: 0,
         source: '',
+        achievements_unlocked: [] as Array<{ code: string; name: string; reward: number }>,
       }));
       setAchievements(data.achievements || []);
       setTotalUnlocked(data.total_unlocked || 0);
       setSource(data.source || '');
+
+      // Celebrate any achievements that just unlocked (endpoint re-evaluates
+      // and pops pending notifications, so this fires exactly once each).
+      const unlocked = data.achievements_unlocked || [];
+      for (const a of unlocked) {
+        fireRewardEffect({
+          kind: 'achievement',
+          title: rewardTr(`ach.${a.code}.name`, a.name),
+          subtitle: rewardTr('quest.achievementUnlocked', 'Achievement unlocked'),
+          reward: a.reward,
+        });
+      }
+      if (unlocked.length > 0) {
+        window.dispatchEvent(new Event('soulmate:credits-updated'));
+      }
     } catch (err) {
       logger.error('Failed to load achievements:', { data: err });
     }
