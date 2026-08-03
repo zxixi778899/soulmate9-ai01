@@ -16,13 +16,14 @@ import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { notifyDataChange } from '@/hooks/useDataSync';
 import {
   Save, ArrowLeft, ArrowRight, Wand2, Loader2, Sparkles, Check, User2,
-  CreditCard,
+  CreditCard, Shuffle,
 } from 'lucide-react';
 import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
 import type { CreatorPreset } from '@/lib/creator-presets';
+import type { CharacterPart, ForgedCombination } from '@/lib/character-parts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,17 @@ export default function CreatePage() {
   const [cardStatus, setCardStatus] = useState<CardStatus | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
+  // Parts library (千人千面 forge)
+  const [parts, setParts] = useState<Record<string, CharacterPart[]>>({});
+  const [forgeTab, setForgeTab] = useState<'forge' | 'preset'>('forge');
+  const [forgeList, setForgeList] = useState<ForgedCombination[]>([]);
+  const [forgeLoading, setForgeLoading] = useState(false);
+  const [forgeSeed, setForgeSeed] = useState<string>(() => Math.random().toString(36).slice(2, 10));
+  const [selectedForge, setSelectedForge] = useState<ForgedCombination | null>(null);
+  const [skinTone, setSkinTone] = useState('Porcelain Fair');
+  const [bustShape, setBustShape] = useState('Soft Natural');
+  const [heightPick, setHeightPick] = useState('Balanced 163cm');
+
   // Form state
   const [visualStyle, setVisualStyle] = useState('realistic');
   const [gender, setGender] = useState('Female');
@@ -161,20 +173,23 @@ export default function CreatePage() {
   const fetchCreatorData = useCallback(async () => {
     setLoadingData(true);
     try {
-      const [optsRes, previewsRes, cardsRes] = await Promise.all([
+      const [optsRes, previewsRes, cardsRes, partsRes] = await Promise.all([
         fetch('/api/creator/presets?section=all'),
         fetch('/api/creator/previews'),
         authedFetch('/api/creator/cards'),
+        fetch('/api/creator/parts'),
       ]);
       const optsData = await readResponseJson<{ presets?: CreatorPreset[]; options?: Record<string, OptionItem[]>; vibes?: Record<string, { en: string; zh: string }> }>(optsRes);
       const previewsData = await readResponseJson<{ previews?: CreatorPreview[] }>(previewsRes);
       const cardsData = await readResponseJson<CardStatus>(cardsRes);
+      const partsData = await readResponseJson<{ categories?: Record<string, CharacterPart[]> }>(partsRes);
 
       if (optsData.options) setOptions(optsData.options);
       if (optsData.presets) setPresets(optsData.presets);
       if (optsData.vibes) setVibes(optsData.vibes);
       if (previewsData.previews) setPreviews(previewsData.previews);
       if (cardsData) setCardStatus(cardsData);
+      if (partsData.categories) setParts(partsData.categories);
     } catch (err) {
       logger.warn('[creator] fetch data failed', { error: String(err) });
     } finally {
@@ -198,6 +213,53 @@ export default function CreatePage() {
   }, []);
 
   useEffect(() => { void fetchOutfits(); }, [fetchOutfits]);
+
+  // ─── Forge (智能组合) ─────────────────────────────────────────────────────
+
+  const fetchForge = useCallback(async (seed: string, genderOverride?: string) => {
+    setForgeLoading(true);
+    try {
+      const g = encodeURIComponent(genderOverride || gender);
+      const res = await fetch(`/api/creator/forge?count=8&gender=${g}&seed=${encodeURIComponent(seed)}`);
+      const data = await readResponseJson<{ combinations?: ForgedCombination[] }>(res);
+      setForgeList(data.combinations || []);
+    } catch (err) {
+      logger.warn('[creator] forge fetch failed', { error: String(err) });
+    } finally {
+      setForgeLoading(false);
+    }
+  }, [gender]);
+
+  useEffect(() => {
+    if (step === 0 && forgeTab === 'forge') void fetchForge(forgeSeed);
+  }, [step, forgeTab, forgeSeed, fetchForge]);
+
+  const shuffleForge = useCallback(() => {
+    setForgeSeed(Math.random().toString(36).slice(2, 10));
+  }, []);
+
+  // Derive the genome (category → part slug) from the current form values
+  const buildGenome = useCallback((): Record<string, string> => {
+    const genome: Record<string, string> = {};
+    const match = (cat: string, value: string) => {
+      const part = (parts[cat] || []).find((p) => p.value.toLowerCase() === value.toLowerCase());
+      if (part) genome[cat] = part.slug;
+    };
+    match('hairstyle', hairStyle);
+    match('hair_color', hairColor);
+    match('face_shape', faceShape);
+    match('body_type', bodyType);
+    match('skin_tone', skinTone);
+    match('eye_color', eyeColor);
+    match('height', heightPick);
+    if (gender !== 'Male') match('breast_shape', bustShape);
+    return genome;
+  }, [parts, hairStyle, hairColor, faceShape, bodyType, skinTone, eyeColor, heightPick, bustShape, gender]);
+
+  // Resolve a part's image-prompt fragment (e.g. 'fair porcelain skin') from a form value
+  const partPrompt = useCallback((cat: string, value: string): string => {
+    return (parts[cat] || []).find((p) => p.value.toLowerCase() === value.toLowerCase())?.prompt_en || '';
+  }, [parts]);
 
   // ─── Option Helpers ──────────────────────────────────────────────────────
 
@@ -226,6 +288,7 @@ export default function CreatePage() {
   }, []);
   const applyPreset = useCallback((preset: CreatorPreset) => {
     setSelectedPreset(preset);
+    setSelectedForge(null);
     setVisualStyle(preset.visual_style);
     setGender(preset.gender);
     setEthnicity(preset.ethnicity);
@@ -247,6 +310,31 @@ export default function CreatePage() {
     setAge(preset.age && preset.age >= 18 ? preset.age : 22);
     setStep(1);
   }, []);
+
+  const applyForge = useCallback((combo: ForgedCombination) => {
+    setSelectedForge(combo);
+    setSelectedPreset(null);
+    setVisualStyle(combo.visual_style);
+    setGender(combo.gender);
+    setAge(combo.age >= 18 ? combo.age : 22);
+    setName((prev) => (prev.trim() ? prev : (locale === 'zh' && combo.name_zh ? combo.name_zh : combo.name)));
+    const pick = (cat: string) => {
+      const slug = (combo.genome as Record<string, string>)[cat];
+      return (parts[cat] || []).find((p) => p.slug === slug) || null;
+    };
+    const hair = pick('hairstyle'); if (hair) setHairStyle(hair.value);
+    const hc = pick('hair_color'); if (hc) setHairColor(hc.value);
+    const face = pick('face_shape'); if (face) setFaceShape(face.value);
+    const body = pick('body_type'); if (body) setBodyType(body.value);
+    const skin = pick('skin_tone'); if (skin) setSkinTone(skin.value);
+    const eyes = pick('eye_color'); if (eyes) setEyeColor(eyes.value);
+    const ht = pick('height'); if (ht) setHeightPick(ht.value);
+    if (combo.gender !== 'Male') {
+      const bust = pick('breast_shape'); if (bust) setBustShape(bust.value);
+    }
+    setShortDescription(zh ? combo.description_zh : combo.description_en);
+    setStep(1);
+  }, [parts, locale, zh]);
 
   // ─── Tag Toggle ─────────────────────────────────────────────────────────
 
@@ -296,6 +384,9 @@ export default function CreatePage() {
           eye_color: eyeColor, body_type: bodyType,
           fashion_style: fashionStyle, appearance_prompt: appearancePrompt,
           personality: selectedTags.join(', '),
+          skin_tone: partPrompt('skin_tone', skinTone) || undefined,
+          bust_shape: gender !== 'Male' ? partPrompt('breast_shape', bustShape) || undefined : undefined,
+          height: partPrompt('height', heightPick) || undefined,
           // M3: let the shared preset portrait cache serve/skip GPU when unchanged
           preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
         }),
@@ -332,7 +423,7 @@ export default function CreatePage() {
     } finally {
       setGeneratingPortrait(false);
     }
-  }, [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, zh, selectedPreset]);
+  }, [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, zh, selectedPreset, partPrompt, skinTone, bustShape, heightPick]);
 
   // ─── Submit ────────────────────────────────────────────────────────────
 
@@ -370,12 +461,27 @@ export default function CreatePage() {
           appearance_body: bodyType,
           appearance_style: fashionStyle,
           appearance_race: ethnicity,
+          appearance_face: faceShape,
+          appearance_skin: skinTone,
+          appearance_breast: gender !== 'Male' ? bustShape : undefined,
+          appearance_height: heightPick,
+          genome: buildGenome(),
           tags: [...selectedTags, ethnicity, occupation, relLabel],
           outfit_id: selectedOutfit,
           avatar_url: portraitUrl || undefined,
           portrait_url: portraitUrl || undefined,
           // Preset soul stamping: only when the preset still matches the chosen gender
           preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
+          // Forge identity (千人千面): soul/greeting/traits stamped server-side
+          forge: selectedForge ? {
+            code: selectedForge.code,
+            vibe: selectedForge.vibe,
+            rarity: selectedForge.rarity,
+            traits: selectedForge.traits,
+            soul_slug: selectedForge.soul_slug || undefined,
+            greeting_en: selectedForge.greeting_en,
+            greeting_zh: selectedForge.greeting_zh,
+          } : undefined,
           locale,
           meta: {
             visual_style: visualStyle, ethnicity, gender,
@@ -415,7 +521,7 @@ export default function CreatePage() {
     name, age, shortDescription, selectedTags, hairStyle, hairColor, eyeColor, bodyType,
     fashionStyle, selectedOutfit, portraitUrl, visualStyle, ethnicity, gender, faceShape,
     voice, occupation, relationship, hobbies, backstory, appearancePrompt, router, zh,
-    getOpts, locale, t, cardStatus, selectedPreset,
+    getOpts, locale, t, cardStatus, selectedPreset, selectedForge, skinTone, bustShape, heightPick, buildGenome,
   ]);
 
   // ─── Render ────────────────────────────────────────────────────────────
@@ -507,8 +613,23 @@ export default function CreatePage() {
                     {t('creator.choosePreset') || (zh ? '选择创建风格' : 'Choose a Style')}
                   </h2>
                   <p className="text-xs text-white/40 mt-1">
-                    {t('creator.presetHint') || (zh ? '先选择画风，再挑选性别模板开始自定义' : 'Pick a style, then choose a gender template to customize')}
+                    {forgeTab === 'forge'
+                      ? (t('creator.forgeHint') || (zh ? '从 80+ 外观零件中随机锻造出独一无二的 TA' : 'Forge a one-of-a-kind persona from 80+ appearance parts'))
+                      : (t('creator.presetHint') || (zh ? '先选择画风，再挑选性别模板开始自定义' : 'Pick a style, then choose a gender template to customize'))}
                   </p>
+                </div>
+
+                {/* Mode tabs: forge (千人千面) vs classic presets */}
+                <div className="flex items-center justify-center gap-2">
+                  <Pill active={forgeTab === 'forge'} onClick={() => setForgeTab('forge')}>
+                    <span className="flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" />
+                      {t('creator.tabForge') || (zh ? '智能组合' : 'Smart Forge')}
+                    </span>
+                  </Pill>
+                  <Pill active={forgeTab === 'preset'} onClick={() => setForgeTab('preset')}>
+                    {t('creator.tabPresets') || (zh ? '经典预设' : 'Classic Presets')}
+                  </Pill>
                 </div>
 
                 {loadingData ? (
@@ -517,7 +638,72 @@ export default function CreatePage() {
                   </div>
                 ) : (
                   <>
-                    {presets.length > 0 && (
+                    {forgeTab === 'forge' && (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          {GENDER_PREVIEWS.map((g) => (
+                            <Pill key={g.value} active={gender === g.value} onClick={() => setGender(g.value)}>
+                              {g.icon} {g.label}
+                            </Pill>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={shuffleForge}
+                            disabled={forgeLoading}
+                            className="px-3 py-1.5 rounded-full text-xs font-medium border border-[#8b5cf6]/40 bg-[#8b5cf6]/10 text-violet-200 hover:bg-[#8b5cf6]/20 transition-all flex items-center gap-1.5 touch-manipulation disabled:opacity-50"
+                          >
+                            <Shuffle className={cn('h-3.5 w-3.5', forgeLoading && 'animate-spin')} />
+                            {t('creator.forgeShuffle') || (zh ? '换一批' : 'Shuffle')}
+                          </button>
+                        </div>
+
+                        {forgeLoading && forgeList.length === 0 ? (
+                          <div className="flex justify-center py-12">
+                            <Loader2 className="h-8 w-8 animate-spin text-white/30" />
+                          </div>
+                        ) : (
+                          <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2 transition-opacity', forgeLoading && 'opacity-60')}>
+                            {forgeList.map((combo) => (
+                              <button
+                                key={combo.code}
+                                type="button"
+                                onClick={() => applyForge(combo)}
+                                className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-[#8b5cf6]/60 hover:bg-white/[0.06]"
+                              >
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                  <span className="flex items-center gap-2 font-semibold text-white">
+                                    {zh && combo.name_zh ? combo.name_zh : combo.name}
+                                    <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-bold', RARITY_STYLE[combo.rarity] || RARITY_STYLE.N)}>
+                                      {combo.rarity}
+                                    </span>
+                                  </span>
+                                  <span className="shrink-0 font-mono text-[10px] text-white/25">#{combo.code}</span>
+                                </div>
+                                <div className="mb-2 flex flex-wrap gap-1">
+                                  {vibes[combo.vibe] && (
+                                    <span className="rounded-full bg-[#FF2D78]/10 px-2 py-1 text-[10px] text-[#FF2D78]/90">
+                                      {zh ? vibes[combo.vibe].zh : vibes[combo.vibe].en}
+                                    </span>
+                                  )}
+                                  {Object.values(combo.part_labels).slice(0, 5).map((label, i) => (
+                                    <span key={i} className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] text-white/50">
+                                      {zh ? label.zh : label.en}
+                                    </span>
+                                  ))}
+                                </div>
+                                <p className="line-clamp-2 text-xs leading-5 text-white/50">
+                                  {zh ? combo.description_zh : combo.description_en}
+                                </p>
+                                <p className="mt-1.5 line-clamp-2 text-[11px] italic leading-4 text-white/30">
+                                  &ldquo;{zh ? combo.greeting_zh : combo.greeting_en}&rdquo;
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {forgeTab === 'preset' && presets.length > 0 && (
                       <div className="space-y-3">
                         {/* Vibe filter chips (M2) */}
                         {Object.keys(vibes).length > 0 && (
@@ -589,6 +775,8 @@ export default function CreatePage() {
                         </div>
                       </div>
                     )}
+                    {forgeTab === 'preset' && (
+                    <>
                     {/* Visual style tabs */}
                     <div className="hidden items-center justify-center gap-2 flex-wrap">
                       {getOpts('visual_style').map((v) => (
@@ -653,6 +841,8 @@ export default function CreatePage() {
                         {t('creator.skipToCustomize') || (zh ? '开始自定义' : 'Customize')} <ArrowRight className="h-4 w-4" />
                       </GamePrimaryButton>
                     </div>
+                    </>
+                    )}
                   </>
                 )}
               </motion.div>
@@ -747,6 +937,17 @@ export default function CreatePage() {
                     </div>
                   </Section>
 
+                  {/* Skin Tone (parts library) */}
+                  <Section title={t('creator.skinTone') || (zh ? '肤色' : 'Skin Tone')}>
+                    <div className="flex flex-wrap gap-2">
+                      {(parts['skin_tone'] || []).map((p) => (
+                        <Pill key={p.slug} active={skinTone === p.value} onClick={() => setSkinTone(p.value)}>
+                          {locale === 'zh' ? p.name_zh : p.name_en}
+                        </Pill>
+                      ))}
+                    </div>
+                  </Section>
+
                   {/* Face Shape */}
                   <Section title={t('creator.faceShape') || (zh ? '脸型' : 'Face Shape')}>
                     <div className="flex flex-wrap gap-2">
@@ -761,6 +962,30 @@ export default function CreatePage() {
                     <div className="flex flex-wrap gap-2">
                       {getOpts('body_type').map((b) => (
                         <Pill key={b.value} active={bodyType === b.value} onClick={() => setBodyType(b.value)}>{getLabel(b, locale)}</Pill>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Bust Shape (parts library, hidden for Male) */}
+                  {gender !== 'Male' && (
+                    <Section title={t('creator.bustShape') || (zh ? '胸型' : 'Bust Shape')}>
+                      <div className="flex flex-wrap gap-2">
+                        {(parts['breast_shape'] || []).map((p) => (
+                          <Pill key={p.slug} active={bustShape === p.value} onClick={() => setBustShape(p.value)}>
+                            {locale === 'zh' ? p.name_zh : p.name_en}
+                          </Pill>
+                        ))}
+                      </div>
+                    </Section>
+                  )}
+
+                  {/* Height (parts library) */}
+                  <Section title={t('creator.height') || (zh ? '身高' : 'Height')}>
+                    <div className="flex flex-wrap gap-2">
+                      {(parts['height'] || []).map((p) => (
+                        <Pill key={p.slug} active={heightPick === p.value} onClick={() => setHeightPick(p.value)}>
+                          {locale === 'zh' ? p.name_zh : p.name_en}
+                        </Pill>
                       ))}
                     </div>
                   </Section>

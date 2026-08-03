@@ -136,8 +136,10 @@ export async function POST(request: NextRequest) {
     tags, short_description,
     appearance_race, appearance_hair, appearance_hair_color,
     appearance_eyes, appearance_body, appearance_style,
+    appearance_face, appearance_skin, appearance_breast, appearance_height,
+    genome,
     outfit_id, portrait_url, meta,
-    preset_id, preset_slug, locale,
+    preset_id, preset_slug, locale, forge,
   } = body;
 
   if (!name) {
@@ -162,6 +164,18 @@ export async function POST(request: NextRequest) {
   const presetSoul = preset?.character_soul || soulForPreset(preset?.slug || (preset_slug ? String(preset_slug) : null));
   const presetGreeting = preset
     ? (zhLocale ? preset.greeting_zh || preset.greeting_en : preset.greeting_en || preset.greeting_zh) || undefined
+    : undefined;
+
+  // ── Forged combination (零件化组合): reuse soul layer by vibe-slug ──
+  const forgeData = forge && typeof forge === 'object' ? (forge as Record<string, unknown>) : null;
+  const forgeSoulSlug = forgeData && typeof forgeData.soul_slug === 'string' ? forgeData.soul_slug.trim() : '';
+  const forgeSoul = !preset && forgeSoulSlug ? soulForPreset(forgeSoulSlug) : null;
+  const forgeGreeting = !preset && forgeData
+    ? String(
+        zhLocale
+          ? forgeData.greeting_zh || forgeData.greeting_en || ''
+          : forgeData.greeting_en || forgeData.greeting_zh || '',
+      ) || undefined
     : undefined;
 
   // Consume a creation card
@@ -200,8 +214,8 @@ export async function POST(request: NextRequest) {
     voice: String(companionMeta.voice || voice_id || preset?.voice || ''),
     visualStyle: String(companionMeta.visual_style || preset?.visual_style || 'realistic'),
     shortDescription: String(short_description || ''),
-    soul: presetSoul,
-    greeting: presetGreeting,
+    soul: presetSoul || forgeSoul || undefined,
+    greeting: presetGreeting || forgeGreeting,
   });
   const insertData: Record<string, unknown> = {
     user_id: user.id,
@@ -222,6 +236,11 @@ export async function POST(request: NextRequest) {
     appearance_eyes: appearance_eyes || null,
     appearance_body: appearance_body || null,
     appearance_style: appearance_style || null,
+    appearance_face: appearance_face || null,
+    appearance_skin: appearance_skin || null,
+    appearance_breast: appearance_breast || null,
+    appearance_height: appearance_height || null,
+    genome: genome && typeof genome === 'object' ? genome : null,
     is_public: false,
     review_status: 'draft',
     is_pinned: true,
@@ -235,6 +254,10 @@ export async function POST(request: NextRequest) {
         eyes: appearance_eyes || '',
         body: appearance_body || '',
         style: appearance_style || '',
+        face: appearance_face || '',
+        skin: appearance_skin || '',
+        breast: appearance_breast || '',
+        height: appearance_height || '',
       },
     },
   };
@@ -269,6 +292,36 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Forged combination identity (千人千面): persist rolled rarity/traits/vibe so
+  // trait prompt builders and catalog filters read real values.
+  if (forgeData) {
+    const clamp01 = (v: unknown) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+    const forgeRarity = String(forgeData.rarity || '');
+    if (['N', 'R', 'SR', 'SSR'].includes(forgeRarity)) insertData.rarity = forgeRarity;
+    const forgeTraits = forgeData.traits && typeof forgeData.traits === 'object'
+      ? (forgeData.traits as Record<string, unknown>)
+      : null;
+    if (forgeTraits) {
+      insertData.base_intimacy = clamp01(forgeTraits.base_intimacy);
+      insertData.base_desire = clamp01(forgeTraits.base_desire);
+      insertData.base_development = clamp01(forgeTraits.base_development);
+      insertData.base_kink = clamp01(forgeTraits.base_kink);
+    }
+    const forgeRel = String(companionMeta.relationship || '');
+    if (forgeRel) insertData.relationship = forgeRel;
+    const forgeOcc = String(companionMeta.occupation || '');
+    if (forgeOcc) insertData.occupation = forgeOcc;
+    const forgeHob = Array.isArray(companionMeta.hobbies)
+      ? companionMeta.hobbies.map(String).join(', ')
+      : String(companionMeta.hobbies || '');
+    if (forgeHob) insertData.hobbies = forgeHob;
+    const forgeVibe = String(forgeData.vibe || '').trim();
+    if (forgeVibe) {
+      const baseTags = Array.isArray(tags) ? tags.map(String) : [];
+      insertData.tags = Array.from(new Set([...baseTags, forgeVibe]));
+    }
+  }
+
   const { data: girlfriend, error } = await client
     .from('girlfriends')
     .insert(insertData)
@@ -279,18 +332,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // ── M4: preset telemetry (best-effort, never blocks creation) ──
-  if (preset && girlfriend) {
+  // ── M4: preset / forge telemetry (best-effort, never blocks creation) ──
+  if ((preset || forgeData) && girlfriend) {
     try {
       const catRows: Array<{ girlfriend_id: string; category_type: string; category_value: string }> = [];
       for (const value of String(personality || '').split(',').map((s) => s.trim()).filter(Boolean)) {
         catRows.push({ girlfriend_id: girlfriend.id, category_type: 'personality', category_value: value });
       }
-      for (const vibe of preset.vibe_tags || []) {
-        catRows.push({ girlfriend_id: girlfriend.id, category_type: 'vibe', category_value: vibe });
-      }
-      if (preset.relationship) {
-        catRows.push({ girlfriend_id: girlfriend.id, category_type: 'relationship', category_value: preset.relationship });
+      if (preset) {
+        for (const vibe of preset.vibe_tags || []) {
+          catRows.push({ girlfriend_id: girlfriend.id, category_type: 'vibe', category_value: vibe });
+        }
+        if (preset.relationship) {
+          catRows.push({ girlfriend_id: girlfriend.id, category_type: 'relationship', category_value: preset.relationship });
+        }
+      } else if (forgeData) {
+        const forgeVibe = String(forgeData.vibe || '').trim();
+        if (forgeVibe) {
+          catRows.push({ girlfriend_id: girlfriend.id, category_type: 'vibe', category_value: forgeVibe });
+        }
+        const forgeCode = String(forgeData.code || '').trim();
+        if (forgeCode) {
+          catRows.push({ girlfriend_id: girlfriend.id, category_type: 'forge_code', category_value: forgeCode });
+        }
+        catRows.push({ girlfriend_id: girlfriend.id, category_type: 'source', category_value: 'forge' });
       }
       if (catRows.length) {
         const { error: catErr } = await client.from('girlfriend_categories').insert(catRows);

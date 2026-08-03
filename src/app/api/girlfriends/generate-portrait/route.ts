@@ -62,6 +62,11 @@ function buildPortraitPrompt(input: {
   bodyType?: string;
   style?: string;
   personality?: string;
+  /** Parts-library (forge genome) fragments: skin tone / bust shape / height / combined extras. */
+  skin_tone?: string;
+  bust_shape?: string;
+  height?: string;
+  genome_prompt?: string;
 }): string {
   const name = (input.name || 'an adult companion').trim();
   const ethnicity = input.ethnicity || 'mixed';
@@ -76,6 +81,10 @@ function buildPortraitPrompt(input: {
   const extra = sanitizeBlurKeywords(
     [input.appearance_prompt, input.personality].filter(Boolean).join(', '),
   );
+  const skinTone = sanitizeBlurKeywords(String(input.skin_tone || '').trim());
+  const bustShape = sanitizeBlurKeywords(String(input.bust_shape || '').trim());
+  const heightFrag = sanitizeBlurKeywords(String(input.height || '').trim());
+  const genomeExtra = sanitizeBlurKeywords(String(input.genome_prompt || '').trim());
 
   const medium =
     visual === '2d' || visual === 'anime'
@@ -93,11 +102,14 @@ function buildPortraitPrompt(input: {
   const parts = [
     medium,
     `gorgeous young adult ${gender.toLowerCase()} age 22-28 named ${name}`,
-    `${ethnicity} features, ${face} face shape`,
+    `${ethnicity} features, ${face} face shape${skinTone ? `, ${skinTone}` : ''}`,
     `${hairStyle} ${hairColor} hair`,
     `${eyeColor} eyes looking at viewer`,
     bodyDescription,
+    bustShape,
+    heightFrag,
     `wearing flattering ${fashion} outfit`,
+    genomeExtra.slice(0, 200),
     extra.slice(0, 180),
     'clear eyes, complete head in frame, relaxed shoulders, natural asymmetrical posture, coherent hands',
   ].filter(Boolean);
@@ -258,6 +270,10 @@ export async function POST(request: NextRequest) {
       bodyType: body.bodyType as string | undefined,
       style: body.style as string | undefined,
       personality: body.personality as string | undefined,
+      skin_tone: body.skin_tone as string | undefined,
+      bust_shape: body.bust_shape as string | undefined,
+      height: body.height as string | undefined,
+      genome_prompt: body.genome_prompt as string | undefined,
     });
 
     const category = normalizeCompanionCategory({ gender: body.gender });
