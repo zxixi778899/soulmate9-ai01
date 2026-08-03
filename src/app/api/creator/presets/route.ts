@@ -6,6 +6,7 @@ import {
   normalizeCreatorPreset,
   type CreatorPreset,
 } from '@/lib/creator-presets';
+import { PRESET_VIBE_LABELS } from '@/lib/preset-library';
 
 interface CreatorOption {
   id: string;
@@ -21,6 +22,8 @@ interface CreatorPresetResponse {
   presets?: CreatorPreset[];
   options?: Record<string, CreatorOption[]>;
   source?: 'database' | 'built-in';
+  /** Vibe filter labels for the preset wall (M2) */
+  vibes?: typeof PRESET_VIBE_LABELS;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -75,6 +78,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<CreatorPresetR
       if (error) logger.warn('[creator/presets] preset query failed; using built-ins', { err: error.message });
       result.presets = databasePresets.length ? databasePresets : [...DEFAULT_CREATOR_PRESETS];
       result.source = databasePresets.length ? 'database' : 'built-in';
+      result.vibes = PRESET_VIBE_LABELS;
     }
 
     if (includeOptions) {

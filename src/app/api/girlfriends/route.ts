@@ -7,7 +7,9 @@ import { consumeCreationCard } from '@/lib/creation-cards';
 import { logger } from '@/lib/logger';
 import { invalidateGirlfriends } from '@/lib/revalidate';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
-import { buildCompanionCharacterCard } from '@/lib/creator-presets';
+import { buildCompanionCharacterCard, normalizeCreatorPreset, type CreatorPreset } from '@/lib/creator-presets';
+import { soulForPreset } from '@/lib/preset-souls';
+import { findCachedPresetPortrait, recordPresetPortraitStat } from '@/lib/preset-portrait-cache';
 import { checkAchievements } from '@/lib/achievement-checker';
 
 const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
@@ -134,12 +136,33 @@ export async function POST(request: NextRequest) {
     tags, short_description,
     appearance_race, appearance_hair, appearance_hair_color,
     appearance_eyes, appearance_body, appearance_style,
-    outfit_id, portrait_url, meta
+    outfit_id, portrait_url, meta,
+    preset_id, preset_slug, locale,
   } = body;
 
   if (!name) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
   }
+
+  // ── Resolve library preset (千人千面 soul layer) when created from one ──
+  let preset: CreatorPreset | null = null;
+  let presetDbId: string | null = null;
+  if (preset_id || preset_slug) {
+    let pq = client.from('character_presets').select('*').eq('is_active', true);
+    pq = preset_slug ? pq.eq('slug', String(preset_slug)) : pq.eq('id', String(preset_id));
+    const { data: presetRow, error: presetErr } = await pq.maybeSingle();
+    if (presetErr) {
+      logger.warn('[girlfriends] preset lookup failed', { err: presetErr.message });
+    } else if (presetRow) {
+      preset = normalizeCreatorPreset(presetRow as Record<string, unknown>);
+      presetDbId = String((presetRow as Record<string, unknown>).id || '');
+    }
+  }
+  const zhLocale = String(locale || '').toLowerCase().startsWith('zh');
+  const presetSoul = preset?.character_soul || soulForPreset(preset?.slug || (preset_slug ? String(preset_slug) : null));
+  const presetGreeting = preset
+    ? (zhLocale ? preset.greeting_zh || preset.greeting_en : preset.greeting_en || preset.greeting_zh) || undefined
+    : undefined;
 
   // Consume a creation card
   const cardResult = await consumeCreationCard(client, user.id);
@@ -157,7 +180,7 @@ export async function POST(request: NextRequest) {
   const avatarKey = await ensureImageKey(avatar_url, 'girlfriends');
   const portraitKey = await ensureImageKey(portrait_url, 'girlfriends');
   const companionMeta = meta && typeof meta === 'object' ? meta as Record<string, unknown> : {};
-  const gender = String(companionMeta.gender || 'Female');
+  const gender = String(companionMeta.gender || preset?.gender || 'Female');
   const companion = resolveCompanionProfile({
     gender,
     appearance_style: companionMeta.visual_style || appearance_style,
@@ -165,16 +188,20 @@ export async function POST(request: NextRequest) {
 
   const characterCard = buildCompanionCharacterCard({
     name: String(name),
-    age: Number(age) || 22,
+    age: Number(age) || preset?.age || 22,
     gender,
-    relationship: String(companionMeta.relationship || companion.relationship),
+    relationship: String(companionMeta.relationship || preset?.relationship || companion.relationship),
     personality: String(personality || ''),
     backstory: String(backstory || ''),
-    occupation: String(companionMeta.occupation || ''),
-    hobbies: Array.isArray(companionMeta.hobbies) ? companionMeta.hobbies.map(String) : String(companionMeta.hobbies || ''),
-    voice: String(companionMeta.voice || voice_id || ''),
-    visualStyle: String(companionMeta.visual_style || 'realistic'),
+    occupation: String(companionMeta.occupation || preset?.occupation || ''),
+    hobbies: Array.isArray(companionMeta.hobbies)
+      ? companionMeta.hobbies.map(String)
+      : String(companionMeta.hobbies || preset?.hobbies || ''),
+    voice: String(companionMeta.voice || voice_id || preset?.voice || ''),
+    visualStyle: String(companionMeta.visual_style || preset?.visual_style || 'realistic'),
     shortDescription: String(short_description || ''),
+    soul: presetSoul,
+    greeting: presetGreeting,
   });
   const insertData: Record<string, unknown> = {
     user_id: user.id,
@@ -212,6 +239,36 @@ export async function POST(request: NextRequest) {
     },
   };
 
+  // Library preset identity columns (千人千面): persist catalog fields directly so
+  // trait prompt builders and preset-usage analytics read real values.
+  if (preset) {
+    if (preset.relationship) insertData.relationship = preset.relationship;
+    if (preset.occupation) insertData.occupation = preset.occupation;
+    if (preset.hobbies) insertData.hobbies = preset.hobbies;
+    if (preset.rarity) insertData.rarity = preset.rarity;
+    if (preset.traits) {
+      insertData.base_intimacy = preset.traits.base_intimacy;
+      insertData.base_desire = preset.traits.base_desire;
+      insertData.base_development = preset.traits.base_development;
+      insertData.base_kink = preset.traits.base_kink;
+    }
+    if (presetDbId) insertData.preset_id = presetDbId;
+    // M4: merge preset vibes into tags so catalog tag filters can find them
+    if (preset.vibe_tags?.length) {
+      const baseTags = Array.isArray(tags) ? tags.map(String) : [];
+      insertData.tags = Array.from(new Set([...baseTags, ...preset.vibe_tags]));
+    }
+    // M3: no custom portrait? Reuse the shared preset portrait (zero GPU cost)
+    if (!portraitKey && !avatarKey && preset.slug) {
+      const cachedPortrait = await findCachedPresetPortrait(preset.slug);
+      if (cachedPortrait) {
+        insertData.avatar_url = cachedPortrait;
+        insertData.portrait_url = cachedPortrait;
+        void recordPresetPortraitStat(preset.slug, 'hit', cachedPortrait);
+      }
+    }
+  }
+
   const { data: girlfriend, error } = await client
     .from('girlfriends')
     .insert(insertData)
@@ -220,6 +277,46 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // ── M4: preset telemetry (best-effort, never blocks creation) ──
+  if (preset && girlfriend) {
+    try {
+      const catRows: Array<{ girlfriend_id: string; category_type: string; category_value: string }> = [];
+      for (const value of String(personality || '').split(',').map((s) => s.trim()).filter(Boolean)) {
+        catRows.push({ girlfriend_id: girlfriend.id, category_type: 'personality', category_value: value });
+      }
+      for (const vibe of preset.vibe_tags || []) {
+        catRows.push({ girlfriend_id: girlfriend.id, category_type: 'vibe', category_value: vibe });
+      }
+      if (preset.relationship) {
+        catRows.push({ girlfriend_id: girlfriend.id, category_type: 'relationship', category_value: preset.relationship });
+      }
+      if (catRows.length) {
+        const { error: catErr } = await client.from('girlfriend_categories').insert(catRows);
+        if (catErr) logger.warn('[girlfriends] category insert failed', { err: catErr.message });
+      }
+    } catch (e) {
+      logger.warn('[girlfriends] category telemetry failed', { err: String(e) });
+    }
+    if (presetDbId) {
+      try {
+        const { data: presetStat } = await client
+          .from('character_presets')
+          .select('usage_count')
+          .eq('id', presetDbId)
+          .maybeSingle();
+        await client
+          .from('character_presets')
+          .update({
+            usage_count: Number((presetStat as { usage_count?: number } | null)?.usage_count || 0) + 1,
+            last_used_at: new Date().toISOString(),
+          })
+          .eq('id', presetDbId);
+      } catch (e) {
+        logger.warn('[girlfriends] usage telemetry failed', { err: String(e) });
+      }
+    }
   }
 
   // Link outfit if provided

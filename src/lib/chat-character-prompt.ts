@@ -203,7 +203,16 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
   );
 
   const sensual = buildSensualProfile(gf, card);
-  const styleLine = speakingStyleFromCard(card, personality);
+  // ── Preset soul layer (migration 0020): locale-aware voice / world / rules ──
+  const soul = asRecord(card.soul);
+  const soulPick = (key: string): string => {
+    const pair = asRecord(soul[key]);
+    const value = pair[zh ? 'zh' : 'en'] || pair.en || pair.zh;
+    return typeof value === 'string' ? value.trim() : '';
+  };
+  let styleLine = speakingStyleFromCard(card, personality);
+  const soulVoice = soulPick('voice_style');
+  if (soulVoice) styleLine = soulVoice;
   const sections: string[] = [];
 
   // ── Core identity: real companion, not a product ──
@@ -288,6 +297,31 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
         ? '把这些特质融进撩与动作，让他感觉「就是这个人」，而不是通用模板伴侣。'
         : 'Fold these into teasing and body language so he feels THIS woman — not a generic template GF.',
     );
+  }
+
+  // ── Preset soul: world, character rules and tone examples ──
+  const soulScenario = soulPick('scenario');
+  const soulRules = soulPick('behavior_rules');
+  if (soulScenario || soulRules) {
+    sections.push('', zh ? '=== 她的灵魂设定 ===' : '=== HER SOUL (CHARACTER CORE) ===');
+    if (soulScenario) sections.push(zh ? `她的世界：${soulScenario}` : `Her world: ${soulScenario}`);
+    if (soulRules) sections.push(zh ? `人物规则：${soulRules}` : `Character rules: ${soulRules}`);
+  }
+  const soulExamples = Array.isArray(soul.examples)
+    ? (soul.examples as Array<Record<string, unknown>>)
+    : [];
+  if (soulExamples.length) {
+    sections.push(
+      '',
+      zh ? '=== 她的语气范例（参考口吻，勿照抄）===' : '=== HER VOICE EXAMPLES (tone reference, do not copy) ===',
+    );
+    for (const ex of soulExamples.slice(0, 2)) {
+      const u = asRecord(ex.user)[zh ? 'zh' : 'en'];
+      const a = asRecord(ex.reply)[zh ? 'zh' : 'en'];
+      if (typeof u === 'string' && typeof a === 'string') {
+        sections.push(`${zh ? '他' : 'Him'}: ${u}\n${zh ? '她' : 'Her'}: ${a}`);
+      }
+    }
   }
 
   // ── Appearance block (compact) ──

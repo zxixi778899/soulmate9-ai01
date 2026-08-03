@@ -1,0 +1,262 @@
+/**
+ * Admin API: preset shared portrait cache (M3)
+ *
+ * GET  /api/admin/preset-portraits  → cache status for every library preset
+ * POST /api/admin/preset-portraits  → generate + cache ONE preset portrait
+ *      body: { slug: string, force?: boolean }
+ *
+ * One portrait per request keeps the route inside maxDuration; call it in a
+ * loop (admin UI / script) to batch-fill all 24 presets offline.
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
+import { logger } from '@/lib/logger';
+import { sanitizeBlurKeywords } from '@/lib/prompt';
+import {
+  normalizeCompanionCategory,
+  normalizeCompanionRenderStyle,
+} from '@/lib/companion-category';
+import {
+  buildStudioPromptEnhancement,
+  studioNegativePrompt,
+} from '@/lib/comfy-console/studio-profile';
+import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
+import { routeImageGeneration } from '@/lib/image-router';
+import { loadComfyConfig } from '@/lib/comfy-console/store';
+import { buildReferenceGenerationPlan } from '@/lib/reference-generation-plan';
+import { normalizeCreatorPreset, type CreatorPreset } from '@/lib/creator-presets';
+import {
+  findCachedPresetPortrait,
+  writebackPresetPortrait,
+} from '@/lib/preset-portrait-cache';
+import { GIRLFRIEND_SCENE_RECIPES } from '@/lib/prompt/girlfriend';
+
+export const runtime = 'nodejs';
+export const maxDuration = 300;
+
+function hairColorName(hexOrName: string): string {
+  const v = (hexOrName || '').trim();
+  if (!v.startsWith('#')) return v || 'brown';
+  const map: Record<string, string> = {
+    '#000000': 'black',
+    '#4a3728': 'dark brown',
+    '#6b3a2a': 'brown',
+    '#d4a574': 'blonde',
+    '#f5d742': 'golden blonde',
+    '#e84393': 'pink',
+    '#d946ef': 'magenta',
+    '#8b5cf6': 'purple',
+    '#3b82f6': 'blue',
+    '#ef4444': 'red',
+    '#ffffff': 'white',
+  };
+  return map[v.toLowerCase()] || 'colored';
+}
+
+/** Portrait prompt assembled purely from preset fields (deterministic per slug). */
+function buildPresetPortraitPrompt(preset: CreatorPreset): string {
+  const name = (preset.default_name || preset.name || 'an adult companion').trim();
+  const visual = (preset.visual_style || 'realistic').toLowerCase();
+  const category = normalizeCompanionCategory({ gender: preset.gender });
+  const bodyDescription =
+    category === 'male'
+      ? `${preset.body_type} adult masculine build with broad shoulders and a defined torso`
+      : category === 'transgender'
+        ? `${preset.body_type} adult feminine silhouette with visibly mixed masculine and feminine physical traits`
+        : `${preset.body_type} adult feminine figure with natural proportions`;
+  const medium =
+    visual === '2d' || visual === 'anime'
+      ? 'a polished 2D anime character portrait with clean line art and deliberate cel shading'
+      : visual === '3d'
+        ? 'a polished 3D animated character portrait with coherent materials and studio character lighting'
+        : 'a natural editorial photograph with believable skin texture and soft directional light';
+
+  const sceneParts: string[] = [];
+  if (preset.portrait_outfit) sceneParts.push(preset.portrait_outfit);
+  if (preset.scene_id) {
+    const recipe = GIRLFRIEND_SCENE_RECIPES.find((s) => s.id === preset.scene_id);
+    if (recipe) sceneParts.push(`${recipe.env}, ${recipe.light}`);
+  }
+
+  const parts = [
+    medium,
+    `gorgeous young adult ${preset.gender.toLowerCase()} age ${preset.age || 22}-${(preset.age || 22) + 6} named ${name}`,
+    `${preset.ethnicity} features, ${preset.face_shape} face shape`,
+    `${preset.hair_style} ${hairColorName(preset.hair_color)} hair`,
+    `${preset.eye_color} eyes looking at viewer`,
+    bodyDescription,
+    `wearing flattering ${preset.fashion_style} outfit`,
+    sanitizeBlurKeywords(sceneParts.join(', ')).slice(0, 180),
+    'clear eyes, complete head in frame, relaxed shoulders, natural asymmetrical posture, coherent hands',
+  ].filter(Boolean);
+
+  let prompt = parts.join(', ').replace(/\s{2,}/g, ' ').trim();
+  if (prompt.length > 900) {
+    prompt = prompt.slice(0, 900);
+    const lastComma = prompt.lastIndexOf(',');
+    if (lastComma > 700) prompt = prompt.slice(0, lastComma);
+  }
+  return prompt;
+}
+
+export async function GET(request: NextRequest) {
+  const admin = await requireAdmin(request);
+  if ('error' in admin) return admin.error;
+
+  const { data: presets, error } = await admin.supabase
+    .from('character_presets')
+    .select('id, name, name_zh, slug, rarity, gender, visual_style, sort_order')
+    .eq('is_active', true)
+    .not('slug', 'is', null)
+    .order('sort_order', { ascending: true });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const { data: stats } = await admin.supabase.from('preset_portrait_stats').select('*');
+  const statBySlug = new Map(
+    ((stats || []) as Record<string, unknown>[]).map((s) => [String(s.slug), s]),
+  );
+
+  const rows: Array<Record<string, unknown>> = [];
+  for (const p of (presets || []) as Record<string, unknown>[]) {
+    const slug = String(p.slug || '');
+    if (!slug) continue;
+    const cachedUrl = await findCachedPresetPortrait(slug);
+    const stat = statBySlug.get(slug) as Record<string, unknown> | undefined;
+    rows.push({
+      slug,
+      name: p.name,
+      name_zh: p.name_zh,
+      rarity: p.rarity,
+      gender: p.gender,
+      visual_style: p.visual_style,
+      cached: Boolean(cachedUrl),
+      portrait_url: cachedUrl || (stat?.portrait_url as string | undefined) || null,
+      hits: Number(stat?.hits || 0),
+      misses: Number(stat?.misses || 0),
+    });
+  }
+
+  return NextResponse.json({
+    presets: rows,
+    total: rows.length,
+    cached_count: rows.filter((r) => r.cached).length,
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const admin = await requireAdmin(request);
+  if ('error' in admin) return admin.error;
+
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const slug = String(body.slug || '').trim().toLowerCase();
+  const force = Boolean(body.force);
+  if (!slug) {
+    return NextResponse.json({ error: 'slug is required' }, { status: 400 });
+  }
+
+  const { data: presetRow, error: presetErr } = await admin.supabase
+    .from('character_presets')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle();
+  if (presetErr || !presetRow) {
+    return NextResponse.json(
+      { error: presetErr?.message || `preset not found: ${slug}` },
+      { status: 404 },
+    );
+  }
+  const preset = normalizeCreatorPreset(presetRow as Record<string, unknown>);
+  if (!preset) {
+    return NextResponse.json({ error: 'preset row invalid' }, { status: 500 });
+  }
+
+  if (!force) {
+    const existing = await findCachedPresetPortrait(slug);
+    if (existing) {
+      return NextResponse.json({ success: true, cached: true, slug, portrait_url: existing });
+    }
+  }
+
+  try {
+    const identityPrompt = buildPresetPortraitPrompt(preset);
+    const category = normalizeCompanionCategory({ gender: preset.gender });
+    const renderStyle = normalizeCompanionRenderStyle({ visualStyle: preset.visual_style });
+    const config = await loadComfyConfig(admin.supabase);
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      category,
+      renderStyle,
+      nsfwIntensity: 1,
+    });
+    const referencePlan = buildReferenceGenerationPlan({
+      surface: 'companion',
+      category,
+      renderStyle,
+      modelFamily: route.modelFamily,
+      nsfwLevel: 1,
+      allowIdentity: false,
+      controls: config.reference_control,
+      assets: config.reference_assets || [],
+    });
+    const naturalPrompt = buildStudioPromptEnhancement({
+      category,
+      intensity: 1,
+      animeStyle: renderStyle,
+      identity: identityPrompt,
+      scene: [
+        'a chest-up identity portrait at eye level, face large and unobstructed, both eyes sharp, full hairline and chin visible, shoulders relaxed, looking naturally toward the camera, plain warm neutral background',
+        ...referencePlan.promptHints,
+      ].join('. '),
+    });
+    const negativePrompt = studioNegativePrompt(category, renderStyle);
+
+    logger.info('[admin/preset-portraits] generating', { slug, modelFamily: route.modelFamily });
+
+    const result = await routeImageGeneration({
+      prompt: naturalPrompt,
+      negative_prompt: negativePrompt,
+      width: 768,
+      height: 1024,
+      num_inference_steps: route.steps,
+      guidance_scale: route.cfg,
+      ckpt_name: route.checkpoint,
+      sampler_name: route.sampler,
+      scheduler: route.scheduler,
+      clip_skip: route.clipSkip,
+      model_family: route.modelFamily,
+      force_provider: route.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2',
+      endpoint_id: route.endpointId || undefined,
+      nsfw: false,
+    });
+
+    if (result.pending || !result.images?.[0]) {
+      return NextResponse.json(
+        {
+          success: false,
+          pending: true,
+          job_id: result.job_id,
+          slug,
+          message:
+            'GPU job queued — retry this slug in ~1 minute (or check /api/ai/status?job_id=' +
+            result.job_id +
+            ')',
+        },
+        { status: 202 },
+      );
+    }
+
+    const url = await writebackPresetPortrait(slug, result.images[0]);
+    if (!url) {
+      return NextResponse.json({ error: 'generation succeeded but cache writeback failed' }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, cached: true, slug, portrait_url: url });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.error('[admin/preset-portraits] generation failed', { slug, err: msg });
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

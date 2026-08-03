@@ -612,6 +612,48 @@ export async function deleteFile(key: string): Promise<void> {
   }
 }
 
+const EXISTS_CACHE: Map<string, { exists: boolean; expiresAt: number }> = new Map();
+const EXISTS_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Check whether an object exists in the public bucket (list-based, cached).
+ * Used by the shared preset portrait cache (M3) to skip GPU regeneration.
+ */
+export async function publicObjectExists(key: string): Promise<boolean> {
+  if (!key || key.startsWith('data:') || key.startsWith('http')) return false;
+  const location = storageLocation(key);
+  if (location.isPrivate) return false;
+  const cached = EXISTS_CACHE.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.exists;
+  const lastSlash = location.key.lastIndexOf('/');
+  const folder = lastSlash > 0 ? location.key.slice(0, lastSlash) : '';
+  const name = lastSlash >= 0 ? location.key.slice(lastSlash + 1) : location.key;
+  let exists = false;
+  try {
+    const { data, error } = await adminClient()
+      .storage.from(location.bucket)
+      .list(folder, { search: name, limit: 8 });
+    exists = !error && (data || []).some((f) => f.name === name);
+  } catch {
+    exists = false;
+  }
+  EXISTS_CACHE.set(key, { exists, expiresAt: Date.now() + EXISTS_TTL_MS });
+  return exists;
+}
+
+/**
+ * Upload a buffer to an EXACT storage key (upsert, no timestamp suffix).
+ * For shared caches like preset-portraits/{slug}.png where the key is the identity.
+ */
+export async function uploadFixedKeyFile(
+  buffer: Buffer,
+  key: string,
+  contentType = 'image/png',
+): Promise<{ key: string; url: string }> {
+  // folder='' + key containing '/' → uploadFile uses the key as-is
+  return uploadFile(buffer, key, contentType, '');
+}
+
 export async function resolveImageUrlBatch(
   values: (string | null | undefined)[],
 ): Promise<string[]> {

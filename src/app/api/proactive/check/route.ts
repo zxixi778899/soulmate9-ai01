@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const friendGfIds = friendRows.map((r: { girlfriend_id: string }) => r.girlfriend_id);
     const { data: girlfriends, error: gfError } = await client
       .from('girlfriends')
-      .select('id, name, personality, tags')
+      .select('id, name, personality, tags, character_card')
       .in('id', friendGfIds);
     if (gfError) {
       return NextResponse.json({ error: gfError.message }, { status: 500 });
@@ -174,6 +174,32 @@ export async function POST(request: NextRequest) {
       ) as { score?: number; level?: number } | undefined;
       const intimacyScore = Number(scoreRow?.score) || 0;
 
+      // ── Preset soul (stamped into character_card at creation) ──
+      const cardRaw = (gf as { character_card?: unknown }).character_card;
+      const card = cardRaw && typeof cardRaw === 'object' ? (cardRaw as Record<string, unknown>) : null;
+      const soulRaw = card?.soul;
+      const soul = soulRaw && typeof soulRaw === 'object' ? (soulRaw as Record<string, unknown>) : null;
+      const soulPick = (key: string): string => {
+        if (!soul) return '';
+        const pair = soul[key];
+        if (!pair || typeof pair !== 'object') return '';
+        const p = pair as Record<string, unknown>;
+        const value = (locale === 'zh' ? p.zh : p.en) || p.en || p.zh;
+        return typeof value === 'string' ? value.trim() : '';
+      };
+      const soulVoice = soulPick('voice_style');
+      const soulScenario = soulPick('scenario');
+      const soulProactiveRaw: unknown[] =
+        soul && Array.isArray(soul.proactive) ? (soul.proactive as unknown[]) : [];
+      const soulProactivePool = soulProactiveRaw
+        .map((p) => {
+          if (!p || typeof p !== 'object') return '';
+          const pair = p as Record<string, unknown>;
+          const value = (locale === 'zh' ? pair.zh : pair.en) || pair.en || pair.zh;
+          return typeof value === 'string' ? value.trim() : '';
+        })
+        .filter(Boolean);
+
       // Never repeat content already sent today
       let excludeContents: string[] = [];
       try {
@@ -211,13 +237,21 @@ export async function POST(request: NextRequest) {
           .eq('girlfriend_id', gf.id)
           .order('created_at', { ascending: false })
           .limit(8);
+        // Soul fallback: the character's own outreach lines beat generic templates
+        const freshSoulPool = soulProactivePool.filter((c) => !excludeContents.includes(c));
+        const soulPool = freshSoulPool.length ? freshSoulPool : soulProactivePool;
+        const fallbackContent = soulPool.length
+          ? soulPool[Math.floor(Math.random() * soulPool.length)]
+          : pick.content;
         const content = await generateContextualProactiveMessage({
           name: gf.name,
           personality: String(gf.personality || ''),
           intimacyLevel: Number(scoreRow?.level) || 1,
           locale,
           history: (historyRows || []).slice().reverse(),
-          fallback: pick.content,
+          fallback: fallbackContent,
+          voiceStyle: soulVoice || undefined,
+          scenario: soulScenario || undefined,
         });
         if (holiday && (pick.category === 'miss_you' || pick.category === 'busy')) {
           // keep emotional base

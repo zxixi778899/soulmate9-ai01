@@ -10,6 +10,15 @@ import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { routeImageGeneration } from '@/lib/image-router';
 import { loadComfyConfig } from '@/lib/comfy-console/store';
 import { buildReferenceGenerationPlan } from '@/lib/reference-generation-plan';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { normalizeCreatorPreset, type CreatorPreset } from '@/lib/creator-presets';
+import {
+  findCachedPresetPortrait,
+  recordPresetPortraitStat,
+  writebackPresetPortrait,
+  visualMatchesPreset,
+} from '@/lib/preset-portrait-cache';
+import { GIRLFRIEND_SCENE_RECIPES } from '@/lib/prompt/girlfriend';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -167,6 +176,70 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const name = String(body.name || 'Companion');
+
+    // ── M3: shared preset portrait cache ────────────────────────────────
+    const rawPresetSlug =
+      typeof body.preset_slug === 'string' ? body.preset_slug.trim().toLowerCase() : '';
+    let cachePreset: CreatorPreset | null = null;
+    let cacheEligible = false;
+    if (rawPresetSlug) {
+      try {
+        const sb = getSupabaseClient();
+        const { data: presetRowData } = await sb
+          .from('character_presets')
+          .select('*')
+          .eq('slug', rawPresetSlug)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (presetRowData) {
+          cachePreset = normalizeCreatorPreset(presetRowData as Record<string, unknown>);
+          cacheEligible = Boolean(cachePreset && visualMatchesPreset(cachePreset, body));
+        }
+      } catch (e) {
+        logger.warn('[Generate Portrait] preset lookup failed', {
+          slug: rawPresetSlug,
+          err: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+    if (cacheEligible && cachePreset?.slug) {
+      const cachedUrl = await findCachedPresetPortrait(cachePreset.slug);
+      if (cachedUrl) {
+        void recordPresetPortraitStat(cachePreset.slug, 'hit', cachedUrl);
+        logger.info('[Generate Portrait] preset cache hit — skipping GPU', {
+          slug: cachePreset.slug,
+        });
+        return NextResponse.json({
+          success: true,
+          imageUrl: cachedUrl,
+          portrait_url: cachedUrl,
+          url: cachedUrl,
+          cached: true,
+          preset_slug: cachePreset.slug,
+          key: null,
+        });
+      }
+      void recordPresetPortraitStat(cachePreset.slug, 'miss');
+    }
+
+    // Preset scene + outfit enrich the prompt so the portrait matches the
+    // companion's opening scene (quality) while staying cache-keyed by slug.
+    const presetExtraParts: string[] = [];
+    if (cachePreset) {
+      if (cachePreset.portrait_outfit) presetExtraParts.push(cachePreset.portrait_outfit);
+      if (cachePreset.scene_id) {
+        const sceneId = cachePreset.scene_id;
+        const recipe = GIRLFRIEND_SCENE_RECIPES.find((s) => s.id === sceneId);
+        if (recipe) presetExtraParts.push(`${recipe.env}, ${recipe.light}`);
+      }
+    }
+    const combinedAppearancePrompt = [
+      typeof body.appearance_prompt === 'string' ? body.appearance_prompt : '',
+      ...presetExtraParts,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     const prompt = buildPortraitPrompt({
       name,
       visual_style: body.visual_style as string | undefined,
@@ -178,7 +251,7 @@ export async function POST(request: NextRequest) {
       eye_color: body.eye_color as string | undefined,
       body_type: body.body_type as string | undefined,
       fashion_style: body.fashion_style as string | undefined,
-      appearance_prompt: body.appearance_prompt as string | undefined,
+      appearance_prompt: combinedAppearancePrompt || undefined,
       hairStyle: body.hairStyle as string | undefined,
       hairColor: body.hairColor as string | undefined,
       eyeColor: body.eyeColor as string | undefined,
@@ -256,6 +329,17 @@ export async function POST(request: NextRequest) {
 
     const imageUrl = await uploadToStorage(result.image, name);
 
+    // M3 lazy writeback: first successful sync generation fills the shared cache
+    if (cacheEligible && cachePreset?.slug && result.image) {
+      const writebackSlug = cachePreset.slug;
+      writebackPresetPortrait(writebackSlug, result.image).catch((e) =>
+        logger.warn('[Generate Portrait] preset writeback failed', {
+          slug: writebackSlug,
+          err: e instanceof Error ? e.message : String(e),
+        }),
+      );
+    }
+
     return NextResponse.json({
       success: true,
       imageUrl,
@@ -263,6 +347,7 @@ export async function POST(request: NextRequest) {
       url: imageUrl,
       key: null,
       optimizedPrompt: naturalPrompt,
+      ...(cacheEligible && cachePreset?.slug ? { preset_slug: cachePreset.slug } : {}),
     });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';

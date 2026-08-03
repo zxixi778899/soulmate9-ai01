@@ -157,7 +157,7 @@ export async function GET(req: NextRequest) {
       });
 
       const [{ data: girlfriend }, { data: historyRows }, { data: scoreRow }] = await Promise.all([
-        sb.from('girlfriends').select('name, personality').eq('id', pair.girlfriend_id).maybeSingle(),
+        sb.from('girlfriends').select('name, personality, character_card').eq('id', pair.girlfriend_id).maybeSingle(),
         sb.from('chat_messages')
           .select('role, content')
           .eq('user_id', pair.user_id)
@@ -179,14 +179,45 @@ export async function GET(req: NextRequest) {
       );
       const locale = hasChineseHistory ? 'zh' : 'en';
 
+      // ── Preset soul (stamped into character_card at creation) ──
+      const cardRaw = (girlfriend as { character_card?: unknown } | null)?.character_card;
+      const card = cardRaw && typeof cardRaw === 'object' ? (cardRaw as Record<string, unknown>) : null;
+      const soulRaw = card?.soul;
+      const soul = soulRaw && typeof soulRaw === 'object' ? (soulRaw as Record<string, unknown>) : null;
+      const soulPick = (key: string): string => {
+        if (!soul) return '';
+        const pair = soul[key];
+        if (!pair || typeof pair !== 'object') return '';
+        const p = pair as Record<string, unknown>;
+        const value = (locale === 'zh' ? p.zh : p.en) || p.en || p.zh;
+        return typeof value === 'string' ? value.trim() : '';
+      };
+      const soulVoice = soulPick('voice_style');
+      const soulScenario = soulPick('scenario');
+      const soulProactiveRaw: unknown[] =
+        soul && Array.isArray(soul.proactive) ? (soul.proactive as unknown[]) : [];
+      const soulProactivePool = soulProactiveRaw
+        .map((p) => {
+          if (!p || typeof p !== 'object') return '';
+          const pair = p as Record<string, unknown>;
+          const value = (locale === 'zh' ? pair.zh : pair.en) || pair.en || pair.zh;
+          return typeof value === 'string' ? value.trim() : '';
+        })
+        .filter(Boolean);
+
       for (const pick of picks) {
+        const fallbackContent = soulProactivePool.length
+          ? soulProactivePool[Math.floor(Math.random() * soulProactivePool.length)]
+          : pick.content;
         const content = await generateContextualProactiveMessage({
           name: String(girlfriend?.name || 'Your companion'),
           personality: String(girlfriend?.personality || ''),
           intimacyLevel: Number(scoreRow?.level) || 1,
           locale,
           history,
-          fallback: pick.content,
+          fallback: fallbackContent,
+          voiceStyle: soulVoice || undefined,
+          scenario: soulScenario || undefined,
         });
         const { data: msg, error } = await sb
           .from('chat_messages')

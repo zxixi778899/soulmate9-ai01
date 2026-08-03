@@ -24,6 +24,18 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type'); // optional filter
 
   try {
+    // M4: library preset usage telemetry (drives expansion decisions)
+    if (type === 'character_presets') {
+      const { data } = await admin.supabase
+        .from('character_presets')
+        .select(
+          'id, name, name_zh, slug, rarity, gender, visual_style, relationship, usage_count, last_used_at, is_active, sort_order',
+        )
+        .order('usage_count', { ascending: false })
+        .limit(200);
+      return NextResponse.json({ character_presets: data || [] });
+    }
+
     let templates: any[] = [];
     let references: any[] = [];
     let genPresets: any[] = [];

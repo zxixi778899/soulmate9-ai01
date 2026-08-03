@@ -149,6 +149,11 @@ export default function CreatePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shakeInvalid, setShakeInvalid] = useState(false);
+  // Library preset the user started from (千人千面 soul layer is stamped server-side)
+  const [selectedPreset, setSelectedPreset] = useState<CreatorPreset | null>(null);
+  // Preset wall filter (M2): 'all' or a vibe key from PRESET_VIBE_LABELS
+  const [vibeFilter, setVibeFilter] = useState<string>('all');
+  const [vibes, setVibes] = useState<Record<string, { en: string; zh: string }>>({});
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Data Fetching ───────────────────────────────────────────────────────
@@ -161,12 +166,13 @@ export default function CreatePage() {
         fetch('/api/creator/previews'),
         authedFetch('/api/creator/cards'),
       ]);
-      const optsData = await readResponseJson<{ presets?: CreatorPreset[]; options?: Record<string, OptionItem[]> }>(optsRes);
+      const optsData = await readResponseJson<{ presets?: CreatorPreset[]; options?: Record<string, OptionItem[]>; vibes?: Record<string, { en: string; zh: string }> }>(optsRes);
       const previewsData = await readResponseJson<{ previews?: CreatorPreview[] }>(previewsRes);
       const cardsData = await readResponseJson<CardStatus>(cardsRes);
 
       if (optsData.options) setOptions(optsData.options);
       if (optsData.presets) setPresets(optsData.presets);
+      if (optsData.vibes) setVibes(optsData.vibes);
       if (previewsData.previews) setPreviews(previewsData.previews);
       if (cardsData) setCardStatus(cardsData);
     } catch (err) {
@@ -205,6 +211,13 @@ export default function CreatePage() {
     { value: 'Transgender', label: zh ? '跨性别' : 'Trans', icon: '⚧' },
   ];
 
+  const RARITY_STYLE: Record<string, string> = {
+    N: 'bg-white/10 text-white/60',
+    R: 'bg-sky-500/15 text-sky-300',
+    SR: 'bg-violet-500/15 text-violet-300',
+    SSR: 'bg-amber-400/15 text-amber-300',
+  };
+
   // ─── Preview Selection ──────────────────────────────────────────────────
 
   const selectPreviewGender = useCallback((g: string) => {
@@ -212,6 +225,7 @@ export default function CreatePage() {
     setStep(1);
   }, []);
   const applyPreset = useCallback((preset: CreatorPreset) => {
+    setSelectedPreset(preset);
     setVisualStyle(preset.visual_style);
     setGender(preset.gender);
     setEthnicity(preset.ethnicity);
@@ -228,6 +242,9 @@ export default function CreatePage() {
     setHobbies(preset.hobbies);
     setBackstory(preset.backstory);
     setShortDescription(preset.short_description);
+    // Pre-fill identity from the preset (user can still edit)
+    setName((prev) => (prev.trim() ? prev : preset.default_name || preset.name));
+    setAge(preset.age && preset.age >= 18 ? preset.age : 22);
     setStep(1);
   }, []);
 
@@ -279,6 +296,8 @@ export default function CreatePage() {
           eye_color: eyeColor, body_type: bodyType,
           fashion_style: fashionStyle, appearance_prompt: appearancePrompt,
           personality: selectedTags.join(', '),
+          // M3: let the shared preset portrait cache serve/skip GPU when unchanged
+          preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
         }),
       });
       const data = await readResponseJson<{ portrait_url?: string; url?: string; imageUrl?: string; error?: string; pending?: boolean; job_id?: string; endpoint_id?: string }>(res);
@@ -313,7 +332,7 @@ export default function CreatePage() {
     } finally {
       setGeneratingPortrait(false);
     }
-  }, [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, zh]);
+  }, [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, zh, selectedPreset]);
 
   // ─── Submit ────────────────────────────────────────────────────────────
 
@@ -355,6 +374,9 @@ export default function CreatePage() {
           outfit_id: selectedOutfit,
           avatar_url: portraitUrl || undefined,
           portrait_url: portraitUrl || undefined,
+          // Preset soul stamping: only when the preset still matches the chosen gender
+          preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
+          locale,
           meta: {
             visual_style: visualStyle, ethnicity, gender,
             face_shape: faceShape, voice, occupation,
@@ -393,7 +415,7 @@ export default function CreatePage() {
     name, age, shortDescription, selectedTags, hairStyle, hairColor, eyeColor, bodyType,
     fashionStyle, selectedOutfit, portraitUrl, visualStyle, ethnicity, gender, faceShape,
     voice, occupation, relationship, hobbies, backstory, appearancePrompt, router, zh,
-    getOpts, locale, t, cardStatus,
+    getOpts, locale, t, cardStatus, selectedPreset,
   ]);
 
   // ─── Render ────────────────────────────────────────────────────────────
@@ -496,28 +518,75 @@ export default function CreatePage() {
                 ) : (
                   <>
                     {presets.length > 0 && (
-                      <div className="hidden gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {presets.map((preset) => (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            onClick={() => applyPreset(preset)}
-                            className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-[#FF2D78]/50 hover:bg-white/[0.06]"
-                          >
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <span className="font-semibold text-white">{zh ? preset.name_zh : preset.name}</span>
-                              <Sparkles className="h-4 w-4 shrink-0 text-[#FF2D78]" />
-                            </div>
-                            <p className="line-clamp-2 text-xs leading-5 text-white/50">
-                              {zh ? preset.description_zh : preset.description}
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-1">
-                              {preset.personality_tags.slice(0, 3).map((tag) => (
-                                <span key={tag} className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] text-white/50">{tag}</span>
-                              ))}
-                            </div>
-                          </button>
-                        ))}
+                      <div className="space-y-3">
+                        {/* Vibe filter chips (M2) */}
+                        {Object.keys(vibes).length > 0 && (
+                          <div className="flex flex-wrap justify-center gap-1.5">
+                            <Pill active={vibeFilter === 'all'} onClick={() => setVibeFilter('all')}>
+                              {zh ? '全部' : 'All'}
+                            </Pill>
+                            {Object.entries(vibes).map(([key, label]) => (
+                              <Pill
+                                key={key}
+                                active={vibeFilter === key}
+                                onClick={() => setVibeFilter(vibeFilter === key ? 'all' : key)}
+                              >
+                                {zh ? label.zh : label.en}
+                              </Pill>
+                            ))}
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {presets
+                            .filter(
+                              (preset) =>
+                                vibeFilter === 'all' ||
+                                (preset.vibe_tags || []).includes(vibeFilter),
+                            )
+                            .map((preset) => (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => applyPreset(preset)}
+                                className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-[#FF2D78]/50 hover:bg-white/[0.06]"
+                              >
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                  <span className="flex items-center gap-2 font-semibold text-white">
+                                    {zh ? preset.name_zh : preset.name}
+                                    {preset.rarity && (
+                                      <span
+                                        className={cn(
+                                          'rounded px-1.5 py-0.5 text-[10px] font-bold',
+                                          RARITY_STYLE[preset.rarity] || RARITY_STYLE.N,
+                                        )}
+                                      >
+                                        {preset.rarity}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <Sparkles className="h-4 w-4 shrink-0 text-[#FF2D78]" />
+                                </div>
+                                <p className="line-clamp-2 text-xs leading-5 text-white/50">
+                                  {zh ? preset.description_zh : preset.description}
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-1">
+                                  {preset.relationship && (
+                                    <span className="rounded-full bg-[#FF2D78]/10 px-2 py-1 text-[10px] text-[#FF2D78]/90">
+                                      {preset.relationship}
+                                    </span>
+                                  )}
+                                  {preset.occupation && (
+                                    <span className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] text-white/50">
+                                      {preset.occupation}
+                                    </span>
+                                  )}
+                                  {preset.personality_tags.slice(0, 2).map((tag) => (
+                                    <span key={tag} className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] text-white/50">{tag}</span>
+                                  ))}
+                                </div>
+                              </button>
+                            ))}
+                        </div>
                       </div>
                     )}
                     {/* Visual style tabs */}

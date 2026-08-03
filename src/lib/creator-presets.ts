@@ -1,3 +1,5 @@
+import type { PresetSoul } from './preset-souls';
+
 export interface CreatorPreset {
   id: string;
   name: string;
@@ -22,6 +24,24 @@ export interface CreatorPreset {
   short_description: string;
   sort_order: number;
   is_active: boolean;
+  // ── 预设库扩展字段（迁移 0019，可选；旧行/内置预设为 undefined） ──
+  slug?: string;
+  default_name?: string;
+  age?: number;
+  rarity?: 'N' | 'R' | 'SR' | 'SSR';
+  vibe_tags?: string[];
+  traits?: {
+    base_intimacy: number;
+    base_desire: number;
+    base_development: number;
+    base_kink: number;
+  };
+  greeting_en?: string;
+  greeting_zh?: string;
+  scene_id?: string;
+  portrait_outfit?: string;
+  /** 灵魂层（迁移 0020）：voice/scenario/rules/examples/proactive，双语 */
+  character_soul?: PresetSoul;
 }
 
 export const DEFAULT_CREATOR_PRESETS: readonly CreatorPreset[] = [
@@ -173,6 +193,17 @@ export function normalizeCreatorPreset(row: Record<string, unknown>): CreatorPre
   const styleValue = text(row, 'visual_style', 'realistic');
   const visualStyle: CreatorPreset['visual_style'] =
     styleValue === 'anime' || styleValue === '3d' ? styleValue : 'realistic';
+  const rarityValue = text(row, 'rarity');
+  const rarity: CreatorPreset['rarity'] =
+    rarityValue === 'N' || rarityValue === 'R' || rarityValue === 'SR' || rarityValue === 'SSR'
+      ? rarityValue
+      : undefined;
+  const rawTraits = row.traits;
+  const traits: CreatorPreset['traits'] =
+    rawTraits && typeof rawTraits === 'object' && !Array.isArray(rawTraits)
+      ? (rawTraits as NonNullable<CreatorPreset['traits']>)
+      : undefined;
+  const vibeTags = stringList(row.vibe_tags);
 
   return {
     id,
@@ -198,6 +229,19 @@ export function normalizeCreatorPreset(row: Record<string, unknown>): CreatorPre
     short_description: text(row, 'short_description', text(row, 'description')),
     sort_order: typeof row.sort_order === 'number' ? row.sort_order : 100,
     is_active: row.is_active !== false,
+    ...(text(row, 'slug') ? { slug: text(row, 'slug') } : {}),
+    ...(text(row, 'default_name') ? { default_name: text(row, 'default_name') } : {}),
+    ...(typeof row.age === 'number' ? { age: row.age } : {}),
+    ...(rarity ? { rarity } : {}),
+    ...(vibeTags.length ? { vibe_tags: vibeTags } : {}),
+    ...(traits ? { traits } : {}),
+    ...(text(row, 'greeting_en') ? { greeting_en: text(row, 'greeting_en') } : {}),
+    ...(text(row, 'greeting_zh') ? { greeting_zh: text(row, 'greeting_zh') } : {}),
+    ...(text(row, 'scene_id') ? { scene_id: text(row, 'scene_id') } : {}),
+    ...(text(row, 'portrait_outfit') ? { portrait_outfit: text(row, 'portrait_outfit') } : {}),
+    ...(row.character_soul && typeof row.character_soul === 'object'
+      ? { character_soul: row.character_soul as PresetSoul }
+      : {}),
   };
 }
 
@@ -213,6 +257,10 @@ export interface CompanionPromptInput {
   voice?: string;
   visualStyle?: string;
   shortDescription?: string;
+  /** Preset soul layer (voice/scenario/rules/examples/proactive) when created from a library preset. */
+  soul?: PresetSoul | null;
+  /** Locale-aware first message (preset greeting_en/zh) — overrides the generic opener. */
+  greeting?: string;
 }
 
 export function buildCompanionCharacterCard(input: CompanionPromptInput): Record<string, unknown> {
@@ -220,6 +268,7 @@ export function buildCompanionCharacterCard(input: CompanionPromptInput): Record
     ? input.hobbies.filter(Boolean)
     : String(input.hobbies || '').split(',').map((item) => item.trim()).filter(Boolean);
   const relationship = input.relationship || (input.gender === 'Male' ? 'boyfriend' : 'girlfriend');
+  const soul = input.soul || null;
   const identity = `${input.name} is a ${input.age}-year-old adult ${relationship}.`;
   const systemPrompt = [
     `You are ${input.name}, the user's real intimate ${relationship}; never describe yourself as an AI or assistant.`,
@@ -229,9 +278,15 @@ export function buildCompanionCharacterCard(input: CompanionPromptInput): Record
     input.occupation ? `Occupation: ${input.occupation}.` : '',
     hobbies.length ? `Interests: ${hobbies.join(', ')}. Use them naturally when relevant.` : '',
     input.voice ? `Speaking voice: ${input.voice}.` : '',
+    soul ? `Voice: ${soul.voice_style.en}` : '',
+    soul ? `World: ${soul.scenario.en}` : '',
+    soul ? `Character rules: ${soul.behavior_rules.en}` : '',
     'Reply with emotional continuity, specific reactions and a natural conversational hook. Avoid customer-service language, generic repetition and out-of-character analysis.',
     'All romantic or intimate characters are consenting adults. Refuse underage, coercive, incestuous, bestial or violent sexual content while staying in character.',
   ].filter(Boolean).join('\n');
+
+  const behaviorRules =
+    'Stay consistent with established facts and relationship history. Prefer concrete, emotionally responsive dialogue over generic praise.';
 
   return {
     name: input.name,
@@ -245,8 +300,19 @@ export function buildCompanionCharacterCard(input: CompanionPromptInput): Record
     voice: input.voice || '',
     visual_style: input.visualStyle || 'realistic',
     description: input.shortDescription || input.personality,
-    first_mes: `*${input.name} looks up with a familiar smile* There you are. Tell me what kind of day found you.`,
+    first_mes:
+      input.greeting ||
+      `*${input.name} looks up with a familiar smile* There you are. Tell me what kind of day found you.`,
+    // Soul layer consumed by chat prompt builder (locale-aware) and proactive chain.
+    ...(soul
+      ? {
+          soul,
+          speaking_style: soul.voice_style.en,
+          example_dialogs: soul.examples,
+          proactive_templates: soul.proactive,
+        }
+      : {}),
     system_prompt: systemPrompt,
-    behavior_rules: 'Stay consistent with established facts and relationship history. Prefer concrete, emotionally responsive dialogue over generic praise.',
+    behavior_rules: behaviorRules,
   };
 }

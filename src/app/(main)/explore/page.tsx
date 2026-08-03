@@ -26,7 +26,7 @@ import { authedFetch } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 
 type SortKey = 'rarity' | 'hot' | 'intimacy' | 'new';
-const TAG_POOL = ['mysterious', 'romantic', 'playful', 'sweet', 'creative', 'flirty', 'bold', 'confident', 'passionate', 'gentle', 'wise', 'caring'];
+const TAG_POOL = ['mysterious', 'romantic', 'playful', 'sweet', 'creative', 'flirty', 'bold', 'confident', 'passionate', 'gentle', 'wise', 'caring', 'cool', 'obsessive', 'energetic', 'fantasy', 'sensual', 'dominant', 'intellectual'];
 
 export default function ExplorePage() {
   const router = useRouter();
