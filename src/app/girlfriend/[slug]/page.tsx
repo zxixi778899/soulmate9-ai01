@@ -25,7 +25,8 @@ export async function generateStaticParams() {
       .from('girlfriends')
       .select('slug')
       .eq('is_public', true)
-      .order('view_count', { ascending: false })
+      .eq('review_status', 'approved')
+      .order('created_at', { ascending: false })
       .limit(8);
     return (data ?? []).map((row: { slug: string }) => ({ slug: row.slug }));
   } catch {
@@ -54,6 +55,7 @@ async function getPublicGirlfriend(slug: string): Promise<PublicGirlfriend | nul
     .from('girlfriends')
     .select('*')
     .eq('is_public', true)
+    .eq('review_status', 'approved')
     .eq('slug', slug)
     .single();
 

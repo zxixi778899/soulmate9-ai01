@@ -190,7 +190,7 @@ export async function DELETE(request: NextRequest) {
   if (friendRow.source === 'created') {
     await client
       .from('girlfriends')
-      .update({ review_status: 'removed', is_active: false })
+      .update({ review_status: 'removed', is_active: false, is_public: false })
       .eq('id', girlfriendId)
       .eq('user_id', user.id);
   }

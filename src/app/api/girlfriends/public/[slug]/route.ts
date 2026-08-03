@@ -12,6 +12,7 @@ export async function GET(
     .from('girlfriends')
     .select('*')
     .eq('is_public', true)
+    .eq('review_status', 'approved')
     .eq('slug', slug)
     .single();
 
