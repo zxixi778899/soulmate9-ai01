@@ -1,6 +1,7 @@
 /**
  * Cron: proactive messages from befriended companions only.
- * Runs every 4 hours globally; per-user local time check ensures 18:00-24:00 window.
+ * Runs once daily at 10:00 UTC (= 18:00 UTC+8); per-user local time check
+ * ensures the 18:00-24:00 evening window. (Hobby plan allows daily crons only.)
  * Max 2 per companion per day. Stops after 3 consecutive days without user reply.
  * Content: LLM-generated contextual messages, non-repetitive.
  * Secure with CRON_SECRET Bearer token.
