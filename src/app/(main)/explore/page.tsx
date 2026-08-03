@@ -14,6 +14,7 @@ import { CardMedia } from '@/components/discover/CardMedia';
 import { GIRLS, type DemoGirl, RARITY_COLORS } from '@/lib/demo-data';
 import { fetchCompanionCatalog } from '@/lib/companions';
 import { ensureCompanionChatId } from '@/lib/ensure-companion';
+import { useFriendStatus } from '@/lib/use-friend-status';
 import {
   GameShell, GamePrimaryButton, RarityBadge,
 } from '@/components/game/GameShell';
@@ -30,6 +31,7 @@ const TAG_POOL = ['mysterious', 'romantic', 'playful', 'sweet', 'creative', 'fli
 export default function ExplorePage() {
   const router = useRouter();
   const { user } = useAuth();
+  const friendStatus = useFriendStatus();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sort, setSort] = useState<SortKey>('rarity');
@@ -83,6 +85,19 @@ export default function ExplorePage() {
   const handleSelect = async (girl: DemoGirl) => {
     setSelecting(true);
     try {
+      // Already friends → skip unlock/add and go straight to chat.
+      if (friendStatus.isFriend(girl)) {
+        try {
+          const chatId = await ensureCompanionChatId(girl);
+          if (chatId) {
+            setSelected(null);
+            router.push(`/chat/${encodeURIComponent(chatId)}`);
+            return;
+          }
+        } catch {
+          /* fall through to the normal add flow */
+        }
+      }
       if (girl.locked) {
         try {
           const res = await authedFetch('/api/girlfriends/unlock', {
@@ -120,6 +135,7 @@ export default function ExplorePage() {
           description: '前往消息页开始聊天',
           action: { label: '去聊天', onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
         });
+        void friendStatus.refresh();
         setSelected(null);
       } catch (err) {
         const e = err as Error & { code?: string };
@@ -324,6 +340,7 @@ export default function ExplorePage() {
           busy={selecting}
           girl={selected}
           open={!!selected}
+          isFriend={friendStatus.isFriend(selected)}
           onClose={() => setSelected(null)}
           onSelect={() => handleSelect(selected)}
         />

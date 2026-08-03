@@ -19,6 +19,7 @@ import {
 import { PageHeader } from '@/components/game/PageHeader';
 import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/LockedPortrait';
 import { ensureCompanionChatId } from '@/lib/ensure-companion';
+import { useFriendStatus } from '@/lib/use-friend-status';
 import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
@@ -37,6 +38,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
   const router = useRouter();
   const { locale } = useTranslation();
   const { user } = useAuth();
+  const friendStatus = useFriendStatus();
   const labelLocale = (locale === 'zh' ? 'zh' : 'en') as 'zh' | 'en';
 
   const category = useMemo<CompanionCategory | null>(
@@ -74,6 +76,19 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
   const handleSelect = async (girl: DemoGirl) => {
     setSelecting(true);
     try {
+      // Already friends → skip unlock/add and go straight to chat.
+      if (friendStatus.isFriend(girl)) {
+        try {
+          const chatId = await ensureCompanionChatId(girl);
+          if (chatId) {
+            setSelected(null);
+            router.push(`/chat/${encodeURIComponent(chatId)}`);
+            return;
+          }
+        } catch {
+          /* fall through to the normal add flow */
+        }
+      }
       if (girl.locked) {
         const res = await authedFetch('/api/girlfriends/unlock', {
           method: 'POST',
@@ -103,6 +118,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
         description: '前往消息页开始聊天',
         action: { label: '去聊天', onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
       });
+      void friendStatus.refresh();
       setSelected(null);
     } catch (err) {
       const e = err as Error & { code?: string };
@@ -256,6 +272,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
           busy={selecting}
           girl={selected}
           open={!!selected}
+          isFriend={friendStatus.isFriend(selected)}
           onClose={() => setSelected(null)}
           onSelect={() => handleSelect(selected)}
         />

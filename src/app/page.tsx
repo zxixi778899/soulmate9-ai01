@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { GIRLS, RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
 import { fetchCompanionCatalog } from '@/lib/companions';
 import { ensureCompanionChatId } from '@/lib/ensure-companion';
+import { useFriendStatus } from '@/lib/use-friend-status';
 import { readResponseJson } from '@/lib/safe-json';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
 import { CardMedia } from '@/components/discover/CardMedia';
@@ -105,6 +106,7 @@ export default function HomePage() {
   const router = useRouter();
   const { t, locale } = useTranslation();
   const { user } = useAuth();
+  const friendStatus = useFriendStatus();
   const { settings: siteSettings } = useSiteSettings();
   const { ads: bannerAds } = useSiteAds('banner');
   const modules = useMemo(
@@ -297,6 +299,19 @@ export default function HomePage() {
     if (!girl) return;
     setBonding(true);
     try {
+      // Already friends → skip unlock/add and go straight to chat.
+      if (friendStatus.isFriend(girl)) {
+        try {
+          const chatId = await ensureCompanionChatId(girl);
+          if (chatId) {
+            setDetail(null);
+            router.push(`/chat/${encodeURIComponent(chatId)}`);
+            return;
+          }
+        } catch {
+          /* fall through to the normal add flow */
+        }
+      }
       if (girl.locked) {
         const res = await authedFetch('/api/girlfriends/unlock', {
           method: 'POST',
@@ -329,6 +344,7 @@ export default function HomePage() {
         description: '前往消息页开始聊天',
         action: { label: '去聊天', onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
       });
+      void friendStatus.refresh();
     } catch (err) {
       const e = err as Error & { code?: string };
       if (e.code === 'SEAT_LIMIT') {
@@ -876,6 +892,7 @@ export default function HomePage() {
           busy={bonding}
           girl={detail}
           open={!!detail}
+          isFriend={friendStatus.isFriend(detail)}
           onClose={() => setDetail(null)}
           onSelect={() => {
             setDetail(null);

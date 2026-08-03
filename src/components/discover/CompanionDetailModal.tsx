@@ -20,6 +20,8 @@ interface Props {
   onSelect?: (girl: DemoGirl) => void;
   busy?: boolean;
   primaryLabel?: string;
+  /** Already in the user's friends list → primary button becomes "去聊天". */
+  isFriend?: boolean;
 }
 
 const PERSONALITY_DIMENSIONS = [
@@ -30,7 +32,7 @@ const PERSONALITY_DIMENSIONS = [
   { key: 'Mystery', value: 88 },
 ];
 
-export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = false, primaryLabel }: Props) {
+export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = false, primaryLabel, isFriend = false }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -236,10 +238,12 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
               <span className="relative z-10 flex items-center justify-center gap-2">
                 {busy ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isFriend ? (
+                  <MessageCircle className="h-4 w-4" />
                 ) : (
                   <UserPlus className="h-4 w-4" />
                 )}
-                {primaryLabel || 'ADD FRIEND'}
+                {isFriend ? '去聊天' : primaryLabel || 'ADD FRIEND'}
               </span>
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
             </button>
