@@ -190,6 +190,28 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: delError.message }, { status: 500 });
   }
 
+  // 清空与该伴侣的所有聊天记录（删除好友即彻底清除对话）
+  const { error: msgDelError } = await client
+    .from('chat_messages')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('girlfriend_id', girlfriendId);
+
+  if (msgDelError) {
+    logger.error('[friends] clear chat messages failed', { error: msgDelError.message });
+  }
+
+  // 亲密度归零（UI 删除确认已承诺归零；重新添加从 0 开始）
+  const { error: intimacyError } = await client
+    .from('intimacy_scores')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('girlfriend_id', girlfriendId);
+
+  if (intimacyError) {
+    logger.error('[friends] reset intimacy failed', { error: intimacyError.message });
+  }
+
   // 如果是用户创建的伴侣，同时软删除伴侣本体
   if (friendRow.source === 'created') {
     await client

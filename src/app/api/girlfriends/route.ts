@@ -407,6 +407,17 @@ export async function DELETE(request: NextRequest) {
     }
   }
 
+  // Clear all chat history for this companion (delete = wipe conversation).
+  try {
+    await client
+      .from('chat_messages')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('girlfriend_id', id);
+  } catch (err) {
+    logger.warn('[girlfriends] clear chat messages failed', { err: String(err), id });
+  }
+
   // Soft-delete: mark as removed instead of hard-deleting so companion data is preserved.
   // "Delete" only removes the friend relationship, not the companion itself.
   const { error } = await client

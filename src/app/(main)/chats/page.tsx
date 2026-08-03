@@ -463,8 +463,15 @@ export default function ChatsPage() {
       setPage(1); setHasMore(true); setMessages([]); setGirlfriend(null);
       setSmartSuggestions([]); setPendingMedia(null); setSelectedOutfit(null);
       void loadChat(selectedId);
-      // Refresh unread counts — user is viewing this chat now
-      void refreshUnread();
+      // User is viewing this chat — mark it read, then refresh the badge counts.
+      authedFetch('/api/chat/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ girlfriend_id: selectedId }),
+      })
+        .then(() => window.dispatchEvent(new Event('soulmate:unread-changed')))
+        .catch(() => {})
+        .finally(() => refreshUnread());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);

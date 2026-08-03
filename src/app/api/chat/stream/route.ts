@@ -491,6 +491,18 @@ export async function POST(request: NextRequest) {
       : {}),
   });
 
+  // Replying implies the user has seen the companion's proactive messages —
+  // mark them read so the unread badge clears (fire and forget).
+  Promise.resolve(
+    client
+      .from('chat_messages')
+      .update({ is_read: true })
+      .eq('user_id', user.id)
+      .eq('girlfriend_id', girlfriend_id)
+      .eq('is_proactive', true)
+      .eq('is_read', false),
+  ).catch(() => {});
+
   // Update intimacy via internal call (fire and forget)  skip for newbie trial
   if (!isNewbieTrial) {
     const token = request.headers.get('x-session') || '';

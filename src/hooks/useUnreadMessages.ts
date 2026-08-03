@@ -34,7 +34,13 @@ export function useUnreadMessages() {
   useEffect(() => {
     void refresh();
     const interval = setInterval(refresh, 60_000);
-    return () => clearInterval(interval);
+    // Instant cross-component sync: any mark-read dispatches this event.
+    const onChanged = () => void refresh();
+    window.addEventListener('soulmate:unread-changed', onChanged);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('soulmate:unread-changed', onChanged);
+    };
   }, [refresh]);
 
   return { unreadCounts: data.counts, unreadTotal: data.total, refreshUnread: refresh, loading };

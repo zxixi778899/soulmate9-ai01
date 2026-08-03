@@ -165,6 +165,14 @@ export default function ChatPage() {
       return;
     }
     setIsLoading(true);
+    // Viewing the conversation marks proactive messages as read (clears unread badge).
+    authedFetch('/api/chat/mark-read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ girlfriend_id: id }),
+    })
+      .then(() => window.dispatchEvent(new Event('soulmate:unread-changed')))
+      .catch(() => {});
     // Instant paint from local cache so history never "vanishes" on re-enter
     const cached = loadChatCache(id);
     if (cached?.messages?.length) {
