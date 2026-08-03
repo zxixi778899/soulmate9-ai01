@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { cn } from '@/lib/utils';
 import {
   Heart, MessageCircle, User, Home, LogIn, Wand2, ShoppingBag, Sparkles,
@@ -15,6 +16,7 @@ export default function BottomNav() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { settings } = useSiteSettings();
+  const { unreadTotal } = useUnreadMessages();
 
   if (pathname?.startsWith('/admin')) return null;
   if (pathname?.startsWith('/chat/')) return null;
@@ -35,7 +37,7 @@ export default function BottomNav() {
 
   const rightItems = isLoggedIn
     ? [
-        { href: '/chats', label: t('home.messages'), icon: MessageCircle },
+        { href: '/chats', label: t('home.messages'), icon: MessageCircle, badge: unreadTotal },
         { href: '/profile', label: t('home.me'), icon: User },
       ]
     : [
@@ -52,10 +54,12 @@ export default function BottomNav() {
     href,
     label,
     icon: Icon,
+    badge,
   }: {
     href: string;
     label: string;
     icon: React.ElementType;
+    badge?: number;
   }) => {
     const active = isActive(href);
     return (
@@ -76,6 +80,11 @@ export default function BottomNav() {
           <Icon className={cn('h-5 w-5', active && 'scale-105')} strokeWidth={active ? 2.25 : 1.75} />
           {active && (
             <span className="absolute -bottom-0.5 left-1/2 h-0.5 w-3 -translate-x-1/2 rounded-full bg-[#ff6ba6]" />
+          )}
+          {!!badge && badge > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gradient-to-br from-[#FF2D78] to-[#A855F7] px-1 text-[9px] font-bold text-white shadow-[0_0_8px_rgba(255,45,120,0.5)]">
+              {badge > 9 ? '9+' : badge}
+            </span>
           )}
         </span>
         <span className="text-[10px] font-medium leading-none truncate max-w-[4.5rem]">{label}</span>

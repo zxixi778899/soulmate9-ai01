@@ -13,6 +13,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/lib/i18n/context';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
+import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 
 type Girlfriend = { id: string; name: string; avatar_url: string | null; personality: string | null };
 type IntimacyScore = { girlfriend_id: string; score: number; level: number };
@@ -27,6 +28,7 @@ export function Sidebar() {
   const [intimacyScores, setIntimacyScores] = useState<Record<string, IntimacyScore>>({});
   const [lastMessages, setLastMessages] = useState<Record<string, LastMessage>>({});
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const { unreadCounts } = useUnreadMessages();
 
   useEffect(() => {
     authedFetch('/api/notifications')
@@ -193,6 +195,7 @@ export function Sidebar() {
               const levelInfo = getIntimacyInfo(score);
               const lastMsg = lastMessages[gf.id];
               const isChatActive = pathname === `/chat/${gf.id}`;
+              const unread = unreadCounts[gf.id] || 0;
 
               return (
                 <button
@@ -220,6 +223,11 @@ export function Sidebar() {
                       className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-[#050509]"
                       style={{ backgroundColor: levelInfo.color }}
                     />
+                    {unread > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gradient-to-br from-[#FF2D78] to-[#A855F7] px-1 text-[9px] font-bold text-white shadow-[0_0_8px_rgba(255,45,120,0.5)]">
+                        {unread > 9 ? '9+' : unread}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0">

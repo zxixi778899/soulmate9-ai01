@@ -12,6 +12,7 @@ import { readResponseJson } from '@/lib/safe-json';
 import { useState, useEffect, useMemo, useCallback, useRef, type MouseEvent } from 'react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useDataSync, notifyDataChange } from '@/hooks/useDataSync';
+import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useMembership } from '@/hooks/useMembership';
@@ -98,7 +99,7 @@ function computeProgress(score: number, level: number): number {
 
 // ─── Friend Row ──────────────────────────────────────────────────────────────
 
-function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, onDelete, onSubmit, onAlbum, onWardrobe, onClick }: {
+function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, unreadCount, onDelete, onSubmit, onAlbum, onWardrobe, onClick }: {
   friend: Friend;
   lastMsg?: LastMessage;
   score: number;
@@ -106,6 +107,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
   deleting: boolean;
   submitting: boolean;
   tick: number;
+  unreadCount: number;
   onDelete: (gf: Friend, e: MouseEvent) => void;
   onSubmit: (gf: Friend, e: MouseEvent) => void;
   onAlbum: (gf: Friend, e: MouseEvent) => void;
@@ -138,6 +140,11 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
               : <AvatarFallback className="bg-gradient-to-br from-[#ff2e88]/40 to-[#c026d3]/30 text-[#ff6ba6] font-bold">{friend.name?.charAt(0) || '?'}</AvatarFallback>}
           </Avatar>
           <span className="absolute -bottom-0.5 -right-0.5 text-sm drop-shadow" title={mood.label}>{mood.emoji}</span>
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gradient-to-br from-[#FF2D78] to-[#A855F7] px-1 text-[10px] font-bold text-white shadow-[0_0_8px_rgba(255,45,120,0.5)]">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
@@ -202,6 +209,7 @@ export default function ChatsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const membership = useMembership();
+  const { unreadCounts, unreadTotal, refreshUnread } = useUnreadMessages();
 
   // ── Friend list state ──
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -455,6 +463,8 @@ export default function ChatsPage() {
       setPage(1); setHasMore(true); setMessages([]); setGirlfriend(null);
       setSmartSuggestions([]); setPendingMedia(null); setSelectedOutfit(null);
       void loadChat(selectedId);
+      // Refresh unread counts — user is viewing this chat now
+      void refreshUnread();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
@@ -703,6 +713,7 @@ export default function ChatsPage() {
         return prev;
       });
       void membership.refresh();
+      void refreshUnread();
     } catch (err) {
       logger.error('Send error:', { data: err });
       setMessages((prev) => prev.map((m) => m.id === tempId ? { ...m, status: 'failed' } : m));
@@ -819,6 +830,7 @@ export default function ChatsPage() {
                   deleting={deletingId === gf.id}
                   submitting={submittingId === gf.id}
                   tick={tick}
+                  unreadCount={unreadCounts[gf.id] || 0}
                   onDelete={(g, e) => void deleteFriend(g, e)}
                   onSubmit={(g, e) => void submitForReview(g, e)}
                   onAlbum={handleAlbumClick}
