@@ -10,6 +10,7 @@ import { AgeVerification } from '@/components/AgeVerification';
 import { PostHogProvider } from '@/components/PostHogProvider';
 import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
 import RetentionLoop from '@/components/RetentionLoop';
+import RewardEffectOverlay from '@/components/effects/RewardEffectOverlay';
 import { Toaster } from '@/components/ui/sonner';
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from '@/lib/constants';
 import './globals.css';
@@ -121,6 +122,7 @@ export default function RootLayout({
               <Toaster position="top-center" richColors />
               <BottomNav />
               <RetentionLoop />
+              <RewardEffectOverlay />
               <SupportAgent />
             </I18nProvider>
           </AuthProvider>

@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { GameShell } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { syncRewards } from '@/lib/reward-events';
 
 interface Achievement {
   id: string;
@@ -52,6 +53,10 @@ export default function AchievementsPage() {
 
   useEffect(() => {
     void loadAchievements();
+    // Celebrate any unlocks earned while the user was elsewhere, then
+    // refresh so the list reflects the latest state.
+    void syncRewards({ force: true }).then(() => void loadAchievements());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadAchievements = async () => {

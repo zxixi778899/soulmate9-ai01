@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { grantCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from '@/lib/analytics';
+import { checkAchievements } from '@/lib/achievement-checker';
 import { captureException } from '@/lib/sentry';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 
@@ -159,6 +160,8 @@ async function handleCheckoutCompleted(
       stripe_session_id: session.id,
       route: 'stripe-webhook',
     });
+    // Fire-and-forget: credits_purchased achievements unlock here.
+    checkAchievements(admin, userId).catch(() => {});
     return;
   }
 
@@ -233,6 +236,8 @@ async function handleCheckoutCompleted(
     plan,
     eventId: event.id,
   });
+  // Fire-and-forget: subscription_tier achievements (upgrade_pro/unlimited) unlock here.
+  checkAchievements(admin, userId).catch(() => {});
 }
 
 async function resolveSubscriptionUser(

@@ -3,17 +3,28 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ChevronRight, Flame, Gift, Heart, Loader2, MessageCircle, Sparkles, Trophy, X } from 'lucide-react';
+import { CalendarCheck, Camera, Check, ChevronRight, Flame, Gift, Heart, Image as ImageIcon, Loader2, MessageCircle, Sparkles, Trophy, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
 import { readResponseJson } from '@/lib/safe-json';
 import { authedFetch } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { fireRewardEffect, questDisplayName, rewardTr, syncRewards } from '@/lib/reward-events';
 
 type CheckinState = { streak: number; claimed_today: boolean; next_reward: number };
 type MembershipState = { usage?: { messages_sent_today?: number; total_girlfriends?: number } };
+type QuestRow = { code: string; goal: number; progress: number; reward: number; done: boolean; claimed: boolean };
+type DailyQuestsState = { quests?: QuestRow[]; all_complete?: boolean; bonus_claimed?: boolean };
 type DailyGoal = { label: string; done: boolean; icon: typeof Gift };
+
+const QUEST_ICONS: Record<string, typeof Gift> = {
+  checkin: CalendarCheck,
+  first_message: MessageCircle,
+  first_photo: Camera,
+  three_companions: Users,
+  three_photos: ImageIcon,
+};
 
 const HIDDEN_ROUTE_PREFIXES = ['/admin', '/chat/', '/create', '/login', '/register', '/onboarding', '/payment'];
 
@@ -26,25 +37,32 @@ export default function RetentionLoop() {
   const [claiming, setClaiming] = useState(false);
   const [checkin, setCheckin] = useState<CheckinState | null>(null);
   const [membership, setMembership] = useState<MembershipState | null>(null);
+  const [dailyQuests, setDailyQuests] = useState<DailyQuestsState | null>(null);
 
   const loadProgress = useCallback(async (): Promise<void> => {
     if (!user) return;
     setLoading(true);
     try {
-      const [checkinResponse, membershipResponse] = await Promise.all([
+      const [checkinResponse, membershipResponse, questsResponse] = await Promise.all([
         authedFetch('/api/checkin'),
         authedFetch('/api/membership'),
+        authedFetch('/api/daily-quests').catch(() => null),
       ]);
       if (!checkinResponse.ok || !membershipResponse.ok) throw new Error('Unable to load daily progress');
-      const [checkinData, membershipData] = await Promise.all([
+      const [checkinData, membershipData, questsData] = await Promise.all([
         readResponseJson(checkinResponse) as Promise<CheckinState>,
         readResponseJson(membershipResponse) as Promise<MembershipState>,
+        questsResponse && questsResponse.ok
+          ? (readResponseJson(questsResponse) as Promise<DailyQuestsState>).catch(() => null)
+          : Promise.resolve(null),
       ]);
       setCheckin(checkinData);
       setMembership(membershipData);
+      setDailyQuests(questsData);
     } catch {
       setCheckin(null);
       setMembership(null);
+      setDailyQuests(null);
     } finally {
       setLoading(false);
     }
@@ -55,12 +73,29 @@ export default function RetentionLoop() {
 
   const goals = useMemo<DailyGoal[]>(() => {
     const usage = membership?.usage;
+    const quests = dailyQuests?.quests;
+    if (quests && quests.length > 0) {
+      return quests.map((quest) => ({
+        label: questDisplayName(quest.code),
+        done: Boolean(quest.done || quest.progress >= quest.goal),
+        icon: QUEST_ICONS[quest.code] ?? Gift,
+      }));
+    }
     return [
       { label: t('home.moduleQuestTip') || 'Daily reward', done: Boolean(checkin?.claimed_today), icon: Gift },
       { label: t('chat.sayHello') || 'Say hello', done: (usage?.messages_sent_today ?? 0) > 0, icon: MessageCircle },
       { label: t('home.pool') || 'Meet a companion', done: (usage?.total_girlfriends ?? 0) > 0, icon: Heart },
     ];
-  }, [checkin?.claimed_today, membership?.usage, t]);
+  }, [checkin?.claimed_today, dailyQuests?.quests, membership?.usage, t]);
+
+  // Celebrate freshly completed quests/achievements whenever the user moves
+  // around the app; syncRewards is debounced + de-duplicated server-side.
+  useEffect(() => {
+    if (!user) return;
+    void syncRewards();
+    const timer = window.setInterval(() => void syncRewards(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [user, pathname]);
 
   const completedGoals = goals.reduce((total, goal) => total + Number(goal.done), 0);
   const progress = Math.round((completedGoals / goals.length) * 100);
@@ -75,13 +110,20 @@ export default function RetentionLoop() {
       const data = await readResponseJson(response) as { reward?: number; streak?: number; error?: string };
       if (!response.ok) throw new Error(data.error || 'Unable to claim reward');
       const reward = data.reward ?? checkin.next_reward;
-      setCheckin((current) => current ? {
-        ...current,
-        claimed_today: true,
-        streak: data.streak ?? Math.max(1, current.streak),
-      } : current);
+      const streak = data.streak ?? Math.max(1, checkin.streak);
+      setCheckin((current) => current ? { ...current, claimed_today: true, streak } : current);
+      setDailyQuests((current) => current && current.quests
+        ? { ...current, quests: current.quests.map((q) => q.code === 'checkin' ? { ...q, progress: 1, done: true, claimed: true } : q) }
+        : current);
       toast.success(`+${reward} credits`);
       window.dispatchEvent(new Event('soulmate:credits-updated'));
+      fireRewardEffect({
+        kind: 'checkin',
+        title: rewardTr('quest.daily.checkin', '每日签到'),
+        subtitle: `${streak}🔥 ${rewardTr('quest.daily.claimed', 'Check-in complete')}`,
+        reward,
+      });
+      window.setTimeout(() => void syncRewards({ force: true }), 1800);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to claim reward');
     } finally {

@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 import { invalidateGirlfriends } from '@/lib/revalidate';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
 import { buildCompanionCharacterCard } from '@/lib/creator-presets';
+import { checkAchievements } from '@/lib/achievement-checker';
 
 const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
 
@@ -271,6 +272,9 @@ export async function POST(request: NextRequest) {
 
   // Sync: invalidate cached girlfriend lists so other tabs/pages see the new companion
   invalidateGirlfriends();
+
+  // Fire-and-forget: creation achievements (first_creation, collector_*) unlock here.
+  checkAchievements(client, user.id).catch(() => {});
 
   return NextResponse.json({ girlfriend, cards_remaining: cardResult.remaining });
 }

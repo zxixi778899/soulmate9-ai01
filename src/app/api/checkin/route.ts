@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
 import { invalidateSettings } from '@/lib/revalidate';
 import { DAILY_CHECKIN_REWARD, grantCredits } from '@/lib/credit-system';
+import { checkAchievements } from '@/lib/achievement-checker';
 
 export const runtime = 'nodejs';
 
@@ -88,6 +89,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   invalidateSettings();
+
+  // Fire-and-forget: streak achievements (streak_3 / streak_7) unlock here.
+  checkAchievements(supabase, user.id).catch(() => {});
 
   return NextResponse.json({
     ok: true,

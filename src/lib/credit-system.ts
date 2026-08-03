@@ -96,7 +96,9 @@ export type CreditReason =
   | 'subscription_grant'
   | 'admin_grant'
   | 'refund'
-  | 'achievement';
+  | 'achievement'
+  | 'daily_quest'
+  | 'quest_bonus';
 
 // ─── Core Operations ─────────────────────────────────────────────────────────
 

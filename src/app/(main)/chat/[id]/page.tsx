@@ -42,6 +42,7 @@ import { GiftEffectOverlay, type GiftBurstState } from '@/components/chat/GiftEf
 import UpgradeModal from '@/components/UpgradeModal';
 import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 import { detectMessageLocale } from '@/lib/chat-locale';
+import { syncRewards } from '@/lib/reward-events';
 
 
 type OutfitItem = {
@@ -531,6 +532,7 @@ export default function ChatPage() {
                 media_type: 'image',
               },
             ]);
+            void syncRewards();
             break;
           }
           if (data.status === 'FAILED') break;
@@ -965,6 +967,8 @@ export default function ChatPage() {
             status: m.status,
           })),
         });
+        // A new AI photo just arrived — evaluate photo quests and celebrate.
+        void syncRewards();
       }
     } catch (err) {
       setIsTyping(false);
@@ -1209,6 +1213,10 @@ export default function ChatPage() {
             : m,
         ),
       );
+
+      // A real message just landed — evaluate daily quests (first message,
+      // multi-companion) and celebrate any completion. Debounced + dedup'd.
+      void syncRewards();
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No response body');

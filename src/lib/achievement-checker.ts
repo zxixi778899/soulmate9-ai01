@@ -19,6 +19,11 @@ interface UserStats {
   outfitCount: number;
   maxIntimacyLevel: number;
   nsfwMessageCount: number;
+  creditsPurchased: number;
+  subscriptionTier: number;
+  companionCount: number;
+  createdCompanions: number;
+  checkinStreak: number;
 }
 
 type SupabaseLike = {
@@ -69,8 +74,47 @@ export async function checkAchievements(
       }
     })();
 
-    const imageCountPromise = safeCount(supabase, 'generation_tasks', (q) =>
-      q.eq('user_id', userId).eq('task_type', 'image_generation'),
+    const imageCountPromise = safeCount(supabase, 'chat_media', (q) =>
+      q.eq('user_id', userId).eq('media_type', 'image'),
+    );
+
+    const creditsPurchasedPromise = (async (): Promise<number> => {
+      try {
+        const { data } = await supabase
+          .from('user_credits_ledger')
+          .select('delta')
+          .eq('user_id', userId)
+          .eq('reason', 'token_purchase')
+          .gt('delta', 0)
+          .limit(1000);
+        return ((data || []) as Array<{ delta: number }>).reduce(
+          (sum, r) => sum + Number(r.delta || 0),
+          0,
+        );
+      } catch {
+        return 0;
+      }
+    })();
+
+    const profilePromise = (async (): Promise<{ membership_tier?: string; checkin_streak?: number } | null> => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('membership_tier, checkin_streak')
+          .eq('user_id', userId)
+          .maybeSingle();
+        return data || null;
+      } catch {
+        return null;
+      }
+    })();
+
+    const companionCountPromise = safeCount(supabase, 'user_friends', (q) =>
+      q.eq('user_id', userId),
+    );
+
+    const createdCompanionsPromise = safeCount(supabase, 'user_friends', (q) =>
+      q.eq('user_id', userId).eq('source', 'created'),
     );
 
     const giftCountPromise = safeCount(supabase, 'purchase_history', (q) =>
@@ -112,6 +156,10 @@ export async function checkAchievements(
       giftPurchaseCount,
       outfitCount,
       nsfwMessageCount,
+      creditsPurchased,
+      profileRow,
+      companionCount,
+      createdCompanions,
       achievementResult,
     ] = await Promise.all([
       msgCountPromise,
@@ -120,8 +168,15 @@ export async function checkAchievements(
       giftCountPromise,
       outfitCountPromise,
       heatMsgPromise,
+      creditsPurchasedPromise,
+      profilePromise,
+      companionCountPromise,
+      createdCompanionsPromise,
       achievementsPromise,
     ]);
+
+    const rawTier = String(profileRow?.membership_tier || 'free').toLowerCase();
+    const subscriptionTier = rawTier === 'unlimited' ? 2 : rawTier === 'free' ? 0 : 1;
 
     const stats: UserStats = {
       messageCount,
@@ -130,6 +185,11 @@ export async function checkAchievements(
       outfitCount,
       maxIntimacyLevel,
       nsfwMessageCount,
+      creditsPurchased,
+      subscriptionTier,
+      companionCount,
+      createdCompanions,
+      checkinStreak: Number(profileRow?.checkin_streak || 0),
     };
 
     let allAchievements = achievementResult?.data || [];
@@ -182,6 +242,21 @@ export async function checkAchievements(
         case 'nsfw_message_count':
           currentProgress = stats.nsfwMessageCount;
           break;
+        case 'credits_purchased':
+          currentProgress = stats.creditsPurchased;
+          break;
+        case 'subscription_tier':
+          currentProgress = stats.subscriptionTier;
+          break;
+        case 'companion_count':
+          currentProgress = stats.companionCount;
+          break;
+        case 'created_companions':
+          currentProgress = stats.createdCompanions;
+          break;
+        case 'checkin_streak':
+          currentProgress = stats.checkinStreak;
+          break;
         default:
           currentProgress = 0;
       }
@@ -189,15 +264,18 @@ export async function checkAchievements(
       const unlocked = currentProgress >= ach.condition_value;
 
       if (!isSynthetic) {
+        const isNewUnlock = unlocked && !existing?.unlocked;
+        const payload: Record<string, unknown> = {
+          user_id: userId,
+          achievement_id: ach.id,
+          progress_value: currentProgress,
+          unlocked,
+          updated_at: new Date().toISOString(),
+        };
+        if (unlocked) payload.unlocked_at = new Date().toISOString();
+        if (isNewUnlock) payload.notified = false;
         await supabase.from('user_achievements').upsert(
-          {
-            user_id: userId,
-            achievement_id: ach.id,
-            progress_value: currentProgress,
-            unlocked,
-            unlocked_at: unlocked ? new Date().toISOString() : null,
-            updated_at: new Date().toISOString(),
-          },
+          payload,
           { onConflict: 'user_id,achievement_id' },
         );
       }
