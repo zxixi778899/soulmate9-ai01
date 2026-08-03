@@ -38,11 +38,20 @@ export async function ensureCompanionChatId(girl: {
   }
 
   // 2) Add the public companion as a reference friend (no clone). Consumes a seat.
-  if (girl.slug) {
+  //    POST /api/friends accepts { slug } or { girlfriend_id }; prefer slug, fall back
+  //    to the real girlfriend UUID so a missing slug doesn't dead-end into null (which
+  //    callers misread as "not logged in" and bounce to /login).
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const addBody = girl.slug
+    ? { slug: girl.slug }
+    : UUID_RE.test(girl.id)
+      ? { girlfriend_id: girl.id }
+      : null;
+  if (addBody) {
     const add = await authedFetch('/api/friends', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slug: girl.slug }),
+      body: JSON.stringify(addBody),
     });
     const d = await readResponseJson(add).catch(() => ({} as Record<string, unknown>));
     if (add.ok) {
@@ -61,7 +70,7 @@ export async function ensureCompanionChatId(girl: {
     throw err;
   }
 
-  // No public slug — cannot create a reference friend for a non-catalog companion.
+  // No public slug and no real girlfriend UUID — nothing to reference-add.
   return null;
 }
 

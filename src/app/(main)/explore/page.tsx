@@ -22,12 +22,14 @@ import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/Locke
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { authedFetch } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
 
 type SortKey = 'rarity' | 'hot' | 'intimacy' | 'new';
 const TAG_POOL = ['mysterious', 'romantic', 'playful', 'sweet', 'creative', 'flirty', 'bold', 'confident', 'passionate', 'gentle', 'wise', 'caring'];
 
 export default function ExplorePage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sort, setSort] = useState<SortKey>('rarity');
@@ -107,8 +109,11 @@ export default function ExplorePage() {
       try {
         const chatId = await ensureCompanionChatId(girl);
         if (!chatId) {
-          toast.error('添加失败 — 请先登录');
-          router.push('/login');
+          if (!user) {
+            router.push(`/login?next=${encodeURIComponent('/explore')}`);
+          } else {
+            toast.error('添加失败 — 请稍后重试');
+          }
           return;
         }
         toast.success(`已添加 ${girl.name} 到好友列表`, {

@@ -192,6 +192,7 @@ export function mapToDemoGirl(row: Record<string, unknown>, index = 0): DemoGirl
   return {
     id,
     name,
+    slug: (row.slug as string) || undefined,
     age,
     category: normalizeCompanionCategory({
       gender: row.gender,

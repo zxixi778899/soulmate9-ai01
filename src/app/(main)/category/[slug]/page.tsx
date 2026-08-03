@@ -23,6 +23,7 @@ import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
+import { useAuth } from '@/components/AuthProvider';
 
 const CATEGORY_EMOJI: Record<CompanionCategory, string> = {
   female: '👩',
@@ -35,6 +36,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
   const { slug } = use(params);
   const router = useRouter();
   const { locale } = useTranslation();
+  const { user } = useAuth();
   const labelLocale = (locale === 'zh' ? 'zh' : 'en') as 'zh' | 'en';
 
   const category = useMemo<CompanionCategory | null>(
@@ -90,8 +92,11 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
       }
       const chatId = await ensureCompanionChatId(girl);
       if (!chatId) {
-        toast.error('添加失败 — 请先登录');
-        router.push('/login');
+        if (!user) {
+          router.push(`/login?next=${encodeURIComponent(`/category/${slug}`)}`);
+        } else {
+          toast.error('添加失败 — 请稍后重试');
+        }
         return;
       }
       toast.success(`已添加 ${girl.name} 到好友列表`, {

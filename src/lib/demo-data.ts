@@ -30,6 +30,8 @@ export type AccessStatus = 'open' | 'locked' | 'closed';
 export interface DemoGirl {
   id: string;
   name: string;
+  /** Public slug used to reference-add a catalog companion (POST /api/friends). */
+  slug?: string;
   age: number;
   category?: 'female' | 'male' | 'transgender' | 'anime';
   /** English tagline (default / EN) */

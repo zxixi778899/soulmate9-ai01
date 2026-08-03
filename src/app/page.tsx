@@ -318,8 +318,11 @@ export default function HomePage() {
       }
       const chatId = await ensureCompanionChatId(girl);
       if (!chatId) {
-        toast.error(t('home.chatFail'));
-        router.push('/login');
+        if (!user) {
+          router.push(`/login?next=${encodeURIComponent('/')}`);
+        } else {
+          toast.error(t('home.chatFail'));
+        }
         return;
       }
       toast.success(`已添加 ${girl.name} 到好友列表`, {
