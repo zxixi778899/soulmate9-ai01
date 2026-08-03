@@ -215,22 +215,26 @@ export async function takeAchievementNotifications(
     .select('id, code, name, reward_tokens')
     .in('id', ids);
 
-  // Mark notified BEFORE returning so a concurrent call cannot double-pop.
-  await client
-    .from('user_achievements')
-    .update({ notified: true })
-    .eq('user_id', userId)
-    .eq('unlocked', true)
-    .eq('notified', false);
-
   const byId = new Map(
     ((catalog || []) as Array<{ id: string; code: string; name: string; reward_tokens: number | null }>).map(
       (a) => [String(a.id), a],
     ),
   );
 
-  return ids
+  // Resolve to full notification objects first. Only ids we successfully
+  // resolved get marked notified — if the catalog lookup misses some, those
+  // rows stay notified=false and a later sync retries them (no lost pops).
+  const resolved = ids
     .map((id) => byId.get(String(id)))
-    .filter((a): a is { id: string; code: string; name: string; reward_tokens: number | null } => Boolean(a))
-    .map((a) => ({ code: a.code, name: a.name, reward: a.reward_tokens || 0 }));
+    .filter((a): a is { id: string; code: string; name: string; reward_tokens: number | null } => Boolean(a));
+
+  if (resolved.length > 0) {
+    await client
+      .from('user_achievements')
+      .update({ notified: true })
+      .eq('user_id', userId)
+      .in('achievement_id', resolved.map((a) => a.id));
+  }
+
+  return resolved.map((a) => ({ code: a.code, name: a.name, reward: a.reward_tokens || 0 }));
 }
