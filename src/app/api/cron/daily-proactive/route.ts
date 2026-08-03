@@ -1,6 +1,6 @@
 /**
  * Cron: proactive messages from befriended companions only.
- * Runs at 11:00 & 14:00 UTC (19:00 & 22:00 UTC+8) — within 18:00-24:00 user local window.
+ * Runs every 4 hours globally; per-user local time check ensures 18:00-24:00 window.
  * Max 2 per companion per day. Stops after 3 consecutive days without user reply.
  * Content: LLM-generated contextual messages, non-repetitive.
  * Secure with CRON_SECRET Bearer token.
@@ -65,7 +65,37 @@ export async function GET(req: NextRequest) {
     for (const p of pairs.values()) userIds.add(p.user_id);
     usersScanned = userIds.size;
 
+    // ── Batch-fetch user timezone offsets (minutes, JS convention: UTC+8 = -480) ──
+    const tzMap = new Map<string, number>();
+    const idArr = Array.from(userIds);
+    // Supabase .in() supports up to ~2000 values; chunk if needed
+    for (let i = 0; i < idArr.length; i += 200) {
+      const chunk = idArr.slice(i, i + 200);
+      const { data: tzRows } = await sb
+        .from('profiles')
+        .select('user_id, timezone_offset')
+        .in('user_id', chunk);
+      for (const r of tzRows || []) {
+        tzMap.set(r.user_id, typeof r.timezone_offset === 'number' ? r.timezone_offset : -480);
+      }
+    }
+    // Users without a profile row default to UTC+8
+    for (const id of userIds) {
+      if (!tzMap.has(id)) tzMap.set(id, -480);
+    }
+
     for (const pair of pairs.values()) {
+      // ── Per-user timezone check: only send during 18:00-24:00 user local time ──
+      const tzOffset = tzMap.get(pair.user_id) ?? -480; // minutes (JS convention)
+      const localMs = Date.now() - tzOffset * 60_000;
+      const localHour = new Date(localMs).getUTCHours();
+      if (localHour < 18 || localHour >= 24) {
+        skipped++;
+        continue;
+      }
+      // User-local date key for daily cap (avoids UTC date boundary issues)
+      const userDayKey = new Date(localMs).toISOString().slice(0, 10);
+
       // ── 3-day silence rule: stop proactive if user hasn't replied for 3 consecutive days ──
       const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString();
       const { data: lastUserMsg } = await sb
@@ -104,13 +134,13 @@ export async function GET(req: NextRequest) {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', pair.user_id)
           .eq('girlfriend_id', pair.girlfriend_id)
-          .gte('sent_at', `${dayKey}T00:00:00.000Z`);
+          .gte('sent_at', `${userDayKey}T00:00:00.000Z`);
         already = count || 0;
       } catch {
         already = 0;
       }
 
-      const target = dailyProactiveTarget([pair.user_id, pair.girlfriend_id, dayKey].join(':'));
+      const target = dailyProactiveTarget([pair.user_id, pair.girlfriend_id, userDayKey].join(':'));
       if (already >= target) {
         skipped++;
         continue;
@@ -186,7 +216,7 @@ export async function GET(req: NextRequest) {
             user_id: pair.user_id,
             girlfriend_id: pair.girlfriend_id,
             message_id: msg?.id || null,
-            time_slot: `daily_${dayKey}`,
+            time_slot: `daily_${userDayKey}`,
           });
         } catch {
           /* ignore */

@@ -68,6 +68,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase]);
 
+  // Sync browser timezone offset to server when user is logged in
+  useEffect(() => {
+    if (!user || !supabase) return;
+    const offset = new Date().getTimezoneOffset(); // minutes from UTC (e.g. UTC+8 → -480)
+    const cached = localStorage.getItem('soulmate_tz_offset');
+    if (cached === String(offset)) return; // already synced
+    fetch('/api/profile/timezone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timezone_offset: offset }),
+    })
+      .then((r) => { if (r.ok) localStorage.setItem('soulmate_tz_offset', String(offset)); })
+      .catch(() => { /* ignore */ });
+  }, [user, supabase]);
+
   const signOut = async () => {
     if (!supabase) {
       router.push('/');
