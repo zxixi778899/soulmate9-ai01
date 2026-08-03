@@ -256,7 +256,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); handleSelect(girl); } }}
                         className="mt-2 w-full h-8 rounded-lg text-[10px] font-black tracking-[0.15em] bg-gradient-to-r from-[#ff2e88] to-[#c026d3] flex items-center justify-center active:scale-95"
                       >
-                        {girl.locked ? 'UNLOCK' : 'SELECT'}
+                        {girl.locked ? 'UNLOCK' : friendStatus.isFriend(girl) ? '去聊天' : 'SELECT'}
                       </div>
                     </div>
                   </div>
