@@ -37,6 +37,12 @@ function StudioInner(): React.JSX.Element {
 
           <div className="flex flex-wrap gap-1.5">
             <Link
+              href="/admin/preset-library"
+              className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-white/10"
+            >
+              <Library className="h-3.5 w-3.5" /> 预设库
+            </Link>
+            <Link
               href="/admin/model-library"
               className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-white/10"
             >

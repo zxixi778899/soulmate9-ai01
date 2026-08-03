@@ -78,6 +78,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
           '/admin/assets',
           '/admin/creator-previews',
           '/admin/presets',
+          '/admin/preset-library',
         ],
       },
       {
