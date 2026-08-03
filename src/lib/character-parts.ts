@@ -477,8 +477,32 @@ const VIBE_GREETINGS: Record<PresetVibe, { en: string; zh: string }> = {
   },
 };
 
-const OCCUPATION_POOL = ['Illustrator', 'Nurse', 'Barista', 'DJ', 'Photographer', 'Grad Student', 'Pastry Chef', 'Streamer', 'Yoga Instructor', 'Bookstore Clerk', 'Game Designer', 'Florist'];
-const HOBBIES_POOL = ['film photography', 'late-night cooking', 'vinyl records', 'urban exploring', 'baking', 'stargazing', 'indie games', 'vintage fashion', 'live houses', 'hand-drip coffee'];
+const OCCUPATION_POOL: Array<{ en: string; zh: string }> = [
+  { en: 'Illustrator', zh: '插画师' },
+  { en: 'Nurse', zh: '护士' },
+  { en: 'Barista', zh: '咖啡师' },
+  { en: 'DJ', zh: 'DJ' },
+  { en: 'Photographer', zh: '摄影师' },
+  { en: 'Grad Student', zh: '研究生' },
+  { en: 'Pastry Chef', zh: '甜点师' },
+  { en: 'Streamer', zh: '主播' },
+  { en: 'Yoga Instructor', zh: '瑜伽教练' },
+  { en: 'Bookstore Clerk', zh: '书店店员' },
+  { en: 'Game Designer', zh: '游戏策划' },
+  { en: 'Florist', zh: '花艺师' },
+];
+const HOBBIES_POOL: Array<{ en: string; zh: string }> = [
+  { en: 'film photography', zh: '胶片摄影' },
+  { en: 'late-night cooking', zh: '深夜下厨' },
+  { en: 'vinyl records', zh: '黑胶唱片' },
+  { en: 'urban exploring', zh: '城市漫游' },
+  { en: 'baking', zh: '烘焙' },
+  { en: 'stargazing', zh: '观星' },
+  { en: 'indie games', zh: '独立游戏' },
+  { en: 'vintage fashion', zh: '复古穿搭' },
+  { en: 'live houses', zh: '看现场演出' },
+  { en: 'hand-drip coffee', zh: '手冲咖啡' },
+];
 
 /** Assemble the bilingual persona description from the genome's parts. */
 export function describeGenome(parts: readonly CharacterPart[], genome: Genome, locale: 'zh' | 'en'): string {
@@ -541,8 +565,8 @@ export function forgeCombination(opts: ForgeCombinationOptions): ForgedCombinati
     soul_slug: VIBE_SOUL_SLUGS[vibe][gender === 'Male' ? 'M' : 'F'],
     greeting_en: VIBE_GREETINGS[vibe].en,
     greeting_zh: VIBE_GREETINGS[vibe].zh,
-    description_en: `${description}. Works as a ${occupation.toLowerCase()}; into ${hobbyA} and ${hobbyB}.`,
-    description_zh: `${descriptionZh}。职业是${occupation}，喜欢${hobbyA}和${hobbyB}。`,
+    description_en: `${description}. Works as a ${occupation.en.toLowerCase()}; into ${hobbyA.en} and ${hobbyB.en}.`,
+    description_zh: `${descriptionZh}。职业是${occupation.zh}，喜欢${hobbyA.zh}和${hobbyB.zh}。`,
     part_labels: partLabels,
   };
 }
