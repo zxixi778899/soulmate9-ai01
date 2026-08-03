@@ -3,7 +3,9 @@
  *
  * GET  /api/admin/preset-portraits  → cache status for every library preset
  * POST /api/admin/preset-portraits  → generate + cache ONE preset portrait
- *      body: { slug: string, force?: boolean }
+ *      body: { slug: string, force?: boolean, job_id?: string }
+ *      When job_id is provided, resumes a previously queued GPU job instead of
+ *      regenerating (polls up to ~2.5 min, writes back on completion).
  *
  * One portrait per request keeps the route inside maxDuration; call it in a
  * loop (admin UI / script) to batch-fill all 24 presets offline.
@@ -23,6 +25,7 @@ import {
 } from '@/lib/comfy-console/studio-profile';
 import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { routeImageGeneration } from '@/lib/image-router';
+import { runpodClient } from '@/lib/runpod';
 import { loadComfyConfig } from '@/lib/comfy-console/store';
 import { buildReferenceGenerationPlan } from '@/lib/reference-generation-plan';
 import { normalizeCreatorPreset, type CreatorPreset } from '@/lib/creator-presets';
@@ -181,6 +184,41 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ─── Resume path: poll a previously queued GPU job instead of regenerating ───
+  const resumeJobId = typeof body.job_id === 'string' ? body.job_id.trim() : '';
+  if (resumeJobId) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(resumeJobId)) {
+      return NextResponse.json({ error: 'invalid job_id' }, { status: 400 });
+    }
+    try {
+      const polled = await runpodClient.pollJob(resumeJobId, {
+        poll_budget_ms: 140_000,
+        on_timeout: 'pending',
+      });
+      if (polled.pending || !polled.images?.[0]) {
+        return NextResponse.json(
+          {
+            success: false,
+            pending: true,
+            job_id: resumeJobId,
+            slug,
+            message: 'GPU job still queued — POST again with the same slug + job_id later',
+          },
+          { status: 202 },
+        );
+      }
+      const url = await writebackPresetPortrait(slug, polled.images[0]);
+      if (!url) {
+        return NextResponse.json({ error: 'job completed but cache writeback failed' }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, cached: true, slug, portrait_url: url, resumed: true });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('[admin/preset-portraits] resume failed', { slug, job_id: resumeJobId, err: msg });
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
   try {
     const identityPrompt = buildPresetPortraitPrompt(preset);
     const category = normalizeCompanionCategory({ gender: preset.gender });
@@ -241,9 +279,9 @@ export async function POST(request: NextRequest) {
           job_id: result.job_id,
           slug,
           message:
-            'GPU job queued — retry this slug in ~1 minute (or check /api/ai/status?job_id=' +
+            'GPU job queued — POST again with {slug, job_id: "' +
             result.job_id +
-            ')',
+            '"} in ~1 minute to resume (do NOT retry without job_id, that submits a new job)',
         },
         { status: 202 },
       );
