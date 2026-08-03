@@ -189,6 +189,19 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const name = String(body.name || 'Companion');
 
+    // Batch generation (creator v3 generates 4 candidate portraits at once).
+    // Each extra image consumes one rate-limit slot of the same hourly budget.
+    const count = Math.max(1, Math.min(4, Math.round(Number(body.count) || 1)));
+    for (let i = 1; i < count; i++) {
+      const extra = await checkRateLimitAsync(`portrait-gen:${user.id}`, PORTRAIT_GEN_LIMIT);
+      if (!extra.allowed) {
+        return NextResponse.json(
+          { error: 'Too many portrait generation requests. Please try again later.' },
+          { status: 429, headers: rateLimitHeaders(extra, PORTRAIT_GEN_LIMIT) },
+        );
+      }
+    }
+
     // ── M3: shared preset portrait cache ────────────────────────────────
     const rawPresetSlug =
       typeof body.preset_slug === 'string' ? body.preset_slug.trim().toLowerCase() : '';
@@ -226,6 +239,7 @@ export async function POST(request: NextRequest) {
           imageUrl: cachedUrl,
           portrait_url: cachedUrl,
           url: cachedUrl,
+          images: [cachedUrl],
           cached: true,
           preset_slug: cachePreset.slug,
           key: null,
@@ -310,6 +324,58 @@ export async function POST(request: NextRequest) {
       ].join('. '),
     });
     const negativePrompt = studioNegativePrompt(category, renderStyle);
+
+    // ── Batch path: N parallel jobs → N candidate portraits ──────────────
+    if (count > 1) {
+      logger.info('[Generate Portrait] Batch generating', {
+        name, count, category, renderStyle, promptLen: naturalPrompt.length,
+      });
+      const jobs = await Promise.all(
+        Array.from({ length: count }, () =>
+          generateImage({
+            prompt: naturalPrompt,
+            negativePrompt,
+            category,
+            renderStyle,
+            endpointId: route.endpointId || undefined,
+          }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
+        ),
+      );
+      const syncImages: string[] = [];
+      const pendingJobs: Array<{ job_id: string; endpoint_id?: string }> = [];
+      const errors: string[] = [];
+      for (const j of jobs) {
+        const r = j as { image?: string; jobId?: string; endpointId?: string; pending?: boolean; error?: string };
+        if (r.error) errors.push(r.error);
+        else if (r.pending && r.jobId) pendingJobs.push({ job_id: r.jobId, endpoint_id: r.endpointId });
+        else if (r.image) syncImages.push(r.image);
+      }
+      if (!syncImages.length && !pendingJobs.length) {
+        return NextResponse.json(
+          { error: errors[0] || 'Portrait generation failed', success: false },
+          { status: 500 },
+        );
+      }
+      const uploaded = await Promise.all(syncImages.map((b64) => uploadToStorage(b64, name)));
+      // M3 lazy writeback from the first sync image (shared preset cache)
+      if (cacheEligible && cachePreset?.slug && syncImages[0]) {
+        const writebackSlug = cachePreset.slug;
+        writebackPresetPortrait(writebackSlug, syncImages[0]).catch((e) =>
+          logger.warn('[Generate Portrait] preset writeback failed', {
+            slug: writebackSlug,
+            err: e instanceof Error ? e.message : String(e),
+          }),
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        count,
+        images: uploaded,
+        pending_jobs: pendingJobs,
+        ...(errors.length ? { errors } : {}),
+      });
+    }
+
     logger.info('[Generate Portrait] Generating', {
       name,
       category,

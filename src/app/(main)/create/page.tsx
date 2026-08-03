@@ -1,9 +1,16 @@
 'use client';
 
 /**
- * Character Creator v2 — mobile-first, preset-driven, i18n-aware
- * Flow: Preset → Appearance → Personality & Identity
- * Options loaded from backend (creator_option_pool table).
+ * Character Creator v3 — game-style companion creation.
+ *
+ * Step 1 "基础信息": card-style panels for appearance + identity (optional
+ *         preset quick-start rail).
+ * Step 2 "选择立绘": 4 AI portraits generated side by side; pick one, finish.
+ * On success a gacha-style reveal modal shows the rolled score / rarity.
+ *
+ * Rarity rule (site-wide, see src/lib/rarity.ts):
+ *   score = round((desire + development + kink) / 3)
+ *   70-79 → R · 80-89 → SR · 90-100 → SSR
  */
 
 import { authedFetch } from '@/lib/supabase';
@@ -15,15 +22,17 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { notifyDataChange } from '@/hooks/useDataSync';
 import {
-  Save, ArrowLeft, ArrowRight, Wand2, Loader2, Sparkles, Check, User2,
-  CreditCard, Shuffle,
+  ArrowLeft, ArrowRight, Wand2, Loader2, Sparkles, Check, User2,
+  CreditCard, RefreshCw, ImagePlus,
 } from 'lucide-react';
 import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
+import { companionScore, type Rarity } from '@/lib/rarity';
+import { CreateSuccessModal, type CreatedCompanionReveal } from '@/components/creator/CreateSuccessModal';
 import type { CreatorPreset } from '@/lib/creator-presets';
-import type { CharacterPart, ForgedCombination } from '@/lib/character-parts';
+import type { CharacterPart } from '@/lib/character-parts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,20 +46,41 @@ interface OptionItem {
   sort_order: number;
 }
 
-interface CreatorPreview {
-  gender: string;
-  visual_style: string;
-  thumbnail_url: string;
-  is_active: boolean;
-  sort_order: number;
-}
-
 interface CardStatus {
   cards: number;
   monthlyQuota: number;
   tier: string;
   canCreate: boolean;
 }
+
+type SlotStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+interface PortraitSlot {
+  status: SlotStatus;
+  url?: string;
+  jobId?: string;
+  endpointId?: string;
+  error?: string;
+}
+
+interface PortraitBatchResponse {
+  success?: boolean;
+  error?: string;
+  // batch shape
+  images?: string[];
+  pending_jobs?: Array<{ job_id: string; endpoint_id?: string }>;
+  // legacy single shape
+  imageUrl?: string;
+  portrait_url?: string;
+  url?: string;
+  cached?: boolean;
+  pending?: boolean;
+  job_id?: string;
+  endpoint_id?: string;
+}
+
+const SLOT_COUNT = 4;
+const EMPTY_SLOTS: PortraitSlot[] = Array.from({ length: SLOT_COUNT }, () => ({ status: 'idle' as const }));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -65,7 +95,9 @@ function getExtra(opt: OptionItem, key: string, locale: string): string {
   return opt.extra[localeKey] || opt.extra[`${key}_en`] || '';
 }
 
-// ─── Pill Component ──────────────────────────────────────────────────────────
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// ─── Small building blocks ───────────────────────────────────────────────────
 
 function Pill({
   active, onClick, children, className,
@@ -87,13 +119,16 @@ function Pill({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section>
-      <h3 className="text-sm font-semibold text-white/90 mb-2.5 flex items-center gap-2">
-        <span className="h-1 w-1 rounded-full bg-[#FF2D78]" />
-        {title}
-      </h3>
+    <section className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-white/90">
+          <span className="h-3.5 w-1 rounded-full bg-gradient-to-b from-[#FF2D78] to-[#8b5cf6]" />
+          {title}
+        </h3>
+        {hint && <span className="text-[10px] text-white/30">{hint}</span>}
+      </div>
       {children}
     </section>
   );
@@ -106,88 +141,66 @@ export default function CreatePage() {
   const { t, locale } = useTranslation();
   const zh = locale === 'zh';
 
-  // Steps: 0 = gender, 1 = style + appearance, 2 = custom identity
-  const [step, setStep] = useState(0);
-  const stepLabels = [
-    t('creator.stepPreset') || (zh ? '预览' : 'Preview'),
-    t('creator.stepLook') || (zh ? '外观' : 'Appearance'),
-    t('creator.stepIdentity') || (zh ? '人设' : 'Identity'),
-  ];
+  // Steps: info → portrait
+  const [step, setStep] = useState<'info' | 'portrait'>('info');
 
   // Data from backend
-  const [previews, setPreviews] = useState<CreatorPreview[]>([]);
   const [presets, setPresets] = useState<CreatorPreset[]>([]);
   const [options, setOptions] = useState<Record<string, OptionItem[]>>({});
+  const [vibes, setVibes] = useState<Record<string, { en: string; zh: string }>>({});
+  const [parts, setParts] = useState<Record<string, CharacterPart[]>>({});
   const [cardStatus, setCardStatus] = useState<CardStatus | null>(null);
   const [loadingData, setLoadingData] = useState(true);
-
-  // Parts library (千人千面 forge)
-  const [parts, setParts] = useState<Record<string, CharacterPart[]>>({});
-  const [forgeTab, setForgeTab] = useState<'forge' | 'preset'>('forge');
-  const [forgeList, setForgeList] = useState<ForgedCombination[]>([]);
-  const [forgeLoading, setForgeLoading] = useState(false);
-  const [forgeSeed, setForgeSeed] = useState<string>(() => Math.random().toString(36).slice(2, 10));
-  const [selectedForge, setSelectedForge] = useState<ForgedCombination | null>(null);
-  const [skinTone, setSkinTone] = useState('Porcelain Fair');
-  const [bustShape, setBustShape] = useState('Soft Natural');
-  const [heightPick, setHeightPick] = useState('Balanced 163cm');
 
   // Form state
   const [visualStyle, setVisualStyle] = useState('realistic');
   const [gender, setGender] = useState('Female');
   const [ethnicity, setEthnicity] = useState('Asian');
+  const [skinTone, setSkinTone] = useState('Porcelain Fair');
   const [faceShape, setFaceShape] = useState('Oval');
+  const [bodyType, setBodyType] = useState('Slim');
   const [hairStyle, setHairStyle] = useState('Long Flowing');
   const [hairColor, setHairColor] = useState('#d4a574');
   const [eyeColor, setEyeColor] = useState('Brown');
-  const [bodyType, setBodyType] = useState('Slim');
   const [fashionStyle, setFashionStyle] = useState('Casual');
   const [appearancePrompt, setAppearancePrompt] = useState('');
-
   const [selectedTags, setSelectedTags] = useState<string[]>(['Romantic', 'Playful']);
-  const [voice, setVoice] = useState('soft');
   const [occupation, setOccupation] = useState('Student');
-  const [hobbies, setHobbies] = useState('');
-
   const [name, setName] = useState('');
   const [age, setAge] = useState(22);
   const [shortDescription, setShortDescription] = useState('');
   const [relationship, setRelationship] = useState('girlfriend');
-  const [backstory, setBackstory] = useState('');
-  const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
-  const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
-  const [generatingPortrait, setGeneratingPortrait] = useState(false);
-  const [outfits, setOutfits] = useState<{ id: string; name: string; tier: string }[]>([]);
+  const [selectedPreset, setSelectedPreset] = useState<CreatorPreset | null>(null);
+
+  // Portrait slots
+  const [slots, setSlots] = useState<PortraitSlot[]>(EMPTY_SLOTS);
+  const [selectedSlot, setSelectedSlot] = useState(-1);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const batchRun = useRef(0);
+
+  // Submit + reveal
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shakeInvalid, setShakeInvalid] = useState(false);
-  // Library preset the user started from (千人千面 soul layer is stamped server-side)
-  const [selectedPreset, setSelectedPreset] = useState<CreatorPreset | null>(null);
-  // Preset wall filter (M2): 'all' or a vibe key from PRESET_VIBE_LABELS
-  const [vibeFilter, setVibeFilter] = useState<string>('all');
-  const [vibes, setVibes] = useState<Record<string, { en: string; zh: string }>>({});
+  const [reveal, setReveal] = useState<CreatedCompanionReveal | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // ─── Data Fetching ───────────────────────────────────────────────────────
+  // ─── Data fetching ───────────────────────────────────────────────────────
 
   const fetchCreatorData = useCallback(async () => {
     setLoadingData(true);
     try {
-      const [optsRes, previewsRes, cardsRes, partsRes] = await Promise.all([
+      const [optsRes, cardsRes, partsRes] = await Promise.all([
         fetch('/api/creator/presets?section=all'),
-        fetch('/api/creator/previews'),
         authedFetch('/api/creator/cards'),
         fetch('/api/creator/parts'),
       ]);
       const optsData = await readResponseJson<{ presets?: CreatorPreset[]; options?: Record<string, OptionItem[]>; vibes?: Record<string, { en: string; zh: string }> }>(optsRes);
-      const previewsData = await readResponseJson<{ previews?: CreatorPreview[] }>(previewsRes);
       const cardsData = await readResponseJson<CardStatus>(cardsRes);
       const partsData = await readResponseJson<{ categories?: Record<string, CharacterPart[]> }>(partsRes);
 
       if (optsData.options) setOptions(optsData.options);
       if (optsData.presets) setPresets(optsData.presets);
       if (optsData.vibes) setVibes(optsData.vibes);
-      if (previewsData.previews) setPreviews(previewsData.previews);
       if (cardsData) setCardStatus(cardsData);
       if (partsData.categories) setParts(partsData.categories);
     } catch (err) {
@@ -203,42 +216,14 @@ export default function CreatePage() {
     void fetchCreatorData();
   }, [fetchCreatorData]);
 
-  const fetchOutfits = useCallback(async () => {
-    try {
-      const r = await authedFetch('/api/outfits');
-      const data = await readResponseJson<{ outfits?: { id: string; name: string; tier: string }[] }>(r);
-      setOutfits(data.outfits || []);
-      if (data.outfits?.[0]) setSelectedOutfit(data.outfits[0].id);
-    } catch { /* ignore */ }
-  }, []);
+  // ─── Option helpers ──────────────────────────────────────────────────────
 
-  useEffect(() => { void fetchOutfits(); }, [fetchOutfits]);
+  const getOpts = useCallback((category: string): OptionItem[] => options[category] || [], [options]);
 
-  // ─── Forge (智能组合) ─────────────────────────────────────────────────────
+  const partPrompt = useCallback((cat: string, value: string): string => {
+    return (parts[cat] || []).find((p) => p.value.toLowerCase() === value.toLowerCase())?.prompt_en || '';
+  }, [parts]);
 
-  const fetchForge = useCallback(async (seed: string, genderOverride?: string) => {
-    setForgeLoading(true);
-    try {
-      const g = encodeURIComponent(genderOverride || gender);
-      const res = await fetch(`/api/creator/forge?count=8&gender=${g}&seed=${encodeURIComponent(seed)}`);
-      const data = await readResponseJson<{ combinations?: ForgedCombination[] }>(res);
-      setForgeList(data.combinations || []);
-    } catch (err) {
-      logger.warn('[creator] forge fetch failed', { error: String(err) });
-    } finally {
-      setForgeLoading(false);
-    }
-  }, [gender]);
-
-  useEffect(() => {
-    if (step === 0 && forgeTab === 'forge') void fetchForge(forgeSeed);
-  }, [step, forgeTab, forgeSeed, fetchForge]);
-
-  const shuffleForge = useCallback(() => {
-    setForgeSeed(Math.random().toString(36).slice(2, 10));
-  }, []);
-
-  // Derive the genome (category → part slug) from the current form values
   const buildGenome = useCallback((): Record<string, string> => {
     const genome: Record<string, string> = {};
     const match = (cat: string, value: string) => {
@@ -251,44 +236,11 @@ export default function CreatePage() {
     match('body_type', bodyType);
     match('skin_tone', skinTone);
     match('eye_color', eyeColor);
-    match('height', heightPick);
-    if (gender !== 'Male') match('breast_shape', bustShape);
     return genome;
-  }, [parts, hairStyle, hairColor, faceShape, bodyType, skinTone, eyeColor, heightPick, bustShape, gender]);
+  }, [parts, hairStyle, hairColor, faceShape, bodyType, skinTone, eyeColor]);
 
-  // Resolve a part's image-prompt fragment (e.g. 'fair porcelain skin') from a form value
-  const partPrompt = useCallback((cat: string, value: string): string => {
-    return (parts[cat] || []).find((p) => p.value.toLowerCase() === value.toLowerCase())?.prompt_en || '';
-  }, [parts]);
-
-  // ─── Option Helpers ──────────────────────────────────────────────────────
-
-  const getOpts = useCallback((category: string): OptionItem[] => {
-    return options[category] || [];
-  }, [options]);
-
-  const GENDER_PREVIEWS: { value: string; label: string; icon: string }[] = [
-    { value: 'Female', label: zh ? '女性' : 'Female', icon: '♀' },
-    { value: 'Male', label: zh ? '男性' : 'Male', icon: '♂' },
-    { value: 'Transgender', label: zh ? '跨性别' : 'Trans', icon: '⚧' },
-  ];
-
-  const RARITY_STYLE: Record<string, string> = {
-    N: 'bg-white/10 text-white/60',
-    R: 'bg-sky-500/15 text-sky-300',
-    SR: 'bg-violet-500/15 text-violet-300',
-    SSR: 'bg-amber-400/15 text-amber-300',
-  };
-
-  // ─── Preview Selection ──────────────────────────────────────────────────
-
-  const selectPreviewGender = useCallback((g: string) => {
-    setGender(g);
-    setStep(1);
-  }, []);
   const applyPreset = useCallback((preset: CreatorPreset) => {
     setSelectedPreset(preset);
-    setSelectedForge(null);
     setVisualStyle(preset.visual_style);
     setGender(preset.gender);
     setEthnicity(preset.ethnicity);
@@ -299,140 +251,149 @@ export default function CreatePage() {
     setBodyType(preset.body_type);
     setFashionStyle(preset.fashion_style);
     setSelectedTags(preset.personality_tags.slice(0, 8));
-    setVoice(preset.voice);
     setOccupation(preset.occupation);
     setRelationship(preset.relationship);
-    setHobbies(preset.hobbies);
-    setBackstory(preset.backstory);
     setShortDescription(preset.short_description);
-    // Pre-fill identity from the preset (user can still edit)
     setName((prev) => (prev.trim() ? prev : preset.default_name || preset.name));
     setAge(preset.age && preset.age >= 18 ? preset.age : 22);
-    setStep(1);
   }, []);
-
-  const applyForge = useCallback((combo: ForgedCombination) => {
-    setSelectedForge(combo);
-    setSelectedPreset(null);
-    setVisualStyle(combo.visual_style);
-    setGender(combo.gender);
-    setAge(combo.age >= 18 ? combo.age : 22);
-    setName((prev) => (prev.trim() ? prev : (locale === 'zh' && combo.name_zh ? combo.name_zh : combo.name)));
-    const pick = (cat: string) => {
-      const slug = (combo.genome as Record<string, string>)[cat];
-      return (parts[cat] || []).find((p) => p.slug === slug) || null;
-    };
-    const hair = pick('hairstyle'); if (hair) setHairStyle(hair.value);
-    const hc = pick('hair_color'); if (hc) setHairColor(hc.value);
-    const face = pick('face_shape'); if (face) setFaceShape(face.value);
-    const body = pick('body_type'); if (body) setBodyType(body.value);
-    const skin = pick('skin_tone'); if (skin) setSkinTone(skin.value);
-    const eyes = pick('eye_color'); if (eyes) setEyeColor(eyes.value);
-    const ht = pick('height'); if (ht) setHeightPick(ht.value);
-    if (combo.gender !== 'Male') {
-      const bust = pick('breast_shape'); if (bust) setBustShape(bust.value);
-    }
-    setShortDescription(zh ? combo.description_zh : combo.description_en);
-    setStep(1);
-  }, [parts, locale, zh]);
-
-  // ─── Tag Toggle ─────────────────────────────────────────────────────────
 
   const toggleTag = useCallback((tag: string) => {
     setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : prev.length >= 8 ? prev : [...prev, tag],
+      prev.includes(tag) ? prev.filter((x) => x !== tag) : prev.length >= 8 ? prev : [...prev, tag],
     );
   }, []);
 
-  // ─── Step Validation ───────────────────────────────────────────────────
+  // ─── Validation ──────────────────────────────────────────────────────────
 
-  const stepValid = useMemo(() => {
-    if (step === 0) return true; // preset selection always valid (can skip)
-    if (step === 1) return Boolean(ethnicity && hairStyle && eyeColor && bodyType);
-    if (step === 2) return name.trim().length >= 2 && age >= 18 && Boolean(relationship);
-    return false;
-  }, [step, ethnicity, hairStyle, eyeColor, bodyType, name, age, relationship]);
+  const infoValid = useMemo(
+    () => name.trim().length >= 2 && age >= 18 && Boolean(ethnicity && hairStyle && eyeColor && bodyType && relationship),
+    [name, age, ethnicity, hairStyle, eyeColor, bodyType, relationship],
+  );
 
-  // Clear, actionable feedback when the user taps "Create" with an invalid form
-  // (previously only a subtle shake, which read as a broken button).
-  const handleInvalidCreate = useCallback(() => {
-    setShakeInvalid(true);
-    setTimeout(() => setShakeInvalid(false), 600);
-    if (name.trim().length < 2) {
-      setError(zh ? '请先输入角色名字（至少2个字符）才能创建' : 'Enter a name (at least 2 characters) to create');
-      nameInputRef.current?.focus();
-      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-      setError(zh ? '请完善必填信息后再创建' : 'Please complete the required fields');
+  const noCards = Boolean(cardStatus && cardStatus.cards <= 0);
+
+  // ─── Portrait batch generation ───────────────────────────────────────────
+
+  const portraitRequestBody = useCallback(() => ({
+    name: name.trim() || 'Companion',
+    visual_style: visualStyle,
+    ethnicity, gender, face_shape: faceShape,
+    hair_style: hairStyle, hair_color: hairColor,
+    eye_color: eyeColor, body_type: bodyType,
+    fashion_style: fashionStyle, appearance_prompt: appearancePrompt,
+    personality: selectedTags.join(', '),
+    skin_tone: partPrompt('skin_tone', skinTone) || undefined,
+    // Preset cache: only when the look still matches the preset exactly
+    preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
+  }), [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, partPrompt, skinTone, selectedPreset]);
+
+  const pollJob = useCallback(async (jobId: string, endpointId?: string): Promise<string | null> => {
+    for (let i = 0; i < 80; i++) {
+      await sleep(3000);
+      try {
+        const r = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(jobId)}${endpointId ? `&endpoint_id=${encodeURIComponent(endpointId)}` : ''}`);
+        const d = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(r);
+        if (d.status === 'COMPLETED' && Array.isArray(d.images) && d.images.length > 0) return d.images[0];
+        if (d.status === 'FAILED') return null;
+      } catch { /* keep polling */ }
     }
-  }, [name, zh]);
+    return null;
+  }, []);
 
-  // ─── Portrait Generation ───────────────────────────────────────────────
-
-  const handleGeneratePortrait = useCallback(async () => {
-    setGeneratingPortrait(true);
+  const runBatch = useCallback(async () => {
+    const run = ++batchRun.current;
+    setBatchRunning(true);
     setError(null);
+    setSelectedSlot(-1);
+    setSlots(Array.from({ length: SLOT_COUNT }, () => ({ status: 'loading' as const })));
     try {
       const res = await authedFetch('/api/girlfriends/generate-portrait', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim() || 'Companion',
-          visual_style: visualStyle,
-          ethnicity, gender, face_shape: faceShape,
-          hair_style: hairStyle, hair_color: hairColor,
-          eye_color: eyeColor, body_type: bodyType,
-          fashion_style: fashionStyle, appearance_prompt: appearancePrompt,
-          personality: selectedTags.join(', '),
-          skin_tone: partPrompt('skin_tone', skinTone) || undefined,
-          bust_shape: gender !== 'Male' ? partPrompt('breast_shape', bustShape) || undefined : undefined,
-          height: partPrompt('height', heightPick) || undefined,
-          // M3: let the shared preset portrait cache serve/skip GPU when unchanged
-          preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
-        }),
+        body: JSON.stringify({ ...portraitRequestBody(), count: SLOT_COUNT }),
       });
-      const data = await readResponseJson<{ portrait_url?: string; url?: string; imageUrl?: string; error?: string; pending?: boolean; job_id?: string; endpoint_id?: string }>(res);
+      const data = await readResponseJson<PortraitBatchResponse>(res);
+      if (batchRun.current !== run) return;
       if (!res.ok) {
-        setError(data.error || (zh ? '生成失败' : 'Generate failed'));
+        setError(data.error || (zh ? '生成失败' : 'Generation failed'));
+        setSlots(EMPTY_SLOTS);
         return;
       }
-      let url = data.portrait_url || data.url || data.imageUrl;
-      // Handle async pending — poll until GPU finishes
-      if (!url && data.pending && data.job_id) {
-        for (let p = 0; p < 60; p++) {
-          await new Promise((r) => setTimeout(r, 3000));
-          try {
-            const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(data.job_id)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(data.endpoint_id)}` : ''}`);
-            const pollData = await readResponseJson<{ status?: string; images?: string[]; error?: string }>(pollRes);
-            if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-              url = pollData.images[0];
-              break;
-            }
-            if (pollData.status === 'FAILED') {
-              setError(pollData.error || (zh ? '生成失败' : 'Generate failed'));
-              return;
-            }
-          } catch { /* keep polling */ }
-        }
-      }
-      if (url) setPortraitUrl(url);
-      else setError(zh ? '未返回图片' : 'No image returned');
-    } catch (e) {
-      logger.error(String(e));
-      setError(errorMessageFromUnknown(e, zh ? '生成失败' : 'Generate failed'));
-    } finally {
-      setGeneratingPortrait(false);
-    }
-  }, [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, zh, selectedPreset, partPrompt, skinTone, bustShape, heightPick]);
 
-  // ─── Submit ────────────────────────────────────────────────────────────
+      // Normalize batch / legacy single responses
+      const readyUrls: string[] = Array.isArray(data.images) ? data.images.filter(Boolean) : [];
+      const pendingJobs: Array<{ job_id: string; endpoint_id?: string }> = Array.isArray(data.pending_jobs) ? data.pending_jobs : [];
+      const singleUrl = data.imageUrl || data.portrait_url || data.url;
+      if (!readyUrls.length && singleUrl) readyUrls.push(singleUrl);
+      if (!pendingJobs.length && data.pending && data.job_id) {
+        pendingJobs.push({ job_id: data.job_id, endpoint_id: data.endpoint_id });
+      }
+
+      if (!readyUrls.length && !pendingJobs.length) {
+        setError(zh ? '未返回图片，请稍后重试' : 'No image returned — try again');
+        setSlots(EMPTY_SLOTS);
+        return;
+      }
+
+      const next: PortraitSlot[] = Array.from({ length: SLOT_COUNT }, (_, i) => {
+        if (readyUrls[i]) return { status: 'ready' as const, url: readyUrls[i] };
+        const job = pendingJobs[i - readyUrls.length];
+        if (job) return { status: 'loading' as const, jobId: job.job_id, endpointId: job.endpoint_id };
+        return { status: 'idle' as const };
+      });
+      setSlots(next);
+
+      // Poll pending jobs in parallel, each fills its own slot
+      const pollTasks = next.map((slot, idx) => {
+        if (slot.status !== 'loading' || !slot.jobId) return null;
+        const jobId = slot.jobId;
+        const endpointId = slot.endpointId;
+        return pollJob(jobId, endpointId).then((url) => {
+          if (batchRun.current !== run) return;
+          setSlots((prev) => prev.map((s, i) => (i === idx
+            ? (url ? { status: 'ready', url } : { status: 'error', error: zh ? '生成失败' : 'Failed' })
+            : s)));
+        });
+      }).filter(Boolean);
+      await Promise.all(pollTasks as Promise<void>[]);
+    } catch (e) {
+      if (batchRun.current === run) {
+        logger.error(String(e));
+        setError(errorMessageFromUnknown(e, zh ? '生成失败' : 'Generation failed'));
+        setSlots(EMPTY_SLOTS);
+      }
+    } finally {
+      if (batchRun.current === run) setBatchRunning(false);
+    }
+  }, [portraitRequestBody, pollJob, zh]);
+
+  const startPortraitStep = useCallback(() => {
+    if (!infoValid) {
+      if (name.trim().length < 2) {
+        setError(zh ? '请先输入角色名字（至少2个字符）' : 'Enter a name (at least 2 characters)');
+        nameInputRef.current?.focus();
+        nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        setError(zh ? '请完善必填信息' : 'Please complete the required fields');
+      }
+      return;
+    }
+    setError(null);
+    setStep('portrait');
+    void runBatch();
+  }, [infoValid, name, zh, runBatch]);
+
+  // ─── Submit ──────────────────────────────────────────────────────────────
 
   const handleSubmit = useCallback(async () => {
+    const chosen = slots[selectedSlot];
+    if (!chosen?.url || saving) return;
     setSaving(true);
     setError(null);
     try {
       const relOpts = getOpts('relationship');
-      const relMeta = relOpts.find(r => r.value === relationship);
+      const relMeta = relOpts.find((r) => r.value === relationship);
       const relLabel = relMeta ? getLabel(relMeta, locale) : (zh ? '伴侣' : 'Girlfriend');
       const relDesc = relMeta ? getExtra(relMeta, 'desc', locale) : '';
 
@@ -440,10 +401,8 @@ export default function CreatePage() {
         `Visual style: ${visualStyle}. Gender presentation: ${gender}. Face: ${faceShape}.`,
         `Ethnicity: ${ethnicity}.`,
         `Occupation: ${occupation}.`,
-        `Voice: ${voice}.`,
         relMeta ? `Relationship: ${relLabel}${relDesc ? ' - ' + relDesc : ''}.` : '',
-        hobbies ? `Hobbies: ${hobbies}.` : '',
-        backstory ? `Backstory: ${backstory}` : '',
+        shortDescription ? `Tagline: ${shortDescription}.` : '',
       ].filter(Boolean).join('\n');
 
       const res = await authedFetch('/api/girlfriends', {
@@ -463,34 +422,26 @@ export default function CreatePage() {
           appearance_race: ethnicity,
           appearance_face: faceShape,
           appearance_skin: skinTone,
-          appearance_breast: gender !== 'Male' ? bustShape : undefined,
-          appearance_height: heightPick,
           genome: buildGenome(),
           tags: [...selectedTags, ethnicity, occupation, relLabel],
-          outfit_id: selectedOutfit,
-          avatar_url: portraitUrl || undefined,
-          portrait_url: portraitUrl || undefined,
-          // Preset soul stamping: only when the preset still matches the chosen gender
+          avatar_url: chosen.url,
+          portrait_url: chosen.url,
           preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
-          // Forge identity (千人千面): soul/greeting/traits stamped server-side
-          forge: selectedForge ? {
-            code: selectedForge.code,
-            vibe: selectedForge.vibe,
-            rarity: selectedForge.rarity,
-            traits: selectedForge.traits,
-            soul_slug: selectedForge.soul_slug || undefined,
-            greeting_en: selectedForge.greeting_en,
-            greeting_zh: selectedForge.greeting_zh,
-          } : undefined,
           locale,
           meta: {
             visual_style: visualStyle, ethnicity, gender,
-            face_shape: faceShape, voice, occupation,
-            relationship, hobbies, appearance_prompt: appearancePrompt,
+            face_shape: faceShape, occupation,
+            relationship, appearance_prompt: appearancePrompt,
           },
         }),
       });
-      const data = await readResponseJson<{ error?: string; code?: string; cards_remaining?: number }>(res);
+      const data = await readResponseJson<{
+        error?: string;
+        code?: string;
+        cards_remaining?: number;
+        girlfriend?: Record<string, unknown>;
+        stats?: { base_desire?: number; base_development?: number; base_kink?: number; score?: number; rarity?: Rarity };
+      }>(res);
       if (!res.ok) {
         if (data.code === 'SEAT_LIMIT') {
           setError(t('creator.seatLimit') || (zh ? '好友数量已达上限，升级套餐即可添加更多好友' : 'Friend limit reached — upgrade your plan to add more friends'));
@@ -504,54 +455,72 @@ export default function CreatePage() {
         return;
       }
 
-      // Update card status
       if (data.cards_remaining !== undefined && cardStatus) {
         setCardStatus({ ...cardStatus, cards: data.cards_remaining });
       }
-
       notifyDataChange('girlfriends');
-      router.push('/chats');
+
+      const gf = data.girlfriend || {};
+      const desire = Number(data.stats?.base_desire ?? gf.base_desire ?? 0);
+      const development = Number(data.stats?.base_development ?? gf.base_development ?? 0);
+      const kink = Number(data.stats?.base_kink ?? gf.base_kink ?? 0);
+      const score = Number(data.stats?.score ?? companionScore(desire, development, kink));
+      const rarity = (data.stats?.rarity || (gf.rarity as Rarity) || 'R') as Rarity;
+      setReveal({
+        id: String(gf.id || ''),
+        name: String(gf.name || name.trim()),
+        portraitUrl: chosen.url || '',
+        rarity, score, desire, development, kink,
+      });
     } catch (e) {
       logger.error(String(e));
       setError(errorMessageFromUnknown(e, zh ? '网络错误' : 'Network error'));
     } finally {
       setSaving(false);
     }
-  }, [
-    name, age, shortDescription, selectedTags, hairStyle, hairColor, eyeColor, bodyType,
-    fashionStyle, selectedOutfit, portraitUrl, visualStyle, ethnicity, gender, faceShape,
-    voice, occupation, relationship, hobbies, backstory, appearancePrompt, router, zh,
-    getOpts, locale, t, cardStatus, selectedPreset, selectedForge, skinTone, bustShape, heightPick, buildGenome,
-  ]);
+  }, [slots, selectedSlot, saving, getOpts, relationship, locale, zh, visualStyle, gender, faceShape, ethnicity, occupation, shortDescription, name, age, selectedTags, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, skinTone, buildGenome, selectedPreset, appearancePrompt, cardStatus, t]);
 
-  // ─── Render ────────────────────────────────────────────────────────────
+  // ─── Reveal actions ──────────────────────────────────────────────────────
+
+  const handleGoChat = useCallback(() => {
+    const id = reveal?.id;
+    setReveal(null);
+    if (id) router.push(`/chat/${id}`);
+    else router.push('/chats');
+  }, [reveal, router]);
+
+  const handleCreateAnother = useCallback(() => {
+    setReveal(null);
+    setSlots(EMPTY_SLOTS);
+    setSelectedSlot(-1);
+    setStep('info');
+    void fetchCreatorData();
+  }, [fetchCreatorData]);
+
+  // ─── Derived UI bits ─────────────────────────────────────────────────────
+
+  const readyCount = slots.filter((s) => s.status === 'ready').length;
+  const stepLabels = [
+    t('creator.stepInfo') || (zh ? '基础信息' : 'Basics'),
+    t('creator.stepPortrait') || (zh ? '选择立绘' : 'Portrait'),
+  ];
+  const stepIndex = step === 'info' ? 0 : 1;
+
+  // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
     <GameShell className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden" innerClassName="flex flex-1 flex-col min-h-0">
       <PageHeader
         eyebrow="CREATOR"
         title={t('creator.title') || (zh ? '捏脸创建' : 'Create Companion')}
-        subtitle={t('creator.subtitle') || (zh ? '预设 · 外观 · 人设' : 'Preset · Look · Identity')}
+        subtitle={t('creator.subtitle') || (zh ? '基础信息 · 立绘生成 · 命运结算' : 'Basics · Portrait · Destiny')}
         backHref="/"
         sticky={false}
         className="shrink-0"
-        actions={
-          step === 2 ? (
-            <GamePrimaryButton
-              className="!h-10 !px-4 text-xs"
-              disabled={!stepValid || saving}
-              onClick={handleSubmit}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {t('creator.finish') || (zh ? '完成' : 'Finish')}
-            </GamePrimaryButton>
-          ) : undefined
-        }
       />
 
       {/* Card balance + Stepper */}
       <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/[0.06]">
-        {/* Card balance */}
         {cardStatus && (
           <div className="flex items-center gap-1.5 text-[11px] text-white/50">
             <CreditCard className="h-3.5 w-3.5" />
@@ -565,11 +534,10 @@ export default function CreatePage() {
           </div>
         )}
 
-        {/* Stepper */}
         <div className="flex items-center gap-2 sm:gap-3">
           {stepLabels.map((label, idx) => {
-            const active = idx === step;
-            const done = idx < step;
+            const active = idx === stepIndex;
+            const done = idx < stepIndex;
             return (
               <div key={label} className="flex items-center gap-1.5">
                 <div
@@ -595,742 +563,452 @@ export default function CreatePage() {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-3 pb-6">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-4 pb-6">
         <div className="mx-auto max-w-6xl">
           <AnimatePresence mode="wait">
 
-            {/* ─── Step 0: Preview (style + gender) ─────────────────────── */}
-            {step === 0 && (
+            {/* ─── Step 1: 基础信息 ──────────────────────────────────────── */}
+            {step === 'info' && (
               <motion.div
-                key="s0"
+                key="info"
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -24 }}
-                className="space-y-6"
+                className="space-y-4"
               >
-                <div className="text-center py-4">
-                  <h2 className="text-lg font-bold text-white/90">
-                    {t('creator.choosePreset') || (zh ? '选择创建风格' : 'Choose a Style')}
-                  </h2>
-                  <p className="text-xs text-white/40 mt-1">
-                    {forgeTab === 'forge'
-                      ? (t('creator.forgeHint') || (zh ? '从 80+ 外观零件中随机锻造出独一无二的 TA' : 'Forge a one-of-a-kind persona from 80+ appearance parts'))
-                      : (t('creator.presetHint') || (zh ? '先选择画风，再挑选性别模板开始自定义' : 'Pick a style, then choose a gender template to customize'))}
-                  </p>
-                </div>
-
-                {/* Mode tabs: forge (千人千面) vs classic presets */}
-                <div className="flex items-center justify-center gap-2">
-                  <Pill active={forgeTab === 'forge'} onClick={() => setForgeTab('forge')}>
-                    <span className="flex items-center gap-1">
-                      <Sparkles className="h-3 w-3" />
-                      {t('creator.tabForge') || (zh ? '智能组合' : 'Smart Forge')}
-                    </span>
-                  </Pill>
-                  <Pill active={forgeTab === 'preset'} onClick={() => setForgeTab('preset')}>
-                    {t('creator.tabPresets') || (zh ? '经典预设' : 'Classic Presets')}
-                  </Pill>
-                </div>
-
                 {loadingData ? (
-                  <div className="flex justify-center py-12">
+                  <div className="flex justify-center py-16">
                     <Loader2 className="h-8 w-8 animate-spin text-white/30" />
                   </div>
                 ) : (
                   <>
-                    {forgeTab === 'forge' && (
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center justify-center gap-2">
-                          {GENDER_PREVIEWS.map((g) => (
-                            <Pill key={g.value} active={gender === g.value} onClick={() => setGender(g.value)}>
-                              {g.icon} {g.label}
-                            </Pill>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={shuffleForge}
-                            disabled={forgeLoading}
-                            className="px-3 py-1.5 rounded-full text-xs font-medium border border-[#8b5cf6]/40 bg-[#8b5cf6]/10 text-violet-200 hover:bg-[#8b5cf6]/20 transition-all flex items-center gap-1.5 touch-manipulation disabled:opacity-50"
-                          >
-                            <Shuffle className={cn('h-3.5 w-3.5', forgeLoading && 'animate-spin')} />
-                            {t('creator.forgeShuffle') || (zh ? '换一批' : 'Shuffle')}
-                          </button>
-                        </div>
-
-                        {forgeLoading && forgeList.length === 0 ? (
-                          <div className="flex justify-center py-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-white/30" />
-                          </div>
-                        ) : (
-                          <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2 transition-opacity', forgeLoading && 'opacity-60')}>
-                            {forgeList.map((combo) => (
-                              <button
-                                key={combo.code}
-                                type="button"
-                                onClick={() => applyForge(combo)}
-                                className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-[#8b5cf6]/60 hover:bg-white/[0.06]"
-                              >
-                                <div className="mb-2 flex items-center justify-between gap-2">
-                                  <span className="flex items-center gap-2 font-semibold text-white">
-                                    {zh && combo.name_zh ? combo.name_zh : combo.name}
-                                    <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-bold', RARITY_STYLE[combo.rarity] || RARITY_STYLE.N)}>
-                                      {combo.rarity}
-                                    </span>
-                                  </span>
-                                  <span className="shrink-0 font-mono text-[10px] text-white/25">#{combo.code}</span>
-                                </div>
-                                <div className="mb-2 flex flex-wrap gap-1">
-                                  {vibes[combo.vibe] && (
-                                    <span className="rounded-full bg-[#FF2D78]/10 px-2 py-1 text-[10px] text-[#FF2D78]/90">
-                                      {zh ? vibes[combo.vibe].zh : vibes[combo.vibe].en}
-                                    </span>
-                                  )}
-                                  {Object.values(combo.part_labels).slice(0, 5).map((label, i) => (
-                                    <span key={i} className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] text-white/50">
-                                      {zh ? label.zh : label.en}
-                                    </span>
-                                  ))}
-                                </div>
-                                <p className="line-clamp-2 text-xs leading-5 text-white/50">
-                                  {zh ? combo.description_zh : combo.description_en}
-                                </p>
-                                <p className="mt-1.5 line-clamp-2 text-[11px] italic leading-4 text-white/30">
-                                  &ldquo;{zh ? combo.greeting_zh : combo.greeting_en}&rdquo;
-                                </p>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {forgeTab === 'preset' && presets.length > 0 && (
-                      <div className="space-y-3">
-                        {/* Vibe filter chips (M2) */}
-                        {Object.keys(vibes).length > 0 && (
-                          <div className="flex flex-wrap justify-center gap-1.5">
-                            <Pill active={vibeFilter === 'all'} onClick={() => setVibeFilter('all')}>
-                              {zh ? '全部' : 'All'}
-                            </Pill>
-                            {Object.entries(vibes).map(([key, label]) => (
-                              <Pill
-                                key={key}
-                                active={vibeFilter === key}
-                                onClick={() => setVibeFilter(vibeFilter === key ? 'all' : key)}
-                              >
-                                {zh ? label.zh : label.en}
-                              </Pill>
-                            ))}
-                          </div>
-                        )}
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                          {presets
-                            .filter(
-                              (preset) =>
-                                vibeFilter === 'all' ||
-                                (preset.vibe_tags || []).includes(vibeFilter),
-                            )
-                            .map((preset) => (
+                    {/* Preset quick-start rail */}
+                    {presets.length > 0 && (
+                      <Panel
+                        title={t('creator.quickStart') || (zh ? '快速开始 · 预设灵感' : 'Quick Start · Presets')}
+                        hint={t('creator.quickStartHint') || (zh ? '点选自动填充，仍可自由修改' : 'Tap to auto-fill, still fully editable')}
+                      >
+                        <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+                          {presets.map((preset) => {
+                            const activePreset = selectedPreset?.id === preset.id;
+                            return (
                               <button
                                 key={preset.id}
                                 type="button"
                                 onClick={() => applyPreset(preset)}
-                                className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-[#FF2D78]/50 hover:bg-white/[0.06]"
+                                className={cn(
+                                  'w-44 shrink-0 rounded-xl border p-3 text-left transition-all touch-manipulation',
+                                  activePreset
+                                    ? 'border-[#FF2D78]/70 bg-[#FF2D78]/10 shadow-[0_0_18px_rgba(255,45,120,0.25)]'
+                                    : 'border-white/10 bg-white/[0.03] hover:border-[#FF2D78]/40',
+                                )}
                               >
-                                <div className="mb-2 flex items-center justify-between gap-2">
-                                  <span className="flex items-center gap-2 font-semibold text-white">
+                                <div className="mb-1.5 flex items-center justify-between gap-1.5">
+                                  <span className="truncate text-xs font-bold text-white/90">
                                     {zh ? preset.name_zh : preset.name}
-                                    {preset.rarity && (
-                                      <span
-                                        className={cn(
-                                          'rounded px-1.5 py-0.5 text-[10px] font-bold',
-                                          RARITY_STYLE[preset.rarity] || RARITY_STYLE.N,
-                                        )}
-                                      >
-                                        {preset.rarity}
-                                      </span>
-                                    )}
                                   </span>
-                                  <Sparkles className="h-4 w-4 shrink-0 text-[#FF2D78]" />
+                                  {preset.rarity && (
+                                    <span
+                                      className={cn(
+                                        'shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black',
+                                        preset.rarity === 'SSR' && 'bg-amber-400/15 text-amber-300',
+                                        preset.rarity === 'SR' && 'bg-violet-500/15 text-violet-300',
+                                        preset.rarity === 'R' && 'bg-sky-500/15 text-sky-300',
+                                        preset.rarity === 'N' && 'bg-white/10 text-white/60',
+                                      )}
+                                    >
+                                      {preset.rarity}
+                                    </span>
+                                  )}
                                 </div>
-                                <p className="line-clamp-2 text-xs leading-5 text-white/50">
+                                <p className="line-clamp-2 text-[10px] leading-4 text-white/45">
                                   {zh ? preset.description_zh : preset.description}
                                 </p>
-                                <div className="mt-3 flex flex-wrap gap-1">
-                                  {preset.relationship && (
-                                    <span className="rounded-full bg-[#FF2D78]/10 px-2 py-1 text-[10px] text-[#FF2D78]/90">
-                                      {preset.relationship}
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {(preset.vibe_tags || []).slice(0, 2).map((v) => (
+                                    <span key={v} className="rounded-full bg-[#FF2D78]/10 px-1.5 py-0.5 text-[9px] text-[#FF2D78]/80">
+                                      {vibes[v] ? (zh ? vibes[v].zh : vibes[v].en) : v}
                                     </span>
-                                  )}
-                                  {preset.occupation && (
-                                    <span className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] text-white/50">
-                                      {preset.occupation}
-                                    </span>
-                                  )}
-                                  {preset.personality_tags.slice(0, 2).map((tag) => (
-                                    <span key={tag} className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] text-white/50">{tag}</span>
                                   ))}
+                                  {activePreset && (
+                                    <span className="rounded-full bg-[#FF2D78]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#FF2D78]">
+                                      {zh ? '已应用' : 'Applied'}
+                                    </span>
+                                  )}
                                 </div>
                               </button>
+                            );
+                          })}
+                        </div>
+                      </Panel>
+                    )}
+
+                    {/* Dossier preview + core identity */}
+                    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+                      {/* Live dossier card */}
+                      <div className="relative hidden overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#FF2D78]/[0.07] via-white/[0.02] to-transparent lg:block">
+                        <div className="sticky top-4 p-5">
+                          <div className="mx-auto mb-4 flex h-40 w-40 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] shadow-[inset_0_0_40px_rgba(139,92,246,0.15)]">
+                            <User2 className="h-16 w-16 text-white/15" />
+                          </div>
+                          <div className="text-center">
+                            <div className="text-base font-bold text-white/90">
+                              {name.trim() || (zh ? '未命名角色' : 'Unnamed')}
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-white/40">
+                              {age}{zh ? '岁' : ' y/o'} · {ethnicity} · {bodyType}
+                            </div>
+                            <div className="mt-1 text-[11px] text-white/30">{shortDescription || (zh ? '一句话人设…' : 'A short tagline…')}</div>
+                          </div>
+                          <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+                            {[hairStyle, `${eyeColor} eyes`, fashionStyle, ...selectedTags.slice(0, 2)].filter(Boolean).map((chip) => (
+                              <span key={chip} className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] text-white/50">{chip}</span>
                             ))}
+                          </div>
                         </div>
                       </div>
-                    )}
-                    {forgeTab === 'preset' && (
-                    <>
-                    {/* Visual style tabs */}
-                    <div className="hidden items-center justify-center gap-2 flex-wrap">
-                      {getOpts('visual_style').map((v) => (
-                        <button
-                          key={v.value}
-                          type="button"
-                          onClick={() => setVisualStyle(v.value)}
-                          className={cn(
-                            'px-5 py-2 rounded-full text-xs font-semibold border transition-all touch-manipulation',
-                            visualStyle === v.value
-                              ? 'bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white border-transparent shadow-[0_0_16px_rgba(255,45,120,0.35)]'
-                              : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-[#FF2D78]/40 hover:text-white',
-                          )}
-                        >
-                          {getLabel(v, locale)}
-                        </button>
-                      ))}
-                    </div>
 
-                    {/* 3 gender preview cards for the selected style */}
-                    <div className="grid grid-cols-3 gap-3 max-w-2xl mx-auto">
-                      {GENDER_PREVIEWS.map((g) => {
-                        const prev = previews.find(
-                          (p) => p.gender === g.value && p.visual_style === visualStyle && p.is_active,
-                        );
-                        return (
-                          <button
-                            key={g.value}
-                            type="button"
-                            onClick={() => selectPreviewGender(g.value)}
-                            className="group relative rounded-2xl border border-white/10 bg-white/[0.03] text-left transition-all overflow-hidden hover:border-[#FF2D78]/40 hover:bg-white/[0.05] hover:shadow-[0_0_20px_rgba(139,92,246,0.15)]"
-                          >
-                            <div className="relative aspect-[3/4] overflow-hidden bg-gradient-to-br from-[#FF2D78]/20 via-[#8b5cf6]/15 to-[#3b82f6]/10">
-                              {prev?.thumbnail_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={prev.thumbnail_url}
-                                  alt={g.label}
-                                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                />
-                              ) : (
-                                <div className="h-full w-full flex items-center justify-center text-3xl">
-                                  {g.icon}
-                                </div>
-                              )}
-                              <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/70 to-transparent" />
-                              <div className="absolute inset-x-0 bottom-0 p-2.5 text-center">
-                                <div className="text-sm font-bold text-white/90">{g.label}</div>
+                      {/* Right column: options */}
+                      <div className="space-y-4">
+                        <Panel title={t('creator.sectionIdentity') || (zh ? '身份档案' : 'Identity')}>
+                          <div className="grid grid-cols-[1fr_auto] gap-3">
+                            <div>
+                              <label className="mb-1.5 block text-[11px] text-white/40">
+                                {t('creator.name') || (zh ? '名字' : 'Name')} *
+                              </label>
+                              <input
+                                ref={nameInputRef}
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder={t('creator.namePlaceholder') || (zh ? '她的名字' : 'Her name')}
+                                className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-[11px] text-white/40">
+                                {t('creator.age') || (zh ? '年龄' : 'Age')}
+                              </label>
+                              <input
+                                type="number"
+                                min={18}
+                                max={45}
+                                value={age}
+                                onChange={(e) => setAge(Number(e.target.value))}
+                                className="w-24 h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none"
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-3">
+                            <label className="mb-1.5 block text-[11px] text-white/40">
+                              {t('creator.tagline') || (zh ? '一句话人设' : 'Tagline')}
+                            </label>
+                            <input
+                              value={shortDescription}
+                              onChange={(e) => setShortDescription(e.target.value)}
+                              placeholder={t('creator.taglinePlaceholder') || (zh ? '深夜电台里的温柔声音…' : 'A soft voice on the late-night radio…')}
+                              className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
+                            />
+                          </div>
+                        </Panel>
+
+                        <Panel title={t('creator.sectionAppearance') || (zh ? '外观设定' : 'Appearance')}>
+                          {/* Visual style cards */}
+                          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {getOpts('visual_style').map((v) => (
+                              <button
+                                key={v.value}
+                                type="button"
+                                onClick={() => setVisualStyle(v.value)}
+                                className={cn(
+                                  'rounded-xl border p-3 text-left transition-all',
+                                  visualStyle === v.value
+                                    ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
+                                    : 'border-white/10 bg-white/[0.03] hover:border-white/20',
+                                )}
+                              >
+                                <div className="text-sm font-semibold">{getLabel(v, locale)}</div>
+                                <div className="mt-0.5 text-[10px] text-white/40">{getExtra(v, 'desc', locale)}</div>
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Pill groups */}
+                          {[
+                            { key: 'gender', title: t('creator.gender') || (zh ? '性别气质' : 'Gender'), items: getOpts('gender'), value: gender, set: setGender },
+                            { key: 'ethnicity', title: t('creator.ethnicity') || (zh ? '种族 / 血统' : 'Ethnicity'), items: getOpts('ethnicity'), value: ethnicity, set: setEthnicity },
+                            { key: 'face_shape', title: t('creator.faceShape') || (zh ? '脸型' : 'Face Shape'), items: getOpts('face_shape'), value: faceShape, set: setFaceShape },
+                            { key: 'body_type', title: t('creator.bodyType') || (zh ? '体型' : 'Body Type'), items: getOpts('body_type'), value: bodyType, set: setBodyType },
+                            { key: 'hair_style', title: t('creator.hairStyle') || (zh ? '发型' : 'Hair Style'), items: getOpts('hair_style'), value: hairStyle, set: setHairStyle },
+                            { key: 'eye_color', title: t('creator.eyeColor') || (zh ? '瞳色' : 'Eye Color'), items: getOpts('eye_color'), value: eyeColor, set: setEyeColor },
+                            { key: 'fashion_style', title: t('creator.fashionStyle') || (zh ? '服装风格' : 'Fashion Style'), items: getOpts('fashion_style'), value: fashionStyle, set: setFashionStyle },
+                          ].map((group) => group.items.length > 0 && (
+                            <div key={group.key} className="mb-3">
+                              <div className="mb-1.5 text-[11px] text-white/40">{group.title}</div>
+                              <div className="flex flex-wrap gap-2">
+                                {group.items.map((o) => (
+                                  <Pill key={o.value} active={group.value === o.value} onClick={() => group.set(o.value)}>
+                                    {getLabel(o, locale)}
+                                  </Pill>
+                                ))}
                               </div>
                             </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                          ))}
 
-                    {/* Inline continue button */}
-                    <div className="flex justify-end pt-2">
-                      <GamePrimaryButton
-                        className="h-11 px-6 touch-manipulation"
-                        onClick={() => setStep(1)}
-                      >
-                        {t('creator.skipToCustomize') || (zh ? '开始自定义' : 'Customize')} <ArrowRight className="h-4 w-4" />
-                      </GamePrimaryButton>
+                          {/* Skin tone from parts library */}
+                          {(parts['skin_tone'] || []).length > 0 && (
+                            <div className="mb-3">
+                              <div className="mb-1.5 text-[11px] text-white/40">{t('creator.skinTone') || (zh ? '肤色' : 'Skin Tone')}</div>
+                              <div className="flex flex-wrap gap-2">
+                                {(parts['skin_tone'] || []).map((p) => (
+                                  <Pill key={p.slug} active={skinTone === p.value} onClick={() => setSkinTone(p.value)}>
+                                    {locale === 'zh' ? p.name_zh : p.name_en}
+                                  </Pill>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Hair color swatches */}
+                          <div className="mb-3">
+                            <div className="mb-1.5 text-[11px] text-white/40">{t('creator.hairColor') || (zh ? '发色' : 'Hair Color')}</div>
+                            <div className="flex flex-wrap gap-2">
+                              {getOpts('hair_color').map((c) => (
+                                <button
+                                  key={c.value}
+                                  type="button"
+                                  title={getLabel(c, locale)}
+                                  onClick={() => setHairColor(c.value)}
+                                  className={cn(
+                                    'h-9 w-9 rounded-full border-2 transition-transform',
+                                    hairColor === c.value ? 'border-white scale-110 ring-2 ring-[#FF2D78]' : 'border-white/20',
+                                  )}
+                                  style={{ background: c.value }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Extra notes */}
+                          <div>
+                            <div className="mb-1.5 text-[11px] text-white/40">
+                              {t('creator.extraNotes') || (zh ? '补充描述（可选）' : 'Extra Notes (optional)')}
+                            </div>
+                            <textarea
+                              value={appearancePrompt}
+                              onChange={(e) => setAppearancePrompt(e.target.value)}
+                              placeholder={t('creator.extraNotesPlaceholder') || (zh ? '例如：酒窝、右眼泪痣、雀斑' : 'e.g. dimples, freckles, beauty mark')}
+                              rows={2}
+                              className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
+                            />
+                          </div>
+                        </Panel>
+
+                        <Panel title={t('creator.personality') || (zh ? '性格与灵魂' : 'Personality & Soul')}>
+                          <div className="mb-3">
+                            <div className="mb-1.5 text-[11px] text-white/40">
+                              {t('creator.personality') || (zh ? '性格标签' : 'Personality Tags')} ({selectedTags.length}/8)
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {getOpts('personality_tag').map((tag) => (
+                                <Pill key={tag.value} active={selectedTags.includes(tag.value)} onClick={() => toggleTag(tag.value)}>
+                                  {getLabel(tag, locale)}
+                                </Pill>
+                              ))}
+                            </div>
+                          </div>
+                          {getOpts('occupation').length > 0 && (
+                            <div className="mb-3">
+                              <div className="mb-1.5 text-[11px] text-white/40">{t('creator.occupation') || (zh ? '职业' : 'Occupation')}</div>
+                              <div className="flex flex-wrap gap-2">
+                                {getOpts('occupation').map((o) => (
+                                  <Pill key={o.value} active={occupation === o.value} onClick={() => setOccupation(o.value)}>
+                                    {getLabel(o, locale)}
+                                  </Pill>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div>
+                            <div className="mb-1.5 text-[11px] text-white/40">{t('creator.relationship') || (zh ? '关系定位' : 'Relationship')}</div>
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                              {getOpts('relationship').map((r) => (
+                                <button
+                                  key={r.value}
+                                  type="button"
+                                  onClick={() => setRelationship(r.value)}
+                                  className={cn(
+                                    'rounded-xl border p-3 text-left transition-all',
+                                    relationship === r.value
+                                      ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
+                                      : 'border-white/10 bg-white/[0.03] hover:border-white/20',
+                                  )}
+                                >
+                                  <div className="text-sm font-semibold">{getLabel(r, locale)}</div>
+                                  <div className="mt-0.5 text-[10px] text-white/40">{getExtra(r, 'desc', locale)}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </Panel>
+                      </div>
                     </div>
-                    </>
-                    )}
                   </>
                 )}
               </motion.div>
             )}
 
-            {/* ─── Step 1: Appearance ───────────────────────────────────── */}
-            {step === 1 && (
+            {/* ─── Step 2: 选择立绘 ──────────────────────────────────────── */}
+            {step === 'portrait' && (
               <motion.div
-                key="s1"
+                key="portrait"
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -24 }}
-                className="flex flex-col md:flex-row gap-6"
               >
-                {/* Left: Portrait Preview */}
-                <div className="md:w-[300px] md:shrink-0">
-                  <div className="sticky top-4">
-                    <div className="relative mx-auto w-full max-w-[260px] md:max-w-none">
-                      <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent group">
-                        {portraitUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={portraitUrl} alt="portrait" className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="h-full w-full flex flex-col items-center justify-center gap-2">
-                            <div className="h-16 w-16 rounded-full bg-white/[0.04] flex items-center justify-center">
-                              <User2 className="h-8 w-8 text-white/15" />
-                            </div>
-                            <span className="text-[10px] text-white/20">{visualStyle} · {ethnicity}</span>
-                          </div>
-                        )}
-                        {/* Gradient overlay at bottom */}
-                        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                        <div className="absolute bottom-2.5 left-3 right-3 flex items-end justify-between">
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-white/90 truncate">{name || (zh ? '未命名' : 'Unnamed')}</div>
-                            <div className="text-[10px] text-white/50 truncate">{hairStyle} · {eyeColor} · {bodyType}</div>
-                          </div>
-                          <span className="h-5 w-5 rounded-full border border-white/20 shrink-0 ml-2" style={{ background: hairColor }} />
-                        </div>
-                      </div>
-                      <GamePrimaryButton
-                        className="absolute bottom-3 right-3 !h-8 !px-2.5 text-[10px] shadow-lg"
-                        disabled={generatingPortrait}
-                        onClick={handleGeneratePortrait}
-                      >
-                        {generatingPortrait ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-                        {t('creator.genPortrait') || (zh ? 'AI头像' : 'AI')}
-                      </GamePrimaryButton>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Options */}
-                <div className="flex-1 space-y-6">
-                  {/* Visual Style */}
-                  <Section title={t('creator.visualStyle') || (zh ? '画风' : 'Visual Style')}>
-                    <div className="grid grid-cols-2 gap-2">
-                      {getOpts('visual_style').map((v) => (
-                        <button
-                          key={v.value}
-                          type="button"
-                          onClick={() => setVisualStyle(v.value)}
-                          className={cn(
-                            'rounded-xl border p-3 text-left transition-all',
-                            visualStyle === v.value
-                              ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
-                              : 'border-white/10 bg-white/[0.03]',
-                          )}
-                        >
-                          <div className="font-semibold text-sm">{getLabel(v, locale)}</div>
-                          <div className="text-[11px] text-white/40 mt-0.5">{getExtra(v, 'desc', locale)}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Gender */}
-                  <Section title={t('creator.gender') || (zh ? '性别气质' : 'Gender')}>
-                    <div className="flex flex-wrap gap-2">
-                      {getOpts('gender').map((g) => (
-                        <Pill key={g.value} active={gender === g.value} onClick={() => setGender(g.value)}>{getLabel(g, locale)}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Ethnicity */}
-                  <Section title={t('creator.ethnicity') || (zh ? '种族 / 血统' : 'Ethnicity')}>
-                    <div className="flex flex-wrap gap-2">
-                      {getOpts('ethnicity').map((e) => (
-                        <Pill key={e.value} active={ethnicity === e.value} onClick={() => setEthnicity(e.value)}>{getLabel(e, locale)}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Skin Tone (parts library) */}
-                  <Section title={t('creator.skinTone') || (zh ? '肤色' : 'Skin Tone')}>
-                    <div className="flex flex-wrap gap-2">
-                      {(parts['skin_tone'] || []).map((p) => (
-                        <Pill key={p.slug} active={skinTone === p.value} onClick={() => setSkinTone(p.value)}>
-                          {locale === 'zh' ? p.name_zh : p.name_en}
-                        </Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Face Shape */}
-                  <Section title={t('creator.faceShape') || (zh ? '脸型' : 'Face Shape')}>
-                    <div className="flex flex-wrap gap-2">
-                      {getOpts('face_shape').map((f) => (
-                        <Pill key={f.value} active={faceShape === f.value} onClick={() => setFaceShape(f.value)}>{getLabel(f, locale)}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Body Type */}
-                  <Section title={t('creator.bodyType') || (zh ? '体型' : 'Body Type')}>
-                    <div className="flex flex-wrap gap-2">
-                      {getOpts('body_type').map((b) => (
-                        <Pill key={b.value} active={bodyType === b.value} onClick={() => setBodyType(b.value)}>{getLabel(b, locale)}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Bust Shape (parts library, hidden for Male) */}
-                  {gender !== 'Male' && (
-                    <Section title={t('creator.bustShape') || (zh ? '胸型' : 'Bust Shape')}>
-                      <div className="flex flex-wrap gap-2">
-                        {(parts['breast_shape'] || []).map((p) => (
-                          <Pill key={p.slug} active={bustShape === p.value} onClick={() => setBustShape(p.value)}>
-                            {locale === 'zh' ? p.name_zh : p.name_en}
-                          </Pill>
-                        ))}
-                      </div>
-                    </Section>
-                  )}
-
-                  {/* Height (parts library) */}
-                  <Section title={t('creator.height') || (zh ? '身高' : 'Height')}>
-                    <div className="flex flex-wrap gap-2">
-                      {(parts['height'] || []).map((p) => (
-                        <Pill key={p.slug} active={heightPick === p.value} onClick={() => setHeightPick(p.value)}>
-                          {locale === 'zh' ? p.name_zh : p.name_en}
-                        </Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Hair Style */}
-                  <Section title={t('creator.hairStyle') || (zh ? '发型' : 'Hair Style')}>
-                    <div className="flex flex-wrap gap-2">
-                      {getOpts('hair_style').map((h) => (
-                        <Pill key={h.value} active={hairStyle === h.value} onClick={() => setHairStyle(h.value)}>{getLabel(h, locale)}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Hair Color */}
-                  <Section title={t('creator.hairColor') || (zh ? '发色' : 'Hair Color')}>
-                    <div className="flex flex-wrap gap-2">
-                      {getOpts('hair_color').map((c) => (
-                        <button
-                          key={c.value}
-                          type="button"
-                          title={getLabel(c, locale)}
-                          onClick={() => setHairColor(c.value)}
-                          className={cn(
-                            'h-9 w-9 rounded-full border-2 transition-transform',
-                            hairColor === c.value ? 'border-white scale-110 ring-2 ring-[#FF2D78]' : 'border-white/20',
-                          )}
-                          style={{ background: c.value }}
-                        />
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Eye Color */}
-                  <Section title={t('creator.eyeColor') || (zh ? '瞳色' : 'Eye Color')}>
-                    <div className="flex flex-wrap gap-2">
-                      {getOpts('eye_color').map((e) => (
-                        <Pill key={e.value} active={eyeColor === e.value} onClick={() => setEyeColor(e.value)}>{getLabel(e, locale)}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Fashion Style */}
-                  <Section title={t('creator.fashionStyle') || (zh ? '服装风格' : 'Fashion Style')}>
-                    <div className="flex flex-wrap gap-2">
-                      {getOpts('fashion_style').map((f) => (
-                        <Pill key={f.value} active={fashionStyle === f.value} onClick={() => setFashionStyle(f.value)}>{getLabel(f, locale)}</Pill>
-                      ))}
-                    </div>
-                  </Section>
-
-                  {/* Extra notes */}
-                  <Section title={t('creator.extraNotes') || (zh ? '补充描述（可选）' : 'Extra Notes (optional)')}>
-                    <textarea
-                      value={appearancePrompt}
-                      onChange={(e) => setAppearancePrompt(e.target.value)}
-                      placeholder={t('creator.extraNotesPlaceholder') || (zh ? '例如：酒窝、右眼泪痣、雀斑' : 'e.g. dimples, freckles, beauty mark')}
-                      rows={2}
-                      className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
-                    />
-                  </Section>
-
-                  {/* Inline step navigation */}
-                  <div className="flex items-center justify-between gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setStep(0)}
-                      className="h-11 min-w-[5.5rem] px-5 rounded-full border border-white/10 text-sm text-white/70 hover:bg-white/[0.04] flex items-center justify-center gap-1 touch-manipulation"
-                    >
-                      <ArrowLeft className="h-4 w-4" /> {t('creator.back') || (zh ? '上一步' : 'Back')}
-                    </button>
-                    <GamePrimaryButton
-                      className="h-11 px-6 touch-manipulation"
-                      disabled={!stepValid}
-                      onClick={() => setStep(2)}
-                    >
-                      {t('creator.next') || (zh ? '下一步' : 'Next')} <ArrowRight className="h-4 w-4" />
-                    </GamePrimaryButton>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ─── Step 2: Personality & Identity ──────────────────────── */}
-            {step === 2 && (
-              <motion.div
-                key="s2"
-                initial={{ opacity: 0, x: 24 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -24 }}
-                className="flex flex-col md:flex-row gap-6"
-              >
-                {/* Left: Portrait Preview */}
-                <div className="md:w-[300px] md:shrink-0">
-                  <div className="sticky top-4">
-                    <div className="relative mx-auto w-full max-w-[260px] md:max-w-none">
-                      <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent group">
-                        {portraitUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={portraitUrl} alt="portrait" className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="h-full w-full flex flex-col items-center justify-center gap-2">
-                            <div className="h-16 w-16 rounded-full bg-white/[0.04] flex items-center justify-center">
-                              <User2 className="h-8 w-8 text-white/15" />
-                            </div>
-                            <span className="text-[10px] text-white/20">{visualStyle} · {ethnicity}</span>
-                          </div>
-                        )}
-                        {/* Gradient overlay at bottom */}
-                        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                        <div className="absolute bottom-2.5 left-3 right-3 flex items-end justify-between">
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-white/90 truncate">{name || (zh ? '未命名' : 'Unnamed')}</div>
-                            <div className="text-[10px] text-white/50 truncate">{selectedTags.slice(0, 2).join(', ')} · {occupation}</div>
-                          </div>
-                          <span className="h-5 w-5 rounded-full border border-white/20 shrink-0 ml-2" style={{ background: hairColor }} />
-                        </div>
-                      </div>
-                      <GamePrimaryButton
-                        className="absolute bottom-3 right-3 !h-8 !px-2.5 text-[10px] shadow-lg"
-                        disabled={generatingPortrait}
-                        onClick={handleGeneratePortrait}
-                      >
-                        {generatingPortrait ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-                        {t('creator.genPortrait') || (zh ? 'AI头像' : 'AI')}
-                      </GamePrimaryButton>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Options */}
-                <div className="flex-1 space-y-6">
-                {/* Personality Tags */}
-                <Section title={`${t('creator.personality') || (zh ? '性格标签' : 'Personality Tags')} (${selectedTags.length}/8)`}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('personality_tag').map((tag) => (
-                      <Pill key={tag.value} active={selectedTags.includes(tag.value)} onClick={() => toggleTag(tag.value)}>
-                        {getLabel(tag, locale)}
-                      </Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Voice */}
-                <Section title={t('creator.voice') || (zh ? '声线' : 'Voice')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('voice').map((v) => (
-                      <Pill key={v.value} active={voice === v.value} onClick={() => setVoice(v.value)}>{getLabel(v, locale)}</Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Occupation */}
-                <Section title={t('creator.occupation') || (zh ? '职业' : 'Occupation')}>
-                  <div className="flex flex-wrap gap-2">
-                    {getOpts('occupation').map((o) => (
-                      <Pill key={o.value} active={occupation === o.value} onClick={() => setOccupation(o.value)}>{getLabel(o, locale)}</Pill>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Hobbies */}
-                <Section title={t('creator.hobbies') || (zh ? '兴趣爱好' : 'Hobbies')}>
-                  <input
-                    value={hobbies}
-                    onChange={(e) => setHobbies(e.target.value)}
-                    placeholder={t('creator.hobbiesPlaceholder') || (zh ? '咖啡、摄影、深夜电台…' : 'Coffee, photography, late-night radio…')}
-                    className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
-                  />
-                </Section>
-
-                {/* Divider */}
-                <div className="border-t border-white/[0.06]" />
-
-                {/* Name */}
-                <Section title={`${t('creator.name') || (zh ? '名字' : 'Name')} *`}>
-                  <input
-                    ref={nameInputRef}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={t('creator.namePlaceholder') || (zh ? '她的名字' : 'Her name')}
-                    className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
-                  />
-                </Section>
-
-                {/* Age */}
-                <Section title={t('creator.age') || (zh ? '年龄' : 'Age')}>
-                  <input
-                    type="number"
-                    min={18}
-                    max={45}
-                    value={age}
-                    onChange={(e) => setAge(Number(e.target.value))}
-                    className="w-28 h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none"
-                  />
-                </Section>
-
-                {/* Tagline */}
-                <Section title={t('creator.tagline') || (zh ? '一句话人设' : 'Tagline')}>
-                  <input
-                    value={shortDescription}
-                    onChange={(e) => setShortDescription(e.target.value)}
-                    placeholder={t('creator.taglinePlaceholder') || (zh ? '深夜电台里的温柔声音…' : 'A soft voice on the late-night radio…')}
-                    className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
-                  />
-                </Section>
-
-                {/* Relationship */}
-                <Section title={t('creator.relationship') || (zh ? '关系定位' : 'Relationship')}>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {getOpts('relationship').map((r) => (
-                      <button
-                        key={r.value}
-                        type="button"
-                        onClick={() => setRelationship(r.value)}
-                        className={cn(
-                          'rounded-xl border p-3 text-left',
-                          relationship === r.value
-                            ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
-                            : 'border-white/10 bg-white/[0.03]',
-                        )}
-                      >
-                        <div className="text-sm font-semibold">{getLabel(r, locale)}</div>
-                        <div className="text-[10px] text-white/40 mt-0.5">{getExtra(r, 'desc', locale)}</div>
-                      </button>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* Backstory */}
-                <Section title={t('creator.backstory') || (zh ? '背景故事（可选）' : 'Backstory (optional)')}>
-                  <textarea
-                    value={backstory}
-                    onChange={(e) => setBackstory(e.target.value)}
-                    rows={3}
-                    className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
-                  />
-                </Section>
-
-                {/* Starter Outfit */}
-                {outfits.length > 0 && (
-                  <Section title={t('creator.starterOutfit') || (zh ? '初始服装' : 'Starter Outfit')}>
-                    <div className="flex flex-wrap gap-2">
-                      {outfits.slice(0, 12).map((o) => (
-                        <Pill
-                          key={o.id}
-                          active={selectedOutfit === o.id}
-                          onClick={() => setSelectedOutfit(o.id)}
-                        >
-                          {o.name}
-                        </Pill>
-                      ))}
-                    </div>
-                  </Section>
-                )}
-
-                {error && <p className="text-sm text-red-400">{error}</p>}
-
-                {/* Inline step navigation */}
-                <div className={cn('flex items-center justify-between gap-3 pt-2', shakeInvalid && 'animate-shake')}>
-                  <button
-                    type="button"
-                    onClick={() => setStep(1)}
-                    className="h-11 min-w-[5.5rem] px-5 rounded-full border border-white/10 text-sm text-white/70 hover:bg-white/[0.04] flex items-center justify-center gap-1 touch-manipulation"
-                  >
-                    <ArrowLeft className="h-4 w-4" /> {t('creator.back') || (zh ? '上一步' : 'Back')}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => {
-                      if (!stepValid) {
-                        handleInvalidCreate();
-                        return;
-                      }
-                      handleSubmit();
-                    }}
-                    className="h-11 px-6 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white text-sm font-bold flex items-center gap-1.5 touch-manipulation shadow-[0_0_16px_rgba(255,45,120,0.3)] disabled:opacity-50 active:scale-95 transition-all"
-                  >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                    {t('creator.create') || (zh ? '创建' : 'Create')}
-                  </button>
-                </div>
-                {!stepValid && step === 2 && (
-                  <p className="text-[11px] text-white/30 text-center">
-                    {name.trim().length < 2
-                      ? (zh ? '请输入角色名字（至少2个字符）' : 'Enter a name (at least 2 characters)')
-                      : (zh ? '请完善必填信息' : 'Please complete required fields')}
+                <div className="mb-4 text-center">
+                  <h2 className="text-lg font-bold text-white/90">
+                    {t('creator.pickOne') || (zh ? '选择她的模样' : 'Choose Her Look')}
+                  </h2>
+                  <p className="mt-1 text-xs text-white/40">
+                    {batchRunning
+                      ? (t('creator.generating') || (zh ? '正在注入灵魂，生成 4 张立绘…' : 'Forging 4 portraits…'))
+                      : readyCount > 0
+                        ? (t('creator.pickOneHint') || (zh ? '点选最喜欢的一张，完成创建' : 'Tap your favorite to finish'))
+                        : (t('creator.portraitHint') || (zh ? '生成完成后可选择一张' : 'Pick one when ready'))}
                   </p>
-                )}
                 </div>
+
+                {/* 4 portrait cards — first row side by side on desktop */}
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {slots.map((slot, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      disabled={slot.status !== 'ready'}
+                      onClick={() => setSelectedSlot(idx)}
+                      className={cn(
+                        'group relative aspect-[3/4] overflow-hidden rounded-2xl border text-left transition-all',
+                        slot.status === 'ready' && selectedSlot === idx
+                          ? 'border-[#FF2D78] ring-2 ring-[#FF2D78]/60 shadow-[0_0_28px_rgba(255,45,120,0.45)] scale-[1.02]'
+                          : slot.status === 'ready'
+                            ? 'border-white/15 hover:border-[#FF2D78]/50 hover:shadow-[0_0_18px_rgba(255,45,120,0.2)]'
+                            : 'border-white/[0.08] bg-white/[0.02]',
+                      )}
+                    >
+                      {slot.status === 'ready' && slot.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={slot.url} alt={`portrait-${idx + 1}`} className="h-full w-full object-cover" />
+                      ) : slot.status === 'loading' ? (
+                        <div className="relative flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden">
+                          {/* shimmer sweep */}
+                          <motion.div
+                            className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent"
+                            animate={{ x: ['-100%', '300%'] }}
+                            transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
+                          />
+                          <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]/60" />
+                          <span className="text-[10px] text-white/30">
+                            {zh ? `生成中 ${idx + 1}/4` : `Generating ${idx + 1}/4`}
+                          </span>
+                        </div>
+                      ) : slot.status === 'error' ? (
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
+                          <span className="text-[11px] text-red-400/80">{slot.error || (zh ? '生成失败' : 'Failed')}</span>
+                        </div>
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <ImagePlus className="h-6 w-6 text-white/10" />
+                        </div>
+                      )}
+
+                      {slot.status === 'ready' && (
+                        <>
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 to-transparent" />
+                          <div className="pointer-events-none absolute bottom-2 left-2.5 text-[10px] font-semibold text-white/70">
+                            {zh ? `立绘 ${idx + 1}` : `Portrait ${idx + 1}`}
+                          </div>
+                          {selectedSlot === idx && (
+                            <motion.div
+                              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                            >
+                              <Check className="h-4 w-4 text-white" />
+                            </motion.div>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {error && <p className="mt-4 text-center text-sm text-red-400">{error}</p>}
               </motion.div>
             )}
           </AnimatePresence>
-          {error && step !== 2 && <p className="text-sm text-red-400">{error}</p>}
+
+          {error && step === 'info' && <p className="mt-4 text-sm text-red-400">{error}</p>}
         </div>
       </div>
 
-      {/* Bottom nav */}
+      {/* Bottom action bar */}
       <div
         className="shrink-0 sticky bottom-0 z-30 flex items-center justify-between gap-3 border-t border-white/10 bg-[#0a0612]/96 backdrop-blur-xl px-4 py-3"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       >
         <button
           type="button"
-          disabled={step === 0}
-          onClick={() => setStep((s) => Math.max(0, s - 1))}
-          className="h-11 min-w-[5.5rem] px-4 rounded-full border border-white/10 text-sm disabled:opacity-30 flex items-center justify-center gap-1 touch-manipulation"
+          onClick={() => {
+            if (step === 'portrait') { setStep('info'); return; }
+            router.push('/');
+          }}
+          className="h-11 min-w-[5.5rem] px-4 rounded-full border border-white/10 text-sm flex items-center justify-center gap-1 touch-manipulation hover:bg-white/[0.04]"
         >
           <ArrowLeft className="h-4 w-4" /> {t('creator.back') || (zh ? '上一步' : 'Back')}
         </button>
-        {step < 2 ? (
-          step === 0 ? (
-            <GamePrimaryButton
-              className="h-11 px-6 touch-manipulation"
-              onClick={() => setStep(1)}
-            >
-              {t('creator.skipToCustomize') || (zh ? '开始自定义' : 'Customize')} <ArrowRight className="h-4 w-4" />
-            </GamePrimaryButton>
-          ) : (
-            <GamePrimaryButton
-              className="h-11 px-6 touch-manipulation"
-              disabled={!stepValid}
-              onClick={() => setStep((s) => s + 1)}
-            >
-              {t('creator.next') || (zh ? '下一步' : 'Next')} <ArrowRight className="h-4 w-4" />
-            </GamePrimaryButton>
-          )
-        ) : (
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => {
-              if (!stepValid) {
-                handleInvalidCreate();
-                return;
-              }
-              handleSubmit();
-            }}
-            className="h-11 px-6 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white text-sm font-bold flex items-center gap-1.5 touch-manipulation shadow-[0_0_16px_rgba(255,45,120,0.3)] disabled:opacity-50 active:scale-95 transition-all"
+
+        {step === 'info' ? (
+          <GamePrimaryButton
+            className="h-11 px-6 touch-manipulation"
+            disabled={!infoValid || noCards || loadingData}
+            onClick={startPortraitStep}
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {t('creator.create') || (zh ? '创建' : 'Create')}
-          </button>
+            <Wand2 className="h-4 w-4" />
+            {noCards
+              ? (t('creator.noCards') || (zh ? '创建卡已用完' : 'No cards'))
+              : (t('creator.genPortraits') || (zh ? '生成立绘' : 'Generate Portraits'))}
+            <ArrowRight className="h-4 w-4" />
+          </GamePrimaryButton>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              disabled={batchRunning}
+              onClick={() => void runBatch()}
+              className="h-11 px-4 rounded-full border border-[#8b5cf6]/40 bg-[#8b5cf6]/10 text-sm text-violet-200 flex items-center justify-center gap-1.5 touch-manipulation hover:bg-[#8b5cf6]/20 disabled:opacity-40"
+            >
+              <RefreshCw className={cn('h-4 w-4', batchRunning && 'animate-spin')} />
+              {t('creator.regenerate') || (zh ? '重新生成' : 'Regenerate')}
+            </button>
+            <GamePrimaryButton
+              className="h-11 px-6 touch-manipulation"
+              disabled={selectedSlot < 0 || saving || !slots[selectedSlot]?.url}
+              onClick={handleSubmit}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {t('creator.finishCreate') || (zh ? '完成创建' : 'Finish Creation')}
+            </GamePrimaryButton>
+          </div>
         )}
       </div>
+
+      {/* Gacha-style success reveal */}
+      <CreateSuccessModal
+        companion={reveal}
+        onGoChat={handleGoChat}
+        onCreateAnother={handleCreateAnother}
+      />
     </GameShell>
   );
 }

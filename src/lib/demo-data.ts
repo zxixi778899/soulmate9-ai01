@@ -5,7 +5,9 @@ import type { TranslationKey } from '@/lib/i18n/types';
  * Chinese UI uses tagline_zh / relationship keys mapped via i18n.
  */
 
-export type Rarity = 'N' | 'R' | 'SR' | 'SSR';
+import type { Rarity } from './rarity';
+
+export type { Rarity };
 
 /** Stable relationship keys (not locale-specific UI strings) */
 export type RelationshipKey =

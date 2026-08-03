@@ -15,6 +15,7 @@
  */
 
 import type { PresetVibe } from '@/lib/preset-library';
+import { rarityFromTraits } from '@/lib/rarity';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -550,6 +551,7 @@ export function forgeCombination(opts: ForgeCombinationOptions): ForgedCombinati
     const p = resolved[category];
     if (p) partLabels[category] = { en: p.name_en, zh: p.name_zh };
   }
+  const traits = genomeTraits(genome, vibe);
   return {
     code,
     genome,
@@ -559,8 +561,9 @@ export function forgeCombination(opts: ForgeCombinationOptions): ForgedCombinati
     gender,
     visual_style,
     vibe,
-    rarity: genomeRarity(parts, genome),
-    traits: genomeTraits(genome, vibe),
+    // Universal rarity rule: derived from the rolled trait score, not part weights
+    rarity: rarityFromTraits(traits.base_desire, traits.base_development, traits.base_kink),
+    traits,
     scene_id: VIBE_SCENE[vibe],
     soul_slug: VIBE_SOUL_SLUGS[vibe][gender === 'Male' ? 'M' : 'F'],
     greeting_en: VIBE_GREETINGS[vibe].en,

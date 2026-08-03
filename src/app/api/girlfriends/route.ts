@@ -11,6 +11,7 @@ import { buildCompanionCharacterCard, normalizeCreatorPreset, type CreatorPreset
 import { soulForPreset } from '@/lib/preset-souls';
 import { findCachedPresetPortrait, recordPresetPortraitStat } from '@/lib/preset-portrait-cache';
 import { checkAchievements } from '@/lib/achievement-checker';
+import { rollCompanionStats, rarityFromTraits, companionScore, type Rarity } from '@/lib/rarity';
 
 const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
 
@@ -268,12 +269,17 @@ export async function POST(request: NextRequest) {
     if (preset.relationship) insertData.relationship = preset.relationship;
     if (preset.occupation) insertData.occupation = preset.occupation;
     if (preset.hobbies) insertData.hobbies = preset.hobbies;
-    if (preset.rarity) insertData.rarity = preset.rarity;
     if (preset.traits) {
       insertData.base_intimacy = preset.traits.base_intimacy;
       insertData.base_desire = preset.traits.base_desire;
       insertData.base_development = preset.traits.base_development;
       insertData.base_kink = preset.traits.base_kink;
+      // Universal rarity rule: always derived from the stat score
+      insertData.rarity = rarityFromTraits(
+        preset.traits.base_desire,
+        preset.traits.base_development,
+        preset.traits.base_kink,
+      );
     }
     if (presetDbId) insertData.preset_id = presetDbId;
     // M4: merge preset vibes into tags so catalog tag filters can find them
@@ -296,16 +302,11 @@ export async function POST(request: NextRequest) {
   // trait prompt builders and catalog filters read real values.
   if (forgeData) {
     const clamp01 = (v: unknown) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
-    const forgeRarity = String(forgeData.rarity || '');
-    if (['N', 'R', 'SR', 'SSR'].includes(forgeRarity)) insertData.rarity = forgeRarity;
     const forgeTraits = forgeData.traits && typeof forgeData.traits === 'object'
       ? (forgeData.traits as Record<string, unknown>)
       : null;
-    if (forgeTraits) {
+    if (forgeTraits && forgeTraits.base_intimacy !== undefined) {
       insertData.base_intimacy = clamp01(forgeTraits.base_intimacy);
-      insertData.base_desire = clamp01(forgeTraits.base_desire);
-      insertData.base_development = clamp01(forgeTraits.base_development);
-      insertData.base_kink = clamp01(forgeTraits.base_kink);
     }
     const forgeRel = String(companionMeta.relationship || '');
     if (forgeRel) insertData.relationship = forgeRel;
@@ -321,6 +322,25 @@ export async function POST(request: NextRequest) {
       insertData.tags = Array.from(new Set([...baseTags, forgeVibe]));
     }
   }
+
+  // ── Universal stat system (site-wide): every companion without designed
+  // preset stats rolls desire/development/kink uniformly in 70-100; rarity is
+  // ALWAYS derived from the score = round(avg(stats)). See src/lib/rarity.ts.
+  if (insertData.base_desire === undefined) {
+    const roll = rollCompanionStats();
+    insertData.base_desire = roll.base_desire;
+    insertData.base_development = roll.base_development;
+    insertData.base_kink = roll.base_kink;
+    insertData.rarity = roll.rarity;
+  }
+  const finalStats = {
+    base_desire: Number(insertData.base_desire ?? 0),
+    base_development: Number(insertData.base_development ?? 0),
+    base_kink: Number(insertData.base_kink ?? 0),
+  };
+  const finalScore = companionScore(finalStats.base_desire, finalStats.base_development, finalStats.base_kink);
+  const finalRarity = (insertData.rarity as Rarity) || rarityFromTraits(finalStats.base_desire, finalStats.base_development, finalStats.base_kink);
+  insertData.rarity = finalRarity;
 
   const { data: girlfriend, error } = await client
     .from('girlfriends')
@@ -438,7 +458,15 @@ export async function POST(request: NextRequest) {
   // Fire-and-forget: creation achievements (first_creation, collector_*) unlock here.
   checkAchievements(client, user.id).catch(() => {});
 
-  return NextResponse.json({ girlfriend, cards_remaining: cardResult.remaining });
+  return NextResponse.json({
+    girlfriend,
+    cards_remaining: cardResult.remaining,
+    stats: {
+      ...finalStats,
+      score: finalScore,
+      rarity: finalRarity,
+    },
+  });
 }
 
 export async function PATCH(request: NextRequest) {
