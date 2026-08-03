@@ -10,6 +10,7 @@ import { useRef } from 'react';
 import { motion, useMotionValue, useTransform } from 'motion/react';
 import { X, Heart, Sparkles, Volume2, MessageCircle, Share2, UserPlus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/lib/i18n/context';
 import type { DemoGirl } from '@/lib/demo-data';
 import { CardMedia } from '@/components/discover/CardMedia';
 
@@ -24,20 +25,22 @@ interface Props {
   isFriend?: boolean;
 }
 
-const PERSONALITY_DIMENSIONS = [
-  { key: 'Sweet', value: 78 },
-  { key: 'Bold', value: 65 },
-  { key: 'Playful', value: 82 },
-  { key: 'Intellect', value: 70 },
-  { key: 'Mystery', value: 88 },
-];
-
 export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = false, primaryLabel, isFriend = false }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotateY = useTransform(x, [-200, 200], [-15, 15]);
   const rotateX = useTransform(y, [-200, 200], [12, -12]);
+  const { t } = useTranslation();
+
+  // Real companion stats from the backend (fallbacks mirror home page meters)
+  const baseIntimacy = Math.min(99, Math.max(0, Number(girl?.intimacy ?? 0) || 0));
+  const personalityDimensions = [
+    { key: t('home.meterDesire'), value: Math.min(99, Math.max(0, Math.round(Number(girl?.desire ?? baseIntimacy) || 0))) },
+    { key: t('home.meterDev'), value: Math.min(99, Math.max(0, Math.round(Number(girl?.development ?? Math.floor(baseIntimacy * 0.85)) || 0))) },
+    { key: t('home.meterKink'), value: Math.min(99, Math.max(0, Math.round(Number(girl?.kink ?? Math.floor(baseIntimacy * 0.7)) || 0))) },
+    { key: t('chat.intimacy'), value: baseIntimacy },
+  ];
 
   if (!open || !girl) return null;
 
@@ -134,7 +137,7 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
             <div>
               <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 mb-2.5">Personality</div>
               <div className="space-y-2">
-                {PERSONALITY_DIMENSIONS.map((dim) => (
+                {personalityDimensions.map((dim) => (
                   <div key={dim.key} className="flex items-center gap-3 text-xs">
                     <span className="w-16 text-zinc-400">{dim.key}</span>
                     <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">

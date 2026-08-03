@@ -19,7 +19,7 @@ async function optionalSelectFragment(): Promise<string> {
   if (_optionalCols !== undefined) return _optionalCols || '';
   const sb = getSupabaseClient();
   // Probe one optional column set
-  const { error } = await sb.from('girlfriends').select('access_status, rarity').limit(1);
+  const { error } = await sb.from('girlfriends').select('access_status, rarity, relationship').limit(1);
   if (error) {
     _optionalCols = '';
     logger.warn('[public-companions] optional columns missing — using core fields only', {
@@ -28,7 +28,7 @@ async function optionalSelectFragment(): Promise<string> {
     return '';
   }
   _optionalCols =
-    ', gender, rarity, access_status, unlock_price_tokens, base_intimacy, base_desire, base_development, base_kink, occupation, hobbies, is_active, is_hot, is_featured, hot_score, sort_order';
+    ', gender, rarity, relationship, access_status, unlock_price_tokens, base_intimacy, base_desire, base_development, base_kink, occupation, hobbies, is_active, is_hot, is_featured, hot_score, sort_order';
   return _optionalCols;
 }
 
@@ -105,6 +105,7 @@ export interface PublicCompanionRow {
   occupation?: string | null;
   hobbies?: string | null;
   rarity?: string | null;
+  relationship?: string | null;
   access_status?: string | null;
   unlock_price_tokens?: number | null;
   base_intimacy?: number | null;
@@ -194,6 +195,7 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
             ? (g.hobbies as string[]).join(', ')
             : null,
       rarity: (g.rarity as string) ?? null,
+      relationship: (g.relationship as string) ?? null,
       access_status: (g.access_status as string) ?? 'open',
       unlock_price_tokens: (g.unlock_price_tokens as number) ?? 0,
       base_intimacy: (g.base_intimacy as number) ?? null,
@@ -241,7 +243,7 @@ export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[
 
     const { data: baseRows, error: bErr } = await sb
       .from('girlfriends')
-      .select('id, name, age, slug, tags, short_description, personality, portrait_url, avatar_url, card_url, portrait_video_url, avatar_video_url')
+      .select(CORE_SELECT + (await optionalSelectFragment()))
       .in('id', baseIds)
       .eq('review_status', 'approved')
       .eq('is_active', true);
@@ -250,7 +252,7 @@ export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[
       return [];
     }
     const baseMap = new Map(
-      ((baseRows || []) as Record<string, unknown>[]).map((b) => [String(b.id), b]),
+      ((baseRows || []) as unknown as Record<string, unknown>[]).map((b) => [String(b.id), b]),
     );
 
     // 3) Merge featured metadata onto live base companions, preserving sort_order.
@@ -292,7 +294,22 @@ export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[
         video_url: videoUrl || null,
         portrait_video_url: videoUrl || null,
         personality: (base.personality as string) ?? (f.subtitle as string) ?? null,
-        access_status: 'open',
+        gender: (base.gender as string) ?? null,
+        rarity: (base.rarity as string) ?? null,
+        relationship: (base.relationship as string) ?? null,
+        occupation: (base.occupation as string) ?? null,
+        hobbies:
+          typeof base.hobbies === 'string'
+            ? base.hobbies
+            : Array.isArray(base.hobbies)
+              ? (base.hobbies as string[]).join(', ')
+              : null,
+        access_status: (base.access_status as string) ?? 'open',
+        unlock_price_tokens: (base.unlock_price_tokens as number) ?? 0,
+        base_intimacy: (base.base_intimacy as number) ?? null,
+        base_desire: (base.base_desire as number) ?? null,
+        base_development: (base.base_development as number) ?? null,
+        base_kink: (base.base_kink as number) ?? null,
         is_demo: false,
         list_kind: 'featured',
         is_featured: true,
