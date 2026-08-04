@@ -6,6 +6,7 @@
  * 一键换装 / 一键姿势 / 一键换背景 / WAN2.2 视频 / 动态工作流
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { authedFetch } from '@/lib/supabase';
 import { readResponseJson } from '@/lib/safe-json';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ import {
   Image as ImageIcon, Video, Braces, RefreshCw, Save, Trash2, Copy, Plus,
   Upload, X, Dices, CheckCircle2, XCircle, Clock, ExternalLink, Settings2,
   Layers, Server, FileJson, History, Sparkles, ChevronDown, AlertTriangle, Power,
+  Heart,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -120,15 +122,26 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-/** 参考图选择器：上传 / URL / 预览 / 清除 */
+/** 参考图选择器：上传 / URL / 预览 / 清除；选中伴侣时优先展示其资源库图片 */
 function ImagePicker(props: {
   value: string;
   onChange: (url: string) => void;
   label?: string;
+  library?: Array<{ url?: string; workflow_key?: string | null }>;
+  libraryTitle?: string;
+  preferFace?: boolean;
 }) {
-  const { value, onChange } = props;
+  const { value, onChange, library, libraryTitle, preferFace } = props;
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const libraryImages = useMemo(() => {
+    const items = (library || []).filter((a) => !!a.url && !isVideoUrl(String(a.url)));
+    if (!preferFace) return items.slice(0, 12);
+    const isFace = (a: { workflow_key?: string | null }) =>
+      a.workflow_key === 'wf-character';
+    return [...items.filter(isFace), ...items.filter((a) => !isFace(a))].slice(0, 12);
+  }, [library, preferFace]);
 
   const onFile = async (file: File | null) => {
     if (!file) return;
@@ -175,6 +188,32 @@ function ImagePicker(props: {
           {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5" />}
         </div>
       )}
+      {libraryImages.length > 0 ? (
+        <div className="rounded-md border border-violet-500/20 bg-violet-500/[0.05] p-1.5">
+          <p className="mb-1 text-[10px] text-violet-300">{libraryTitle || '优先从伴侣资源库选择'}</p>
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            {libraryImages.map((a, i) => (
+              <button
+                key={`${a.url}-${i}`}
+                type="button"
+                onClick={() => { onChange(String(a.url)); toast.success('已从伴侣资源库选用'); }}
+                className={cn(
+                  'h-14 w-11 shrink-0 overflow-hidden rounded border transition',
+                  value === a.url ? 'border-violet-400' : 'border-white/15 hover:border-violet-300',
+                )}
+                title="点击选用"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={a.url} alt="伴侣资源" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : library ? (
+        <p className="rounded-md border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-slate-500">
+          伴侣资源库暂无图片，可本地上传或先生成角色
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-1.5">
         <Button
           type="button"
@@ -210,7 +249,7 @@ function ImagePicker(props: {
   );
 }
 
-/** LoRA 多选叠加器 */
+/** LoRA 多选叠加器（下拉菜单选择 + 强度调节） */
 function LoraPicker(props: {
   loras: Any[];
   installed: string[];
@@ -218,7 +257,9 @@ function LoraPicker(props: {
   onChange: (v: Array<{ id: string; strength: number }>) => void;
 }) {
   const { loras, installed, value, onChange } = props;
+  const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const candidates = useMemo(() => {
     const q = filter.trim().toLowerCase();
     return loras
@@ -226,6 +267,15 @@ function LoraPicker(props: {
       .filter((l) => !q || String(l.label).toLowerCase().includes(q) || String(l.filename).toLowerCase().includes(q))
       .slice(0, 60);
   }, [loras, filter]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
 
   return (
     <div className="space-y-2">
@@ -249,6 +299,7 @@ function LoraPicker(props: {
                 onChange(next);
               }}
               className="w-24 accent-violet-500"
+              title="LoRA 强度"
             />
             <span className="w-9 text-right text-[11px] text-slate-300">{item.strength.toFixed(2)}</span>
             <button type="button" onClick={() => onChange(value.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400">
@@ -257,49 +308,73 @@ function LoraPicker(props: {
           </div>
         );
       })}
-      {value.length < 3 && (
-        <div className="space-y-1">
-          <Input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="搜索 LoRA（名称 / 文件名）"
-            className="h-8 border-white/10 bg-white/[0.03] text-[12px] text-slate-200"
-          />
-          {filter.trim() && (
-            <div className="max-h-40 overflow-y-auto rounded-md border border-white/10 bg-[#14141f]">
-              {candidates.map((l) => {
-                const added = value.some((v) => v.id === l.id);
-                const isInstalled = installed.includes(l.filename);
-                return (
-                  <button
-                    key={l.id}
-                    type="button"
-                    disabled={added}
-                    onClick={() => onChange([...value, { id: l.id, strength: Number(l.default_strength ?? 0.7) }])}
-                    className={cn(
-                      'flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-[11px] hover:bg-white/5',
-                      added ? 'opacity-40' : 'text-slate-200',
-                    )}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{l.label}</span>
-                    {isInstalled ? (
-                      <span className="shrink-0 rounded bg-emerald-500/15 px-1 text-[9px] text-emerald-300">已挂载</span>
-                    ) : (
-                      <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[9px] text-amber-300">未验证</span>
-                    )}
-                  </button>
-                );
-              })}
-              {!candidates.length && <div className="px-2 py-2 text-[11px] text-slate-500">无匹配 LoRA</div>}
+      {value.length < 3 ? (
+        <div className="relative" ref={wrapRef}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 w-full justify-between border-white/15 bg-white/5 text-[11px] text-slate-200 hover:bg-white/10"
+            onClick={() => setOpen((v) => !v)}
+          >
+            <span className="inline-flex items-center gap-1"><Plus className="h-3 w-3" /> 添加 LoRA（{value.length}/3）</span>
+            <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
+          </Button>
+          {open && (
+            <div className="absolute left-0 right-0 top-full z-30 mt-1 rounded-md border border-white/15 bg-[#14141f] shadow-xl shadow-black/40">
+              <div className="border-b border-white/10 p-1.5">
+                <Input
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="搜索 LoRA（名称 / 文件名）"
+                  className="h-7 border-white/10 bg-white/[0.03] text-[11px] text-slate-200"
+                />
+              </div>
+              <div className="max-h-44 overflow-y-auto">
+                {candidates.map((l) => {
+                  const added = value.some((v) => v.id === l.id);
+                  const isInstalled = installed.includes(l.filename);
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      disabled={added}
+                      onClick={() => {
+                        onChange([...value, { id: l.id, strength: Number(l.default_strength ?? 0.7) }]);
+                        setOpen(false);
+                        setFilter('');
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-[11px] hover:bg-white/5',
+                        added ? 'opacity-40' : 'text-slate-200',
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{l.label}</span>
+                      {isInstalled ? (
+                        <span className="shrink-0 rounded bg-emerald-500/15 px-1 text-[9px] text-emerald-300">已挂载</span>
+                      ) : (
+                        <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[9px] text-amber-300">未验证</span>
+                      )}
+                    </button>
+                  );
+                })}
+                {!candidates.length && <div className="px-2 py-2 text-[11px] text-slate-500">无匹配 LoRA</div>}
+              </div>
             </div>
           )}
         </div>
+      ) : (
+        <p className="text-[10px] text-slate-500">最多叠加 3 个 LoRA，总强度过高会自动等比缩放</p>
       )}
     </div>
   );
 }
 
 export default function ComfyUiConsole() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const girlfriendId =
+    searchParams.get('girlfriendId') || searchParams.get('girlfriend_id') || '';
   const [tab, setTab] = useState<'console' | 'workflows' | 'jobs' | 'loras' | 'infra'>('console');
   const [loading, setLoading] = useState(true);
   const [workflows, setWorkflows] = useState<Any[]>([]);
@@ -320,22 +395,44 @@ export default function ComfyUiConsole() {
   const [healthResults, setHealthResults] = useState<Any>({});
   const [editing, setEditing] = useState<Any | null>(null);
   const [editTexts, setEditTexts] = useState({ defaults: '{}', schema: '[]', graph: '' });
+  // 伴侣上下文
+  const [girlfriend, setGirlfriend] = useState<Any | null>(null);
+  const [girlfriendAssets, setGirlfriendAssets] = useState<Any[]>([]);
+  const [girlfriends, setGirlfriends] = useState<Any[]>([]);
   const pollTokenRef = useRef(0);
+  const girlfriendRef = useRef<Any | null>(null);
 
   const activeWf = useMemo(
     () => workflows.find((w) => w.key === activeKey) || null,
     [workflows, activeKey],
   );
 
+  /** 切换当前伴侣（URL 参数驱动重新加载） */
+  const selectGirlfriend = useCallback(
+    (id: string) => {
+      const clean = String(id || '').trim();
+      router.replace(clean ? `/admin/comfyui?girlfriendId=${encodeURIComponent(clean)}` : '/admin/comfyui');
+    },
+    [router],
+  );
+
   const loadAll = useCallback(async (keepActive = false) => {
     try {
-      const res = await authedFetch(API);
+      const url = girlfriendId
+        ? `${API}?girlfriend_id=${encodeURIComponent(girlfriendId)}`
+        : API;
+      const res = await authedFetch(url);
       const data = await readResponseJson<Any>(res);
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setWorkflows(data.workflows || []);
       setJobs(data.jobs || []);
       setConfig(data.config || null);
       setRunpod(data.runpod || null);
+      const gf = data.girlfriend || null;
+      girlfriendRef.current = gf;
+      setGirlfriend(gf);
+      setGirlfriendAssets(data.girlfriend_assets || []);
+      setGirlfriends(data.girlfriends || []);
       if (!keepActive || !activeKey) {
         const first = (data.workflows || []).find((w: Any) => w.is_active !== false);
         if (first && !keepActive) setActiveKey(String(first.key));
@@ -345,7 +442,7 @@ export default function ComfyUiConsole() {
     } finally {
       setLoading(false);
     }
-  }, [activeKey]);
+  }, [activeKey, girlfriendId]);
 
   useEffect(() => {
     void loadAll();
@@ -353,12 +450,21 @@ export default function ComfyUiConsole() {
       pollTokenRef.current += 1;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [girlfriendId]);
+
+  /** 用伴侣描述预填 prompt 字段 */
+  const prefillPrompt = useCallback((base: Any): Any => {
+    const desc = String(girlfriendRef.current?.description || '').trim();
+    if (desc && typeof base.prompt === 'string' && !base.prompt.trim()) {
+      return { ...base, prompt: desc };
+    }
+    return base;
   }, []);
 
   /** 选中工作流 → 重置表单 */
   useEffect(() => {
     if (!activeWf) return;
-    setForm(JSON.parse(JSON.stringify(activeWf.defaults || {})));
+    setForm(prefillPrompt(JSON.parse(JSON.stringify(activeWf.defaults || {}))));
     const graph = activeWf.workflow_json || null;
     setRawText(graph ? JSON.stringify(graph, null, 2) : '');
     setRawValues({});
@@ -366,6 +472,13 @@ export default function ComfyUiConsole() {
     setShowGraph(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKey]);
+
+  /** 伴侣数据加载完成 → 若当前表单 prompt 为空则补填 */
+  useEffect(() => {
+    if (!girlfriend) return;
+    setForm((prev: Any) => prefillPrompt(prev || {}));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [girlfriend]);
 
   const rawControls: RawControl[] = useMemo(() => {
     if (activeWf?.engine !== 'raw' || !rawText) return [];
@@ -397,8 +510,9 @@ export default function ComfyUiConsole() {
         if (data?.job) setActiveJob(data.job);
         const status = String(data?.job?.status || '');
         if (status === 'COMPLETED') {
-          toast.success('生成完成');
+          toast.success(data?.saved_to_girlfriend ? '生成完成，已存入伴侣资源库' : '生成完成');
           void refreshJobs();
+          if (girlfriendRef.current) void loadAll(true);
           return;
         }
         if (status === 'FAILED') {
@@ -411,7 +525,7 @@ export default function ComfyUiConsole() {
       }
       await sleep(4000);
     }
-  }, [refreshJobs]);
+  }, [refreshJobs, loadAll]);
 
   const handleSubmit = async () => {
     const wf = activeWf;
@@ -451,7 +565,12 @@ export default function ComfyUiConsole() {
       const res = await authedFetch(API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'submit', workflow_key: wf.key, params }),
+        body: JSON.stringify({
+          action: 'submit',
+          workflow_key: wf.key,
+          params,
+          girlfriend_id: girlfriendId || undefined,
+        }),
       });
       const data = await readResponseJson<Any>(res);
       if (!res.ok || data.error) {
@@ -674,7 +793,13 @@ export default function ComfyUiConsole() {
         return (
           <div className="space-y-1.5" key={f.key}>
             <FieldLabel field={f} />
-            <ImagePicker value={String(value ?? '')} onChange={(url) => setField(f.key, url)} />
+            <ImagePicker
+              value={String(value ?? '')}
+              onChange={(url) => setField(f.key, url)}
+              library={girlfriend ? girlfriendAssets : undefined}
+              libraryTitle={girlfriend ? `${String(girlfriend.name || '伴侣')} 的资源库 · 点击选用` : undefined}
+              preferFace={f.key === 'ip_adapter_image'}
+            />
           </div>
         );
       case 'loras':
@@ -832,6 +957,90 @@ export default function ComfyUiConsole() {
               <RefreshCw className="h-3.5 w-3.5" /> 刷新
             </Button>
           </div>
+        </div>
+
+        {/* 伴侣上下文栏 */}
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-500/25 bg-violet-500/[0.06] px-3 py-2">
+          <div className="flex items-center gap-1.5 text-[12px] font-semibold text-violet-300">
+            <Heart className="h-3.5 w-3.5" /> 伴侣上下文
+          </div>
+          <Select value={girlfriendId || undefined} onValueChange={(v) => selectGirlfriend(v)}>
+            <SelectTrigger className="h-8 w-52 border-white/15 bg-white/[0.04] text-[11px] text-slate-200">
+              <SelectValue placeholder="选择伴侣…" />
+            </SelectTrigger>
+            <SelectContent className="border-white/10 bg-[#16161f] text-slate-200">
+              {girlfriends.map((g) => (
+                <SelectItem key={String(g.id)} value={String(g.id)} className="text-[11px]">
+                  {String(g.name || '未命名伴侣')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {girlfriend ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {String(girlfriend.portrait_url || girlfriend.face_reference_url || '') ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={String(girlfriend.portrait_url || girlfriend.face_reference_url)}
+                  alt={String(girlfriend.name || '')}
+                  className="h-8 w-8 rounded-full border border-violet-400/40 object-cover"
+                />
+              ) : null}
+              <div className="leading-tight">
+                <div className="text-[12px] font-semibold text-white">{String(girlfriend.name || '未命名伴侣')}</div>
+                <div className="text-[10px] text-slate-400">生成图片将自动存入 TA 的资源库</div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 border-violet-500/30 bg-violet-500/10 text-[11px] text-violet-200 hover:bg-violet-500/20"
+                onClick={() => {
+                  const desc = String(girlfriend.description || '').trim();
+                  if (!desc) {
+                    toast.error('该伴侣暂无描述（image_prompt）');
+                    return;
+                  }
+                  setForm((prev: Any) => ({ ...prev, prompt: desc }));
+                  toast.success('已填入伴侣描述');
+                }}
+              >
+                <Sparkles className="h-3 w-3" /> 填入伴侣描述
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 border-violet-500/30 bg-violet-500/10 text-[11px] text-violet-200 hover:bg-violet-500/20"
+                onClick={() => {
+                  const url = String(girlfriend.face_reference_url || girlfriend.portrait_url || '').trim();
+                  if (!url) {
+                    toast.error('该伴侣暂无肖像 / 人脸参考图');
+                    return;
+                  }
+                  const schema = ((activeWf?.params_schema || []) as Any[]);
+                  const target = schema.find((f) => f.key === 'ip_adapter_image' || f.key === 'input_image' || f.key === 'image');
+                  if (!target) {
+                    toast.error('当前工作流没有参考图字段');
+                    return;
+                  }
+                  setField(String(target.key), url);
+                  toast.success(`已设为「${String(target.label || '参考图')}」`);
+                }}
+              >
+                <ImageIcon className="h-3 w-3" /> 设肖像为人脸参考
+              </Button>
+              <button
+                type="button"
+                onClick={() => selectGirlfriend('')}
+                className="ml-1 inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-rose-300"
+              >
+                <X className="h-3 w-3" /> 退出
+              </button>
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-500">
+              未选择伴侣 — 从伴侣页「为该伴侣创作」进入可自动读取伴侣资料
+            </span>
+          )}
         </div>
 
         {/* Tabs */}
@@ -1078,6 +1287,11 @@ export default function ComfyUiConsole() {
                       <span className="text-[10px] text-slate-500">
                         {activeJob.workflow_name} · RunPod {String(activeJob.runpod_job_id || '').slice(0, 10)}…
                       </span>
+                      {activeJob.girlfriend_id && (
+                        <span className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-300">
+                          <Heart className="h-2.5 w-2.5" /> 存入伴侣资源库
+                        </span>
+                      )}
                     </div>
                     {imageTargets.length > 0 && (String(activeJob.output_urls || []).length > 0) && (
                       <div className="flex items-center gap-1.5">
@@ -1149,6 +1363,15 @@ export default function ComfyUiConsole() {
                             >
                               设为参考图
                             </button>
+                            {activeJob.workflow_key === 'wf-character' && !isVideoUrl(url) && (
+                              <button
+                                type="button"
+                                className="text-[10px] text-pink-400 hover:text-pink-300"
+                                onClick={() => sendToWorkflow('wf-portrait', url)}
+                              >
+                                发送为人脸参考
+                              </button>
+                            )}
                             <a href={url} target="_blank" rel="noreferrer" className="text-slate-500 hover:text-white">
                               <ExternalLink className="h-3 w-3" />
                             </a>

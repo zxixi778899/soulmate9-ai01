@@ -1480,7 +1480,7 @@ function AdminGirlfriendsMediaPageInner() {
                       </label>
                     </div>
                     <Link
-                      href={`/admin/studio?girlfriendId=${selected.id}`}
+                      href={`/admin/comfyui?girlfriendId=${selected.id}`}
                       className="flex items-center justify-center gap-2 rounded-lg bg-violet-600/90 py-2 text-sm font-medium text-white hover:bg-violet-500"
                     >
                       <Sparkles className="h-4 w-4" /> 为该伴侣创作（资产进独立库）

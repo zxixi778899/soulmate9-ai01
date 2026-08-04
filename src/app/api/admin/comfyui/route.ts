@@ -8,7 +8,7 @@ import {
   type ConsoleWorkflowPreset,
 } from '@/lib/comfyui-console/console-presets';
 import { validateRawGraph } from '@/lib/comfyui-console/workflow-controls';
-import { uploadImageBase64, uploadFile } from '@/lib/storage';
+import { uploadImageBase64, uploadFile, extractKeyFromUrl } from '@/lib/storage';
 import { sanitizeLoraForVolume, getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
@@ -49,16 +49,64 @@ function modelFamilyFromCheckpoint(ckpt?: string | null): 'flux' | 'pony' | 'ill
   return 'flux';
 }
 
+/** 工作流 → 伴侣资源库资产 role（character-asset-production 的目录约定） */
+function girlfriendAssetRole(workflowKey: string): string {
+  switch (workflowKey) {
+    case 'wf-character':
+      return 'identity-full';
+    case 'wf-portrait':
+      return 'character-art';
+    case 'wf-scene':
+      return 'scene';
+    case 'wf-pose':
+      return 'pose-reference';
+    default:
+      return 'album';
+  }
+}
+
+/** 从 girlfriends 行拼装人物描述（用于提示词一键预填） */
+function buildGirlfriendDescription(gf: Record<string, unknown>): string {
+  const explicit = String(gf.image_prompt || '').trim();
+  if (explicit) return explicit;
+  const parts: string[] = [];
+  const name = String(gf.name || '').trim();
+  const age = Number(gf.age);
+  if (name) parts.push(`${name}`);
+  if (Number.isFinite(age) && age > 0) parts.push(`${age} year old woman`);
+  const lookPairs: Array<[string, string]> = [
+    ['appearance_race', 'race'],
+    ['appearance_hair_color', 'hair color'],
+    ['appearance_hair', 'hair'],
+    ['appearance_eyes', 'eyes'],
+    ['appearance_face', 'face'],
+    ['appearance_body', 'body'],
+    ['appearance_skin', 'skin'],
+    ['appearance_style', 'style'],
+  ];
+  const look: string[] = [];
+  for (const [col] of lookPairs) {
+    const v = String(gf[col] || '').trim();
+    if (v) look.push(v);
+  }
+  if (look.length) parts.push(look.join(', '));
+  const occ = String(gf.occupation || '').trim();
+  if (occ) parts.push(occ);
+  return parts.join(', ');
+}
+
 /** 下载/转换任意媒体（URL / dataURL / base64）并持久化到公开桶 */
 async function persistMedia(
   src: string,
   folder: string,
   kind: 'image' | 'video',
-): Promise<string> {
+): Promise<{ url: string; key: string | null }> {
   if (!src) throw new Error('empty media');
   const isOurStorage = src.includes('/storage/v1/object/');
 
-  if (src.startsWith('http') && isOurStorage) return src;
+  if (src.startsWith('http') && isOurStorage) {
+    return { url: src, key: extractKeyFromUrl(src) };
+  }
 
   if (src.startsWith('http')) {
     const res = await fetch(src, { signal: AbortSignal.timeout(60000) });
@@ -66,25 +114,25 @@ async function persistMedia(
     const ct = res.headers.get('content-type') || (kind === 'video' ? 'video/mp4' : 'image/png');
     const buf = Buffer.from(await res.arrayBuffer());
     if (kind === 'video') {
-      const { url } = await uploadFile(buf, `video_${Date.now()}.mp4`, ct, folder);
-      return url;
+      const { url, key } = await uploadFile(buf, `video_${Date.now()}.mp4`, ct, folder);
+      return { url, key };
     }
-    const { url } = await uploadImageBase64(
+    const { url, key } = await uploadImageBase64(
       `data:${ct};base64,${buf.toString('base64')}`,
       folder,
       ct,
     );
-    return url;
+    return { url, key };
   }
 
   if (kind === 'video') {
     const b64 = src.startsWith('data:') ? String(src.split(',').pop() || '') : src;
     const buf = Buffer.from(b64, 'base64');
-    const { url } = await uploadFile(buf, `video_${Date.now()}.mp4`, 'video/mp4', folder);
-    return url;
+    const { url, key } = await uploadFile(buf, `video_${Date.now()}.mp4`, 'video/mp4', folder);
+    return { url, key };
   }
-  const { url } = await uploadImageBase64(src, folder);
-  return url;
+  const { url, key } = await uploadImageBase64(src, folder);
+  return { url, key };
 }
 
 /** 从 RunPod 任务输出里收集媒体字符串（图片 / 视频 URL / base64） */
@@ -335,10 +383,70 @@ export async function GET(req: NextRequest) {
     installed = [];
   }
 
+  // 伴侣联动上下文
+  const sp = new URL(req.url).searchParams;
+  const girlfriendId = (sp.get('girlfriend_id') || sp.get('girlfriendId') || '').trim();
+  let girlfriend: Record<string, unknown> | null = null;
+  let girlfriendAssets: Array<Record<string, unknown>> = [];
+  if (girlfriendId) {
+    const { data: gfRow } = await admin.supabase
+      .from('girlfriends')
+      .select(
+        'id, name, age, gender, portrait_url, avatar_url, face_reference_url, image_prompt, short_description, occupation, appearance_race, appearance_hair, appearance_hair_color, appearance_eyes, appearance_body, appearance_style, appearance_face, appearance_skin',
+      )
+      .eq('id', girlfriendId)
+      .maybeSingle();
+    if (gfRow) {
+      const rec = gfRow as Record<string, unknown>;
+      girlfriend = {
+        id: rec.id,
+        name: rec.name,
+        age: rec.age,
+        portrait_url: rec.portrait_url || rec.avatar_url || null,
+        face_reference_url: rec.face_reference_url || rec.portrait_url || rec.avatar_url || null,
+        description: buildGirlfriendDescription(rec),
+      };
+    }
+    const { data: assetRows } = await admin.supabase
+      .from('generation_assets')
+      .select('id, url, storage_key, kind, prompt, meta, created_at')
+      .eq('girlfriend_id', girlfriendId)
+      .order('created_at', { ascending: false })
+      .limit(48);
+    girlfriendAssets = (assetRows || []).map((a) => {
+      const rec = a as Record<string, unknown>;
+      const meta = rec.meta && typeof rec.meta === 'object' ? (rec.meta as Record<string, unknown>) : {};
+      return {
+        id: rec.id,
+        url: rec.url,
+        storage_key: rec.storage_key,
+        workflow_key: meta.workflow_key || null,
+        media_kind: meta.media_kind || 'image',
+        created_at: rec.created_at,
+      };
+    });
+  }
+  const { data: gfRows } = await admin.supabase
+    .from('girlfriends')
+    .select('id, name, avatar_url, portrait_url')
+    .order('updated_at', { ascending: false })
+    .limit(50);
+  const girlfriends = (gfRows || []).map((g) => {
+    const rec = g as Record<string, unknown>;
+    return {
+      id: rec.id,
+      name: rec.name,
+      image: rec.avatar_url || rec.portrait_url || null,
+    };
+  });
+
   return NextResponse.json({
     workflows: workflows || [],
     warning: wfError ? wfError.message : undefined,
     jobs: jobs || [],
+    girlfriend,
+    girlfriend_assets: girlfriendAssets,
+    girlfriends,
     config: {
       loras: cfg.loras,
       checkpoints: cfg.checkpoints,
@@ -436,6 +544,8 @@ export async function POST(req: NextRequest) {
       wf.defaults && typeof wf.defaults === 'object' ? (wf.defaults as Record<string, unknown>) : {};
     const merged = { ...defaults, ...params };
     const workflowKey = String(wf.key || 'raw');
+    const girlfriendIdRaw = String(body.girlfriend_id || body.girlfriendId || '').trim();
+    const girlfriendId = /^[0-9a-f-]{36}$/i.test(girlfriendIdRaw) ? girlfriendIdRaw : null;
 
     try {
       let runpodJobId = '';
@@ -552,6 +662,7 @@ export async function POST(req: NextRequest) {
           endpoint_id: endpointId,
           runpod_job_id: runpodJobId,
           status: 'IN_QUEUE',
+          girlfriend_id: girlfriendId,
           params: {
             ...merged,
             loras: undefined,
@@ -610,15 +721,61 @@ export async function POST(req: NextRequest) {
     const engine = String(job.engine || 'flux');
     const endpointId = String(job.endpoint_id || comfyEndpoint());
     const folder = jobFolder(String(job.workflow_key || ''));
+    const jobGirlfriendId = job.girlfriend_id ? String(job.girlfriend_id) : null;
+    const jobWorkflowKey = String(job.workflow_key || '');
+    const jobParams =
+      job.params && typeof job.params === 'object' ? (job.params as Record<string, unknown>) : {};
 
     const finishCompleted = async (media: Array<{ value: string; kind: 'image' | 'video' }>) => {
       const urls: string[] = [];
       const errors: string[] = [];
+      const assetRows: Array<Record<string, unknown>> = [];
       for (const item of media.slice(0, 8)) {
         try {
-          urls.push(await persistMedia(item.value, folder, item.kind));
+          if (jobGirlfriendId && item.kind === 'image') {
+            const role = girlfriendAssetRole(jobWorkflowKey);
+            const saved = await persistMedia(
+              item.value,
+              `girlfriends/${jobGirlfriendId}/${role}`,
+              item.kind,
+            );
+            urls.push(saved.url);
+            assetRows.push({
+              created_by: job.created_by || null,
+              kind: 'girlfriend',
+              girlfriend_id: jobGirlfriendId,
+              storage_key: saved.key,
+              url: saved.url,
+              prompt: String(jobParams.prompt || '') || null,
+              workflow_id: jobWorkflowKey,
+              ckpt_name: String(jobParams.ckpt_name || '') || null,
+              width: Number.isFinite(Number(jobParams.width)) ? Number(jobParams.width) : null,
+              height: Number.isFinite(Number(jobParams.height)) ? Number(jobParams.height) : null,
+              steps: Number.isFinite(Number(jobParams.steps)) ? Number(jobParams.steps) : null,
+              seed: Number.isFinite(Number(jobParams.seed)) ? Number(jobParams.seed) : null,
+              meta: {
+                workflow_key: jobWorkflowKey,
+                comfyui_job_id: jobId,
+                media_kind: 'image',
+                asset_role: role,
+              },
+            });
+          } else {
+            const saved = await persistMedia(item.value, folder, item.kind);
+            urls.push(saved.url);
+          }
         } catch (e) {
           errors.push(e instanceof Error ? e.message : String(e));
+        }
+      }
+      let assetWarning: string | undefined;
+      if (assetRows.length) {
+        const { error: assetErr } = await admin.supabase
+          .from('generation_assets')
+          .insert(assetRows);
+        if (assetErr) {
+          assetWarning = assetErr.message;
+          logger.warn('[comfyui] generation_assets insert failed', { err: assetErr.message });
         }
       }
       const patch: Record<string, unknown> = {
@@ -628,7 +785,11 @@ export async function POST(req: NextRequest) {
       };
       if (errors.length) patch.error = `部分媒体保存失败: ${errors.join(' | ').slice(0, 200)}`;
       await admin.supabase.from('comfyui_jobs').update(patch).eq('id', jobId);
-      return NextResponse.json({ job: { ...job, ...patch } });
+      return NextResponse.json({
+        job: { ...job, ...patch },
+        saved_to_girlfriend: jobGirlfriendId ? true : undefined,
+        asset_warning: assetWarning,
+      });
     };
 
     try {
