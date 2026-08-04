@@ -110,7 +110,8 @@ export async function GET(req: NextRequest) {
       const lastReplyAt = lastUserMsg?.[0]?.created_at;
       if (!lastReplyAt || lastReplyAt < threeDaysAgo) {
         const windowStart = lastReplyAt || '1970-01-01T00:00:00.000Z';
-        const { data: proactiveSinceReply } = await sb
+        let silenceSentAts: string[] = [];
+        const { data: proactiveSinceReply, error: silenceLogError } = await sb
           .from('proactive_message_log')
           .select('sent_at')
           .eq('user_id', pair.user_id)
@@ -118,27 +119,53 @@ export async function GET(req: NextRequest) {
           .gte('sent_at', windowStart)
           .order('sent_at', { ascending: false })
           .limit(30);
-        const distinctDays = new Set(
-          (proactiveSinceReply || []).map((r: { sent_at: string }) => r.sent_at.slice(0, 10)),
-        );
+        if (!silenceLogError && proactiveSinceReply) {
+          silenceSentAts = proactiveSinceReply.map((r: { sent_at: string }) => r.sent_at);
+        } else {
+          // Fallback: derive unanswered days from chat_messages itself
+          const { data: proactiveMsgsSinceReply } = await sb
+            .from('chat_messages')
+            .select('created_at')
+            .eq('user_id', pair.user_id)
+            .eq('girlfriend_id', pair.girlfriend_id)
+            .eq('is_proactive', true)
+            .gte('created_at', windowStart)
+            .order('created_at', { ascending: false })
+            .limit(30);
+          silenceSentAts = (proactiveMsgsSinceReply || []).map(
+            (r: { created_at: string }) => r.created_at,
+          );
+        }
+        const distinctDays = new Set(silenceSentAts.map((s) => s.slice(0, 10)));
         if (distinctDays.size >= 3) {
           skipped++;
           continue;
         }
       }
 
-      // Daily cap via log
+      // Daily cap via log, with chat_messages fallback so the cap still holds
+      // even if proactive_message_log is ever missing/errored.
       let already = 0;
-      try {
-        const { count } = await sb
+      {
+        const { count, error: logCountError } = await sb
           .from('proactive_message_log')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', pair.user_id)
           .eq('girlfriend_id', pair.girlfriend_id)
           .gte('sent_at', `${userDayKey}T00:00:00.000Z`);
-        already = count || 0;
-      } catch {
-        already = 0;
+        if (!logCountError && typeof count === 'number') {
+          already = count;
+        } else {
+          const { data: proactiveToday } = await sb
+            .from('chat_messages')
+            .select('id')
+            .eq('user_id', pair.user_id)
+            .eq('girlfriend_id', pair.girlfriend_id)
+            .eq('is_proactive', true)
+            .gte('created_at', `${userDayKey}T00:00:00.000Z`)
+            .limit(10);
+          already = (proactiveToday || []).length;
+        }
       }
 
       const target = dailyProactiveTarget([pair.user_id, pair.girlfriend_id, userDayKey].join(':'));

@@ -40,7 +40,7 @@ import type { ChatMessage, ChatGirlfriend, IntimacyData, StreamRow } from '@/com
 
 // Utils
 import { dateGroupLabel, dayKey } from '@/lib/chat-utils';
-import { loadChatCache, saveChatCache, mergeMessages, deriveMood } from '@/lib/chat-cache';
+import { loadChatCache, saveChatCache, mergeMessages, deriveMood, deleteChatCache } from '@/lib/chat-cache';
 import { parseChatImageIntent } from '@/lib/chat-image-intent';
 import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 import { DEFAULT_CHAT_GIFTS, type ChatGift } from '@/lib/gifts/catalog';
@@ -373,6 +373,7 @@ export default function ChatsPage() {
       setFriends((prev) => prev.filter((g) => g.id !== gf.id));
       setLastMessages((prev) => { const n = { ...prev }; delete n[gf.id]; return n; });
       setIntimacyMap((prev) => { const n = { ...prev }; delete n[gf.id]; return n; });
+      deleteChatCache(gf.id);
       if (selectedId === gf.id) { setSelectedId(null); setGirlfriend(null); setMessages([]); }
       toast.success(zh ? '已解除好友关系' : 'Friend removed');
       notifyDataChange('girlfriends');

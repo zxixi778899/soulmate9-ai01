@@ -100,7 +100,8 @@ export async function POST(request: NextRequest) {
         // If user never replied OR last reply was more than 3 days ago
         if (!lastReplyAt || lastReplyAt < threeDaysAgo) {
           const windowStart = (lastReplyAt || '1970-01-01T00:00:00.000Z');
-          const { data: proactiveSinceReply } = await client
+          let silenceSentAts: string[] = [];
+          const { data: proactiveSinceReply, error: silenceLogError } = await client
             .from('proactive_message_log')
             .select('sent_at')
             .eq('user_id', user.id)
@@ -108,36 +109,64 @@ export async function POST(request: NextRequest) {
             .gte('sent_at', windowStart)
             .order('sent_at', { ascending: false })
             .limit(30);
-          const distinctDays = new Set(
-            (proactiveSinceReply || []).map((r: { sent_at: string }) => r.sent_at.slice(0, 10)),
-          );
+          if (!silenceLogError && proactiveSinceReply) {
+            silenceSentAts = proactiveSinceReply.map((r: { sent_at: string }) => r.sent_at);
+          } else {
+            // Fallback: derive unanswered days from chat_messages itself
+            const { data: proactiveMsgsSinceReply } = await client
+              .from('chat_messages')
+              .select('created_at')
+              .eq('user_id', user.id)
+              .eq('girlfriend_id', gf.id)
+              .eq('is_proactive', true)
+              .gte('created_at', windowStart)
+              .order('created_at', { ascending: false })
+              .limit(30);
+            silenceSentAts = (proactiveMsgsSinceReply || []).map(
+              (r: { created_at: string }) => r.created_at,
+            );
+          }
+          const distinctDays = new Set(silenceSentAts.map((s) => s.slice(0, 10)));
           if (distinctDays.size >= 3) continue; // 3+ days of unanswered proactive → stop
         }
       }
 
-      // How many proactive msgs already today for this pair + when the last went out
+      // How many proactive msgs already today for this pair + when the last went out.
+      // Primary: proactive_message_log. Robust fallback: chat_messages(is_proactive),
+      // so the daily cap holds even if the log table is ever missing/errored.
       let already = 0;
       let lastSentAt: string | null = null;
-      try {
-        const { count } = await client
+      {
+        const { count, error: logCountError } = await client
           .from('proactive_message_log')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('girlfriend_id', gf.id)
           .gte('sent_at', `${dayKey}T00:00:00.000Z`);
-        already = count || 0;
-        const { data: lastRow } = await client
-          .from('proactive_message_log')
-          .select('sent_at')
-          .eq('user_id', user.id)
-          .eq('girlfriend_id', gf.id)
-          .gte('sent_at', `${dayKey}T00:00:00.000Z`)
-          .order('sent_at', { ascending: false })
-          .limit(1);
-        lastSentAt = lastRow?.[0]?.sent_at || null;
-      } catch {
-        // log table may be missing — still allow send, track in-memory only
-        already = 0;
+        if (!logCountError && typeof count === 'number') {
+          already = count;
+          const { data: lastRow } = await client
+            .from('proactive_message_log')
+            .select('sent_at')
+            .eq('user_id', user.id)
+            .eq('girlfriend_id', gf.id)
+            .gte('sent_at', `${dayKey}T00:00:00.000Z`)
+            .order('sent_at', { ascending: false })
+            .limit(1);
+          lastSentAt = lastRow?.[0]?.sent_at || null;
+        } else {
+          const { data: proactiveToday } = await client
+            .from('chat_messages')
+            .select('created_at')
+            .eq('user_id', user.id)
+            .eq('girlfriend_id', gf.id)
+            .eq('is_proactive', true)
+            .gte('created_at', `${dayKey}T00:00:00.000Z`)
+            .order('created_at', { ascending: false })
+            .limit(10);
+          already = (proactiveToday || []).length;
+          lastSentAt = proactiveToday?.[0]?.created_at || null;
+        }
       }
 
       // Stable random target: one or two messages per companion/day.

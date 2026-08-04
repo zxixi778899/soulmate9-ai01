@@ -59,6 +59,16 @@ export function saveChatCache(
   }
 }
 
+/** Remove the cached chat for a companion (e.g. after unfriend/delete). */
+export function deleteChatCache(girlfriendId: string): void {
+  if (typeof window === 'undefined' || !girlfriendId) return;
+  try {
+    localStorage.removeItem(key(girlfriendId));
+  } catch {
+    /* ignore */
+  }
+}
+
 // ─── Merge helpers ───────────────────────────────────────────────────────────
 
 /** Placeholders created client-side before the server row exists. */
