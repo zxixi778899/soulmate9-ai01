@@ -234,7 +234,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase.from('girlfriends').select('*', { count: 'exact' });
 
-    if (status && ['draft', 'pending', 'approved', 'rejected'].includes(status)) {
+    if (status && ['draft', 'pending', 'approved', 'rejected', 'removed'].includes(status)) {
       query = query.eq('review_status', status);
     }
     if (q) {

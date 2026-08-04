@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const gfIds = rows.map((r: { girlfriend_id: string }) => r.girlfriend_id);
   const { data: girlfriends } = await client
     .from('girlfriends')
-    .select('id, name, slug, avatar_url, portrait_url, personality, short_description, review_status, is_public, age, tags, character_card')
+    .select('id, name, slug, avatar_url, portrait_url, personality, short_description, review_status, is_public, age, tags, character_card, submitted_at, rejection_reason')
     .in('id', gfIds);
 
   const gfMap = new Map((girlfriends || []).map((g: { id: string }) => [g.id, g]));

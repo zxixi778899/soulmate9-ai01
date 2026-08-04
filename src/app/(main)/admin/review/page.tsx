@@ -15,7 +15,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Loader2, CheckSquare, Check, X, Eye, Heart, ImageOff } from 'lucide-react';
+import { Loader2, CheckSquare, Check, X, Heart } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 
@@ -33,7 +33,11 @@ type ReviewItem = {
   review_status: string;
   is_public: boolean;
   created_at: string;
-  submitted_by?: string;
+  submitted_at?: string | null;
+  submitted_by?: string | null;
+  base_desire?: number | null;
+  base_development?: number | null;
+  base_kink?: number | null;
   appearance?: {
     hair: string;
     hair_color: string;
@@ -64,7 +68,7 @@ export default function AdminReviewPage() {
       else setItems([]);
     } catch (err) {
       logger.error(String(err));
-      toast.error('');
+      toast.error('加载审核列表失败');
     } finally {
       setLoading(false);
     }
@@ -83,7 +87,7 @@ export default function AdminReviewPage() {
         body: JSON.stringify({ id, action: 'approve' }),
       });
       if (!res.ok) throw new Error('Failed to approve');
-      toast.success('');
+      toast.success('已通过审核，该伴侣已进入公共资料库');
       setItems((prev) => prev.filter((item) => item.id !== id));
       if (selectedItem?.id === id) {
         setDetailOpen(false);
@@ -91,7 +95,7 @@ export default function AdminReviewPage() {
       }
     } catch (err) {
       logger.error(String(err));
-      toast.error('');
+      toast.error('审核操作失败');
     } finally {
       setProcessingId(null);
     }
@@ -111,7 +115,7 @@ export default function AdminReviewPage() {
         }),
       });
       if (!res.ok) throw new Error('Failed to reject');
-      toast.success('');
+      toast.success('已驳回，创建者可查看原因并重新提交');
       setItems((prev) => prev.filter((item) => item.id !== selectedItem.id));
       setRejectOpen(false);
       setDetailOpen(false);
@@ -119,7 +123,7 @@ export default function AdminReviewPage() {
       setRejectReason('');
     } catch (err) {
       logger.error(String(err));
-      toast.error('');
+      toast.error('审核操作失败');
     } finally {
       setProcessingId(null);
     }
@@ -133,9 +137,9 @@ export default function AdminReviewPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold"></h1>
+        <h1 className="text-2xl font-bold">发布审核</h1>
         <p className="text-sm text-[#8B8BA3] mt-1">
-          
+          用户创建的伴侣默认仅本人可用。用户提交发布后在此审核，通过后进入公共资料库，对所有用户开放。
         </p>
       </div>
 
@@ -147,8 +151,8 @@ export default function AdminReviewPage() {
         <Card className="border-white/[0.05] bg-card/40 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-20 text-[#8B8BA3]">
             <CheckSquare className="h-12 w-12 mb-2 opacity-30" />
-            <p className="text-base font-medium"></p>
-            <p className="text-sm mt-1"></p>
+            <p className="text-base font-medium">暂无待审核的发布申请</p>
+            <p className="text-sm mt-1">用户在聊天页对自己的伴侣点击「发布」后会出现在这里</p>
           </CardContent>
         </Card>
       ) : (
@@ -187,7 +191,7 @@ export default function AdminReviewPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold text-sm">{item.name}</h3>
-                      <span className="text-xs text-[#8B8BA3]">: {item.age}</span>
+                      <span className="text-xs text-[#8B8BA3]">{item.age}岁</span>
                       <Badge variant="secondary" className="text-[9px] capitalize">
                         {item.review_status}
                       </Badge>
@@ -207,11 +211,12 @@ export default function AdminReviewPage() {
                       ))}
                       {(item.tags || []).length > 4 && (
                         <span className="text-[9px] text-[#8B8BA3]">
-                          +{item.tags.length - 4} 
+                          +{item.tags.length - 4} 个
                         </span>
                       )}
                       <span className="text-[10px] text-[#8B8BA3] ml-auto">
-                         {new Date(item.created_at).toLocaleDateString()}
+                        提交于 {new Date(item.submitted_at || item.created_at).toLocaleDateString()}
+                        {item.submitted_by ? ` · ${item.submitted_by}` : ''}
                       </span>
                     </div>
                   </div>
@@ -232,7 +237,7 @@ export default function AdminReviewPage() {
                       ) : (
                         <Check className="h-3.5 w-3.5" />
                       )}
-                      
+                      通过
                     </Button>
                     <Button
                       size="sm"
@@ -247,7 +252,7 @@ export default function AdminReviewPage() {
                       disabled={processingId === item.id}
                     >
                       <X className="h-3.5 w-3.5" />
-                      
+                      驳回
                     </Button>
                   </div>
                 </div>
@@ -266,7 +271,7 @@ export default function AdminReviewPage() {
               {selectedItem?.name || ''}
             </DialogTitle>
             <DialogDescription>
-              
+              通过审核后，该伴侣将进入公共资料库，所有用户可见并可添加。
             </DialogDescription>
           </DialogHeader>
 
@@ -291,11 +296,16 @@ export default function AdminReviewPage() {
                 <div>
                   <h3 className="text-lg font-semibold">{selectedItem.name}</h3>
                   <p className="text-sm text-[#8B8BA3]">
-                    : {selectedItem.age}  : {selectedItem.slug}
+                    {selectedItem.age}岁 · slug: {selectedItem.slug || '（通过后自动生成）'}
                   </p>
                   {selectedItem.submitted_by && (
                     <p className="text-xs text-[#8B8BA3] mt-1">
-                      : {selectedItem.submitted_by}
+                      提交者: {selectedItem.submitted_by}
+                    </p>
+                  )}
+                  {(selectedItem.base_desire != null || selectedItem.base_development != null || selectedItem.base_kink != null) && (
+                    <p className="text-xs text-rose-300/80 mt-1">
+                      热{Number(selectedItem.base_desire || 0)} · 开{Number(selectedItem.base_development || 0)} · 变{Number(selectedItem.base_kink || 0)}
                     </p>
                   )}
                 </div>
@@ -304,7 +314,7 @@ export default function AdminReviewPage() {
               {/* Personality */}
               {selectedItem.personality && (
                 <div>
-                  <h4 className="text-sm font-medium mb-1"></h4>
+                  <h4 className="text-sm font-medium mb-1">性格</h4>
                   <p className="text-sm text-[#8B8BA3]">{selectedItem.personality}</p>
                 </div>
               )}
@@ -312,7 +322,7 @@ export default function AdminReviewPage() {
               {/* Tags */}
               {selectedItem.tags && selectedItem.tags.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium mb-2"></h4>
+                  <h4 className="text-sm font-medium mb-2">标签</h4>
                   <div className="flex flex-wrap gap-1.5">
                     {selectedItem.tags.map((tag, i) => (
                       <Badge key={i} variant="secondary" className="text-[10px]">
@@ -326,7 +336,7 @@ export default function AdminReviewPage() {
               {/* Short Description */}
               {selectedItem.short_description && (
                 <div>
-                  <h4 className="text-sm font-medium mb-1"></h4>
+                  <h4 className="text-sm font-medium mb-1">简介</h4>
                   <p className="text-sm text-[#8B8BA3]">{selectedItem.short_description}</p>
                 </div>
               )}
@@ -334,7 +344,7 @@ export default function AdminReviewPage() {
               {/* Backstory */}
               {selectedItem.backstory && (
                 <div>
-                  <h4 className="text-sm font-medium mb-1"></h4>
+                  <h4 className="text-sm font-medium mb-1">背景故事</h4>
                   <p className="text-sm text-[#8B8BA3] whitespace-pre-wrap">{selectedItem.backstory}</p>
                 </div>
               )}
@@ -342,22 +352,22 @@ export default function AdminReviewPage() {
               {/* Appearance */}
               {selectedItem.appearance && (
                 <div>
-                  <h4 className="text-sm font-medium mb-2"></h4>
+                  <h4 className="text-sm font-medium mb-2">外貌</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {selectedItem.appearance.hair && (
-                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.hair}</div>
+                      <div><span className="text-[#8B8BA3]">发型:</span> {selectedItem.appearance.hair}</div>
                     )}
                     {selectedItem.appearance.hair_color && (
-                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.hair_color}</div>
+                      <div><span className="text-[#8B8BA3]">发色:</span> {selectedItem.appearance.hair_color}</div>
                     )}
                     {selectedItem.appearance.eyes && (
-                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.eyes}</div>
+                      <div><span className="text-[#8B8BA3]">眼睛:</span> {selectedItem.appearance.eyes}</div>
                     )}
                     {selectedItem.appearance.body && (
-                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.body}</div>
+                      <div><span className="text-[#8B8BA3]">身材:</span> {selectedItem.appearance.body}</div>
                     )}
                     {selectedItem.appearance.style && (
-                      <div><span className="text-[#8B8BA3]">:</span> {selectedItem.appearance.style}</div>
+                      <div><span className="text-[#8B8BA3]">风格:</span> {selectedItem.appearance.style}</div>
                     )}
                   </div>
                 </div>
@@ -375,7 +385,7 @@ export default function AdminReviewPage() {
               }}
             >
               <X className="h-4 w-4" />
-              
+              驳回
             </Button>
             <Button
               className="gap-2"
@@ -387,7 +397,7 @@ export default function AdminReviewPage() {
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              
+              通过并加入资料库
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -397,14 +407,14 @@ export default function AdminReviewPage() {
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle></DialogTitle>
+            <DialogTitle>驳回发布申请</DialogTitle>
             <DialogDescription>
-              {selectedItem?.name}
+              驳回「{selectedItem?.name}」的发布申请，原因将展示给创建者。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Textarea
-              placeholder="..."
+              placeholder="填写驳回原因（创建者可见，例如：图片不合规、资料不完整…）"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               rows={4}
@@ -412,7 +422,7 @@ export default function AdminReviewPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectOpen(false)}>
-              
+              取消
             </Button>
             <Button
               variant="destructive"
@@ -422,7 +432,7 @@ export default function AdminReviewPage() {
               {processingId === selectedItem?.id ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : null}
-              
+              确认驳回
             </Button>
           </DialogFooter>
         </DialogContent>

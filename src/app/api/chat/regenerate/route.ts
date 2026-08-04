@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { checkCompanionAccess } from '@/lib/companion-access';
 
 export const runtime = 'nodejs';
 
@@ -49,8 +50,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .select('id, user_id')
     .eq('id', girlfriendId)
     .maybeSingle();
-  if (gfErr || !gf || gf.user_id !== user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (gfErr || !gf) {
+    return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
+  }
+  // Owner or library-added friend may regenerate; private companions stay owner-only.
+  if (gf.user_id !== user.id) {
+    const access = await checkCompanionAccess(supabase, user.id, girlfriendId);
+    if (!access.allowed) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
 
   //  assistant 

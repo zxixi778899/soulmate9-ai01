@@ -7,6 +7,7 @@ import { listGifts } from '@/lib/gifts/store';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { INTIMACY_MAX_SCORE, getIntimacyLevel } from '@/lib/constants';
 import { companionScore, rarityFromTraits, RARITY_ORDER, type Rarity } from '@/lib/rarity';
+import { checkCompanionAccess } from '@/lib/companion-access';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -69,6 +70,15 @@ export async function POST(req: NextRequest) {
       girlfriend = (data ?? null) as Record<string, unknown> | null;
       if (!girlfriend) {
         return NextResponse.json({ error: 'Companion not found' }, { status: 404 });
+      }
+      // Access control: private companions can only receive gifts from their
+      // owner; library companions are giftable once added as a friend.
+      const access = await checkCompanionAccess(client, user.id, girlfriendId);
+      if (!access.allowed) {
+        return NextResponse.json(
+          { error: 'This companion is private. Only the creator can use it.' },
+          { status: 403 },
+        );
       }
     }
 

@@ -509,6 +509,24 @@ export async function PATCH(request: NextRequest) {
     patchData.review_status = 'pending';
     patchData.submitted_at = new Date().toISOString();
     patchData.is_public = false; // will become public after admin approval
+    patchData.rejection_reason = null; // fresh submission clears the old reason
+  } else if (review_status === 'draft') {
+    // Owners may withdraw their own pending submission back to a private draft.
+    const { data: current } = await client
+      .from('girlfriends')
+      .select('review_status')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if ((current as { review_status?: string } | null)?.review_status !== 'pending') {
+      return NextResponse.json(
+        { error: 'Only pending submissions can be withdrawn' },
+        { status: 403 },
+      );
+    }
+    patchData.review_status = 'draft';
+    patchData.submitted_at = null;
+    patchData.is_public = false;
   } else if (review_status) {
     // Owners can only submit for review (pending). Approval / rejection /
     // removal are admin-only operations handled by /api/admin/review.

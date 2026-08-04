@@ -30,6 +30,7 @@ import {
 } from '@/lib/chat-reply-sanitize';
 import { moderateText, type ContentMode } from '@/lib/content-moderation';
 import { deductCredits } from '@/lib/credit-system';
+import { checkCompanionAccess } from '@/lib/companion-access';
 import { getIntimacyLevel } from '@/lib/constants';
 
 export const runtime = 'nodejs';
@@ -290,8 +291,7 @@ export async function POST(request: NextRequest) {
       .from('girlfriends')
       .select('*')
       .eq('id', girlfriend_id)
-      .eq('user_id', user.id)
-      .single(),
+      .maybeSingle(),
     client
       .from('intimacy_scores')
       .select('score, level')
@@ -310,6 +310,17 @@ export async function POST(request: NextRequest) {
   const gf = girlfriendResult.data;
   if (!gf) {
     return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
+  }
+
+  // Access control: only the owner or a user who added this companion from
+  // the public library may chat. Private (unpublished) companions are
+  // usable only by their creator.
+  const access = await checkCompanionAccess(client, user.id, girlfriend_id);
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: 'This companion is private. Only the creator can use it.' },
+      { status: 403 },
+    );
   }
 
   // Get intimacy level

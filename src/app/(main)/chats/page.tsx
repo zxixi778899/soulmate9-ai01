@@ -54,6 +54,8 @@ type Friend = {
   personality: string | null;
   review_status?: string | null;
   is_public?: boolean;
+  submitted_at?: string | null;
+  rejection_reason?: string | null;
 };
 type LastMessage = {
   girlfriend_id: string;
@@ -99,8 +101,9 @@ function computeProgress(score: number, level: number): number {
 
 // ─── Friend Row ──────────────────────────────────────────────────────────────
 
-function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, unreadCount, onDelete, onSubmit, onAlbum, onWardrobe, onClick }: {
+function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, unreadCount, zh, onDelete, onSubmit, onAlbum, onWardrobe, onClick }: {
   friend: Friend;
+  zh: boolean;
   lastMsg?: LastMessage;
   score: number;
   selected: boolean;
@@ -121,7 +124,8 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
   const reviewStatus = friend.review_status || 'draft';
   const isPublished = friend.is_public && reviewStatus === 'approved';
   const isPending = reviewStatus === 'pending';
-  const isDraft = reviewStatus === 'draft' || reviewStatus === 'rejected';
+  const isRejected = reviewStatus === 'rejected';
+  const isDraft = reviewStatus === 'draft' || isRejected;
 
   return (
     <li className="relative group flex items-center">
@@ -153,8 +157,16 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className={cn('text-[11px] font-medium shrink-0', mood.tone)}>{mood.emoji} {mood.label}</span>
-            {isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">Public</span>}
-            {isPending && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">Reviewing</span>}
+            {isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">{zh ? '已入库' : 'Public'}</span>}
+            {isPending && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">{zh ? '审核中' : 'Reviewing'}</span>}
+            {isRejected && (
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/20"
+                title={friend.rejection_reason || (zh ? '发布申请被驳回，可修改后重新提交' : 'Publishing rejected — you may resubmit')}
+              >
+                {zh ? '已驳回' : 'Rejected'}
+              </span>
+            )}
             <span className="text-[12px] text-white/35 truncate">· {preview}</span>
           </div>
         </div>
@@ -181,11 +193,26 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           <button
             type="button"
             aria-label="Submit for review"
+            title={isRejected
+              ? (zh ? '重新提交发布（上次被驳回，鼠标悬停查看原因）' : 'Resubmit for review (previously rejected — hover badge for reason)')
+              : (zh ? '发布到公共资料库（需审核）' : 'Publish to public library (requires review)')}
             disabled={submitting}
             onClick={(e) => onSubmit(friend, e)}
             className="h-8 w-8 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/25 touch-manipulation transition-colors disabled:opacity-50"
           >
             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          </button>
+        )}
+        {isPending && (
+          <button
+            type="button"
+            aria-label="Withdraw submission"
+            title={zh ? '撤回发布审核申请' : 'Withdraw review submission'}
+            disabled={submitting}
+            onClick={(e) => onSubmit(friend, e)}
+            className="h-8 w-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-400 hover:bg-amber-500/25 touch-manipulation transition-colors disabled:opacity-50"
+          >
+            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
           </button>
         )}
         <button
@@ -393,22 +420,37 @@ export default function ChatsPage() {
     router.push('/wardrobe');
   };
 
-  // ── Submit friend for public review ──
+  // ── Publish / withdraw: private companions enter the public library only
+  //    after admin review. Pending submissions can be withdrawn to draft. ──
   const submitForReview = async (gf: Friend, e: MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
     const zh = locale === 'zh';
-    if (!window.confirm(zh ? `将「${gf.name}」提交公开审核？` : `Submit "${gf.name}" for public review?`)) return;
+    const withdrawing = (gf.review_status || 'draft') === 'pending';
+    const confirmed = withdrawing
+      ? window.confirm(zh ? `撤回「${gf.name}」的发布审核申请？撤回后仅你本人可用。` : `Withdraw the review submission for "${gf.name}"? It will stay private to you.`)
+      : window.confirm(zh
+          ? `将「${gf.name}」发布到公共资料库？提交后需管理员审核，通过后所有用户都可见并可添加。`
+          : `Publish "${gf.name}" to the public library? Admins will review it; once approved, everyone can see and add her.`);
+    if (!confirmed) return;
     setSubmittingId(gf.id);
     try {
       const res = await authedFetch('/api/girlfriends', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: gf.id, review_status: 'pending', submitted_at: new Date().toISOString() }),
+        body: JSON.stringify(withdrawing
+          ? { id: gf.id, review_status: 'draft' }
+          : { id: gf.id, review_status: 'pending', submitted_at: new Date().toISOString() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error((data as { error?: string }).error || 'Submit failed'); return; }
-      setFriends((prev) => prev.map((g) => g.id === gf.id ? { ...g, review_status: 'pending', submitted_at: new Date().toISOString() } : g));
-      toast.success(zh ? '已提交审核' : 'Submitted for review');
+      setFriends((prev) => prev.map((g) => g.id === gf.id ? {
+        ...g,
+        review_status: withdrawing ? 'draft' : 'pending',
+        submitted_at: withdrawing ? null : new Date().toISOString(),
+      } : g));
+      toast.success(withdrawing
+        ? (zh ? '已撤回，伴侣恢复为仅自己可用' : 'Submission withdrawn — companion is private again')
+        : (zh ? '已提交发布审核，通过后将进入公共资料库' : 'Submitted for review'));
       notifyDataChange('girlfriends');
     } catch { toast.error('Network error'); }
     finally { setSubmittingId(null); }
@@ -832,6 +874,7 @@ export default function ChatsPage() {
                 <FriendRow
                   key={gf.id}
                   friend={gf}
+                  zh={locale === 'zh'}
                   lastMsg={lastMessages[gf.id]}
                   score={intimacyMap[gf.id] || loadChatCache(gf.id)?.intimacy?.score || 0}
                   selected={gf.id === selectedId}

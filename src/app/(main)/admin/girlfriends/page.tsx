@@ -37,6 +37,7 @@ import {
   Mic2,
   Star,
   Flame,
+  Globe,
   Upload,
   Trash2,
   RefreshCw,
@@ -279,7 +280,7 @@ function AdminGirlfriendsMediaPageInner() {
   const [page, setPage] = useState(1);
   const limit = 60;
   const [q, setQ] = useState('');
-  const [status, setStatus] = useState('all');
+  const [status, setStatus] = useState('approved');
   const [rarity, setRarity] = useState('all');
   const [media, setMedia] = useState<MediaFilter>('all');
   const [place, setPlace] = useState<PlaceFilter>('all');
@@ -629,7 +630,7 @@ function AdminGirlfriendsMediaPageInner() {
     }
   };
 
-  const quickToggle = async (g: Girlfriend, field: 'is_featured' | 'is_hot', value: boolean) => {
+  const quickToggle = async (g: Girlfriend, field: 'is_featured' | 'is_hot' | 'is_public', value: boolean) => {
     try {
       const body: Record<string, unknown> = { id: g.id, [field]: value };
       if (field === 'is_hot' && value && !Number(g.hot_score || 0)) body.hot_score = 50;
@@ -640,7 +641,7 @@ function AdminGirlfriendsMediaPageInner() {
       });
       const data = await readResponseJson<{ error?: string; girlfriend?: Girlfriend }>(res);
       if (!res.ok) throw new Error(data.error || '更新失败');
-      toast.success(field === 'is_featured' ? (value ? '已设为推荐' : '已取消推荐') : value ? '已设为热门' : '已取消热门');
+      toast.success(field === 'is_featured' ? (value ? '已设为推荐' : '已取消推荐') : field === 'is_public' ? (value ? '已上架到公共资料库' : '已从公共资料库下架') : value ? '已设为热门' : '已取消热门');
       setItems((list) =>
         list.map((x) =>
           x.id === g.id
@@ -834,7 +835,9 @@ function AdminGirlfriendsMediaPageInner() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300/80">站内 CMS</p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">伴侣与媒体</h1>
               <p className="mt-1 max-w-3xl text-sm text-slate-400">
-                管理伴侣基础档案（年龄/亲密/职业/爱好/热情·开发·变态）与媒体。参数同步到前台卡片与对话人设。
+                管理伴侣基础档案（年龄/亲密/职业/爱好/热情·开发·变态）与媒体。用户创建的伴侣默认仅本人可用，发布并通过
+                <Link href="/admin/review" className="text-rose-300 hover:underline"> 审核 </Link>
+                后才进入资料库；「资料库」页签即当前对所有用户公开的内容。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -878,16 +881,30 @@ function AdminGirlfriendsMediaPageInner() {
                 className="h-9 border-white/10 bg-black/30 pl-8 text-sm"
               />
             </div>
-            <Select value={status} onValueChange={(v) => { setPage(1); setStatus(v); }}>
-              <SelectTrigger className="h-9 w-[130px] border-white/10 bg-black/30"><SelectValue placeholder="状态" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="approved">已通过</SelectItem>
-                <SelectItem value="pending">待审</SelectItem>
-                <SelectItem value="draft">草稿</SelectItem>
-                <SelectItem value="rejected">驳回</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-black/30 p-1">
+              {([
+                ['approved', '资料库'],
+                ['pending', '待审核'],
+                ['draft', '私有草稿'],
+                ['rejected', '已驳回'],
+                ['removed', '已删除'],
+                ['all', '全部'],
+              ] as Array<[string, string]>).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => { setPage(1); setStatus(value); }}
+                  className={cn(
+                    'rounded-md px-2.5 py-1.5 text-xs transition',
+                    status === value
+                      ? 'bg-rose-500/25 font-semibold text-rose-100'
+                      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <Select value={rarity} onValueChange={setRarity}>
               <SelectTrigger className="h-9 w-[110px] border-white/10 bg-black/30"><SelectValue placeholder="稀有" /></SelectTrigger>
               <SelectContent>
@@ -999,6 +1016,22 @@ function AdminGirlfriendsMediaPageInner() {
                         </div>
                       )}
                       <div className="absolute left-1 top-1 flex flex-wrap gap-0.5">
+                        {g.review_status !== 'approved' || !g.is_public ? (
+                          <span className={cn(
+                            'rounded px-1 py-0.5 text-[9px] font-semibold',
+                            g.review_status === 'pending' ? 'bg-amber-500/90 text-black'
+                              : g.review_status === 'rejected' ? 'bg-rose-600/90 text-white'
+                              : g.review_status === 'removed' ? 'bg-zinc-600/90 text-white'
+                              : g.review_status === 'approved' ? 'bg-sky-500/90 text-black'
+                              : 'bg-slate-500/90 text-white',
+                          )}>
+                            {g.review_status === 'pending' ? '待审核'
+                              : g.review_status === 'rejected' ? '已驳回'
+                              : g.review_status === 'removed' ? '已删除'
+                              : g.review_status === 'approved' ? '未上架'
+                              : '用户私有'}
+                          </span>
+                        ) : null}
                         {g.is_featured ? (
                           <span className="rounded bg-amber-500/90 px-1 py-0.5 text-[9px] font-semibold text-black">推荐</span>
                         ) : null}
@@ -1041,6 +1074,16 @@ function AdminGirlfriendsMediaPageInner() {
                       >
                         <Flame className="h-3.5 w-3.5" />
                       </button>
+                      {g.review_status === 'approved' ? (
+                        <button
+                          type="button"
+                          title={g.is_public ? '下架（移出公共资料库）' : '上架（加入公共资料库）'}
+                          onClick={(e) => { e.stopPropagation(); void quickToggle(g, 'is_public', !g.is_public); }}
+                          className={cn('rounded p-0.5', g.is_public ? 'text-emerald-400' : 'text-slate-400 hover:text-emerald-300')}
+                        >
+                          <Globe className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
                       <Link
                         href={`/admin/studio?girlfriendId=${g.id}`}
                         onClick={(e) => e.stopPropagation()}

@@ -20,11 +20,13 @@ export async function GET(
 
   const { id } = await params;
 
-  // Fetch girlfriend data
+  // Fetch girlfriend data — exports are owner-only; unpublished
+  // companions are private and must not be exportable by other users.
   const { data: gf, error } = await client
     .from('girlfriends')
     .select('*')
     .eq('id', id)
+    .eq('user_id', user.id)
     .single();
 
   if (error || !gf) {

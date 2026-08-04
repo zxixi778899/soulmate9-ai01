@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
 import { checkRateLimitAsync } from '@/lib/rate-limit';
 import { invalidateGirlfriends } from '@/lib/revalidate';
+import { checkCompanionAccess } from '@/lib/companion-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,15 +44,10 @@ export async function POST(req: NextRequest) {
     : 1;
 
   try {
-    // 1. Validate user owns the girlfriend
-    const { data: girlfriend, error: gfError } = await client
-      .from('girlfriends')
-      .select('id')
-      .eq('id', girlfriendId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (gfError || !girlfriend) {
+    // 1. Validate the user may use this companion (owner or library friend).
+    //    Private companions are only usable by their creator.
+    const access = await checkCompanionAccess(client, user.id, girlfriendId);
+    if (!access.allowed) {
       return NextResponse.json(
         { error: 'Girlfriend not found or not owned by you' },
         { status: 404 },

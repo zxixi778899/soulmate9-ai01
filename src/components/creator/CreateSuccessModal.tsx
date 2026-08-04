@@ -313,10 +313,15 @@ export function CreateSuccessModal({ companion, onGoChat, onCreateAnother }: Pro
                   </motion.div>
                 </div>
 
-                <p className="mb-6 text-center text-xs leading-5 text-white/55">
+                <p className="mb-2 text-center text-xs leading-5 text-white/55">
                   {zh
                     ? `${companion.name} 已降临，稀有度 ${companion.rarity} · ${rarityBandLabel(companion.rarity, true)}`
                     : `${companion.name} has arrived — ${companion.rarity} · ${rarityBandLabel(companion.rarity, false)}`}
+                </p>
+                <p className="mb-6 text-center text-[11px] leading-4 text-white/35">
+                  {zh
+                    ? '该伴侣仅你本人可见可用 · 在聊天页发布并通过审核后，才会进入公共资料库供所有人使用'
+                    : 'This companion is private to you · Publish it from the chats page and get approved to share it in the public library'}
                 </p>
 
                 {/* Actions */}
