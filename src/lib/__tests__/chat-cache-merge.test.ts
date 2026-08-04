@@ -64,10 +64,12 @@ describe('mergeMessages', () => {
   it('count-aware matching keeps an extra unsynced duplicate send', () => {
     // One server row but two local temp copies of identical content
     // (second send not yet persisted) → keep one placeholder.
-    const server = [msg({ id: 'srv-a', role: 'user', content: '哈哈', created_at: '2026-08-03T23:50:00.000Z' })];
+    // Timestamps are relative to now so they never trip the 30-min stale rule.
+    const now = Date.now();
+    const server = [msg({ id: 'srv-a', role: 'user', content: '哈哈', created_at: new Date(now - 30_000).toISOString() })];
     const local = [
-      msg({ id: 'temp-1', role: 'user', content: '哈哈', created_at: '2026-08-03T23:50:01.000Z' }),
-      msg({ id: 'temp-2', role: 'user', content: '哈哈', created_at: '2026-08-03T23:50:20.000Z' }),
+      msg({ id: 'temp-1', role: 'user', content: '哈哈', created_at: new Date(now - 20_000).toISOString() }),
+      msg({ id: 'temp-2', role: 'user', content: '哈哈', created_at: new Date(now - 5_000).toISOString() }),
     ];
     const out = mergeMessages(server, local);
     // one temp matched+dropped, one kept, plus the server row

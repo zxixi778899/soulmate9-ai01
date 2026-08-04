@@ -6,8 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { ChatGift, GiftEffectType } from '@/lib/gifts/catalog';
-import { isSvgaUrl } from '@/lib/gifts/catalog';
+import { type ChatGift, type GiftEffectType, isSvgaUrl, isVideoUrl } from '@/lib/gifts/catalog';
 import { cn } from '@/lib/utils';
 import { SvgaPlayer } from '@/components/chat/SvgaPlayer';
 
@@ -82,6 +81,8 @@ export function GiftEffectOverlay({
   const [mounted, setMounted] = useState(false);
   const [svgaFailed, setSvgaFailed] = useState(false);
   const [svgaReady, setSvgaReady] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   const [bannerIn, setBannerIn] = useState(false);
   const onDoneRef = useRef(onDone);
   const finishedKeyRef = useRef<number | null>(null);
@@ -98,7 +99,8 @@ export function GiftEffectOverlay({
   const combo = burst?.combo || 1;
   const burstKey = burst?.key ?? 0;
   const duration =
-    gift?.effect_config?.duration_ms ?? (isSvgaUrl(gift?.effect_asset_url) ? 4200 : 2800);
+    gift?.effect_config?.duration_ms ??
+    (isSvgaUrl(gift?.effect_asset_url) ? 4200 : isVideoUrl(gift?.effect_asset_url) ? 8000 : 2800);
   const intensity = gift?.effect_config?.intensity ?? 0.85;
   const colors = gift?.effect_config?.colors || ['#ff2e88', '#c026d3', '#fbbf24'];
   const type: GiftEffectType = gift?.effect_type || 'float_emoji';
@@ -106,13 +108,14 @@ export function GiftEffectOverlay({
   const asset = gift?.effect_asset_url || null;
   const wantsSvga = Boolean(asset && isSvgaUrl(asset));
   const useSvga = wantsSvga && !svgaFailed;
+  const useVideoAsset = Boolean(asset && !wantsSvga && isVideoUrl(asset));
   const useRasterAsset = Boolean(
-    asset && !isSvgaUrl(asset) && /\.(gif|webp|png|jpg|jpeg|webm|mp4)(\?|$)/i.test(asset),
+    asset && !wantsSvga && !useVideoAsset && /\.(gif|webp|png|jpg|jpeg|avif|apng)(\?|$)/i.test(asset),
   );
 
-  // SVGA needs a longer hard ceiling — complex Douyin gifts are 6–15s of animation.
-  // For non-SVGA effects the original short ceiling is fine (CSS particles complete in ~3s).
-  const fallbackFinishMs = useSvga
+  // SVGA/video need a longer hard ceiling — complex Douyin gifts are 6–15s of animation.
+  // For pure CSS effects the original short ceiling is fine (particles complete in ~3s).
+  const fallbackFinishMs = useSvga || useVideoAsset
     ? Math.max(duration, 8000) + 800
     : Math.max(duration, 2200) + 400;
 
@@ -142,12 +145,16 @@ export function GiftEffectOverlay({
     if (!burst) {
       setSvgaFailed(false);
       setSvgaReady(false);
+      setVideoFailed(false);
+      setVideoReady(false);
       setBannerIn(false);
       return;
     }
     finishedKeyRef.current = null;
     setSvgaFailed(false);
     setSvgaReady(false);
+    setVideoFailed(false);
+    setVideoReady(false);
     const b = window.setTimeout(() => setBannerIn(true), 20);
     // Hard ceiling — only used as fallback if SVGA never fires onReady/onFinished/onError
     // (e.g. parser hung). For non-SVGA this is the primary close timer.
@@ -161,8 +168,10 @@ export function GiftEffectOverlay({
   if (!mounted || !burst || !gift || typeof document === 'undefined') return null;
 
   const sender = burst.senderName || 'You';
-  // Instant CSS stage always (or after SVGA fail); under SVGA until ready we still show CSS
-  const showCssStage = !useSvga || !svgaReady || svgaFailed;
+  // Instant CSS stage always (or after SVGA/video fail); under SVGA/video until ready we still show CSS
+  const showCssStage =
+    (!useSvga || !svgaReady || svgaFailed) &&
+    (!useVideoAsset || !videoReady || videoFailed);
 
   const node = (
     <div
@@ -298,6 +307,22 @@ export function GiftEffectOverlay({
             alt=""
             className="absolute max-h-[82dvh] max-w-[94vw] sm:max-h-[70vh] sm:max-w-[85vw] object-contain drop-shadow-[0_0_40px_rgba(255,45,120,0.5)] z-30"
             style={{ animation: 'giftFxFloat 2.4s ease-out forwards' }}
+          />
+        )}
+
+        {useVideoAsset && asset && !useSvga && (
+          <video
+            key={burstKey}
+            src={asset}
+            autoPlay
+            muted
+            playsInline
+            loop={(gift.effect_config?.video_loops ?? 1) > 1}
+            onLoadedData={() => setVideoReady(true)}
+            onEnded={finish}
+            onError={() => setVideoFailed(true)}
+            className="absolute max-h-[82dvh] max-w-[94vw] sm:max-h-[70vh] sm:max-w-[85vw] object-contain drop-shadow-[0_0_40px_rgba(255,45,120,0.5)] z-40"
+            style={{ opacity: videoReady ? 1 : 0, transition: 'opacity 0.15s ease' }}
           />
         )}
 
