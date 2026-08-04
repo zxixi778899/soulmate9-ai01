@@ -1528,3 +1528,21 @@ body {
 /* Hide scrollbars for horizontal tab rails */
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Visible drag bar for the creator preset rail */
+.creator-rail {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 45, 120, 0.55) rgba(255, 255, 255, 0.06);
+}
+.creator-rail::-webkit-scrollbar { height: 6px; }
+.creator-rail::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+}
+.creator-rail::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #ff2d78, #8b5cf6);
+  border-radius: 999px;
+}
+.creator-rail::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #ff5c97, #a78bfa);
+}

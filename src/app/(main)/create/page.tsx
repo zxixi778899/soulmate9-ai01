@@ -135,9 +135,14 @@ function Panel({ title, hint, children }: { title: string; hint?: string; childr
   );
 }
 
-/** Fallback preview for the 3D style card (no 3D preset exists in the library). */
-const STYLE_PREVIEW_3D =
-  'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/3d.png';
+/** Dedicated style-demo artwork for the visual-style cards (static samples). */
+const STYLE_PREVIEWS: Record<string, string> = {
+  realistic:
+    'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/realistic.png',
+  anime:
+    'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/anime.png',
+  '3d': 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/3d.png',
+};
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
@@ -224,19 +229,6 @@ export default function CreatePage() {
   // ─── Option helpers ──────────────────────────────────────────────────────
 
   const getOpts = useCallback((category: string): OptionItem[] => options[category] || [], [options]);
-
-  // Preview artwork for the visual-style cards: reuse the first cached preset
-  // portrait of each style (realistic / anime); 3D has no library preset, so it
-  // falls back to a static sample render.
-  const stylePreviews = useMemo(() => {
-    const map: Record<string, string> = { '3d': STYLE_PREVIEW_3D };
-    for (const preset of presets) {
-      if (preset.portrait_url && !map[preset.visual_style]) {
-        map[preset.visual_style] = preset.portrait_url;
-      }
-    }
-    return map;
-  }, [presets]);
 
   const partPrompt = useCallback((cat: string, value: string): string => {
     return (parts[cat] || []).find((p) => p.value.toLowerCase() === value.toLowerCase())?.prompt_en || '';
@@ -606,7 +598,7 @@ export default function CreatePage() {
                         title={t('creator.quickStart') || (zh ? '快速开始 · 预设灵感' : 'Quick Start · Presets')}
                         hint={t('creator.quickStartHint') || (zh ? '点选自动填充，仍可自由修改' : 'Tap to auto-fill, still fully editable')}
                       >
-                        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        <div className="creator-rail -mx-1 flex gap-3 overflow-x-auto px-1 pb-2.5">
                           {presets.map((preset) => {
                             const activePreset = selectedPreset?.id === preset.id;
                             const presetName = zh ? preset.name_zh : preset.name;
@@ -792,7 +784,7 @@ export default function CreatePage() {
                           <div className="mb-4 grid grid-cols-3 gap-2.5">
                             {getOpts('visual_style').map((v) => {
                               const activeStyle = visualStyle === v.value;
-                              const preview = stylePreviews[v.value];
+                              const preview = STYLE_PREVIEWS[v.value];
                               return (
                                 <button
                                   key={v.value}
