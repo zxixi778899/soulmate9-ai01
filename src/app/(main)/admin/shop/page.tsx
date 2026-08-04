@@ -265,7 +265,7 @@ export default function AdminShopPage() {
               );
             })}
             <div className="ml-auto relative min-w-[200px]">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -274,7 +274,7 @@ export default function AdminShopPage() {
               />
             </div>
           </div>
-          <p className="mt-2 text-xs text-slate-500">共 {filtered.length} 个商品</p>
+          <p className="mt-2 text-xs text-slate-400">共 {filtered.length} 个商品</p>
         </div>
       </div>
 
@@ -285,7 +285,7 @@ export default function AdminShopPage() {
             <Loader2 className="mr-2 h-5 w-5 animate-spin" /> 加载中…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] py-16 text-center text-sm text-slate-500">
+          <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] py-16 text-center text-sm text-slate-400">
             <Package2 className="mx-auto mb-3 h-8 w-8 text-slate-600" />
             暂无商品。点击「新建商品」添加。
           </div>
@@ -345,7 +345,7 @@ export default function AdminShopPage() {
                   </button>
                   {/* Quick actions */}
                   <div className="flex items-center justify-between gap-1 border-t border-white/5 px-1 py-1">
-                    <div className="flex gap-0.5 text-slate-500">
+                    <div className="flex gap-0.5 text-slate-400">
                       {item.active ? (
                         <span className="text-[10px] text-emerald-400">上架</span>
                       ) : (
@@ -357,7 +357,7 @@ export default function AdminShopPage() {
                         type="button"
                         title="推荐"
                         onClick={(e) => { e.stopPropagation(); void toggleFeatured(item); }}
-                        className={cn('rounded p-0.5', item.featured ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300')}
+                        className={cn('rounded p-0.5', item.featured ? 'text-amber-400' : 'text-slate-400 hover:text-amber-300')}
                       >
                         <Star className="h-3.5 w-3.5" fill={item.featured ? 'currentColor' : 'none'} />
                       </button>
@@ -373,7 +373,7 @@ export default function AdminShopPage() {
                         type="button"
                         title="下架"
                         onClick={(e) => { e.stopPropagation(); void archive(item); }}
-                        className="rounded p-0.5 text-slate-500 hover:text-rose-400"
+                        className="rounded p-0.5 text-slate-400 hover:text-rose-400"
                       >
                         <Archive className="h-3.5 w-3.5" />
                       </button>
@@ -540,7 +540,7 @@ export default function AdminShopPage() {
 
               {/* Client preview */}
               <div className="rounded-xl border border-white/[0.08] bg-[#1a1a28] p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-xs text-slate-500">
+                <div className="mb-2 flex items-center gap-1.5 text-xs text-slate-400">
                   <Sparkles className="h-3 w-3" /> 客户效果
                 </div>
                 <div className="overflow-hidden rounded-lg border border-white/[0.06] bg-black/30">
@@ -557,7 +557,7 @@ export default function AdminShopPage() {
                       {META[form.collection].label}
                     </Badge>
                     <p className="text-sm font-semibold text-slate-200">{form.name || '商品名称'}</p>
-                    <p className="line-clamp-2 text-[11px] text-slate-500">{form.description || '商品说明'}</p>
+                    <p className="line-clamp-2 text-[11px] text-slate-400">{form.description || '商品说明'}</p>
                     <div className="flex items-center gap-2 text-[10px] text-fuchsia-300">
                       {form.price_credits.toLocaleString()} 积分
                       <span className="text-slate-600">{money(form.price_cents)}</span>
@@ -585,7 +585,7 @@ export default function AdminShopPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1.5 text-xs text-slate-400">
-      <span className="text-slate-500">{label}</span>
+      <span className="text-slate-400">{label}</span>
       {children}
     </label>
   );

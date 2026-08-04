@@ -375,7 +375,7 @@ export default function AdminAssetsPage() {
           <div className="space-y-6">
             <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
               <div className="relative min-w-64 flex-1 max-w-md">
-                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-600" />
                 <Input value={folderQ} onChange={(e) => setFolderQ(e.target.value)} placeholder="搜索伴侣名称或资源库 ID" className="pl-9" />
               </div>
               <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-[#334155]">
@@ -403,7 +403,7 @@ export default function AdminAssetsPage() {
             <section>
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-[#334155]">已分类（按伴侣）</h2>
-                <span className="text-xs text-[#94A3B8]">{visibleFolders.length} / {folders.classified.length} 个文件夹</span>
+                <span className="text-xs text-slate-600">{visibleFolders.length} / {folders.classified.length} 个文件夹</span>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {visibleFolders.map((f) => (
@@ -418,14 +418,14 @@ export default function AdminAssetsPage() {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={f.cover} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-slate-400">
+                        <div className="flex h-full items-center justify-center text-slate-600">
                           <Folder className="h-8 w-8" />
                         </div>
                       )}
                     </div>
                     <div className="p-2.5">
                       <div className="truncate text-sm font-medium text-[#1E293B]">{f.name}</div>
-                      <div className="mt-0.5 text-[11px] text-[#94A3B8]">{f.count} 个文件</div>
+                      <div className="mt-0.5 text-[11px] text-slate-600">{f.count} 个文件</div>
                     </div>
                   </button>
                 ))}
@@ -502,7 +502,7 @@ export default function AdminAssetsPage() {
             >
               <Trash2 className="h-4 w-4" /> 删除选中 ({selected.size})
             </Button>
-            <span className="text-xs text-[#94A3B8]">共 {activeAssets.length} 项</span>
+            <span className="text-xs text-slate-600">共 {activeAssets.length} 项</span>
             {activeFolderId ? (
               <Link href={`/admin/studio?girlfriendId=${encodeURIComponent(activeFolderId)}`} className="ml-auto">
                 <Button size="sm" className="gap-1 bg-violet-600 hover:bg-violet-700">
@@ -517,7 +517,7 @@ export default function AdminAssetsPage() {
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> 加载资产…
             </div>
           ) : activeAssets.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-200 bg-white p-12 text-center text-sm text-[#94A3B8]">
+            <div className="rounded-xl border border-dashed border-gray-200 bg-white p-12 text-center text-sm text-slate-600">
               此文件夹为空。可上传，或去{' '}
               <Link
                 href={activeFolderId ? `/admin/studio?girlfriendId=${encodeURIComponent(activeFolderId)}` : '/admin/studio'}
@@ -549,7 +549,7 @@ export default function AdminAssetsPage() {
                       {on ? (
                         <CheckSquare className="h-4 w-4 text-violet-600" />
                       ) : (
-                        <Square className="h-4 w-4 text-gray-400" />
+                        <Square className="h-4 w-4 text-slate-600" />
                       )}
                     </button>
                     <div className="aspect-[3/4] bg-gray-100">
@@ -557,13 +557,13 @@ export default function AdminAssetsPage() {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={url} alt={a.name || key} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-xs text-gray-400">无预览</div>
+                        <div className="flex h-full items-center justify-center text-xs text-slate-600">无预览</div>
                       )}
                     </div>
                     <div className="space-y-1 p-2">
                       <div className="truncate text-[11px] font-medium text-[#334155]">{a.name || a.storage_key || a.id}</div>
                       <div className="flex items-center justify-between gap-1">
-                        <span className="truncate text-[10px] text-[#94A3B8]">
+                        <span className="truncate text-[10px] text-slate-600">
                           {CHARACTER_PRODUCTION_PRESETS.find((preset) => preset.role === a.meta?.asset_role)?.label || a.kind || 'image'}
                         </span>
                         {url ? (

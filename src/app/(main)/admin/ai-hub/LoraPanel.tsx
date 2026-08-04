@@ -77,7 +77,7 @@ export default function LoraPanel() {
           {loras.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr className="border-b border-gray-800 text-left text-gray-500"><th className="py-2">文件</th><th>模型</th><th>分类</th><th>默认强度</th></tr></thead>
+                <thead><tr className="border-b border-gray-800 text-left text-gray-400"><th className="py-2">文件</th><th>模型</th><th>分类</th><th>默认强度</th></tr></thead>
                 <tbody>{loras.map((lora) => (
                   <tr key={lora.id} className="border-b border-gray-800/50 text-gray-300">
                     <td className="py-2 font-mono">{lora.filename}</td><td>{lora.base_model || '-'}</td><td>{lora.category || '-'}</td><td>{lora.default_strength}</td>
@@ -85,8 +85,8 @@ export default function LoraPanel() {
                 ))}</tbody>
               </table>
             </div>
-          ) : <p className="rounded-md border border-dashed border-gray-800 p-6 text-center text-xs text-gray-500">暂无经过运行卷验证的 LoRA。</p>}
-          <p className="text-[11px] text-gray-500">头像和三视图：基础模型零 LoRA。立绘和相册：参考图/IP-Adapter 保持人物一致性，LoRA 只补充明确风格、动作或服装。</p>
+          ) : <p className="rounded-md border border-dashed border-gray-800 p-6 text-center text-xs text-gray-400">暂无经过运行卷验证的 LoRA。</p>}
+          <p className="text-[11px] text-gray-400">头像和三视图：基础模型零 LoRA。立绘和相册：参考图/IP-Adapter 保持人物一致性，LoRA 只补充明确风格、动作或服装。</p>
         </CardContent>
       </Card>
     </div>

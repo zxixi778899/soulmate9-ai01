@@ -117,7 +117,7 @@ export default function CreatorPreviewsAdminPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
       </div>
     );
   }
@@ -134,7 +134,7 @@ export default function CreatorPreviewsAdminPage() {
       {STYLES.map((style) => (
         <div key={style.value}>
           <h2 className="mb-3 text-base font-semibold text-white/90">
-            画风：{style.zh} <span className="ml-1 text-xs font-normal text-slate-500">({style.value})</span>
+            画风：{style.zh} <span className="ml-1 text-xs font-normal text-slate-400">({style.value})</span>
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {GENDERS.map((gender) => {

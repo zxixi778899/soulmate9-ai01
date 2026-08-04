@@ -352,7 +352,7 @@ export default function AdminPresetLibraryPage() {
         {/* Folder sidebar */}
         <aside className="w-60 shrink-0 space-y-1">
           <div className="flex items-center justify-between px-2 mb-2">
-            <span className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">文件夹</span>
+            <span className="text-[11px] font-bold tracking-wider text-gray-400 uppercase">文件夹</span>
             <Button variant="ghost" size="sm" className="h-6 px-1.5 text-purple-400 hover:text-purple-300"
               onClick={() => setFolderDialog({ mode: 'create' })}>
               <FolderPlus className="w-3.5 h-3.5 mr-1" /> 新建
@@ -400,11 +400,11 @@ export default function AdminPresetLibraryPage() {
                 </button>
                 <span className="flex items-center gap-0.5 shrink-0">
                   <span className="text-xs text-gray-600 mr-1">{folder.item_count}</span>
-                  <button className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-500 hover:text-white"
+                  <button className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-white"
                     onClick={() => setFolderDialog({ mode: 'edit', folder })}>
                     <Pencil className="w-3 h-3" />
                   </button>
-                  <button className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-500 hover:text-red-400"
+                  <button className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-red-400"
                     onClick={() => deleteFolder(folder)}>
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -422,7 +422,7 @@ export default function AdminPresetLibraryPage() {
         <div className="flex-1 min-w-0">
           {filtered.length === 0 ? (
             <Card className="bg-[#16161f] border-gray-800">
-              <CardContent className="p-10 text-center text-gray-500 text-sm">
+              <CardContent className="p-10 text-center text-gray-400 text-sm">
                 此文件夹暂无预设，点右上角「新建预设」添加。
               </CardContent>
             </Card>
@@ -462,7 +462,7 @@ export default function AdminPresetLibraryPage() {
                       <div className="flex items-start justify-between gap-1">
                         <div className="min-w-0">
                           <div className="text-sm font-medium text-white truncate">{preset.name}</div>
-                          {preset.name_zh && <div className="text-[11px] text-gray-500 truncate">{preset.name_zh}</div>}
+                          {preset.name_zh && <div className="text-[11px] text-gray-400 truncate">{preset.name_zh}</div>}
                         </div>
                         <Switch checked={preset.is_active} onCheckedChange={(v) => toggleActive(preset, v)} />
                       </div>

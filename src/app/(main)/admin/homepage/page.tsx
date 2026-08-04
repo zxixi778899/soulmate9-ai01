@@ -173,13 +173,13 @@ export default function AdminSiteManagementPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="min-h-screen bg-[#F5F7FA] p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[#1E293B] flex items-center gap-2">
             <Globe className="h-6 w-6 text-[#2563EB]" /> 全站管理
           </h1>
-          <p className="text-sm text-[#64748B] mt-1">管理所有页面的模块显示、排序和配置</p>
+          <p className="text-sm text-slate-700 mt-1">管理所有页面的模块显示、排序和配置</p>
         </div>
         <div className="flex items-center gap-3">
           <Select value={selectedPage} onValueChange={setSelectedPage}>
@@ -201,7 +201,7 @@ export default function AdminSiteManagementPage() {
             <FileText className="h-4 w-4 text-[#2563EB]" />
             {PAGE_LABELS[pagePath] || pagePath}
             <Badge variant="outline" className="text-[10px] font-mono">{pagePath}</Badge>
-            <span className="text-xs text-[#94A3B8]">({pageModules.length} 个模块)</span>
+            <span className="text-xs text-slate-600">({pageModules.length} 个模块)</span>
           </h2>
           <div className="space-y-2">
             {pageModules.map((mod, idx) => {
@@ -212,17 +212,17 @@ export default function AdminSiteManagementPage() {
                     <div className="flex items-center gap-3">
                       <div className="flex flex-col gap-0.5">
                         <button onClick={() => moveModule(mod, 'up')} disabled={idx === 0}
-                          className="p-0.5 text-[#94A3B8] hover:text-[#2563EB] disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
-                        <GripVertical className="h-3.5 w-3.5 text-[#CBD5E1]" />
+                          className="p-0.5 text-slate-600 hover:text-[#2563EB] disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
+                        <GripVertical className="h-3.5 w-3.5 text-slate-400" />
                         <button onClick={() => moveModule(mod, 'down')} disabled={idx === pageModules.length - 1}
-                          className="p-0.5 text-[#94A3B8] hover:text-[#2563EB] disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
+                          className="p-0.5 text-slate-600 hover:text-[#2563EB] disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-semibold text-[#1E293B]">{mod.display_name}</span>
                           <Badge variant="outline" className="text-[10px] font-mono">{mod.module_key}</Badge>
                           <Badge className={`text-[10px] ${typeInfo.color}`}>{typeInfo.label}</Badge>
-                          <Badge className={`text-[10px] ${mod.is_visible ? 'bg-emerald-500/10 text-emerald-600' : 'bg-gray-500/10 text-gray-500'}`}>
+                          <Badge className={`text-[10px] ${mod.is_visible ? 'bg-emerald-500/10 text-emerald-600' : 'bg-gray-500/10 text-slate-500'}`}>
                             {mod.is_visible ? '显示中' : '已隐藏'}
                           </Badge>
                           {mod.parent_id && <Badge className="text-[10px] bg-orange-500/10 text-orange-600"><Layers className="h-2.5 w-2.5 inline mr-0.5" />子模块</Badge>}
@@ -242,16 +242,16 @@ export default function AdminSiteManagementPage() {
                     </div>
                     {editingConfig === mod.id && (
                       <div className="mt-3 pt-3 border-t border-[#E2E8F0] space-y-2">
-                        <h4 className="text-xs font-medium text-[#64748B]">模块配置</h4>
+                        <h4 className="text-xs font-medium text-slate-700">模块配置</h4>
                         {Object.entries(mod.config).map(([key, value]) => (
                           <div key={key} className="flex items-center gap-2">
-                            <Label className="text-xs text-[#64748B] w-28 shrink-0 font-mono">{key}</Label>
+                            <Label className="text-xs text-slate-700 w-28 shrink-0 font-mono">{key}</Label>
                             <Input className="flex-1 text-sm h-7" value={String(value)}
                               onChange={e => setModules(prev => prev.map(m => m.id === mod.id ? { ...m, config: { ...m.config, [key]: e.target.value } } : m))}
                               onBlur={() => updateConfig(mod, key, String(mod.config[key]))} />
                           </div>
                         ))}
-                        {Object.keys(mod.config).length === 0 && <p className="text-xs text-[#94A3B8]">此模块暂无配置</p>}
+                        {Object.keys(mod.config).length === 0 && <p className="text-xs text-slate-600">此模块暂无配置</p>}
                       </div>
                     )}
                   </CardContent>
@@ -263,7 +263,7 @@ export default function AdminSiteManagementPage() {
       ))}
 
       {Object.keys(grouped).length === 0 && (
-        <div className="text-center py-16"><Globe className="h-12 w-12 text-[#CBD5E1] mx-auto mb-3" /><p className="text-sm text-[#94A3B8]">暂无模块</p></div>
+        <div className="text-center py-16"><Globe className="h-12 w-12 text-slate-400 mx-auto mb-3" /><p className="text-sm text-slate-600">暂无模块</p></div>
       )}
 
       <Dialog open={addDialog} onOpenChange={setAddDialog}>
@@ -271,7 +271,7 @@ export default function AdminSiteManagementPage() {
           <DialogHeader><DialogTitle className="text-[#1E293B]">添加新模块</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label className="text-xs text-[#64748B]">所属页面 *</Label>
+              <Label className="text-xs text-slate-700">所属页面 *</Label>
               <Select value={newModule.page_path} onValueChange={v => setNewModule(p => ({ ...p, page_path: v }))}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -281,18 +281,18 @@ export default function AdminSiteManagementPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-[#64748B]">模块标识 *</Label>
+                <Label className="text-xs text-slate-700">模块标识 *</Label>
                 <Input className="mt-1 font-mono text-sm" placeholder="如: hero_banner"
                   value={newModule.module_key} onChange={e => setNewModule(p => ({ ...p, module_key: e.target.value }))} />
               </div>
               <div>
-                <Label className="text-xs text-[#64748B]">显示名称 *</Label>
+                <Label className="text-xs text-slate-700">显示名称 *</Label>
                 <Input className="mt-1" placeholder="如: 英雄横幅"
                   value={newModule.display_name} onChange={e => setNewModule(p => ({ ...p, display_name: e.target.value }))} />
               </div>
             </div>
             <div>
-              <Label className="text-xs text-[#64748B]">模块类型</Label>
+              <Label className="text-xs text-slate-700">模块类型</Label>
               <Select value={newModule.section_type} onValueChange={v => setNewModule(p => ({ ...p, section_type: v }))}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>

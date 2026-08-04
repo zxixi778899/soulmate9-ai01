@@ -396,6 +396,7 @@ export default function AdminGiftsPage() {
     GIFT_EFFECT_OPTIONS.find((o) => o.value === t)?.label || t;
 
   return (
+    <div className="min-h-screen bg-[#F5F7FA]">
     <div className="p-6 max-w-6xl mx-auto">
       <GiftEffectOverlay burst={preview} onDone={() => setPreview(null)} />
 
@@ -894,6 +895,7 @@ export default function AdminGiftsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

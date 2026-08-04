@@ -308,7 +308,7 @@ export default function AdminProviderRoutesPage() {
                         {route.supports_lora && <Badge variant="outline" className="bg-violet-500/10 text-violet-400 border-violet-500/30 text-xs">LoRA</Badge>}
                         {route.supports_reference && <Badge variant="outline" className="bg-cyan-500/10 text-cyan-400 border-cyan-500/30 text-xs">Ref</Badge>}
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                         <span>优先级: {route.priority}</span>
                         <span>超时: {(route.timeout_ms / 1000).toFixed(0)}s</span>
                         <span>熔断: {route.failure_threshold}次/{(route.reset_ms / 1000).toFixed(0)}s</span>
@@ -410,7 +410,7 @@ export default function AdminProviderRoutesPage() {
                       {channelBadge(route.channel)}
                       {route.nsfw_capable && <Badge variant="outline" className="bg-pink-500/10 text-pink-400 border-pink-500/30 text-xs">NSFW</Badge>}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                       <span className="font-mono">{route.model_id}</span>
                       <span>优先级: {route.priority}</span>
                       <span>超时: {(route.timeout_ms / 1000).toFixed(0)}s</span>
@@ -460,7 +460,7 @@ export default function AdminProviderRoutesPage() {
           <CardContent className="p-6 space-y-6">
             <div className="space-y-2">
               <Label className="text-gray-300">用户通知切换阈值 (ms)</Label>
-              <p className="text-xs text-gray-500">超过此时间后向用户显示&quot;正在切换供应商&quot;提示</p>
+              <p className="text-xs text-gray-400">超过此时间后向用户显示&quot;正在切换供应商&quot;提示</p>
               <Input
                 type="number"
                 value={config.settings.user_notify_switch_ms}
@@ -472,7 +472,7 @@ export default function AdminProviderRoutesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-gray-300">自动故障转移</Label>
-                <p className="text-xs text-gray-500">关闭后仅使用手动指定的路由</p>
+                <p className="text-xs text-gray-400">关闭后仅使用手动指定的路由</p>
               </div>
               <Switch
                 checked={config.settings.auto_failover}
@@ -483,7 +483,7 @@ export default function AdminProviderRoutesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-gray-300">详细路由日志</Label>
-                <p className="text-xs text-gray-500">记录每次路由决策到 ai_model_usage_logs</p>
+                <p className="text-xs text-gray-400">记录每次路由决策到 ai_model_usage_logs</p>
               </div>
               <Switch
                 checked={config.settings.verbose_logging}

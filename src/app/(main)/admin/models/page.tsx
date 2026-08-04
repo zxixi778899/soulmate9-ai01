@@ -277,7 +277,7 @@ export default function AdminModelsPage() {
             <Cpu className="h-6 w-6 text-[#2563EB]" />
             AI 模型管理
           </h1>
-          <p className="text-sm text-[#64748B] mt-1">配置模型提供商、监控用量、管理费用</p>
+          <p className="text-sm text-[#94A3B8] mt-1">配置模型提供商、监控用量、管理费用</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Tab switcher */}
@@ -370,7 +370,7 @@ export default function AdminModelsPage() {
                     <button
                       onClick={() => toggleActive(config)}
                       className={`p-1.5 rounded-md transition-colors ${
-                        config.is_active ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-500 hover:bg-gray-500/10'
+                        config.is_active ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-400 hover:bg-gray-500/10'
                       }`}
                       title={config.is_active ? '禁用' : '启用'}
                     >
@@ -867,7 +867,7 @@ export default function AdminModelsPage() {
               <Label className="text-xs text-[#8B8BA3]">API Key 环境变量名</Label>
               <Input className="mt-1 font-mono text-sm" placeholder="TOGETHER_API_KEY / RUNPOD_VLLM_API_KEY"
                 value={editModel.api_key_env || ''} onChange={e => setEditModel(p => ({ ...p, api_key_env: e.target.value }))} />
-              <p className="mt-1 text-[10px] text-[#64748B]">密钥只存环境变量名，不写库；测试时从服务器 env 读取</p>
+              <p className="mt-1 text-[10px] text-[#94A3B8]">密钥只存环境变量名，不写库；测试时从服务器 env 读取</p>
             </div>
             <div>
               <Label className="text-xs text-[#8B8BA3]">备注</Label>

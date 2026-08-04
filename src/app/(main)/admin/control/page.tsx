@@ -83,7 +83,7 @@ export default function AdminControlCenterPage(): React.JSX.Element {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-semibold text-white">{system.name}</h2>
-                  <p className="mt-1 text-xs text-slate-500">{system.description}</p>
+                  <p className="mt-1 text-xs text-slate-400">{system.description}</p>
                 </div>
                 <Badge variant="outline" className={system.status === 'ready'
                   ? 'border-emerald-500/25 text-emerald-300'
@@ -93,7 +93,7 @@ export default function AdminControlCenterPage(): React.JSX.Element {
               </div>
               <div className="my-5 flex items-end justify-between rounded-xl bg-black/15 p-3">
                 <p className="text-2xl font-semibold text-white">{system.metric.total.toLocaleString()}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-400">
                   {system.metric.secondaryLabel}
                   {system.metric.secondary !== undefined ? ` ${system.metric.secondary}` : ''}
                 </p>
@@ -125,7 +125,7 @@ function Summary({ label, value, healthy = false }: { label: string; value: numb
   return (
     <Card className="border-white/[0.08] bg-[#16161f]">
       <CardContent className="flex items-center justify-between p-4">
-        <div><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-2xl font-semibold text-white">{value}</p></div>
+        <div><p className="text-xs text-slate-400">{label}</p><p className="mt-1 text-2xl font-semibold text-white">{value}</p></div>
         {healthy ? <CircleCheck className="h-5 w-5 text-emerald-300" /> : <CircleAlert className="h-5 w-5 text-purple-300" />}
       </CardContent>
     </Card>

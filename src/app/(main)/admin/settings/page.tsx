@@ -80,10 +80,10 @@ export default function AdminSettingsPage() {
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#1E293B] flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <Settings className="h-6 w-6 text-[#2563EB]" /> 站点设置
           </h1>
-          <p className="text-sm text-[#64748B] mt-1">
+          <p className="text-sm text-[#94A3B8] mt-1">
             页脚链接、客服与首页广告文案 · 存储: {source || '—'}
           </p>
         </div>
@@ -96,7 +96,7 @@ export default function AdminSettingsPage() {
       <div className="space-y-4">
         <Card className="border-[#E2E8F0]">
           <CardContent className="p-5 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-[#1E293B]">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <Globe className="h-4 w-4" /> 基础信息
             </div>
             <div>
@@ -130,7 +130,7 @@ export default function AdminSettingsPage() {
 
         <Card className="border-[#E2E8F0]">
           <CardContent className="p-5 space-y-4">
-            <div className="text-sm font-semibold text-[#1E293B]">社交 / 客服链接</div>
+            <div className="text-sm font-semibold text-white">社交 / 客服链接</div>
             <div>
               <Label>Telegram 客服</Label>
               <Input value={settings.telegram_url} onChange={(e) => set('telegram_url', e.target.value)} placeholder="https://t.me/..." />
@@ -148,7 +148,7 @@ export default function AdminSettingsPage() {
 
         <Card className="border-[#E2E8F0]">
           <CardContent className="p-5 space-y-4">
-            <div className="text-sm font-semibold text-[#1E293B]">首页运营</div>
+            <div className="text-sm font-semibold text-white">首页运营</div>
             <div>
               <Label>热门伴侣数量</Label>
               <Input

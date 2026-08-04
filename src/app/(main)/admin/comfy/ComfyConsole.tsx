@@ -1530,7 +1530,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           <Users className="mr-1 h-3.5 w-3.5" /> 批量生成
           {batchSelectedIds.length ? <Badge className="ml-1.5 bg-violet-500 text-white">{batchSelectedIds.length}</Badge> : null}
         </Button>
-        <span className="text-[10px] text-slate-500">
+        <span className="text-[10px] text-slate-400">
           {volumeInfo?.inventory_source === 'runtime-volume' ? `卷上已验证 ${installedLoras.length}` : '卷清单未验证'} · {volumeInfo?.paths?.loras || config.network_volume?.loras_dir || 'models/loras'}
         </span>
       </div>
@@ -1640,7 +1640,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                           {status === 'failed' && <Trash2 className="h-3 w-3 text-red-400" />}
                         </div>
                         <p className="mt-1 text-[11px] font-medium text-slate-200">{stage.shortLabel}</p>
-                        <p className="text-[9px] text-slate-500">{stage.mode === 'txt2img' ? '文生图' : stage.mode === 'img2img' ? '图生图' : '图生视频'}</p>
+                        <p className="text-[9px] text-slate-400">{stage.mode === 'txt2img' ? '文生图' : stage.mode === 'img2img' ? '图生图' : '图生视频'}</p>
                         {result?.imageUrl && (
                           <button type="button" className="group relative mx-auto mt-1 block cursor-zoom-in" onClick={() => setLightboxUrl(result.imageUrl!)}>
                             <img src={result.imageUrl} alt={stage.shortLabel} className="mx-auto h-12 w-auto rounded border border-slate-700 object-contain" />
@@ -1689,7 +1689,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 </div>
               </div>
               <div className="relative mt-3">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <Input value={batchSearch} onChange={(event) => setBatchSearch(event.target.value)} placeholder="搜索伴侣名字 / slug" className="h-9 border-slate-700 bg-slate-950 pl-8 text-sm" />
               </div>
               {batchLoading ? (
@@ -1711,7 +1711,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         className={cn('flex items-center gap-2 rounded-lg border p-2 text-left transition', checked ? 'border-violet-400 bg-violet-500/20' : 'border-slate-700 bg-slate-950/70 hover:border-slate-500')}
                       >
                         <div className="h-11 w-9 shrink-0 overflow-hidden rounded bg-slate-800">
-                          {image ? <img src={image} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="m-2 h-5 w-5 text-slate-500" />}
+                          {image ? <img src={image} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="m-2 h-5 w-5 text-slate-400" />}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-xs font-semibold text-white">{item.name || id}</p>
@@ -1719,7 +1719,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                             {progress?.status === 'running' ? '生成中…' : progress?.status === 'success' ? '已完成' : progress?.status === 'failed' ? '失败' : checked ? '已选择' : '待选择'}
                           </p>
                         </div>
-                        {checked ? <CheckSquare className="h-4 w-4 shrink-0 text-violet-300" /> : <Square className="h-4 w-4 shrink-0 text-slate-500" />}
+                        {checked ? <CheckSquare className="h-4 w-4 shrink-0 text-violet-300" /> : <Square className="h-4 w-4 shrink-0 text-slate-400" />}
                       </button>
                     );
                   })}
@@ -1818,7 +1818,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
             </div>
             <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px]">
-              <Textarea value={prompt} onChange={(e) => { setPrompt(e.target.value); setPromptProfileApplied(false); }} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-500 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年伴侣。她正倚在床边，用妩媚的眼神邀请观众靠近。" />
+              <Textarea value={prompt} onChange={(e) => { setPrompt(e.target.value); setPromptProfileApplied(false); }} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-400 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年伴侣。她正倚在床边，用妩媚的眼神邀请观众靠近。" />
               <Button className="min-h-28 bg-slate-100 text-base font-bold !text-slate-950 hover:bg-white" disabled={generating} onClick={generate}>
                 {generating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
                 {generating ? '生成中…' : '生成'}
@@ -2336,7 +2336,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div key={cat} className="space-y-2">
               <h3 className="text-sm font-semibold text-slate-200 border-b border-slate-800 pb-1">
                 {CAT_LABEL[cat] || cat}
-                <span className="ml-2 text-[10px] font-normal text-slate-500">
+                <span className="ml-2 text-[10px] font-normal text-slate-400">
                   {lorasByCat[cat].length} 个
                 </span>
               </h3>
@@ -2418,7 +2418,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           ))}
 
           {Object.keys(lorasByCat).length === 0 && (
-            <div className="text-center text-slate-500 text-sm py-12">该分类暂无 LoRA</div>
+            <div className="text-center text-slate-400 text-sm py-12">该分类暂无 LoRA</div>
           )}
         </div>
       )}
@@ -2429,7 +2429,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-semibold">生成图库</h2>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-[11px] text-slate-400 mt-0.5">
                 支持多选 · 批量上传 / 下载 / 删除 · 单张可作参考图
               </p>
             </div>
@@ -2510,7 +2510,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : assets.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-700 p-12 text-center text-slate-500 text-sm space-y-3">
+            <div className="rounded-xl border border-dashed border-slate-700 p-12 text-center text-slate-400 text-sm space-y-3">
               <p>暂无记录。先生成，或点「批量上传」导入参考图。</p>
               <Button size="sm" className="bg-rose-600" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="h-3.5 w-3.5 mr-1" /> 上传图片
@@ -2553,7 +2553,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                           <Badge className="text-[9px] bg-violet-900/50">{a.lora_name}</Badge>
                         )}
                       </div>
-                      <p className="text-[10px] text-slate-500 line-clamp-2 font-mono">{a.prompt || a.storage_key}</p>
+                      <p className="text-[10px] text-slate-400 line-clamp-2 font-mono">{a.prompt || a.storage_key}</p>
                       <div className="flex gap-1 flex-wrap">
                         <Button
                           size="sm"
@@ -2641,7 +2641,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 </Button>
               </div>
               <p className="mt-2 text-xs text-slate-400">{w.description}</p>
-              <pre className="mt-2 text-[10px] text-slate-500 overflow-auto max-h-24 font-mono">
+              <pre className="mt-2 text-[10px] text-slate-400 overflow-auto max-h-24 font-mono">
                 {JSON.stringify(w.defaults, null, 2)}
               </pre>
             </div>
@@ -2663,14 +2663,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             </ol>
             <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-lg bg-black/40 p-3">
-                <div className="text-slate-500">网络卷</div>
+                <div className="text-slate-400">网络卷</div>
                 <div className="font-mono text-emerald-300">{config.network_volume?.name}</div>
-                <div className="text-slate-500">{config.network_volume?.region}</div>
+                <div className="text-slate-400">{config.network_volume?.region}</div>
               </div>
               <div className="rounded-lg bg-black/40 p-3">
-                <div className="text-slate-500">LoRA 目录</div>
+                <div className="text-slate-400">LoRA 目录</div>
                 <div className="font-mono text-cyan-300">{config.network_volume?.loras_dir}</div>
-                <div className="text-slate-500">Checkpoint</div>
+                <div className="text-slate-400">Checkpoint</div>
                 <div className="font-mono text-cyan-300">{config.network_volume?.checkpoints_dir}</div>
               </div>
             </div>
@@ -2680,7 +2680,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
 ./download-loras.sh
 # 编辑 lora-urls.txt 后:
 ./download-loras.sh --from-file /runpod-volume/models/loras/lora-urls.txt`}</pre>
-              <p className="text-slate-500">详见 scripts/runpod/README-LORA.md</p>
+              <p className="text-slate-400">详见 scripts/runpod/README-LORA.md</p>
             </div>
           </div>
 
@@ -2690,7 +2690,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div key={ep.id} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end border-b border-slate-800 pb-3">
                 <div>
                   <Label className="text-[11px] text-slate-400">{ep.label}</Label>
-                  <p className="text-[10px] text-slate-500">{ep.notes}</p>
+                  <p className="text-[10px] text-slate-400">{ep.notes}</p>
                 </div>
                 <div className="sm:col-span-2">
                   <Input
@@ -2730,7 +2730,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           </div>
         </div>
       )}
-      <footer className="mt-8 border-t border-white/10 pt-4 pb-6 text-[11px] text-slate-500 space-y-2 max-w-4xl">
+      <footer className="mt-8 border-t border-white/10 pt-4 pb-6 text-[11px] text-slate-400 space-y-2 max-w-4xl">
         <h3 className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
           <BookOpen className="h-3.5 w-3.5" /> 使用说明
         </h3>
@@ -2802,7 +2802,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             {/* Asset grid */}
             <div className="flex-1 overflow-y-auto p-4">
               {companionAssets.length === 0 ? (
-                <div className="flex h-40 flex-col items-center justify-center gap-2 text-slate-500">
+                <div className="flex h-40 flex-col items-center justify-center gap-2 text-slate-400">
                   <ImageIcon className="h-8 w-8 opacity-40" />
                   <p className="text-sm">该伴侣暂无资产，请先通过管线生成</p>
                 </div>
@@ -2856,7 +2856,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               )}
             </div>
             {/* Footer hint */}
-            <div className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-500">
+            <div className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-400">
               点击「设为参考图」将自动切换到图生图模式并填入参考图 URL。文件夹按资产角色自动归档：girlfriends/&#123;id&#125;/&#123;role&#125;/
             </div>
           </div>

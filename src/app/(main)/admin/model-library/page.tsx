@@ -433,7 +433,7 @@ export default function AdminModelLibraryPage() {
           <div className="space-y-4">
             <div className="grid gap-3 rounded-xl border border-white/[0.08] bg-[#1a1a28] p-4 md:grid-cols-[1fr_120px_140px_auto_auto]">
               <div>
-                <Label className="text-xs text-slate-500">关键词</Label>
+                <Label className="text-xs text-slate-400">关键词</Label>
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -443,7 +443,7 @@ export default function AdminModelLibraryPage() {
                 />
               </div>
               <div>
-                <Label className="text-xs text-slate-500">类型</Label>
+                <Label className="text-xs text-slate-400">类型</Label>
                 <Select value={type} onValueChange={setType}>
                   <SelectTrigger className="mt-1 border-white/10 bg-black/30"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -453,7 +453,7 @@ export default function AdminModelLibraryPage() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs text-slate-500">排序</Label>
+                <Label className="text-xs text-slate-400">排序</Label>
                 <Select value={sort} onValueChange={setSort}>
                   <SelectTrigger className="mt-1 border-white/10 bg-black/30"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -500,7 +500,7 @@ export default function AdminModelLibraryPage() {
                   </div>
                   <div className="space-y-2 p-3">
                     <div className="line-clamp-2 text-sm font-semibold text-slate-100">{h.name}</div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-[11px] text-slate-400">
                       {h.base_model || '—'} · v{h.version_name}
                       {h.size_kb ? ` · ${(h.size_kb / 1024).toFixed(1)}MB` : ''}
                     </div>
@@ -519,14 +519,14 @@ export default function AdminModelLibraryPage() {
                         </a>
                       </Button>
                     </div>
-                    <div className="truncate font-mono text-[10px] text-slate-500">{h.filename}</div>
+                    <div className="truncate font-mono text-[10px] text-slate-400">{h.filename}</div>
                   </div>
                 </div>
               ))}
             </div>
 
             {!hits.length && !searching && (
-              <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center text-sm text-slate-500">
+              <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center text-sm text-slate-400">
                 输入关键词搜索 Civitai FLUX LoRA（需要 CIVITAI_API_TOKEN）
               </div>
             )}
@@ -608,7 +608,7 @@ export default function AdminModelLibraryPage() {
                     <button
                       type="button"
                       onClick={() => toggleSelect(item.id)}
-                      className="shrink-0 text-slate-500 hover:text-purple-400"
+                      className="shrink-0 text-slate-400 hover:text-purple-400"
                     >
                       {selected.has(item.id)
                         ? <CheckSquare className="h-4 w-4 text-purple-400" />
@@ -628,15 +628,15 @@ export default function AdminModelLibraryPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium text-slate-200">{item.label}</span>
-                        <Badge variant="outline" className="text-[10px] border-white/10 text-slate-500">
+                        <Badge variant="outline" className="text-[10px] border-white/10 text-slate-400">
                           {CAT_LABEL[item.category] || item.category}
                         </Badge>
-                        <span className={cn('text-[10px] font-medium', STATUS_COLOR[item.status] || 'text-slate-500')}>
+                        <span className={cn('text-[10px] font-medium', STATUS_COLOR[item.status] || 'text-slate-400')}>
                           {STATUS_LABEL[item.status] || item.status}
                         </span>
                         {item.nsfw && <Badge className="bg-rose-600/80 text-[10px] h-4">NSFW</Badge>}
                       </div>
-                      <div className="mt-0.5 font-mono text-[10px] text-slate-500 truncate">{item.filename}</div>
+                      <div className="mt-0.5 font-mono text-[10px] text-slate-400 truncate">{item.filename}</div>
                     </div>
 
                     {/* Actions */}
@@ -654,7 +654,7 @@ export default function AdminModelLibraryPage() {
                         </SelectContent>
                       </Select>
                       {item.page_url && (
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-500" asChild>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400" asChild>
                           <a href={item.page_url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
                         </Button>
                       )}
@@ -669,7 +669,7 @@ export default function AdminModelLibraryPage() {
                   </div>
                 ))}
                 {!filteredLibrary.length && (
-                  <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-500">
+                  <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">
                     库为空或筛选无结果
                   </div>
                 )}
@@ -718,7 +718,7 @@ export default function AdminModelLibraryPage() {
               )}
 
               {!exportScript && (
-                <pre className="overflow-x-auto rounded-lg bg-black/50 border border-white/[0.06] p-4 text-[11px] text-slate-500 leading-relaxed">
+                <pre className="overflow-x-auto rounded-lg bg-black/50 border border-white/[0.06] p-4 text-[11px] text-slate-400 leading-relaxed">
 {`# 点击「生成下载脚本」自动生成
 # 脚本包含：
 #   - 自动创建目录

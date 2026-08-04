@@ -194,10 +194,10 @@ export default function AdminAiModulesPage() {
             <Brain className="h-6 w-6 text-[#2563EB]" />
             AI 模块方案
           </h1>
-          <p className="text-sm text-[#64748B] mt-1">
+          <p className="text-sm text-[#94A3B8] mt-1">
             聊天路由 · 出图场景 · 语言回复 · 按市面竞品 + 本站 NSFW/套餐逻辑
           </p>
-          <p className="text-[11px] text-[#64748B] mt-0.5">
+          <p className="text-[11px] text-[#94A3B8] mt-0.5">
             更新于 {config.updated_at || '—'} · v{config.version}
           </p>
         </div>
@@ -781,7 +781,7 @@ export default function AdminAiModulesPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div>
-                    <Label className="text-[10px] text-[#64748B]">model_id</Label>
+                    <Label className="text-[10px] text-[#94A3B8]">model_id</Label>
                     <Input className="h-8 font-mono text-[11px]" value={ep.model_id}
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];
@@ -791,7 +791,7 @@ export default function AdminAiModulesPage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px] text-[#64748B]">api_key_env</Label>
+                    <Label className="text-[10px] text-[#94A3B8]">api_key_env</Label>
                     <Input className="h-8 font-mono text-[11px]" value={ep.api_key_env || ''}
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];
@@ -801,7 +801,7 @@ export default function AdminAiModulesPage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px] text-[#64748B]">temperature</Label>
+                    <Label className="text-[10px] text-[#94A3B8]">temperature</Label>
                     <Input type="number" step={0.05} className="h-8" value={ep.temperature}
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];
@@ -811,7 +811,7 @@ export default function AdminAiModulesPage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px] text-[#64748B]">max_tokens</Label>
+                    <Label className="text-[10px] text-[#94A3B8]">max_tokens</Label>
                     <Input type="number" className="h-8" value={ep.max_tokens}
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];
@@ -821,7 +821,7 @@ export default function AdminAiModulesPage() {
                     />
                   </div>
                   <div className="col-span-2">
-                    <Label className="text-[10px] text-[#64748B]">api_base_url</Label>
+                    <Label className="text-[10px] text-[#94A3B8]">api_base_url</Label>
                     <Input className="h-8 font-mono text-[11px]" value={ep.api_base_url || ''}
                       onChange={(e) => {
                         const endpoints = [...config.endpoints];

@@ -176,7 +176,7 @@ export default function AdminAiHubPage() {
                   <StatusDot status={data.chat.status} />
                 </div>
                 <p className="text-xs text-gray-400 truncate">{data.chat.primary_model}</p>
-                <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center justify-between text-xs text-gray-400">
                   <span>Today: {data.chat.today_messages} msgs</span>
                   <span>{data.chat.enabled_count}/{data.chat.endpoints_count} active</span>
                 </div>
@@ -195,7 +195,7 @@ export default function AdminAiHubPage() {
                   <StatusDot status={data.image.status} />
                 </div>
                 <p className="text-xs text-gray-400 truncate">{data.image.endpoint_label}</p>
-                <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center justify-between text-xs text-gray-400">
                   <span>Today: {data.image.today_images} imgs</span>
                   <span>{data.image.enabled_count}/{data.image.routes_count} active</span>
                 </div>
@@ -216,7 +216,7 @@ export default function AdminAiHubPage() {
                 <p className="text-xs text-gray-400">
                   {data.voice.configured ? `${data.voice.profiles_count} voice profiles` : 'Not configured'}
                 </p>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-400">
                   {data.voice.configured ? 'ElevenLabs / TTS active' : 'Set ELEVENLABS_API_KEY'}
                 </div>
                 <a href="/admin/settings" className="text-xs text-purple-400 hover:underline">Details</a>
@@ -236,7 +236,7 @@ export default function AdminAiHubPage() {
                 <p className="text-xs text-gray-400">
                   {data.video.configured ? 'Configured' : 'Not configured'}
                 </p>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-400">
                   {data.video.configured ? 'Runway / Kling active' : 'Set RUNWAY_API_KEY'}
                 </div>
                 <a href="/admin/settings" className="text-xs text-purple-400 hover:underline">Details</a>
@@ -278,7 +278,7 @@ export default function AdminAiHubPage() {
                         <Badge variant="outline" className="bg-pink-500/10 text-pink-400 border-pink-500/30 text-xs">NSFW</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                       <span className="font-mono">{route.model_id}</span>
                       <span>Priority: {route.priority}</span>
                       <span>Channel: {route.channel}</span>
@@ -326,7 +326,7 @@ export default function AdminAiHubPage() {
                         ) : h.configured ? (
                           <span className="text-emerald-400 flex items-center gap-0.5"><CheckCircle2 className="w-3 h-3" /> Ready</span>
                         ) : (
-                          <span className="text-gray-500">Not configured</span>
+                          <span className="text-gray-400">Not configured</span>
                         )}
                       </div>
                     </div>
@@ -363,7 +363,7 @@ export default function AdminAiHubPage() {
                       </div>
                     </div>
                     {cb && (cb.failures > 0 || cb.open) && (
-                      <p className="text-xs text-gray-500 mt-2">Failures: {cb.failures} | Circuit: {cb.open ? 'OPEN' : 'closed'}</p>
+                      <p className="text-xs text-gray-400 mt-2">Failures: {cb.failures} | Circuit: {cb.open ? 'OPEN' : 'closed'}</p>
                     )}
                   </CardContent>
                 </Card>
@@ -392,21 +392,21 @@ export default function AdminAiHubPage() {
             <Card className="bg-[#16161f] border-gray-800">
               <CardContent className="p-4 space-y-2">
                 <h3 className="text-sm font-medium text-white">Scene Templates</h3>
-                <p className="text-xs text-gray-500">Hot scene presets for pre-generation</p>
+                <p className="text-xs text-gray-400">Hot scene presets for pre-generation</p>
                 <a href="/admin/presets" className="text-xs text-purple-400 hover:underline">Manage</a>
               </CardContent>
             </Card>
             <Card className="bg-[#16161f] border-gray-800">
               <CardContent className="p-4 space-y-2">
                 <h3 className="text-sm font-medium text-white">Character References</h3>
-                <p className="text-xs text-gray-500">Reference image packs for consistency</p>
+                <p className="text-xs text-gray-400">Reference image packs for consistency</p>
                 <a href="/admin/presets" className="text-xs text-purple-400 hover:underline">Manage</a>
               </CardContent>
             </Card>
             <Card className="bg-[#16161f] border-gray-800">
               <CardContent className="p-4 space-y-2">
                 <h3 className="text-sm font-medium text-white">Voice Profiles</h3>
-                <p className="text-xs text-gray-500">{data.voice.profiles_count} configured</p>
+                <p className="text-xs text-gray-400">{data.voice.profiles_count} configured</p>
                 <a href="/admin/presets" className="text-xs text-purple-400 hover:underline">Manage</a>
               </CardContent>
             </Card>

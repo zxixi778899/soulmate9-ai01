@@ -870,7 +870,7 @@ function AdminGirlfriendsMediaPageInner() {
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <div className="relative min-w-[200px] flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <Input
                 value={q}
                 onChange={(e) => { setPage(1); setQ(e.target.value); }}
@@ -918,7 +918,7 @@ function AdminGirlfriendsMediaPageInner() {
               </SelectContent>
             </Select>
           </div>
-          <p className="mt-2 text-xs text-slate-500">共 {total} 条 · 本页筛选后 {filtered.length} 张</p>
+          <p className="mt-2 text-xs text-slate-400">共 {total} 条 · 本页筛选后 {filtered.length} 张</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -958,7 +958,7 @@ function AdminGirlfriendsMediaPageInner() {
             <Loader2 className="mr-2 h-5 w-5 animate-spin" /> 加载中…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] py-16 text-center text-sm text-slate-500">
+          <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] py-16 text-center text-sm text-slate-400">
             没有匹配的伴侣。可新建，或清空筛选。
           </div>
         ) : (
@@ -1019,7 +1019,7 @@ function AdminGirlfriendsMediaPageInner() {
                     </div>
                   </button>
                   <div className="flex items-center justify-between gap-1 border-t border-white/5 px-1 py-1">
-                    <div className="flex gap-0.5 text-slate-500">
+                    <div className="flex gap-0.5 text-slate-400">
                       {hasImage(g) ? <span title="有图" className="text-[10px] text-emerald-400">图</span> : <span className="text-[10px]">图</span>}
                       {hasVideo(g) ? <Film className="h-3 w-3 text-sky-400" /> : <Film className="h-3 w-3 opacity-30" />}
                       {hasAudio(g) ? <Mic2 className="h-3 w-3 text-violet-400" /> : <Mic2 className="h-3 w-3 opacity-30" />}
@@ -1029,7 +1029,7 @@ function AdminGirlfriendsMediaPageInner() {
                         type="button"
                         title="推荐"
                         onClick={(e) => { e.stopPropagation(); void quickToggle(g, 'is_featured', !g.is_featured); }}
-                        className={cn('rounded p-0.5', g.is_featured ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300')}
+                        className={cn('rounded p-0.5', g.is_featured ? 'text-amber-400' : 'text-slate-400 hover:text-amber-300')}
                       >
                         <Star className="h-3.5 w-3.5" fill={g.is_featured ? 'currentColor' : 'none'} />
                       </button>
@@ -1037,7 +1037,7 @@ function AdminGirlfriendsMediaPageInner() {
                         type="button"
                         title="热门"
                         onClick={(e) => { e.stopPropagation(); void quickToggle(g, 'is_hot', !g.is_hot); }}
-                        className={cn('rounded p-0.5', g.is_hot ? 'text-orange-400' : 'text-slate-500 hover:text-orange-300')}
+                        className={cn('rounded p-0.5', g.is_hot ? 'text-orange-400' : 'text-slate-400 hover:text-orange-300')}
                       >
                         <Flame className="h-3.5 w-3.5" />
                       </button>
@@ -1053,7 +1053,7 @@ function AdminGirlfriendsMediaPageInner() {
                         type="button"
                         title="删除"
                         onClick={(e) => { e.stopPropagation(); void handleQuickDelete(g); }}
-                        className="rounded p-0.5 text-slate-500 hover:bg-rose-500/20 hover:text-rose-400"
+                        className="rounded p-0.5 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -1159,7 +1159,7 @@ function AdminGirlfriendsMediaPageInner() {
                     onChange={(e) => setField('base_intimacy', Number(e.target.value))}
                     className="mt-1 w-full accent-rose-500"
                   />
-                  <p className="text-[10px] text-slate-500">起始亲近感 0–100，对话里与动态亲密度一起决定称呼/距离。</p>
+                  <p className="text-[10px] text-slate-400">起始亲近感 0–100，对话里与动态亲密度一起决定称呼/距离。</p>
                 </div>
                 <div>
                   <div className="flex items-center justify-between text-[11px]">
@@ -1174,7 +1174,7 @@ function AdminGirlfriendsMediaPageInner() {
                     onChange={(e) => setField('base_desire', Number(e.target.value))}
                     className="mt-1 w-full accent-orange-500"
                   />
-                  <p className="text-[10px] text-slate-500">50–70 高冷 · 70–85 热情 · 85–100 奔放</p>
+                  <p className="text-[10px] text-slate-400">50–70 高冷 · 70–85 热情 · 85–100 奔放</p>
                 </div>
                 <div>
                   <div className="flex items-center justify-between text-[11px]">
@@ -1189,7 +1189,7 @@ function AdminGirlfriendsMediaPageInner() {
                     onChange={(e) => setField('base_development', Number(e.target.value))}
                     className="mt-1 w-full accent-fuchsia-500"
                   />
-                  <p className="text-[10px] text-slate-500">50–70 撒娇 · 70–85 主动 NSFW · 85–100 直白勾引</p>
+                  <p className="text-[10px] text-slate-400">50–70 撒娇 · 70–85 主动 NSFW · 85–100 直白勾引</p>
                 </div>
                 <div>
                   <div className="flex items-center justify-between text-[11px]">
@@ -1204,7 +1204,7 @@ function AdminGirlfriendsMediaPageInner() {
                     onChange={(e) => setField('base_kink', Number(e.target.value))}
                     className="mt-1 w-full accent-violet-500"
                   />
-                  <p className="text-[10px] text-slate-500">50–70 正常 · 70–85 喜欢刺激 · 85–100 变态玩法</p>
+                  <p className="text-[10px] text-slate-400">50–70 正常 · 70–85 喜欢刺激 · 85–100 变态玩法</p>
                 </div>
               </div>
               <div>
@@ -1322,7 +1322,7 @@ function AdminGirlfriendsMediaPageInner() {
                     <Input type="number" value={form.unlock_price_tokens} onChange={(e) => setField('unlock_price_tokens', Number(e.target.value) || 0)} className="mt-1 h-8 bg-black/30" />
                   </div>
                 </div>
-                <p className="mt-2 text-[10px] text-slate-500">
+                <p className="mt-2 text-[10px] text-slate-400">
                   热情/开发/变态请在左侧「基础档案」滑动条调节；保存后同步前台与对话。
                 </p>
               </div>
@@ -1444,7 +1444,7 @@ function AdminGirlfriendsMediaPageInner() {
                     </Link>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">先保存创建后可上传媒体与进入创作台。</p>
+                  <p className="text-xs text-slate-400">先保存创建后可上传媒体与进入创作台。</p>
                 )}
               </div>
             </div>

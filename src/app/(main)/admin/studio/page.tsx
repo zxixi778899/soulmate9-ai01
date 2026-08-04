@@ -31,7 +31,7 @@ function StudioInner(): React.JSX.Element {
                 当前伴侣：{girlfriendId}
               </p>
             ) : (
-              <p className="mt-0.5 text-[11px] text-slate-500">生成结果统一进入公共资产库</p>
+              <p className="mt-0.5 text-[11px] text-slate-400">生成结果统一进入公共资产库</p>
             )}
           </div>
 

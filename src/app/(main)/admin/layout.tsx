@@ -86,7 +86,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="admin-layout flex h-screen items-center justify-center bg-[#0f0f17]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
-          <p className="text-xs text-slate-500">验证管理员权限…</p>
+          <p className="text-xs text-slate-400">验证管理员权限…</p>
         </div>
       </div>
     );
@@ -108,7 +108,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               返回首页
             </Button>
           </div>
-          <p className="mt-4 text-[11px] text-left text-slate-500 bg-white/[0.03] rounded-lg p-3">
+          <p className="mt-4 text-[11px] text-left text-slate-400 bg-white/[0.03] rounded-lg p-3">
             <b className="text-slate-400">快速开通管理员：</b>
             <br />
             1) Vercel 环境变量增加
@@ -153,7 +153,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             <div>
               <div className="text-sm font-semibold text-slate-100">SoulMate 后台</div>
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">{role}</div>
+              <div className="text-[10px] text-slate-400 uppercase tracking-wide">{role}</div>
             </div>
           </div>
         </div>
@@ -163,11 +163,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {ADMIN_NAV_GROUPS.map((group) => (
               <div key={group.title}>
                 <div className="px-3 mb-1">
-                  <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                  <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                     {group.title}
                   </div>
                   {group.description ? (
-                    <div className="mt-0.5 text-[10px] leading-snug text-slate-600">{group.description}</div>
+                    <div className="mt-0.5 text-[10px] leading-snug text-slate-500">{group.description}</div>
                   ) : null}
                 </div>
                 <div className="flex flex-col gap-0.5">
@@ -190,7 +190,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <span className="min-w-0">
                           <span className="block leading-tight">{item.label}</span>
                           {item.hint ? (
-                            <span className={cn('mt-0.5 block text-[10px] font-normal leading-snug', active ? 'text-purple-400' : 'text-slate-600')}>
+                            <span className={cn('mt-0.5 block text-[10px] font-normal leading-snug', active ? 'text-purple-400' : 'text-slate-500')}>
                               {item.hint}
                             </span>
                           ) : null}

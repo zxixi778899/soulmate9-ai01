@@ -144,7 +144,7 @@ export default function AdminPresetsPage() {
                         <Badge key={tag} variant="outline" className="bg-cyan-500/10 text-cyan-400 border-cyan-500/30 text-xs">{tag}</Badge>
                       ))}
                     </div>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{t.prompt_template}</p>
+                    <p className="text-xs text-gray-400 mt-1 line-clamp-2">{t.prompt_template}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
                       <span>{t.width}x{t.height}</span>
                       <span>Steps: {t.steps}</span>
@@ -165,7 +165,7 @@ export default function AdminPresetsPage() {
 
           {!templates.length && (
             <Card className="bg-[#16161f] border-gray-800">
-              <CardContent className="p-8 text-center text-gray-500 text-sm">
+              <CardContent className="p-8 text-center text-gray-400 text-sm">
                 No scene templates yet. Add one to get started.
               </CardContent>
             </Card>
@@ -215,7 +215,7 @@ export default function AdminPresetsPage() {
 
           {!references.length && (
             <Card className="bg-[#16161f] border-gray-800">
-              <CardContent className="p-8 text-center text-gray-500 text-sm">
+              <CardContent className="p-8 text-center text-gray-400 text-sm">
                 No character references yet.
               </CardContent>
             </Card>
@@ -237,7 +237,7 @@ export default function AdminPresetsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-sm font-medium text-white">{p.name}</span>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                       {p.checkpoint && <span className="font-mono">{p.checkpoint}</span>}
                       <span>Steps: {p.steps}</span>
                       <span>CFG: {p.cfg}</span>
@@ -265,7 +265,7 @@ export default function AdminPresetsPage() {
 
           {!genPresets.length && (
             <Card className="bg-[#16161f] border-gray-800">
-              <CardContent className="p-8 text-center text-gray-500 text-sm">
+              <CardContent className="p-8 text-center text-gray-400 text-sm">
                 No generation presets yet.
               </CardContent>
             </Card>
