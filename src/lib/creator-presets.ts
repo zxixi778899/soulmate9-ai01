@@ -42,6 +42,8 @@ export interface CreatorPreset {
   portrait_outfit?: string;
   /** 灵魂层（迁移 0020）：voice/scenario/rules/examples/proactive，双语 */
   character_soul?: PresetSoul;
+  /** 共享立绘缓存的公开 URL（preset_portrait_stats.cached=true 时由目录接口附加） */
+  portrait_url?: string;
 }
 
 export const DEFAULT_CREATOR_PRESETS: readonly CreatorPreset[] = [

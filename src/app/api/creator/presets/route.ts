@@ -76,6 +76,44 @@ export async function GET(req: NextRequest): Promise<NextResponse<CreatorPresetR
         .map(normalizeCreatorPreset)
         .filter((preset): preset is CreatorPreset => preset !== null);
       if (error) logger.warn('[creator/presets] preset query failed; using built-ins', { err: error.message });
+
+      // Attach the shared portrait-cache URL (preset-portraits/{slug}.png) so the
+      // creator page can render preset cards with their actual artwork.
+      if (databasePresets.length) {
+        const slugs = databasePresets
+          .map((preset) => preset.slug)
+          .filter((slug): slug is string => Boolean(slug));
+        if (slugs.length) {
+          try {
+            const { data: stats, error: statsError } = await client
+              .from('preset_portrait_stats')
+              .select('slug, portrait_url')
+              .eq('cached', true)
+              .in('slug', slugs);
+            if (statsError) {
+              logger.warn('[creator/presets] portrait stats query failed', { err: statsError.message });
+            } else {
+              const urlBySlug = new Map<string, string>();
+              for (const row of stats || []) {
+                const stat = asRecord(row);
+                if (!stat) continue;
+                const slug = typeof stat.slug === 'string' ? stat.slug : '';
+                const url = typeof stat.portrait_url === 'string' ? stat.portrait_url : '';
+                if (slug && url) urlBySlug.set(slug, url);
+              }
+              for (const preset of databasePresets) {
+                const url = preset.slug ? urlBySlug.get(preset.slug) : undefined;
+                if (url) preset.portrait_url = url;
+              }
+            }
+          } catch (statsErr) {
+            logger.warn('[creator/presets] portrait stats lookup threw', {
+              err: statsErr instanceof Error ? statsErr.message : String(statsErr),
+            });
+          }
+        }
+      }
+
       result.presets = databasePresets.length ? databasePresets : [...DEFAULT_CREATOR_PRESETS];
       result.source = databasePresets.length ? 'database' : 'built-in';
       result.vibes = PRESET_VIBE_LABELS;

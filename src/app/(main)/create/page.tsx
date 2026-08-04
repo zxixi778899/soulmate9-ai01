@@ -121,10 +121,11 @@ function Pill({
 
 function Panel({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
+    <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.04] to-white/[0.015] p-4 shadow-[0_8px_32px_rgba(0,0,0,0.28)] backdrop-blur-sm sm:p-5">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.14] to-transparent" />
       <div className="mb-3 flex items-baseline justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-white/90">
-          <span className="h-3.5 w-1 rounded-full bg-gradient-to-b from-[#FF2D78] to-[#8b5cf6]" />
+        <h3 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-white/90">
+          <span className="h-3.5 w-1 rounded-full bg-gradient-to-b from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_8px_rgba(255,45,120,0.6)]" />
           {title}
         </h3>
         {hint && <span className="text-[10px] text-white/30">{hint}</span>}
@@ -133,6 +134,10 @@ function Panel({ title, hint, children }: { title: string; hint?: string; childr
     </section>
   );
 }
+
+/** Fallback preview for the 3D style card (no 3D preset exists in the library). */
+const STYLE_PREVIEW_3D =
+  'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/3d.png';
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
@@ -219,6 +224,19 @@ export default function CreatePage() {
   // ─── Option helpers ──────────────────────────────────────────────────────
 
   const getOpts = useCallback((category: string): OptionItem[] => options[category] || [], [options]);
+
+  // Preview artwork for the visual-style cards: reuse the first cached preset
+  // portrait of each style (realistic / anime); 3D has no library preset, so it
+  // falls back to a static sample render.
+  const stylePreviews = useMemo(() => {
+    const map: Record<string, string> = { '3d': STYLE_PREVIEW_3D };
+    for (const preset of presets) {
+      if (preset.portrait_url && !map[preset.visual_style]) {
+        map[preset.visual_style] = preset.portrait_url;
+      }
+    }
+    return map;
+  }, [presets]);
 
   const partPrompt = useCallback((cat: string, value: string): string => {
     return (parts[cat] || []).find((p) => p.value.toLowerCase() === value.toLowerCase())?.prompt_en || '';
@@ -588,53 +606,80 @@ export default function CreatePage() {
                         title={t('creator.quickStart') || (zh ? '快速开始 · 预设灵感' : 'Quick Start · Presets')}
                         hint={t('creator.quickStartHint') || (zh ? '点选自动填充，仍可自由修改' : 'Tap to auto-fill, still fully editable')}
                       >
-                        <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+                        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           {presets.map((preset) => {
                             const activePreset = selectedPreset?.id === preset.id;
+                            const presetName = zh ? preset.name_zh : preset.name;
                             return (
                               <button
                                 key={preset.id}
                                 type="button"
                                 onClick={() => applyPreset(preset)}
+                                title={`${presetName} — ${zh ? preset.description_zh : preset.description}`}
                                 className={cn(
-                                  'w-44 shrink-0 rounded-xl border p-3 text-left transition-all touch-manipulation',
+                                  'group relative aspect-[3/4] w-36 shrink-0 overflow-hidden rounded-2xl border text-left transition-all duration-300 touch-manipulation sm:w-40',
                                   activePreset
-                                    ? 'border-[#FF2D78]/70 bg-[#FF2D78]/10 shadow-[0_0_18px_rgba(255,45,120,0.25)]'
-                                    : 'border-white/10 bg-white/[0.03] hover:border-[#FF2D78]/40',
+                                    ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_28px_rgba(255,45,120,0.45)]'
+                                    : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-[#FF2D78]/50 hover:shadow-[0_8px_28px_rgba(255,45,120,0.18)]',
                                 )}
                               >
-                                <div className="mb-1.5 flex items-center justify-between gap-1.5">
-                                  <span className="truncate text-xs font-bold text-white/90">
-                                    {zh ? preset.name_zh : preset.name}
+                                {preset.portrait_url ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={preset.portrait_url}
+                                    alt={presetName}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#FF2D78]/15 via-white/[0.03] to-[#8b5cf6]/20">
+                                    <User2 className="h-10 w-10 text-white/15" />
+                                  </div>
+                                )}
+
+                                {/* Rarity badge */}
+                                {preset.rarity && (
+                                  <span
+                                    className={cn(
+                                      'absolute right-2 top-2 z-10 rounded-md px-1.5 py-0.5 text-[9px] font-black tracking-wider backdrop-blur-sm',
+                                      preset.rarity === 'SSR' && 'bg-gradient-to-r from-amber-300 to-yellow-500 text-amber-950 shadow-[0_0_12px_rgba(251,191,36,0.55)]',
+                                      preset.rarity === 'SR' && 'bg-violet-500/85 text-white shadow-[0_0_10px_rgba(139,92,246,0.5)]',
+                                      preset.rarity === 'R' && 'bg-sky-500/85 text-white',
+                                      preset.rarity === 'N' && 'bg-black/55 text-white/75',
+                                    )}
+                                  >
+                                    {preset.rarity}
                                   </span>
-                                  {preset.rarity && (
-                                    <span
-                                      className={cn(
-                                        'shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black',
-                                        preset.rarity === 'SSR' && 'bg-amber-400/15 text-amber-300',
-                                        preset.rarity === 'SR' && 'bg-violet-500/15 text-violet-300',
-                                        preset.rarity === 'R' && 'bg-sky-500/15 text-sky-300',
-                                        preset.rarity === 'N' && 'bg-white/10 text-white/60',
-                                      )}
-                                    >
-                                      {preset.rarity}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="line-clamp-2 text-[10px] leading-4 text-white/45">
-                                  {zh ? preset.description_zh : preset.description}
-                                </p>
-                                <div className="mt-2 flex flex-wrap gap-1">
-                                  {(preset.vibe_tags || []).slice(0, 2).map((v) => (
-                                    <span key={v} className="rounded-full bg-[#FF2D78]/10 px-1.5 py-0.5 text-[9px] text-[#FF2D78]/80">
-                                      {vibes[v] ? (zh ? vibes[v].zh : vibes[v].en) : v}
-                                    </span>
-                                  ))}
-                                  {activePreset && (
-                                    <span className="rounded-full bg-[#FF2D78]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#FF2D78]">
-                                      {zh ? '已应用' : 'Applied'}
-                                    </span>
-                                  )}
+                                )}
+
+                                {/* Applied check */}
+                                {activePreset && (
+                                  <motion.span
+                                    className="absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                                  >
+                                    <Check className="h-3.5 w-3.5 text-white" />
+                                  </motion.span>
+                                )}
+
+                                {/* Bottom gradient overlay: name + vibes */}
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-2.5 pb-2.5 pt-10">
+                                  <div className="truncate text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                                    {presetName}
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {(preset.vibe_tags || []).slice(0, 2).map((v) => (
+                                      <span
+                                        key={v}
+                                        className="rounded-full border border-[#FF2D78]/30 bg-[#FF2D78]/15 px-1.5 py-0.5 text-[9px] text-[#ffb3d1] backdrop-blur-sm"
+                                      >
+                                        {vibes[v] ? (zh ? vibes[v].zh : vibes[v].en) : v}
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
                               </button>
                             );
@@ -646,12 +691,43 @@ export default function CreatePage() {
                     {/* Dossier preview + core identity */}
                     <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
                       {/* Live dossier card */}
-                      <div className="relative hidden overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#FF2D78]/[0.07] via-white/[0.02] to-transparent lg:block">
+                      <div className="relative hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-[#FF2D78]/[0.07] via-white/[0.02] to-transparent shadow-[0_8px_32px_rgba(0,0,0,0.28)] lg:block">
                         <div className="sticky top-4 p-5">
-                          <div className="mx-auto mb-4 flex h-40 w-40 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] shadow-[inset_0_0_40px_rgba(139,92,246,0.15)]">
-                            <User2 className="h-16 w-16 text-white/15" />
+                          {/* Portrait preview — shows the applied preset's artwork */}
+                          <div className="relative mx-auto aspect-[3/4] w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-[0_12px_40px_rgba(139,92,246,0.18)]">
+                            {selectedPreset?.portrait_url ? (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={selectedPreset.portrait_url}
+                                  alt={zh ? selectedPreset.name_zh : selectedPreset.name}
+                                  className="h-full w-full object-cover"
+                                />
+                                <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
+                                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 to-transparent" />
+                                <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
+                                  <span className="truncate text-[11px] font-semibold text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                                    {zh ? selectedPreset.name_zh : selectedPreset.name}
+                                  </span>
+                                  {selectedPreset.rarity && (
+                                    <span className="shrink-0 rounded-md bg-black/50 px-1.5 py-0.5 text-[9px] font-black text-amber-300 backdrop-blur-sm">
+                                      {selectedPreset.rarity}
+                                    </span>
+                                  )}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+                                <div className="flex h-24 w-24 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] shadow-[inset_0_0_40px_rgba(139,92,246,0.15)]">
+                                  <User2 className="h-10 w-10 text-white/15" />
+                                </div>
+                                <span className="text-[10px] text-white/25">
+                                  {zh ? '选择预设或生成立绘' : 'Pick a preset or generate'}
+                                </span>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-center">
+                          <div className="mt-4 text-center">
                             <div className="text-base font-bold text-white/90">
                               {name.trim() || (zh ? '未命名角色' : 'Unnamed')}
                             </div>
@@ -681,7 +757,7 @@ export default function CreatePage() {
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 placeholder={t('creator.namePlaceholder') || (zh ? '她的名字' : 'Her name')}
-                                className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
+                                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 text-sm outline-none transition-all focus:border-[#FF2D78]/50 focus:shadow-[0_0_0_3px_rgba(255,45,120,0.10)]"
                               />
                             </div>
                             <div>
@@ -694,7 +770,7 @@ export default function CreatePage() {
                                 max={45}
                                 value={age}
                                 onChange={(e) => setAge(Number(e.target.value))}
-                                className="w-24 h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none"
+                                className="h-11 w-24 rounded-xl border border-white/10 bg-white/[0.035] px-3 text-sm outline-none transition-all focus:border-[#FF2D78]/50 focus:shadow-[0_0_0_3px_rgba(255,45,120,0.10)]"
                               />
                             </div>
                           </div>
@@ -706,30 +782,62 @@ export default function CreatePage() {
                               value={shortDescription}
                               onChange={(e) => setShortDescription(e.target.value)}
                               placeholder={t('creator.taglinePlaceholder') || (zh ? '深夜电台里的温柔声音…' : 'A soft voice on the late-night radio…')}
-                              className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/10 px-3 text-sm outline-none focus:border-[#FF2D78]/40"
+                              className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 text-sm outline-none transition-all focus:border-[#FF2D78]/50 focus:shadow-[0_0_0_3px_rgba(255,45,120,0.10)]"
                             />
                           </div>
                         </Panel>
 
                         <Panel title={t('creator.sectionAppearance') || (zh ? '外观设定' : 'Appearance')}>
-                          {/* Visual style cards */}
-                          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                            {getOpts('visual_style').map((v) => (
-                              <button
-                                key={v.value}
-                                type="button"
-                                onClick={() => setVisualStyle(v.value)}
-                                className={cn(
-                                  'rounded-xl border p-3 text-left transition-all',
-                                  visualStyle === v.value
-                                    ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
-                                    : 'border-white/10 bg-white/[0.03] hover:border-white/20',
-                                )}
-                              >
-                                <div className="text-sm font-semibold">{getLabel(v, locale)}</div>
-                                <div className="mt-0.5 text-[10px] text-white/40">{getExtra(v, 'desc', locale)}</div>
-                              </button>
-                            ))}
+                          {/* Visual style cards — artwork preview */}
+                          <div className="mb-4 grid grid-cols-3 gap-2.5">
+                            {getOpts('visual_style').map((v) => {
+                              const activeStyle = visualStyle === v.value;
+                              const preview = stylePreviews[v.value];
+                              return (
+                                <button
+                                  key={v.value}
+                                  type="button"
+                                  onClick={() => setVisualStyle(v.value)}
+                                  className={cn(
+                                    'group relative aspect-[3/4] overflow-hidden rounded-2xl border text-left transition-all duration-300 touch-manipulation',
+                                    activeStyle
+                                      ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_24px_rgba(255,45,120,0.4)]'
+                                      : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/25',
+                                  )}
+                                >
+                                  {preview ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={preview}
+                                      alt={getLabel(v, locale)}
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+                                    />
+                                  ) : (
+                                    <div className="absolute inset-0 bg-gradient-to-br from-[#FF2D78]/15 via-white/[0.03] to-[#8b5cf6]/20" />
+                                  )}
+                                  {activeStyle && (
+                                    <motion.span
+                                      className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
+                                      initial={{ scale: 0 }}
+                                      animate={{ scale: 1 }}
+                                      transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                                    >
+                                      <Check className="h-3.5 w-3.5 text-white" />
+                                    </motion.span>
+                                  )}
+                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-2.5 pb-2.5 pt-10">
+                                    <div className="text-sm font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                                      {getLabel(v, locale)}
+                                    </div>
+                                    <div className="mt-0.5 line-clamp-1 text-[10px] text-white/55">
+                                      {getExtra(v, 'desc', locale)}
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
 
                           {/* Pill groups */}
@@ -798,7 +906,7 @@ export default function CreatePage() {
                               onChange={(e) => setAppearancePrompt(e.target.value)}
                               placeholder={t('creator.extraNotesPlaceholder') || (zh ? '例如：酒窝、右眼泪痣、雀斑' : 'e.g. dimples, freckles, beauty mark')}
                               rows={2}
-                              className="w-full rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-sm outline-none focus:border-[#FF2D78]/40"
+                              className="w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-sm outline-none transition-all focus:border-[#FF2D78]/50 focus:shadow-[0_0_0_3px_rgba(255,45,120,0.10)]"
                             />
                           </div>
                         </Panel>
@@ -837,10 +945,10 @@ export default function CreatePage() {
                                   type="button"
                                   onClick={() => setRelationship(r.value)}
                                   className={cn(
-                                    'rounded-xl border p-3 text-left transition-all',
+                                    'rounded-2xl border p-3 text-left transition-all touch-manipulation',
                                     relationship === r.value
-                                      ? 'border-[#FF2D78]/60 bg-[#FF2D78]/10'
-                                      : 'border-white/10 bg-white/[0.03] hover:border-white/20',
+                                      ? 'border-[#FF2D78]/70 bg-[#FF2D78]/10 shadow-[0_0_18px_rgba(255,45,120,0.2)]'
+                                      : 'border-white/[0.09] bg-white/[0.03] hover:border-white/25',
                                   )}
                                 >
                                   <div className="text-sm font-semibold">{getLabel(r, locale)}</div>
