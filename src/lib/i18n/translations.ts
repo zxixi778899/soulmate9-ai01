@@ -677,6 +677,10 @@ export const en = {
   'ach.streak_7.name': 'Seven-Day Devotion',
   'ach.photo_10.name': 'Private Gallery',
   'ach.photo_50.name': 'Muse of Inspiration',
+  // Acquisition promo — V3 companion creation popup
+  'promo.v3.title': 'Create Your Girlfriend — Free V3 Upgrade',
+  'promo.v3.subtitle': 'Unlimited chats · A night date with your companion',
+  'promo.v3.cta': 'Create Now',
 };
 
 const zh: Record<string, string> = {
@@ -1346,6 +1350,10 @@ const zh: Record<string, string> = {
   'ach.streak_7.name': '七日相伴',
   'ach.photo_10.name': '私藏画廊',
   'ach.photo_50.name': '灵感缪斯',
+  // 拉新弹窗 — V3 伴侣创建
+  'promo.v3.title': '创建女友，免费升级V3',
+  'promo.v3.subtitle': '无限制聊天，夜色伴侣之约',
+  'promo.v3.cta': '去创建',
 };
 
 const ja: Record<string, string> = {
