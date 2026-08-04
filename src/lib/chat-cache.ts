@@ -21,7 +21,9 @@ export type CachedChat = {
   updatedAt: string;
 };
 
-const PREFIX = 'soulmate_chat_v1_';
+// Bumped to v2 to invalidate polluted caches (pre-rate-limit proactive spam
+// copies and leftovers from deleted companions) persisted under v1.
+const PREFIX = 'soulmate_chat_v2_';
 const MAX_MESSAGES = 200;
 
 function key(girlfriendId: string) {
