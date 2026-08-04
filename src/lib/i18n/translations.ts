@@ -852,6 +852,7 @@ export const en = {
   'promo.v3.title': 'Create Your Girlfriend — Free V3 Upgrade',
   'promo.v3.subtitle': 'Unlimited chats · A night date with your companion',
   'promo.v3.cta': 'Create Now',
+  'promo.v3.hide24h': "Don't show again for 24 hours",
 };
 
 const zh: Record<string, string> = {
@@ -1695,6 +1696,7 @@ const zh: Record<string, string> = {
   'promo.v3.title': '创建女友，免费升级V3',
   'promo.v3.subtitle': '无限制聊天，夜色伴侣之约',
   'promo.v3.cta': '去创建',
+  'promo.v3.hide24h': '24小时内不再显示',
 };
 
 const ja: Record<string, string> = {

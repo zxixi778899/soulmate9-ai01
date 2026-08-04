@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
-import { Heart, Sparkles, X } from 'lucide-react';
+import { Check, Heart, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
 
@@ -12,9 +12,27 @@ import { useTranslation } from '@/lib/i18n/context';
  * logs in (or opens the site while logged in). Promotes the V3 companion
  * creation flow. Displays once per browser session; a fresh SIGNED_IN
  * event always re-arms it so "login -> popup" holds even mid-session.
+ * Users can tick "don't show for 24 hours" to snooze it for a day.
  */
 
 const PROMO_FLAG = 'soulmate_promo_v3_shown';
+const HIDE_KEY = 'soulmate_promo_v3_hidden_until';
+const HIDE_DURATION_MS = 24 * 60 * 60 * 1000;
+
+function isPromoHiddenNow(): boolean {
+  try {
+    const raw = localStorage.getItem(HIDE_KEY);
+    if (!raw) return false;
+    const until = Number(raw);
+    if (!Number.isFinite(until) || Date.now() >= until) {
+      localStorage.removeItem(HIDE_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const HIDDEN_ROUTE_PREFIXES = [
   '/admin',
@@ -46,6 +64,7 @@ export default function CreateV3PromoModal() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loginTick, setLoginTick] = useState(0);
+  const [hideFor24h, setHideFor24h] = useState(false);
 
   // A fresh sign-in (even mid-session, e.g. after sign-out/sign-in) always
   // re-arms the popup.
@@ -66,12 +85,16 @@ export default function CreateV3PromoModal() {
     if (!user) return;
     if (HIDDEN_ROUTE_PREFIXES.some((prefix) => pathname?.startsWith(prefix))) return;
     if (sessionStorage.getItem(PROMO_FLAG)) return;
+    if (isPromoHiddenNow()) return;
     // Poll until the 18+ age gate is confirmed so we never stack on top of it.
     const interval = window.setInterval(() => {
       if (!localStorage.getItem('soulmate_age_verified')) return;
       window.clearInterval(interval);
       sessionStorage.setItem(PROMO_FLAG, '1');
-      window.setTimeout(() => setOpen(true), 700);
+      window.setTimeout(() => {
+        setHideFor24h(false);
+        setOpen(true);
+      }, 700);
     }, 800);
     return () => window.clearInterval(interval);
   }, [user, pathname, loginTick]);
@@ -92,9 +115,19 @@ export default function CreateV3PromoModal() {
     [open],
   );
 
-  const close = () => setOpen(false);
-  const goCreate = () => {
+  const dismiss = () => {
+    if (hideFor24h) {
+      try {
+        localStorage.setItem(HIDE_KEY, String(Date.now() + HIDE_DURATION_MS));
+      } catch {
+        // Storage unavailable — the snooze simply won't persist.
+      }
+    }
     setOpen(false);
+  };
+  const close = () => dismiss();
+  const goCreate = () => {
+    dismiss();
     router.push('/create');
   };
 
@@ -203,6 +236,26 @@ export default function CreateV3PromoModal() {
                   <Heart className="h-5 w-5" fill="white" />
                   {t('promo.v3.cta')}
                 </motion.button>
+
+                {/* Snooze opt-out */}
+                <label className="relative mt-4 flex cursor-pointer select-none items-center justify-center gap-2 text-xs text-white/45 transition hover:text-white/70">
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={hideFor24h}
+                    onChange={(event) => setHideFor24h(event.target.checked)}
+                  />
+                  <span
+                    className={`flex h-4 w-4 items-center justify-center rounded-[5px] border transition ${
+                      hideFor24h
+                        ? 'border-[#ff5f9e] bg-gradient-to-br from-[#FF2D78] to-[#d946ef] shadow-[0_0_10px_rgba(255,45,120,.5)]'
+                        : 'border-white/30 bg-white/5'
+                    }`}
+                  >
+                    {hideFor24h && <Check className="h-3 w-3 text-white" strokeWidth={3.5} />}
+                  </span>
+                  {t('promo.v3.hide24h')}
+                </label>
               </div>
             </div>
           </motion.div>
