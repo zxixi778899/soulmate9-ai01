@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import {
   Loader2, RefreshCw, Plus, Trash2, Pencil, ImageIcon, Folder as FolderIcon,
-  FolderPlus, Sparkles, Zap, Square, Users, Camera, Crosshair, Box, Layers,
+  FolderPlus, Sparkles, Zap, Square, Users, Camera, Crosshair, Box, Layers, Upload,
 } from 'lucide-react';
 import { GIRLFRIEND_SCENE_RECIPES } from '@/lib/prompt/girlfriend';
 import { cn } from '@/lib/utils';
@@ -347,6 +347,8 @@ export default function AdminPresetLibraryPage() {
           </Button>
         </div>
       </div>
+
+      <StylePreviewsCard />
 
       <div className="flex gap-4 items-start">
         {/* Folder sidebar */}
@@ -872,5 +874,108 @@ function FolderDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// --- Style Sample Images Settings (create page 外观设定 style cards) ---
+
+const STYLE_SLOTS = [
+  { key: 'realistic', label: 'Realistic', labelZh: '写实' },
+  { key: 'anime', label: 'Anime', labelZh: '二次元' },
+  { key: '3d', label: '3D Animation', labelZh: '3D动画' },
+] as const;
+
+function StylePreviewsCard() {
+  const [previews, setPreviews] = useState<Record<string, string> | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+
+  useEffect(() => {
+    authedFetch('/api/admin/style-previews')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.previews) setPreviews(data.previews);
+      })
+      .catch(() => { /* silent */ });
+  }, []);
+
+  const upload = async (style: string, file: File) => {
+    setUploading(style);
+    try {
+      const fd = new FormData();
+      fd.append('style', style);
+      fd.append('file', file);
+      const res = await authedFetch('/api/admin/style-previews', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || '上传失败');
+      setPreviews(json.previews);
+      toast.success('风格示例图已更新，创建页稍后即生效');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '上传失败');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  return (
+    <Card className="bg-[#16161f] border-gray-800">
+      <CardContent className="p-4">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+            <ImageIcon className="w-4 h-4 text-purple-400" /> 风格示例图设置
+          </h2>
+          {previews?.updated_at && (
+            <span className="text-[10px] text-gray-500">
+              更新于 {new Date(previews.updated_at).toLocaleString()}
+            </span>
+          )}
+        </div>
+        <p className="mb-3 text-xs text-gray-400">
+          创建页「外观设定」的三张画风卡使用这里的示例图，点击上传即时生效（无需发版）。建议竖版 3:4，支持 JPG / PNG / WEBP，≤10MB。
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          {STYLE_SLOTS.map((slot) => {
+            const url = previews?.[slot.key];
+            const busy = uploading === slot.key;
+            return (
+              <div key={slot.key} className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-gray-400">{slot.labelZh}</span>
+                  <span className="text-[10px] text-gray-500">{slot.label}</span>
+                </div>
+                <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-gray-800 bg-gray-900">
+                  {url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={url} alt={slot.labelZh} className="h-full w-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-gray-500">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  )}
+                  {busy && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                      <Loader2 className="h-5 w-5 animate-spin text-purple-400" />
+                    </div>
+                  )}
+                </div>
+                <label className="flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-gray-700 bg-[#0f0f17] text-xs text-gray-400 transition-colors hover:border-purple-500 hover:text-white">
+                  <Upload className="h-3.5 w-3.5" /> 更换图片
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={busy}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) upload(slot.key, file);
+                    }}
+                  />
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

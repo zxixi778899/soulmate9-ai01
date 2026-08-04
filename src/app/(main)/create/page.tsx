@@ -136,7 +136,7 @@ function Panel({ title, hint, children }: { title: string; hint?: string; childr
 }
 
 /** Dedicated style-demo artwork for the visual-style cards (static samples). */
-const STYLE_PREVIEWS: Record<string, string> = {
+const DEFAULT_STYLE_PREVIEWS: Record<string, string> = {
   realistic:
     'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/realistic.png',
   anime:
@@ -161,6 +161,25 @@ export default function CreatePage() {
   const [parts, setParts] = useState<Record<string, CharacterPart[]>>({});
   const [cardStatus, setCardStatus] = useState<CardStatus | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+
+  // 风格示例图可在后台「预设库管理」更换（site_settings creator_style_previews），缺省用内置默认图
+  const [stylePreviews, setStylePreviews] = useState<Record<string, string>>(DEFAULT_STYLE_PREVIEWS);
+  useEffect(() => {
+    fetch('/api/creator/style-previews')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const p = (data && data.previews) as Record<string, unknown> | undefined;
+        if (!p) return;
+        const patchUrls: Record<string, string> = {};
+        for (const [k, v] of Object.entries(p)) {
+          if (typeof v === 'string' && v.trim()) patchUrls[k] = v;
+        }
+        if (Object.keys(patchUrls).length) setStylePreviews((prev) => ({ ...prev, ...patchUrls }));
+      })
+      .catch(() => {
+        /* keep defaults */
+      });
+  }, []);
 
   // Form state
   const [visualStyle, setVisualStyle] = useState('realistic');
@@ -784,7 +803,7 @@ export default function CreatePage() {
                           <div className="mb-4 grid grid-cols-3 gap-2.5">
                             {getOpts('visual_style').map((v) => {
                               const activeStyle = visualStyle === v.value;
-                              const preview = STYLE_PREVIEWS[v.value];
+                              const preview = stylePreviews[v.value];
                               return (
                                 <button
                                   key={v.value}
