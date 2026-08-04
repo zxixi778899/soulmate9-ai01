@@ -150,6 +150,20 @@ export default function WalletPage() {
               <Coins className="w-4 h-4 text-yellow-400" />
               {zh ? "积分充值" : "Credit Packs"}
             </h2>
+            {/* First top-up double credits campaign */}
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-yellow-500/35 bg-gradient-to-r from-yellow-500/15 via-amber-500/10 to-yellow-500/5 px-4 py-3">
+              <div className="h-9 w-9 rounded-lg bg-yellow-500/20 flex items-center justify-center shrink-0">
+                <Zap className="h-5 w-5 text-yellow-300" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-yellow-200">
+                  {zh ? "首充双倍积分 · 限时活动" : "First Top-Up · Double Credits"}
+                </p>
+                <p className="text-[11px] text-yellow-100/60 mt-0.5">
+                  {zh ? "你的首次充值将额外获得 100% 积分，仅限一次" : "Your very first top-up earns an extra 100% in credits — one time only"}
+                </p>
+              </div>
+            </div>
             <div className="flex gap-4 overflow-x-auto pb-3 -mx-1 px-1 snap-x snap-mandatory [scrollbar-width:thin]">
               {/* Credit packages */}
               {packages.map((pkg) => {

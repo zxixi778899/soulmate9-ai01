@@ -37,17 +37,22 @@ export async function POST(request: NextRequest) {
       ext === '.svga' ||
       baseType === 'application/octet-stream' && fileName.toLowerCase().endsWith('.svga') ||
       baseType === 'application/x-svga';
+    const isVideo =
+      !isSvga &&
+      (baseType.startsWith('video/') ||
+        ['.mp4', '.webm', '.mov', '.m4v', '.ogv'].includes(ext));
     const isImage =
       ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(baseType) ||
       ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
     const isAudio =
       baseType.startsWith('audio/') ||
-      ['.webm', '.ogg', '.mp3', '.m4a', '.wav', '.mp4'].includes(ext) &&
+      ['.ogg', '.mp3', '.m4a', '.wav'].includes(ext) &&
         !isImage &&
-        !isSvga;
+        !isSvga &&
+        !isVideo;
 
     const adminFolder = /^(?:admin|gifts|girlfriends|batch-portraits)(?:\/|$)/i.test(requestedFolder);
-    if (adminFolder || isSvga) {
+    if (adminFolder || isSvga || isVideo) {
       const admin = await requireAdmin(request);
       if (admin.error) return admin.error;
     }
@@ -60,16 +65,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!isImage && !isAudio && !isSvga) {
+    if (!isImage && !isAudio && !isSvga && !isVideo) {
       return NextResponse.json(
         {
-          error: `Unsupported file type: ${file.type || ext || 'unknown'}. Allowed: images, SVGA, short voice notes.`,
+          error: `Unsupported file type: ${file.type || ext || 'unknown'}. Allowed: images, videos, SVGA, short voice notes.`,
         },
         { status: 400 },
       );
     }
 
-    const maxSize = isSvga ? 20 * 1024 * 1024 : isAudio ? 8 * 1024 * 1024 : 12 * 1024 * 1024;
+    const maxSize = isSvga
+      ? 20 * 1024 * 1024
+      : isVideo
+        ? 30 * 1024 * 1024
+        : isAudio
+          ? 8 * 1024 * 1024
+          : 12 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
         {
@@ -84,16 +95,20 @@ export async function POST(request: NextRequest) {
     // (uploadFile will also retry octet-stream / x-svga if needed)
     const contentType = isSvga
       ? 'application/zip'
-      : file.type || (isImage ? 'image/png' : 'application/octet-stream');
+      : file.type || (isImage ? 'image/png' : isVideo ? 'video/mp4' : 'application/octet-stream');
     const safeName = isSvga && !fileName.toLowerCase().endsWith('.svga')
       ? `${fileName}.svga`
       : fileName;
-    const uploadFolder = adminFolder || isSvga
+    const uploadFolder = adminFolder || isSvga || isVideo
       ? isSvga
         ? requestedFolder.includes('gift')
           ? requestedFolder
           : 'gifts/svga'
-        : requestedFolder
+        : isVideo
+          ? requestedFolder.includes('gift')
+            ? requestedFolder
+            : 'gifts/videos'
+          : requestedFolder
       : `users/${user.id}/${isAudio ? 'voice' : 'images'}`;
     const result = await uploadFile(buffer, safeName, contentType, uploadFolder);
 
@@ -103,7 +118,7 @@ export async function POST(request: NextRequest) {
       fileName: safeName,
       fileSize: file.size,
       fileType: contentType,
-      kind: isSvga ? 'svga' : isAudio ? 'audio' : 'image',
+      kind: isSvga ? 'svga' : isVideo ? 'video' : isAudio ? 'audio' : 'image',
     });
   } catch (error) {
     logger.error('Upload error:', { data: error });

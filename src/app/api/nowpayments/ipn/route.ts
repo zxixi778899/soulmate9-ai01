@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyNowPaymentsIPN } from '@/lib/nowpayments-server';
-import { grantCredits } from '@/lib/credit-system';
+import { grantCredits, grantTopUpCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { createClient } from '@supabase/supabase-js';
 import { checkAchievements } from '@/lib/achievement-checker';
@@ -87,8 +87,8 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       const packageId = payRow?.plan_id || null;
 
-      const grant = await grantCredits(supabase, userId, totalTokens, 'token_purchase', payment_id);
-      if (!grant.ok) throw new Error(`credit token wallet: ${grant.error}`);
+      const grant = await grantTopUpCredits(supabase, userId, totalTokens, payment_id);
+      if (!grant.ok) throw new Error('credit token wallet: grant failed');
 
       await supabase.from('purchase_history').insert({
         user_id: userId,

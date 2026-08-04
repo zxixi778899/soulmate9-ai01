@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
     const { data: allAchievements, error: achError } = await supabase
       .from('achievements')
       .select('*')
+      .eq('is_hidden', false)
       .order('sort_order', { ascending: true });
 
     if (achError) throw new Error(achError.message);

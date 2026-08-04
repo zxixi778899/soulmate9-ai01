@@ -15,7 +15,7 @@ import { useDataSync } from '@/hooks/useDataSync';
 import { useRouter } from 'next/navigation';
 import {
   MessageCircle, ShoppingBag, Wand2, Crown, ChevronLeft, ChevronRight,
-  Heart, Flame, Lock, Zap, Star, Users, Share2,
+  Heart, Flame, Lock, Zap, Users, Share2,
   Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -720,7 +720,7 @@ export default function HomePage() {
         {/* Promo */}
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <PromoCard
-            onClick={() => router.push('/shop')}
+            onClick={() => router.push('/wallet')}
             badge="RECHARGE"
             badgeClass="text-[#ffd700]"
             icon={<Coins className="h-5 w-5 text-black" />}
@@ -730,7 +730,7 @@ export default function HomePage() {
             glow="from-amber-500/20"
           />
           <PromoCard
-            onClick={() => router.push('/achievements')}
+            onClick={() => router.push('/quest?tab=achievements')}
             badge="ACHIEVEMENT"
             badgeClass="text-[#ff6ba6]"
             icon={<Trophy className="h-5 w-5 text-white" />}
@@ -766,41 +766,6 @@ export default function HomePage() {
             ))}
           </section>
         )}
-
-        {/* Daily */}
-        <section className="glass-strong rounded-2xl p-3.5 sm:p-4">
-          <div className="flex items-center gap-2 mb-2.5">
-            <Zap className="h-4 w-4 text-[#ffd700]" />
-            <span className="font-semibold text-sm">{t('home.moduleQuest')}</span>
-            <span className="text-[10px] text-white/35 ml-auto">{t('home.moduleQuestTip')}</span>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            {[
-              { l: t('auth.login'), d: true, r: '+5', href: '/' },
-              { l: t('home.moduleChat'), d: false, r: '+10', href: '/chats' },
-              { l: t('chat.sayHello'), d: false, r: '+15', href: '/chats' },
-              { l: t('shop.gifts'), d: false, r: '+20', href: '/wallet' },
-            ].map((q) => (
-              <button
-                key={q.l}
-                type="button"
-                onClick={() => router.push(q.href)}
-                className={cn(
-                  'rounded-xl px-3 py-2.5 text-left border text-[11px] transition-all active:scale-[0.98]',
-                  q.d
-                    ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
-                    : 'border-[#ff2e88]/25 bg-[#ff2e88]/08 text-[#ffb3cd] hover:bg-[#ff2e88]/14',
-                )}
-              >
-                <div className="font-medium flex items-center gap-1">
-                  {q.d ? <Star className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                  {q.l}
-                </div>
-                <div className="opacity-70 mt-0.5">{q.r}</div>
-              </button>
-            ))}
-          </div>
-        </section>
 
         {/* ═══════════ Footer ═══════════ */}
         <footer className="glass-strong rounded-2xl px-4 sm:px-6 py-6 sm:py-8 mt-2">

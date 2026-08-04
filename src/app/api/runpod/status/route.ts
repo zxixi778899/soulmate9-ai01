@@ -5,6 +5,7 @@ import { runpodClient } from '@/lib/runpod';
 import { uploadDataUrl, uploadImageBase64, resolveImageUrl } from '@/lib/storage';
 import { normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { logger } from '@/lib/logger';
+import { checkAchievements } from '@/lib/achievement-checker';
 
 /**
  * GET /api/runpod/status?job_id=xxx[&girlfriend_id=yyy&scene=chat_selfie]
@@ -214,6 +215,8 @@ export async function GET(req: NextRequest) {
         } catch (e) {
           logger.warn('[runpod/status] chat persist failed', { error: e });
         }
+        // Re-evaluate achievements (image milestones) — fire and forget
+        void checkAchievements(client, user.id);
       }
 
       return NextResponse.json({

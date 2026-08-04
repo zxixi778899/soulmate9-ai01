@@ -15,11 +15,18 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 interface UserStats {
   messageCount: number;
   imageCount: number;
+  videoCount: number;
   giftPurchaseCount: number;
   outfitCount: number;
   maxIntimacyLevel: number;
   nsfwMessageCount: number;
   creditsPurchased: number;
+  creditsSpent: number;
+  totalCheckins: number;
+  distinctChatPartners: number;
+  ssrCompanions: number;
+  companionsIntimacy5: number;
+  companionsIntimacy6: number;
   subscriptionTier: number;
   companionCount: number;
   createdCompanions: number;
@@ -144,6 +151,86 @@ export async function checkAchievements(
       }
     })();
 
+    const videoCountPromise = safeCount(supabase, 'chat_media', (q) =>
+      q.eq('user_id', userId).eq('media_type', 'video'),
+    );
+
+    const creditsSpentPromise = (async (): Promise<number> => {
+      try {
+        const { data } = await supabase
+          .from('user_credits_ledger')
+          .select('delta')
+          .eq('user_id', userId)
+          .lt('delta', 0)
+          .limit(2000);
+        return ((data || []) as Array<{ delta: number }>).reduce(
+          (sum, r) => sum + Math.abs(Number(r.delta || 0)),
+          0,
+        );
+      } catch {
+        return 0;
+      }
+    })();
+
+    const totalCheckinsPromise = safeCount(supabase, 'user_credits_ledger', (q) =>
+      q.eq('user_id', userId).eq('reason', 'daily_checkin'),
+    );
+
+    const distinctChatPartnersPromise = (async (): Promise<number> => {
+      try {
+        const { data } = await supabase
+          .from('chat_messages')
+          .select('girlfriend_id')
+          .eq('user_id', userId)
+          .eq('role', 'user')
+          .limit(3000);
+        const ids = new Set(
+          ((data || []) as Array<{ girlfriend_id?: string }>)
+            .map((r) => r.girlfriend_id)
+            .filter(Boolean),
+        );
+        return ids.size;
+      } catch {
+        return 0;
+      }
+    })();
+
+    // SSR companions: owned companions whose (desire+development+kink)/3 ≥ 90,
+    // mirroring src/lib/rarity.ts scoring.
+    const ssrCompanionsPromise = (async (): Promise<number> => {
+      try {
+        const { data: friends } = await supabase
+          .from('user_friends')
+          .select('girlfriend_id')
+          .eq('user_id', userId);
+        const ids = ((friends || []) as Array<{ girlfriend_id?: string }>)
+          .map((r) => r.girlfriend_id)
+          .filter(Boolean) as string[];
+        if (ids.length === 0) return 0;
+        const { data: girls } = await supabase
+          .from('girlfriends')
+          .select('base_desire, base_development, base_kink')
+          .in('id', ids);
+        return ((girls || []) as Array<{ base_desire?: number; base_development?: number; base_kink?: number }>)
+          .filter((g) => {
+            const score = Math.round(
+              (Number(g.base_desire || 0) + Number(g.base_development || 0) + Number(g.base_kink || 0)) / 3,
+            );
+            return score >= 90;
+          }).length;
+      } catch {
+        return 0;
+      }
+    })();
+
+    const companionsIntimacy5Promise = safeCount(supabase, 'intimacy_scores', (q) =>
+      q.eq('user_id', userId).gte('level', 5),
+    );
+
+    const companionsIntimacy6Promise = safeCount(supabase, 'intimacy_scores', (q) =>
+      q.eq('user_id', userId).gte('level', 6),
+    );
+
     const achievementsPromise = supabase
       .from('achievements')
       .select('*')
@@ -160,6 +247,13 @@ export async function checkAchievements(
       profileRow,
       companionCount,
       createdCompanions,
+      videoCount,
+      creditsSpent,
+      totalCheckins,
+      distinctChatPartners,
+      ssrCompanions,
+      companionsIntimacy5,
+      companionsIntimacy6,
       achievementResult,
     ] = await Promise.all([
       msgCountPromise,
@@ -172,6 +266,13 @@ export async function checkAchievements(
       profilePromise,
       companionCountPromise,
       createdCompanionsPromise,
+      videoCountPromise,
+      creditsSpentPromise,
+      totalCheckinsPromise,
+      distinctChatPartnersPromise,
+      ssrCompanionsPromise,
+      companionsIntimacy5Promise,
+      companionsIntimacy6Promise,
       achievementsPromise,
     ]);
 
@@ -181,11 +282,18 @@ export async function checkAchievements(
     const stats: UserStats = {
       messageCount,
       imageCount,
+      videoCount,
       giftPurchaseCount,
       outfitCount,
       maxIntimacyLevel,
       nsfwMessageCount,
       creditsPurchased,
+      creditsSpent,
+      totalCheckins,
+      distinctChatPartners,
+      ssrCompanions,
+      companionsIntimacy5,
+      companionsIntimacy6,
       subscriptionTier,
       companionCount,
       createdCompanions,
@@ -207,6 +315,7 @@ export async function checkAchievements(
     const newlyUnlocked: string[] = [];
 
     for (const ach of allAchievements) {
+      if (ach.is_hidden) continue;
       const isSynthetic = String(ach.id).startsWith('seed-');
 
       let existing: { unlocked?: boolean } | null = null;
@@ -256,6 +365,27 @@ export async function checkAchievements(
           break;
         case 'checkin_streak':
           currentProgress = stats.checkinStreak;
+          break;
+        case 'video_count':
+          currentProgress = stats.videoCount;
+          break;
+        case 'credits_spent':
+          currentProgress = stats.creditsSpent;
+          break;
+        case 'total_checkins':
+          currentProgress = stats.totalCheckins;
+          break;
+        case 'distinct_chat_partners':
+          currentProgress = stats.distinctChatPartners;
+          break;
+        case 'ssr_companions':
+          currentProgress = stats.ssrCompanions;
+          break;
+        case 'companions_intimacy_5':
+          currentProgress = stats.companionsIntimacy5;
+          break;
+        case 'companions_intimacy_6':
+          currentProgress = stats.companionsIntimacy6;
           break;
         default:
           currentProgress = 0;

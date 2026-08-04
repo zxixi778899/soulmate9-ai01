@@ -41,7 +41,10 @@ import { toast } from 'sonner';
 import {
   DEFAULT_CHAT_GIFTS,
   GIFT_EFFECT_OPTIONS,
+  ASSET_FORMAT_LABELS,
+  detectAssetFormat,
   isSvgaUrl,
+  isVideoUrl,
   type ChatGift,
   type GiftEffectType,
 } from '@/lib/gifts/catalog';
@@ -57,6 +60,9 @@ type FormState = {
   icon_url: string;
   cost_tokens: number;
   intimacy_boost: number;
+  desire_boost: number;
+  development_boost: number;
+  kink_boost: number;
   effect_type: GiftEffectType;
   effect_config_json: string;
   effect_asset_url: string;
@@ -73,6 +79,9 @@ function emptyForm(): FormState {
     icon_url: '',
     cost_tokens: 1,
     intimacy_boost: 1,
+    desire_boost: 1,
+    development_boost: 1,
+    kink_boost: 1,
     effect_type: 'float_emoji',
     effect_config_json: '{\n  "duration_ms": 2400,\n  "intensity": 0.75,\n  "colors": ["#ff2e88", "#c026d3"]\n}',
     effect_asset_url: '',
@@ -91,6 +100,9 @@ function toForm(g: ChatGift): FormState {
     icon_url: g.icon_url || '',
     cost_tokens: g.cost_tokens,
     intimacy_boost: g.intimacy_boost,
+    desire_boost: g.desire_boost || 0,
+    development_boost: g.development_boost || 0,
+    kink_boost: g.kink_boost || 0,
     effect_type: g.effect_type,
     effect_config_json: JSON.stringify(g.effect_config || {}, null, 2),
     effect_asset_url: g.effect_asset_url || '',
@@ -111,6 +123,7 @@ export default function AdminGiftsPage() {
   const [q, setQ] = useState('');
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [uploadingSvga, setUploadingSvga] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -166,11 +179,14 @@ export default function AdminGiftsPage() {
 
   const uploadGiftFile = async (
     file: File,
-    kind: 'icon' | 'svga',
+    kind: 'icon' | 'svga' | 'video',
   ): Promise<string | null> => {
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('folder', kind === 'svga' ? 'gifts/svga' : 'gifts/icons');
+    fd.append(
+      'folder',
+      kind === 'svga' ? 'gifts/svga' : kind === 'video' ? 'gifts/videos' : 'gifts/icons',
+    );
     const res = await authedFetch('/api/upload', { method: 'POST', body: fd });
     const data = await readResponseJson<{ url?: string; error?: string; kind?: string }>(res);
     if (!res.ok || !data.url) {
@@ -228,6 +244,37 @@ export default function AdminGiftsPage() {
     }
   };
 
+  const onPickVideo = async (file?: File | null) => {
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    const isVideoFile =
+      /^video\//.test(file.type) || /\.(mp4|webm|mov|m4v)$/.test(name);
+    if (!isVideoFile) {
+      toast.error('请上传视频文件（mp4 / webm）');
+      return;
+    }
+    if (file.size > 30 * 1024 * 1024) {
+      toast.error('视频请小于 30MB');
+      return;
+    }
+    setUploadingVideo(true);
+    try {
+      const url = await uploadGiftFile(file, 'video');
+      if (url) {
+        setForm((f) => ({
+          ...f,
+          effect_asset_url: url,
+          effect_type: 'video',
+        }));
+        toast.success('视频特效已上传，特效类型已设为视频');
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '视频上传失败');
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.name.trim()) {
       toast.error('请填写礼物名称');
@@ -250,6 +297,9 @@ export default function AdminGiftsPage() {
         icon_url: form.icon_url.trim() || null,
         cost_tokens: form.cost_tokens,
         intimacy_boost: form.intimacy_boost,
+        desire_boost: form.desire_boost,
+        development_boost: form.development_boost,
+        kink_boost: form.kink_boost,
         effect_type: form.effect_type,
         effect_config,
         effect_asset_url: form.effect_asset_url.trim() || null,
@@ -355,8 +405,8 @@ export default function AdminGiftsPage() {
             <Gift className="h-6 w-6 text-[#e11d48]" />
             直播礼物与特效
           </h1>
-          <p className="text-sm text-[#64748B] mt-1">
-            管理对话页礼物：价格、亲密值、对应全屏特效。数据源：
+          <p className="text-sm text-slate-600 mt-1">
+            管理对话页礼物：价格、亲密值、欲望/开发/变态加成与全屏特效（SVGA/视频/图片）。数据源：
             <Badge variant="outline" className="ml-1">
               {source}
             </Badge>
@@ -424,15 +474,26 @@ export default function AdminGiftsPage() {
                       </Badge>
                     )}
                   </div>
-                  <p className="text-[11px] text-[#94A3B8] font-mono">{g.code}</p>
-                  <p className="text-xs text-[#64748B] mt-1 line-clamp-2">{g.description || '—'}</p>
+                  <p className="text-[11px] text-slate-600 font-mono">{g.code}</p>
+                  <p className="text-xs text-slate-700 mt-1 line-clamp-2">{g.description || '—'}</p>
                 </div>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
                 <Badge variant="outline">特效 {effectLabel(g.effect_type)}</Badge>
-                {isSvgaUrl(g.effect_asset_url) && (
-                  <Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100">SVGA</Badge>
+                {detectAssetFormat(g.effect_asset_url) && (
+                  <Badge
+                    className={cn(
+                      'hover:opacity-100',
+                      detectAssetFormat(g.effect_asset_url) === 'svga'
+                        ? 'bg-violet-100 text-violet-800 hover:bg-violet-100'
+                        : detectAssetFormat(g.effect_asset_url) === 'video'
+                          ? 'bg-sky-100 text-sky-800 hover:bg-sky-100'
+                          : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
+                    )}
+                  >
+                    {ASSET_FORMAT_LABELS[detectAssetFormat(g.effect_asset_url)!]}
+                  </Badge>
                 )}
                 {g.icon_url && (
                   <Badge variant="outline" className="text-emerald-700">
@@ -440,6 +501,9 @@ export default function AdminGiftsPage() {
                   </Badge>
                 )}
                 <Badge variant="outline">+{g.intimacy_boost} 亲密</Badge>
+                <Badge variant="outline" className="text-rose-700">
+                  欲{g.desire_boost || 0} · 开{g.development_boost || 0} · 变{g.kink_boost || 0}
+                </Badge>
                 <Badge variant="outline">{g.cost_tokens} 代币</Badge>
                 <Badge variant="outline">排序 {g.sort_order}</Badge>
               </div>
@@ -559,6 +623,51 @@ export default function AdminGiftsPage() {
             </div>
 
             <div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label>欲望加成</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.desire_boost}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, desire_boost: Number(e.target.value) || 0 }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>开发加成</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.development_boost}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, development_boost: Number(e.target.value) || 0 }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>变态加成</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.kink_boost}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, kink_boost: Number(e.target.value) || 0 }))
+                    }
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-1">
+                赠送时叠加到伴侣的欲望 / 开发 / 变态值（上限 100），三值均分达到 70 / 80 / 90
+                自动升级 R / SR / SSR 稀有度。
+              </p>
+            </div>
+
+            <div>
               <Label>特效类型</Label>
               <Select
                 value={form.effect_type}
@@ -587,7 +696,7 @@ export default function AdminGiftsPage() {
                 rows={5}
                 className="font-mono text-xs"
               />
-              <p className="text-[10px] text-[#94A3B8] mt-1">
+              <p className="text-[11px] text-slate-600 mt-1">
                 duration_ms / intensity / colors[] / particle_count / sound_url
               </p>
             </div>
@@ -638,11 +747,12 @@ export default function AdminGiftsPage() {
             <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-3 space-y-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-[#1E293B]">
                 <Film className="h-4 w-4 text-violet-600" />
-                SVGA 全屏特效（抖音直播礼物）
+                全屏特效素材（有什么格式用什么格式）
               </div>
-              <p className="text-[11px] text-[#64748B]">
-                支持上传 <code className="text-[10px]">.svga</code> 文件；也可填 gif/webm URL 作兜底。有
-                SVGA 时优先播放全屏动画 + 左侧横幅 + 连击数字。
+              <p className="text-[11px] text-slate-600">
+                支持 <code className="text-[10px]">.svga</code>（抖音直播礼物）、
+                <code className="text-[10px]">mp4 / webm</code> 视频（静音自动播放）、
+                gif / webp / png 图片。上传后自动识别格式并匹配播放器。
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border bg-white text-xs font-medium cursor-pointer hover:bg-slate-50">
@@ -663,20 +773,51 @@ export default function AdminGiftsPage() {
                     }}
                   />
                 </label>
-                {form.effect_asset_url && (
+                <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border bg-white text-xs font-medium cursor-pointer hover:bg-slate-50">
+                  {uploadingVideo ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Film className="h-3.5 w-3.5" />
+                  )}
+                  上传视频
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,.mp4,.webm,.mov"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      void onPickVideo(f);
+                    }}
+                  />
+                </label>
+                {form.effect_asset_url && detectAssetFormat(form.effect_asset_url) && (
                   <Badge
                     variant="outline"
                     className={cn(
                       'text-[10px]',
-                      isSvgaUrl(form.effect_asset_url)
+                      detectAssetFormat(form.effect_asset_url) === 'svga'
                         ? 'border-violet-300 text-violet-700'
-                        : 'border-slate-300',
+                        : detectAssetFormat(form.effect_asset_url) === 'video'
+                          ? 'border-sky-300 text-sky-700'
+                          : 'border-emerald-300 text-emerald-700',
                     )}
                   >
-                    {isSvgaUrl(form.effect_asset_url) ? 'SVGA 已绑定' : '静态资源'}
+                    {ASSET_FORMAT_LABELS[detectAssetFormat(form.effect_asset_url)!]} 已绑定
                   </Badge>
                 )}
               </div>
+              {form.effect_asset_url && isVideoUrl(form.effect_asset_url) && (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video
+                  src={form.effect_asset_url}
+                  muted
+                  playsInline
+                  autoPlay
+                  loop
+                  className="h-24 rounded-lg border bg-black/80 object-contain"
+                />
+              )}
               <Input
                 value={form.effect_asset_url}
                 onChange={(e) => {
@@ -684,10 +825,14 @@ export default function AdminGiftsPage() {
                   setForm((f) => ({
                     ...f,
                     effect_asset_url: url,
-                    effect_type: isSvgaUrl(url) ? 'svga' : f.effect_type,
+                    effect_type: isSvgaUrl(url)
+                      ? 'svga'
+                      : isVideoUrl(url)
+                        ? 'video'
+                        : f.effect_type,
                   }));
                 }}
-                placeholder="https://.../xxx.svga"
+                placeholder="https://.../xxx.svga 或 xxx.mp4 / xxx.gif"
                 className="text-xs font-mono"
               />
             </div>
@@ -695,7 +840,7 @@ export default function AdminGiftsPage() {
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
               <div>
                 <div className="text-sm font-medium">启用</div>
-                <div className="text-[11px] text-[#94A3B8]">关闭后对话页不展示</div>
+                <div className="text-[11px] text-slate-600">关闭后对话页不展示</div>
               </div>
               <Switch
                 checked={form.is_active}
@@ -719,6 +864,9 @@ export default function AdminGiftsPage() {
                     emoji: form.emoji || '🎁',
                     cost_tokens: form.cost_tokens,
                     intimacy_boost: form.intimacy_boost,
+                    desire_boost: form.desire_boost,
+                    development_boost: form.development_boost,
+                    kink_boost: form.kink_boost,
                     effect_type: form.effect_type,
                     effect_config: cfg,
                     effect_asset_url: form.effect_asset_url || null,

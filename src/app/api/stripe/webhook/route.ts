@@ -3,7 +3,7 @@ import type Stripe from 'stripe';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStripe } from '@/lib/stripe-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { grantCredits } from '@/lib/credit-system';
+import { grantCredits, grantTopUpCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from '@/lib/analytics';
 import { checkAchievements } from '@/lib/achievement-checker';
@@ -130,9 +130,10 @@ async function handleCheckoutCompleted(
 
     // Grant via the unified credit system (canonical profiles.credits_remaining + ledger).
     // The old apply_wallet_ledger RPC does not exist, so paid packs were never credited.
-    const grant = await grantCredits(admin, userId, tokenCount, 'token_purchase', session.id);
+    // grantTopUpCredits also applies the first-top-up double promotion (once per user).
+    const grant = await grantTopUpCredits(admin, userId, tokenCount, session.id);
     if (!grant.ok) {
-      throw new Error(`credit token wallet: ${grant.error}`);
+      throw new Error('credit token wallet: grant failed');
     }
 
     await recordPurchase(admin, event.id, {

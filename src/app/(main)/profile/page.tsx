@@ -896,6 +896,15 @@ export default function ProfilePage() {
                     ? (locale === 'zh' ? '续费会员' : 'Renew Subscription')
                     : (locale === 'zh' ? '管理订阅' : 'Manage Subscription')}
               </GamePrimaryButton>
+
+              {/* Achievements entry */}
+              <button
+                onClick={() => router.push('/quest?tab=achievements')}
+                className="mt-2.5 w-full h-10 rounded-xl border border-[#ffd700]/30 bg-[#ffd700]/[0.08] text-[#ffd700] text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#ffd700]/[0.15] transition-all active:scale-[0.98]"
+              >
+                <Trophy className="h-4 w-4" />
+                {locale === 'zh' ? '成就殿堂' : 'Hall of Achievements'}
+              </button>
             </GamePanel>
 
             {/* ── Account Settings ── */}

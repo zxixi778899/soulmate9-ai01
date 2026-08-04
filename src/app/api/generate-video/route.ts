@@ -3,7 +3,8 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
-import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
+import { CREDIT_COSTS, deductCredits, grantCredits } from '@/lib/credit-system';
+import { checkAchievements } from '@/lib/achievement-checker';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,6 +48,27 @@ export async function POST(request: NextRequest) {
     const fps = Number(body.fps) || 7;
     const numFrames = Number(body.num_frames) || 25;
     const decodeChunkSize = Number(body.decode_chunk_size) || 8;
+
+    // Site-wide credit rule: videos cost credits (5s default / 10s premium).
+    const durationSec = Number(body.duration) === 10 ? 10 : 5;
+    const videoCost = durationSec === 10 ? CREDIT_COSTS.video_10s : CREDIT_COSTS.video_5s;
+    const deducted = await deductCredits(client, user.id, videoCost, 'video_gen', girlfriendId || undefined);
+    if (!deducted.ok) {
+      const { data: balProfile } = await client
+        .from('profiles')
+        .select('credits_remaining')
+        .eq('user_id', user.id)
+        .single();
+      return NextResponse.json(
+        {
+          error: `Insufficient credits. Need ${videoCost}, have ${balProfile?.credits_remaining ?? 0}.`,
+          code: 'insufficient_credits',
+          required: videoCost,
+          balance: balProfile?.credits_remaining ?? 0,
+        },
+        { status: 403 },
+      );
+    }
 
     const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
     const videoEndpointId = process.env.RUNPOD_VIDEO_ENDPOINT_ID || process.env.RUNPOD_SVD_ENDPOINT_ID || '';
@@ -148,6 +170,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (!videoUrl) {
+          await grantCredits(client, user.id, videoCost, 'refund', jobId).catch(() => {});
           return NextResponse.json({ error: 'Video generation completed but no video URL returned' }, { status: 500 });
         }
 
@@ -174,6 +197,8 @@ export async function POST(request: NextRequest) {
           }).then(({ error: insErr }) => {
             if (insErr) logger.warn('[generate-video] chat_media insert failed', { err: insErr.message });
           });
+          // Re-evaluate achievements (video milestones) — fire and forget
+          void checkAchievements(client, user.id);
         }
 
         return NextResponse.json({ video_url: finalUrl, job_id: jobId, latency_ms: Date.now() - started });
@@ -181,6 +206,8 @@ export async function POST(request: NextRequest) {
 
       if (status.status === 'FAILED') {
         const failMsg = status.error || 'Video generation failed';
+        // Auto-refund the video cost on failure.
+        await grantCredits(client, user.id, videoCost, 'refund', jobId).catch(() => {});
         return NextResponse.json({ error: failMsg, code: 'video_gen_failed' }, { status: 500 });
       }
     }

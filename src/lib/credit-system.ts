@@ -36,15 +36,15 @@ export const DAILY_CHECKIN_REWARD = 10; // flat 10 credits per day
 
 export const CREDIT_COSTS = {
   /** Normal image generation */
-  image_gen: 5,
+  image_gen: 10,
   /** HD or multi-image generation */
   image_gen_hd: 10,
   /** Voice message (1–3 credits depending on length) */
   tts: 2,
   /** 5-second video */
-  video_5s: 25,
+  video_5s: 50,
   /** 10-second video */
-  video_10s: 45,
+  video_10s: 100,
 } as const;
 
 /** @deprecated backward-compat alias */
@@ -92,6 +92,7 @@ export type CreditReason =
   | 'gift_send'
   | 'shop_purchase'
   | 'token_purchase'
+  | 'first_topup_bonus'
   | 'signup_bonus'
   | 'subscription_grant'
   | 'admin_grant'
@@ -223,6 +224,61 @@ export async function grantCredits(
   });
 
   return { ok: true, balance_after: profile?.credits_remaining ?? amount };
+}
+
+/**
+ * Grant credits for a top-up purchase, applying the FIRST-TOP-UP DOUBLE
+ * promotion: the very first credit purchase of a user's lifetime grants an
+ * extra 100% bonus (once, idempotent).
+ *
+ * Call this instead of a bare grantCredits(..., 'token_purchase', ...) from
+ * payment webhooks.
+ */
+export async function grantTopUpCredits(
+  client: SupabaseClient,
+  userId: string,
+  amount: number,
+  refId?: string,
+): Promise<{ ok: boolean; bonus_applied: boolean; balance_after: number }> {
+  const grant = await grantCredits(client, userId, amount, 'token_purchase', refId);
+  if (!grant.ok) {
+    return { ok: false, bonus_applied: false, balance_after: 0 };
+  }
+
+  try {
+    // First top-up? Exactly one token_purchase ledger row (the one just
+    // written) and no bonus granted yet.
+    const { count: purchaseCount } = await client
+      .from('user_credits_ledger')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('reason', 'token_purchase');
+
+    const { count: bonusCount } = await client
+      .from('user_credits_ledger')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('reason', 'first_topup_bonus');
+
+    if ((purchaseCount || 0) <= 1 && (bonusCount || 0) === 0 && amount > 0) {
+      const bonus = await grantCredits(
+        client,
+        userId,
+        amount,
+        'first_topup_bonus',
+        refId ? `first:${refId}` : undefined,
+      );
+      return {
+        ok: true,
+        bonus_applied: bonus.ok,
+        balance_after: bonus.ok ? bonus.balance_after : grant.balance_after,
+      };
+    }
+  } catch {
+    /* bonus detection is best-effort */
+  }
+
+  return { ok: true, bonus_applied: false, balance_after: grant.balance_after };
 }
 
 /**

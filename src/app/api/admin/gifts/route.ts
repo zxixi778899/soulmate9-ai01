@@ -4,8 +4,10 @@ import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import {
   GIFT_EFFECT_OPTIONS,
+  clampBoost,
   isGiftEffectType,
   isSvgaUrl,
+  isVideoUrl,
   slugifyGiftCode,
   type ChatGift,
   type GiftEffectType,
@@ -45,6 +47,9 @@ function sanitizeBody(body: Record<string, unknown>): Partial<ChatGift> & { name
   if (body.cost_tokens != null) out.cost_tokens = Math.max(0, Math.round(Number(body.cost_tokens) || 0));
   if (body.intimacy_boost != null)
     out.intimacy_boost = Math.max(0, Math.round(Number(body.intimacy_boost) || 0));
+  if (body.desire_boost != null) out.desire_boost = clampBoost(body.desire_boost);
+  if (body.development_boost != null) out.development_boost = clampBoost(body.development_boost);
+  if (body.kink_boost != null) out.kink_boost = clampBoost(body.kink_boost);
   if (body.sort_order != null) out.sort_order = Math.round(Number(body.sort_order) || 0);
   if (body.is_active != null) out.is_active = Boolean(body.is_active);
 
@@ -62,14 +67,19 @@ function sanitizeBody(body: Record<string, unknown>): Partial<ChatGift> & { name
   }
   out.effect_config = effect_config;
 
+  const assetUrl = String(out.effect_asset_url || '');
+  const autoType: GiftEffectType | null = isSvgaUrl(assetUrl)
+    ? 'svga'
+    : isVideoUrl(assetUrl)
+      ? 'video'
+      : null;
+
   if (body.effect_type != null) {
     out.effect_type = isGiftEffectType(body.effect_type)
       ? (body.effect_type as GiftEffectType)
-      : isSvgaUrl(String(out.effect_asset_url || ''))
-        ? 'svga'
-        : 'float_emoji';
-  } else if (isSvgaUrl(String(out.effect_asset_url || ''))) {
-    out.effect_type = 'svga';
+      : autoType || 'float_emoji';
+  } else if (autoType) {
+    out.effect_type = autoType;
   }
 
   return out;

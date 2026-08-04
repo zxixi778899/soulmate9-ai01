@@ -11,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import {
   DEFAULT_CHAT_GIFTS,
+  clampBoost,
   normalizeGiftRow,
   slugifyGiftCode,
   type ChatGift,
@@ -186,6 +187,9 @@ export async function createGift(
     icon_url: input.icon_url || null,
     cost_tokens: Math.max(0, Number(input.cost_tokens) || 0),
     intimacy_boost: Math.max(0, Number(input.intimacy_boost) || 0),
+    desire_boost: clampBoost(input.desire_boost),
+    development_boost: clampBoost(input.development_boost),
+    kink_boost: clampBoost(input.kink_boost),
     effect_type: input.effect_type || 'float_emoji',
     effect_config: input.effect_config || {},
     effect_asset_url: input.effect_asset_url || null,
@@ -201,6 +205,9 @@ export async function createGift(
     icon_url: gift.icon_url,
     cost_tokens: gift.cost_tokens,
     intimacy_boost: gift.intimacy_boost,
+    desire_boost: gift.desire_boost,
+    development_boost: gift.development_boost,
+    kink_boost: gift.kink_boost,
     effect_type: gift.effect_type,
     effect_config: gift.effect_config,
     effect_asset_url: gift.effect_asset_url,
@@ -271,6 +278,9 @@ export async function updateGift(
     'icon_url',
     'cost_tokens',
     'intimacy_boost',
+    'desire_boost',
+    'development_boost',
+    'kink_boost',
     'effect_type',
     'effect_config',
     'effect_asset_url',
@@ -353,6 +363,9 @@ export async function seedDefaultGifts(
       emoji: g.emoji,
       cost_tokens: g.cost_tokens,
       intimacy_boost: g.intimacy_boost,
+      desire_boost: g.desire_boost,
+      development_boost: g.development_boost,
+      kink_boost: g.kink_boost,
       effect_type: g.effect_type,
       effect_config: g.effect_config,
       sort_order: g.sort_order,
@@ -389,6 +402,9 @@ export async function seedDefaultGifts(
         name: prev.name || g.name,
         emoji: prev.emoji || g.emoji,
         effect_type: prev.effect_type || g.effect_type,
+        desire_boost: prev.desire_boost > 0 ? prev.desire_boost : g.desire_boost,
+        development_boost: prev.development_boost > 0 ? prev.development_boost : g.development_boost,
+        kink_boost: prev.kink_boost > 0 ? prev.kink_boost : g.kink_boost,
       });
     }
   }

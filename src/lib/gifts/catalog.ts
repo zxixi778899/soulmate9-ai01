@@ -5,6 +5,7 @@
 
 export type GiftEffectType =
   | 'svga'
+  | 'video'
   | 'float_emoji'
   | 'heart_rain'
   | 'sparkle'
@@ -26,6 +27,8 @@ export type GiftEffectConfig = {
   sound_url?: string;
   /** SVGA loops (default 1 for live gifts) */
   svga_loops?: number;
+  /** Video loops (default 1) */
+  video_loops?: number;
 };
 
 export type ChatGift = {
@@ -38,12 +41,17 @@ export type ChatGift = {
   icon_url?: string | null;
   cost_tokens: number;
   intimacy_boost: number;
+  /** Desire / development / kink stat boosts applied to the companion on send */
+  desire_boost: number;
+  development_boost: number;
+  kink_boost: number;
   effect_type: GiftEffectType;
   effect_config: GiftEffectConfig;
   /**
-   * Full-screen effect asset:
-   * - .svga (preferred, Douyin-style)
-   * - gif / webm / png fallback
+   * Full-screen effect asset — use whatever format is provided:
+   * - .svga (Douyin-style)
+   * - .mp4 / .webm video (muted autoplay)
+   * - gif / webp / png fallback
    */
   effect_asset_url?: string | null;
   sort_order: number;
@@ -56,6 +64,7 @@ export const GIFT_EFFECT_OPTIONS: Array<{
   desc: string;
 }> = [
   { value: 'svga', label: 'SVGA 全屏特效', desc: '抖音直播间风格（需上传 .svga）' },
+  { value: 'video', label: '视频全屏特效', desc: '上传 mp4/webm 视频（静音自动播放）' },
   { value: 'float_emoji', label: '浮动表情', desc: '大号 emoji 弹跳' },
   { value: 'heart_rain', label: '爱心雨', desc: '满屏飘落爱心' },
   { value: 'sparkle', label: '星光闪烁', desc: '金色/粉色粒子' },
@@ -76,6 +85,42 @@ export function isSvgaUrl(url?: string | null): boolean {
   return u.endsWith('.svga') || u.includes('/svga/') || u.includes('svga');
 }
 
+export function isVideoUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const u = url.toLowerCase().split('?')[0];
+  return /\.(mp4|webm|mov|m4v|ogg|ogv)$/.test(u);
+}
+
+export function isImageUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const u = url.toLowerCase().split('?')[0];
+  return /\.(gif|webp|png|jpe?g|avif|apng)$/.test(u);
+}
+
+/** Detected format of a gift effect asset: svga / video / image / null. */
+export type GiftAssetFormat = 'svga' | 'video' | 'image' | null;
+
+export function detectAssetFormat(url?: string | null): GiftAssetFormat {
+  if (!url) return null;
+  if (isSvgaUrl(url)) return 'svga';
+  if (isVideoUrl(url)) return 'video';
+  if (isImageUrl(url)) return 'image';
+  return null;
+}
+
+export const ASSET_FORMAT_LABELS: Record<Exclude<GiftAssetFormat, null>, string> = {
+  svga: 'SVGA',
+  video: '视频',
+  image: '图片',
+};
+
+/** Clamp a stat boost to a sane per-gift range. */
+export function clampBoost(v: unknown): number {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(100, Math.max(0, n));
+}
+
 export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
   {
     id: 'seed-rose',
@@ -85,6 +130,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '🌹',
     cost_tokens: 5,
     intimacy_boost: 3,
+    desire_boost: 1,
+    development_boost: 1,
+    kink_boost: 1,
     effect_type: 'rose_petals',
     effect_config: { duration_ms: 2200, intensity: 0.7, colors: ['#ff2e88', '#ff6ba6', '#f43f5e'] },
     sort_order: 10,
@@ -98,6 +146,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '🍭',
     cost_tokens: 10,
     intimacy_boost: 4,
+    desire_boost: 1,
+    development_boost: 1,
+    kink_boost: 2,
     effect_type: 'sparkle',
     effect_config: { duration_ms: 2000, intensity: 0.55, colors: ['#f472b6', '#a78bfa'] },
     sort_order: 20,
@@ -111,6 +162,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '🍫',
     cost_tokens: 15,
     intimacy_boost: 5,
+    desire_boost: 2,
+    development_boost: 1,
+    kink_boost: 2,
     effect_type: 'float_emoji',
     effect_config: { duration_ms: 2000, intensity: 0.5 },
     sort_order: 30,
@@ -124,6 +178,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '🧴',
     cost_tokens: 30,
     intimacy_boost: 8,
+    desire_boost: 2,
+    development_boost: 2,
+    kink_boost: 2,
     effect_type: 'sparkle',
     effect_config: { duration_ms: 2400, intensity: 0.65, colors: ['#e9d5ff', '#fbcfe8'] },
     sort_order: 40,
@@ -137,6 +194,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '📿',
     cost_tokens: 50,
     intimacy_boost: 10,
+    desire_boost: 2,
+    development_boost: 3,
+    kink_boost: 3,
     effect_type: 'gold_shower',
     effect_config: { duration_ms: 2600, intensity: 0.7, colors: ['#fbbf24', '#f59e0b'] },
     sort_order: 50,
@@ -150,6 +210,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '🧸',
     cost_tokens: 60,
     intimacy_boost: 12,
+    desire_boost: 3,
+    development_boost: 3,
+    kink_boost: 3,
     effect_type: 'heart_rain',
     effect_config: { duration_ms: 2600, intensity: 0.75, colors: ['#ff6ba6', '#ff2e88'] },
     sort_order: 60,
@@ -163,6 +226,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '💍',
     cost_tokens: 100,
     intimacy_boost: 15,
+    desire_boost: 4,
+    development_boost: 4,
+    kink_boost: 4,
     effect_type: 'sparkle',
     effect_config: { duration_ms: 2800, intensity: 0.85, colors: ['#fde68a', '#fff'] },
     sort_order: 70,
@@ -176,6 +242,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '👑',
     cost_tokens: 150,
     intimacy_boost: 25,
+    desire_boost: 5,
+    development_boost: 6,
+    kink_boost: 6,
     effect_type: 'crown',
     effect_config: { duration_ms: 3000, intensity: 0.9, colors: ['#fbbf24', '#f59e0b', '#fff7ed'] },
     sort_order: 80,
@@ -189,6 +258,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '🚀',
     cost_tokens: 250,
     intimacy_boost: 40,
+    desire_boost: 7,
+    development_boost: 8,
+    kink_boost: 8,
     effect_type: 'rocket',
     effect_config: { duration_ms: 3200, intensity: 1, colors: ['#38bdf8', '#a78bfa', '#ff2e88'] },
     sort_order: 90,
@@ -202,6 +274,9 @@ export const DEFAULT_CHAT_GIFTS: ChatGift[] = [
     emoji: '🏰',
     cost_tokens: 500,
     intimacy_boost: 60,
+    desire_boost: 10,
+    development_boost: 10,
+    kink_boost: 12,
     effect_type: 'castle',
     effect_config: { duration_ms: 3600, intensity: 1, colors: ['#c026d3', '#ff2e88', '#fbbf24'] },
     sort_order: 100,
@@ -218,8 +293,9 @@ export function normalizeGiftRow(row: Record<string, unknown>): ChatGift {
   let effectType: GiftEffectType = isGiftEffectType(row.effect_type)
     ? row.effect_type
     : 'float_emoji';
-  // Auto-promote to svga when asset is .svga
+  // Auto-promote based on the actual asset format (use whatever is provided)
   if (isSvgaUrl(asset)) effectType = 'svga';
+  else if (isVideoUrl(asset)) effectType = 'video';
   const cfgRaw = row.effect_config;
   const effect_config: GiftEffectConfig =
     cfgRaw && typeof cfgRaw === 'object' && !Array.isArray(cfgRaw)
@@ -234,6 +310,9 @@ export function normalizeGiftRow(row: Record<string, unknown>): ChatGift {
     icon_url: (row.icon_url as string) || null,
     cost_tokens: Math.max(0, Math.round(Number(row.cost_tokens) || 0)),
     intimacy_boost: Math.max(0, Math.round(Number(row.intimacy_boost) || 0)),
+    desire_boost: clampBoost(row.desire_boost),
+    development_boost: clampBoost(row.development_boost),
+    kink_boost: clampBoost(row.kink_boost),
     effect_type: effectType,
     effect_config,
     effect_asset_url: asset,
