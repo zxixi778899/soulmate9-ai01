@@ -403,12 +403,21 @@ export default function HomePage() {
                 {catalogSource === 'api' ? ' · live' : ' · demo'}
               </span>
             </div>
-            <h1 className="mt-1 text-lg sm:text-3xl font-black tracking-tight leading-tight">
-              {t('home.chooseYour')}
-              <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
-                {' '}{t('home.obsession')}
-              </span>
-            </h1>
+            {user ? (
+              <h1 className="mt-1 text-lg sm:text-3xl font-black tracking-tight leading-tight">
+                {t('home.chooseYour')}
+                <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
+                  {' '}{t('home.obsession')}
+                </span>
+              </h1>
+            ) : (
+              <h1 className="mt-1 text-lg sm:text-2xl font-black tracking-tight leading-tight">
+                {t('home.heroTaglineLead')}
+                <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
+                  {' — '}{t('home.heroTaglineRest')}
+                </span>
+              </h1>
+            )}
           </div>
           <button
             type="button"
@@ -574,9 +583,11 @@ export default function HomePage() {
                     <span className="truncate">
                       {bonding
                         ? t('home.entering')
-                        : featured.locked
-                          ? `${t('home.unlock')}${featured.unlock_price_tokens ? ` · ${featured.unlock_price_tokens}t` : ''}`
-                          : t('home.enterPrivate')}
+                        : !user
+                          ? t('home.startChattingFree')
+                          : featured.locked
+                            ? `${t('home.unlock')}${featured.unlock_price_tokens ? ` · ${featured.unlock_price_tokens}t` : ''}`
+                            : t('home.enterPrivate')}
                     </span>
                   </GamePrimaryButton>
                   <button type="button" onClick={() => setDetail(featured)} className="glass h-12 min-h-[48px] px-3 sm:px-4 rounded-full text-sm font-semibold shrink-0 touch-manipulation active:scale-95">
@@ -841,6 +852,7 @@ export default function HomePage() {
                 <li className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-[11px] text-white/35">
                   <button type="button" onClick={() => router.push('/terms')} className="hover:text-white">{t('footer.terms')}</button>
                   <button type="button" onClick={() => router.push('/privacy')} className="hover:text-white">{t('footer.privacy')}</button>
+                  <button type="button" onClick={() => router.push('/refund-policy')} className="hover:text-white">{t('footer.refundPolicy')}</button>
                   <button type="button" onClick={() => router.push('/pricing')} className="hover:text-white">{t('nav.pricing')}</button>
                 </li>
               </ul>

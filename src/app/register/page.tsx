@@ -5,6 +5,7 @@ import { useTranslation } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
+import { GoogleGIcon } from "@/components/GoogleGIcon";
 
 export default function RegisterPage() {
   const { t } = useTranslation();
@@ -46,7 +47,7 @@ export default function RegisterPage() {
         }
       }
       const next = new URLSearchParams(window.location.search).get("next");
-      window.location.href = next && next.startsWith("/") && !next.startsWith("//") ? next : "/explore";
+      window.location.href = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
     } catch {
       setError(t('common.error'));
       setLoading(false);
@@ -133,6 +134,21 @@ export default function RegisterPage() {
             {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('common.loading')}...</> : t('auth.register')}
           </button>
         </form>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-[11px] text-white/30 uppercase tracking-wider">{t('auth.or')}</span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+          <a
+            href="/api/auth/google"
+            className="w-full p-3 rounded-lg border border-white/10 bg-white/[0.04] text-white/85 font-heading font-semibold hover:bg-white/[0.08] transition-all flex items-center justify-center gap-2"
+          >
+            <GoogleGIcon />
+            {t('auth.continueWithGoogle')}
+          </a>
+        </div>
 
         <p className="text-center text-sm text-white/30">
           {t('auth.hasAccount')}{" "}

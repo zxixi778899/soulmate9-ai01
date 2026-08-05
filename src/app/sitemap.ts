@@ -18,6 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/pricing`, lastModified: now, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${BASE_URL}/terms`, lastModified: now, changeFrequency: 'monthly', priority: 0.3 },
     { url: `${BASE_URL}/privacy`, lastModified: now, changeFrequency: 'monthly', priority: 0.3 },
+    { url: `${BASE_URL}/refund-policy`, lastModified: now, changeFrequency: 'monthly', priority: 0.3 },
   ];
 
   let girlfriendUrls: MetadataRoute.Sitemap = [];

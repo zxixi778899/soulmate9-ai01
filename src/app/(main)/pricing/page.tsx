@@ -229,7 +229,7 @@ function PricingContent() {
             <h1 className="text-3xl font-bold">Unlock Full Experience</h1>
           </div>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Upgrade anytime — cancel anytime. Secure checkout via USDT (TRC-20).
+            Payments are accepted in USDT (TRC-20) only. Upgrade anytime — cancel anytime.
           </p>
 
           {/* Billing toggle */}
@@ -252,6 +252,11 @@ function PricingContent() {
               <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px] px-1.5">Save 15–20%</Badge>
             </button>
           </div>
+          <p className="mt-4 text-xs text-muted-foreground/80">
+            Crypto (USDT) payments only — no credit cards or other payment methods are supported at this time.
+            By purchasing you agree to our{' '}
+            <a href="/refund-policy" className="text-[#FF6BA6] underline underline-offset-2">Refund Policy</a>.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">

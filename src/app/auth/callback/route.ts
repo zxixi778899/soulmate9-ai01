@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const STORAGE_KEY = 'sb-ywktqpaycmuoxnzxxlbr-auth-token';
+const STORAGE_KEY = 'sb-vvblrkngzuyxeeoslzkl-auth-token';
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -72,7 +72,7 @@ try {
   localStorage.setItem('${STORAGE_KEY}', ${JSON.stringify(sessionJson)});
   window.location.href = '/';
 } catch(e) {
-  logger.error('Failed to store session:', { data: e });
+  console.error('Failed to store session:', e);
   window.location.href = '/login?error=storage_failed';
 }
 </script>
