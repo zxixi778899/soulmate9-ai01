@@ -111,7 +111,56 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = (girlfriends || []) as Row[];
-  const enriched = await Promise.all(rows.map((g) => resolveRowMedia(g)));
+
+  /**
+   * "我的伴侣" must mirror the friend list (user_friends is the single source
+   * of truth: seats / proactive / chats all read it). Owned companions are
+   * backfilled there with source='created'; companions added from the public
+   * library only exist in user_friends, so union them in here. Skip the union
+   * when a status filter is requested (draft management stays owner-scoped).
+   */
+  let addedFriends: Row[] = [];
+  const sourceByGfId = new Map<string, string>();
+  if (!filter) {
+    const { data: friendLinks } = await client
+      .from('user_friends')
+      .select('girlfriend_id, source, created_at')
+      .eq('user_id', user.id);
+
+    const ownedIds = new Set(rows.map((r) => String(r.id)));
+    const links: Array<{ girlfriend_id: string; source: string; created_at: string }> =
+      (friendLinks || []) as Array<{ girlfriend_id: string; source: string; created_at: string }>;
+    for (const link of links) sourceByGfId.set(String(link.girlfriend_id), link.source);
+
+    const addedLinks = links
+      .filter((l) => !ownedIds.has(String(l.girlfriend_id)))
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+
+    if (addedLinks.length) {
+      const addedIds = addedLinks.map((l) => String(l.girlfriend_id));
+      const { data: friendGfs, error: friendErr } = await client
+        .from('girlfriends')
+        .select('*')
+        .in('id', addedIds)
+        .neq('review_status', 'removed');
+      if (friendErr) {
+        logger.warn('[girlfriends GET] friend union failed', { err: friendErr.message });
+      } else {
+        const byId = new Map(((friendGfs || []) as Row[]).map((r) => [String(r.id), r]));
+        addedFriends = addedLinks
+          .map((l) => byId.get(String(l.girlfriend_id)))
+          .filter((r): r is Row => Boolean(r));
+      }
+    }
+  }
+
+  const withSource = (r: Row, fallback: string): Row => ({
+    ...r,
+    friend_source: sourceByGfId.get(String(r.id)) || fallback,
+  });
+  const enriched = await Promise.all([...rows, ...addedFriends].map((g, i) =>
+    resolveRowMedia(withSource(g, i < rows.length ? 'created' : 'public')),
+  ));
 
   return NextResponse.json({ girlfriends: enriched });
 }
