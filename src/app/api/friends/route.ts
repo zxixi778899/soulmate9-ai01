@@ -228,7 +228,7 @@ export async function DELETE(request: NextRequest) {
   // approved 但无行的孤儿伴侣），它们同样必须能从好友列表移除
   const { data: ownedGf } = await client
     .from('girlfriends')
-    .select('id, user_id')
+    .select('id, user_id, is_public')
     .eq('id', girlfriendId)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -273,10 +273,10 @@ export async function DELETE(request: NextRequest) {
     logger.error('[friends] reset intimacy failed', { error: intimacyError.message });
   }
 
-  // 如果是用户自己的伴侣，同时软删除伴侣本体。按所有权判断而非 source：
-  // 自建伴侣被删除后重新上架、再以'public'重新添加时，好友行 source='public'，
-  // 旧逻辑会跳过软删除，留下没有好友行的孤儿伴侣（我的伴侣有、好友列表没有）
-  if (ownedGf) {
+  // 仅软删除用户自建的「私有」伴侣。公共/系统伴侣（is_public=true）绝不能因
+  // 删除好友而被下架——测试账号恰好拥有全部精选系统伴侣，旧逻辑按所有权软删
+  // 会把前端资料库的伴侣一并删掉。孤儿场景由 GET 的 union 兜底展示。
+  if (ownedGf && !ownedGf.is_public) {
     await client
       .from('girlfriends')
       .update({ review_status: 'removed', is_active: false, is_public: false })
