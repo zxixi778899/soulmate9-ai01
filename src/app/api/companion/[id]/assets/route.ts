@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/require-admin';
 import { getAuthUser } from '@/lib/supabase-server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 import {
   getCompanionContext,
   listVisibleAssets,
@@ -60,9 +61,14 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const { ctx, client } = await resolveCtx(request, id);
+    let { ctx, client } = await resolveCtx(request, id);
     if (!ctx || !client) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      // Anonymous fallback: guests may read public assets of published companions.
+      client = getSupabaseClient() as SupabaseClient;
+      ctx = await getCompanionContext(client, null, id, false);
+    }
+    if (!ctx || !client) {
+      return NextResponse.json({ error: 'Companion not found' }, { status: 404 });
     }
     if (!ctx.canManage && !ctx.isPublished) {
       return NextResponse.json({ error: 'This companion is private.' }, { status: 403 });
