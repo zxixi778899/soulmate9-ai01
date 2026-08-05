@@ -44,10 +44,10 @@ export async function POST(req: NextRequest) {
     }
 
     const locale = resolveReplyLocale({
-      message: lastAssistant || lastUser || '',
+      message: lastUser || lastAssistant || '',
       uiLocale: body.locale || null,
       defaultLocale: 'en',
-      autoDetect: false,
+      autoDetect: true,
     });
     const zh = locale === 'zh';
 

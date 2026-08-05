@@ -75,6 +75,43 @@ export function detectMessageLocale(message: string): ReplyLocale | null {
   return null;
 }
 
+export type ContextMessage = string | { role?: string | null; content?: string | null };
+
+/**
+ * Detect the conversation language from recent history.
+ *
+ * Accepts history in chronological order (oldest → newest) and scans from the
+ * NEWEST end, prioritizing the user's own messages (what HE types defines the
+ * language he expects back). Falls back to assistant lines so a user who only
+ * reacted with emoji still keeps the established tongue.
+ * Returns null when nothing in the window is detectable.
+ */
+export function detectContextLocale(messages: ContextMessage[] | null | undefined): ReplyLocale | null {
+  const rows = Array.isArray(messages) ? messages : [];
+  if (!rows.length) return null;
+
+  const userTexts: string[] = [];
+  const anyTexts: string[] = [];
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const m = rows[i];
+    const text = typeof m === 'string' ? m : String(m?.content || '');
+    if (!text.trim()) continue;
+    const role = typeof m === 'string' ? 'user' : String(m?.role || 'user').toLowerCase();
+    if (role === 'user') userTexts.push(text);
+    anyTexts.push(text);
+  }
+
+  for (const text of userTexts) {
+    const loc = detectMessageLocale(text);
+    if (loc) return loc;
+  }
+  for (const text of anyTexts) {
+    const loc = detectMessageLocale(text);
+    if (loc) return loc;
+  }
+  return null;
+}
+
 export function normalizeUiLocale(raw: unknown, fallback: ReplyLocale = 'en'): ReplyLocale {
   const s = String(raw || fallback).toLowerCase();
   if (s.startsWith('zh') || s === 'cn') return 'zh';
@@ -92,8 +129,13 @@ export function normalizeUiLocale(raw: unknown, fallback: ReplyLocale = 'en'): R
 /**
  * Resolve the language the model must use for this turn.
  *
- * Default: **UI page locale wins** (zh UI → zh reply, en UI → en reply).
- * Set autoDetect: true only if you want message script to override UI.
+ * Priority chain (when autoDetect is true):
+ *   1. language of the current message (when detectable)
+ *   2. language of the recent conversation context (contextMessages)
+ *   3. UI page / profile locale
+ *   4. defaultLocale
+ *
+ * Set autoDetect: false to force UI/profile locale only.
  */
 export function resolveReplyLocale(opts: {
   message: string;
@@ -102,6 +144,8 @@ export function resolveReplyLocale(opts: {
   defaultLocale?: string | null;
   /** When true, message script can override UI. Default false = UI only. */
   autoDetect?: boolean;
+  /** Recent chat history, chronological order (oldest → newest). */
+  contextMessages?: ContextMessage[] | null;
 }): ReplyLocale {
   // Prefer explicit UI locale from the client page
   const ui = normalizeUiLocale(
@@ -112,6 +156,10 @@ export function resolveReplyLocale(opts: {
   if (opts.autoDetect === true) {
     const fromMsg = detectMessageLocale(opts.message);
     if (fromMsg) return fromMsg;
+    // Current turn has no detectable language (emoji / media / empty) →
+    // keep speaking the conversation's language instead of the UI default.
+    const fromContext = detectContextLocale(opts.contextMessages);
+    if (fromContext) return fromContext;
   }
 
   return ui;

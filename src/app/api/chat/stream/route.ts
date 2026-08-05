@@ -340,16 +340,22 @@ export async function POST(request: NextRequest) {
     (sum: number, row: { cost_usd?: number | string | null }) => sum + Number(row.cost_usd || 0), 0,
   );
 
-  // Reply language follows PAGE UI locale (zh UI → Chinese, en UI → English).
-  // Do NOT auto-detect from message content — that caused mixed/garbled bilingual replies.
+  // Reply language: current message language wins; when the turn has no
+  // detectable language (photo / voice / emoji), fall back to the language of
+  // the recent conversation, then to the page UI locale.
+  const historyChronological = (recentMessagesResult.data || [])
+    .slice()
+    .reverse();
   const chatLocale: ReplyLocale = resolveReplyLocale({
     message: messageText,
     uiLocale: bodyLocale || null,
     profileLocale:
       (profileAny?.preferred_locale as string) || (profileAny?.locale as string) || null,
     defaultLocale: aiModules.language.default_locale || 'en',
-    // Detectable message language wins; media/emoji-only turns use page locale.
+    // Detectable message language wins; media/emoji-only turns use the
+    // conversation context; UI locale is the last resort.
     autoDetect: true,
+    contextMessages: historyChronological,
   });
 
   let chatResolved = resolveChatCall(aiModules, {

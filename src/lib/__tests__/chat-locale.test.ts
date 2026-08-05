@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectMessageLocale, resolveReplyLocale } from '../chat-locale';
+import { detectContextLocale, detectMessageLocale, resolveReplyLocale } from '../chat-locale';
 
 describe('detectMessageLocale', () => {
   it('detects Chinese', () => {
@@ -58,6 +58,61 @@ describe('resolveReplyLocale', () => {
         uiLocale: 'en',
         defaultLocale: 'en',
         autoDetect: true,
+      }),
+    ).toBe('zh');
+  });
+});
+
+describe('detectContextLocale', () => {
+  it('prefers the newest user message language', () => {
+    expect(
+      detectContextLocale([
+        { role: 'assistant', content: 'Hey babe, miss me?' },
+        { role: 'user', content: '刚下班，好累呀' },
+        { role: 'assistant', content: 'Want to relax together?' },
+      ]),
+    ).toBe('zh');
+  });
+
+  it('user lines outrank assistant lines', () => {
+    expect(
+      detectContextLocale([
+        { role: 'assistant', content: '在想你呀，宝贝' },
+        { role: 'user', content: 'hey baby what are you doing' },
+      ]),
+    ).toBe('en');
+  });
+
+  it('returns null for empty or emoji-only history', () => {
+    expect(detectContextLocale([])).toBeNull();
+    expect(detectContextLocale([{ role: 'user', content: '🔥🔥' }])).toBeNull();
+  });
+});
+
+describe('resolveReplyLocale with context', () => {
+  it('keeps the conversation language for emoji-only turns', () => {
+    expect(
+      resolveReplyLocale({
+        message: '🥺',
+        uiLocale: 'en',
+        defaultLocale: 'en',
+        autoDetect: true,
+        contextMessages: [
+          { role: 'user', content: '宝贝在忙吗' },
+          { role: 'assistant', content: '在呀，怎么啦' },
+        ],
+      }),
+    ).toBe('zh');
+  });
+
+  it('falls back to UI locale when context has no language either', () => {
+    expect(
+      resolveReplyLocale({
+        message: '[Photo]',
+        uiLocale: 'zh',
+        defaultLocale: 'en',
+        autoDetect: true,
+        contextMessages: [{ role: 'user', content: '🔥' }],
       }),
     ).toBe('zh');
   });

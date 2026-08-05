@@ -64,12 +64,8 @@ export async function POST(request: NextRequest) {
       .select('girlfriend_id, score, level')
       .eq('user_id', user.id);
 
-    const locale = resolveReplyLocale({
-      message: '',
-      uiLocale: body.locale || null,
-      defaultLocale: 'en',
-      autoDetect: false,
-    });
+    // NOTE: reply locale is resolved per companion below — it must follow the
+    // language of each conversation, not the page UI locale.
 
     const now = new Date();
     const dayKey = now.toISOString().slice(0, 10);
@@ -203,6 +199,23 @@ export async function POST(request: NextRequest) {
       ) as { score?: number; level?: number } | undefined;
       const intimacyScore = Number(scoreRow?.score) || 0;
 
+      // ── Conversation language: recent history decides, UI locale is fallback ──
+      const { data: historyRows } = await client
+        .from('chat_messages')
+        .select('role, content')
+        .eq('user_id', user.id)
+        .eq('girlfriend_id', gf.id)
+        .order('created_at', { ascending: false })
+        .limit(8);
+      const historyChronological = (historyRows || []).slice().reverse();
+      const locale = resolveReplyLocale({
+        message: '',
+        uiLocale: body.locale || null,
+        defaultLocale: 'en',
+        autoDetect: true,
+        contextMessages: historyChronological,
+      });
+
       // ── Preset soul (stamped into character_card at creation) ──
       const cardRaw = (gf as { character_card?: unknown }).character_card;
       const card = cardRaw && typeof cardRaw === 'object' ? (cardRaw as Record<string, unknown>) : null;
@@ -229,18 +242,19 @@ export async function POST(request: NextRequest) {
         })
         .filter(Boolean);
 
-      // Never repeat content already sent today
+      // Never repeat content already sent in the last 3 days
       let excludeContents: string[] = [];
       try {
-        const { data: sentToday } = await client
+        const threeDaysAgoIso = new Date(Date.now() - 3 * 86_400_000).toISOString();
+        const { data: sentRecent } = await client
           .from('chat_messages')
           .select('content')
           .eq('user_id', user.id)
           .eq('girlfriend_id', gf.id)
           .eq('is_proactive', true)
-          .gte('created_at', `${dayKey}T00:00:00.000Z`)
-          .limit(10);
-        excludeContents = (sentToday || []).map(
+          .gte('created_at', threeDaysAgoIso)
+          .limit(30);
+        excludeContents = (sentRecent || []).map(
           (r: { content?: string }) => r.content || '',
         );
       } catch {
@@ -258,14 +272,6 @@ export async function POST(request: NextRequest) {
       });
 
       for (const pick of picks) {
-        // Prefer holiday/weekend flavors when applicable
-        const { data: historyRows } = await client
-          .from('chat_messages')
-          .select('role, content')
-          .eq('user_id', user.id)
-          .eq('girlfriend_id', gf.id)
-          .order('created_at', { ascending: false })
-          .limit(8);
         // Soul fallback: the character's own outreach lines beat generic templates
         const freshSoulPool = soulProactivePool.filter((c) => !excludeContents.includes(c));
         const soulPool = freshSoulPool.length ? freshSoulPool : soulProactivePool;
@@ -277,7 +283,7 @@ export async function POST(request: NextRequest) {
           personality: String(gf.personality || ''),
           intimacyLevel: Number(scoreRow?.level) || 1,
           locale,
-          history: (historyRows || []).slice().reverse(),
+          history: historyChronological,
           fallback: fallbackContent,
           voiceStyle: soulVoice || undefined,
           scenario: soulScenario || undefined,

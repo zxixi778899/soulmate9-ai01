@@ -15,6 +15,7 @@ import {
   getCurrentHolidayKey,
   isWeekendDay,
 } from '@/lib/proactive-templates';
+import { resolveReplyLocale } from '@/lib/chat-locale';
 import { dailyProactiveTarget, generateContextualProactiveMessage } from '@/lib/proactive-generation';
 
 export const dynamic = 'force-dynamic';
@@ -174,16 +175,7 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // One message per cron run; random content each time
-      const picks = pickDailyTemplates({
-        count: 1,
-        intimacyScore: 0,
-        locale: 'en',
-        now,
-        randomize: true,
-      });
-
-      const [{ data: girlfriend }, { data: historyRows }, { data: scoreRow }] = await Promise.all([
+      const [{ data: girlfriend }, { data: historyRows }, { data: scoreRow }, { data: recentProactive }] = await Promise.all([
         sb.from('girlfriends').select('name, personality, character_card').eq('id', pair.girlfriend_id).maybeSingle(),
         sb.from('chat_messages')
           .select('role, content')
@@ -196,15 +188,36 @@ export async function GET(req: NextRequest) {
           .eq('user_id', pair.user_id)
           .eq('girlfriend_id', pair.girlfriend_id)
           .maybeSingle(),
+        // 3-day memory of already-sent proactive lines → never repeat them
+        sb.from('chat_messages')
+          .select('content')
+          .eq('user_id', pair.user_id)
+          .eq('girlfriend_id', pair.girlfriend_id)
+          .eq('is_proactive', true)
+          .gte('created_at', new Date(Date.now() - 3 * 86_400_000).toISOString())
+          .limit(30),
       ]);
       const history = (historyRows || []).slice().reverse();
-      const hasChineseHistory = history.some((item) =>
-        Array.from(String(item.content || '')).some((char) => {
-          const code = char.charCodeAt(0);
-          return code >= 0x3400 && code <= 0x9fff;
-        }),
+      // Conversation language wins; brand-new pairs without history default to English.
+      const locale = resolveReplyLocale({
+        message: '',
+        autoDetect: true,
+        contextMessages: history,
+        defaultLocale: 'en',
+      });
+      const excludeContents = (recentProactive || []).map(
+        (r: { content?: string }) => r.content || '',
       );
-      const locale = hasChineseHistory ? 'zh' : 'en';
+
+      // One message per cron run; random content each time
+      const picks = pickDailyTemplates({
+        count: 1,
+        intimacyScore: Number(scoreRow?.score) || 0,
+        locale,
+        now,
+        randomize: true,
+        excludeContents,
+      });
 
       // ── Preset soul (stamped into character_card at creation) ──
       const cardRaw = (girlfriend as { character_card?: unknown } | null)?.character_card;
@@ -233,8 +246,10 @@ export async function GET(req: NextRequest) {
         .filter(Boolean);
 
       for (const pick of picks) {
-        const fallbackContent = soulProactivePool.length
-          ? soulProactivePool[Math.floor(Math.random() * soulProactivePool.length)]
+        const freshSoulPool = soulProactivePool.filter((c) => !excludeContents.includes(c));
+        const soulPool = freshSoulPool.length ? freshSoulPool : soulProactivePool;
+        const fallbackContent = soulPool.length
+          ? soulPool[Math.floor(Math.random() * soulPool.length)]
           : pick.content;
         const content = await generateContextualProactiveMessage({
           name: String(girlfriend?.name || 'Your companion'),
