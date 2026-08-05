@@ -171,8 +171,8 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           </div>
         </div>
       </button>
-      {/* Action buttons — in-flow, colored backgrounds */}
-      <div className="flex items-center gap-1.5 pr-2 shrink-0">
+      {/* Action buttons — in-flow on small screens; ≥xl they move to the right profile panel */}
+      <div className="flex items-center gap-1.5 pr-2 shrink-0 xl:hidden">
         <button
           type="button"
           aria-label="Album"
@@ -823,6 +823,13 @@ export default function ChatsPage() {
 
   const levelInfo = getLevelInfo(Number(intimacy?.score) || 0);
 
+  // ── Right profile panel: selected friend + review state ──
+  const selFriend = selectedId ? friends.find((f) => f.id === selectedId) || null : null;
+  const selReviewStatus = selFriend?.review_status || 'draft';
+  const selIsPublished = Boolean(selFriend?.is_public) && selReviewStatus === 'approved';
+  const selIsPending = selReviewStatus === 'pending';
+  const selIsRejected = selReviewStatus === 'rejected';
+
   // ── Render ──
   return (
     <div className="h-full flex bg-[#0a0a12] overflow-hidden pb-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:pb-0">
@@ -1026,6 +1033,168 @@ export default function ChatsPage() {
           </div>
         )}
       </main>
+
+      {/* ──── Right panel: companion profile + actions (≥xl) ──── */}
+      <aside className="hidden xl:flex w-[320px] 2xl:w-[360px] shrink-0 flex-col border-l border-white/[0.06] bg-[#0e0e18] overflow-hidden">
+        {selFriend ? (
+          <div className="flex-1 overflow-y-auto">
+            {/* Portrait */}
+            <div className="p-4 pb-0">
+              <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03]">
+                {(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url || undefined}
+                    alt={selFriend.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#ff2e88]/30 to-[#c026d3]/20 text-4xl font-bold text-[#ff6ba6]">
+                    {selFriend.name?.charAt(0) || '?'}
+                  </div>
+                )}
+                <div className="absolute left-2 top-2 flex gap-1.5">
+                  {selIsPublished && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/80 text-white border border-emerald-300/40 backdrop-blur">
+                      {locale === 'zh' ? '已入库' : 'Public'}
+                    </span>
+                  )}
+                  {selIsPending && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/80 text-white border border-amber-300/40 backdrop-blur">
+                      {locale === 'zh' ? '审核中' : 'Reviewing'}
+                    </span>
+                  )}
+                  {selIsRejected && (
+                    <span
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/80 text-white border border-rose-300/40 backdrop-blur"
+                      title={selFriend.rejection_reason || undefined}
+                    >
+                      {locale === 'zh' ? '已驳回' : 'Rejected'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Name / intimacy / bio */}
+            <div className="px-4 pt-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base font-semibold text-white truncate">{selFriend.name}</h2>
+                <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full font-bold text-[#ff6ba6] bg-[#ff2e88]/15 border border-[#ff2e88]/30">
+                  Lv.{levelInfo.level}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <Heart className="h-3 w-3 text-[#FF6BA6] shrink-0" />
+                <div className="flex-1 h-1 rounded-full bg-white/[0.08] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] transition-all duration-500"
+                    style={{ width: `${computeProgress(intimacy.score, levelInfo.level)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-mono tabular-nums text-white/40 shrink-0">{Math.round(intimacy.score)} pts</span>
+              </div>
+              {(girlfriend?.personality || selFriend.personality) ? (
+                <p className="mt-2 text-[12px] leading-relaxed text-white/45 line-clamp-3">
+                  {girlfriend?.personality || selFriend.personality}
+                </p>
+              ) : null}
+            </div>
+
+            {/* Actions — album / wardrobe / publish / delete (moved here from list rows) */}
+            <div className="px-4 pt-4">
+              <p className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-2">
+                {locale === 'zh' ? '操作' : 'Actions'}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => handleAlbumClick(selFriend, e)}
+                  className="flex flex-col items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 hover:bg-sky-500/10 hover:border-sky-500/30 transition-colors touch-manipulation"
+                >
+                  <ImageIcon className="h-4 w-4 text-sky-400" />
+                  <span className="text-[11px] text-white/70">{locale === 'zh' ? '相册' : 'Album'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleWardrobeClick(selFriend, e)}
+                  className="flex flex-col items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 hover:bg-violet-500/10 hover:border-violet-500/30 transition-colors touch-manipulation"
+                >
+                  <Shirt className="h-4 w-4 text-violet-400" />
+                  <span className="text-[11px] text-white/70">{locale === 'zh' ? '衣柜' : 'Wardrobe'}</span>
+                </button>
+                {selIsPublished ? (
+                  <div className="flex flex-col items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] py-3 opacity-70 cursor-default">
+                    <Globe className="h-4 w-4 text-emerald-400" />
+                    <span className="text-[11px] text-white/60">{locale === 'zh' ? '已发布' : 'Public'}</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={submittingId === selFriend.id}
+                    onClick={(e) => void submitForReview(selFriend, e)}
+                    title={selIsPending
+                      ? (locale === 'zh' ? '撤回发布审核申请' : 'Withdraw review submission')
+                      : (locale === 'zh' ? '发布到公共资料库（需审核）' : 'Publish to public library (requires review)')}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 rounded-xl border py-3 transition-colors touch-manipulation disabled:opacity-50',
+                      selIsPending
+                        ? 'border-amber-500/20 bg-amber-500/[0.08] hover:bg-amber-500/15 hover:border-amber-500/35'
+                        : 'border-emerald-500/20 bg-emerald-500/[0.08] hover:bg-emerald-500/15 hover:border-emerald-500/35',
+                    )}
+                  >
+                    {submittingId === selFriend.id
+                      ? <Loader2 className="h-4 w-4 animate-spin text-white/60" />
+                      : selIsPending
+                        ? <X className="h-4 w-4 text-amber-400" />
+                        : <Send className="h-4 w-4 text-emerald-400" />}
+                    <span className="text-[11px] text-white/70">
+                      {selIsPending ? (locale === 'zh' ? '撤回' : 'Withdraw') : (locale === 'zh' ? '发布' : 'Publish')}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={deletingId === selFriend.id}
+                  onClick={(e) => void deleteFriend(selFriend, e)}
+                  className="flex flex-col items-center gap-1.5 rounded-xl border border-[#FF2D78]/20 bg-[#FF2D78]/[0.08] py-3 hover:bg-[#FF2D78]/15 hover:border-[#FF2D78]/40 transition-colors touch-manipulation disabled:opacity-50"
+                >
+                  {deletingId === selFriend.id
+                    ? <Loader2 className="h-4 w-4 animate-spin text-white/60" />
+                    : <Trash2 className="h-4 w-4 text-[#ff6ba6]" />}
+                  <span className="text-[11px] text-white/70">{locale === 'zh' ? '删除' : 'Delete'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Secondary entries */}
+            <div className="px-4 py-4 space-y-1">
+              <button
+                type="button"
+                onClick={() => setShowMemories(true)}
+                className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-white/60 hover:text-white hover:bg-white/[0.05] transition-colors touch-manipulation"
+              >
+                <BrainCircuit className="h-4 w-4 text-[#FF6BA6]" />
+                <span className="text-[12px]">{locale === 'zh' ? '回忆' : 'Memories'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/chat/${selFriend.id}`)}
+                className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-white/60 hover:text-white hover:bg-white/[0.05] transition-colors touch-manipulation"
+              >
+                <MessageCircle className="h-4 w-4 text-sky-400" />
+                <span className="text-[12px]">{locale === 'zh' ? '专属聊天页' : 'Full chat view'}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center justify-center p-6 text-center">
+            <p className="text-xs text-white/30">
+              {locale === 'zh' ? '选择左侧的伴侣查看资料与操作' : 'Select a companion to view her profile'}
+            </p>
+          </div>
+        )}
+      </aside>
 
       {/* ──── Sheets & Overlays ──── */}
 
