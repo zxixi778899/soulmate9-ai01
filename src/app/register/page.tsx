@@ -6,6 +6,8 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { GoogleGIcon } from "@/components/GoogleGIcon";
+import { XLogoIcon } from "@/components/XLogoIcon";
+import { TelegramAuthButton } from "@/components/TelegramAuthButton";
 
 export default function RegisterPage() {
   const { t } = useTranslation();
@@ -148,6 +150,14 @@ export default function RegisterPage() {
             <GoogleGIcon />
             {t('auth.continueWithGoogle')}
           </a>
+          <a
+            href="/api/auth/x"
+            className="w-full p-3 rounded-lg border border-white/10 bg-white/[0.04] text-white/85 font-heading font-semibold hover:bg-white/[0.08] transition-all flex items-center justify-center gap-2"
+          >
+            <XLogoIcon className="h-4 w-4" />
+            {t('auth.continueWithX')}
+          </a>
+          <TelegramAuthButton />
         </div>
 
         <p className="text-center text-sm text-white/30">
