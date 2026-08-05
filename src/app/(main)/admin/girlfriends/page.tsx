@@ -53,6 +53,7 @@ import {
   traitLabelFor,
   randomizeGirlfriendTraits,
 } from '@/lib/girlfriend-traits';
+import { CompanionAssetLibrary } from '@/components/companion/CompanionAssetLibrary';
 
 type AccessStatus = 'open' | 'locked' | 'closed';
 type RarityTier = 'N' | 'R' | 'SR' | 'SSR';
@@ -1491,6 +1492,16 @@ function AdminGirlfriendsMediaPageInner() {
                 )}
               </div>
             </div>
+
+            {selected && !creating ? (
+              <div className="md:col-span-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-slate-300">资源库（ID参考 / 相册 / 视频）</p>
+                  <p className="text-[10px] text-slate-400">公开资源在伴侣上架（is_public + approved）后进入前端相册；私密仅创建者/管理员可见。</p>
+                </div>
+                <CompanionAssetLibrary companionId={selected.id} canManage />
+              </div>
+            ) : null}
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">

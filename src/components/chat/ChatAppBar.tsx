@@ -26,9 +26,10 @@ export function ChatAppBar(props: {
   isGenerating: boolean;
   onMemories: () => void;
   onAlbum: () => void;
+  onOpenProfile?: () => void;
 }) {
   const { t, locale } = useTranslation();
-  const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories, onAlbum } = props;
+  const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories, onAlbum, onOpenProfile } = props;
   const name = girlfriend?.name?.trim() || 'Companion';
   const color = levelInfo?.color || '#ff2e88';
   const score = Math.round(intimacy?.score ?? 0);
@@ -50,7 +51,12 @@ export function ChatAppBar(props: {
         >
           <ChevronDown className="h-5 w-5 rotate-90" />
         </button>
-        <div className="relative shrink-0">
+        <div
+          className="relative shrink-0 cursor-pointer"
+          onClick={onOpenProfile}
+          role={onOpenProfile ? 'button' : undefined}
+          aria-label={onOpenProfile ? 'Profile' : undefined}
+        >
           <Avatar className="relative h-10 w-10 ring-2 ring-white/10">
             {girlfriend?.avatar_url ? (
               <AvatarImage src={girlfriend.avatar_url} alt={name} className="object-cover" />

@@ -101,7 +101,7 @@ function computeProgress(score: number, level: number): number {
 
 // ─── Friend Row ──────────────────────────────────────────────────────────────
 
-function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, unreadCount, zh, onDelete, onSubmit, onAlbum, onWardrobe, onClick }: {
+function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, unreadCount, zh, onDelete, onSubmit, onAlbum, onWardrobe, onOpenProfile, onClick }: {
   friend: Friend;
   zh: boolean;
   lastMsg?: LastMessage;
@@ -115,6 +115,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
   onSubmit: (gf: Friend, e: MouseEvent) => void;
   onAlbum: (gf: Friend, e: MouseEvent) => void;
   onWardrobe: (gf: Friend, e: MouseEvent) => void;
+  onOpenProfile: (gf: Friend, e: MouseEvent) => void;
   onClick: () => void;
 }) {
   const mood = deriveMood(lastMsg?.content || (tick % 2 === 0 ? friend.personality || '' : ''), score);
@@ -137,7 +138,16 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           selected && 'bg-white/[0.06]',
         )}
       >
-        <div className="relative shrink-0">
+        <div
+          className="relative shrink-0 cursor-pointer"
+          role="button"
+          aria-label={zh ? '进入伴侣主页' : 'Open companion profile'}
+          title={zh ? '进入伴侣主页' : 'Open companion profile'}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenProfile(friend, e);
+          }}
+        >
           <Avatar className="h-14 w-14 ring-1 ring-[#ff2e88]/25">
             {friend.avatar_url
               ? <AvatarImage src={friend.avatar_url} alt={friend.name} className="object-cover" />
@@ -418,6 +428,12 @@ export default function ChatsPage() {
   const handleWardrobeClick = (gf: Friend, e: MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
     router.push('/wardrobe');
+  };
+
+  // ── Avatar / portrait click → companion profile page (抖音风格个人主页) ──
+  const handleOpenProfile = (gf: Friend, e: MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    router.push(`/companion/${gf.id}`);
   };
 
   // ── Publish / withdraw: private companions enter the public library only
@@ -893,6 +909,7 @@ export default function ChatsPage() {
                   onSubmit={(g, e) => void submitForReview(g, e)}
                   onAlbum={handleAlbumClick}
                   onWardrobe={handleWardrobeClick}
+                  onOpenProfile={handleOpenProfile}
                   onClick={() => setSelectedId(gf.id)}
                 />
               ))}
@@ -1038,9 +1055,14 @@ export default function ChatsPage() {
       <aside className="hidden xl:flex w-[320px] 2xl:w-[360px] shrink-0 flex-col border-l border-white/[0.06] bg-[#0e0e18] overflow-hidden">
         {selFriend ? (
           <div className="flex-1 overflow-y-auto">
-            {/* Portrait */}
+            {/* Portrait — click opens companion profile page */}
             <div className="p-4 pb-0">
-              <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03]">
+              <div
+                className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] cursor-pointer transition-opacity hover:opacity-90"
+                role="button"
+                aria-label={locale === 'zh' ? '进入伴侣主页' : 'Open companion profile'}
+                onClick={() => router.push(`/companion/${selFriend.id}`)}
+              >
                 {(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url) ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

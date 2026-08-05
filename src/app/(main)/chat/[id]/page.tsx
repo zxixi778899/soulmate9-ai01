@@ -460,17 +460,34 @@ export default function ChatPage() {
     }
   }, [messages, isTyping, autoScroll]);
 
-  // Fetch album media when album is opened
+  // Fetch album media when album is opened:
+  // companion asset library (公开资源) + chat-generated media, deduped by URL.
   useEffect(() => {
     if (!showAlbum || !id) return;
     setAlbumLoading(true);
-    authedFetch(`/api/chat/${id}/media`)
-      .then((res) => readResponseJson(res).catch(() => ({})))
-      .then((data) => {
-        const items = Array.isArray((data as { media?: unknown[] }).media)
-          ? ((data as { media: Array<{ id: string; url: string; media_type: string; created_at?: string }> }).media)
+    Promise.all([
+      authedFetch(`/api/chat/${id}/media`)
+        .then((res) => readResponseJson(res).catch(() => ({})))
+        .catch(() => ({})),
+      authedFetch(`/api/companion/${id}/assets`)
+        .then((res) => res.json().catch(() => ({})))
+        .catch(() => ({})),
+    ])
+      .then(([mediaData, assetData]) => {
+        const chatItems = Array.isArray((mediaData as { media?: unknown[] }).media)
+          ? ((mediaData as { media: Array<{ id: string; url: string; media_type: string; created_at?: string }> }).media)
           : [];
-        setAlbumMedia(items.filter((m) => m.url && m.url.startsWith('http')));
+        const chatMedia = chatItems.filter((m) => m.url && m.url.startsWith('http'));
+
+        const assetRows = Array.isArray((assetData as { assets?: unknown[] }).assets)
+          ? ((assetData as { assets: Array<{ id: string; url: string; media_type: string; category: string }> }).assets)
+          : [];
+        const libraryMedia = assetRows
+          .filter((a) => a.url && a.url.startsWith('http') && a.category !== 'id_reference')
+          .map((a) => ({ id: a.id, url: a.url, media_type: a.media_type }));
+
+        const seen = new Set(libraryMedia.map((m) => m.url));
+        setAlbumMedia([...libraryMedia, ...chatMedia.filter((m) => !seen.has(m.url))]);
       })
       .catch(() => setAlbumMedia([]))
       .finally(() => setAlbumLoading(false));
@@ -1713,6 +1730,7 @@ export default function ChatPage() {
         isGenerating={isGenerating}
         onMemories={() => setShowMemories(true)}
         onAlbum={() => setShowAlbum(true)}
+        onOpenProfile={girlfriend?.id ? () => router.push(`/companion/${girlfriend.id}`) : undefined}
       />
 
       {/* Compact intimacy strip — full IntimacyProgress was crowding the dialog */}
