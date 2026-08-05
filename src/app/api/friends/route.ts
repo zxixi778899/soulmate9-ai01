@@ -13,36 +13,86 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const GF_FIELDS =
+    'id, name, slug, avatar_url, portrait_url, personality, short_description, review_status, is_public, age, tags, character_card, submitted_at, rejection_reason';
+
   const { data: rows, error } = await client
     .from('user_friends')
     .select('id, girlfriend_id, source, created_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
+    .eq('user_id', user.id);
 
   if (error) {
     logger.error('[friends] list failed', { error: error.message });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (!rows || rows.length === 0) {
-    return NextResponse.json({ friends: [] });
+  type Link = { girlfriend_id: string; source: string; created_at: string };
+  const links: Link[] = ((rows || []) as Link[]).map((l) => ({
+    girlfriend_id: String(l.girlfriend_id),
+    source: l.source,
+    created_at: l.created_at,
+  }));
+  const sourceByGfId = new Map(links.map((l) => [l.girlfriend_id, l.source]));
+  const sinceByGfId = new Map(links.map((l) => [l.girlfriend_id, l.created_at]));
+
+  /**
+   * The friend list must mirror "我的伴侣" (GET /api/girlfriends): user_friends
+   * is the source of truth, but owned companions can outlive their friendship
+   * row (deleted → re-approved → re-added as 'public' → deleted again leaves
+   * the companion approved with no row). Union owned active companions in so
+   * both surfaces always return the same set.
+   */
+  const { data: ownedRows, error: ownedErr } = await client
+    .from('girlfriends')
+    .select(`${GF_FIELDS}, created_at, is_pinned, pinned_at`)
+    .eq('user_id', user.id)
+    .neq('review_status', 'removed')
+    .order('is_pinned', { ascending: false })
+    .order('pinned_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+
+  if (ownedErr) {
+    logger.error('[friends] owned list failed', { error: ownedErr.message });
+    return NextResponse.json({ error: ownedErr.message }, { status: 500 });
   }
 
-  const gfIds = rows.map((r: { girlfriend_id: string }) => r.girlfriend_id);
-  const { data: girlfriends } = await client
-    .from('girlfriends')
-    .select('id, name, slug, avatar_url, portrait_url, personality, short_description, review_status, is_public, age, tags, character_card, submitted_at, rejection_reason')
-    .in('id', gfIds);
+  type FriendRow = Record<string, unknown> & { id: string };
+  const owned = (ownedRows || []) as FriendRow[];
+  const ownedIds = new Set(owned.map((g) => String(g.id)));
 
-  const gfMap = new Map((girlfriends || []).map((g: { id: string }) => [g.id, g]));
+  const addedLinks = links
+    .filter((l) => !ownedIds.has(l.girlfriend_id))
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
 
-  const friends = rows
-    .map((r: { girlfriend_id: string; source: string; created_at: string }) => {
-      const gf = gfMap.get(r.girlfriend_id);
-      if (!gf) return null;
-      return { ...gf, friend_source: r.source, friend_since: r.created_at };
-    })
-    .filter(Boolean);
+  let addedFriends: FriendRow[] = [];
+  if (addedLinks.length) {
+    const { data: addedRows, error: addedErr } = await client
+      .from('girlfriends')
+      .select(GF_FIELDS)
+      .in('id', addedLinks.map((l) => l.girlfriend_id))
+      .neq('review_status', 'removed');
+    if (addedErr) {
+      logger.warn('[friends] added-friends lookup failed', { err: addedErr.message });
+    } else {
+      const byId = new Map(((addedRows || []) as FriendRow[]).map((g) => [String(g.id), g]));
+      addedFriends = addedLinks
+        .map((l) => byId.get(l.girlfriend_id))
+        .filter((g): g is FriendRow => Boolean(g));
+    }
+  }
+
+  const friends = [
+    ...owned.map((g) => ({
+      ...g,
+      friend_source: sourceByGfId.get(String(g.id)) || 'created',
+      friend_since: sinceByGfId.get(String(g.id)) || g.created_at,
+    })),
+    ...addedFriends.map((g) => ({
+      ...g,
+      friend_source: sourceByGfId.get(String(g.id)) || 'public',
+      friend_since: sinceByGfId.get(String(g.id)) || null,
+    })),
+  ];
 
   return NextResponse.json({ friends });
 }
@@ -174,20 +224,31 @@ export async function DELETE(request: NextRequest) {
     .eq('girlfriend_id', girlfriendId)
     .maybeSingle();
 
-  if (!friendRow) {
+  // 自有伴侣可能没有好友行（删除→重新上架→以'public'重新添加→再删除会留下
+  // approved 但无行的孤儿伴侣），它们同样必须能从好友列表移除
+  const { data: ownedGf } = await client
+    .from('girlfriends')
+    .select('id, user_id')
+    .eq('id', girlfriendId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!friendRow && !ownedGf) {
     return NextResponse.json({ error: 'Friend not found' }, { status: 404 });
   }
 
   // 删除好友关系
-  const { error: delError } = await client
-    .from('user_friends')
-    .delete()
-    .eq('user_id', user.id)
-    .eq('girlfriend_id', girlfriendId);
+  if (friendRow) {
+    const { error: delError } = await client
+      .from('user_friends')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('girlfriend_id', girlfriendId);
 
-  if (delError) {
-    logger.error('[friends] delete failed', { error: delError.message });
-    return NextResponse.json({ error: delError.message }, { status: 500 });
+    if (delError) {
+      logger.error('[friends] delete failed', { error: delError.message });
+      return NextResponse.json({ error: delError.message }, { status: 500 });
+    }
   }
 
   // 清空与该伴侣的所有聊天记录（删除好友即彻底清除对话）
@@ -212,8 +273,10 @@ export async function DELETE(request: NextRequest) {
     logger.error('[friends] reset intimacy failed', { error: intimacyError.message });
   }
 
-  // 如果是用户创建的伴侣，同时软删除伴侣本体
-  if (friendRow.source === 'created') {
+  // 如果是用户自己的伴侣，同时软删除伴侣本体。按所有权判断而非 source：
+  // 自建伴侣被删除后重新上架、再以'public'重新添加时，好友行 source='public'，
+  // 旧逻辑会跳过软删除，留下没有好友行的孤儿伴侣（我的伴侣有、好友列表没有）
+  if (ownedGf) {
     await client
       .from('girlfriends')
       .update({ review_status: 'removed', is_active: false, is_public: false })
