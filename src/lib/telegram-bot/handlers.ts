@@ -23,7 +23,7 @@ export interface BotCtx {
   locale: BotLocale;
 }
 
-const SITE_URL = 'https://ozmate.love';
+const SITE_URL = 'https://oxmate.shop';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

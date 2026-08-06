@@ -24,7 +24,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const WEB_URL = 'https://ozmate.love';
+const WEB_URL = 'https://oxmate.shop';
 
 export async function POST(request: NextRequest) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
