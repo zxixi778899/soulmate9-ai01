@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     await Promise.all([
       client
         .from('profiles')
-        .select('membership_tier, credits_remaining')
+        .select('membership_tier, credits_remaining, display_name, avatar_url, bio')
         .eq('user_id', user.id)
         .single(),
       client
@@ -130,6 +130,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     tier,
     credits_remaining: profile?.credits_remaining || 0,
+    display_name: profile?.display_name || null,
+    avatar_url: profile?.avatar_url || null,
+    bio: profile?.bio || null,
     ...currentPlan,
     max_girlfriends: seats.effectiveLimit,
     seats,
@@ -180,10 +183,15 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json();
 
-  if (body.display_name !== undefined) {
+  const patch: Record<string, unknown> = {};
+  if (body.display_name !== undefined) patch.display_name = body.display_name;
+  if (body.bio !== undefined) patch.bio = body.bio;
+  if (body.avatar_url !== undefined) patch.avatar_url = body.avatar_url;
+
+  if (Object.keys(patch).length > 0) {
     const { error } = await client
       .from('profiles')
-      .update({ display_name: body.display_name })
+      .update(patch)
       .eq('user_id', user.id);
 
     if (error) {

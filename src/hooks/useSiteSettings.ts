@@ -16,6 +16,9 @@ export type SiteSettings = {
   recharge_banner_desc: string;
   achievement_banner_title: string;
   achievement_banner_desc: string;
+  announcement_enabled: boolean;
+  announcement_text: string;
+  announcement_link: string;
 };
 
 export type AdItem = {

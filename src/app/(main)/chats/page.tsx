@@ -281,6 +281,27 @@ export default function ChatsPage() {
   const [selectedPose, setSelectedPose] = useState<string | null>(null);
   const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
+
+  // Chat reply mode: scene (current style) vs dialogue (spoken words only)
+  const [replyMode, setReplyMode] = useState<'scene' | 'dialogue'>('scene');
+  useEffect(() => {
+    if (!selectedId) return;
+    try {
+      const saved = localStorage.getItem(`soulmate_reply_mode_${selectedId}`);
+      if (saved === 'scene' || saved === 'dialogue') setReplyMode(saved);
+    } catch {
+      /* ignore */
+    }
+  }, [selectedId]);
+  const handleReplyModeChange = (mode: 'scene' | 'dialogue') => {
+    setReplyMode(mode);
+    try {
+      localStorage.setItem(`soulmate_reply_mode_${selectedId}`, mode);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceSeconds, setVoiceSeconds] = useState(0);
@@ -722,7 +743,7 @@ export default function ChatsPage() {
     try {
       const res = await authedFetch('/api/ai/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text || displayText, girlfriend_id: selectedId, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale, ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}) }),
+        body: JSON.stringify({ message: text || displayText, girlfriend_id: selectedId, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale, reply_mode: replyMode, ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}) }),
       });
       if (!res.ok) {
         const errBody = (await readResponseJson(res).catch(() => ({}))) as { error?: string; localized_error?: string; code?: string };
@@ -926,9 +947,9 @@ export default function ChatsPage() {
       )}>
         {selectedId && !isLoading && girlfriend ? (
           <div className="relative flex h-full flex-col overflow-hidden">
-            {/* Portrait background — 50% opacity */}
-            {(girlfriend?.portrait_url || girlfriend?.card_url || girlfriend?.avatar_url) && (
-              <div className="pointer-events-none absolute inset-0 z-0 opacity-50" style={{ backgroundImage: `url(${girlfriend.portrait_url || girlfriend.card_url || girlfriend.avatar_url})`, backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat' }} />
+            {/* Companion portrait background at 40% opacity (立绘) */}
+            {(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || girlfriend?.avatar_url) && (
+              <div className="pointer-events-none absolute inset-0 z-0 opacity-40" style={{ backgroundImage: `url(${girlfriend.card_url || girlfriend.portrait_url || girlfriend.image_url || girlfriend.avatar_url})`, backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat' }} />
             )}
             <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0b0b12]/70 via-[#0b0b12]/50 to-[#0b0b12]/90" />
 
@@ -1034,6 +1055,8 @@ export default function ChatsPage() {
                 onSelfie={() => void generateSelfie('send me a sexy selfie')}
                 isGenerating={isGenerating}
                 onMemories={() => setShowMemories(true)}
+                replyMode={replyMode}
+                onReplyModeChange={handleReplyModeChange}
               />
             </div>
           </div>

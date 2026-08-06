@@ -518,6 +518,19 @@ export async function POST(request: NextRequest) {
       : {}),
   });
 
+  // Community interaction value: a published companion being invoked by a
+  // non-owner earns +1 interaction (and +1 heat). Fire-and-forget.
+  if (
+    gf.is_public === true &&
+    gf.review_status === 'approved' &&
+    gf.user_id &&
+    gf.user_id !== user.id
+  ) {
+    Promise.resolve(
+      client.rpc('increment_girlfriend_interaction', { gf_id: girlfriend_id }),
+    ).catch(() => {});
+  }
+
   // Replying implies the user has seen the companion's proactive messages —
   // mark them read so the unread badge clears (fire and forget).
   Promise.resolve(

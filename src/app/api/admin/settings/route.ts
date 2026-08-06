@@ -20,6 +20,9 @@ export type SiteSettings = {
   recharge_banner_desc: string;
   achievement_banner_title: string;
   achievement_banner_desc: string;
+  announcement_enabled: boolean;
+  announcement_text: string;
+  announcement_link: string;
 };
 
 const DEFAULTS: SiteSettings = {
@@ -36,6 +39,9 @@ const DEFAULTS: SiteSettings = {
   recharge_banner_desc: '限时优惠 · 仅限首次充值',
   achievement_banner_title: '成就有礼 · 完成任务领奖励',
   achievement_banner_desc: '亲密里程碑 · 代币 / 装扮掉落',
+  announcement_enabled: false,
+  announcement_text: '',
+  announcement_link: '',
 };
 
 function settingsPath() {

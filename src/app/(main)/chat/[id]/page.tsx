@@ -1098,8 +1098,13 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input_image: imageUrl, girlfriend_id: id }),
       });
-      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; endpoint_id?: string; error?: string }>(vidRes);
-      if (!vidRes.ok) throw new Error(vidData.error || 'Video generation failed');
+      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; endpoint_id?: string; error?: string; code?: string }>(vidRes);
+      if (!vidRes.ok) {
+        if (vidData.code === 'gpu_busy') {
+          throw new Error(waitZh ? 'GPU 繁忙，请稍后再试' : 'GPU is busy, please try again in a minute');
+        }
+        throw new Error(vidData.error || 'Video generation failed');
+      }
 
       let videoUrl = vidData.video_url;
       // Handle pending video
@@ -1719,7 +1724,7 @@ export default function ChatPage() {
 
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#0b0b12] text-white">
-      {/* Girlfriend standing portrait background at 30% opacity */}
+      {/* Companion portrait background at 40% opacity (立绘) */}
       {(() => {
         const bgPortrait =
           girlfriend?.card_url ||
@@ -1729,7 +1734,7 @@ export default function ChatPage() {
           null;
         return bgPortrait ? (
           <div
-            className="pointer-events-none absolute inset-0 z-0 opacity-30"
+            className="pointer-events-none absolute inset-0 z-0 opacity-40"
             style={{
               backgroundImage: `url(${bgPortrait})`,
               backgroundSize: 'cover',

@@ -13,7 +13,7 @@
  */
 
 import { logger } from '@/lib/logger';
-import { runpodClient } from '@/lib/runpod';
+import { isGpuCapacityError, runpodClient } from '@/lib/runpod';
 import { falGenerate, isFalConfigured } from '@/lib/fal-client';
 import type { ImageModelFamily } from '@/lib/image-generation-routing';
 
@@ -127,6 +127,15 @@ function recordFailure(config: ImageRouteConfig): void {
 
 function recordSuccess(config: ImageRouteConfig): void {
   circuits.delete(config.id);
+}
+
+/** Open the circuit immediately for systemic GPU-capacity failures. */
+function openCircuit(config: ImageRouteConfig): void {
+  const state = circuits.get(config.id) || { failures: 0, openedAt: null };
+  state.failures = config.failure_threshold;
+  state.openedAt = Date.now();
+  circuits.set(config.id, state);
+  logger.warn('[image-router] circuit opened (gpu capacity)', { provider: config.id });
 }
 
 // ─── Default Route Configuration ─────────────────────────────
@@ -462,8 +471,12 @@ export async function routeImageGeneration(opts: ImageRouterOptions): Promise<Im
       attempts.push({ provider: route.provider, success: false, error: errMsg, latency_ms: latency });
       lastError = error instanceof Error ? error : new Error(errMsg);
 
-      // Don't open circuit for timeouts (transient) — only for real failures
-      if (!errMsg.startsWith('timeout:') && errMsg !== 'queued_switch') {
+      // Don't open circuit for timeouts (transient) — only for real failures.
+      // GPU-capacity errors (OOM / no workers / 429-5xx) are systemic: open the
+      // circuit at once so later requests skip the dead endpoint.
+      if (isGpuCapacityError(errMsg) && (route.provider === 'runpod' || route.provider === 'runpod_dc2')) {
+        openCircuit(route);
+      } else if (!errMsg.startsWith('timeout:') && errMsg !== 'queued_switch') {
         recordFailure(route);
       }
 

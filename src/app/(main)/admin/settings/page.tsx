@@ -25,6 +25,9 @@ type SiteSettings = {
   recharge_banner_desc: string;
   achievement_banner_title: string;
   achievement_banner_desc: string;
+  announcement_enabled: boolean;
+  announcement_text: string;
+  announcement_link: string;
 };
 
 export default function AdminSettingsPage() {
@@ -172,6 +175,32 @@ export default function AdminSettingsPage() {
             <div>
               <Label>成就广告描述</Label>
               <Input value={settings.achievement_banner_desc} onChange={(e) => set('achievement_banner_desc', e.target.value)} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#E2E8F0]">
+          <CardContent className="p-5 space-y-4">
+            <div className="text-sm font-semibold text-white">首页公告栏</div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>启用公告栏</Label>
+                <p className="text-[11px] text-[#94A3B8]">开启后在主页顶部显示公告</p>
+              </div>
+              <Switch checked={settings.announcement_enabled} onCheckedChange={(v) => set('announcement_enabled', v)} />
+            </div>
+            <div>
+              <Label>公告内容</Label>
+              <Textarea
+                value={settings.announcement_text}
+                onChange={(e) => set('announcement_text', e.target.value)}
+                rows={2}
+                placeholder="例如：新版本上线，充值双倍积分活动进行中…"
+              />
+            </div>
+            <div>
+              <Label>公告链接（可选）</Label>
+              <Input value={settings.announcement_link} onChange={(e) => set('announcement_link', e.target.value)} placeholder="https://…" />
             </div>
           </CardContent>
         </Card>

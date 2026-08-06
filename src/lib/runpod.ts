@@ -20,6 +20,18 @@ import { capture, AnalyticsEvents } from './analytics';
 // RunPod credentials  MUST come from environment variables
 // 
 
+/**
+ * Detect RunPod GPU capacity / OOM errors. These mean "no GPU right now" —
+ * retrying immediately is pointless; fail over or open the circuit breaker.
+ */
+const GPU_CAPACITY_RE =
+  /out of memory|\bOOM\b|cuda|\bGPU\b|INSUFFICIENT_RESOURCES|NO_CAPACITY|no (?:available|capacity)|capacity|429|5\d{2}|too many|no worker|insufficient gpu/i;
+
+export function isGpuCapacityError(message: string | undefined | null): boolean {
+  if (!message) return false;
+  return GPU_CAPACITY_RE.test(message);
+}
+
 function getRunPodConfig(): { apiKey: string; endpointId: string; baseUrl: string } {
   const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
   const endpointId = process.env.RUNPOD_ENDPOINT_ID || '';

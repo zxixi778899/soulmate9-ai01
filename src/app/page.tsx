@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 import {
   MessageCircle, ShoppingBag, Wand2, Crown, ChevronLeft, ChevronRight,
   Heart, Flame, Lock, Zap, Users, Share2,
-  Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink,
+  Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink, Megaphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GIRLS, RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
@@ -27,6 +27,7 @@ import { readResponseJson } from '@/lib/safe-json';
 import { CompanionDetailModal } from '@/components/discover/CompanionDetailModal';
 import { CardMedia } from '@/components/discover/CardMedia';
 import { ShareCard } from '@/components/ShareCard';
+import { LeaderboardRail } from '@/components/community/LeaderboardRail';
 import {
   GameShell, GameChip, GamePrimaryButton, RarityBadge,
 } from '@/components/game/GameShell';
@@ -391,6 +392,49 @@ export default function HomePage() {
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-8 pt-2 sm:pt-4 space-y-4 sm:space-y-6">
+        {/* Announcement bar — 公告栏（后台 site_settings 管理） */}
+        {siteSettings?.announcement_enabled && siteSettings.announcement_text ? (
+          <div className="relative flex items-center gap-2.5 rounded-2xl border border-amber-300/25 bg-gradient-to-r from-amber-300/12 via-white/[0.04] to-[#FF2D78]/10 px-3.5 py-2.5">
+            <Megaphone className="h-4 w-4 shrink-0 text-amber-300" />
+            <p className="flex-1 text-[12px] leading-snug text-amber-50/95">{siteSettings.announcement_text}</p>
+            {siteSettings.announcement_link ? (
+              <a
+                href={siteSettings.announcement_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:bg-amber-300/20 active:scale-95 transition-all"
+              >
+                {locale === 'zh' ? '查看' : 'View'}
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Ad banner — 广告栏（后台 admin_ads 管理，position=banner） */}
+        {bannerAds.length > 0 && (
+          <section className="space-y-2">
+            {bannerAds.map((ad) => (
+              <a
+                key={ad.id}
+                href={ad.link_url || '#'}
+                target={ad.link_url ? '_blank' : undefined}
+                rel={ad.link_url ? 'noopener noreferrer' : undefined}
+                className="block relative overflow-hidden rounded-2xl ring-1 ring-white/10 hover:ring-[#ff2e88]/40 transition-all group"
+              >
+                <img
+                  src={ad.image_url}
+                  alt={ad.title}
+                  className="w-full h-28 sm:h-36 object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
+                <div className="absolute bottom-2 left-3 z-[2]">
+                  <span className="text-xs sm:text-sm font-bold text-white drop-shadow">{ad.title}</span>
+                </div>
+              </a>
+            ))}
+          </section>
+        )}
+
         {/* Top */}
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           <div className="min-w-0">
@@ -691,6 +735,8 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ═══════════ Ranking：人气创作者 Top15（虚拟+真实合并） ═══════════ */}
+        <LeaderboardRail />
 
         {/* ═══════════ Modules: 2 rows × 3 cols ═══════════ */}
         <section>
@@ -753,30 +799,7 @@ export default function HomePage() {
         </section>
 
 
-        {/* Ads Banner (from admin_ads DB) */}
-        {bannerAds.length > 0 && (
-          <section className="space-y-2">
-            {bannerAds.map((ad) => (
-              <a
-                key={ad.id}
-                href={ad.link_url || '#'}
-                target={ad.link_url ? '_blank' : undefined}
-                rel={ad.link_url ? 'noopener noreferrer' : undefined}
-                className="block relative overflow-hidden rounded-2xl ring-1 ring-white/10 hover:ring-[#ff2e88]/40 transition-all group"
-              >
-                <img
-                  src={ad.image_url}
-                  alt={ad.title}
-                  className="w-full h-28 sm:h-36 object-cover group-hover:scale-[1.02] transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
-                <div className="absolute bottom-2 left-3 z-[2]">
-                  <span className="text-xs sm:text-sm font-bold text-white drop-shadow">{ad.title}</span>
-                </div>
-              </a>
-            ))}
-          </section>
-        )}
+        {/* (Ad banner moved to the top of the homepage) */}
 
         {/* ═══════════ Footer ═══════════ */}
         <footer className="glass-strong rounded-2xl px-4 sm:px-6 py-6 sm:py-8 mt-2">

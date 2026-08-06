@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { isGpuCapacityError } from '@/lib/runpod';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
 import { CREDIT_COSTS, deductCredits, grantCredits } from '@/lib/credit-system';
 import { checkAchievements } from '@/lib/achievement-checker';
@@ -102,26 +103,50 @@ export async function POST(request: NextRequest) {
       imagePayload = inputImage.replace(/^data:image\/\w+;base64,/, '');
     }
 
-    // Submit to RunPod SVD
-    const submitRes = await fetch(`${baseUrl}/run`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        input: {
-          input_image: imagePayload,
-          motion_bucket_id: motionBucketId,
-          fps,
-          num_frames: numFrames,
-          decode_chunk_size: decodeChunkSize,
+    // Submit to RunPod SVD. GPU-capacity failures (429 / 5xx / OOM / no worker)
+    // are retried once after a short delay before surfacing a friendly error.
+    let submitRes: Response | null = null;
+    let submitErrText = '';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      submitRes = await fetch(`${baseUrl}/run`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          input: {
+            input_image: imagePayload,
+            motion_bucket_id: motionBucketId,
+            fps,
+            num_frames: numFrames,
+            decode_chunk_size: decodeChunkSize,
+          },
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (submitRes.ok) break;
+      submitErrText = await submitRes.text().catch(() => '');
+      logger.error('[generate-video] submit failed', {
+        status: submitRes.status,
+        body: submitErrText.slice(0, 200),
+        attempt,
+      });
+      if (attempt === 0 && (isGpuCapacityError(submitErrText) || submitRes.status >= 500 || submitRes.status === 429)) {
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      const gpuBusy = isGpuCapacityError(submitErrText) || submitRes.status === 429;
+      return NextResponse.json(
+        {
+          error: gpuBusy
+            ? 'GPU is busy right now. Please try again in a minute.'
+            : `Video generation submit failed: ${submitRes.status}`,
+          code: gpuBusy ? 'gpu_busy' : undefined,
         },
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
+        { status: 502 },
+      );
+    }
 
-    if (!submitRes.ok) {
-      const errText = await submitRes.text();
-      logger.error('[generate-video] submit failed', { status: submitRes.status, body: errText.slice(0, 200) });
-      return NextResponse.json({ error: `Video generation submit failed: ${submitRes.status}` }, { status: 502 });
+    if (!submitRes || !submitRes.ok) {
+      return NextResponse.json({ error: 'Video generation submit failed' }, { status: 502 });
     }
 
     const { id: jobId } = (await submitRes.json()) as { id: string };
@@ -206,9 +231,18 @@ export async function POST(request: NextRequest) {
 
       if (status.status === 'FAILED') {
         const failMsg = status.error || 'Video generation failed';
+        const gpuBusy = isGpuCapacityError(failMsg);
         // Auto-refund the video cost on failure.
         await grantCredits(client, user.id, videoCost, 'refund', jobId).catch(() => {});
-        return NextResponse.json({ error: failMsg, code: 'video_gen_failed' }, { status: 500 });
+        return NextResponse.json(
+          {
+            error: gpuBusy
+              ? 'GPU is busy right now. Please try again in a minute.'
+              : failMsg,
+            code: gpuBusy ? 'gpu_busy' : 'video_gen_failed',
+          },
+          { status: 500 },
+        );
       }
     }
 
