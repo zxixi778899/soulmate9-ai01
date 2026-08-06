@@ -51,6 +51,13 @@ export type ConsoleWorkflowPreset = {
 const FLUX_NEG_BASE =
   'blurry, lowres, bad anatomy, deformed hands, extra fingers, watermark, text, logo';
 
+/** 自然感正向补丁：降低“AI 味”，让脸部有辨识度 */
+const NATURAL_POSITIVE =
+  ', natural skin texture with visible pores, unique facial features, candid realistic expression, subtle asymmetric imperfections, editorial photography, fine film grain';
+/** 反“AI 脸”负向词：塑料感 / 千篇一律脸 */
+const ANTI_AI_NEGATIVE =
+  ', plastic skin, airbrushed, doll-like, porcelain skin, generic face, same-face look, AI-generated look, oversmoothed, waxy, uncanny';
+
 const SAMPLER_OPTIONS = [
   { value: 'euler', label: 'euler（推荐）' },
   { value: 'euler_ancestral', label: 'euler_ancestral' },
@@ -87,6 +94,23 @@ function loraField(hint?: string): ConsoleParamField {
     type: 'loras',
     label: 'LoRA 叠加',
     hint: hint || '最多 3 个，总强度过高会自动等比缩放',
+  };
+}
+
+/** NSFW 强度字段（≥3 时提示词优化走 vLLM-Qwen3 NSFW 路由） */
+function intensityField(): ConsoleParamField {
+  return {
+    key: 'intensity',
+    type: 'select',
+    label: 'NSFW 强度',
+    hint: '1 日常 · 2 内衣/性感 · 3 全裸 · 4 自慰 · 5 明确性行为；≥3 启用 NSFW 路由提示词优化',
+    options: [
+      { value: '1', label: '1 · 日常（完全遮盖）' },
+      { value: '2', label: '2 · 内衣 / 性感（遮盖）' },
+      { value: '3', label: '3 · 全裸（无性行为）' },
+      { value: '4', label: '4 · 自慰（高潮前）' },
+      { value: '5', label: '5 · 明确性行为' },
+    ],
   };
 }
 
@@ -213,12 +237,12 @@ export const CONSOLE_PRESETS: ConsoleWorkflowPreset[] = [
     ],
     defaults: {
       prompt:
-        'full-body character concept of a beautiful adult woman, distinctive memorable face, stylish modern outfit, relaxed confident stance, clean neutral studio backdrop, soft directional lighting, photorealistic, crisp detail, sharp focus',
-      negative: FLUX_NEG_BASE + ', child, underage',
+        'full-body character concept of a beautiful adult woman, distinctive memorable face, stylish modern outfit, relaxed confident stance, clean neutral studio backdrop, soft directional lighting, photorealistic, crisp detail, sharp focus' + NATURAL_POSITIVE,
+      negative: FLUX_NEG_BASE + ', child, underage' + ANTI_AI_NEGATIVE,
       width: 832,
       height: 1216,
-      steps: 28,
-      flux_guidance: 3.5,
+      steps: 34,
+      flux_guidance: 4,
       sampler: 'euler',
       scheduler: 'simple',
       seed: -1,
@@ -278,19 +302,21 @@ export const CONSOLE_PRESETS: ConsoleWorkflowPreset[] = [
         ],
       },
       { key: 'negative', type: 'textarea', label: '负面提示词' },
+      intensityField(),
       loraField(),
       ...fluxAdvancedFields(),
     ],
     defaults: {
+      intensity: 1,
       prompt:
-        'upper-body portrait of the same woman as the reference, consistent face identity, same hair color and hairstyle, elegant outfit, soft studio key light, photorealistic 8k, sharp eyes',
-      negative: 'different person, face change, ' + FLUX_NEG_BASE + ', child',
+        'upper-body portrait of the same woman as the reference, consistent face identity, same hair color and hairstyle, elegant outfit, soft studio key light, photorealistic 8k, sharp eyes' + NATURAL_POSITIVE,
+      negative: 'different person, face change, ' + FLUX_NEG_BASE + ', child' + ANTI_AI_NEGATIVE,
       ip_adapter_image: '',
       ip_adapter_weight: 0.75,
       width: 832,
       height: 1216,
-      steps: 28,
-      flux_guidance: 3.5,
+      steps: 34,
+      flux_guidance: 4,
       sampler: 'euler',
       scheduler: 'simple',
       seed: -1,
@@ -652,21 +678,23 @@ export const CONSOLE_PRESETS: ConsoleWorkflowPreset[] = [
         ],
       },
       { key: 'negative', type: 'textarea', label: '负面提示词' },
+      intensityField(),
       loraField(),
       ...fluxAdvancedFields(),
     ],
     defaults: {
+      intensity: 1,
       prompt:
-        'same woman as the reference, identical face and outfit, standing with one hand on hip, confident weight shift, full body, consistent lighting, photorealistic',
-      negative: 'different person, face change, outfit change, ' + FLUX_NEG_BASE,
+        'same woman as the reference, identical face and outfit, standing with one hand on hip, confident weight shift, full body, consistent lighting, photorealistic' + NATURAL_POSITIVE,
+      negative: 'different person, face change, outfit change, ' + FLUX_NEG_BASE + ANTI_AI_NEGATIVE,
       input_image: '',
       denoise: 0.65,
       ip_adapter_image: '',
       ip_adapter_weight: 0.8,
       width: 832,
       height: 1216,
-      steps: 26,
-      flux_guidance: 3.5,
+      steps: 32,
+      flux_guidance: 4,
       sampler: 'euler',
       scheduler: 'simple',
       seed: -1,
@@ -826,6 +854,7 @@ export const CONSOLE_PRESETS: ConsoleWorkflowPreset[] = [
         ],
       },
       { key: 'negative', type: 'textarea', label: '负面提示词' },
+      intensityField(),
       { key: 'width', type: 'number', label: '宽度', advanced: true, min: 320, max: 1280, step: 16 },
       { key: 'height', type: 'number', label: '高度', advanced: true, min: 320, max: 1280, step: 16 },
       { key: 'num_frames', type: 'number', label: '帧数', advanced: true, min: 16, max: 161, step: 1, hint: '81 帧 ≈ 5 秒 @16fps' },
@@ -835,6 +864,7 @@ export const CONSOLE_PRESETS: ConsoleWorkflowPreset[] = [
       { key: 'seed', type: 'seed', label: '种子', advanced: true, hint: '-1 = 随机' },
     ],
     defaults: {
+      intensity: 1,
       prompt:
         'the woman breathes gently, slowly turns her head toward the camera and smiles softly, hair swaying slightly, natural subtle motion, stable identity, smooth camera',
       negative: 'blurry, flicker, distorted face, extra limbs, watermark, text',

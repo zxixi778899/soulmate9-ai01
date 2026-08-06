@@ -8,6 +8,11 @@ import {
   type ConsoleWorkflowPreset,
 } from '@/lib/comfyui-console/console-presets';
 import { validateRawGraph } from '@/lib/comfyui-console/workflow-controls';
+import { buildAutoLoraStack } from '@/lib/auto-lora';
+import { invokeChat } from '@/lib/ai-modules/invoke';
+import { loadAiModules } from '@/lib/ai-modules';
+import { pickImagePromptEndpoint, sanitizeLlmPrompt } from '@/lib/image-prompt-llm';
+import { compactFluxPrompt } from '@/lib/comfy-console/studio-profile';
 import { uploadImageBase64, uploadFile, extractKeyFromUrl } from '@/lib/storage';
 import { sanitizeLoraForVolume, getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
@@ -187,10 +192,25 @@ function collectMediaFromOutput(
 /** 预设种子：表为空时写入 9 大预设 */
 async function ensurePresetsSeeded(supabase: ReturnType<typeof getSupabaseClient>) {
   try {
-    const { count } = await supabase
+    // Re-seed when a preset is missing or its schema is out of date (e.g. new
+    // fields like the NSFW intensity selector), so code changes propagate to
+    // existing databases without admins manually resetting presets.
+    const presetKeys = new Set(CONSOLE_PRESETS.map((p) => p.key));
+    const { data: existing } = await supabase
       .from('comfyui_workflows')
-      .select('id', { count: 'exact', head: true });
-    if ((count || 0) > 0) return;
+      .select('key, params_schema')
+      .eq('is_preset', true)
+      .limit(100);
+    const existingRows = (existing || []) as Array<{ key: string; params_schema?: unknown }>;
+    const existingKeys = new Set(existingRows.map((r) => String(r.key)));
+    const stale = existingRows.some((r) => {
+      if (!presetKeys.has(String(r.key))) return false;
+      const schema = Array.isArray(r.params_schema)
+        ? (r.params_schema as Array<Record<string, unknown>>)
+        : [];
+      return !schema.some((f) => f?.key === 'intensity');
+    });
+    if (existingKeys.size === presetKeys.size && !stale) return;
     const rows = CONSOLE_PRESETS.map((p) => ({
       key: p.key,
       name: p.name,
@@ -217,6 +237,7 @@ async function ensurePresetsSeeded(supabase: ReturnType<typeof getSupabaseClient
 /** raw 引擎：把 LoadImage 的 URL/dataURL 引用转成 worker 文件名 + images payload */
 async function prepareRawGraph(
   graphIn: Record<string, unknown>,
+  promptOverride?: string,
 ): Promise<{ graph: Record<string, unknown>; images: Array<{ name: string; image: string }> }> {
   const graph = JSON.parse(JSON.stringify(graphIn)) as Record<
     string,
@@ -234,6 +255,25 @@ async function prepareRawGraph(
     const name = `ref_${nodeId.replace(/[^a-z0-9]/gi, '_')}.${resolved.name.split('.').pop() || 'png'}`;
     node.inputs.image = name;
     images.push({ name, image: resolved.base64 });
+  }
+  // Unlock the prompt: if a prompt override is provided, write it into the
+  // positive CLIPTextEncode node (skip nodes whose text looks like a negative
+  // list) so edited prompts actually reach the text encoder.
+  const override = String(promptOverride || '').trim();
+  if (override) {
+    let best: { node: Record<string, unknown>; len: number } | null = null;
+    for (const node of Object.values(graph)) {
+      const cls = String((node as { class_type?: string }).class_type || '');
+      if (cls !== 'CLIPTextEncode') continue;
+      const text = String(
+        ((node as { inputs?: Record<string, unknown> }).inputs as Record<string, unknown> | undefined)?.text || '',
+      );
+      if (/watermark|underage|child|deformed|lowres|blurry/i.test(text)) continue;
+      if (!best || text.length > best.len) best = { node: node as Record<string, unknown>, len: text.length };
+    }
+    if (best) {
+      ((best.node as { inputs: Record<string, unknown> }).inputs as Record<string, unknown>).text = override;
+    }
   }
   return { graph: graph as Record<string, unknown>, images };
 }
@@ -509,6 +549,69 @@ export async function POST(req: NextRequest) {
   const action = String(body.action);
 
   // ── 提交生成任务 ─────────────────────────────────────────────
+  // ── AI 提示词优化（NSFW 强度路由：≥3 走 vLLM-Qwen3 NSFW 端点）──
+  if (action === 'optimize_prompt') {
+    const rawPrompt = String(body.prompt || '').trim();
+    if (!rawPrompt) {
+      return NextResponse.json({ error: 'prompt 不能为空' }, { status: 400 });
+    }
+    const intensity = Math.max(1, Math.min(5, Math.round(Number(body.intensity) || 1)));
+    const channel: 'sfw' | 'nsfw' = intensity >= 3 ? 'nsfw' : 'sfw';
+    try {
+      const aiModules = await loadAiModules(admin.supabase);
+      const picked = pickImagePromptEndpoint(aiModules, channel);
+      if (!picked.primary) {
+        return NextResponse.json({ error: '未配置提示词优化 LLM 端点' }, { status: 503 });
+      }
+      const boundary =
+        channel === 'nsfw'
+          ? `Consensual adult content allowed at intensity ${intensity}. ` +
+            (intensity === 3
+              ? 'Full nudity, no sexual act.'
+              : intensity === 4
+                ? 'Solo masturbation before climax, no visible fluids.'
+                : 'Explicit consensual adult action with coherent anatomy.')
+          : intensity === 2
+            ? 'Lingerie/nightwear only, nipples and genitals covered, no sexual act.'
+            : 'Fully clothed, no nudity, no explicit content.';
+      const messages = [
+        {
+          role: 'system' as const,
+          content:
+            'You are the prompt engineer for a FLUX/WAN companion generator. Output ONE English image/video prompt: a single paragraph of comma-separated descriptive clauses (subject, pose, outfit, scene, lighting, mood, framing). NEVER output markdown, labels, or explanations. Keep identity consistent (same woman/face) when a reference is used. Avoid the generic "AI look": emphasize natural skin texture, unique facial features, subtle asymmetries and a candid believable expression. Respect the CONTENT BOUNDARY exactly.',
+        },
+        {
+          role: 'user' as const,
+          content: `RAW PROMPT: ${rawPrompt.slice(0, 800)}\n\nCONTENT BOUNDARY: ${boundary}\n\nOUTPUT: the optimized prompt now.`,
+        },
+      ];
+      const result = await invokeChat({
+        endpoint: picked.primary,
+        fallbackEndpoints: picked.fallback,
+        messages,
+        temperature: 0.8,
+        maxTokens: Math.min(320, picked.primary.max_tokens || 320),
+        userId: admin.user?.id,
+        taskType: 'prompt_optimization',
+        membershipTier: 'admin',
+        scene: 'comfyui_console',
+        routeReason: channel === 'nsfw' ? 'console_nsfw_prompt_llm' : 'console_sfw_prompt_llm',
+      });
+      const optimized = compactFluxPrompt(sanitizeLlmPrompt(result.content), 600);
+      if (!optimized) throw new Error('LLM 返回空提示词');
+      return NextResponse.json({
+        optimized,
+        channel,
+        model: result.model,
+        provider: result.provider,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      logger.error('[comfyui] optimize_prompt failed', { err: message, channel, intensity });
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
   if (action === 'submit') {
     const rl = await checkRateLimitAsync(`comfyui-gen:${admin.user!.id}`, GEN_LIMIT);
     if (!rl.allowed) {
@@ -564,7 +667,10 @@ export async function POST(req: NextRequest) {
         if (!check.ok) {
           return NextResponse.json({ error: check.error || '工作流 JSON 无效' }, { status: 400 });
         }
-        const { graph, images } = await prepareRawGraph(graphCandidate);
+        const { graph, images } = await prepareRawGraph(
+          graphCandidate,
+          String(merged.prompt || '').trim() || undefined,
+        );
         runpodJobId = await submitRawComfy(endpointId, graph, images);
       } else {
         // flux 引擎
@@ -580,6 +686,40 @@ export async function POST(req: NextRequest) {
         const inputImage = String(merged.input_image || '').trim() || undefined;
         const ipAdapterImage = String(merged.ip_adapter_image || '').trim() || undefined;
         const hasImageRef = !!inputImage;
+
+        // 自动 LoRA：表单未手动选 LoRA 时，按「性别 + 渲染风格 + NSFW 强度」固定组合。
+        if ((!Array.isArray(merged.loras) || merged.loras.length === 0) && merged.auto_loras !== false) {
+          let gender = String(merged.gender || '').trim();
+          let style = String(merged.render_style || merged.style || '').trim();
+          if (!gender && girlfriendId) {
+            const { data: gfRow } = await admin.supabase
+              .from('girlfriends')
+              .select('gender, appearance_style, render_style, anime_render_style, visual_style')
+              .eq('id', girlfriendId)
+              .maybeSingle();
+            if (gfRow) {
+              const g = gfRow as Record<string, unknown>;
+              gender = String(g.gender || gender || '');
+              style = String(
+                g.render_style ||
+                  g.anime_render_style ||
+                  g.visual_style ||
+                  g.appearance_style ||
+                  style || '',
+              );
+            }
+          }
+          const auto = buildAutoLoraStack(cfg, gender, style, Number(merged.intensity) || 1);
+          if (auto.length) {
+            merged.loras = auto.map((p) => ({ id: p.id, strength: p.strength }));
+            logger.info('[comfyui] auto lora stack', {
+              girlfriendId,
+              gender,
+              style,
+              ids: auto.map((p) => p.id),
+            });
+          }
+        }
 
         const loraStack: Array<{ name: string; strength_model: number; strength_clip: number }> = [];
         const skippedLoras: string[] = [];

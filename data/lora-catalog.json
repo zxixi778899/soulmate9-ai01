@@ -480,6 +480,146 @@
       "installed": true,
       "notes": "cd1 essential 清单已下载",
       "size_mb": 969.3
+    },
+    {
+      "id": "flux-male-masc-v1",
+      "label": "FLUX 男体写实 (MASC) v1",
+      "category": "style",
+      "filename": "flux_male_masc_v1.safetensors",
+      "default_strength": 0.4,
+      "nsfw": false,
+      "gender": "male",
+      "style": "realistic",
+      "usage": "男体写实主 LoRA：男性角色、猛男/健身体型；与皮肤细节 LoRA 叠加总强度勿超 0.6。",
+      "trigger_words": [],
+      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/1967998",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "extra 清单已下载",
+      "size_mb": 662
+    },
+    {
+      "id": "flux-male-muscle-v1",
+      "label": "FLUX 肌肉线条 v1",
+      "category": "body",
+      "filename": "flux_male_muscle_v1.safetensors",
+      "default_strength": 0.35,
+      "nsfw": false,
+      "gender": "male",
+      "style": "realistic",
+      "usage": "肌肉线条增强：男性健身/力量感身材，强度 0.3~0.45。",
+      "trigger_words": ["muscle"],
+      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/820334",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "extra 清单已下载",
+      "size_mb": 74.8
+    },
+    {
+      "id": "flux-mtf-trans-v1",
+      "label": "FLUX 跨性别 MtF 写实 v1",
+      "category": "style",
+      "filename": "realistic-mtf-trans.safetensors",
+      "default_strength": 0.4,
+      "nsfw": false,
+      "gender": "transgender",
+      "style": "realistic",
+      "usage": "跨性别 MtF 写实 LoRA：保持女性化面部与身材细节，强度 0.35~0.5。",
+      "trigger_words": [],
+      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/1027537",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "extra 清单已下载",
+      "size_mb": 17.4
+    },
+    {
+      "id": "flux-femboy-v1",
+      "label": "FLUX 伪娘角色 v1",
+      "category": "style",
+      "filename": "flux_femboy_v1.safetensors",
+      "default_strength": 0.4,
+      "nsfw": false,
+      "gender": "femboy",
+      "style": "realistic",
+      "usage": "伪娘/女性化男性角色 LoRA：保持男性身份与女性化装扮，强度 0.35~0.5。",
+      "trigger_words": [],
+      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/1747185",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "extra 清单已下载",
+      "size_mb": 18.4
+    },
+    {
+      "id": "flux-anime-v1",
+      "label": "FLUX 二次元风格 v1",
+      "category": "style",
+      "filename": "rdanimefluxv1rapid.safetensors",
+      "default_strength": 0.5,
+      "nsfw": false,
+      "gender": "any",
+      "style": "anime",
+      "usage": "二次元/动漫风格主 LoRA：2D 画风角色与场景，强度 0.4~0.6。",
+      "trigger_words": [],
+      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/863817",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "extra 清单已下载",
+      "size_mb": 85.6
+    },
+    {
+      "id": "flux-3d-render-v1",
+      "label": "FLUX 3D 渲染风 v1",
+      "category": "style",
+      "filename": "flux_3d_render_v1.safetensors",
+      "default_strength": 0.5,
+      "nsfw": false,
+      "gender": "any",
+      "style": "3d",
+      "usage": "3D 渲染/塑料着色风格：3D 角色卡与立绘，强度 0.4~0.6。",
+      "trigger_words": ["3d"],
+      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/828678",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "extra 清单已下载",
+      "size_mb": 146.2
+    },
+    {
+      "id": "flux-lewd-v1",
+      "label": "FLUX 通用 NSFW v1",
+      "category": "action",
+      "filename": "flux_lewd_v1.safetensors",
+      "default_strength": 0.3,
+      "nsfw": true,
+      "gender": "any",
+      "style": "any",
+      "usage": "通用 NSFW LoRA：NSFW 强度 ≥3 时与姿势/服装 LoRA 叠加，强度 0.25~0.4。",
+      "trigger_words": [],
+      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/1020932",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "extra 清单已下载",
+      "size_mb": 27.6
     }
   ],
   "routing_rules": {
@@ -520,25 +660,30 @@
     },
     "flux": {
       "female": [
-        "flux-realism-xlabs",
-        "flux-add-details",
-        "flux-uncensored"
+        "flux-style-photoreal-v1",
+        "flux-detail-skin-v1"
       ],
       "male": [
-        "flux-krea-realism",
-        "flux-add-details",
-        "flux-uncensored"
+        "flux-male-masc-v1",
+        "flux-detail-skin-v1"
       ],
       "transgender": [
-        "flux-hyperrealism-aidma",
-        "flux-add-details",
-        "flux-uncensored"
+        "flux-mtf-trans-v1",
+        "flux-detail-skin-v1"
+      ],
+      "femboy": [
+        "flux-femboy-v1",
+        "flux-detail-skin-v1"
       ],
       "anime": [
-        "flux-detail-enhancer"
+        "flux-anime-v1"
+      ],
+      "3d": [
+        "flux-3d-render-v1"
       ],
       "nsfw": [
-        "flux-nsfw-klein-v2"
+        "flux-lewd-v1",
+        "flux-pose-nsfw-dynamic-v1"
       ]
     }
   },
