@@ -5,9 +5,9 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULTS = {
   site_name: 'SoulMate AI',
-  support_email: 'support@soulmateai.shop',
-  telegram_url: 'https://t.me/soulmateai_support',
-  x_url: 'https://x.com/soulmateai',
+  support_email: 'support@oxmate-ai.com',
+  telegram_url: 'https://t.me/oxmate_bot',
+  x_url: 'https://x.com/ozmate',
   discord_url: '',
   footer_tagline: 'AI 伴侣养成 · 高 NSFW · 私密对话',
   maintenance_mode: false,

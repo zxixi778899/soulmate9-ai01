@@ -84,8 +84,8 @@ export async function POST(request: NextRequest) {
     const reply =
       content ||
       (isZh
-        ? '抱歉，我暂时没想到合适的答案。你可以发邮件到 support@ozmate.love。'
-        : "Sorry, I don't have a good answer right now. You can email support@ozmate.love.");
+        ? '抱歉，我暂时没想到合适的答案。你可以发邮件到 support@oxmate-ai.com。'
+        : "Sorry, I don't have a good answer right now. You can email support@oxmate-ai.com.");
     return sse(reply);
   } catch (err) {
     logger.error('[support-agent] generate failed', {
@@ -93,8 +93,8 @@ export async function POST(request: NextRequest) {
     });
     return sse(
       isZh
-        ? '抱歉，客服系统暂时繁忙，请稍后再试，或发邮件到 support@ozmate.love。'
-        : 'Sorry, support is busy right now. Please try again later or email support@ozmate.love.',
+        ? '抱歉，客服系统暂时繁忙，请稍后再试，或发邮件到 support@oxmate-ai.com。'
+        : 'Sorry, support is busy right now. Please try again later or email support@oxmate-ai.com.',
     );
   }
 }

@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  const origin = request.nextUrl.origin; // e.g. https://ozmate.love
+  const origin = request.nextUrl.origin; // e.g. https://www.oxmate-ai.com
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 
   const results: Record<string, unknown> = {};

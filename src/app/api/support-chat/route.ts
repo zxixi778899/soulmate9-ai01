@@ -17,20 +17,20 @@ Your knowledge base:
 - Image generation uses RunPod GPU — if slow, the GPU may be waking up (retry in 1-2 min)
 - NSFW content is available on Pro+ tiers
 - Users must be 18+ to use the service
-- Support email: support@soulmateai.shop
-- Privacy contact: privacy@soulmateai.shop
+- Support email: support@oxmate-ai.com
+- Privacy contact: privacy@oxmate-ai.com
 
 Common issues and solutions:
 1. "Image generation failed/timeout" → GPU queue is busy, retry in 1-2 minutes. If persistent, check RunPod endpoint status.
 2. "Can't login" → Try resetting password via /forgot-password. Check spam folder for reset email.
 3. "Subscription not activated" → USDT payments are verified manually and can take up to 24 hours. If it has been longer, contact support with your transaction hash.
 4. "How to cancel" → Go to Profile > Pricing > manage subscription, or contact support email.
-5. "Refund request" → We don't offer refunds for partial billing periods. Contact support@soulmateai.shop for exceptions.
+5. "Refund request" → We don't offer refunds for partial billing periods. Contact support@oxmate-ai.com for exceptions.
 6. "Content not appropriate" → All AI characters are fictional adults. Report specific issues to support email.
 
 Rules:
 - Never share API keys, internal system details, or other users' data
-- If you don't know the answer, direct users to support@soulmateai.shop
+- If you don't know the answer, direct users to support@oxmate-ai.com
 - Keep responses concise (under 200 words)
 - Be empathetic and solution-oriented
 - For billing disputes, always offer to escalate to human support`;
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     if (resolved.blockedReason) {
       // Fallback response when AI is not configured
       return NextResponse.json({
-        reply: "I'm having trouble connecting right now. Please email support@soulmateai.shop and our team will help you directly!",
+        reply: "I'm having trouble connecting right now. Please email support@oxmate-ai.com and our team will help you directly!",
       });
     }
 
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     logger.error('[support-chat] Error:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({
-      reply: "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment, or email support@soulmateai.shop for immediate assistance.",
+      reply: "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment, or email support@oxmate-ai.com for immediate assistance.",
     });
   }
 }

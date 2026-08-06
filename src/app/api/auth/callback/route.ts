@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     }
 
     const protocol = req.headers.get('x-forwarded-proto') || 'https';
-    const host = req.headers.get('host') || 'soulmateai.shop';
+    const host = req.headers.get('host') || 'www.oxmate-ai.com';
     // Must match the redirect_to used in the authorize step (old /auth/callback GET route)
     const redirectUri = `${protocol}://${host}/auth/callback`;
 

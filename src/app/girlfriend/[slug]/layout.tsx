@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { APP_NAME } from '@/lib/constants';
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://soulmateai.shop';
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.oxmate-ai.com';
 
 // Map of known girlfriends for metadata
 const GIRLFRIEND_META: Record<string, { name: string; description: string; tags: string[] }> = {

@@ -154,8 +154,8 @@ export default function SupportAgent() {
           updated[updated.length - 1] = {
             role: 'assistant',
             content: isZh
-              ? '抱歉，我暂时无法回答。请稍后再试，或联系 support@ozmate.love'
-              : 'Sorry, I couldn\'t process that right now. Please try again or contact support@ozmate.love',
+              ? '抱歉，我暂时无法回答。请稍后再试，或联系 support@oxmate-ai.com'
+              : 'Sorry, I couldn\'t process that right now. Please try again or contact support@oxmate-ai.com',
           };
         }
         return updated;

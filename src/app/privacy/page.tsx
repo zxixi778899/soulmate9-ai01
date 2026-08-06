@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export default function PrivacyPolicyPage() {
-  const privacyEmail = process.env.PRIVACY_CONTACT_EMAIL || 'privacy@soulmateai.shop';
+  const privacyEmail = process.env.PRIVACY_CONTACT_EMAIL || 'privacy@oxmate-ai.com';
   return (
     <div className="min-h-screen bg-background">
       {/* Background decoration */}

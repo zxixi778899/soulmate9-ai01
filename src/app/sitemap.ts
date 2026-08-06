@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://soulmateai.shop';
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.oxmate-ai.com';
 
 interface PublicGirlfriendRow {
   slug: string;

@@ -97,8 +97,8 @@ export const STR = {
     en: "She's a bit busy right now — try again in a moment~",
   },
   accountNote: {
-    zh: '\n\n你的网站账号已自动同步，可用同一身份登录 oxmate.shop',
-    en: '\n\nYour web account is synced — sign in at oxmate.shop with the same identity.',
+    zh: '\n\n你的网站账号已自动同步，可用同一身份登录 oxmate-ai.com',
+    en: '\n\nYour web account is synced — sign in at oxmate-ai.com with the same identity.',
   },
 } as const;
 

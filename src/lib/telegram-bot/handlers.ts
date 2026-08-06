@@ -19,11 +19,11 @@ export interface BotCtx {
   chatId: number;
   from: TgUser;
   session: BotSession;
-  baseUrl: string; // origin of this deployment, e.g. https://ozmate.love
+  baseUrl: string; // origin of this deployment, e.g. https://www.oxmate-ai.com
   locale: BotLocale;
 }
 
-const SITE_URL = 'https://oxmate.shop';
+const SITE_URL = 'https://www.oxmate-ai.com';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

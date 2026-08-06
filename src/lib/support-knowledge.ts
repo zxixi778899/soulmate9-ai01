@@ -103,7 +103,7 @@ export function buildSupportSystemPrompt(locale: string, isZh: boolean): string 
 - 友好、专业、高效
 - 帮助用户快速解决账户、付费、功能等问题
 - 回答简洁，不超过3-4句话
-- 如果问题超出你的知识范围，建议用户发送邮件至 support@ozmate.love
+- 如果问题超出你的知识范围，建议用户发送邮件至 support@oxmate-ai.com
 
 ## 知识库
 以下是常见问题和标准答案，请优先参考：
@@ -125,7 +125,7 @@ ${faqContext}
 - Friendly, professional, and efficient
 - Help users quickly resolve account, billing, feature, and technical issues
 - Keep answers concise (3-4 sentences max)
-- If a question is beyond your knowledge, suggest emailing support@ozmate.love
+- If a question is beyond your knowledge, suggest emailing support@oxmate-ai.com
 
 ## Knowledge Base
 Here are common questions and standard answers — prioritize these:

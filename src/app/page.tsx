@@ -47,10 +47,10 @@ function isHomeVideoUrl(url?: string | null): boolean {
 }
 
 const FOOTER_FALLBACK = {
-  telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL || 'https://t.me/soulmateai_support',
-  x: process.env.NEXT_PUBLIC_X_URL || 'https://x.com/soulmateai',
+  telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL || 'https://t.me/oxmate_bot',
+  x: process.env.NEXT_PUBLIC_X_URL || 'https://x.com/ozmate',
   discord: process.env.NEXT_PUBLIC_DISCORD_URL || '',
-  email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@soulmateai.shop',
+  email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@oxmate-ai.com',
 };
 
 /** Hot-12 卡片：移动端轮播与桌面网格共用 */

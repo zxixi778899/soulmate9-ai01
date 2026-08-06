@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function TermsOfServicePage() {
   const legalEntity = process.env.LEGAL_ENTITY_NAME || 'SoulMate AI';
-  const supportEmail = process.env.LEGAL_CONTACT_EMAIL || 'support@soulmateai.shop';
+  const supportEmail = process.env.LEGAL_CONTACT_EMAIL || 'support@oxmate-ai.com';
   const jurisdiction = process.env.LEGAL_JURISDICTION || 'the jurisdiction stated at checkout';
   const adultMode = process.env.CONTENT_MODE === 'adult';
   return (

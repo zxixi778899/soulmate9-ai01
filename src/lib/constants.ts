@@ -1,12 +1,12 @@
 export const APP_NAME = 'SoulMate AI';
 export const APP_TAGLINE = 'Your AI girlfriend — intimate, uncensored, always yours';
 export const APP_DESCRIPTION = 'Experience the future of AI companionship with SoulMate AI. Create your perfect AI girlfriend, chat raw and intimate, unlock Desire heat, and stay for the next message.';
-export const APP_DOMAIN = 'soulmateai.shop';
+export const APP_DOMAIN = 'oxmate-ai.com';
 export const APP_URL =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL) ||
-  'https://soulmateai.shop';
-export const SUPPORT_EMAIL = 'support@soulmateai.shop';
-export const PRIVACY_EMAIL = 'privacy@soulmateai.shop';
+  'https://www.oxmate-ai.com';
+export const SUPPORT_EMAIL = 'support@oxmate-ai.com';
+export const PRIVACY_EMAIL = 'privacy@oxmate-ai.com';
 
 /**
  * Membership tiers — text subscription only (GPU media uses Credits separately).
