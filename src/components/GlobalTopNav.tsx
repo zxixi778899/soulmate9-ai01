@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useState, useEffect } from 'react';
 import {
   Menu, X, User, LogOut, Crown, Flame, ArrowLeft,
-  Heart, MessageCircle, ShoppingBag, Wand2, Home, Coins,
+  Heart, MessageCircle, ShoppingBag, Wand2, Home, Coins, CalendarCheck,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
@@ -151,7 +151,7 @@ export default function GlobalTopNav() {
                 aria-label="Tokens"
               >
                 <Coins className="h-3.5 w-3.5 text-amber-400" />
-                <span className="tabular-nums font-semibold">{balance ?? '…'}</span>
+                <span className="tabular-nums font-semibold hidden min-[400px]:inline">{balance ?? '…'}</span>
               </Link>
               <Link
                 href="/pricing"
@@ -160,18 +160,15 @@ export default function GlobalTopNav() {
                 <Crown className="h-3.5 w-3.5" />
                 <span className="hidden min-[400px]:inline">VIP</span>
               </Link>
-              <Link
-                href="/profile"
-                className={cn(
-                  'h-9 w-9 sm:h-10 sm:w-10 rounded-full flex items-center justify-center touch-manipulation shrink-0',
-                  pathname?.startsWith('/profile')
-                    ? 'glass-btn !rounded-full !p-0'
-                    : 'glass text-[#ffb3cd]',
-                )}
-                aria-label={t('home.me')}
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('soulmate:open-checkin'))}
+                className="h-9 w-9 sm:h-10 sm:w-10 rounded-full flex items-center justify-center touch-manipulation shrink-0 glass text-[#ffb3cd]"
+                aria-label={t('home.checkin')}
+                title={t('home.checkin')}
               >
-                <User className="h-4 w-4" />
-              </Link>
+                <CalendarCheck className="h-4 w-4" />
+              </button>
             </>
           ) : (
             <>

@@ -5,6 +5,12 @@
  */
 
 export const en = {
+  'home.checkin': 'Check-in',
+  'quest.daily.share': 'Daily Share',
+  'chat.modeScene': 'Scenario',
+  'chat.modeSceneHint': 'Roleplay & scenario acting',
+  'chat.modeDialogue': 'Dialogue',
+  'chat.modeDialogueHint': 'Daily chat, natural replies',
   'admin.crypto': 'Crypto Payments',
   'admin.title': 'Admin Panel',
   'ageVerification.confirm':
@@ -341,7 +347,7 @@ export const en = {
   'home.promoQuest': 'Achievements · claim quest rewards',
   'home.promoQuestDesc': 'Intimacy milestones · outfit drops',
   'home.hotTitle': 'Trending girls',
-  'home.hotSub': 'This week Top 12 · open private chat',
+  'home.hotSub': 'This week Top 20 · open private chat',
   'home.moreGirls': 'More girls',
   'home.unlockFail': 'Unlock failed',
   'home.unlocked': 'Already unlocked',
@@ -889,6 +895,12 @@ export const en = {
 };
 
 const zh: Record<string, string> = {
+  'home.checkin': '签到',
+  'quest.daily.share': '每日分享',
+  'chat.modeScene': '情景模式',
+  'chat.modeSceneHint': '情景演绎 · 角色扮演',
+  'chat.modeDialogue': '对话模式',
+  'chat.modeDialogueHint': '日常对话 · 自然语言回复',
   'admin.crypto': '加密货币',
   'admin.title': '管理面板',
   'ageVerification.confirm': '我确认已满 18 岁，并同意服务条款与隐私政策。',
@@ -1221,7 +1233,7 @@ const zh: Record<string, string> = {
   'home.promoQuest': '成就有礼 · 任务领奖',
   'home.promoQuestDesc': '亲密里程碑 · 代币装扮掉落',
   'home.hotTitle': '热门伴侣',
-  'home.hotSub': '本周 Top 12 · 点击进入私密',
+  'home.hotSub': '本周 Top 20 · 点击进入私密',
   'home.moreGirls': '更多伴侣',
   'home.unlockFail': '解锁失败',
   'home.unlocked': '已解锁',
@@ -1766,6 +1778,12 @@ const zh: Record<string, string> = {
 };
 
 const ja: Record<string, string> = {
+  'home.checkin': 'チェックイン',
+  'quest.daily.share': '毎日のシェア',
+  'chat.modeScene': 'シナリオ',
+  'chat.modeSceneHint': 'ロールプレイ・シナリオ',
+  'chat.modeDialogue': '会話',
+  'chat.modeDialogueHint': '日常会話・自然な返信',
   // TODO(ja): translate
   'admin.crypto': '',
   // TODO(ja): translate
@@ -2629,6 +2647,12 @@ const ja: Record<string, string> = {
 };
 
 const ko: Record<string, string> = {
+  'home.checkin': '체크인',
+  'quest.daily.share': '매일 공유',
+  'chat.modeScene': '시나리오',
+  'chat.modeSceneHint': '롤플레이 & 시나리오',
+  'chat.modeDialogue': '대화',
+  'chat.modeDialogueHint': '일상 대화 · 자연스러운 답변',
   // TODO(ko): translate
   'admin.crypto': '',
   // TODO(ko): translate
@@ -3492,6 +3516,12 @@ const ko: Record<string, string> = {
 };
 
 const es: Record<string, string> = {
+  'home.checkin': 'Registro',
+  'quest.daily.share': 'Compartir diario',
+  'chat.modeScene': 'Modo escenario',
+  'chat.modeSceneHint': 'Roleplay y escenificación',
+  'chat.modeDialogue': 'Modo diálogo',
+  'chat.modeDialogueHint': 'Charla diaria, respuestas naturales',
   // TODO(es): translate
   'admin.crypto': '',
   // TODO(es): translate
@@ -4355,6 +4385,12 @@ const es: Record<string, string> = {
 };
 
 const fr: Record<string, string> = {
+  'home.checkin': 'Pointage',
+  'quest.daily.share': 'Partage quotidien',
+  'chat.modeScene': 'Mode scénario',
+  'chat.modeSceneHint': 'Jeu de rôle et scénario',
+  'chat.modeDialogue': 'Mode dialogue',
+  'chat.modeDialogueHint': 'Discussion quotidienne, réponses naturelles',
   // TODO(fr): translate
   'admin.crypto': '',
   // TODO(fr): translate
@@ -5218,6 +5254,12 @@ const fr: Record<string, string> = {
 };
 
 const de: Record<string, string> = {
+  'home.checkin': 'Check-in',
+  'quest.daily.share': 'Tägliches Teilen',
+  'chat.modeScene': 'Szenario',
+  'chat.modeSceneHint': 'Rollenspiel & Szenario',
+  'chat.modeDialogue': 'Dialog',
+  'chat.modeDialogueHint': 'Alltagsgespräch, natürliche Antworten',
   // TODO(de): translate
   'admin.crypto': '',
   // TODO(de): translate

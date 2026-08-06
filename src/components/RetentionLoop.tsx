@@ -3,28 +3,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, Camera, Check, ChevronRight, Flame, Gift, Heart, Image as ImageIcon, Loader2, MessageCircle, Sparkles, Trophy, Users, X } from 'lucide-react';
+import { ChevronRight, Flame, Gift, Loader2, Share2, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
 import { readResponseJson } from '@/lib/safe-json';
 import { authedFetch } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
-import { fireRewardEffect, questDisplayName, rewardTr, syncRewards } from '@/lib/reward-events';
+import { DAILY_QUEST_ALL_BONUS } from '@/lib/daily-quests';
+import { fireRewardEffect, rewardTr, syncRewards } from '@/lib/reward-events';
 
 type CheckinState = { streak: number; claimed_today: boolean; next_reward: number };
-type MembershipState = { usage?: { messages_sent_today?: number; total_girlfriends?: number } };
 type QuestRow = { code: string; goal: number; progress: number; reward: number; done: boolean; claimed: boolean };
 type DailyQuestsState = { quests?: QuestRow[]; all_complete?: boolean; bonus_claimed?: boolean };
 type DailyGoal = { label: string; done: boolean; icon: typeof Gift };
-
-const QUEST_ICONS: Record<string, typeof Gift> = {
-  checkin: CalendarCheck,
-  first_message: MessageCircle,
-  first_photo: Camera,
-  three_companions: Users,
-  three_photos: ImageIcon,
-};
 
 const HIDDEN_ROUTE_PREFIXES = ['/admin', '/chat/', '/create', '/login', '/register', '/onboarding', '/payment'];
 
@@ -36,32 +27,27 @@ export default function RetentionLoop() {
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
   const [checkin, setCheckin] = useState<CheckinState | null>(null);
-  const [membership, setMembership] = useState<MembershipState | null>(null);
   const [dailyQuests, setDailyQuests] = useState<DailyQuestsState | null>(null);
 
   const loadProgress = useCallback(async (): Promise<void> => {
     if (!user) return;
     setLoading(true);
     try {
-      const [checkinResponse, membershipResponse, questsResponse] = await Promise.all([
+      const [checkinResponse, questsResponse] = await Promise.all([
         authedFetch('/api/checkin'),
-        authedFetch('/api/membership'),
         authedFetch('/api/daily-quests').catch(() => null),
       ]);
-      if (!checkinResponse.ok || !membershipResponse.ok) throw new Error('Unable to load daily progress');
-      const [checkinData, membershipData, questsData] = await Promise.all([
+      if (!checkinResponse.ok) throw new Error('Unable to load daily progress');
+      const [checkinData, questsData] = await Promise.all([
         readResponseJson(checkinResponse) as Promise<CheckinState>,
-        readResponseJson(membershipResponse) as Promise<MembershipState>,
         questsResponse && questsResponse.ok
           ? (readResponseJson(questsResponse) as Promise<DailyQuestsState>).catch(() => null)
           : Promise.resolve(null),
       ]);
       setCheckin(checkinData);
-      setMembership(membershipData);
       setDailyQuests(questsData);
     } catch {
       setCheckin(null);
-      setMembership(null);
       setDailyQuests(null);
     } finally {
       setLoading(false);
@@ -70,23 +56,24 @@ export default function RetentionLoop() {
 
   useEffect(() => { void loadProgress(); }, [loadProgress]);
   useEffect(() => { setExpanded(false); }, [pathname]);
+  // GlobalTopNav 右上角的「签到」按钮通过该事件打开面板
+  useEffect(() => {
+    const open = () => setExpanded(true);
+    window.addEventListener('soulmate:open-checkin', open);
+    return () => window.removeEventListener('soulmate:open-checkin', open);
+  }, []);
 
-  const goals = useMemo<DailyGoal[]>(() => {
-    const usage = membership?.usage;
-    const quests = dailyQuests?.quests;
-    if (quests && quests.length > 0) {
-      return quests.map((quest) => ({
-        label: questDisplayName(quest.code),
-        done: Boolean(quest.done || quest.progress >= quest.goal),
-        icon: QUEST_ICONS[quest.code] ?? Gift,
-      }));
-    }
-    return [
-      { label: t('home.moduleQuestTip') || 'Daily reward', done: Boolean(checkin?.claimed_today), icon: Gift },
-      { label: t('chat.sayHello') || 'Say hello', done: (usage?.messages_sent_today ?? 0) > 0, icon: MessageCircle },
-      { label: t('home.pool') || 'Meet a companion', done: (usage?.total_girlfriends ?? 0) > 0, icon: Heart },
-    ];
-  }, [checkin?.claimed_today, dailyQuests?.quests, membership?.usage, t]);
+  // 每日任务并入「每日分享」：面板只展示一个每日分享目标（+20 全勤奖励）
+  const goals = useMemo<DailyGoal[]>(
+    () => [
+      {
+        label: t('quest.daily.share') || '每日分享',
+        done: Boolean(dailyQuests?.all_complete),
+        icon: Share2,
+      },
+    ],
+    [dailyQuests?.all_complete, t],
+  );
 
   // Celebrate freshly completed quests/achievements whenever the user moves
   // around the app; syncRewards is debounced + de-duplicated server-side.
@@ -98,7 +85,6 @@ export default function RetentionLoop() {
   }, [user, pathname]);
 
   const completedGoals = goals.reduce((total, goal) => total + Number(goal.done), 0);
-  const progress = Math.round((completedGoals / goals.length) * 100);
   const rewardReady = Boolean(checkin && !checkin.claimed_today);
   const hidden = !user || HIDDEN_ROUTE_PREFIXES.some((prefix) => pathname?.startsWith(prefix));
 
@@ -131,11 +117,11 @@ export default function RetentionLoop() {
     }
   };
 
-  if (hidden || (!loading && !checkin && !membership)) return null;
+  if (hidden || (!loading && !checkin)) return null;
 
   return (
-    <aside className="fixed bottom-[max(5.25rem,env(safe-area-inset-bottom))] left-3 z-[55] md:bottom-5 md:left-5">
-      {expanded ? (
+    <aside className="fixed right-3 top-[calc(env(safe-area-inset-top)+3.5rem)] z-[55] sm:top-[calc(env(safe-area-inset-top)+4rem)]">
+      {expanded && (
         <div className="w-[min(21rem,calc(100vw-1.5rem))] overflow-hidden rounded-3xl border border-fuchsia-400/25 bg-[#0d0915]/95 shadow-[0_24px_80px_rgba(0,0,0,.55),0_0_40px_rgba(236,72,153,.12)] backdrop-blur-2xl">
           <div className="relative overflow-hidden border-b border-white/10 px-4 pb-3 pt-4">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(236,72,153,.22),transparent_55%)]" />
@@ -145,7 +131,7 @@ export default function RetentionLoop() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="font-black text-white">{t('home.moduleQuest') || 'Quests'}</h2>
+                  <h2 className="font-black text-white">{t('quest.daily.checkin') || '每日签到'}</h2>
                   <span className="rounded-full bg-orange-400/15 px-2 py-0.5 text-xs font-bold text-orange-300">{checkin?.streak ?? 0}🔥</span>
                 </div>
                 <p className="mt-0.5 text-xs text-white/45">{t('home.moduleQuestDesc') || 'Complete today’s loop'}</p>
@@ -154,31 +140,27 @@ export default function RetentionLoop() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="relative mt-4">
-              <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold">
-                <span className="text-white/55">{completedGoals}/{goals.length}</span><span className="text-fuchsia-300">{progress}%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full bg-gradient-to-r from-rose-500 via-fuchsia-500 to-violet-500 transition-[width] duration-500" style={{ width: `${progress}%` }} />
-              </div>
+            <div className="relative mt-4 flex items-center justify-between rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] px-3 py-2">
+              <span className="text-[11px] font-semibold text-white/70">{t('quest.daily.share') || '每日分享'}</span>
+              <span className="text-xs font-black text-amber-300">+{DAILY_QUEST_ALL_BONUS}</span>
             </div>
           </div>
 
           <div className="space-y-2 p-3">
             {loading ? (
               <div className="flex h-28 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-fuchsia-300" /></div>
-            ) : goals.map((goal) => {
-              const Icon = goal.icon;
-              return (
-                <div key={goal.label} className={cn('flex items-center gap-3 rounded-2xl border px-3 py-2.5 transition', goal.done ? 'border-emerald-400/15 bg-emerald-400/[0.06]' : 'border-white/[0.07] bg-white/[0.035]')}>
-                  <div className={cn('flex h-8 w-8 items-center justify-center rounded-xl', goal.done ? 'bg-emerald-400/15 text-emerald-300' : 'bg-fuchsia-400/10 text-fuchsia-300')}>
-                    {goal.done ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-                  </div>
-                  <span className={cn('flex-1 text-sm', goal.done ? 'text-white/45 line-through' : 'text-white/80')}>{goal.label}</span>
-                  {goal.done ? <Sparkles className="h-3.5 w-3.5 text-emerald-300/60" /> : null}
+            ) : (
+              <Link
+                href="/quest"
+                className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 transition hover:border-fuchsia-400/30 hover:bg-white/[0.05]"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-fuchsia-400/10 text-fuchsia-300">
+                  <Share2 className="h-4 w-4" />
                 </div>
-              );
-            })}
+                <span className="flex-1 text-sm text-white/80">{t('quest.daily.share') || '每日分享'}</span>
+                <span className="text-xs font-black text-amber-300">+{DAILY_QUEST_ALL_BONUS}</span>
+              </Link>
+            )}
           </div>
 
           <div className="flex gap-2 border-t border-white/[0.07] p-3">
@@ -196,14 +178,6 @@ export default function RetentionLoop() {
             </Link>
           </div>
         </div>
-      ) : (
-        <button type="button" onClick={() => setExpanded(true)} className={cn('group relative flex h-11 w-11 items-center justify-center rounded-full border bg-[#0d0915]/92 shadow-[0_12px_40px_rgba(0,0,0,.45)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-fuchsia-400/40 md:h-[3.25rem] md:w-auto md:gap-2 md:py-2 md:pl-2 md:pr-3', rewardReady ? 'border-fuchsia-400/35' : 'border-white/10')} aria-label={t('home.moduleQuest') || 'Open daily quests'} aria-expanded="false">
-          {rewardReady ? <span className="absolute -right-0.5 -top-0.5 h-3 w-3 animate-pulse rounded-full border-2 border-[#0d0915] bg-rose-400" /> : null}
-          <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-fuchsia-600 text-white shadow-md shadow-fuchsia-500/25"><Flame className="h-4 w-4" /></span>
-          <span className="hidden md:flex items-center gap-2">
-            <span className="text-sm font-black tabular-nums text-white">{checkin?.streak ?? 0}</span><span className="h-5 w-px bg-white/10" /><span className="text-xs font-bold tabular-nums text-fuchsia-200">{completedGoals}/{goals.length}</span>
-          </span>
-        </button>
       )}
     </aside>
   );

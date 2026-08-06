@@ -285,7 +285,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           count: 1,
           token_cost: 25,
           use_consistency_default: true,
-          allow_llm_prompt_polish: false,
+          allow_llm_prompt_polish: true,
         },
         outfit_prop: {
           endpoint_id: 'flux-portrait',

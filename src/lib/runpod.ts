@@ -609,16 +609,18 @@ class RunPodClient {
   ): Promise<RunPodGenerateResult> {
     const { endpointId, baseUrl } = this.resolveBase(opts.endpoint_id);
     const pollIntervalMs = Math.max(1000, opts.poll_interval_ms ?? 2000);
-    const pollBudgetMs = Math.max(
-      15_000,
-      Math.min(Number(opts.poll_budget_ms) || Number(process.env.RUNPOD_POLL_MS) || 150_000, 150_000),
-    );
+    // Honor explicit short budgets (e.g. the status route's 8s "quick check").
+    // Only floor at 1s to avoid busy loops; default stays 150s.
+    const requestedBudgetMs =
+      Number(opts.poll_budget_ms) || Number(process.env.RUNPOD_POLL_MS) || 150_000;
+    const pollBudgetMs = Math.max(1_000, Math.min(requestedBudgetMs, 150_000));
     const maxAttempts = Math.max(1, Math.floor(pollBudgetMs / pollIntervalMs));
     const onTimeout = opts.on_timeout || 'pending';
     const started = Date.now();
     let lastStatus = '';
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (Date.now() - started >= pollBudgetMs) break;
       const statusRes = await fetch(`${baseUrl}/status/${jobId}`, {
         headers: this.headers,
         signal: AbortSignal.timeout(10000),

@@ -120,6 +120,26 @@ export default function ChatPage() {
   const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
 
+  // Chat reply mode: scene (current style) vs dialogue (spoken words only)
+  const [replyMode, setReplyMode] = useState<'scene' | 'dialogue'>('scene');
+  useEffect(() => {
+    if (!id) return;
+    try {
+      const saved = localStorage.getItem(`soulmate_reply_mode_${id}`);
+      if (saved === 'scene' || saved === 'dialogue') setReplyMode(saved);
+    } catch {
+      /* ignore */
+    }
+  }, [id]);
+  const handleReplyModeChange = (mode: 'scene' | 'dialogue') => {
+    setReplyMode(mode);
+    try {
+      localStorage.setItem(`soulmate_reply_mode_${id}`, mode);
+    } catch {
+      /* ignore */
+    }
+  };
+
   // Membership & usage banner
   const membership = useMembership();
   const [usageBannerDismissed, setUsageBannerDismissed] = useState(false);
@@ -847,6 +867,7 @@ export default function ChatPage() {
         // Hard cap on total wait time (aligns with the 2-min safety net below).
         // Bounds the initial poll AND the auto-retry so the card can never hang for minutes.
         const genDeadline = Date.now() + 110_000;
+        const pollStart = Date.now();
         saveGenJob(id, { job_id: jobId, endpoint_id: data.endpoint_id, startedAt: Date.now(), req });
         const pollStatus = async (jid: string, endpointId?: string): Promise<{ url?: string; failed?: boolean; error?: string; cancelled?: boolean }> => {
           for (let p = 0; p < 80 && Date.now() < genDeadline; p++) {
@@ -863,7 +884,7 @@ export default function ChatPage() {
                 return { failed: true, error: pollData.error || 'Image generation failed' };
               }
               // After 30s in queue, try fal.ai fast fallback
-              if (p === 10 && !falAttempted) {
+              if (!falAttempted && Date.now() - pollStart >= 30_000) {
                 falAttempted = true;
                 setMessages((prev) => prev.map((m) => m.id === waitId ? {
                   ...m,
@@ -998,12 +1019,14 @@ export default function ChatPage() {
     } catch (err) {
       setIsTyping(false);
       clearGenJob(id);
-      logger.error('Generate selfie error:', { data: err });
+      logger.error('Generate selfie error:', {
+        data: err,
+        message: err instanceof Error ? err.message : String(err),
+      });
       setMessages((prev) => prev.filter((message) => message.id !== waitId));
-      const failText = err instanceof Error ? err.message : t('chat.imageFailed');
       const sorry = waitZh
-        ? `${failText} 稍后再让我试一次好不好？`
-        : `Photo glitched… ${failText} Want me to try again?`;
+        ? '不小心手抖拍坏了…再拍一张吗？'
+        : "Oops, I fumbled the shot… want me to take another one?";
       setMessages((prev) => [
         ...prev,
         {
@@ -1200,6 +1223,7 @@ export default function ChatPage() {
           pose: selectedPose,
           environment: selectedEnvironment,
           locale,
+          reply_mode: replyMode,
           ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}),
         }),
       });
@@ -1870,6 +1894,8 @@ export default function ChatPage() {
         onSelfie={() => void generateSelfie('Create a full-body character artwork matching our current conversation')}
         isGenerating={isGenerating}
         onMemories={() => setShowMemories(true)}
+        replyMode={replyMode}
+        onReplyModeChange={handleReplyModeChange}
       />
       </div>
 

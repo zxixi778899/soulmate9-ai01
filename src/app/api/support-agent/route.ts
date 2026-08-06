@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildSupportSystemPrompt } from '@/lib/support-knowledge';
+import { buildSupportSystemPrompt, loadSupportKnowledge } from '@/lib/support-knowledge';
 import { rateLimitMiddleware } from '@/lib/rate-limit';
 import { generateText } from '@/lib/llm-service';
 import { logger } from '@/lib/logger';
@@ -67,7 +67,8 @@ export async function POST(request: NextRequest) {
   }
 
   const isZh = locale === 'zh';
-  const systemPrompt = buildSupportSystemPrompt(locale || 'en', isZh);
+  const knowledge = await loadSupportKnowledge();
+  const systemPrompt = buildSupportSystemPrompt(locale || 'en', isZh, knowledge);
 
   const apiMessages = [
     { role: 'system', content: systemPrompt },

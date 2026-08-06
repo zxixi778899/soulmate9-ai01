@@ -27,6 +27,7 @@ import {
 import {
   sanitizeAssistantReply,
   sanitizeHistoryContent,
+  stripActionBeats,
 } from '@/lib/chat-reply-sanitize';
 import { moderateText, type ContentMode } from '@/lib/content-moderation';
 import { deductCredits } from '@/lib/credit-system';
@@ -204,6 +205,7 @@ export async function POST(request: NextRequest) {
     locale: bodyLocale,
     media_url: rawMediaUrl,
     media_type: rawMediaType,
+    reply_mode: rawReplyMode,
   } = body as {
     message?: string;
     girlfriend_id?: string;
@@ -213,7 +215,10 @@ export async function POST(request: NextRequest) {
     locale?: string;
     media_url?: string;
     media_type?: string;
+    reply_mode?: string;
   };
+  const replyMode = rawReplyMode === 'dialogue' ? 'dialogue' : 'scene';
+
   const mediaUrl =
     typeof rawMediaUrl === 'string' && rawMediaUrl.trim().startsWith('http')
       ? rawMediaUrl.trim().slice(0, 2000)
@@ -435,6 +440,7 @@ export async function POST(request: NextRequest) {
       locale: chatLocale,
       allowNsfw: intimacyLevel >= 3 && chatResolved.allowNsfw,
       nsfwChannel: intimacyLevel >= 3 && chatResolved.channel === 'nsfw',
+      replyMode,
     }) +
     `\n\n${langLock}` +
     `\n\n${timeContext}` +
@@ -478,10 +484,14 @@ export async function POST(request: NextRequest) {
     .slice()
     .reverse()
     .map((m: { role: string; content: string }) => {
-      const content =
+      const baseContent =
         m.role === 'assistant'
           ? sanitizeAssistantReply(m.content, { preferZh: zhChat })
           : sanitizeHistoryContent(m.role, m.content);
+      const content =
+        replyMode === 'dialogue' && m.role === 'assistant'
+          ? stripActionBeats(baseContent)
+          : baseContent;
       if (!content) return null;
       const role = m.role === 'assistant' ? 'assistant' : 'user';
       return { role: role as 'user' | 'assistant', content };
@@ -623,7 +633,12 @@ export async function POST(request: NextRequest) {
 
         // Final sanitize (tokens / mojibake / empty garbage / wrong-language blocks)
         const cleaned = sanitizeAssistantReply(fullResponse, { preferZh: zhChat });
-        fullResponse = cleaned || sanitizeAssistantReply(fullResponse || '…', { preferZh: zhChat });
+        let finalResponse = cleaned || sanitizeAssistantReply(fullResponse || '…', { preferZh: zhChat });
+        if (replyMode === 'dialogue') {
+          const dialogueOnly = stripActionBeats(finalResponse);
+          if (dialogueOnly.trim()) finalResponse = dialogueOnly;
+        }
+        fullResponse = finalResponse;
         // Never stream unvalidated model tokens to the browser. Emit only the
         // fully language-checked reply so garbage cannot flash or persist.
         controller.enqueue(

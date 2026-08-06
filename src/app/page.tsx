@@ -5,7 +5,7 @@
  * - Tall full-body portrait (main visual) + VFX
  * - Avatar strip under right info panel
  * - Modules: 2 rows × 3 cols (fuller cards)
- * - Hot 12: 3 rows × 4 cols
+ * - Hot 20: 4 rows × 5 cols on desktop
  * - Site footer: Telegram / X / etc.
  */
 
@@ -677,8 +677,8 @@ export default function HomePage() {
             <ChevronRight className="h-3 w-3" />
           </div>
 
-          {/* 桌面端：4 列网格 */}
-          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {/* 桌面端：一行最多 5 列（与资料库网格一致） */}
+          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
             {hotList.map((g, i) => (
               <HotCard
                 key={g.id}

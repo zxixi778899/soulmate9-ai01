@@ -3,18 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Loader2,
-  Send,
-  Mic,
-  Sparkles,
-  ImagePlus,
-  Square,
-  X,
-  Gift,
-  Shirt,
-  Brain,
-  Camera,
-  Plus,
+  Armchair, BedDouble, Brain, Building, Building2, Camera, Candy, Flame,
+  Flower2, Footprints, Gift, Hand, Heart, ImagePlus, Lamp, Loader2,
+  MessageSquareText, Mic, Moon, Move, Music, PersonStanding, Plus, Send,
+  Shirt, ShowerHead, Smile, Sofa, Sparkles, Square, Sun, TreePine, Umbrella, X,
 } from 'lucide-react';
 import { CHAT_ENVS, CHAT_MOODS, CHAT_POSES } from './types';
 import { cn } from '@/lib/utils';
@@ -34,6 +26,37 @@ type OutfitLite = {
   emoji: string;
   category?: string;
   tier?: string;
+};
+
+/** 预设选项元信息：图标 + 中/英文案（EN/ZH 优化） */
+const PRESET_META: Record<string, { icon: React.ElementType; zh: string; en: string }> = {
+  // MOOD 氛围
+  romantic: { icon: Heart, zh: '浪漫', en: 'Romantic' },
+  playful: { icon: Smile, zh: '俏皮', en: 'Playful' },
+  sweet: { icon: Candy, zh: '甜蜜', en: 'Sweet' },
+  passionate: { icon: Flame, zh: '热恋', en: 'Passionate' },
+  cozy: { icon: Armchair, zh: '温馨', en: 'Cozy' },
+  cheerful: { icon: Sun, zh: '欢快', en: 'Cheerful' },
+  dreamy: { icon: Moon, zh: '梦幻', en: 'Dreamy' },
+  naughty: { icon: Sparkles, zh: '坏坏', en: 'Naughty' },
+  // POSE 姿势
+  sitting: { icon: Sofa, zh: '坐着', en: 'Sitting' },
+  standing: { icon: PersonStanding, zh: '站着', en: 'Standing' },
+  lying_down: { icon: BedDouble, zh: '躺着', en: 'Lying down' },
+  walking: { icon: Footprints, zh: '走路', en: 'Walking' },
+  dancing: { icon: Music, zh: '跳舞', en: 'Dancing' },
+  close_up: { icon: Camera, zh: '特写', en: 'Close-up' },
+  kneeling: { icon: Hand, zh: '跪姿', en: 'Kneeling' },
+  leaning: { icon: Move, zh: '倚靠', en: 'Leaning' },
+  // ENV 环境
+  bedroom: { icon: BedDouble, zh: '卧室', en: 'Bedroom' },
+  beach: { icon: Umbrella, zh: '海滩', en: 'Beach' },
+  garden: { icon: Flower2, zh: '花园', en: 'Garden' },
+  city: { icon: Building2, zh: '都市', en: 'City' },
+  cozy_room: { icon: Lamp, zh: '客厅', en: 'Cozy room' },
+  outdoor: { icon: TreePine, zh: '户外', en: 'Outdoor' },
+  shower: { icon: ShowerHead, zh: '浴室', en: 'Shower' },
+  rooftop: { icon: Building, zh: '天台', en: 'Rooftop' },
 };
 
 export function ChatInputBar(props: {
@@ -70,6 +93,9 @@ export function ChatInputBar(props: {
   onSelfie?: () => void;
   isGenerating?: boolean;
   onMemories?: () => void;
+  /** Scene / dialogue reply mode toggle */
+  replyMode?: 'scene' | 'dialogue';
+  onReplyModeChange?: (mode: 'scene' | 'dialogue') => void;
 }) {
   const {
     input,
@@ -103,9 +129,24 @@ export function ChatInputBar(props: {
     onSelfie,
     isGenerating,
     onMemories,
+    replyMode = 'scene',
+    onReplyModeChange,
   } = props;
 
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const isZh = String(locale || '').toLowerCase().startsWith('zh');
+  const presetRows: Array<{
+    key: string;
+    labelZh: string;
+    labelEn: string;
+    items: readonly string[];
+    selected: string | null;
+    set: (v: string | null) => void;
+  }> = [
+    { key: 'mood', labelZh: '氛围', labelEn: 'MOOD', items: CHAT_MOODS, selected: selectedMood, set: setSelectedMood },
+    { key: 'pose', labelZh: '姿势', labelEn: 'POSE', items: CHAT_POSES, selected: selectedPose, set: setSelectedPose },
+    { key: 'env', labelZh: '环境', labelEn: 'SCENE', items: CHAT_ENVS, selected: selectedEnvironment, set: setSelectedEnvironment },
+  ];
   const taRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -459,35 +500,54 @@ export function ChatInputBar(props: {
 
       {showPresets && (
         <div className="max-w-3xl mx-auto px-3 pt-1 pb-1.5 space-y-1.5">
-          {[
-            { label: 'MOOD', items: CHAT_MOODS, selected: selectedMood, set: setSelectedMood },
-            { label: 'POSE', items: CHAT_POSES, selected: selectedPose, set: setSelectedPose },
-            {
-              label: 'ENV',
-              items: CHAT_ENVS,
-              selected: selectedEnvironment,
-              set: setSelectedEnvironment,
-            },
-          ].map(({ label, items, selected, set }) => (
-            <div key={label} className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[9px] font-bold text-[#ff6ba6]/70 uppercase tracking-wider w-9 shrink-0">
-                {label}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#ff6ba6]/70">
+              {isZh ? '预设 · 选择后随消息生效' : 'Presets · applied to your message'}
+            </span>
+            {(selectedMood || selectedPose || selectedEnvironment) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMood(null);
+                  setSelectedPose(null);
+                  setSelectedEnvironment(null);
+                }}
+                className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-white/10 bg-white/[0.04] text-[10px] text-white/50 hover:text-white active:scale-95 transition-all"
+              >
+                <X className="h-3 w-3" />
+                {isZh ? '清除' : 'Clear'}
+              </button>
+            )}
+          </div>
+          {presetRows.map(({ key, labelZh, labelEn, items, selected, set }) => (
+            <div key={key} className="flex items-start gap-1.5">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-[#ff6ba6]/70 w-10 shrink-0 leading-6 pt-0.5">
+                {isZh ? labelZh : labelEn}
               </span>
-              {items.map((it) => (
-                <button
-                  key={it}
-                  type="button"
-                  onClick={() => set(selected === it ? null : it)}
-                  className={cn(
-                    'text-[11px] px-2.5 py-0.5 rounded-full border transition-all active:scale-95',
-                    selected === it
-                      ? 'glass-btn !rounded-full !h-auto !px-2.5 !py-0.5 text-white'
-                      : 'glass text-[#8B8BA3] hover:text-white',
-                  )}
-                >
-                  {it.replace('_', ' ')}
-                </button>
-              ))}
+              <div className="flex flex-wrap gap-1.5">
+                {items.map((it) => {
+                  const meta = PRESET_META[it];
+                  const Icon = meta?.icon || Sparkles;
+                  const label = meta ? (isZh ? meta.zh : meta.en) : it.replace('_', ' ');
+                  const active = selected === it;
+                  return (
+                    <button
+                      key={it}
+                      type="button"
+                      onClick={() => set(active ? null : it)}
+                      className={cn(
+                        'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] transition-all active:scale-95',
+                        active
+                          ? 'glass-btn !rounded-full !h-auto !px-2.5 !py-1 text-white border-[#FF2D78]/40'
+                          : 'glass text-[#8B8BA3] hover:text-white',
+                      )}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
@@ -526,6 +586,40 @@ export function ChatInputBar(props: {
           Recording… {voiceSeconds}s
         </div>
       )}
+
+      {/* Reply mode: scene (current style) vs dialogue (spoken words only) */}
+      <div className="max-w-3xl mx-auto px-2 sm:px-3 pt-1.5 flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onReplyModeChange?.('scene')}
+          className={cn(
+            'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] font-medium transition-all active:scale-95',
+            replyMode === 'scene'
+              ? 'border-[#FF2D78]/50 bg-gradient-to-r from-[#FF2D78]/20 to-[#C026D3]/20 text-[#ffb3cd]'
+              : 'border-white/10 bg-white/[0.04] text-white/45 hover:text-white/80',
+          )}
+          aria-pressed={replyMode === 'scene'}
+          title={t('chat.modeSceneHint')}
+        >
+          <Sparkles className="h-3 w-3" />
+          {t('chat.modeScene')}
+        </button>
+        <button
+          type="button"
+          onClick={() => onReplyModeChange?.('dialogue')}
+          className={cn(
+            'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] font-medium transition-all active:scale-95',
+            replyMode === 'dialogue'
+              ? 'border-[#C026D3]/50 bg-gradient-to-r from-[#C026D3]/20 to-[#FF2D78]/20 text-[#e9b3ff]'
+              : 'border-white/10 bg-white/[0.04] text-white/45 hover:text-white/80',
+          )}
+          aria-pressed={replyMode === 'dialogue'}
+          title={t('chat.modeDialogueHint')}
+        >
+          <MessageSquareText className="h-3 w-3" />
+          {t('chat.modeDialogue')}
+        </button>
+      </div>
 
       {/* Input row */}
       <div

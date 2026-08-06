@@ -165,6 +165,32 @@ export function sanitizeAssistantReply(
 }
 
 /**
+ * Dialogue mode cleanup: keep only spoken words by stripping narration.
+ * Removes *asterisk* beats and bracketed stage directions.
+ */
+export function stripActionBeats(text: string): string {
+  const t = String(text ?? '');
+  if (!t) return '';
+  let out = t
+    .replace(/\*[^*]*\*/g, ' ')
+    .replace(/[（(]\s*(?:smiles?|smirk|laughs?|giggles?|blushes?|sighs?|whispers?|leans?|nuzzles?|bites?|licks?|touches?|caresses?|kisses?|moves?|nods?|shakes?|grins?|looks?|turns?|steps?|pulls?|pushes?|strokes?|wraps?|tilts?|flips?|tucks?|winks?|groans?|moans?|breathes?|pants?)[^)）]{0,40}[)）]\s*/gi, ' ');
+  // Drop narration-only lines (no quote marks, no dialogue verbs, short).
+  out = out
+    .split('\n')
+    .map((line) => {
+      const s = line.trim();
+      if (!s) return '';
+      if (/^["'“”‘’]/.test(s) || /["'“”‘’]$/.test(s)) return s;
+      if (/^(she|her|he|his|i)\s+(smiles?|smirks?|laughs?|giggles?|blushes?|sighs?|whispers?|leans?|bites?|touches?|kisses?|moves?|nods?|shakes?|grins?|looks?|turns?|steps?|pulls?|pushes?|strokes?|wraps?|tilts?|winks?|groans?|moans?|breathes?|pants?)\b/i.test(s) && s.length < 120) return '';
+      return s;
+    })
+    .filter(Boolean)
+    .join('\n');
+  out = out.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  return out;
+}
+
+/**
  * Clean a single history line before sending to the LLM.
  * Returns empty string if the line should be dropped.
  */

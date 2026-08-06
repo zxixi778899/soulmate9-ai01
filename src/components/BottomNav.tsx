@@ -37,7 +37,7 @@ export default function BottomNav() {
 
   const rightItems = isLoggedIn
     ? [
-        { href: '/chats', label: t('home.messages'), icon: MessageCircle, badge: unreadTotal },
+        { href: '/create', label: t('home.create'), icon: Wand2 },
         { href: '/profile', label: t('home.me'), icon: User },
       ]
     : [
@@ -106,19 +106,24 @@ export default function BottomNav() {
         {isLoggedIn ? (
           <div className="relative flex flex-col items-center justify-end px-1 pb-0.5" style={{ width: 64 }}>
             <Link
-              href="/create"
+              href="/chats"
               className={cn(
                 'absolute -top-5 flex h-14 w-14 items-center justify-center rounded-2xl',
                 'bg-gradient-to-br from-[#ff2e88] to-[#a855f7]',
                 'border-2 border-[#0a0612] shadow-[0_8px_24px_rgba(255,45,120,0.45)]',
                 'active:scale-95 transition-transform touch-manipulation',
-                isActive('/create') && 'ring-2 ring-[#ffb3cd]/60',
+                isActive('/chats') && 'ring-2 ring-[#ffb3cd]/60',
               )}
-              aria-label={t('home.createAria')}
+              aria-label={t('home.messages')}
             >
-              <Wand2 className="h-6 w-6 text-white" />
+              <MessageCircle className="h-6 w-6 text-white" />
+              {unreadTotal > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#0a0612] px-1 text-[10px] font-bold text-white shadow-[0_0_8px_rgba(255,45,120,0.5)]">
+                  {unreadTotal > 9 ? '9+' : unreadTotal}
+                </span>
+              )}
             </Link>
-            <span className="mt-8 text-[10px] font-medium text-white/40 leading-none">{t('home.create')}</span>
+            <span className="mt-8 text-[10px] font-medium text-white/40 leading-none">{t('home.messages')}</span>
           </div>
         ) : settings?.shop_enabled ? (
           <Link

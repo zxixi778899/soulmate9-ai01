@@ -123,7 +123,6 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
     ? lastMsg.role === 'user' ? `你: ${lastMsg.content}` : lastMsg.content
     : '还没有消息 · 点进来聊聊';
   const reviewStatus = friend.review_status || 'draft';
-  const isPublished = friend.is_public && reviewStatus === 'approved';
   const isPending = reviewStatus === 'pending';
   const isRejected = reviewStatus === 'rejected';
   const isDraft = reviewStatus === 'draft' || isRejected;
@@ -167,7 +166,6 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className={cn('text-[11px] font-medium shrink-0', mood.tone)}>{mood.emoji} {mood.label}</span>
-            {isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">{zh ? '已入库' : 'Public'}</span>}
             {isPending && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">{zh ? '审核中' : 'Reviewing'}</span>}
             {isRejected && (
               <span
@@ -246,7 +244,7 @@ export default function ChatsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const membership = useMembership();
-  const { unreadCounts, unreadTotal, refreshUnread } = useUnreadMessages();
+  const { unreadCounts, refreshUnread } = useUnreadMessages();
 
   // ── Friend list state ──
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -689,7 +687,10 @@ export default function ChatsPage() {
     } catch (err) {
       setIsTyping(false); logger.error('Generate selfie error:', { data: err });
       setMessages((prev) => prev.filter((m) => m.id !== waitId));
-      setMessages((prev) => [...prev, { id: `selfie-err-${Date.now()}`, role: 'assistant', content: err instanceof Error ? err.message : 'Photo failed', created_at: new Date().toISOString() }]);
+      const fumbled = waitZh
+        ? '不小心手抖拍坏了…再拍一张吗？'
+        : "Oops, I fumbled the shot… want me to take another one?";
+      setMessages((prev) => [...prev, { id: `selfie-err-${Date.now()}`, role: 'assistant', content: fumbled, created_at: new Date().toISOString() }]);
     }
     setIsGenerating(false);
   };

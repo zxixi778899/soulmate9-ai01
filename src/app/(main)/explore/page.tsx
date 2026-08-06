@@ -254,7 +254,8 @@ export default function ExplorePage() {
       {/* Card grid — gacha style */}
       <section className="px-4 sm:px-6 py-6">
         <div className="mx-auto max-w-7xl">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
+          {/* 与主页保持一致：一行最多 5 位伴侣，宽间距更大方 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
             {girls.map((girl) => (
               <button
                 key={girl.id}

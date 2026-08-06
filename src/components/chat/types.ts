@@ -49,6 +49,6 @@ export type StreamRow =
   | { type: 'date'; key: string; label: string }
   | { type: 'msg'; key: string; msg: ChatMessage; showAvatar: boolean; merged: boolean };
 
-export const CHAT_MOODS = ['romantic', 'playful', 'sweet', 'passionate', 'cozy', 'cheerful'] as const;
-export const CHAT_POSES = ['sitting', 'standing', 'lying_down', 'walking', 'dancing', 'close_up'] as const;
-export const CHAT_ENVS = ['bedroom', 'beach', 'garden', 'city', 'cozy_room', 'outdoor'] as const;
+export const CHAT_MOODS = ['romantic', 'playful', 'sweet', 'passionate', 'cozy', 'cheerful', 'dreamy', 'naughty'] as const;
+export const CHAT_POSES = ['sitting', 'standing', 'lying_down', 'walking', 'dancing', 'close_up', 'kneeling', 'leaning'] as const;
+export const CHAT_ENVS = ['bedroom', 'beach', 'garden', 'city', 'cozy_room', 'outdoor', 'shower', 'rooftop'] as const;

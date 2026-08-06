@@ -91,10 +91,82 @@ export const SUPPORT_FAQS: FaqItem[] = [
   },
 ];
 
-export function buildSupportSystemPrompt(locale: string, isZh: boolean): string {
-  const faqContext = SUPPORT_FAQS.map(
+export interface SupportKnowledge {
+  faqs: FaqItem[];
+  supportEmail: string;
+  telegramUrl: string;
+  siteName: string;
+}
+
+const DEFAULT_KNOWLEDGE: SupportKnowledge = {
+  faqs: SUPPORT_FAQS,
+  supportEmail: 'support@oxmate-ai.com',
+  telegramUrl: '',
+  siteName: 'SoulMate AI',
+};
+
+/**
+ * Load live support knowledge from site_settings so admin edits take effect
+ * immediately (keys: support_faqs / support_email / telegram_url / site_name).
+ */
+export async function loadSupportKnowledge(): Promise<SupportKnowledge> {
+  try {
+    const { getSupabaseClient } = await import('@/storage/database/supabase-client');
+    const supabase = getSupabaseClient();
+    const { data } = await supabase
+      .from('site_settings')
+      .select('key, value')
+      .in('key', ['support_faqs', 'support_email', 'telegram_url', 'site_name']);
+    const map: Record<string, unknown> = {};
+    for (const row of data || []) map[row.key] = row.value;
+
+    let faqs = SUPPORT_FAQS;
+    const raw = map.support_faqs;
+    if (raw) {
+      let parsed: unknown = raw;
+      if (typeof raw === 'string') {
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          parsed = null;
+        }
+      }
+      if (Array.isArray(parsed)) {
+        const valid = parsed.filter(
+          (f): f is FaqItem => !!f && typeof f.q === 'string' && typeof f.a === 'string',
+        );
+        if (valid.length > 0) faqs = valid;
+      }
+    }
+    return {
+      faqs,
+      supportEmail:
+        typeof map.support_email === 'string' && map.support_email.trim()
+          ? map.support_email.trim()
+          : DEFAULT_KNOWLEDGE.supportEmail,
+      telegramUrl: typeof map.telegram_url === 'string' ? map.telegram_url.trim() : '',
+      siteName:
+        typeof map.site_name === 'string' && map.site_name.trim()
+          ? map.site_name.trim()
+          : DEFAULT_KNOWLEDGE.siteName,
+    };
+  } catch {
+    return DEFAULT_KNOWLEDGE;
+  }
+}
+
+export function buildSupportSystemPrompt(
+  locale: string,
+  isZh: boolean,
+  knowledge: SupportKnowledge = DEFAULT_KNOWLEDGE,
+): string {
+  const faqContext = knowledge.faqs.map(
     (f, i) => `Q${i + 1}: ${f.q}\nA${i + 1}: ${f.a}`,
   ).join('\n\n');
+  const supportEmail = knowledge.supportEmail;
+  const telegramLine = knowledge.telegramUrl
+    ? `- Telegram: ${knowledge.telegramUrl}`
+    : '';
 
   if (isZh) {
     return `你是 SoulMate AI 的智能客服助手「小灵」。
@@ -103,7 +175,7 @@ export function buildSupportSystemPrompt(locale: string, isZh: boolean): string 
 - 友好、专业、高效
 - 帮助用户快速解决账户、付费、功能等问题
 - 回答简洁，不超过3-4句话
-- 如果问题超出你的知识范围，建议用户发送邮件至 support@oxmate-ai.com
+- 如果问题超出你的知识范围，建议用户发送邮件至 ${supportEmail}
 
 ## 知识库
 以下是常见问题和标准答案，请优先参考：
@@ -125,12 +197,16 @@ ${faqContext}
 - Friendly, professional, and efficient
 - Help users quickly resolve account, billing, feature, and technical issues
 - Keep answers concise (3-4 sentences max)
-- If a question is beyond your knowledge, suggest emailing support@oxmate-ai.com
+- If a question is beyond your knowledge, suggest emailing ${supportEmail}
 
 ## Knowledge Base
 Here are common questions and standard answers — prioritize these:
 
 ${faqContext}
+
+## Live Support
+- Email: ${supportEmail}
+${telegramLine}
 
 ## Rules
 1. Prefer answers from the knowledge base

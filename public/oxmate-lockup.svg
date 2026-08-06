@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="220" viewBox="0 0 720 220">
+  <defs>
+    <linearGradient id="brandText" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e11d48"/>
+      <stop offset="100%" stop-color="#d946ef"/>
+    </linearGradient>
+  </defs>
+
+  <!-- mark tile -->
+  <g transform="translate(20,10) scale(0.390625)">
+    <defs>
+      <linearGradient id="brandG" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#e11d48"/>
+        <stop offset="100%" stop-color="#d946ef"/>
+      </linearGradient>
+      <linearGradient id="hornG" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#fda4af"/>
+        <stop offset="100%" stop-color="#e11d48"/>
+      </linearGradient>
+      <radialGradient id="glowG" cx="50%" cy="42%" r="55%">
+        <stop offset="0%" stop-color="#d946ef" stop-opacity="0.34"/>
+        <stop offset="55%" stop-color="#a21caf" stop-opacity="0.12"/>
+        <stop offset="100%" stop-color="#0a0a0f" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect width="512" height="512" fill="#0a0a0f"/>
+    <rect width="512" height="512" fill="url(#glowG)"/>
+    <g>
+      <path d="M84 76 L146 196 L198 170 L118 84 Z" fill="url(#hornG)"/>
+      <path d="M118 84 L198 170 L210 182 L128 96 Z" fill="#86198f" opacity="0.95"/>
+      <path d="M428 76 L366 196 L314 170 L394 84 Z" fill="url(#hornG)"/>
+      <path d="M394 84 L314 170 L302 182 L384 96 Z" fill="#86198f" opacity="0.95"/>
+    </g>
+    <path d="M256 158 L190 182 L146 246 L180 302 L218 352 L256 368 L294 352 L332 302 L366 246 L322 182 Z" fill="url(#brandG)"/>
+    <path d="M256 158 L190 182 L146 246 L180 302 L218 352 L256 368 Z" fill="#ffffff" opacity="0.10"/>
+    <path d="M256 158 L322 182 L366 246 L332 302 L294 352 L256 368 Z" fill="#000000" opacity="0.16"/>
+    <path d="M256 158 L190 182 L322 182 Z" fill="#ffffff" opacity="0.22"/>
+    <path d="M226 318 L286 318 L294 326 L218 326 Z" fill="#c026d3"/>
+    <path d="M218 326 L294 326 L288 388 L224 388 Z" fill="#86198f"/>
+    <path d="M238 342 L245 348 L238 354 L231 348 Z" fill="#1a0422"/>
+    <path d="M274 342 L281 348 L274 354 L267 348 Z" fill="#1a0422"/>
+    <path d="M186 246 L217 237 L221 251 L190 260 Z" fill="#1a0422"/>
+    <path d="M326 246 L295 237 L291 251 L322 260 Z" fill="#1a0422"/>
+    <path d="M194 244 L199 242 L201 247 L196 249 Z" fill="#ffffff" opacity="0.85"/>
+    <path d="M318 244 L313 242 L311 247 L316 249 Z" fill="#ffffff" opacity="0.85"/>
+    <path d="M190 182 L256 158 L322 182" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.35"/>
+    <path d="M84 76 L118 84" stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.45"/>
+    <path d="M428 76 L394 84" stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.45"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="248" y="156" font-family="Inter, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif" font-size="108" font-weight="750" letter-spacing="2" fill="#701a75" opacity="0.5">oxmate</text>
+  <text x="248" y="152" font-family="Inter, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif" font-size="108" font-weight="750" letter-spacing="2">
+    <tspan fill="url(#brandText)">ox</tspan><tspan fill="#f4f4f5" opacity="0.92">mate</tspan>
+  </text>
+</svg>

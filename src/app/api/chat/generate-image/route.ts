@@ -34,6 +34,10 @@ import {
   buildReferenceGenerationPlan,
   companionIdentityAssets,
 } from '@/lib/reference-generation-plan';
+import {
+  generateImagePromptWithLlm,
+  resolveImagePromptChannel,
+} from '@/lib/image-prompt-llm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -252,7 +256,16 @@ export async function POST(request: NextRequest) {
       userRequest || 'Create a full-body character artwork matching our conversation',
       chatContext,
     );
-    const framing = intimacyPolicy.level >= 3
+    const promptChannel = resolveImagePromptChannel({
+      intimacyPolicy,
+      userRequest,
+      chatContext,
+    });
+    const promptPolicy =
+      promptChannel.channel === 'sfw'
+        ? getIntimacyGenerationPolicy(promptChannel.nsfwIntensity === 2 ? 200 : 0)
+        : intimacyPolicy;
+    const framing = promptPolicy.level >= 3
       ? 'candid three-quarter full-body framing, torso and pelvis visible, shifted weight, relaxed shoulders, asymmetrical natural gesture'
       : intent.kind === 'selfie'
       ? 'close selfie framing, looking directly at the camera'
@@ -292,7 +305,7 @@ export async function POST(request: NextRequest) {
       surface: 'companion',
       category,
       renderStyle: animeStyle,
-      nsfwIntensity: intimacyPolicy.nsfwIntensity,
+      nsfwIntensity: promptPolicy.nsfwIntensity,
       sceneSemantics,
     });
     const identity = [
@@ -311,23 +324,60 @@ export async function POST(request: NextRequest) {
     ].filter(Boolean).map(String).join(', ');
     let prompt = buildStudioPromptEnhancement({
       category,
-      intensity: intimacyPolicy.nsfwIntensity,
+      intensity: promptPolicy.nsfwIntensity,
       animeStyle,
       scene: `${sceneBits}. ${buildSceneCastPrompt(sceneSemantics)}`,
       identity,
     });
 
+    // Hidden LLM prompt: routed by content (SFW vs NSFW). Only the final image
+    // is exposed to the client; the prompt itself stays internal.
+    let promptEngine: 'llm' | 'deterministic' = 'deterministic';
+    if (resolved.config.allow_llm_prompt_polish !== false) {
+      const llmResult = await generateImagePromptWithLlm({
+        aiModules,
+        channel: promptChannel.channel,
+        intensity: promptPolicy.nsfwIntensity,
+        intimacyPolicy: promptPolicy,
+        gf: gfRecord,
+        category,
+        renderStyle: animeStyle,
+        userRequest,
+        chatContext,
+        sceneSemantics,
+        moodTag,
+        poseTag,
+        envTag,
+        tier,
+        userId: user.id,
+        girlfriendId: girlfriend_id,
+        timeoutMs: 15_000,
+      });
+      if (llmResult.usedLlm && llmResult.prompt) {
+        prompt = buildStudioPromptEnhancement({
+          category,
+          intensity: promptPolicy.nsfwIntensity,
+          animeStyle,
+          scene: llmResult.prompt,
+          identity,
+        });
+        promptEngine = 'llm';
+      }
+    }
 
     const genderStyle = detectGenderStyle(gfRecord);
-    const generationProfile = resolveImageGenerationProfile(genderStyle, effectiveAdult);
+    const generationProfile = resolveImageGenerationProfile(
+      genderStyle,
+      promptChannel.channel === 'nsfw',
+    );
     const loraPlan = buildLoraPlan(
       subjectFromGirlfriendRow(gf as Record<string, unknown>),
       'chat_selfie',
       {
-        adult: effectiveAdult,
-        content: [prompt, intent.kind, intimacyPolicy.sceneDirection].filter(Boolean).join(' '),
-        preferOutfit: intimacyPolicy.level === 2,
-        preferNsfwPose: intimacyPolicy.level >= 4,
+        adult: promptChannel.channel === 'nsfw',
+        content: [prompt, intent.kind, promptPolicy.sceneDirection].filter(Boolean).join(' '),
+        preferOutfit: promptPolicy.level === 2,
+        preferNsfwPose: promptPolicy.level >= 4,
         preferDetail: /selfie|portrait|close.?up|face|skin/i.test(`${userRequest} ${intent.kind}`),
       },
     );
@@ -338,7 +388,7 @@ export async function POST(request: NextRequest) {
     }));
     const categoryControl = resolveCategoryLoraControls(
       category,
-      intimacyPolicy.nsfwIntensity,
+      promptPolicy.nsfwIntensity,
       animeStyle,
     );
     const categoryLoras = categoryControl.selected.map((lora) => ({
@@ -386,6 +436,9 @@ export async function POST(request: NextRequest) {
       (gf as { avatar_url?: string }).avatar_url,
       (gf as { portrait_url?: string }).portrait_url,
       (gf as { card_url?: string }).card_url,
+      (gf as { image_url?: string }).image_url,
+      typeof cardAppearance.image === 'string' ? (cardAppearance.image as string) : undefined,
+      typeof characterCard.image === 'string' ? (characterCard.image as string) : undefined,
     ];
     const referenceImages: string[] = [];
     for (const raw of refCandidates) {
@@ -426,6 +479,9 @@ export async function POST(request: NextRequest) {
     // The avatar is an identity cue, not a composition template. Explicit and
     // multi-person scenes need more prompt freedom than a simple portrait.
     const ipAdapterWeight = ({ 1: 0.72, 2: 0.68, 3: 0.64, 4: 0.58, 5: 0.54 } as const)[intimacyPolicy.level];
+    if (useConsistency) {
+      prompt = `${prompt} Identical woman to the reference photo: same face, hair color, body type and outfit; never change her identity.`;
+    }
 
     const sceneCfg = resolved.config;
     const generationSeed = Math.floor(Math.random() * 2 ** 32);
@@ -464,8 +520,8 @@ export async function POST(request: NextRequest) {
         provider: routerResult.provider,
         generation_trace: {
           category,
-          intensity: intimacyPolicy.nsfwIntensity,
-          prompt: prompt.slice(0, 800),
+          intensity: promptPolicy.nsfwIntensity,
+          prompt_engine: promptEngine,
           loras: intelligentLoras,
           lora_inventory_source: compatibleLoraPlan.inventorySource,
           missing_loras: compatibleLoraPlan.missing,
@@ -540,7 +596,8 @@ export async function POST(request: NextRequest) {
         source: 'chat_generation',
         scene: 'chat_character_art',
         intimacy_level: intimacyPolicy.level,
-        nsfw_intensity: intimacyPolicy.nsfwIntensity,
+        nsfw_intensity: promptPolicy.nsfwIntensity,
+        prompt_engine: promptEngine,
         prompt_summary: prompt.slice(0, 500),
         asset_role: 'character-art',
       },
@@ -564,7 +621,7 @@ export async function POST(request: NextRequest) {
       message: caption,
       scene: 'chat_selfie',
       kind: intent.kind,
-      prompt_preview: prompt.slice(0, 220),
+      prompt_engine: promptEngine,
       used_reference: Boolean(useConsistency),
       reference_count: referenceImages.length,
       route_reason: resolved.routeReason,
@@ -572,7 +629,7 @@ export async function POST(request: NextRequest) {
       model_endpoint: resolved.logicalEndpointId,
       token_cost: resolved.tokenCost,
       intimacy_level: intimacyPolicy.level,
-      nsfw_intensity: intimacyPolicy.nsfwIntensity,
+      nsfw_intensity: promptPolicy.nsfwIntensity,
       lora_plan: {
         primary: loraPlan.primary.note,
         secondary: loraPlan.secondary?.note || null,

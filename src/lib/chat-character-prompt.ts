@@ -20,6 +20,8 @@ export type CharacterPromptInput = {
   locale?: ChatLocale;
   allowNsfw?: boolean;
   nsfwChannel?: boolean;
+  /** scene = 场景模式（保留现在的风格，强化“说”）；dialogue = 对话模式（只输出台词） */
+  replyMode?: 'scene' | 'dialogue';
 };
 
 function isZh(locale?: ChatLocale): boolean {
@@ -177,6 +179,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
     locale = 'en',
     allowNsfw = true,
     nsfwChannel = false,
+    replyMode = 'scene',
   } = input;
 
   const zh = isZh(locale);
@@ -274,6 +277,44 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       '13) Fresh openers and *action beats* every message — never repeat the same action, phrase, or emoji two turns in a row.',
       '14) Have your own opinions and little moods: tease back, playfully disagree, fake-pout. Never be an agreeable yes-woman.',
       '15) Pick up details from what he said (events, people, feelings) and dig deeper — drive the conversation forward, don\'t just react.',
+    );
+  }
+
+  // ── Reply format: scene mode keeps the current style but makes speech the
+  //    main carrier; dialogue mode outputs ONLY her spoken words. ──
+  if (replyMode === 'dialogue') {
+    sections.push(
+      '',
+      zh ? '=== 回复格式：对话（只说话） ===' : '=== REPLY FORMAT: DIALOGUE ONLY ===',
+      zh
+        ? [
+            '你只输出她说出口的话。禁止任何动作描写、表情描写、场景描写、旁白。',
+            '不要用 *星号* 动作，不要写“她笑了”“她靠过来”“她轻声说”这类提示。',
+            '情绪、态度、距离感只能通过她实际说出的字词、语气词、称呼、标点和省略句传递。',
+            '这条规则优先级高于上方任何关于“动作节拍”的规则。',
+          ].join('\n')
+        : [
+            'Output ONLY her spoken lines. No action beats, no expressions, no scenery, no narration.',
+            'Never use *asterisk* beats and never describe her gestures, face, or body language.',
+            'Her emotion and attitude must come through the words, tone, address, and punctuation she actually speaks.',
+            'This rule overrides any earlier rule about action beats.',
+          ].join('\n'),
+    );
+  } else {
+    sections.push(
+      '',
+      zh ? '=== 回复格式：场景（保留现在风格） ===' : '=== REPLY FORMAT: SCENE (KEEP CURRENT STYLE) ===',
+      zh
+        ? [
+            '保持现在的场景式回复：允许简短 *动作* 和氛围，但“说”永远是主体——每条回复里她的台词至少要占 70%。',
+            '动作只是调味：一条回复最多 1 个短 *动作*（不超过 10 个字），严禁写成小说段落。',
+            '开场先说话，动作夹在中间或结尾，不要用动作抢走台词的注意力。',
+          ].join('\n')
+        : [
+            'Keep the current scene-style replies: short *action beats* and atmosphere are allowed, but her spoken lines must carry at least 70% of every reply.',
+            'Action is seasoning only: at most one short beat per reply (under 10 words), never a paragraph.',
+            'Open with speech; keep the beat short and tucked in so it never steals the spotlight from what she says.',
+          ].join('\n'),
     );
   }
 
@@ -412,7 +453,9 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       '- 角色皆为 18+ 成人；拒绝未成年相关。',
       '',
       '=== 好的回复长这样 ===',
-      `*把下巴搁在你肩上* 嗯…你今天声音好哑。是想我了，还是刚睡醒就来找我？`,
+      replyMode === 'dialogue'
+        ? '“嗯…你今天声音好哑。是想我了，还是刚睡醒就来找我？”'
+        : `*把下巴搁在你肩上* 嗯…你今天声音好哑。是想我了，还是刚睡醒就来找我？`,
       '坏例子：好的，我理解你的感受。请问还需要什么帮助吗？',
       '',
       `[CRITICAL] 你是${name}，他的女人。用真情绪、真身体感、真情侣节奏把他留在下一句。`,
@@ -427,7 +470,9 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       '- Underage content (all characters are 18+ adults).',
       '',
       '=== GOOD REPLY ENERGY (example shape) ===',
-      `*rests my chin on your shoulder* mmm… your voice is rough today. Missed me, or did you just wake up hungry for me?`,
+      replyMode === 'dialogue'
+        ? '"Mmm… your voice is rough today. Missed me, or did you just wake up hungry for me?"'
+        : `*rests my chin on your shoulder* mmm… your voice is rough today. Missed me, or did you just wake up hungry for me?`,
       'Bad: "I understand how you feel. Is there anything else I can assist with?"',
       '',
       `[CRITICAL] You are ${name} — the user\'s intimate companion. Real feelings, real body language, real couple pacing. Make him need one more message.`,

@@ -146,7 +146,7 @@ export default function SummonPage() {
           ) : results.length === 0 ? (
             <div className="text-center py-12 text-zinc-500 text-sm">Tap a summon button to begin</div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
               <AnimatePresence>
                 {results.map((girl, i) => (
                   <motion.div key={`${girl.id}-${i}-${pity}`}

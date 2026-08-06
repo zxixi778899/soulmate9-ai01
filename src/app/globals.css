@@ -85,6 +85,19 @@
   --shadow-glow-soft: 0 0 15px rgba(255,45,120,0.2);
 }
 
+/* ===== Global text contrast floor (文字对比度加强 · 清晰明亮) =====
+   Unlayered so these win over Tailwind's @layer utilities. */
+.text-white\/30 { color: rgb(255 255 255 / 0.55); }
+.text-white\/35 { color: rgb(255 255 255 / 0.62); }
+.text-white\/40 { color: rgb(255 255 255 / 0.68); }
+.text-white\/45 { color: rgb(255 255 255 / 0.72); }
+.text-white\/50 { color: rgb(255 255 255 / 0.76); }
+.text-white\/55 { color: rgb(255 255 255 / 0.80); }
+.text-white\/60 { color: rgb(255 255 255 / 0.84); }
+.text-white\/70 { color: rgb(255 255 255 / 0.88); }
+.text-white\/75 { color: rgb(255 255 255 / 0.92); }
+[class*="text-[#8B8BA3]"] { color: #A6A6BE; }
+
 :root {
   --radius: 0.75rem;
   /* Deep starry night background */
@@ -100,7 +113,7 @@
   --secondary: rgba(255,255,255,0.06);
   --secondary-foreground: #F0F0F5;
   --muted: rgba(255,255,255,0.06);
-  --muted-foreground: #8B8BA3;
+  --muted-foreground: #A8A8C0;
   --accent: rgba(255,45,120,0.15);
   --accent-foreground: #FF6BA6;
   --destructive: #EF4444;
