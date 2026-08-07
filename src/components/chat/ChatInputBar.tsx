@@ -80,6 +80,8 @@ export function ChatInputBar(props: {
   setWhisperMode?: (v: boolean) => void;
   videoTier?: 3 | 5 | 10;
   setVideoTier?: (v: 3 | 5 | 10) => void;
+  candidateCount?: 1 | 4;
+  setCandidateCount?: (v: 1 | 4) => void;
   pendingMedia?: PendingMedia | null;
   onPickImage?: (file: File) => void;
   onClearMedia?: () => void;
@@ -124,6 +126,8 @@ export function ChatInputBar(props: {
     setWhisperMode,
     videoTier = 5,
     setVideoTier,
+    candidateCount = 1,
+    setCandidateCount,
     pendingMedia,
     onPickImage,
     onClearMedia,
@@ -630,6 +634,39 @@ export function ChatInputBar(props: {
                   {sec === 3 ? (isZh ? '3秒 快速' : '3s quick') : sec === 5 ? (isZh ? '5秒 标准' : '5s std') : (isZh ? '10秒 高清' : '10s HD')}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* 出图模式：单张 / 一组候选 */}
+          <div className="flex items-start gap-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#38bdf8]/70 w-10 shrink-0 leading-6 pt-0.5">
+              {isZh ? '出图' : 'PHOTO'}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCandidateCount?.(1)}
+                className={cn(
+                  'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] transition-all active:scale-95',
+                  candidateCount === 1
+                    ? 'glass-btn !rounded-full !h-auto !px-2.5 !py-1 text-white border-[#38bdf8]/40'
+                    : 'glass text-[#8B8BA3] hover:text-white',
+                )}
+              >
+                {isZh ? '单张' : 'Single'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCandidateCount?.(4)}
+                className={cn(
+                  'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] transition-all active:scale-95',
+                  candidateCount === 4
+                    ? 'glass-btn !rounded-full !h-auto !px-2.5 !py-1 text-white border-[#38bdf8]/40'
+                    : 'glass text-[#8B8BA3] hover:text-white',
+                )}
+              >
+                {isZh ? '一组(4张)' : 'Set (4)'}
+              </button>
             </div>
           </div>
 

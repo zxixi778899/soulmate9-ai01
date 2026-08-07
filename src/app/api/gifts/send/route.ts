@@ -6,6 +6,7 @@ import { DEFAULT_CHAT_GIFTS, type ChatGift } from '@/lib/gifts/catalog';
 import { listGifts } from '@/lib/gifts/store';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { INTIMACY_MAX_SCORE, getIntimacyLevel } from '@/lib/constants';
+import { maybeUnlockIntimacyMilestone } from '@/lib/intimacy-milestones';
 import { companionScore, rarityFromTraits, RARITY_ORDER, type Rarity } from '@/lib/rarity';
 import { checkCompanionAccess } from '@/lib/companion-access';
 
@@ -147,6 +148,7 @@ export async function POST(req: NextRequest) {
             })
             .eq('id', row.id);
           intimacyResult = { gained, score, level: getIntimacyLevel(score) };
+          void maybeUnlockIntimacyMilestone(client, user.id, girlfriendId, intimacyResult.level).catch(() => {});
         }
       } catch (e) {
         logger.warn('[gifts/send] intimacy boost failed', { err: String(e) });

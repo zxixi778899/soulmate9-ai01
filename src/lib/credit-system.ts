@@ -101,7 +101,8 @@ export type CreditReason =
   | 'refund'
   | 'achievement'
   | 'daily_quest'
-  | 'quest_bonus';
+  | 'quest_bonus'
+  | 'intimacy_milestone';
 
 // ─── Core Operations ─────────────────────────────────────────────────────────
 

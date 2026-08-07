@@ -505,7 +505,9 @@ export async function POST(request: NextRequest) {
 
     // --- Unified multi-provider image router (RunPod → fal.ai failover) ---
     const requestedProvider = String((body as { provider?: string }).provider || '') as ImageProvider | '';
-    const routerResult = await routeImageGenerationWithRetry({
+    const candidateCount = Math.max(1, Math.min(4, Math.round(Number((body as { count?: number }).count) || 1)));
+    const candidateMode = (body as { candidate?: boolean }).candidate === true && candidateCount > 1;
+    const genOpts = {
       prompt,
       negative_prompt: negativePrompt,
       width: generationRoute.width || sceneCfg.width || 704,
@@ -524,7 +526,31 @@ export async function POST(request: NextRequest) {
       force_provider: requestedProvider || (generationRoute.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2'),
       nsfw: effectiveAdult,
       endpoint_id: generationRoute.endpointId || resolved.endpointId || undefined,
-    });
+    };
+
+    // 候选模式：一次出多张候选，客户端选一张后再落库
+    if (candidateMode) {
+      const jobs = await Promise.all(
+        Array.from({ length: candidateCount }, () =>
+          routeImageGenerationWithRetry({ ...genOpts, seed: Math.floor(Math.random() * 2 ** 32) }),
+        ),
+      );
+      return NextResponse.json({
+        candidate: true,
+        candidates: jobs.map((j) => ({
+          job_id: j.job_id || null,
+          endpoint_id: generationRoute.endpointId || resolved.endpointId || undefined,
+          image_url: (j.images && j.images[0]) || null,
+          provider: j.provider,
+          status: j.images && j.images.length ? 'COMPLETED' : 'PENDING',
+        })),
+        scene: 'chat_selfie',
+        nsfw_intensity: promptPolicy.nsfwIntensity,
+        count: candidateCount,
+      });
+    }
+
+    const routerResult = await routeImageGenerationWithRetry(genOpts);
 
     // If RunPod queued (pending), return job_id for client-side polling
     if (routerResult.pending) {

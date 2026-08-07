@@ -130,6 +130,8 @@ export default function ChatPage() {
   const [nsfwIntensity, setNsfwIntensity] = useState(3);
   const [whisperMode, setWhisperMode] = useState(false);
   const [videoTier, setVideoTier] = useState<3 | 5 | 10>(5);
+  const [candidateCount, setCandidateCount] = useState<1 | 4>(1);
+  const [candidateSheet, setCandidateSheet] = useState<{ urls: string[]; req: string } | null>(null);
 
   // 语音回复（听觉沉浸）：开启后把伴侣文字回复转成语音附加到气泡
   const [voiceReply, setVoiceReply] = useState(false);
@@ -803,6 +805,134 @@ export default function ChatPage() {
     clearGenJob(id);
     const zh = String(locale || '').toLowerCase().startsWith('zh');
     toast.message(t('chat.photoCancelled'));
+  };
+
+  /** 候选模式：一次出 4 张，用户选一张后落库 */
+  const runCandidateSelfie = async (
+    userRequest?: string,
+    extraContext?: Array<{ role: string; content: string }>,
+  ) => {
+    if (isGenerating) {
+      toast.message(t('chat.sheAlreadyTakingPhoto'));
+      return;
+    }
+    cancelGenRef.current = false;
+    const session = ++genSessionRef.current;
+    setIsGenerating(true);
+    const req = (userRequest || 'send me a sexy selfie').trim();
+    lastSelfieReqRef.current = req;
+    const waitId = `selfie-wait-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: waitId,
+        role: 'assistant',
+        content: t('chat.takingNewPhotoForYou'),
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    setIsTyping(true);
+    try {
+      const fromState = messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .slice(-8)
+        .map((m) => ({
+          role: m.role,
+          content: String(m.content || '').slice(0, 400),
+        }));
+      const chat_context = [...fromState, ...(extraContext || [])].slice(-10);
+      const res = await authedFetch('/api/chat/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          girlfriend_id: id,
+          user_request: req,
+          message: req,
+          chat_context,
+          mood: selectedMood,
+          pose: selectedPose,
+          environment: selectedEnvironment,
+          locale,
+          count: candidateCount,
+          candidate: true,
+        }),
+      });
+      const data = await readResponseJson<{
+        error?: string;
+        candidate?: boolean;
+        candidates?: Array<{ job_id?: string | null; endpoint_id?: string; image_url?: string | null }>;
+      }>(res);
+      if (!res.ok || !data.candidate) {
+        throw new Error((data as { error?: string }).error || 'Generation failed');
+      }
+
+      const urls: string[] = [];
+      for (const c of data.candidates || []) {
+        if (c.image_url) {
+          urls.push(c.image_url);
+          continue;
+        }
+        if (!c.job_id) continue;
+        for (let p = 0; p < 40; p++) {
+          if (cancelGenRef.current || genSessionRef.current !== session) return;
+          await new Promise((r) => setTimeout(r, 3000));
+          try {
+            const pollRes = await authedFetch(
+              `/api/ai/status?job_id=${encodeURIComponent(c.job_id)}${c.endpoint_id ? `&endpoint_id=${encodeURIComponent(c.endpoint_id)}` : ''}&girlfriend_id=${encodeURIComponent(id)}&scene=chat_selfie&candidate=1`,
+            );
+            const pd = await readResponseJson<{ status?: string; images?: string[] }>(pollRes);
+            if (pd.status === 'COMPLETED' && pd.images?.length) {
+              urls.push(pd.images[0]);
+              break;
+            }
+            if (pd.status === 'FAILED') break;
+          } catch {
+            /* keep polling */
+          }
+        }
+      }
+      setMessages((prev) => prev.filter((m) => m.id !== waitId));
+      if (urls.length) {
+        setCandidateSheet({ urls, req });
+      } else {
+        toast.error(t('chat.imageFailed'));
+      }
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== waitId));
+      toast.error(err instanceof Error ? err.message : t('chat.imageFailed'));
+    } finally {
+      setIsTyping(false);
+      setIsGenerating(false);
+    }
+  };
+
+  const chooseCandidate = async (url: string) => {
+    const sheet = candidateSheet;
+    if (!sheet) return;
+    setCandidateSheet(null);
+    try {
+      const res = await authedFetch('/api/chat/generate-image/persist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ girlfriend_id: id, image_url: url, caption: t('chat.newPhotoReady') }),
+      });
+      if (!res.ok) throw new Error('Failed to save photo');
+      const caption = t('chat.newPhotoReady');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `selfie-${Date.now()}`,
+          role: 'assistant',
+          content: caption,
+          created_at: new Date().toISOString(),
+          media_url: url,
+          media_type: 'image',
+        },
+      ]);
+      void syncRewards();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('chat.imageFailed'));
+    }
   };
 
   /** Generate a photo of the girlfriend from optional user request (auto or button). */
@@ -1916,6 +2046,59 @@ export default function ChatPage() {
         speakingLoading={tts.loading}
       />
 
+      {candidateSheet && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0E0E1A]/95 p-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-white">{t('chat.pickPhoto')}</h3>
+              <button
+                type="button"
+                onClick={() => setCandidateSheet(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-white/70 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {candidateSheet.urls.map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => void chooseCandidate(u)}
+                  className="group relative aspect-[3/4] overflow-hidden rounded-xl border border-white/10 hover:border-[#FF2D78]/50 transition-colors"
+                >
+                  <img src={u} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2 text-left text-[11px] font-semibold text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                    {t('chat.selectThis')}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const req = candidateSheet.req;
+                  setCandidateSheet(null);
+                  void runCandidateSelfie(req);
+                }}
+                className="rounded-full border border-white/15 bg-white/[0.05] px-4 py-1.5 text-[12px] text-white/80 hover:text-white transition-colors"
+              >
+                {t('chat.retake')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCandidateSheet(null)}
+                className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-[12px] text-white/50 hover:text-white transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showScrollDown && (
         <button
           onClick={scrollToBottom}
@@ -2003,6 +2186,8 @@ export default function ChatPage() {
         setWhisperMode={setWhisperMode}
         videoTier={videoTier}
         setVideoTier={setVideoTier}
+        candidateCount={candidateCount}
+        setCandidateCount={setCandidateCount}
         pendingMedia={pendingMedia}
         onPickImage={handlePickImage}
         onClearMedia={clearPendingMedia}
@@ -2020,7 +2205,9 @@ export default function ChatPage() {
         outfits={outfits}
         selectedOutfit={selectedOutfit}
         onEquipOutfit={handleEquipOutfit}
-        onSelfie={() => void generateSelfie('Create a full-body character artwork matching our current conversation')}
+        onSelfie={() => void (candidateCount > 1
+          ? runCandidateSelfie('Create a full-body character artwork matching our current conversation')
+          : generateSelfie('Create a full-body character artwork matching our current conversation'))}
         isGenerating={isGenerating}
         onMemories={() => setShowMemories(true)}
         replyMode={replyMode}

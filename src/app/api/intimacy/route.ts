@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, withAuthBody } from '@/lib/api-handler';
 import { z } from 'zod';
 import { DAILY_INTIMACY_CAP, INTIMACY_MAX_SCORE, getIntimacyLevel, getIntimacyProgress } from '@/lib/constants';
+import { maybeUnlockIntimacyMilestone } from '@/lib/intimacy-milestones';
 
 const intimacyBodySchema = z.object({
   girlfriend_id: z.string().uuid('girlfriend_id must be a valid UUID'),
@@ -126,6 +127,9 @@ export const POST = withAuthBody(
   if (error) {
     return NextResponse.json({ error: 'Failed to update intimacy score' }, { status: 500 });
   }
+
+  // 亲密里程碑：跨级奖励积分 + 专属立绘（fire and forget）
+  void maybeUnlockIntimacyMilestone(client, user.id, girlfriend_id, newLevel).catch(() => {});
 
   return NextResponse.json({
     gained: gain,
