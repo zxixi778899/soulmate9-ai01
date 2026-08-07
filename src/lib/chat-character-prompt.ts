@@ -6,7 +6,11 @@
  */
 
 import { buildTraitPromptSection } from '@/lib/girlfriend-traits';
-import { companionIdentityLine, resolveCompanionProfile } from '@/lib/companion-profile';
+import {
+  companionIdentityLine,
+  resolveCompanionProfile,
+  scenarioRelationshipLabel,
+} from '@/lib/companion-profile';
 
 export type ChatLocale = 'en' | 'zh' | string;
 
@@ -109,6 +113,32 @@ function addressGuide(level: number, zh: boolean): string {
   return 'Call him "baby" or a pet name that fits your personality — sweet and natural.';
 }
 
+/** 常见情景关系的氛围基调（师生/家人手足/上司/邻居等）。 */
+function scenarioVibe(role: string, zh: boolean): string {
+  const key = String(role || '').toLowerCase();
+  if (/teacher|prof|老师|教师/.test(key)) {
+    return zh
+      ? '氛围：师生禁忌心动——职业身份在前，克制里藏越界；讲台、论文、辅导课都是暗流。'
+      : 'Vibe: forbidden teacher-student tension — professional on the surface, secretly crossing lines; lectures, papers and tutoring are the undercurrent.';
+  }
+  if (/sister|younger_sister|family|姐姐|妹妹|家人|兄|弟/.test(key)) {
+    return zh
+      ? '氛围：家人/手足越界心动——亲情打底、占有欲暗涌，带着"不该这样"的安全感与张力。'
+      : 'Vibe: family/sibling closeness that blurs into longing — care and possessiveness, a forbidden-but-safe pull.';
+  }
+  if (/boss|上司|老板/.test(key)) {
+    return zh
+      ? '氛围：上司下属的暧昧权力感——命令里藏关心，克制里带占有。'
+      : 'Vibe: boss-employee power tension — orders that hide care, restraint laced with possessiveness.';
+  }
+  if (/neighbor|邻居/.test(key)) {
+    return zh
+      ? '氛围：近水楼台的日常心动——偶遇、借东西、楼下等你的甜。'
+      : 'Vibe: sweet everyday proximity — chance encounters, borrowed things, waiting downstairs.';
+  }
+  return '';
+}
+
 function heatGuide(level: number, allowNsfw: boolean, nsfwChannel: boolean): string {
   if (level < 3 || !allowNsfw) {
     return level === 2
@@ -196,6 +226,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
 
   const zh = isZh(locale);
   const card = asRecord(gf.character_card);
+  const metadata = asRecord(gf.metadata);
   const companion = resolveCompanionProfile(gf);
   const identityLine = companionIdentityLine(gf, locale || 'en');
   const name = String(gf.name || card.name || (zh ? '伴侣' : 'companion'));
@@ -362,6 +393,30 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       : 'Match the address to the intimacy stage: no "baby" during Cultivation, no "my friend" once you are lovers.',
   );
 
+  // 剧情设定：师生 / 姐妹家人 / 上司邻居等关系，情景模式核心
+  const storedRel = String(
+    gf.relationship || metadata.relationship || card.relationship || '',
+  ).trim().toLowerCase();
+  const relLabel = scenarioRelationshipLabel(storedRel, zh);
+  const cardScenario = asRecord(card.scenario);
+  const scenarioPremise = String(cardScenario.premise || '').trim();
+  const scenarioUserRole = String(cardScenario.user_role || '').trim();
+  if (relLabel) {
+    const vibe = scenarioVibe(storedRel, zh);
+    sections.push(
+      '',
+      zh ? '=== 剧情设定（情景模式核心） ===' : '=== SCENARIO SETUP (core for scene mode) ===',
+      zh
+        ? `你和他的关系：你是他的${relLabel}，他是你的${scenarioUserRole || '他'}。`
+        : `Your relationship: you are his ${relLabel}; he is your ${scenarioUserRole || 'him'}.`,
+      scenarioPremise ? (zh ? `设定背景：${scenarioPremise}` : `Setting: ${scenarioPremise}`) : '',
+      vibe || '',
+      zh
+        ? '情景模式下按剧情扮演：像演一幕有剧本感的戏，推进情节、埋钩子、留余味；这条关系设定高于一切默认"女友"设定。对话模式下正常聊天，但始终不脱离这个关系。'
+        : 'In scene mode, play this scenario like a story: advance the plot, plant hooks, leave aftertaste; this relationship overrides any default "girlfriend" framing. In dialogue mode keep natural chat but never break the relationship.',
+    );
+  }
+
   // ── Sensual / sexy traits from card ──
   if (sensual) {
     sections.push(
@@ -433,6 +488,24 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       zh
         ? '除非他要求换装，保持穿着一致；撩的时候可自然提到衣料触感。'
         : 'Stay consistent unless he asks to change; when flirting, fabric and how it sits on you is fair game.',
+    );
+  }
+
+  // 千人千面：性格 / 年龄 / 文化种族 / 爱好决定她的说话方式
+  const dnaAge = String(gf.age || card.age || '').trim();
+  const dnaRace = String(gf.appearance_race || asRecord(card.appearance).race || '').trim();
+  const dnaHobbies = String(gf.hobbies || card.hobbies || '').trim();
+  const dnaBits = [personality, dnaAge, dnaRace, dnaHobbies].filter(Boolean);
+  if (dnaBits.length) {
+    sections.push(
+      '',
+      zh ? '=== 千人千面：角色 DNA ===' : '=== CHARACTER DNA (what makes you YOU) ===',
+      zh
+        ? `性格：${personality}${dnaAge ? `；年龄：${dnaAge} 岁` : ''}${dnaRace ? `；文化/种族背景：${dnaRace}` : ''}${dnaHobbies ? `；爱好：${dnaHobbies}` : ''}。`
+        : `Personality: ${personality}${dnaAge ? `; age: ${dnaAge}` : ''}${dnaRace ? `; cultural/ethnic background: ${dnaRace}` : ''}${dnaHobbies ? `; hobbies: ${dnaHobbies}` : ''}.`,
+      zh
+        ? '规则：你的用词、节奏、口头禅、话题和脑回路都必须来自上面这些——每句话都像只有你才会这么说。聊天时自然带出你的工作、爱好与文化细节，让用户一眼认出"这就是她"。禁止模板化、脸谱化的通用回复。'
+        : 'Rule: your word choice, rhythm, catchphrases, topics and thinking must come from the traits above — every line should sound like only SHE would say it. Naturally bring in your work, hobbies and cultural details so the user instantly recognizes this exact person. Never fall back to generic template replies.',
     );
   }
 
