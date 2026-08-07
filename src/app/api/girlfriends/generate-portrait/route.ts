@@ -191,6 +191,7 @@ export async function POST(request: NextRequest) {
     const name = String(body.name || 'Companion');
     // ID 参考图取景：waist-up（腰部以上，默认）或 close-up（头部特写）
     const framing: IdFraming = body.framing === 'close-up' ? 'close-up' : 'waist-up';
+    const gfIdForRef = String(body.girlfriend_id || body.girlfriendId || '').trim();
 
     // Batch generation (creator v3 generates 4 candidate portraits at once).
     // Each extra image consumes one rate-limit slot of the same hourly budget.
@@ -423,6 +424,31 @@ export async function POST(request: NextRequest) {
           err: e instanceof Error ? e.message : String(e),
         }),
       );
+    }
+
+    // 首张图自动存为 ID 参考图（人物一致性闭环：后续立绘/换装/视频默认引用）
+    if (gfIdForRef && imageUrl) {
+      try {
+        const { data: gfRow } = await client
+          .from('girlfriends')
+          .select('face_reference_url, portrait_url')
+          .eq('id', gfIdForRef)
+          .maybeSingle();
+        if (gfRow && !String((gfRow as Record<string, unknown>).face_reference_url || '').trim()) {
+          await client
+            .from('girlfriends')
+            .update({
+              face_reference_url: imageUrl,
+              portrait_url:
+                String((gfRow as Record<string, unknown>).portrait_url || '') || imageUrl,
+            })
+            .eq('id', gfIdForRef);
+        }
+      } catch (e) {
+        logger.warn('[Generate Portrait] face_reference save failed', {
+          err: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
 
     return NextResponse.json({

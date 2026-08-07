@@ -21,6 +21,7 @@ import {
   ChevronDown,
   X,
   Crown,
+  Flame,
   Camera,
   Download,
   ChevronLeft,
@@ -1380,7 +1381,11 @@ export default function ChatPage() {
             const vres = await authedFetch('/api/ai/voice', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ text: fullContent, girlfriend_id: id }),
+              body: JSON.stringify({
+                text: fullContent,
+                girlfriend_id: id,
+                emotion: aiChannel === 'nsfw' ? 'seductive' : 'gentle',
+              }),
             });
             const vdata = await readResponseJson<{ audio_url?: string; url?: string }>(vres);
             const vurl = String(vdata.audio_url || vdata.url || '').trim();
@@ -1638,6 +1643,15 @@ export default function ChatPage() {
 
   const levelInfo = getLevelInfo(Number(intimacy?.score) || 0) || INTIMACY_LEVELS[0] || { level: 1, min_score: 0, title: 'Stranger', color: '#6b7280' };
 
+  // NSFW 解锁庆祝：亲密值首次达到 Lv3（300）时全屏特效
+  const [nsfwUnlock, setNsfwUnlock] = useState(false);
+  const prevLevelRef = useRef<number>(1);
+  useEffect(() => {
+    const lvl = Number(levelInfo?.level) || 1;
+    if (lvl >= 3 && prevLevelRef.current < 3) setNsfwUnlock(true);
+    prevLevelRef.current = Math.max(prevLevelRef.current, lvl);
+  }, [levelInfo?.level]);
+
   // Group messages by day + consecutive-merge (for IM look)
   const renderRows = useMemo(() => {
     type Row =
@@ -1793,6 +1807,16 @@ export default function ChatPage() {
       )}
       {/* Dark gradient overlay for readability */}
       <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0b0b12]/70 via-[#0b0b12]/50 to-[#0b0b12]/90" />
+      {/* 亲密等级氛围：Lv3+ 暖粉热感，低等级清冷 */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{
+          background:
+            (levelInfo?.level ?? 1) >= 3
+              ? 'linear-gradient(180deg, rgba(255,45,120,0.10), rgba(192,38,211,0.05) 45%, rgba(11,11,18,0.90))'
+              : 'linear-gradient(180deg, rgba(80,120,220,0.06), rgba(11,11,18,0.90))',
+        }}
+      />
 
       {/* Content layer above background */}
       <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
@@ -2074,6 +2098,27 @@ export default function ChatPage() {
         </SheetContent>
       </Sheet>
 
+      {nsfwUnlock && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-md"
+          onClick={() => setNsfwUnlock(false)}
+        >
+          <div className="text-center animate-in zoom-in-95 fade-in duration-500">
+            <div className="mx-auto h-24 w-24 rounded-full bg-gradient-to-br from-[#FF2D78] to-[#A855F7] animate-pulse flex items-center justify-center shadow-[0_0_60px_rgba(255,45,120,0.6)]">
+              <Flame className="h-10 w-10 text-white" />
+            </div>
+            <h2 className="mt-4 font-display text-2xl font-black text-white">热恋模式已解锁</h2>
+            <p className="mt-1 text-sm text-white/60">亲密值达到 300 · 成人内容现已开启</p>
+            <button
+              type="button"
+              onClick={() => setNsfwUnlock(false)}
+              className="mt-5 h-10 px-6 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#A855F7] text-sm font-semibold text-white active:scale-95 transition-all"
+            >
+              进入热恋
+            </button>
+          </div>
+        </div>
+      )}
       <GiftEffectOverlay burst={giftBurst} onDone={clearGiftBurst} />
 
       <UpgradeModal open={upgradeOpen} reason={upgradeReason} onClose={() => setUpgradeOpen(false)} />
