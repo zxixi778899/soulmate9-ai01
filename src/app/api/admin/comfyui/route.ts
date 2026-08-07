@@ -549,6 +549,76 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin(req, 'admin');
   if (admin.error) return admin.error;
+  /** 中文/日韩等非英文提示词 -> 英文（仅翻译润色，保留全部概念；失败/无中文返回 null 走原文） */
+  const translateToEnglish = async (
+    text: string,
+    intensity: number,
+    mode: 'positive' | 'negative',
+  ): Promise<string | null> => {
+    const raw = String(text || '').trim();
+    if (!raw) return null;
+    const cjkMatches = raw.match(
+      /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/g,
+    );
+    if (!cjkMatches || cjkMatches.length < 2) return null;
+    const channel: 'sfw' | 'nsfw' = intensity >= 3 ? 'nsfw' : 'sfw';
+    try {
+      const aiModules = await loadAiModules(admin.supabase);
+      const picked = pickImagePromptEndpoint(aiModules, channel);
+      if (!picked.primary) return null;
+      const boundary =
+        channel === 'nsfw'
+          ? `Consensual adult content allowed at intensity ${intensity}. ` +
+            (intensity === 3
+              ? 'Full nudity, no sexual act.'
+              : intensity === 4
+                ? 'Solo masturbation before climax, no visible fluids.'
+                : 'Explicit consensual adult action with coherent anatomy.')
+          : intensity === 2
+            ? 'Lingerie/nightwear only, nipples and genitals covered, no sexual act.'
+            : 'Fully clothed, no nudity, no explicit content.';
+      const system =
+        mode === 'positive'
+          ? 'You are a translation engine for FLUX/WAN image prompts. Translate the RAW PROMPT into a fluent English image-generation prompt as comma-separated descriptive clauses. Keep every concept, keyword and intent exactly; NEVER invent or add new subjects, scenes, outfits, poses, actions or objects. Keep identity consistent when a reference is used. Respect the CONTENT BOUNDARY exactly. Output ONLY the English prompt, no markdown, labels or explanations.'
+          : 'You are a translation engine for negative image prompts. Translate the RAW PROMPT into a fluent English negative prompt as comma-separated undesired qualities. Keep every concept exactly; do not add unrelated negatives. Respect the CONTENT BOUNDARY exactly. Output ONLY the English negative prompt, no markdown, labels or explanations.';
+      const result = await invokeChat({
+        endpoint: picked.primary,
+        fallbackEndpoints: picked.fallback,
+        messages: [
+          {
+            role: 'system' as const,
+            content: system,
+          },
+          {
+            role: 'user' as const,
+            content: `RAW PROMPT: ${raw.slice(0, 800)}\n\nCONTENT BOUNDARY: ${boundary}\n\nOUTPUT: the translated prompt now.`,
+          },
+        ],
+        temperature: 0.4,
+        maxTokens: Math.min(320, picked.primary.max_tokens || 320),
+        userId: admin.user?.id,
+        taskType: 'prompt_translation',
+        membershipTier: 'admin',
+        scene: 'comfyui_console',
+        routeReason: channel === 'nsfw' ? 'console_nsfw_prompt_llm' : 'console_sfw_prompt_llm',
+      });
+      const out = compactFluxPrompt(sanitizeLlmPrompt(result.content), 600);
+      if (out) {
+        logger.info('[comfyui] prompt translated to english', {
+          mode,
+          channel,
+          model: result.model,
+          fromLen: raw.length,
+          toLen: out.length,
+        });
+      }
+      return out || null;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      logger.error('[comfyui] prompt translation failed, keep raw', { err: message, channel, mode });
+      return null;
+    }
+  };
 
   // multipart：参考图上传（客户端先压缩到 ≤1280px JPEG）
   const contentType = req.headers.get('content-type') || '';
@@ -615,7 +685,7 @@ export async function POST(req: NextRequest) {
         {
           role: 'system' as const,
           content:
-            'You are a prompt POLISHER for a FLUX/WAN companion generator. Output ONE English image/video prompt as a single paragraph of comma-separated descriptive clauses. IMPORTANT: ONLY refine the wording, grammar and details of the RAW PROMPT. Keep every existing concept and keyword exactly; NEVER invent or add new subjects, scenes, outfits, poses, actions or objects that are not already in the RAW PROMPT, and never remove the user\'s key terms. Keep identity consistent (same person/face) when a reference is used. Avoid the generic "AI look": emphasize natural skin texture, unique facial features, subtle asymmetries and a candid believable expression. Respect the CONTENT BOUNDARY exactly. NEVER output markdown, labels, or explanations.',
+            'You are a prompt POLISHER for a FLUX/WAN companion generator. Output ONE English image/video prompt as a single paragraph of comma-separated descriptive clauses. IMPORTANT: ONLY refine the wording, grammar and details of the RAW PROMPT. Keep every existing concept and keyword exactly; NEVER invent or add new subjects, scenes, outfits, poses, actions or objects that are not already in the RAW PROMPT, and never remove the user\'s key terms. If the RAW PROMPT is in Chinese or another non-English language, first translate it into English while preserving every concept exactly. Keep identity consistent (same person/face) when a reference is used. Avoid the generic "AI look": emphasize natural skin texture, unique facial features, subtle asymmetries and a candid believable expression. Respect the CONTENT BOUNDARY exactly. NEVER output markdown, labels, or explanations.',
         },
         {
           role: 'user' as const,
@@ -693,6 +763,12 @@ export async function POST(req: NextRequest) {
 
       if (engine === 'wan') {
         endpointId = wanEndpoint();
+        const wanTranslated = await translateToEnglish(
+          String(merged.prompt || '').trim(),
+          Math.max(1, Math.min(5, Math.round(Number(merged.intensity) || 1))),
+          'positive',
+        );
+        if (wanTranslated) merged.prompt = wanTranslated;
         runpodJobId = await submitWan(merged);
       } else if (engine === 'raw') {
         endpointId = String(body.endpoint_id || comfyEndpoint());
@@ -704,6 +780,12 @@ export async function POST(req: NextRequest) {
         if (!check.ok) {
           return NextResponse.json({ error: check.error || '工作流 JSON 无效' }, { status: 400 });
         }
+        const rawTranslated = await translateToEnglish(
+          String(merged.prompt || '').trim(),
+          1,
+          'positive',
+        );
+        if (rawTranslated) merged.prompt = rawTranslated;
         const { graph, images } = await prepareRawGraph(
           graphCandidate,
           String(merged.prompt || '').trim() || undefined,
@@ -713,9 +795,21 @@ export async function POST(req: NextRequest) {
         // flux 引擎
         endpointId = String(body.endpoint_id || comfyEndpoint());
         const cfg = await loadComfyConfig(admin.supabase);
-        const prompt = String(merged.prompt || '').trim();
+        let prompt = String(merged.prompt || '').trim();
         if (!prompt) {
           return NextResponse.json({ error: '提示词不能为空' }, { status: 400 });
+        }
+        // 中文提示词：生成时自动转英文提交（保留全部概念；翻译失败用原文兜底）
+        const genIntensity = Math.max(1, Math.min(5, Math.round(Number(merged.intensity) || 1)));
+        const translated = await translateToEnglish(prompt, genIntensity, 'positive');
+        if (translated) {
+          prompt = translated;
+          merged.prompt = translated;
+        }
+        const rawNegativeText = String(merged.negative || '').trim();
+        const translatedNegative = await translateToEnglish(rawNegativeText, genIntensity, 'negative');
+        if (translatedNegative) {
+          merged.negative = translatedNegative;
         }
         // 全局去“蜡像 / AI 感”：只要提示词没带自然肤质，就强制追加自然感后缀
         const finalPrompt = `${prompt}${
