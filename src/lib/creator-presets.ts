@@ -1,4 +1,5 @@
 import type { PresetSoul } from './preset-souls';
+import { buildCompanionGreeting } from '@/lib/companion-greeting';
 
 export interface CreatorPreset {
   id: string;
@@ -342,6 +343,16 @@ export function buildCompanionCharacterCard(input: CompanionPromptInput): Record
     first_mes:
       input.greeting ||
       `*${input.name} looks up with a familiar smile* There you are. Tell me what kind of day found you.`,
+    // 语音开场白：符合角色的中英双语文本，供 TTS 合成（保留音色）与资料页展示
+    greeting: buildCompanionGreeting({
+      name: input.name,
+      age: input.age,
+      gender: input.gender,
+      relationship,
+      occupation: input.occupation,
+      personality: input.personality,
+      hobbies,
+    }),
     // Soul layer consumed by chat prompt builder (locale-aware) and proactive chain.
     ...(soul
       ? {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -10,7 +10,9 @@ import {
   Loader2,
   Lock,
   MessageCircle,
+  Play,
   Sparkles,
+  Square,
   UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -52,6 +54,8 @@ export default function CompanionProfilePage() {
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [playingGreeting, setPlayingGreeting] = useState(false);
+  const greetingAudioRef = useRef<HTMLAudioElement>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -103,6 +107,18 @@ export default function CompanionProfilePage() {
   }
 
   const g = data.girlfriend;
+
+  const gfCard = (g.character_card && typeof g.character_card === 'object')
+    ? g.character_card as Record<string, unknown>
+    : {};
+  const gfGreeting = gfCard.greeting && typeof gfCard.greeting === 'object'
+    ? gfCard.greeting as Record<string, unknown>
+    : null;
+  const zhUi = String(locale || '').toLowerCase().startsWith('zh');
+  const greetingText = gfGreeting
+    ? String(gfGreeting[zhUi ? 'text_zh' : 'text_en'] || gfGreeting.text_zh || gfGreeting.text_en || '')
+    : '';
+  const greetingAudio = gfGreeting ? String(gfGreeting.audio_url || '') : '';
   const { access } = data;
   const name = String(g.name || 'Companion');
   const age = g.age ? Number(g.age) : null;
@@ -427,6 +443,47 @@ export default function CompanionProfilePage() {
         {/* Tab content */}
         {tab === 'profile' && (
           <div className="space-y-4 pt-4">
+            {(greetingText || greetingAudio) && (
+              <section className="rounded-2xl bg-gradient-to-br from-[#ff2e88]/10 to-[#a855f7]/5 p-4 ring-1 ring-[#ff2e88]/20">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#FF6BA6]">
+                    {t('companion.openingLine')}
+                  </h3>
+                  {greetingAudio && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const a = greetingAudioRef.current;
+                        if (!a) return;
+                        if (playingGreeting) {
+                          a.pause();
+                          a.currentTime = 0;
+                          setPlayingGreeting(false);
+                        } else {
+                          void a.play();
+                          setPlayingGreeting(true);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-[#FF2D78]/15 border border-[#FF2D78]/30 text-[11px] font-medium text-[#ff9ec4] hover:bg-[#FF2D78]/25 transition-all"
+                    >
+                      {playingGreeting ? <Square className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                      {playingGreeting ? t('companion.stop') : t('companion.play')}
+                    </button>
+                  )}
+                </div>
+                {greetingText && (
+                  <p className="mt-2 text-[13px] leading-relaxed text-white/80">{greetingText}</p>
+                )}
+                {greetingAudio && (
+                  <audio
+                    ref={greetingAudioRef}
+                    src={greetingAudio}
+                    onEnded={() => setPlayingGreeting(false)}
+                    className="hidden"
+                  />
+                )}
+              </section>
+            )}
             {String(g.personality || '') && (
               <section className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/[0.06]">
                 <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-[#FF6BA6]">
