@@ -38,6 +38,7 @@ import {
   generateImagePromptWithLlm,
   resolveImagePromptChannel,
 } from '@/lib/image-prompt-llm';
+import { buildContentOnlyPrompt } from '@/lib/companion-prompt-pipeline';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -326,7 +327,10 @@ export async function POST(request: NextRequest) {
       category,
       intensity: promptPolicy.nsfwIntensity,
       animeStyle,
-      scene: `${sceneBits}. ${buildSceneCastPrompt(sceneSemantics)}`,
+      scene: buildContentOnlyPrompt(
+        `${sceneBits}. ${buildSceneCastPrompt(sceneSemantics)}`,
+        { style: animeStyle === '2d' ? '2d' : animeStyle === '3d' ? '3d' : 'realistic' },
+      ),
       identity,
     });
 

@@ -5,6 +5,7 @@ import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { sanitizeBlurKeywords } from '@/lib/prompt';
 import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
+import { buildIdReferencePrompt, type IdFraming } from '@/lib/companion-prompt-pipeline';
 import { buildStudioPromptEnhancement, studioNegativePrompt } from '@/lib/comfy-console/studio-profile';
 import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { routeImageGeneration } from '@/lib/image-router';
@@ -188,6 +189,8 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const name = String(body.name || 'Companion');
+    // ID 参考图取景：waist-up（腰部以上，默认）或 close-up（头部特写）
+    const framing: IdFraming = body.framing === 'close-up' ? 'close-up' : 'waist-up';
 
     // Batch generation (creator v3 generates 4 candidate portraits at once).
     // Each extra image consumes one rate-limit slot of the same hourly budget.
@@ -319,7 +322,7 @@ export async function POST(request: NextRequest) {
       animeStyle: renderStyle,
       identity: prompt,
       scene: [
-        'a chest-up identity portrait at eye level, face large and unobstructed, both eyes sharp, full hairline and chin visible, shoulders relaxed, looking naturally toward the camera, plain warm neutral background',
+        buildIdReferencePrompt(framing),
         ...referencePlan.promptHints,
       ].join('. '),
     });
