@@ -23,12 +23,14 @@ import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/Locke
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { authedFetch } from '@/lib/supabase';
+import { useTranslation } from '@/lib/i18n/context';
 import { useAuth } from '@/components/AuthProvider';
 
 type SortKey = 'rarity' | 'hot' | 'intimacy' | 'new';
 const TAG_POOL = ['mysterious', 'romantic', 'playful', 'sweet', 'creative', 'flirty', 'bold', 'confident', 'passionate', 'gentle', 'wise', 'caring', 'cool', 'obsessive', 'energetic', 'fantasy', 'sensual', 'dominant', 'intellectual'];
 
 export default function ExplorePage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const friendStatus = useFriendStatus();
@@ -112,17 +114,17 @@ export default function ExplorePage() {
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
-            toast.error((data as { error?: string }).error || 'Unlock failed');
+            toast.error((data as { error?: string }).error || t('explore.unlockFailed'));
             setSelected(girl);
             return;
           }
-          toast.success('Unlocked');
+          toast.success(t('explore.unlocked'));
           girl = { ...girl, locked: false, is_unlocked: true };
           setCatalog((prev) =>
             prev.map((g) => (g.id === girl.id ? { ...g, locked: false, is_unlocked: true } : g)),
           );
         } catch {
-          toast.error('Unlock failed — please log in');
+          toast.error(t('explore.unlockFailedLogin'));
           return;
         }
       }
@@ -132,26 +134,26 @@ export default function ExplorePage() {
           if (!user) {
             router.push(`/login?next=${encodeURIComponent('/explore')}`);
           } else {
-            toast.error('添加失败 — 请稍后重试');
+            toast.error(t('explore.addFailed'));
           }
           return;
         }
-        toast.success(`已添加 ${girl.name} 到好友列表`, {
-          description: '前往消息页开始聊天',
-          action: { label: '去聊天', onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
+        toast.success(t('explore.addedToFriends', { name: girl.name }), {
+          description: t('explore.goToMessages'),
+          action: { label: t('explore.goToMessages'), onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
         });
         void friendStatus.refresh();
         setSelected(null);
       } catch (err) {
         const e = err as Error & { code?: string };
         if (e.code === 'SEAT_LIMIT') {
-          toast.error('好友位已满', {
-            description: '升级会员或购买永久好友位',
-            action: { label: 'Buy seats', onClick: () => router.push('/pricing') },
+          toast.error(t('explore.seatLimitTitle'), {
+            description: t('explore.seatLimitDesc'),
+            action: { label: t('explore.buySeats'), onClick: () => router.push('/pricing') },
           });
           return;
         }
-        toast.error(e.message || '添加好友失败');
+        toast.error(e.message || t('explore.addFriendFailed'));
       }
     } finally {
       setSelecting(false);
@@ -162,17 +164,17 @@ export default function ExplorePage() {
   return (
     <GameShell className="pb-6 md:pb-12 min-h-[100dvh]">
       <PageHeader
-        eyebrow="CARD POOL"
-        title="Card Pool"
+        eyebrow={t('explore.cardPool')}
+        title={t('explore.cardPool')}
         subtitle={
           loading
-            ? '加载卡牌中…'
-            : `${girls.length} 张 · ${source === 'api' ? '在线卡池' : '展示卡包'}`
+            ? t('explore.loadingCards')
+            : `${girls.length} ${t('explore.companionsUnit')} · ${source === 'api' ? t('explore.onlinePool') : t('explore.showcasePack')}`
         }
         backHref="/"
         sticky={false}
         actions={
-          <GamePrimaryButton onClick={() => router.push('/create')} className="!h-10 !px-3 sm:!px-4 text-xs touch-manipulation">Create</GamePrimaryButton>
+          <GamePrimaryButton onClick={() => router.push('/create')} className="!h-10 !px-3 sm:!px-4 text-xs touch-manipulation">{t('common.goCreate')}</GamePrimaryButton>
         }
       />
 
@@ -185,7 +187,7 @@ export default function ExplorePage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name…"
+                placeholder={t('explore.searchName')}
                 className="glass-input w-full h-11 pl-9 pr-3 text-[16px] sm:text-sm"
               />
             </div>
@@ -206,9 +208,9 @@ export default function ExplorePage() {
             </div>
             <div className="flex items-center gap-1 rounded-xl bg-white/[0.04] border border-white/[0.08] p-1 text-xs">
               {[
-                { key: 'rarity', label: '稀有', icon: Star },
-                { key: 'hot', label: '热门', icon: TrendingUp },
-                { key: 'intimacy', label: '亲密度', icon: Heart },
+                { key: 'rarity', label: t('explore.sortRare'), icon: Star },
+                { key: 'hot', label: t('explore.sortHot'), icon: TrendingUp },
+                { key: 'intimacy', label: t('explore.sortIntimacy'), icon: Heart },
               ].map((opt) => {
                 const Icon = opt.icon;
                 const active = sort === opt.key;
@@ -315,7 +317,7 @@ export default function ExplorePage() {
                       }}
                       className="mt-2 w-full h-8 rounded-lg text-[10px] font-black tracking-[0.15em] bg-gradient-to-r from-[#ff2e88] to-[#c026d3] flex items-center justify-center active:scale-95"
                     >
-                      {girl.locked ? 'UNLOCK' : friendStatus.isFriend(girl) ? '去聊天' : 'ADD'}
+                      {girl.locked ? t('explore.unlock') : friendStatus.isFriend(girl) ? t('explore.goToMessages') : t('explore.add')}
                     </div>
                   </div>
                 </div>
@@ -325,7 +327,7 @@ export default function ExplorePage() {
 
           {girls.length === 0 && !loading && (
             <div className="py-20 text-center text-white/40 text-sm">
-              没有匹配的卡牌。
+              {t('explore.noMatches')}
               <button
                 onClick={() => {
                   setSearch('');
@@ -334,7 +336,7 @@ export default function ExplorePage() {
                 }}
                 className="ml-2 text-[#ff2e88] hover:underline"
               >
-                清空筛选
+                {t('explore.clearFilters')}
               </button>
             </div>
           )}

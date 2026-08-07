@@ -1,5 +1,5 @@
 /**
- * SoulMate9 — GoLove AI Visual Specification
+ * Oxmate AI — GoLove AI Visual Specification
  *
  * Brand: 粉紫对角渐变 (137.55deg #D05BF8 → #FF18A0)
  * Surface: 深色基底 + 药丸按钮 + 玻璃发光

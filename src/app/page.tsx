@@ -346,17 +346,17 @@ export default function HomePage() {
         }
         return;
       }
-      toast.success(`已添加 ${girl.name} 到好友列表`, {
-        description: '前往消息页开始聊天',
-        action: { label: '去聊天', onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
+      toast.success(t('explore.addedToFriends', { name: girl.name }), {
+        description: t('explore.goToMessages'),
+        action: { label: t('common.goChat'), onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
       });
       void friendStatus.refresh();
     } catch (err) {
       const e = err as Error & { code?: string };
       if (e.code === 'SEAT_LIMIT') {
-        toast.error('Friend seats full', {
-          description: 'Upgrade plan or buy permanent seats',
-          action: { label: 'Buy seats', onClick: () => router.push('/pricing') },
+        toast.error(t('explore.seatLimitTitle'), {
+          description: t('explore.seatLimitDesc'),
+          action: { label: t('explore.buySeats'), onClick: () => router.push('/pricing') },
         });
       } else {
         toast.error(e.message || t('home.chatFail'));
@@ -370,8 +370,8 @@ export default function HomePage() {
     return (
       <GameShell className="pb-4 md:pb-8 min-h-[100dvh]" hex={false}>
         <div className="flex min-h-[60dvh] items-center justify-center text-sm text-white/50">
-          <span>{catalogReady ? (locale === 'zh' ? '该分类暂无角色' : 'No companions in this category') : 'Loading companions...'}</span>
-          {catalogReady ? <button type="button" className="glass-btn px-4 py-2" onClick={() => setCategoryFilter('all')}>{locale === 'zh' ? '查看全部' : 'View all'}</button> : null}
+          <span>{catalogReady ? t('explore.noInCategory') : 'Loading companions...'}</span>
+          {catalogReady ? <button type="button" className="glass-btn px-4 py-2" onClick={() => setCategoryFilter('all')}>{t('common.viewAll')}</button> : null}
         </div>
       </GameShell>
     );
@@ -404,7 +404,7 @@ export default function HomePage() {
                 rel="noopener noreferrer"
                 className="shrink-0 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:bg-amber-300/20 active:scale-95 transition-all"
               >
-                {locale === 'zh' ? '查看' : 'View'}
+                {t('common.viewAll')}
               </a>
             ) : null}
           </div>
@@ -475,7 +475,7 @@ export default function HomePage() {
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Companion categories">
-          <button type="button" onClick={() => { setCategoryFilter('all'); setFocus(0); }} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === 'all' ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55')}>{locale === 'zh' ? '全部' : 'All'}</button>
+          <button type="button" onClick={() => { setCategoryFilter('all'); setFocus(0); }} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === 'all' ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55')}>{t('landing.filterAll')}</button>
           {COMPANION_CATEGORIES.map((category) => <button key={category} type="button" onClick={() => router.push(`/category/${category}`)} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === category ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55 hover:text-white')}>{COMPANION_CATEGORY_LABELS[category][locale]}</button>)}
         </div>
 
@@ -810,7 +810,7 @@ export default function HomePage() {
                   <Flame className="h-3.5 w-3.5" />
                 </div>
                 <span className="font-black bg-gradient-to-r from-[#ff6ba6] to-[#c026d3] bg-clip-text text-transparent">
-                  SoulMate
+                  Oxmate
                 </span>
               </div>
               <p className="text-[12px] text-white/40 leading-relaxed max-w-xs">
@@ -883,10 +883,10 @@ export default function HomePage() {
           </div>
 
           <div className="mt-6 pt-4 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-white/30">
-            <span>© {new Date().getFullYear()} SoulMate AI. All rights reserved. 18+</span>
+            <span>© {new Date().getFullYear()} Oxmate AI. All rights reserved. 18+</span>
             <span className="flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Systems online
+              {t('common.systemsOnline')}
             </span>
           </div>
         </footer>

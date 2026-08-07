@@ -1,5 +1,5 @@
 /**
- * Market-aligned defaults for Soulmate9 (NSFW companion + portrait FLUX).
+ * Market-aligned defaults for Oxmate AI (NSFW companion + portrait FLUX).
  * Aligned with: Free cheap SFW / Pro NSFW self-host / Image as token monetization.
  */
 import type { AiModulesConfig } from './types';

@@ -1,5 +1,5 @@
 /**
- * Prompt Library  SoulMate AI
+ * Prompt Library  Oxmate AI
  * Optimized for Western market () adult aesthetic.
  *
  * Design Principles:

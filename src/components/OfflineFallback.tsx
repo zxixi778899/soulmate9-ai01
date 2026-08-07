@@ -25,7 +25,7 @@ export default function OfflineFallback() {
       <div style={{ fontSize: 48, marginBottom: 16 }}></div>
       <h1 style={{ fontSize: 24, marginBottom: 8, fontWeight: 600 }}>You&rsquo;re offline</h1>
       <p style={{ color: '#9ca3af', maxWidth: 360, lineHeight: 1.5 }}>
-        SoulMate needs an internet connection to chat, but your saved companions are still
+        Oxmate needs an internet connection to chat, but your saved companions are still
         available.
       </p>
       <button

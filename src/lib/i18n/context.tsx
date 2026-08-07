@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { isSupportedLocale, type Locale, type TranslationKey } from './types';
-import { getTranslation } from './translations';
+import { getTranslation, detectBrowserLocale } from './translations';
 
 interface I18nContextType {
   locale: Locale;
@@ -20,10 +20,15 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');
 
   useEffect(() => {
-    // Default to English. Only use a stored preference if the user previously
-    // switched language explicitly via the language switcher.
+    // Priority: stored preference > browser locale > English fallback
     const stored = localStorage.getItem('soulmate_locale');
-    const targetLocale: Locale = isSupportedLocale(stored) ? stored : 'en';
+    let targetLocale: Locale;
+    if (isSupportedLocale(stored)) {
+      targetLocale = stored;
+    } else {
+      const detected = detectBrowserLocale();
+      targetLocale = isSupportedLocale(detected) ? detected : 'en';
+    }
     setLocaleState(targetLocale);
     document.documentElement.lang = targetLocale;
   }, []);

@@ -1,15 +1,19 @@
+'use client';
+
 import ComingSoon from '@/components/ComingSoon';
+import { useTranslation } from '@/lib/i18n/context';
 
 export const metadata = {
-  title: 'Shared Memories - SoulMate AI',
+  title: 'Shared Memories - Oxmate AI',
 };
 
 export default function MemoriesPage() {
+  const { t } = useTranslation();
   return (
     <ComingSoon
-      title="Shared Memories"
-      description="A timeline of the moments you've built together  milestones, anniversaries, favourite quotes  automatically curated by your companion."
-      eta="Coming Soon"
+      title={t('memories.title')}
+      description={t('memories.description')}
+      eta={t('common.comingSoon')}
     />
   );
 }

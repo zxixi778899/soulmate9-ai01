@@ -36,7 +36,7 @@ const CATEGORY_EMOJI: Record<CompanionCategory, string> = {
 export default function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const router = useRouter();
-  const { locale } = useTranslation();
+  const { t, locale } = useTranslation();
   const { user } = useAuth();
   const friendStatus = useFriendStatus();
   const labelLocale = (locale === 'zh' ? 'zh' : 'en') as 'zh' | 'en';
@@ -106,7 +106,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
           setSelected(girl);
           return;
         }
-        toast.success('Unlocked');
+        toast.success(t('explore.unlocked'));
         girl = { ...girl, locked: false, is_unlocked: true };
         setGirls((prev) => prev.map((g) => (g.id === girl.id ? { ...g, locked: false, is_unlocked: true } : g)));
       }
@@ -115,22 +115,22 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
         if (!user) {
           router.push(`/login?next=${encodeURIComponent(`/category/${slug}`)}`);
         } else {
-          toast.error('添加失败 — 请稍后重试');
+          toast.error(t('explore.addFailed'));
         }
         return;
       }
-      toast.success(`已添加 ${girl.name} 到好友列表`, {
-        description: '前往消息页开始聊天',
-        action: { label: '去聊天', onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
+      toast.success(t('explore.addedToFriends', { name: girl.name }), {
+        description: t('explore.goToMessages'),
+        action: { label: t('common.goChat'), onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
       });
       void friendStatus.refresh();
       setSelected(null);
     } catch (err) {
       const e = err as Error & { code?: string };
       if (e.code === 'SEAT_LIMIT') {
-        toast.error('Friend seats full', {
-          description: 'Upgrade membership or buy permanent seats',
-          action: { label: 'Buy seats', onClick: () => router.push('/pricing') },
+        toast.error(t('explore.seatLimitTitle'), {
+          description: t('explore.seatLimitDesc'),
+          action: { label: t('explore.buySeats'), onClick: () => router.push('/pricing') },
         });
       } else {
         toast.error(e.message || 'Failed to add friend');
@@ -143,16 +143,16 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
   if (!category) {
     return (
       <GameShell className="pb-6 md:pb-12 min-h-[100dvh]">
-        <PageHeader title="Not found" backHref="/" sticky={false} />
-        <div className="py-24 text-center text-white/40 text-sm">Unknown category.</div>
+        <PageHeader title={t('common.notFound')} backHref="/" sticky={false} />
+        <div className="py-24 text-center text-white/40 text-sm">{t('category.unknown')}</div>
       </GameShell>
     );
   }
 
   const title = `${COMPANION_CATEGORY_LABELS[category][labelLocale]}`;
   const subtitle = loading
-    ? (locale === 'zh' ? '加载中…' : 'Loading…')
-    : `${girls.length} ${locale === 'zh' ? '位角色' : 'companions'}`;
+    ? t('category.loading')
+    : `${girls.length} ${t('category.companionsUnit')}`;
 
   return (
     <GameShell className="pb-6 md:pb-12 min-h-[100dvh]">
@@ -164,7 +164,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
         sticky={false}
         actions={
           <GamePrimaryButton onClick={() => router.push('/create')} className="!h-10 !px-3 sm:!px-4 text-xs touch-manipulation">
-            {locale === 'zh' ? '自定义' : 'Create'}
+            {t('explore.customCreate')}
           </GamePrimaryButton>
         }
       />
@@ -201,14 +201,14 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
             <div className="py-24 text-center">
               <Sparkles className="h-8 w-8 text-white/20 mx-auto mb-3" />
               <p className="text-sm text-white/40">
-                {locale === 'zh' ? '该分类暂无角色，去创建一个吧' : 'No companions in this category yet — create one'}
+                {t('explore.noInCategory')}
               </p>
               <button
                 type="button"
                 onClick={() => router.push('/create')}
                 className="mt-4 text-xs text-[#ff2e88] hover:underline"
               >
-                {locale === 'zh' ? '开始自定义 →' : 'Start creating →'}
+                {t('explore.startCreating')}
               </button>
             </div>
           ) : (
@@ -261,7 +261,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); handleSelect(girl); } }}
                         className="mt-2 w-full h-8 rounded-lg text-[10px] font-black tracking-[0.15em] bg-gradient-to-r from-[#ff2e88] to-[#c026d3] flex items-center justify-center active:scale-95"
                       >
-                        {girl.locked ? 'UNLOCK' : friendStatus.isFriend(girl) ? '去聊天' : 'SELECT'}
+                        {girl.locked ? 'UNLOCK' : friendStatus.isFriend(girl) ? t('common.goChat') : 'SELECT'}
                       </div>
                     </div>
                   </div>

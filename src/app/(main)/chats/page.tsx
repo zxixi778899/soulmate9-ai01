@@ -70,7 +70,7 @@ type MemoryItem = { id: string; content: string; type: string; category: string;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatRelative(dateStr: string): string {
+function formatRelative(dateStr: string, t?: (key: string) => string): string {
   const date = new Date(dateStr);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
@@ -78,7 +78,7 @@ function formatRelative(dateStr: string): string {
   const startOfYesterday = startOfToday - 86_400_000;
   const ts = date.getTime();
   if (ts >= startOfToday) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  if (ts >= startOfYesterday) return '昨天';
+  if (ts >= startOfYesterday) return t ? t('chats.yesterday') : '昨天';
   if (diff < 7 * 86_400_000) return date.toLocaleDateString([], { weekday: 'short' });
   return date.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
 }
@@ -101,9 +101,10 @@ function computeProgress(score: number, level: number): number {
 
 // ─── Friend Row ──────────────────────────────────────────────────────────────
 
-function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, unreadCount, zh, onDelete, onSubmit, onAlbum, onWardrobe, onOpenProfile, onClick }: {
+function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, unreadCount, zh, t, onDelete, onSubmit, onAlbum, onWardrobe, onOpenProfile, onClick }: {
   friend: Friend;
   zh: boolean;
+  t: (key: any, params?: Record<string, any>) => string;
   lastMsg?: LastMessage;
   score: number;
   selected: boolean;
@@ -120,8 +121,8 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
 }) {
   const mood = deriveMood(lastMsg?.content || (tick % 2 === 0 ? friend.personality || '' : ''), score);
   const preview = lastMsg?.content
-    ? lastMsg.role === 'user' ? `你: ${lastMsg.content}` : lastMsg.content
-    : '还没有消息 · 点进来聊聊';
+    ? lastMsg.role === 'user' ? `${t('chats.youPrefix')}: ${lastMsg.content}` : lastMsg.content
+    : t('chats.noMessages');
   const reviewStatus = friend.review_status || 'draft';
   const isPending = reviewStatus === 'pending';
   const isRejected = reviewStatus === 'rejected';
@@ -140,8 +141,8 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
         <div
           className="relative shrink-0 cursor-pointer"
           role="button"
-          aria-label={zh ? '进入伴侣主页' : 'Open companion profile'}
-          title={zh ? '进入伴侣主页' : 'Open companion profile'}
+          aria-label={t('chats.openCompanionProfile')}
+          title={t('chats.openCompanionProfile')}
           onClick={(e) => {
             e.stopPropagation();
             onOpenProfile(friend, e);
@@ -162,17 +163,17 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[15px] font-semibold text-white truncate">{friend.name}</span>
-            {lastMsg && <span className="text-[11px] tabular-nums text-white/35 shrink-0">{formatRelative(lastMsg.created_at)}</span>}
+            {lastMsg && <span className="text-[11px] tabular-nums text-white/35 shrink-0">{formatRelative(lastMsg.created_at, t)}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className={cn('text-[11px] font-medium shrink-0', mood.tone)}>{mood.emoji} {mood.label}</span>
-            {isPending && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">{zh ? '审核中' : 'Reviewing'}</span>}
+            {isPending && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">{t('chats.reviewing')}</span>}
             {isRejected && (
               <span
                 className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/20"
-                title={friend.rejection_reason || (zh ? '发布申请被驳回，可修改后重新提交' : 'Publishing rejected — you may resubmit')}
+                title={friend.rejection_reason || (t('chats.rejectedHint'))}
               >
-                {zh ? '已驳回' : 'Rejected'}
+                {t('chats.rejected')}
               </span>
             )}
             <span className="text-[12px] text-white/35 truncate">· {preview}</span>
@@ -202,8 +203,8 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
             type="button"
             aria-label="Submit for review"
             title={isRejected
-              ? (zh ? '重新提交发布（上次被驳回，鼠标悬停查看原因）' : 'Resubmit for review (previously rejected — hover badge for reason)')
-              : (zh ? '发布到公共资料库（需审核）' : 'Publish to public library (requires review)')}
+              ? (t('chats.resubmitHint'))
+              : (t('chats.publishRequiresReview'))}
             disabled={submitting}
             onClick={(e) => onSubmit(friend, e)}
             className="h-8 w-8 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/25 touch-manipulation transition-colors disabled:opacity-50"
@@ -215,7 +216,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           <button
             type="button"
             aria-label="Withdraw submission"
-            title={zh ? '撤回发布审核申请' : 'Withdraw review submission'}
+            title={t('chats.withdrawReview')}
             disabled={submitting}
             onClick={(e) => onSubmit(friend, e)}
             className="h-8 w-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-400 hover:bg-amber-500/25 touch-manipulation transition-colors disabled:opacity-50"
@@ -413,16 +414,14 @@ export default function ChatsPage() {
   const deleteFriend = async (gf: Friend, e: MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
     const zh = locale === 'zh';
-    const confirmMsg = zh
-      ? `确定要解除与「${gf.name}」的好友关系吗？亲密值将归零。`
-      : `Remove "${gf.name}" from friends? Intimacy will reset to 0.`;
+    const confirmMsg = t('chats.removeFriendConfirm', { name: gf.name });
     if (!window.confirm(confirmMsg)) return;
     setDeletingId(gf.id);
     try {
       const res = await authedFetch(`/api/friends?id=${encodeURIComponent(gf.id)}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const errMsg = (data as { error?: string }).error || (zh ? '操作失败' : 'Action failed');
+        const errMsg = (data as { error?: string }).error || t('common.actionFailed');
         toast.error(errMsg);
         return;
       }
@@ -431,10 +430,10 @@ export default function ChatsPage() {
       setIntimacyMap((prev) => { const n = { ...prev }; delete n[gf.id]; return n; });
       deleteChatCache(gf.id);
       if (selectedId === gf.id) { setSelectedId(null); setGirlfriend(null); setMessages([]); }
-      toast.success(zh ? '已解除好友关系' : 'Friend removed');
+      toast.success(t('chats.friendRemoved'));
       notifyDataChange('girlfriends');
       notifyDataChange('chat');
-    } catch { toast.error(zh ? '网络错误' : 'Network error'); }
+    } catch { toast.error(t('common.networkError')); }
     finally { setDeletingId(null); }
   };
 
@@ -462,10 +461,8 @@ export default function ChatsPage() {
     const zh = locale === 'zh';
     const withdrawing = (gf.review_status || 'draft') === 'pending';
     const confirmed = withdrawing
-      ? window.confirm(zh ? `撤回「${gf.name}」的发布审核申请？撤回后仅你本人可用。` : `Withdraw the review submission for "${gf.name}"? It will stay private to you.`)
-      : window.confirm(zh
-          ? `将「${gf.name}」发布到公共资料库？提交后需管理员审核，通过后所有用户都可见并可添加。`
-          : `Publish "${gf.name}" to the public library? Admins will review it; once approved, everyone can see and add her.`);
+      ? window.confirm(t('chats.withdrawConfirm', { name: gf.name }))
+      : window.confirm(t('chats.publishConfirm', { name: gf.name }));
     if (!confirmed) return;
     setSubmittingId(gf.id);
     try {
@@ -484,10 +481,10 @@ export default function ChatsPage() {
         submitted_at: withdrawing ? null : new Date().toISOString(),
       } : g));
       toast.success(withdrawing
-        ? (zh ? '已撤回，伴侣恢复为仅自己可用' : 'Submission withdrawn — companion is private again')
-        : (zh ? '已提交发布审核，通过后将进入公共资料库' : 'Submitted for review'));
+        ? (t('chats.submissionWithdrawn'))
+        : (t('chats.submittedForReview')));
       notifyDataChange('girlfriends');
-    } catch { toast.error('Network error'); }
+    } catch { toast.error(t('common.networkError')); }
     finally { setSubmittingId(null); }
   };
 
@@ -627,8 +624,8 @@ export default function ChatsPage() {
   };
 
   const handlePickImage = (file: File) => {
-    if (file.size > 10 * 1024 * 1024) { toast.error('Image must be under 10MB'); return; }
-    if (!/^image\//.test(file.type)) { toast.error('Please choose an image file'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error(t('common.imageTooLarge10mb')); return; }
+    if (!/^image\//.test(file.type)) { toast.error(t('common.chooseImage')); return; }
     const previewUrl = URL.createObjectURL(file);
     setPendingMedia({ kind: 'image', url: previewUrl, previewUrl, file });
   };
@@ -650,14 +647,14 @@ export default function ChatsPage() {
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(mediaChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-        if (blob.size < 800) { toast.error('Recording too short'); return; }
+        if (blob.size < 800) { toast.error(t('chat.recordingTooShort')); return; }
         const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type });
         const pvUrl = URL.createObjectURL(blob);
         setPendingMedia({ kind: 'audio', url: pvUrl, previewUrl: pvUrl, file });
       };
       mediaRecorderRef.current = recorder; recorder.start(200); setIsRecording(true); setVoiceSeconds(0);
       voiceTimerRef.current = setInterval(() => { setVoiceSeconds((s) => { if (s >= 59) { recorder.stop(); setIsRecording(false); stopVoiceTimer(); return s; } return s + 1; }); }, 1000);
-    } catch (err) { logger.warn('mic denied', { err: err instanceof Error ? err.message : String(err) }); toast.error('Microphone permission needed'); }
+    } catch (err) { logger.warn('mic denied', { err: err instanceof Error ? err.message : String(err) }); toast.error(t('chat.micPermissionNeeded')); }
   };
 
   // ── Selfie generation ──
@@ -666,11 +663,11 @@ export default function ChatsPage() {
     setIsGenerating(true);
     const req = (userRequest || 'send me a sexy selfie').trim();
     const waitZh = /[\u4e00-\u9fff]/.test(req) || String(locale || '').toLowerCase().startsWith('zh');
-    const waitText = waitZh ? '哥哥我正在拍照哦，要换衣服、化妆需要点时间，请哥哥耐心等待，拍好了我会发给哥哥哦！' : "Babe I'm taking a photo for you~ need a moment to change and do my makeup. Be patient for me 💕";
+    const waitText = t('chat.photoStillGenerating');
     const waitId = `selfie-wait-${Date.now()}`;
     setMessages((prev) => [...prev, { id: waitId, role: 'assistant', content: waitText, created_at: new Date().toISOString() }]);
     setIsTyping(true); setAutoScroll(true);
-    toast.message(waitZh ? '她正在拍照…' : 'She is taking a photo…');
+    toast.message(t('chat.sheTakingNewPhoto'));
     try {
       const chatCtx = messages.filter((m) => m.role === 'user' || m.role === 'assistant').slice(-8).map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 400) }));
       const res = await authedFetch('/api/chat/generate-image', {
@@ -700,17 +697,15 @@ export default function ChatsPage() {
       }
       setIsTyping(false);
       if (imgUrl) {
-        const readyText = waitZh ? (data.message || '拍好啦～给哥哥看 💕') : (data.message || "Here's a photo just for you 💕");
+        const readyText = data.message || t('chat.newPhotoReady');
         setMessages((prev) => [...prev, { id: `selfie-${Date.now()}`, role: 'assistant', content: readyText, created_at: new Date().toISOString(), media_url: imgUrl, media_type: 'image' }]);
       } else {
-        throw new Error(waitZh ? '拍照超时了，再试一次吧' : 'Photo timed out, please try again');
+        throw new Error(t('chat.photoGenTimeout'));
       }
     } catch (err) {
       setIsTyping(false); logger.error('Generate selfie error:', { data: err });
       setMessages((prev) => prev.filter((m) => m.id !== waitId));
-      const fumbled = waitZh
-        ? '不小心手抖拍坏了…再拍一张吗？'
-        : "Oops, I fumbled the shot… want me to take another one?";
+      const fumbled = t('chat.fumbledShot');
       setMessages((prev) => [...prev, { id: `selfie-err-${Date.now()}`, role: 'assistant', content: fumbled, created_at: new Date().toISOString() }]);
     }
     setIsGenerating(false);
@@ -910,7 +905,7 @@ export default function ChatsPage() {
           ) : sorted.length === 0 ? (
             <div className="flex flex-col items-center gap-4 p-8 text-center">
               <MessageCircle className="h-8 w-8 text-[#ff6ba6]/40" />
-              <p className="text-sm text-white/40">还没有对话 · 去创建开始</p>
+              <p className="text-sm text-white/40">{t('chats.noChats')}</p>
               <button type="button" onClick={() => router.push('/create')} className="glass-btn !h-10 !px-4 text-sm">创建伴侣</button>
             </div>
           ) : (
@@ -920,6 +915,7 @@ export default function ChatsPage() {
                   key={gf.id}
                   friend={gf}
                   zh={locale === 'zh'}
+                  t={t}
                   lastMsg={lastMessages[gf.id]}
                   score={intimacyMap[gf.id] || loadChatCache(gf.id)?.intimacy?.score || 0}
                   selected={gf.id === selectedId}
@@ -1069,7 +1065,7 @@ export default function ChatsPage() {
           <div className="flex-1 flex items-center justify-center bg-[#0a0a12]">
             <div className="text-center">
               <MessageCircle className="h-12 w-12 text-white/10 mx-auto mb-4" />
-              <p className="text-white/30 text-sm">选择一个好友开始聊天</p>
+              <p className="text-white/30 text-sm">{t('chats.selectCompanion')}</p>
             </div>
           </div>
         )}
@@ -1084,7 +1080,7 @@ export default function ChatsPage() {
               <div
                 className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] cursor-pointer transition-opacity hover:opacity-90"
                 role="button"
-                aria-label={locale === 'zh' ? '进入伴侣主页' : 'Open companion profile'}
+                aria-label={t('chats.openCompanionProfile')}
                 onClick={() => router.push(`/companion/${selFriend.id}`)}
               >
                 {(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url) ? (
@@ -1102,12 +1098,12 @@ export default function ChatsPage() {
                 <div className="absolute left-2 top-2 flex gap-1.5">
                   {selIsPublished && (
                     <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/80 text-white border border-emerald-300/40 backdrop-blur">
-                      {locale === 'zh' ? '已入库' : 'Public'}
+                      {t('chats.public')}
                     </span>
                   )}
                   {selIsPending && (
                     <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/80 text-white border border-amber-300/40 backdrop-blur">
-                      {locale === 'zh' ? '审核中' : 'Reviewing'}
+                      {t('chats.reviewing')}
                     </span>
                   )}
                   {selIsRejected && (
@@ -1115,7 +1111,7 @@ export default function ChatsPage() {
                       className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/80 text-white border border-rose-300/40 backdrop-blur"
                       title={selFriend.rejection_reason || undefined}
                     >
-                      {locale === 'zh' ? '已驳回' : 'Rejected'}
+                      {t('chats.rejected')}
                     </span>
                   )}
                 </div>
@@ -1150,7 +1146,7 @@ export default function ChatsPage() {
             {/* Actions — album / wardrobe / publish / delete (moved here from list rows) */}
             <div className="px-4 pt-4">
               <p className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-2">
-                {locale === 'zh' ? '操作' : 'Actions'}
+                {t('chats.actions')}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -1159,7 +1155,7 @@ export default function ChatsPage() {
                   className="flex flex-col items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 hover:bg-sky-500/10 hover:border-sky-500/30 transition-colors touch-manipulation"
                 >
                   <ImageIcon className="h-4 w-4 text-sky-400" />
-                  <span className="text-[11px] text-white/70">{locale === 'zh' ? '相册' : 'Album'}</span>
+                  <span className="text-[11px] text-white/70">{t('chats.album')}</span>
                 </button>
                 <button
                   type="button"
@@ -1167,12 +1163,12 @@ export default function ChatsPage() {
                   className="flex flex-col items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 hover:bg-violet-500/10 hover:border-violet-500/30 transition-colors touch-manipulation"
                 >
                   <Shirt className="h-4 w-4 text-violet-400" />
-                  <span className="text-[11px] text-white/70">{locale === 'zh' ? '衣柜' : 'Wardrobe'}</span>
+                  <span className="text-[11px] text-white/70">{t('chats.wardrobe')}</span>
                 </button>
                 {selIsPublished ? (
                   <div className="flex flex-col items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] py-3 opacity-70 cursor-default">
                     <Globe className="h-4 w-4 text-emerald-400" />
-                    <span className="text-[11px] text-white/60">{locale === 'zh' ? '已发布' : 'Public'}</span>
+                    <span className="text-[11px] text-white/60">{t('chats.public')}</span>
                   </div>
                 ) : (
                   <button
@@ -1180,8 +1176,8 @@ export default function ChatsPage() {
                     disabled={submittingId === selFriend.id}
                     onClick={(e) => void submitForReview(selFriend, e)}
                     title={selIsPending
-                      ? (locale === 'zh' ? '撤回发布审核申请' : 'Withdraw review submission')
-                      : (locale === 'zh' ? '发布到公共资料库（需审核）' : 'Publish to public library (requires review)')}
+                      ? t('chats.withdrawReview')
+                      : t('chats.publishRequiresReview')}
                     className={cn(
                       'flex flex-col items-center gap-1.5 rounded-xl border py-3 transition-colors touch-manipulation disabled:opacity-50',
                       selIsPending
@@ -1195,7 +1191,7 @@ export default function ChatsPage() {
                         ? <X className="h-4 w-4 text-amber-400" />
                         : <Send className="h-4 w-4 text-emerald-400" />}
                     <span className="text-[11px] text-white/70">
-                      {selIsPending ? (locale === 'zh' ? '撤回' : 'Withdraw') : (locale === 'zh' ? '发布' : 'Publish')}
+                      {selIsPending ? (t('chats.withdraw')) : (t('chats.publish'))}
                     </span>
                   </button>
                 )}
@@ -1208,7 +1204,7 @@ export default function ChatsPage() {
                   {deletingId === selFriend.id
                     ? <Loader2 className="h-4 w-4 animate-spin text-white/60" />
                     : <Trash2 className="h-4 w-4 text-[#ff6ba6]" />}
-                  <span className="text-[11px] text-white/70">{locale === 'zh' ? '删除' : 'Delete'}</span>
+                  <span className="text-[11px] text-white/70">{t('common.delete')}</span>
                 </button>
               </div>
             </div>
@@ -1221,7 +1217,7 @@ export default function ChatsPage() {
                 className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-white/60 hover:text-white hover:bg-white/[0.05] transition-colors touch-manipulation"
               >
                 <BrainCircuit className="h-4 w-4 text-[#FF6BA6]" />
-                <span className="text-[12px]">{locale === 'zh' ? '回忆' : 'Memories'}</span>
+                <span className="text-[12px]">{t('chats.memories')}</span>
               </button>
               <button
                 type="button"
@@ -1229,14 +1225,14 @@ export default function ChatsPage() {
                 className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-white/60 hover:text-white hover:bg-white/[0.05] transition-colors touch-manipulation"
               >
                 <MessageCircle className="h-4 w-4 text-sky-400" />
-                <span className="text-[12px]">{locale === 'zh' ? '专属聊天页' : 'Full chat view'}</span>
+                <span className="text-[12px]">{t('chats.fullChatView')}</span>
               </button>
             </div>
           </div>
         ) : (
           <div className="flex flex-1 items-center justify-center p-6 text-center">
             <p className="text-xs text-white/30">
-              {locale === 'zh' ? '选择左侧的伴侣查看资料与操作' : 'Select a companion to view her profile'}
+              {t('chats.selectCompanion')}
             </p>
           </div>
         )}
@@ -1250,7 +1246,7 @@ export default function ChatsPage() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2 text-base font-display">
               <BrainCircuit className="h-4 w-4 text-[#FF2D78]" />
-              Memories with {girlfriend?.name || 'her'}
+              {t('chats.memoriesWith', { name: girlfriend?.name || 'her' })}
             </SheetTitle>
           </SheetHeader>
           <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(100vh-8rem)] pb-8 pr-1">
@@ -1282,7 +1278,7 @@ export default function ChatsPage() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2 text-base font-display">
               <Camera className="h-4 w-4 text-[#FF2D78]" />
-              相册 · {girlfriend?.name || 'her'}
+{t('chats.albumWith', { name: girlfriend?.name || 'her' })}
             </SheetTitle>
           </SheetHeader>
           <div className="mt-4 overflow-y-auto max-h-[calc(100vh-8rem)] pb-8 pr-1">
@@ -1291,7 +1287,7 @@ export default function ChatsPage() {
               if (mediaItems.length === 0) return (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Camera className="h-8 w-8 text-[#8B8BA3]/30 mb-3" />
-                  <p className="text-xs text-[#8B8BA3]">还没有相册内容</p>
+                  <p className="text-xs text-[#8B8BA3]">{t('chats.noAlbumContent')}</p>
                 </div>
               );
               return (

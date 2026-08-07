@@ -10,7 +10,7 @@ import { APP_NAME } from '@/lib/constants';
 
 const STEPS = [
   {
-    title: 'Welcome to SoulMate AI',
+    title: 'Welcome to Oxmate AI',
     subtitle: 'Your journey to meaningful AI companionship starts here.',
     icon: Heart,
     color: 'from-rose-500 to-fuchsia-500',

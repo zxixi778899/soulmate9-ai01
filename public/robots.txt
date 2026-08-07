@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin/
 Disallow: /api/
 
-Sitemap: https://soulmate9.app/sitemap.xml
+Sitemap: https://www.oxmate-ai.com/sitemap.xml

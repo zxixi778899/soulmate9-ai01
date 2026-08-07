@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { authedFetch, createBrowserClient } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
+import type { TranslationKey } from '@/lib/i18n/types';
 import { LOCALES, type Locale } from '@/lib/i18n/types';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -227,7 +228,7 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      toast.error(locale === 'zh' ? '图片不能超过5MB' : 'Image must be under 5MB');
+      toast.error(t('common.imageTooLarge5mb'));
       return;
     }
     setUploadingAvatar(true);
@@ -246,12 +247,12 @@ export default function ProfilePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ avatar_url: url }),
         });
-        toast.success(locale === 'zh' ? '头像已更新' : 'Avatar updated');
+        toast.success(t('profile.avatarUpdated'));
       } catch {
-        toast.success(locale === 'zh' ? '头像已上传，记得点保存' : 'Avatar uploaded — remember to save');
+        toast.success(t('profile.avatarUploadedSave'));
       }
     } catch {
-      toast.error(locale === 'zh' ? '上传失败' : 'Upload failed');
+      toast.error(t('common.uploadFailed'));
     }
     setUploadingAvatar(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -285,7 +286,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ scope: 'all' }),
       });
       if (res.ok) {
-        toast.success(locale === 'zh' ? '已提交删除请求' : 'Account deletion requested');
+        toast.success(t('profile.deletionRequested'));
         await signOut();
         window.location.href = '/';
       } else {
@@ -393,7 +394,7 @@ export default function ProfilePage() {
               {user.email} · {formatCount(mem.credits_remaining)} {t('profile.creditsUnit')}
             </p>
             <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-white/70">
-              {bio || (locale === 'zh' ? '写一句简介，让关注你的人更了解你' : 'Write a short bio so your fans know you better')}
+              {bio || (t('profile.bioPlaceholder'))}
             </p>
             <div className="mt-3 flex gap-2">
               <button
@@ -401,14 +402,14 @@ export default function ProfilePage() {
                 onClick={() => setTab('settings')}
                 className="rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:scale-95 transition-all"
               >
-                {locale === 'zh' ? '编辑资料' : 'Edit profile'}
+                {t('profile.editProfile')}
               </button>
               <button
                 type="button"
                 onClick={() => router.push(`/u/${user.id}`)}
                 className="glass rounded-full px-4 py-1.5 text-xs font-medium text-white/85 hover:text-white active:scale-95 transition-all"
               >
-                {locale === 'zh' ? '我的主页' : 'My page'}
+                {t('profile.myPage')}
               </button>
             </div>
           </div>
@@ -421,31 +422,31 @@ export default function ProfilePage() {
               <Heart className="h-3.5 w-3.5 text-[#FF6BA6]" />
               {formatCount(stats.fans)}
             </p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '粉丝' : 'Fans'}</p>
+            <p className="text-[11px] text-white/40">{t('profile.fans')}</p>
           </div>
           <div className="flex-1">
             <p className="text-base font-bold tabular-nums">{formatCount(stats.following)}</p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '关注' : 'Following'}</p>
+            <p className="text-[11px] text-white/40">{t('profile.following')}</p>
           </div>
           <div className="flex-1">
             <p className="text-base font-bold tabular-nums">{stats.published}</p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '发布作品' : 'Published'}</p>
+            <p className="text-[11px] text-white/40">{t('profile.published')}</p>
           </div>
           <div className="flex-1">
             <p className="flex items-center justify-center gap-1 text-base font-bold tabular-nums">
               <Flame className="h-3.5 w-3.5 text-[#FF6BA6]" />
               {formatCount(stats.interaction)}
             </p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '互动值' : 'Interactions'}</p>
+            <p className="text-[11px] text-white/40">{t('profile.interactions')}</p>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="mt-2 flex items-center gap-1 border-b border-white/[0.08]">
           {([
-            { key: 'assets', label: locale === 'zh' ? '我的资产' : 'Assets' },
-            { key: 'works', label: locale === 'zh' ? '我的作品' : 'Works' },
-            { key: 'settings', label: locale === 'zh' ? '个人设置' : 'Settings' },
+            { key: 'assets', label: t('profile.assets') },
+            { key: 'works', label: t('profile.works') },
+            { key: 'settings', label: t('profile.settings') },
           ] as Array<{ key: Tab; label: string }>).map((tb) => (
             <button
               key={tb.key}
@@ -470,7 +471,7 @@ export default function ProfilePage() {
             {/* 会员等级 + 积分 */}
             <section className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/[0.06]">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#FF6BA6]">
-                {locale === 'zh' ? 'VIP 会员' : 'VIP Membership'}
+                {t('profile.vipMembership')}
               </h3>
               <div className="flex items-center gap-3">
                 <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-[#ffd700]/25 to-[#ff2e88]/25 border border-[#ffd700]/30 flex items-center justify-center shrink-0">
@@ -481,18 +482,18 @@ export default function ProfilePage() {
                     <span className={cn('font-bold', isPaid ? 'text-amber-300' : 'text-white/70')}>{tierMeta.label}</span>
                     {isPaid && mem.subscription_status === 'active' && (
                       <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
-                        {locale === 'zh' ? '生效中' : 'Active'}
+                        {t('profile.active')}
                       </span>
                     )}
                   </div>
                   <div className="mt-0.5 text-[11px] text-white/40">
                     {isPaid
-                      ? `${locale === 'zh' ? '到期' : 'Expires'} ${formatExpiry(mem.subscription_end)} · ${
+                      ? `${t('profile.expires')} ${formatExpiry(mem.subscription_end)} · ${
                           mem.billing_interval === 'year'
-                            ? locale === 'zh' ? '年付' : 'Yearly'
-                            : locale === 'zh' ? '月付' : 'Monthly'
+                            ? t('profile.yearly')
+                            : t('profile.monthly')
                         }`
-                      : locale === 'zh' ? '升级解锁 NSFW、AI 照片与无限聊天' : 'Upgrade to unlock NSFW, AI photos & unlimited chat'}
+                      : t('profile.upgradeDesc')}
                   </div>
                 </div>
                 <button
@@ -500,7 +501,7 @@ export default function ProfilePage() {
                   onClick={() => router.push('/pricing')}
                   className="shrink-0 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:scale-95 transition-all"
                 >
-                  {isPaid ? (locale === 'zh' ? '管理' : 'Manage') : (locale === 'zh' ? '升级' : 'Upgrade')}
+                  {isPaid ? t('profile.manage') : t('profile.upgrade')}
                 </button>
               </div>
 
@@ -509,14 +510,14 @@ export default function ProfilePage() {
                   <Coins className="h-5 w-5 text-amber-400 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-base font-bold text-amber-300 tabular-nums leading-none">{mem.credits_remaining}</div>
-                    <div className="mt-1 text-[10px] text-white/40">{locale === 'zh' ? '可用积分' : 'Credits'}</div>
+                    <div className="mt-1 text-[10px] text-white/40">{t('profile.availableCredits')}</div>
                   </div>
                   <button
                     type="button"
                     onClick={() => router.push('/wallet')}
                     className="shrink-0 rounded-full bg-amber-500/90 px-2.5 py-1 text-[10px] font-bold text-black hover:bg-amber-400 active:scale-95 transition-all"
                   >
-                    {locale === 'zh' ? '充值' : 'Top up'}
+                    {t('profile.topUp')}
                   </button>
                 </div>
                 <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-3 flex items-center gap-2.5">
@@ -525,14 +526,14 @@ export default function ProfilePage() {
                     <div className="text-base font-bold text-cyan-200 tabular-nums leading-none">
                       {cardBalance ?? '--'}
                     </div>
-                    <div className="mt-1 text-[10px] text-white/40">{locale === 'zh' ? '创建卡' : 'Creation cards'}</div>
+                    <div className="mt-1 text-[10px] text-white/40">{t('profile.creationCards')}</div>
                   </div>
                   <button
                     type="button"
                     onClick={() => router.push('/create')}
                     className="shrink-0 rounded-full bg-white/[0.08] px-2.5 py-1 text-[10px] font-bold text-white/70 hover:text-white active:scale-95 transition-all"
                   >
-                    {locale === 'zh' ? '去创建' : 'Create'}
+                    {t('common.goCreate')}
                   </button>
                 </div>
               </div>
@@ -543,7 +544,7 @@ export default function ProfilePage() {
                 className="mt-2.5 w-full h-10 rounded-xl border border-[#ffd700]/30 bg-[#ffd700]/[0.08] text-[#ffd700] text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#ffd700]/[0.15] transition-all active:scale-[0.98]"
               >
                 <Trophy className="h-4 w-4" />
-                {locale === 'zh' ? '成就殿堂' : 'Hall of Achievements'}
+                {t('profile.hallOfAchievements')}
                 {unlocked !== null && (
                   <span className="rounded-full bg-[#ffd700]/20 px-1.5 py-0.5 text-[10px] tabular-nums">{unlocked}</span>
                 )}
@@ -554,7 +555,7 @@ export default function ProfilePage() {
             <section>
               <div className="mb-2.5 flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-[#FF6BA6]">
-                  {locale === 'zh' ? '我的伴侣' : 'My Companions'} · {friends.length}
+                  {t('profile.myCompanions')} · {friends.length}
                 </h3>
                 <button
                   type="button"
@@ -562,21 +563,21 @@ export default function ProfilePage() {
                   className="flex items-center gap-1 text-[11px] text-white/45 hover:text-white transition-colors"
                 >
                   <UserPlus className="h-3 w-3" />
-                  {locale === 'zh' ? '去探索' : 'Explore'}
+                  {t('common.goExplore')}
                 </button>
               </div>
               {friends.length === 0 ? (
                 <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/[0.06] p-8 text-center">
                   <Users className="h-8 w-8 mx-auto text-white/15 mb-2" />
                   <p className="text-xs text-white/40 mb-3">
-                    {locale === 'zh' ? '还没有伴侣，去卡池探索吧' : 'No companions yet — explore the card pool'}
+                    {t('profile.noCompanions')}
                   </p>
                   <button
                     type="button"
                     onClick={() => router.push('/explore')}
                     className="rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-4 py-2 text-xs font-semibold text-white active:scale-95 transition-all"
                   >
-                    {locale === 'zh' ? '去探索' : 'Explore'}
+                    {t('common.goExplore')}
                   </button>
                 </div>
               ) : (
@@ -616,20 +617,20 @@ export default function ProfilePage() {
             {/* 道具 */}
             <section>
               <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-[#FF6BA6]">
-                {locale === 'zh' ? '道具背包' : 'Backpack'} · {backpack.length}
+                {t('profile.backpack')} · {backpack.length}
               </h3>
               {backpack.length === 0 ? (
                 <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/[0.06] p-8 text-center">
                   <Package className="h-8 w-8 mx-auto text-white/15 mb-2" />
                   <p className="text-xs text-white/40 mb-3">
-                    {locale === 'zh' ? '背包还是空的，去商店挑件礼物吧' : 'Your backpack is empty — grab a gift from the shop'}
+                    {t('profile.backpackEmpty')}
                   </p>
                   <button
                     type="button"
                     onClick={() => router.push('/shop')}
                     className="rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-4 py-2 text-xs font-semibold text-white active:scale-95 transition-all"
                   >
-                    {locale === 'zh' ? '去商店' : 'Open shop'}
+                    {t('common.goShop')}
                   </button>
                 </div>
               ) : (
@@ -678,9 +679,7 @@ export default function ProfilePage() {
           <div className="pt-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-[11px] text-white/40">
-                {locale === 'zh'
-                  ? `已发布 ${stats.published} / 共 ${works.length} 个作品 · 审核通过后进入公共资料库并累计互动值`
-                  : `${stats.published} published of ${works.length} works · approved works join the public library and earn interactions`}
+                {t('profile.publishedStats', { published: String(stats.published), total: String(works.length) })}
               </p>
               <button
                 type="button"
@@ -688,7 +687,7 @@ export default function ProfilePage() {
                 className="flex shrink-0 items-center gap-1 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-3.5 py-1.5 text-xs font-semibold text-white active:scale-95 transition-all"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {locale === 'zh' ? '创建伴侣' : 'Create'}
+                {t('profile.createCompanion')}
               </button>
             </div>
 
@@ -696,14 +695,14 @@ export default function ProfilePage() {
               <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/[0.06] p-10 text-center">
                 <Sparkles className="h-9 w-9 mx-auto text-white/15 mb-3" />
                 <p className="text-sm text-white/40 mb-4">
-                  {locale === 'zh' ? '还没有作品，创建你的第一个伴侣吧' : 'No works yet — create your first companion'}
+                  {t('profile.noWorks')}
                 </p>
                 <button
                   type="button"
                   onClick={() => router.push('/create')}
                   className="rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-5 py-2 text-xs font-semibold text-white active:scale-95 transition-all"
                 >
-                  {locale === 'zh' ? '去创建' : 'Start creating'}
+                  {t('profile.startCreating')}
                 </button>
               </div>
             ) : (
@@ -733,13 +732,13 @@ export default function ProfilePage() {
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
                         <span className={cn('absolute top-1.5 left-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold ring-1', status.cls)}>
-                          {locale === 'zh' ? status.zh : status.en}
+                          {t(`status.${w.review_status || 'draft'}` as TranslationKey)}
                         </span>
                         <div className="absolute bottom-0 left-0 right-0 p-2">
                           <div className="text-xs font-bold truncate">{w.name}</div>
                           <div className="mt-0.5 flex items-center gap-1 text-[9px] text-white/50 tabular-nums">
                             <Flame className="h-2.5 w-2.5 text-[#FF6BA6]" />
-                            {locale === 'zh' ? '互动 ' : ''}{Number(w.interaction_count || 0)}
+                            {t('profile.interactionPrefix')}{Number(w.interaction_count || 0)}
                           </div>
                         </div>
                       </div>
@@ -756,7 +755,7 @@ export default function ProfilePage() {
           <div className="space-y-5 pt-4">
             <section className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/[0.06] space-y-4">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-[#FF6BA6]">
-                {locale === 'zh' ? '个人资料' : 'Profile'}
+                {t('profile.personalProfile')}
               </h3>
 
               <div>
@@ -766,28 +765,28 @@ export default function ProfilePage() {
                 <Input
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder={locale === 'zh' ? '输入显示名称' : 'Enter display name'}
+                  placeholder={t('profile.displayName')}
                   className="bg-white/5 border-white/10"
                 />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-xs text-white/40">
-                  {locale === 'zh' ? '个人简介' : 'Bio'}
+                  {t('profile.bio')}
                 </label>
                 <Textarea
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   rows={2}
                   maxLength={120}
-                  placeholder={locale === 'zh' ? '一句话介绍自己（会展示在你的创作者主页）' : 'One line about you (shown on your creator page)'}
+                  placeholder={t('profile.bioHint')}
                   className="bg-white/5 border-white/10 resize-none"
                 />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-xs text-white/40">
-                  {locale === 'zh' ? '性别' : 'Gender'}
+                  {t('profile.gender')}
                 </label>
                 <div className="flex gap-2">
                   {GENDER_OPTIONS.map((g) => (
@@ -802,7 +801,7 @@ export default function ProfilePage() {
                           : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:text-white hover:border-white/20',
                       )}
                     >
-                      {locale === 'zh' ? g.labelZh : g.labelEn}
+                      {t(`gender.${g.value}` as TranslationKey)}
                     </button>
                   ))}
                 </div>
@@ -815,7 +814,7 @@ export default function ProfilePage() {
 
               <div>
                 <label className="mb-1.5 flex items-center gap-1.5 text-xs text-white/40">
-                  <Globe className="h-3 w-3" /> {locale === 'zh' ? '语言' : 'Language'}
+                  <Globe className="h-3 w-3" /> {t('profile.language')}
                 </label>
                 <div className="relative">
                   <select
@@ -847,13 +846,13 @@ export default function ProfilePage() {
             {/* 会员信息（只读摘要） */}
             <section className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/[0.06]">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#FF6BA6]">
-                {locale === 'zh' ? '订阅状态' : 'Subscription'}
+                {t('profile.subscription')}
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-3">
                   <div className="flex items-center gap-1.5 text-[10px] text-white/40 mb-1">
                     <Calendar className="h-3 w-3" />
-                    {locale === 'zh' ? '到期时间' : 'Expires'}
+                    {t('profile.expires')}
                   </div>
                   <div className={cn('text-sm font-semibold', isExpired ? 'text-red-400' : 'text-white/90')}>
                     {formatExpiry(mem.subscription_end)}
@@ -862,13 +861,13 @@ export default function ProfilePage() {
                 <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-3">
                   <div className="flex items-center gap-1.5 text-[10px] text-white/40 mb-1">
                     <RefreshCw className="h-3 w-3" />
-                    {locale === 'zh' ? '计费周期' : 'Billing'}
+                    {t('profile.billing')}
                   </div>
                   <div className="text-sm font-semibold text-white/90">
                     {mem.billing_interval === 'year'
-                      ? locale === 'zh' ? '年付' : 'Yearly'
+                      ? t('profile.yearly')
                       : mem.billing_interval === 'month'
-                        ? locale === 'zh' ? '月付' : 'Monthly'
+                        ? t('profile.monthly')
                         : '--'}
                   </div>
                 </div>

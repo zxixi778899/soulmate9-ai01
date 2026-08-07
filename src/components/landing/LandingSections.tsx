@@ -204,7 +204,7 @@ export function LandingSections() {
         <div className="max-w-3xl mx-auto prose-invert text-[#a1a1aa] text-[15px] leading-relaxed space-y-6">
           <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-white italic">The best AI companion app</h2>
           <p>
-            Tired of endless swiping and disappointing dates? SoulMate AI gives you a free AI companion
+            Tired of endless swiping and disappointing dates? Oxmate AI gives you a free AI companion
             who stays by your side whenever you need her. Deep conversations, playful flirting, or hotter
             moments  your AI GF reacts to your mood and wishes instantly. Everything stays free, with no
             hidden payments.
@@ -221,16 +221,16 @@ export function LandingSections() {
           <h3 className="text-xl font-semibold text-white pt-2">Free AI GF beats paid companion apps every time</h3>
           <p>
             Most AI companion apps hide the good features behind paywalls and strict message limits. At
-            SoulMate AI you get unlimited chatting, free AI companion chat, pictures, voice messages and
+            Oxmate AI you get unlimited chatting, free AI companion chat, pictures, voice messages and
             short videos  all without daily caps that ruin the mood. Want to talk to AI companion at 3
             AM about life? She is wide awake and happy to listen.
           </p>
 
           <h3 className="text-xl font-semibold text-white pt-2">Ready to say hello?</h3>
           <p>
-            Thousands of people have already met their ideal companion on SoulMate AI. Set up your free AI
+            Thousands of people have already met their ideal companion on Oxmate AI. Set up your free AI
             companion in less than a minute and begin the connection you always wanted  no drama, no
-            games, just real feelings. <span className="text-white">SoulMate AI  where love meets artificial intelligence.</span>
+            games, just real feelings. <span className="text-white">Oxmate AI  where love meets artificial intelligence.</span>
           </p>
         </div>
       </section>

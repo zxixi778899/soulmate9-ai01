@@ -70,7 +70,7 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    title: 'SoulMate AI',
+    title: 'Oxmate AI',
     statusBarStyle: 'black-translucent',
   },
   other: {

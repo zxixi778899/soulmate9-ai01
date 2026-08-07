@@ -1,6 +1,6 @@
 /**
  * AI Service Registry
- * Central reference for all RunPod/API endpoints used by SoulMate9.
+ * Central reference for all RunPod/API endpoints used by Oxmate AI.
  * Used by admin dashboard for status display and health checks.
  */
 
@@ -73,7 +73,7 @@ export const SERVICE_REGISTRY: ServiceEndpoint[] = [
     api_key_env: 'RUNPOD_API_KEY',
     gpu_type: '24GB (ADA_24)',
     model_name: 'fish-speech-1.5',
-    status: 'standby',
+    status: 'active',
     cost_per_hour: 0.34,
     notes: 'Endpoint: ysbf487seprlal. Workers 0-2. 7情感TTS. API /api/ai/voice.',
   },

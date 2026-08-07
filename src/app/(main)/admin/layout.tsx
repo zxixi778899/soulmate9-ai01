@@ -152,7 +152,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <LayoutDashboard className="h-4 w-4 text-white" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-slate-100">SoulMate 后台</div>
+              <div className="text-sm font-semibold text-slate-100">Oxmate 后台</div>
               <div className="text-[10px] text-slate-400 uppercase tracking-wide">{role}</div>
             </div>
           </div>

@@ -6,7 +6,7 @@
  * Layout: left big 3D-tilt portrait, right info panel with personality bars + voice + big SELECT.
  */
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'motion/react';
 import { X, Heart, Sparkles, Volume2, MessageCircle, Share2, UserPlus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,26 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
   const rotateY = useTransform(x, [-200, 200], [-15, 15]);
   const rotateX = useTransform(y, [-200, 200], [12, -12]);
   const { t } = useTranslation();
+
+  // Voice preview state
+  const [voicePlaying, setVoicePlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const toggleVoicePreview = () => {
+    if (voicePlaying && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+      setVoicePlaying(false);
+      return;
+    }
+    if (girl?.voice_preview) {
+      const audio = new Audio(girl.voice_preview);
+      audioRef.current = audio;
+      audio.onended = () => { setVoicePlaying(false); audioRef.current = null; };
+      audio.onerror = () => { setVoicePlaying(false); audioRef.current = null; };
+      audio.play().then(() => setVoicePlaying(true)).catch(() => {});
+    }
+  };
 
   // Real companion stats from the backend (fallbacks mirror home page meters)
   const baseIntimacy = Math.min(99, Math.max(0, Number(girl?.intimacy ?? 0) || 0));
@@ -169,19 +189,32 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
 
             {/* Voice preview */}
             <button
-              onClick={() => {/* TODO: play voice */}}
-              className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-all w-full"
+              onClick={toggleVoicePreview}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all w-full",
+                voicePlaying
+                  ? "bg-[#ff2e88]/10 border-[#ff2e88]/40"
+                  : "bg-white/[0.04] border-white/[0.08] hover:bg-white/[0.08]",
+              )}
             >
               <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#ff2e88] to-[#00e5ff] flex items-center justify-center">
-                <Volume2 className="h-4 w-4 text-white" />
+                {voicePlaying
+                  ? <div className="h-3 w-3 rounded-sm bg-white" />
+                  : <Volume2 className="h-4 w-4 text-white" />}
               </div>
               <div className="flex-1 text-left">
                 <div className="text-xs text-white">Voice Preview</div>
-                <div className="text-[10px] text-zinc-500">Tap to hear her voice</div>
+                <div className="text-[10px] text-zinc-500">
+                  {voicePlaying ? 'Playing...' : 'Tap to hear her voice'}
+                </div>
               </div>
               <div className="flex items-end gap-0.5 h-4">
                 {[1, 2, 3, 4, 3, 2, 1].map((h, i) => (
-                  <span key={i} className="w-0.5 bg-[#ff2e88] rounded-full" style={{ height: `${h * 25}%` }} />
+                  <span
+                    key={i}
+                    className={cn("w-0.5 rounded-full", voicePlaying ? "bg-[#ff2e88] animate-pulse" : "bg-[#ff2e88]/40")}
+                    style={{ height: `${h * 25}%`, animationDelay: voicePlaying ? `${i * 100}ms` : undefined }}
+                  />
                 ))}
               </div>
             </button>

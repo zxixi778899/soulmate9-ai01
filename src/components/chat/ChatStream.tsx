@@ -6,6 +6,7 @@ import { ChatMarkdown } from '@/components/chat/ChatMarkdown';
 import { formatBubbleTime } from '@/lib/chat-utils';
 import {
   Loader2, Heart, Check, CheckCheck, Sparkles, Shirt, ChevronUp, RefreshCw, Camera, Video, X,
+  Volume2, Square,
 } from 'lucide-react';
 import type { ChatGirlfriend, ChatMessage, StreamRow } from './types';
 import { useTranslation } from '@/lib/i18n/context';
@@ -157,12 +158,16 @@ function ChatStreamInner(props: {
   onCancelGeneration?: () => void;
   onRetrySelfie?: () => void;
   onRetryMessage?: (msg: ChatMessage) => void;
+  onSpeakMessage?: (msg: ChatMessage) => void;
+  speakingMsgId?: string | null;
+  speakingLoading?: boolean;
 }) {
   const { t } = useTranslation();
   const {
     scrollRef, onScroll, girlfriend, rows, isTyping,
     hasMore, loadingMore, onLoadHistory, levelColor, onOpenImage, bottomRef,
     onCancelGeneration, onRetrySelfie, onRetryMessage,
+    onSpeakMessage, speakingMsgId, speakingLoading,
   } = props;
 
   const portrait =
@@ -386,6 +391,27 @@ function ChatStreamInner(props: {
                         <Shirt className="h-2.5 w-2.5" />
                         {t('chat.outfit')}
                       </span>
+                    )}
+                    {!isUser && onSpeakMessage && !msg.media_url && (
+                      <button
+                        type="button"
+                        onClick={() => onSpeakMessage(msg)}
+                        className="flex items-center gap-1 text-white/30 hover:text-white/60 transition-colors"
+                        title={speakingMsgId === msg.id ? t('chat.stopSpeak') : t('chat.speak')}
+                      >
+                        {speakingLoading && speakingMsgId === msg.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : speakingMsgId === msg.id ? (
+                          <Square className="h-2.5 w-2.5 fill-current" />
+                        ) : (
+                          <Volume2 className="h-3 w-3" />
+                        )}
+                        <span className="text-[10px]">
+                          {speakingMsgId === msg.id
+                            ? (speakingLoading ? t('chat.speakLoading') : t('chat.stopSpeak'))
+                            : t('chat.speak')}
+                        </span>
+                      </button>
                     )}
                   </div>
                 </div>

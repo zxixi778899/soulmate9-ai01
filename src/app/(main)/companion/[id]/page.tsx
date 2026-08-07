@@ -88,12 +88,8 @@ export default function CompanionProfilePage() {
         <Lock className="h-8 w-8 text-[#8B8BA3]/50" />
         <p className="text-sm text-[#8B8BA3]">
           {httpStatus === 404
-            ? locale === 'zh'
-              ? '伴侣不存在或已删除'
-              : 'Companion not found'
-            : locale === 'zh'
-              ? '该伴侣暂未公开'
-              : 'This companion is private.'}
+            ? t('companion.notFound')
+            : t('companion.private')}
         </p>
         <button
           type="button"
@@ -148,9 +144,9 @@ export default function CompanionProfilePage() {
       }
       const code = (json as { code?: string }).code;
       if (code === 'SEAT_LIMIT') {
-        toast.error(locale === 'zh' ? '好友位已满' : 'Friend limit reached', {
-          description: locale === 'zh' ? '升级套餐可添加更多伴侣' : 'Upgrade your plan to add more',
-          action: { label: locale === 'zh' ? '去升级' : 'Shop', onClick: () => router.push('/pricing') },
+        toast.error(t('girlfriend.seatLimit'), {
+          description: t('girlfriend.seatLimitDesc'),
+          action: { label: t('common.goShop'), onClick: () => router.push('/pricing') },
         });
       } else {
         toast.error((json as { error?: string }).error || 'Could not open chat');
@@ -166,14 +162,10 @@ export default function CompanionProfilePage() {
     const withdrawing = reviewStatus === 'pending';
     const confirmed = withdrawing
       ? window.confirm(
-          locale === 'zh'
-            ? `撤回「${name}」的发布审核申请？撤回后仅你本人可用。`
-            : `Withdraw the review submission for "${name}"? It will stay private to you.`,
+          t('chats.withdrawConfirm', { name }),
         )
       : window.confirm(
-          locale === 'zh'
-            ? `将「${name}」发布到公共资料库？提交后需管理员审核，通过后所有用户都可见。`
-            : `Publish "${name}" to the public library? Admins will review it; once approved, everyone can see her.`,
+          t('chats.publishConfirm', { name }),
         );
     if (!confirmed) return;
     setSubmitting(true);
@@ -194,12 +186,8 @@ export default function CompanionProfilePage() {
       }
       toast.success(
         withdrawing
-          ? locale === 'zh'
-            ? '已撤回，伴侣恢复为仅自己可用'
-            : 'Submission withdrawn'
-          : locale === 'zh'
-            ? '已提交发布审核，通过后将进入公共资料库'
-            : 'Submitted for review',
+          ? t('chats.submissionWithdrawn')
+          : t('chats.submittedForReview'),
       );
       await load();
     } catch {
@@ -300,18 +288,18 @@ export default function CompanionProfilePage() {
         <div className="mt-4 flex items-center gap-5 border-y border-white/[0.06] py-3 text-center">
           <div className="flex-1">
             <p className="text-base font-bold tabular-nums">{data.counts.photo + data.counts.video}</p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '作品' : 'Posts'}</p>
+            <p className="text-[11px] text-white/40">{t('companion.posts')}</p>
           </div>
           <div className="flex-1">
             <p className="flex items-center justify-center gap-1 text-base font-bold tabular-nums">
               <Flame className="h-3.5 w-3.5 text-[#FF6BA6]" />
               {Number(g.hot_score ?? 0)}
             </p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '热度' : 'Heat'}</p>
+            <p className="text-[11px] text-white/40">{t('companion.heat')}</p>
           </div>
           <div className="flex-1">
             <p className="text-base font-bold tabular-nums">{Number(g.base_intimacy ?? 0)}</p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '初始亲密' : 'Intimacy'}</p>
+            <p className="text-[11px] text-white/40">{t('companion.initialIntimacy')}</p>
           </div>
         </div>
 
@@ -365,12 +353,10 @@ export default function CompanionProfilePage() {
               ) : access.isPublished ? (
                 <span className="inline-flex items-center gap-1.5">
                   <Check className="h-4 w-4" />
-                  {locale === 'zh' ? '已上架' : 'Published'}
+                  {t('companion.published')}
                 </span>
               ) : reviewStatus === 'pending' ? (
-                locale === 'zh'
-                  ? '撤回审核'
-                  : 'Withdraw'
+                t('companion.withdraw')
               ) : (
                 t('companion.publish')
               )}

@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
                   ? { interval: 'year' }
                   : { interval: 'month' },
                 product_data: {
-                  name: `SoulMate ${plan === 'pro' ? 'Pro' : 'Unlimited'} (${billing})`,
+                  name: `Oxmate ${plan === 'pro' ? 'Pro' : 'Unlimited'} (${billing})`,
                   tax_code: 'txcd_10000000', // General - Electronically Supplied Services
                 },
                 tax_behavior: 'exclusive',

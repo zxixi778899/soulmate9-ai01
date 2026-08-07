@@ -42,6 +42,8 @@ export interface CreatorPreset {
   portrait_outfit?: string;
   /** 灵魂层（迁移 0020）：voice/scenario/rules/examples/proactive，双语 */
   character_soul?: PresetSoul;
+  /** Voice timbre id (maps to voice-timbres.ts presets) */
+  voice_timbre?: string;
   /** 共享立绘缓存的公开 URL（preset_portrait_stats.cached=true 时由目录接口附加） */
   portrait_url?: string;
 }
@@ -64,6 +66,7 @@ export const DEFAULT_CREATOR_PRESETS: readonly CreatorPreset[] = [
     fashion_style: 'Elegant',
     personality_tags: ['Romantic', 'Caring', 'Playful', 'Loyal'],
     voice: 'soft',
+    voice_timbre: 'soft-whisper',
     occupation: 'Designer',
     relationship: 'girlfriend',
     hobbies: 'music, late-night talks, travel, photography',
@@ -89,6 +92,7 @@ export const DEFAULT_CREATOR_PRESETS: readonly CreatorPreset[] = [
     fashion_style: 'Streetwear',
     personality_tags: ['Bold', 'Adventurous', 'Flirty', 'Confident'],
     voice: 'energetic',
+    voice_timbre: 'bright-cheerful',
     occupation: 'Travel Creator',
     relationship: 'girlfriend',
     hobbies: 'road trips, fitness, dancing, discovering hidden places',
@@ -114,6 +118,7 @@ export const DEFAULT_CREATOR_PRESETS: readonly CreatorPreset[] = [
     fashion_style: 'Smart Casual',
     personality_tags: ['Thoughtful', 'Witty', 'Protective', 'Romantic'],
     voice: 'calm',
+    voice_timbre: 'elegant-mature',
     occupation: 'Architect',
     relationship: 'boyfriend',
     hobbies: 'books, architecture, cooking, quiet city walks',
@@ -139,6 +144,7 @@ export const DEFAULT_CREATOR_PRESETS: readonly CreatorPreset[] = [
     fashion_style: 'Alternative',
     personality_tags: ['Creative', 'Mysterious', 'Passionate', 'Empathetic'],
     voice: 'velvet',
+    voice_timbre: 'dreamy-ethereal',
     occupation: 'Musician',
     relationship: 'partner',
     hobbies: 'songwriting, galleries, night drives, vintage fashion',
@@ -164,6 +170,7 @@ export const DEFAULT_CREATOR_PRESETS: readonly CreatorPreset[] = [
     fashion_style: 'Cute Casual',
     personality_tags: ['Sweet', 'Playful', 'Affectionate', 'Energetic'],
     voice: 'bright',
+    voice_timbre: 'sweet-cute',
     occupation: 'Illustrator',
     relationship: 'girlfriend',
     hobbies: 'games, drawing, karaoke, café hopping',
@@ -184,6 +191,30 @@ function stringList(value: unknown): string[] {
   if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
   return [];
 }
+
+/** Slug-based voice timbre mapping for library presets (DB character_presets). */
+const SLUG_VOICE_TIMBRE: Record<string, string> = {
+  sofia: 'soft-whisper',
+  victoria: 'cool-confident',
+  camila: 'bright-cheerful',
+  emily: 'sweet-cute',
+  ava: 'elegant-mature',
+  raven: 'dreamy-ethereal',
+  isabella: 'warm-caring',
+  scarlet: 'sultry-velvet',
+  sakura: 'soft-whisper',
+  rin: 'tsundere-sharp',
+  yuki: 'sweet-cute',
+  aria: 'elegant-mature',
+  hana: 'bright-cheerful',
+  luna: 'dreamy-ethereal',
+  momo: 'tsundere-sharp',
+  adrian: 'cool-confident',
+  lucas: 'bright-cheerful',
+  damian: 'cool-confident',
+  kai: 'sultry-velvet',
+  ren: 'elegant-mature',
+};
 
 export function normalizeCreatorPreset(row: Record<string, unknown>): CreatorPreset | null {
   const id = text(row, 'id');
@@ -241,6 +272,12 @@ export function normalizeCreatorPreset(row: Record<string, unknown>): CreatorPre
     ...(text(row, 'greeting_zh') ? { greeting_zh: text(row, 'greeting_zh') } : {}),
     ...(text(row, 'scene_id') ? { scene_id: text(row, 'scene_id') } : {}),
     ...(text(row, 'portrait_outfit') ? { portrait_outfit: text(row, 'portrait_outfit') } : {}),
+    // Voice timbre: explicit field > slug mapping > empty (fallback to warm-caring at render)
+    ...(text(row, 'voice_timbre')
+      ? { voice_timbre: text(row, 'voice_timbre') }
+      : (text(row, 'slug') && SLUG_VOICE_TIMBRE[text(row, 'slug')]
+        ? { voice_timbre: SLUG_VOICE_TIMBRE[text(row, 'slug')] }
+        : {})),
     ...(row.character_soul && typeof row.character_soul === 'object'
       ? { character_soul: row.character_soul as PresetSoul }
       : {}),

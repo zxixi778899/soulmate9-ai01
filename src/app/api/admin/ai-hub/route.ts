@@ -60,14 +60,17 @@ export async function GET(request: NextRequest) {
   } catch { /* table may not exist */ }
 
   // Voice status
-  const voiceConfigured = !!(process.env.ELEVENLABS_API_KEY || process.env.TTS_API_KEY);
+  const voiceConfigured = Boolean(process.env.RUNPOD_TTS_ENDPOINT_ID);
   let voiceProfiles = 0;
   try {
-    const { count } = await admin.supabase
-      .from('voice_profiles')
-      .select('*', { count: 'exact', head: true });
-    voiceProfiles = count || 0;
-  } catch { /* table may not exist */ }
+    const { data: settingsRow } = await admin.supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'voice_profiles')
+      .single();
+    const profiles = settingsRow?.value?.profiles || {};
+    voiceProfiles = Object.keys(profiles).length;
+  } catch { /* settings key may not exist */ }
 
   // Video status
   const videoConfigured = !!(process.env.RUNWAY_API_KEY || process.env.KLING_API_KEY);

@@ -183,6 +183,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
     name, age, personality, backstory, avatar_url, voice_id,
+    voice_timbre_id,
     tags, short_description,
     appearance_race, appearance_hair, appearance_hair_color,
     appearance_eyes, appearance_body, appearance_style,
@@ -261,7 +262,7 @@ export async function POST(request: NextRequest) {
     hobbies: Array.isArray(companionMeta.hobbies)
       ? companionMeta.hobbies.map(String)
       : String(companionMeta.hobbies || preset?.hobbies || ''),
-    voice: String(companionMeta.voice || voice_id || preset?.voice || ''),
+    voice: String(companionMeta.voice || voice_timbre_id || voice_id || preset?.voice || ''),
     visualStyle: String(companionMeta.visual_style || preset?.visual_style || 'realistic'),
     shortDescription: String(short_description || ''),
     soul: presetSoul || forgeSoul || undefined,
@@ -278,7 +279,7 @@ export async function POST(request: NextRequest) {
     tags: tags || [],
     short_description: short_description || '',
     avatar_url: avatarKey || null,
-    voice: String(companionMeta.voice || voice_id || ''),
+    voice: String(companionMeta.voice || voice_timbre_id || voice_id || ''),
     portrait_url: portraitKey || null,
     appearance_race: appearance_race || null,
     appearance_hair: appearance_hair || null,
@@ -309,6 +310,7 @@ export async function POST(request: NextRequest) {
         breast: appearance_breast || '',
         height: appearance_height || '',
       },
+      ...(voice_timbre_id ? { voice: voice_timbre_id } : {}),
     },
   };
 
@@ -399,6 +401,27 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // ── Auto-create voice profile from timbre (non-fatal) ──
+  if (voice_timbre_id && girlfriend) {
+    try {
+      const { getVoiceTimbre } = await import('@/lib/voice-timbres');
+      const { saveVoiceProfile } = await import('@/lib/tts-service');
+      const timbre = getVoiceTimbre(voice_timbre_id);
+      await saveVoiceProfile({
+        id: `vp_${girlfriend.id}`,
+        companion_id: girlfriend.id,
+        name: timbre.nameEn,
+        engine: 'fish-speech',
+        language: 'auto',
+        pitch: timbre.pitch,
+        speed: timbre.speed,
+        emotion_presets: timbre.emotions,
+      }, client);
+    } catch (e) {
+      logger.warn('[girlfriends] auto-create voice profile failed (non-fatal)', { err: String(e) });
+    }
   }
 
   // ── M4: preset / forge telemetry (best-effort, never blocks creation) ──

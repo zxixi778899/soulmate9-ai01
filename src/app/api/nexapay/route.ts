@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       currency: 'USD',
       payment_method,
       order_id: orderId,
-      description: `SoulMate AI ${plan} (${billing})`,
+      description: `Oxmate AI ${plan} (${billing})`,
       customer_email: user.email || '',
       success_url: `${origin}/payment/success?order_id=${orderId}`,
       cancel_url: `${origin}/pricing?canceled=true`,

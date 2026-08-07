@@ -297,7 +297,7 @@ export async function POST(req: NextRequest) {
               unit_amount: priceCents,
               product_data: {
                 name: `${tokenPackage.name || 'Token Pack'} - ${totalTokens} tokens`,
-                description: `${totalTokens} SoulMate tokens`,
+                description: `${totalTokens} Oxmate tokens`,
                 tax_code: 'txcd_10000000',
               },
               tax_behavior: 'exclusive',

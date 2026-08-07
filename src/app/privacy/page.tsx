@@ -18,7 +18,7 @@ export default function PrivacyPolicyPage() {
           </h1>
           <p className="mt-3 text-muted-foreground leading-relaxed max-w-xl mx-auto">
             Your privacy matters to us. This policy explains how we collect, use, and protect
-            your personal information when you use SoulMate AI.
+            your personal information when you use Oxmate AI.
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
             Last updated: July 14, 2026

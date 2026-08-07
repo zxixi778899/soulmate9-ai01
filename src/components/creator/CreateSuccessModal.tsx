@@ -184,11 +184,11 @@ export function CreateSuccessModal({ companion, onGoChat, onCreateAnother }: Pro
                   animate={{ opacity: 1, y: 0 }}
                 >
                   <Sparkles className="h-3 w-3" style={{ color: theme.color }} />
-                  {t('success.congrats') || (zh ? '创建成功' : 'Creation Successful')}
+                  {t('success.congrats')}
                   <Sparkles className="h-3 w-3" style={{ color: theme.color }} />
                 </motion.p>
                 <p className="mb-6 text-[11px] text-white/35">
-                  {t('success.scoreHint') || (zh ? '命运正在结算…' : 'Destiny is rolling…')}
+                  {t('success.scoreHint')}
                 </p>
 
                 {/* Score orb */}
@@ -205,7 +205,7 @@ export function CreateSuccessModal({ companion, onGoChat, onCreateAnother }: Pro
                       {shown}
                     </div>
                     <div className="mt-1 text-[10px] uppercase tracking-[0.25em] text-white/40">
-                      {t('success.score') || (zh ? '综合评分' : 'Overall Score')}
+                      {t('success.score')}
                     </div>
                   </div>
                   {/* Shockwave on reveal */}
@@ -248,9 +248,9 @@ export function CreateSuccessModal({ companion, onGoChat, onCreateAnother }: Pro
 
                 {/* Stat bars */}
                 <div className={cn('w-full space-y-2.5 transition-opacity duration-500', revealed ? 'opacity-100' : 'opacity-0')}>
-                  <StatBar label={t('success.statDesire') || (zh ? '欲望值' : 'Desire')} value={companion.desire} color="#ff2e88" delay={0} />
-                  <StatBar label={t('success.statDevelopment') || (zh ? '开发值' : 'Develop')} value={companion.development} color="#8b5cf6" delay={0.15} />
-                  <StatBar label={t('success.statKink') || (zh ? '变态值' : 'Kink')} value={companion.kink} color="#00e5ff" delay={0.3} />
+                  <StatBar label={t('success.statDesire')} value={companion.desire} color="#ff2e88" delay={0} />
+                  <StatBar label={t('success.statDevelopment')} value={companion.development} color="#8b5cf6" delay={0.15} />
+                  <StatBar label={t('success.statKink')} value={companion.kink} color="#00e5ff" delay={0.3} />
                 </div>
 
                 {revealed && (
@@ -262,7 +262,7 @@ export function CreateSuccessModal({ companion, onGoChat, onCreateAnother }: Pro
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5 }}
                   >
-                    {t('success.continue') || (zh ? '查看立绘' : 'View Portrait')} <ChevronRight className="h-3.5 w-3.5" />
+                    {t('success.continue')} <ChevronRight className="h-3.5 w-3.5" />
                   </motion.button>
                 )}
               </motion.div>
@@ -300,7 +300,7 @@ export function CreateSuccessModal({ companion, onGoChat, onCreateAnother }: Pro
                       <div className="min-w-0">
                         <div className="truncate text-base font-bold text-white">{companion.name}</div>
                         <div className="text-[10px] text-white/60">
-                          {t('success.score') || (zh ? '综合评分' : 'Score')} {companion.score}
+                          {t('success.score')} {companion.score}
                         </div>
                       </div>
                       <span
@@ -333,7 +333,7 @@ export function CreateSuccessModal({ companion, onGoChat, onCreateAnother }: Pro
                     whileHover={{ scale: 1.03 }}
                   >
                     <MessageCircle className="h-4 w-4" />
-                    {t('success.goChat') || (zh ? '去聊天' : 'Chat Now')}
+                    {t('success.goChat')}
                   </motion.button>
                   <motion.button
                     type="button"
@@ -342,7 +342,7 @@ export function CreateSuccessModal({ companion, onGoChat, onCreateAnother }: Pro
                     whileHover={{ scale: 1.03 }}
                   >
                     <Sparkles className="h-4 w-4" />
-                    {t('success.createAnother') || (zh ? '再创建一个' : 'Create Another')}
+                    {t('success.createAnother')}
                   </motion.button>
                 </div>
               </motion.div>

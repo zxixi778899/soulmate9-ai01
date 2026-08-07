@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export default function RefundPolicyPage() {
-  const legalEntity = process.env.LEGAL_ENTITY_NAME || 'SoulMate AI';
+  const legalEntity = process.env.LEGAL_ENTITY_NAME || 'Oxmate AI';
   const supportEmail = process.env.LEGAL_CONTACT_EMAIL || 'support@oxmate-ai.com';
   return (
     <div className="min-h-screen bg-background">

@@ -17,24 +17,23 @@ type Transaction = { id: number; delta: number; reason: string; ref_id: string |
 type HistoryData = { transactions: Transaction[]; total: number; page: number; limit: number; balance: number; today: { earned: number; spent: number; net: number }; };
 type TokenPackage = { id: string; name: string; token_count: number; bonus_tokens: number; price_cents: number; sort_order: number; is_active: boolean; video_url?: string; image_url?: string; };
 
-const REASON_META: Record<string, { label: string; icon: typeof Coins; color: string }> = {
-  daily_checkin: { label: "Daily Check-in", icon: CalendarCheck, color: "text-emerald-400" },
-  chat_extra: { label: "Extra Chat Message", icon: MessageCircle, color: "text-sky-400" },
-  image_gen_extra: { label: "Image Generation", icon: Image, color: "text-purple-400" },
-  video_gen: { label: "Video Generation", icon: Video, color: "text-rose-400" },
-  tts_extra: { label: "Voice Message", icon: Zap, color: "text-amber-400" },
-  gift_send: { label: "Gift Sent", icon: Gift, color: "text-pink-400" },
-  shop_purchase: { label: "Shop Purchase", icon: ShoppingBag, color: "text-orange-400" },
-  token_purchase: { label: "Credits Purchase", icon: Coins, color: "text-yellow-400" },
-  signup_bonus: { label: "Welcome Bonus", icon: Coins, color: "text-yellow-400" },
-  admin_grant: { label: "Admin Grant", icon: Coins, color: "text-gray-400" },
-  refund: { label: "Refund", icon: Coins, color: "text-emerald-400" },
-  achievement: { label: "Achievement", icon: Zap, color: "text-amber-400" },
-};
-
 export default function WalletPage() {
-  const { locale } = useTranslation();
+  const { t, locale } = useTranslation();
   const zh = locale === "zh";
+  const REASON_META: Record<string, { label: string; icon: typeof Coins; color: string }> = {
+    daily_checkin: { label: t('wallet.reason.dailyCheckin'), icon: CalendarCheck, color: "text-emerald-400" },
+    chat_extra: { label: t('wallet.reason.extraChat'), icon: MessageCircle, color: "text-sky-400" },
+    image_gen_extra: { label: t('wallet.reason.imageGen'), icon: Image, color: "text-purple-400" },
+    video_gen: { label: t('wallet.reason.videoGen'), icon: Video, color: "text-rose-400" },
+    tts_extra: { label: t('wallet.reason.voice'), icon: Zap, color: "text-amber-400" },
+    gift_send: { label: t('wallet.reason.gift'), icon: Gift, color: "text-pink-400" },
+    shop_purchase: { label: t('wallet.reason.shopPurchase'), icon: ShoppingBag, color: "text-orange-400" },
+    token_purchase: { label: t('wallet.reason.creditsPurchase'), icon: Coins, color: "text-yellow-400" },
+    signup_bonus: { label: t('wallet.reason.welcomeBonus'), icon: Coins, color: "text-yellow-400" },
+    admin_grant: { label: t('wallet.reason.adminGrant'), icon: Coins, color: "text-gray-400" },
+    refund: { label: t('wallet.reason.refund'), icon: Coins, color: "text-emerald-400" },
+    achievement: { label: t('wallet.reason.achievement'), icon: Zap, color: "text-amber-400" },
+  };
   const [data, setData] = useState<HistoryData | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -74,10 +73,10 @@ export default function WalletPage() {
       } else if (result.error) {
         toast.error(result.error);
       } else {
-        toast.error(zh ? "创建订单失败" : "Failed to create checkout");
+        toast.error(t('wallet.createOrderFailed'));
       }
     } catch {
-      toast.error(zh ? "网络错误" : "Network error");
+      toast.error(t('common.networkError'));
     }
     setBuying(null);
   }, [zh]);
@@ -90,12 +89,12 @@ export default function WalletPage() {
   const giftMax = Math.max(...giftValues);
 
   const costItems: Array<{ icon: typeof Coins; color: string; label: string; value: string; sub?: string }> = [
-    { icon: Image, color: "text-purple-400", label: zh ? "AI 生图" : "Image Gen", value: `${CREDIT_COSTS.image_gen}`, sub: zh ? `高清 ${CREDIT_COSTS.image_gen_hd}` : `HD ${CREDIT_COSTS.image_gen_hd}` },
-    { icon: Video, color: "text-rose-400", label: zh ? "AI 视频" : "Video Gen", value: `${CREDIT_COSTS.video_5s}`, sub: zh ? `10 秒 ${CREDIT_COSTS.video_10s}` : `10s ${CREDIT_COSTS.video_10s}` },
-    { icon: Zap, color: "text-amber-400", label: zh ? "语音消息" : "Voice / TTS", value: `${CREDIT_COSTS.tts}` },
-    { icon: Gift, color: "text-pink-400", label: zh ? "礼物" : "Gifts", value: `${giftMin}~${giftMax}` },
-    { icon: MessageCircle, color: "text-sky-400", label: zh ? "文字聊天" : "Text Chat", value: zh ? "订阅包含" : "Included", sub: zh ? "不额外扣积分" : "No extra credits" },
-    { icon: CalendarCheck, color: "text-emerald-400", label: zh ? "每日签到" : "Daily Check-in", value: `+${DAILY_CHECKIN_REWARD}` },
+    { icon: Image, color: "text-purple-400", label: t('wallet.imageGen'), value: `${CREDIT_COSTS.image_gen}`, sub: t('wallet.imageGenHd', { cost: CREDIT_COSTS.image_gen_hd }) },
+    { icon: Video, color: "text-rose-400", label: t('wallet.videoGen'), value: `${CREDIT_COSTS.video_5s}`, sub: t('wallet.video10s', { cost: CREDIT_COSTS.video_10s }) },
+    { icon: Zap, color: "text-amber-400", label: t('wallet.voiceTts'), value: `${CREDIT_COSTS.tts}` },
+    { icon: Gift, color: "text-pink-400", label: t('wallet.gifts'), value: `${giftMin}~${giftMax}` },
+    { icon: MessageCircle, color: "text-sky-400", label: t('wallet.textChat'), value: t('wallet.included'), sub: t('wallet.noExtraCredits') },
+    { icon: CalendarCheck, color: "text-emerald-400", label: t('wallet.dailyCheckin'), value: `+${DAILY_CHECKIN_REWARD}` },
   ];
 
   const hasProducts = packages.length > 0;
@@ -106,7 +105,7 @@ export default function WalletPage() {
         <div className="flex items-center justify-between gap-3 mb-6">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Coins className="w-6 h-6 text-yellow-400" />
-            {zh ? "我的积分" : "My Credits"}
+            {t('wallet.myCredits')}
           </h1>
         </div>
 
@@ -114,10 +113,10 @@ export default function WalletPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 mb-8">
           {/* Balance card */}
           <div className="lg:col-span-4 rounded-2xl bg-gradient-to-br from-yellow-500/20 to-amber-600/10 border border-yellow-500/30 p-5 flex flex-col justify-center">
-            <p className="text-sm text-yellow-200/70 mb-1">{zh ? "当前余额" : "Current Balance"}</p>
+            <p className="text-sm text-yellow-200/70 mb-1">{t('wallet.currentBalance')}</p>
             <p className="text-4xl font-bold text-yellow-300">{data?.balance ?? "..."}</p>
             <p className="text-xs text-yellow-200/50 mt-2">
-              {CREDIT_EXCHANGE.credits} {zh ? "积分" : "credits"} = ${(CREDIT_EXCHANGE.usd_cents / 100).toFixed(2)}
+              {CREDIT_EXCHANGE.credits} {t('common.credits')} = ${(CREDIT_EXCHANGE.usd_cents / 100).toFixed(2)}
             </p>
           </div>
 
@@ -126,19 +125,19 @@ export default function WalletPage() {
             <div className="rounded-xl bg-gray-900 border border-gray-800 p-3 sm:p-4 flex flex-col items-center justify-center text-center">
               <TrendingUp className="w-5 h-5 text-emerald-400 mb-1.5" />
               <p className="text-xl sm:text-2xl font-semibold text-emerald-400">+{data?.today?.earned ?? 0}</p>
-              <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{zh ? "今日获得" : "Earned Today"}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{t('wallet.earnedToday')}</p>
             </div>
             <div className="rounded-xl bg-gray-900 border border-gray-800 p-3 sm:p-4 flex flex-col items-center justify-center text-center">
               <TrendingDown className="w-5 h-5 text-rose-400 mb-1.5" />
               <p className="text-xl sm:text-2xl font-semibold text-rose-400">-{data?.today?.spent ?? 0}</p>
-              <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{zh ? "今日消耗" : "Spent Today"}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{t('wallet.spentToday')}</p>
             </div>
             <div className="rounded-xl bg-gray-900 border border-gray-800 p-3 sm:p-4 flex flex-col items-center justify-center text-center">
               <Coins className="w-5 h-5 text-yellow-400 mb-1.5" />
               <p className={cn("text-xl sm:text-2xl font-semibold", (data?.today?.net ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400")}>
                 {(data?.today?.net ?? 0) >= 0 ? "+" : ""}{data?.today?.net ?? 0}
               </p>
-              <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{zh ? "今日净收" : "Net Today"}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{t('wallet.netToday')}</p>
             </div>
           </div>
         </div>
@@ -148,7 +147,7 @@ export default function WalletPage() {
           <div className="mb-10">
             <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4 flex items-center gap-2">
               <Coins className="w-4 h-4 text-yellow-400" />
-              {zh ? "积分充值" : "Credit Packs"}
+              {t('wallet.creditPacks')}
             </h2>
             {/* First top-up double credits campaign */}
             <div className="mb-4 flex items-center gap-3 rounded-xl border border-yellow-500/35 bg-gradient-to-r from-yellow-500/15 via-amber-500/10 to-yellow-500/5 px-4 py-3">
@@ -157,10 +156,10 @@ export default function WalletPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-yellow-200">
-                  {zh ? "首充双倍积分 · 限时活动" : "First Top-Up · Double Credits"}
+                  {t('wallet.firstTopUpPromo')}
                 </p>
                 <p className="text-[11px] text-yellow-100/60 mt-0.5">
-                  {zh ? "你的首次充值将额外获得 100% 积分，仅限一次" : "Your very first top-up earns an extra 100% in credits — one time only"}
+                  {t('wallet.firstTopUpDesc')}
                 </p>
               </div>
             </div>
@@ -191,16 +190,16 @@ export default function WalletPage() {
                       )}
                       {pkg.bonus_tokens > 0 && (
                         <span className="absolute top-2 right-2 rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
-                          +{pkg.bonus_tokens} {zh ? "奖励" : "bonus"}
+                          +{pkg.bonus_tokens} {t('common.bonus')}
                         </span>
                       )}
                       <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-none">
                         <div className="flex items-baseline gap-1.5">
                           <span className="text-xl font-bold text-white">{pkg.token_count.toLocaleString()}</span>
-                          <span className="text-[11px] text-yellow-200/70">{zh ? "积分" : "credits"}</span>
+                          <span className="text-[11px] text-yellow-200/70">{t('common.credits')}</span>
                         </div>
                         <div className="text-[11px] text-gray-400 mt-0.5">
-                          {zh ? `共 ${totalTokens.toLocaleString()}` : `${totalTokens.toLocaleString()} total`}
+                          {t('wallet.totalTokens', { total: totalTokens.toLocaleString() })}
                         </div>
                       </div>
                     </div>
@@ -217,7 +216,7 @@ export default function WalletPage() {
               })}
             </div>
             <p className="text-[10px] text-gray-600 mt-1 text-center">
-              {zh ? "积分包通过 Stripe 安全支付，即时到账" : "Credit packs via Stripe — delivered instantly"}
+              {t('wallet.stripeNote')}
             </p>
           </div>
         )}
@@ -227,7 +226,7 @@ export default function WalletPage() {
           {/* Left column: transaction history */}
           <div className="lg:col-span-8">
             <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">
-              {zh ? "交易记录" : "Transaction History"}
+              {t('wallet.transactionHistory')}
             </h2>
 
             {loading ? (
@@ -236,7 +235,7 @@ export default function WalletPage() {
               <div className="space-y-2">
                 {data?.transactions?.length === 0 && (
                   <p className="text-center text-gray-500 py-8">
-                    {zh ? "暂无交易记录，每日签到可获得积分" : "No transactions yet. Check in daily to earn credits!"}
+                    {t('wallet.noTransactions')}
                   </p>
                 )}
                 {data?.transactions?.map((tx) => {
@@ -263,9 +262,9 @@ export default function WalletPage() {
 
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 mt-6">
-                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 rounded-lg bg-gray-800 text-sm disabled:opacity-40 hover:bg-gray-700 transition">Prev</button>
+                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 rounded-lg bg-gray-800 text-sm disabled:opacity-40 hover:bg-gray-700 transition">{t('common.prev')}</button>
                 <span className="text-sm text-gray-400">{page} / {totalPages}</span>
-                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1.5 rounded-lg bg-gray-800 text-sm disabled:opacity-40 hover:bg-gray-700 transition">Next</button>
+                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1.5 rounded-lg bg-gray-800 text-sm disabled:opacity-40 hover:bg-gray-700 transition">{t('common.next')}</button>
               </div>
             )}
           </div>
@@ -275,7 +274,7 @@ export default function WalletPage() {
             <div className="rounded-xl bg-gray-900/40 border border-gray-800/50 p-5 lg:sticky lg:top-20">
               <h3 className="text-sm font-medium text-gray-300 mb-4 flex items-center gap-2">
                 <Zap className="w-4 h-4 text-yellow-400" />
-                {zh ? "积分消耗明细" : "Credit Costs"}
+                {t('wallet.creditCosts')}
               </h3>
               <div className="space-y-3">
                 {costItems.map((item) => {
@@ -291,7 +290,7 @@ export default function WalletPage() {
                         {item.sub && <p className="text-[10px] text-gray-500">{item.sub}</p>}
                       </div>
                       <span className={cn("text-sm font-semibold shrink-0", item.color)}>
-                        {isText ? item.value : `${item.value} ${zh ? "积分" : "credits"}`}
+                        {isText ? item.value : `${item.value} ${t('common.credits')}`}
                       </span>
                     </div>
                   );
@@ -299,12 +298,10 @@ export default function WalletPage() {
               </div>
               <div className="mt-4 pt-4 border-t border-gray-800/60 text-[11px] text-gray-500 leading-relaxed">
                 <p>
-                  {zh
-                    ? `汇率：${CREDIT_EXCHANGE.credits} 积分 = $${(CREDIT_EXCHANGE.usd_cents / 100).toFixed(2)}`
-                    : `Rate: ${CREDIT_EXCHANGE.credits} credits = $${(CREDIT_EXCHANGE.usd_cents / 100).toFixed(2)}`}
+                  {t('wallet.exchangeRate', { credits: CREDIT_EXCHANGE.credits, usd: (CREDIT_EXCHANGE.usd_cents / 100).toFixed(2) })}
                 </p>
                 <p className="mt-1">
-                  {zh ? "生成失败 / 超时会自动退回积分。" : "Failed or timed-out generations are auto-refunded."}
+                  {t('wallet.refundNote')}
                 </p>
               </div>
             </div>

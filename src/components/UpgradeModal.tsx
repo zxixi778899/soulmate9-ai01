@@ -42,7 +42,7 @@ export default function UpgradeModal({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t('common.close')}
           className="absolute right-4 top-4 h-8 w-8 rounded-full bg-white/[0.06] flex items-center justify-center text-white/50 hover:text-white transition-colors"
         >
           <X className="h-4 w-4" />
@@ -71,7 +71,7 @@ export default function UpgradeModal({
 
           <div className="rounded-2xl border border-[#ff2e88]/35 bg-gradient-to-r from-[#FF2D78]/[0.12] to-[#C026D3]/[0.12] p-4 flex items-center gap-3 relative overflow-hidden">
             <span className="absolute top-0 right-0 text-[9px] font-black bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-2 py-0.5 rounded-bl-lg">
-              BEST
+              {t('upgradeModal.best')}
             </span>
             <div className="h-10 w-10 rounded-xl bg-[#ff2e88]/20 flex items-center justify-center shrink-0">
               <InfinityIcon className="h-5 w-5 text-[#ff6ba6]" />

@@ -1,5 +1,5 @@
 /**
- * RunPod resources + Comfy console defaults for Soulmate9.
+ * RunPod resources + Comfy console defaults for Oxmate AI.
  * Network volume LoRAs/models are listed as filenames Comfy sees after mount.
  * LoRA 清单单源：data/lora-catalog.json → catalogToLoraAssets()
  */

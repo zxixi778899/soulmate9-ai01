@@ -218,7 +218,7 @@ function guessCategory(item: NormalizedCivitaiItem): string {
 
 export function buildLoraUrlsTxt(items: LibraryItem[]): string {
   const lines = [
-    '# Soulmate model library export — filename|url',
+    '# Oxmate model library export — filename|url',
     '# Run on downloader pod:',
     '#   export CIVITAI_API_TOKEN=...',
     '#   ./download-loras.sh --from-file lora-urls.txt',

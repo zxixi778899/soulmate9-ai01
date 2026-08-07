@@ -6,7 +6,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 
 const faqs = [
   {
-    q: 'Is SoulMate AI really free to use?',
+    q: 'Is Oxmate AI really free to use?',
     a: 'Yes! You can create one companion and chat up to 40 messages per day completely free. No credit card required. Upgrade to Pro when you want higher daily limits and NSFW access.',
   },
   {

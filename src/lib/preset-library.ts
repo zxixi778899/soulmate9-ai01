@@ -1,5 +1,5 @@
 /**
- * SoulMate9 预设库 (Preset Library)
+ * Oxmate AI 预设库 (Preset Library)
  * ---------------------------------
  * 设计目标：优化用户体验（一键创建）、降低成本（复用固化提示词+预设立绘缓存）、
  * 增强生成质量（与 creator_option_pool / trait bands / GIRLFRIEND_SCENE_RECIPES / LoRA 路由对齐）。

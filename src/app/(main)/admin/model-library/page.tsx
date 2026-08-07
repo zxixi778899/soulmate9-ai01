@@ -241,7 +241,7 @@ export default function AdminModelLibraryPage() {
 
       const script = [
         '#!/bin/bash',
-        '# SoulMate LoRA 自动下载脚本',
+        '# Oxmate LoRA 自动下载脚本',
         `# 生成时间: ${new Date().toLocaleString()}`,
         `# 共 ${lines.length} 个文件`,
         '',

@@ -41,7 +41,7 @@ function formatCount(n: number): string {
 
 export function LeaderboardRail() {
   const router = useRouter();
-  const { locale } = useTranslation();
+  const { t, locale } = useTranslation();
   const [entries, setEntries] = useState<RankEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -75,15 +75,13 @@ export function LeaderboardRail() {
       <div className="flex items-center justify-between gap-3 mb-3">
         <div>
           <div className="game-chip mb-1">
-            <Trophy className="h-3 w-3" /> RANKING · TOP 15
+            <Trophy className="h-3 w-3" /> {t('community.rankingTop15')}
           </div>
           <h3 className="text-lg font-bold">
-            {locale === 'zh' ? '人气创作者排行榜' : 'Top Creator Ranking'}
+            {t('community.topCreatorRanking')}
           </h3>
           <p className="text-[11px] text-white/40 mt-0.5">
-            {locale === 'zh'
-              ? '按互动值实时排名 · 发布伴侣被调用越多，排名越高'
-              : 'Ranked live by interaction value — the more your companions are invoked, the higher you climb'}
+            {t('community.rankingDesc')}
           </p>
         </div>
       </div>
@@ -150,9 +148,7 @@ export function LeaderboardRail() {
                   {formatCount(e.score)}
                 </div>
                 <div className="mt-0.5 text-[9px] text-white/40 truncate tabular-nums">
-                  {locale === 'zh'
-                    ? `${formatCount(e.fans)} 粉丝 · ${e.works} 作品`
-                    : `${formatCount(e.fans)} fans · ${e.works} posts`}
+                  {t('community.fansPosts', { fans: formatCount(e.fans), works: String(e.works) })}
                 </div>
               </div>
 
@@ -160,7 +156,7 @@ export function LeaderboardRail() {
                 <div className="mt-1.5 flex items-center justify-center gap-1 text-[9px] text-white/35 truncate">
                   <Users className="h-2.5 w-2.5 shrink-0" />
                   <span className="truncate">
-                    {locale === 'zh' ? '代表作' : 'feat.'} {e.companionName}
+                    {t('community.featPrefix')} {e.companionName}
                   </span>
                 </div>
               )}

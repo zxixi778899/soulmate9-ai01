@@ -1,5 +1,8 @@
+'use client';
+
 import { Sparkles, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslation } from '@/lib/i18n/context';
 
 interface ComingSoonProps {
   title: string;
@@ -22,6 +25,7 @@ export default function ComingSoon({
   eta,
   backHref = '/explore',
 }: ComingSoonProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-[60vh] w-full flex-col items-center justify-center gap-6 px-6 py-12 text-center">
       <div className="relative">
@@ -35,12 +39,12 @@ export default function ComingSoon({
         <p className="max-w-md text-sm text-muted-foreground">{description}</p>
       ) : (
         <p className="max-w-md text-sm text-muted-foreground">
-          We&apos;re crafting something special. Stay tuned!
+          {t('comingSoon.defaultDesc')}
         </p>
       )}
       {eta ? (
         <span className="rounded-full border border-border/40 bg-card/40 px-3 py-1 text-xs text-muted-foreground">
-          ETA: {eta}
+          {t('comingSoon.etaPrefix')} {eta}
         </span>
       ) : null}
       <Link
@@ -48,7 +52,7 @@ export default function ComingSoon({
         className="mt-2 inline-flex items-center gap-2 rounded-full border border-border/40 bg-card/40 px-4 py-2 text-sm text-foreground transition hover:bg-card/70"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back
+        {t('common.back')}
       </Link>
     </div>
   );

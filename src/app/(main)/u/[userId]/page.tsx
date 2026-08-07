@@ -156,7 +156,7 @@ export default function CreatorProfilePage() {
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0a0a0f] px-6 text-center">
         <Lock className="h-8 w-8 text-[#8B8BA3]/50" />
         <p className="text-sm text-[#8B8BA3]">
-          {locale === 'zh' ? '该用户不存在' : 'User not found'}
+          {t('creator.userNotFound')}
         </p>
         <button
           type="button"
@@ -186,7 +186,7 @@ export default function CreatorProfilePage() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <span className="text-sm font-semibold text-white/90 truncate">
-            {locale === 'zh' ? '创作者主页' : 'Creator Profile'}
+            {t('creator.creatorProfile')}
           </span>
         </div>
 
@@ -212,7 +212,7 @@ export default function CreatorProfilePage() {
             {isVirtual ? (
               <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#0a0a0f] px-2 py-0.5 text-[10px] font-bold tracking-wider ring-1 text-sky-300 ring-sky-400/30 whitespace-nowrap">
                 <BadgeCheck className="h-2.5 w-2.5" />
-                {locale === 'zh' ? '官方认证' : 'Verified'}
+                {t('creator.verified')}
               </span>
             ) : (
               <span
@@ -231,16 +231,11 @@ export default function CreatorProfilePage() {
             <h1 className="text-xl sm:text-2xl font-bold truncate">{creator.name}</h1>
             <p className="mt-0.5 text-xs text-white/45">
               {isVirtual
-                ? locale === 'zh'
-                  ? '官方创作者'
-                  : 'Official Creator'
-                : `${locale === 'zh' ? '创作者' : 'Creator'} · @${creator.id.slice(0, 8)}`}
+                ? t('creator.officialCreator')
+                : `${t('creator.creator')} · @${creator.id.slice(0, 8)}`}
             </p>
             <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-white/70">
-              {creator.bio ||
-                (locale === 'zh'
-                  ? '这位创作者还没有写简介'
-                  : 'This creator has not written a bio yet')}
+              {creator.bio || t('creator.noBio')}
             </p>
           </div>
         </div>
@@ -249,21 +244,21 @@ export default function CreatorProfilePage() {
         <div className="mt-4 flex items-center gap-5 border-y border-white/[0.06] py-3 text-center">
           <div className="flex-1">
             <p className="text-base font-bold tabular-nums">{stats.works}</p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '作品' : 'Works'}</p>
+            <p className="text-[11px] text-white/40">{t('creator.works')}</p>
           </div>
           <div className="flex-1">
             <p className="flex items-center justify-center gap-1 text-base font-bold tabular-nums">
               <Flame className="h-3.5 w-3.5 text-[#FF6BA6]" />
               {stats.interaction}
             </p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '互动值' : 'Interactions'}</p>
+            <p className="text-[11px] text-white/40">{t('creator.interactions')}</p>
           </div>
           <div className="flex-1">
             <p className="flex items-center justify-center gap-1 text-base font-bold tabular-nums">
               <Heart className="h-3.5 w-3.5 text-[#FF6BA6]" />
               {stats.fans}
             </p>
-            <p className="text-[11px] text-white/40">{locale === 'zh' ? '粉丝' : 'Fans'}</p>
+            <p className="text-[11px] text-white/40">{t('creator.fans')}</p>
           </div>
           {!isVirtual && (
             <div className="flex-1">
@@ -281,7 +276,7 @@ export default function CreatorProfilePage() {
               onClick={() => router.push('/profile')}
               className="flex-1 rounded-xl bg-gradient-to-r from-[#FF2D78] to-[#C026D3] py-3 text-sm font-semibold text-white hover:opacity-90 transition-all"
             >
-              {locale === 'zh' ? '查看我的账户' : 'Open My Account'}
+              {t('creator.openMyAccount')}
             </button>
           ) : (
             <button
@@ -300,12 +295,12 @@ export default function CreatorProfilePage() {
               ) : data.is_following ? (
                 <span className="inline-flex items-center gap-1.5">
                   <Check className="h-4 w-4 text-emerald-400" />
-                  {locale === 'zh' ? '已关注' : 'Following'}
+                  {t('creator.alreadyFollowing')}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5">
                   <UserPlus className="h-4 w-4" />
-                  {locale === 'zh' ? '关注 TA' : 'Follow'}
+                  {t('creator.followThem')}
                 </span>
               )}
             </button>
@@ -315,7 +310,7 @@ export default function CreatorProfilePage() {
         {/* Works */}
         <div className="mt-6 flex items-center gap-1 border-b border-white/[0.08]">
           <div className="relative px-4 py-2.5 text-sm font-medium text-white">
-            {locale === 'zh' ? '作品' : 'Works'}
+            {t('creator.works')}
             <span className="ml-1 text-[11px] text-[#8B8BA3]/70">{data.works.length}</span>
             <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3]" />
           </div>
@@ -323,7 +318,7 @@ export default function CreatorProfilePage() {
 
         {data.works.length === 0 ? (
           <div className="py-12 text-center text-sm text-white/35">
-            {locale === 'zh' ? '暂无已发布的作品' : 'No published works yet'}
+            {t('creator.noPublishedWorks')}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-4">

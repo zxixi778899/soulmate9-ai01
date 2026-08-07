@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         price_currency: 'usd',
         pay_currency: currency,
         order_id: orderId,
-        order_description: `SoulMate AI ${plan} (${billing})`,
+        order_description: `Oxmate AI ${plan} (${billing})`,
         ipn_callback_url: `${origin}/api/nowpayments/ipn`,
         success_url: `${origin}/payment/success?order_id=${orderId}`,
         cancel_url: `${origin}/pricing?canceled=true`,
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
         price_currency: 'usd',
         pay_currency: currency,
         order_id: orderId,
-        order_description: `SoulMate AI ${plan} (${billing})`,
+        order_description: `Oxmate AI ${plan} (${billing})`,
         ipn_callback_url: `${origin}/api/nowpayments/ipn`,
       });
 

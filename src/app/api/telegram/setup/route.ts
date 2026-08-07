@@ -91,10 +91,10 @@ export async function GET(request: NextRequest) {
   // 4) Profile texts shown before /start
   results.setDescription = await tg(token, 'setMyDescription', {
     description:
-      'SoulMate AI — your companion, right in Telegram. Chat, photos, daily rewards.\n你的 AI 伴侣，直接在 Telegram 里聊天、要照片、领奖励。',
+      'Oxmate AI — your companion, right in Telegram. Chat, photos, daily rewards.\n你的 AI 伴侣，直接在 Telegram 里聊天、要照片、领奖励。',
   });
   results.setShortDescription = await tg(token, 'setMyShortDescription', {
-    short_description: 'Chat with your SoulMate AI companion 💕',
+    short_description: 'Chat with your Oxmate AI companion 💕',
   });
 
   logger.info('[tg-setup] provisioning complete', {

@@ -9,7 +9,7 @@ export type BotLocale = 'zh' | 'en';
 export const STR = {
   welcomeNew: {
     zh: (name: string, companion: string) =>
-      `欢迎 ${name}！这里是 SoulMate AI 官方机器人 💕\n\n` +
+      `欢迎 ${name}！这里是 Oxmate AI 官方机器人 💕\n\n` +
       `我已经为你安排了伴侣「${companion}」，直接发消息就能和她聊天。\n\n` +
       '你可以：\n' +
       '· 直接发文字/照片/语音和她聊天\n' +
@@ -18,7 +18,7 @@ export const STR = {
       '· /checkin 每日签到领积分\n' +
       '· /balance 查看会员与积分',
     en: (name: string, companion: string) =>
-      `Welcome, ${name}! This is the official SoulMate AI bot 💕\n\n` +
+      `Welcome, ${name}! This is the official Oxmate AI bot 💕\n\n` +
       `I've matched you with "${companion}" — just send a message to chat with her.\n\n` +
       'You can:\n' +
       '· Send text / photo / voice to chat\n' +

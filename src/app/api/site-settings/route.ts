@@ -4,7 +4,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 export const dynamic = 'force-dynamic';
 
 const DEFAULTS = {
-  site_name: 'SoulMate AI',
+  site_name: 'Oxmate AI',
   support_email: 'support@oxmate-ai.com',
   telegram_url: 'https://t.me/oxmate_bot',
   x_url: 'https://x.com/ozmate',

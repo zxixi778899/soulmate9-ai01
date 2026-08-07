@@ -149,7 +149,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
       ctx.fill();
       ctx.fillStyle = '#a1a1aa';
       ctx.font = '13px Inter, system-ui, sans-serif';
-      ctx.fillText('\u2665 Made with SoulMate AI', centerX, height - 45);
+      ctx.fillText('\u2665 Made with Oxmate AI', centerX, height - 45);
 
       // Download
       canvas.toBlob((blob) => {
@@ -157,7 +157,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${girlfriend.name.replace(/\s+/g, '_')}_SoulMate_Card.png`;
+        a.download = `${girlfriend.name.replace(/\s+/g, '_')}_Oxmate_Card.png`;
         a.click();
         URL.revokeObjectURL(url);
       }, 'image/png');
@@ -170,7 +170,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${girlfriend.name} - SoulMate AI`,
+          title: `${girlfriend.name} - Oxmate AI`,
           text: `Meet ${girlfriend.name}${girlfriend.age ? `, ${girlfriend.age}` : ''}! ${girlfriend.short_description || ''}`,
           url: window.location.href,
         });
@@ -271,7 +271,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
               {/* Branding */}
               <div className="mt-3 inline-flex items-center gap-1.5 bg-white/[0.06] backdrop-blur-md px-5 py-1.5 rounded-full border border-white/10">
                 <Heart className="w-3 h-3 text-[#e11d48] fill-[#e11d48]" />
-                <span className="text-xs text-zinc-400">Made with SoulMate AI</span>
+                <span className="text-xs text-zinc-400">Made with Oxmate AI</span>
               </div>
             </div>
           </div>

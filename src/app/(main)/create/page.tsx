@@ -32,6 +32,7 @@ import { useTranslation } from '@/lib/i18n/context';
 import { companionScore, type Rarity } from '@/lib/rarity';
 import { CreateSuccessModal, type CreatedCompanionReveal } from '@/components/creator/CreateSuccessModal';
 import type { CreatorPreset } from '@/lib/creator-presets';
+import { VOICE_TIMBRES, getVoiceTimbre } from '@/lib/voice-timbres';
 import type { CharacterPart } from '@/lib/character-parts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -200,6 +201,7 @@ export default function CreatePage() {
   const [shortDescription, setShortDescription] = useState('');
   const [relationship, setRelationship] = useState('girlfriend');
   const [selectedPreset, setSelectedPreset] = useState<CreatorPreset | null>(null);
+  const [selectedVoice, setSelectedVoice] = useState<string>(''); // empty = default (warm-caring)
 
   // Portrait slots
   const [slots, setSlots] = useState<PortraitSlot[]>(EMPTY_SLOTS);
@@ -285,6 +287,8 @@ export default function CreatePage() {
     setShortDescription(preset.short_description);
     setName((prev) => (prev.trim() ? prev : preset.default_name || preset.name));
     setAge(preset.age && preset.age >= 18 ? preset.age : 22);
+    // Voice timbre from preset mapping
+    if (preset.voice_timbre) setSelectedVoice(preset.voice_timbre);
   }, []);
 
   const toggleTag = useCallback((tag: string) => {
@@ -345,7 +349,7 @@ export default function CreatePage() {
       const data = await readResponseJson<PortraitBatchResponse>(res);
       if (batchRun.current !== run) return;
       if (!res.ok) {
-        setError(data.error || (zh ? '生成失败' : 'Generation failed'));
+        setError(data.error || t('create.failed'));
         setSlots(EMPTY_SLOTS);
         return;
       }
@@ -360,7 +364,7 @@ export default function CreatePage() {
       }
 
       if (!readyUrls.length && !pendingJobs.length) {
-        setError(zh ? '未返回图片，请稍后重试' : 'No image returned — try again');
+        setError(t('create.noImageReturned'));
         setSlots(EMPTY_SLOTS);
         return;
       }
@@ -381,7 +385,7 @@ export default function CreatePage() {
         return pollJob(jobId, endpointId).then((url) => {
           if (batchRun.current !== run) return;
           setSlots((prev) => prev.map((s, i) => (i === idx
-            ? (url ? { status: 'ready', url } : { status: 'error', error: zh ? '生成失败' : 'Failed' })
+            ? (url ? { status: 'ready', url } : { status: 'error', error: t('create.genFailed') })
             : s)));
         });
       }).filter(Boolean);
@@ -389,7 +393,7 @@ export default function CreatePage() {
     } catch (e) {
       if (batchRun.current === run) {
         logger.error(String(e));
-        setError(errorMessageFromUnknown(e, zh ? '生成失败' : 'Generation failed'));
+        setError(errorMessageFromUnknown(e, t('create.genFailed')));
         setSlots(EMPTY_SLOTS);
       }
     } finally {
@@ -400,11 +404,11 @@ export default function CreatePage() {
   const startPortraitStep = useCallback(() => {
     if (!infoValid) {
       if (name.trim().length < 2) {
-        setError(zh ? '请先输入角色名字（至少2个字符）' : 'Enter a name (at least 2 characters)');
+        setError(t('create.enterNameMin2'));
         nameInputRef.current?.focus();
         nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else {
-        setError(zh ? '请完善必填信息' : 'Please complete the required fields');
+        setError(t('create.completeRequired'));
       }
       return;
     }
@@ -423,7 +427,7 @@ export default function CreatePage() {
     try {
       const relOpts = getOpts('relationship');
       const relMeta = relOpts.find((r) => r.value === relationship);
-      const relLabel = relMeta ? getLabel(relMeta, locale) : (zh ? '伴侣' : 'Girlfriend');
+      const relLabel = relMeta ? getLabel(relMeta, locale) : (t('create.girlfriend'));
       const relDesc = relMeta ? getExtra(relMeta, 'desc', locale) : '';
 
       const fullCharacterCard = [
@@ -456,6 +460,7 @@ export default function CreatePage() {
           avatar_url: chosen.url,
           portrait_url: chosen.url,
           preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
+          voice_timbre_id: selectedVoice || 'warm-caring',
           locale,
           meta: {
             visual_style: visualStyle, ethnicity, gender,
@@ -473,14 +478,14 @@ export default function CreatePage() {
       }>(res);
       if (!res.ok) {
         if (data.code === 'SEAT_LIMIT') {
-          setError(t('creator.seatLimit') || (zh ? '好友数量已达上限，升级套餐即可添加更多好友' : 'Friend limit reached — upgrade your plan to add more friends'));
+          setError(t('create.seatLimitDesc'));
           return;
         }
         if (data.code === 'NO_CARDS') {
-          setError(t('creator.noCards') || (zh ? '创建卡已用完，请到商城购买' : 'No creation cards — buy more in Shop'));
+          setError(t('create.noCardsBuyMore'));
           return;
         }
-        setError(data.error || (zh ? '创建失败' : 'Create failed'));
+        setError(data.error || (t('create.createFailed')));
         return;
       }
 
@@ -503,7 +508,7 @@ export default function CreatePage() {
       });
     } catch (e) {
       logger.error(String(e));
-      setError(errorMessageFromUnknown(e, zh ? '网络错误' : 'Network error'));
+      setError(errorMessageFromUnknown(e, t('common.networkError')));
     } finally {
       setSaving(false);
     }
@@ -530,8 +535,8 @@ export default function CreatePage() {
 
   const readyCount = slots.filter((s) => s.status === 'ready').length;
   const stepLabels = [
-    t('creator.stepInfo') || (zh ? '基础信息' : 'Basics'),
-    t('creator.stepPortrait') || (zh ? '选择立绘' : 'Portrait'),
+    t('create.basics'),
+    t('create.portrait'),
   ];
   const stepIndex = step === 'info' ? 0 : 1;
 
@@ -541,8 +546,8 @@ export default function CreatePage() {
     <GameShell className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden" innerClassName="flex flex-1 flex-col min-h-0">
       <PageHeader
         eyebrow="CREATOR"
-        title={t('creator.title') || (zh ? '捏脸创建' : 'Create Companion')}
-        subtitle={t('creator.subtitle') || (zh ? '基础信息 · 立绘生成 · 命运结算' : 'Basics · Portrait · Destiny')}
+        title={t('create.createCompanion')}
+        subtitle={t('create.stepDesc')}
         backHref="/"
         sticky={false}
         className="shrink-0"
@@ -553,12 +558,12 @@ export default function CreatePage() {
         {cardStatus && (
           <div className="flex items-center gap-1.5 text-[11px] text-white/50">
             <CreditCard className="h-3.5 w-3.5" />
-            <span>{t('creator.creationCard') || (zh ? '创建卡' : 'Cards')}: </span>
+            <span>{t('create.cards')}: </span>
             <span className={cn('font-bold', cardStatus.cards > 0 ? 'text-[#FF2D78]' : 'text-red-400')}>
               {cardStatus.cards}
             </span>
             {cardStatus.monthlyQuota > 0 && (
-              <span className="text-white/30">/{cardStatus.monthlyQuota}{zh ? '月' : '/mo'}</span>
+              <span className="text-white/30">/{cardStatus.monthlyQuota}{t('create.perMonth')}</span>
             )}
           </div>
         )}
@@ -614,8 +619,8 @@ export default function CreatePage() {
                     {/* Preset quick-start rail */}
                     {presets.length > 0 && (
                       <Panel
-                        title={t('creator.quickStart') || (zh ? '快速开始 · 预设灵感' : 'Quick Start · Presets')}
-                        hint={t('creator.quickStartHint') || (zh ? '点选自动填充，仍可自由修改' : 'Tap to auto-fill, still fully editable')}
+                        title={t('create.quickStart')}
+                        hint={t('create.quickStartHint')}
                       >
                         <div className="creator-rail -mx-1 flex gap-3 overflow-x-auto px-1 pb-2.5">
                           {presets.map((preset) => {
@@ -733,19 +738,19 @@ export default function CreatePage() {
                                   <User2 className="h-10 w-10 text-white/15" />
                                 </div>
                                 <span className="text-[10px] text-white/25">
-                                  {zh ? '选择预设或生成立绘' : 'Pick a preset or generate'}
+                                  {t('create.pickPresetOrGen')}
                                 </span>
                               </div>
                             )}
                           </div>
                           <div className="mt-4 text-center">
                             <div className="text-base font-bold text-white/90">
-                              {name.trim() || (zh ? '未命名角色' : 'Unnamed')}
+                              {name.trim() || (t('create.unnamed'))}
                             </div>
                             <div className="mt-0.5 text-[11px] text-white/40">
-                              {age}{zh ? '岁' : ' y/o'} · {ethnicity} · {bodyType}
+                              {age}{t('create.yearsOld')} · {ethnicity} · {bodyType}
                             </div>
-                            <div className="mt-1 text-[11px] text-white/30">{shortDescription || (zh ? '一句话人设…' : 'A short tagline…')}</div>
+                            <div className="mt-1 text-[11px] text-white/30">{shortDescription || (t('create.taglineExample'))}</div>
                           </div>
                           <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                             {[hairStyle, `${eyeColor} eyes`, fashionStyle, ...selectedTags.slice(0, 2)].filter(Boolean).map((chip) => (
@@ -757,23 +762,23 @@ export default function CreatePage() {
 
                       {/* Right column: options */}
                       <div className="space-y-4">
-                        <Panel title={t('creator.sectionIdentity') || (zh ? '身份档案' : 'Identity')}>
+                        <Panel title={t('create.identity')}>
                           <div className="grid grid-cols-[1fr_auto] gap-3">
                             <div>
                               <label className="mb-1.5 block text-[11px] text-white/40">
-                                {t('creator.name') || (zh ? '名字' : 'Name')} *
+                                {t('create.name')} *
                               </label>
                               <input
                                 ref={nameInputRef}
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder={t('creator.namePlaceholder') || (zh ? '她的名字' : 'Her name')}
+                                placeholder={t('create.namePlaceholder')}
                                 className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 text-sm outline-none transition-all focus:border-[#FF2D78]/50 focus:shadow-[0_0_0_3px_rgba(255,45,120,0.10)]"
                               />
                             </div>
                             <div>
                               <label className="mb-1.5 block text-[11px] text-white/40">
-                                {t('creator.age') || (zh ? '年龄' : 'Age')}
+                                {t('create.age')}
                               </label>
                               <input
                                 type="number"
@@ -787,18 +792,18 @@ export default function CreatePage() {
                           </div>
                           <div className="mt-3">
                             <label className="mb-1.5 block text-[11px] text-white/40">
-                              {t('creator.tagline') || (zh ? '一句话人设' : 'Tagline')}
+                              {t('create.tagline')}
                             </label>
                             <input
                               value={shortDescription}
                               onChange={(e) => setShortDescription(e.target.value)}
-                              placeholder={t('creator.taglinePlaceholder') || (zh ? '深夜电台里的温柔声音…' : 'A soft voice on the late-night radio…')}
+                              placeholder={t('create.taglinePlaceholder')}
                               className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 text-sm outline-none transition-all focus:border-[#FF2D78]/50 focus:shadow-[0_0_0_3px_rgba(255,45,120,0.10)]"
                             />
                           </div>
                         </Panel>
 
-                        <Panel title={t('creator.sectionAppearance') || (zh ? '外观设定' : 'Appearance')}>
+                        <Panel title={t('create.appearance')}>
                           {/* Visual style cards — artwork preview */}
                           <div className="mb-4 grid grid-cols-3 gap-2.5">
                             {getOpts('visual_style').map((v) => {
@@ -853,13 +858,13 @@ export default function CreatePage() {
 
                           {/* Pill groups */}
                           {[
-                            { key: 'gender', title: t('creator.gender') || (zh ? '性别气质' : 'Gender'), items: getOpts('gender'), value: gender, set: setGender },
-                            { key: 'ethnicity', title: t('creator.ethnicity') || (zh ? '种族 / 血统' : 'Ethnicity'), items: getOpts('ethnicity'), value: ethnicity, set: setEthnicity },
-                            { key: 'face_shape', title: t('creator.faceShape') || (zh ? '脸型' : 'Face Shape'), items: getOpts('face_shape'), value: faceShape, set: setFaceShape },
-                            { key: 'body_type', title: t('creator.bodyType') || (zh ? '体型' : 'Body Type'), items: getOpts('body_type'), value: bodyType, set: setBodyType },
-                            { key: 'hair_style', title: t('creator.hairStyle') || (zh ? '发型' : 'Hair Style'), items: getOpts('hair_style'), value: hairStyle, set: setHairStyle },
-                            { key: 'eye_color', title: t('creator.eyeColor') || (zh ? '瞳色' : 'Eye Color'), items: getOpts('eye_color'), value: eyeColor, set: setEyeColor },
-                            { key: 'fashion_style', title: t('creator.fashionStyle') || (zh ? '服装风格' : 'Fashion Style'), items: getOpts('fashion_style'), value: fashionStyle, set: setFashionStyle },
+                            { key: 'gender', title: t('create.gender'), items: getOpts('gender'), value: gender, set: setGender },
+                            { key: 'ethnicity', title: t('create.ethnicity'), items: getOpts('ethnicity'), value: ethnicity, set: setEthnicity },
+                            { key: 'face_shape', title: t('create.faceShape'), items: getOpts('face_shape'), value: faceShape, set: setFaceShape },
+                            { key: 'body_type', title: t('create.bodyType'), items: getOpts('body_type'), value: bodyType, set: setBodyType },
+                            { key: 'hair_style', title: t('create.hairStyle'), items: getOpts('hair_style'), value: hairStyle, set: setHairStyle },
+                            { key: 'eye_color', title: t('create.eyeColor'), items: getOpts('eye_color'), value: eyeColor, set: setEyeColor },
+                            { key: 'fashion_style', title: t('create.fashionStyle'), items: getOpts('fashion_style'), value: fashionStyle, set: setFashionStyle },
                           ].map((group) => group.items.length > 0 && (
                             <div key={group.key} className="mb-3">
                               <div className="mb-1.5 text-[11px] text-white/40">{group.title}</div>
@@ -876,7 +881,7 @@ export default function CreatePage() {
                           {/* Skin tone from parts library */}
                           {(parts['skin_tone'] || []).length > 0 && (
                             <div className="mb-3">
-                              <div className="mb-1.5 text-[11px] text-white/40">{t('creator.skinTone') || (zh ? '肤色' : 'Skin Tone')}</div>
+                              <div className="mb-1.5 text-[11px] text-white/40">{t('create.skinTone')}</div>
                               <div className="flex flex-wrap gap-2">
                                 {(parts['skin_tone'] || []).map((p) => (
                                   <Pill key={p.slug} active={skinTone === p.value} onClick={() => setSkinTone(p.value)}>
@@ -889,7 +894,7 @@ export default function CreatePage() {
 
                           {/* Hair color swatches */}
                           <div className="mb-3">
-                            <div className="mb-1.5 text-[11px] text-white/40">{t('creator.hairColor') || (zh ? '发色' : 'Hair Color')}</div>
+                            <div className="mb-1.5 text-[11px] text-white/40">{t('create.hairColor')}</div>
                             <div className="flex flex-wrap gap-2">
                               {getOpts('hair_color').map((c) => (
                                 <button
@@ -910,22 +915,22 @@ export default function CreatePage() {
                           {/* Extra notes */}
                           <div>
                             <div className="mb-1.5 text-[11px] text-white/40">
-                              {t('creator.extraNotes') || (zh ? '补充描述（可选）' : 'Extra Notes (optional)')}
+                              {t('create.extraNotes')}
                             </div>
                             <textarea
                               value={appearancePrompt}
                               onChange={(e) => setAppearancePrompt(e.target.value)}
-                              placeholder={t('creator.extraNotesPlaceholder') || (zh ? '例如：酒窝、右眼泪痣、雀斑' : 'e.g. dimples, freckles, beauty mark')}
+                              placeholder={t('create.extraNotesPlaceholder')}
                               rows={2}
                               className="w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-sm outline-none transition-all focus:border-[#FF2D78]/50 focus:shadow-[0_0_0_3px_rgba(255,45,120,0.10)]"
                             />
                           </div>
                         </Panel>
 
-                        <Panel title={t('creator.personality') || (zh ? '性格与灵魂' : 'Personality & Soul')}>
+                        <Panel title={t('create.personalitySoul')}>
                           <div className="mb-3">
                             <div className="mb-1.5 text-[11px] text-white/40">
-                              {t('creator.personality') || (zh ? '性格标签' : 'Personality Tags')} ({selectedTags.length}/8)
+                              {t('create.personalityTags')} ({selectedTags.length}/8)
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {getOpts('personality_tag').map((tag) => (
@@ -937,7 +942,7 @@ export default function CreatePage() {
                           </div>
                           {getOpts('occupation').length > 0 && (
                             <div className="mb-3">
-                              <div className="mb-1.5 text-[11px] text-white/40">{t('creator.occupation') || (zh ? '职业' : 'Occupation')}</div>
+                              <div className="mb-1.5 text-[11px] text-white/40">{t('create.occupation')}</div>
                               <div className="flex flex-wrap gap-2">
                                 {getOpts('occupation').map((o) => (
                                   <Pill key={o.value} active={occupation === o.value} onClick={() => setOccupation(o.value)}>
@@ -948,7 +953,7 @@ export default function CreatePage() {
                             </div>
                           )}
                           <div>
-                            <div className="mb-1.5 text-[11px] text-white/40">{t('creator.relationship') || (zh ? '关系定位' : 'Relationship')}</div>
+                            <div className="mb-1.5 text-[11px] text-white/40">{t('create.relationship')}</div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                               {getOpts('relationship').map((r) => (
                                 <button
@@ -969,6 +974,39 @@ export default function CreatePage() {
                             </div>
                           </div>
                         </Panel>
+
+                        {/* ── Voice ── */}
+                        <Panel title={t('create.voiceTitle')}>
+                          <div className="mb-1.5 text-[11px] text-white/40">
+                            {t('create.voiceSubtitle')}
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                            {VOICE_TIMBRES.map(timbre => (
+                              <button
+                                key={timbre.id}
+                                type="button"
+                                onClick={() => setSelectedVoice(selectedVoice === timbre.id ? '' : timbre.id)}
+                                className={cn(
+                                  'relative rounded-xl border p-3 text-left transition-all',
+                                  selectedVoice === timbre.id
+                                    ? 'border-[#ff6ba6]/60 bg-[#ff6ba6]/10 ring-1 ring-[#ff6ba6]/30'
+                                    : 'border-white/[0.08] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]',
+                                )}
+                              >
+                                {selectedVoice === timbre.id && (
+                                  <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#ff6ba6] text-[10px] text-white">{'✓'}</span>
+                                )}
+                                <span className="text-lg">{timbre.icon}</span>
+                                <div className="mt-1 text-xs font-semibold text-white/90">
+                                  {locale === 'zh' ? timbre.nameZh : timbre.nameEn}
+                                </div>
+                                <div className="mt-0.5 text-[10px] leading-tight text-white/40 line-clamp-2">
+                                  {locale === 'zh' ? timbre.descZh : timbre.descEn}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </Panel>
                       </div>
                     </div>
                   </>
@@ -986,14 +1024,14 @@ export default function CreatePage() {
               >
                 <div className="mb-4 text-center">
                   <h2 className="text-lg font-bold text-white/90">
-                    {t('creator.pickOne') || (zh ? '选择她的模样' : 'Choose Her Look')}
+                    {t('create.chooseHerLook')}
                   </h2>
                   <p className="mt-1 text-xs text-white/40">
                     {batchRunning
-                      ? (t('creator.generating') || (zh ? '正在注入灵魂，生成 4 张立绘…' : 'Forging 4 portraits…'))
+                      ? (t('create.forgingPortraits'))
                       : readyCount > 0
-                        ? (t('creator.pickOneHint') || (zh ? '点选最喜欢的一张，完成创建' : 'Tap your favorite to finish'))
-                        : (t('creator.portraitHint') || (zh ? '生成完成后可选择一张' : 'Pick one when ready'))}
+                        ? (t('create.tapFavoriteToFinish'))
+                        : (t('create.pickWhenReady'))}
                   </p>
                 </div>
 
@@ -1027,12 +1065,12 @@ export default function CreatePage() {
                           />
                           <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]/60" />
                           <span className="text-[10px] text-white/30">
-                            {zh ? `生成中 ${idx + 1}/4` : `Generating ${idx + 1}/4`}
+                            {t('create.generatingN', { n: `${idx + 1}/4` })}
                           </span>
                         </div>
                       ) : slot.status === 'error' ? (
                         <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
-                          <span className="text-[11px] text-red-400/80">{slot.error || (zh ? '生成失败' : 'Failed')}</span>
+                          <span className="text-[11px] text-red-400/80">{slot.error || (t('create.genFailed'))}</span>
                         </div>
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
@@ -1044,7 +1082,7 @@ export default function CreatePage() {
                         <>
                           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 to-transparent" />
                           <div className="pointer-events-none absolute bottom-2 left-2.5 text-[10px] font-semibold text-white/70">
-                            {zh ? `立绘 ${idx + 1}` : `Portrait ${idx + 1}`}
+                            {t('create.portraitN', { n: idx + 1 })}
                           </div>
                           {selectedSlot === idx && (
                             <motion.div
@@ -1084,7 +1122,7 @@ export default function CreatePage() {
           }}
           className="h-11 min-w-[5.5rem] px-4 rounded-full border border-white/10 text-sm flex items-center justify-center gap-1 touch-manipulation hover:bg-white/[0.04]"
         >
-          <ArrowLeft className="h-4 w-4" /> {t('creator.back') || (zh ? '上一步' : 'Back')}
+          <ArrowLeft className="h-4 w-4" /> {t('create.back')}
         </button>
 
         {step === 'info' ? (
@@ -1095,8 +1133,8 @@ export default function CreatePage() {
           >
             <Wand2 className="h-4 w-4" />
             {noCards
-              ? (t('creator.noCards') || (zh ? '创建卡已用完' : 'No cards'))
-              : (t('creator.genPortraits') || (zh ? '生成立绘' : 'Generate Portraits'))}
+              ? (t('create.noCards'))
+              : (t('create.generatePortraits'))}
             <ArrowRight className="h-4 w-4" />
           </GamePrimaryButton>
         ) : (
@@ -1108,7 +1146,7 @@ export default function CreatePage() {
               className="h-11 px-4 rounded-full border border-[#8b5cf6]/40 bg-[#8b5cf6]/10 text-sm text-violet-200 flex items-center justify-center gap-1.5 touch-manipulation hover:bg-[#8b5cf6]/20 disabled:opacity-40"
             >
               <RefreshCw className={cn('h-4 w-4', batchRunning && 'animate-spin')} />
-              {t('creator.regenerate') || (zh ? '重新生成' : 'Regenerate')}
+              {t('create.regenerate')}
             </button>
             <GamePrimaryButton
               className="h-11 px-6 touch-manipulation"
@@ -1116,7 +1154,7 @@ export default function CreatePage() {
               onClick={handleSubmit}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {t('creator.finishCreate') || (zh ? '完成创建' : 'Finish Creation')}
+              {t('create.finishCreation')}
             </GamePrimaryButton>
           </div>
         )}

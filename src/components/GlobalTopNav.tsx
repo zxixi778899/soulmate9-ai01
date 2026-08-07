@@ -108,7 +108,7 @@ export default function GlobalTopNav() {
           </div>
           <div className="leading-tight hidden min-[380px]:block">
             <div className="text-sm sm:text-base font-black tracking-tight bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
-              SoulMate
+              Oxmate
             </div>
           </div>
         </Link>

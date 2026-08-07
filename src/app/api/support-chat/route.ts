@@ -6,11 +6,11 @@ import { logger } from '@/lib/logger';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const SYSTEM_PROMPT = `You are the AI customer support agent for SoulMate AI (an AI companion platform). 
+const SYSTEM_PROMPT = `You are the AI customer support agent for Oxmate AI (an AI companion platform). 
 You are helpful, warm, and professional. Answer in the same language the user writes in.
 
 Your knowledge base:
-- SoulMate AI offers Free ($0), Pro ($9.99/mo), and Unlimited ($29.99/mo) plans
+- Oxmate AI offers Free ($0), Pro ($9.99/mo), and Unlimited ($29.99/mo) plans
 - Yearly billing saves money: Pro $101.88/yr (save 15%), Unlimited $287.88/yr (save 20%)
 - Payment methods: USDT (TRC-20 network) for memberships; crypto credit packs in the Shop via NOWPayments
 - Users can manage subscriptions in Profile > Pricing

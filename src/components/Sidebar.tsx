@@ -104,7 +104,7 @@ export function Sidebar() {
             <Heart className="h-4 w-4 text-white" fill="currentColor" />
           </div>
           <span className="font-bold text-base tracking-tight text-white">
-            SoulMate
+            Oxmate
           </span>
         </div>
         <div className="flex items-center gap-1">

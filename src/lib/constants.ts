@@ -1,6 +1,6 @@
-export const APP_NAME = 'SoulMate AI';
+export const APP_NAME = 'Oxmate AI';
 export const APP_TAGLINE = 'Your AI girlfriend — intimate, uncensored, always yours';
-export const APP_DESCRIPTION = 'Experience the future of AI companionship with SoulMate AI. Create your perfect AI girlfriend, chat raw and intimate, unlock Desire heat, and stay for the next message.';
+export const APP_DESCRIPTION = 'Experience the future of AI companionship with Oxmate AI. Create your perfect AI girlfriend, chat raw and intimate, unlock Desire heat, and stay for the next message.';
 export const APP_DOMAIN = 'oxmate-ai.com';
 export const APP_URL =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL) ||

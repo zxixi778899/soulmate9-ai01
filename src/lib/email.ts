@@ -48,7 +48,7 @@ function ensureInitialized(): ResendLike | null {
 }
 
 function getDefaultFrom(): string {
-  return process.env.EMAIL_FROM || 'Soulmate9 <hello@soulmate9.com>';
+  return process.env.EMAIL_FROM || 'Oxmate AI <hello@oxmate-ai.com>';
 }
 
 /**
@@ -213,7 +213,7 @@ export async function sendAdminAlert(params: {
   message: string;
   severity: 'info' | 'warning' | 'critical';
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const adminEmail = process.env.ADMIN_ALERT_EMAIL || 'admin@soulmate9.com';
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || 'admin@oxmate-ai.com';
   const color = params.severity === 'critical' ? '#dc2626' : params.severity === 'warning' ? '#f59e0b' : '#3b82f6';
   return sendEmail({
     to: adminEmail,

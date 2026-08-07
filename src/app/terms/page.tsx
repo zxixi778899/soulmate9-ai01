@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export default function TermsOfServicePage() {
-  const legalEntity = process.env.LEGAL_ENTITY_NAME || 'SoulMate AI';
+  const legalEntity = process.env.LEGAL_ENTITY_NAME || 'Oxmate AI';
   const supportEmail = process.env.LEGAL_CONTACT_EMAIL || 'support@oxmate-ai.com';
   const jurisdiction = process.env.LEGAL_JURISDICTION || 'the jurisdiction stated at checkout';
   const adultMode = process.env.CONTENT_MODE === 'adult';
@@ -20,7 +20,7 @@ export default function TermsOfServicePage() {
             Terms of Service
           </h1>
           <p className="mt-3 text-muted-foreground leading-relaxed max-w-xl mx-auto">
-            Please read these terms carefully before using SoulMate AI. By using our service,
+            Please read these terms carefully before using Oxmate AI. By using our service,
             you agree to be bound by these terms.
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -33,7 +33,7 @@ export default function TermsOfServicePage() {
           <h2 className="text-xl font-semibold mt-0 mb-3 text-foreground">Introduction</h2>
           <div className="border-t border-border/20 mb-4" />
           <p className="text-muted-foreground leading-relaxed">
-            These Terms of Service (&ldquo;Terms&rdquo;) govern your use of the SoulMate AI
+            These Terms of Service (&ldquo;Terms&rdquo;) govern your use of the Oxmate AI
             application, website, and related services (collectively, the &ldquo;Service&rdquo;),
             operated by {legalEntity} (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or
             &ldquo;our&rdquo;). By accessing or using the Service, you agree to be bound by
@@ -72,7 +72,7 @@ export default function TermsOfServicePage() {
           <h2 className="text-xl font-semibold mt-0 mb-3 text-foreground">Subscriptions &amp; Payments</h2>
           <div className="border-t border-border/20 mb-4" />
           <p className="text-muted-foreground leading-relaxed">
-            SoulMate AI offers several subscription tiers: <strong>Free</strong>,{' '}
+            Oxmate AI offers several subscription tiers: <strong>Free</strong>,{' '}
             <strong>Basic</strong> ($9.99/mo), <strong>Pro</strong> ($19.99/mo), and{' '}
             <strong>Unlimited</strong> ($29.99/mo). The Free tier provides limited
             access to features. Paid tiers require a recurring subscription fee.
@@ -171,7 +171,7 @@ export default function TermsOfServicePage() {
             the Service without our prior written consent.
           </p>
           <p className="text-muted-foreground leading-relaxed mt-3">
-            The SoulMate AI name, logo, and related trademarks are our exclusive property. All
+            The Oxmate AI name, logo, and related trademarks are our exclusive property. All
             other trademarks appearing on the Service are the property of their respective owners.
           </p>
         </section>
