@@ -400,3 +400,117 @@ export function orderCategories(wfKey?: string | null): PromptCategoryPreset[] {
   }
   return keys.map((k) => byKey.get(k)).filter((g): g is PromptCategoryPreset => Boolean(g));
 }
+/** 伴侣基础信息 → 提示词预设的自动匹配结果 */
+export type CompanionPresetPick = {
+  catKey: PromptCategoryKey;
+  label: string;
+  text: string;
+};
+
+function presetItem(
+  catKey: PromptCategoryKey,
+  label: string,
+): { label: string; text: string } | null {
+  const group = PROMPT_CATEGORY_PRESETS.find((g) => g.key === catKey);
+  const item = group?.items.find((i) => i.label === label);
+  return item ? { label: item.label, text: item.text } : null;
+}
+
+/**
+ * 把伴侣基础信息（捏脸表单 / 伴侣行字段）映射到对应的提示词预设：
+ * 风格 / 身材 / 发型 / 肤色 / 服装 / 气质，保证描述与画面一致。
+ * 字段缺失时不强推默认值，避免凭空捏造外貌。
+ */
+export function presetSelectionsFromCompanion(
+  info: Record<string, unknown>,
+): CompanionPresetPick[] {
+  const picks: CompanionPresetPick[] = [];
+  const push = (catKey: PromptCategoryKey, label: string) => {
+    const item = presetItem(catKey, label);
+    if (item) picks.push({ catKey, label: item.label, text: item.text });
+  };
+  const s = (v: unknown) => String(v || '').toLowerCase().trim();
+
+  // 风格
+  const style = s(info.render_style || info.anime_render_style || info.visual_style);
+  if (/anime|2d|动漫|二次元/.test(style)) push('style', '二次元');
+  else if (/3d|render/.test(style)) push('style', '3D 渲染');
+  else if (/realistic|写实|photo/.test(style)) push('style', '写实摄影');
+
+  // 身材
+  const body = s(info.appearance_body || info.body_type);
+  if (body) {
+    if (/curvy|full|丰满|曲线|slim.?thick/.test(body)) push('body', '丰满曲线');
+    else if (/pear|梨/.test(body)) push('body', '梨形身材');
+    else if (/athletic|toned|fitness|健美|sporty/.test(body)) push('body', '健美运动');
+    else if (/muscular|muscle|肌肉|buff/.test(body)) push('body', '肌肉发达');
+    else if (/petite|small|娇小/.test(body)) push('body', '娇小可爱');
+    else if (/tall|willowy|高挑/.test(body)) push('body', '高挑修长');
+    else if (/busty|large breast|big chest|大胸/.test(body)) push('body', '大胸');
+    else push('body', '纤细苗条');
+  }
+
+  // 发型 + 发色
+  const hair = s(info.appearance_hair || info.hair_style);
+  const hairColor = s(info.appearance_hair_color || info.hair_color);
+  if (hair || hairColor) {
+    if (/twin|双马尾|twintail/.test(hair)) push('hairstyle', '双马尾');
+    else if (/ponytail|马尾/.test(hair)) push('hairstyle', '高马尾');
+    else if (/bob|短/.test(hair)) push('hairstyle', '短发');
+    else if (/bangs|fringe|刘海/.test(hair)) push('hairstyle', '齐刘海');
+    else if (/braid|辫/.test(hair)) push('hairstyle', '麻花辫');
+    else if (/bun|丸子/.test(hair)) push('hairstyle', '丸子头');
+    else if (/curly|卷/.test(hair)) push('hairstyle', '卷发');
+    else if (/wolf|狼/.test(hair)) push('hairstyle', '狼尾');
+    else if (/black|黑/.test(hairColor)) push('hairstyle', '黑长直');
+    else if (/straight|long|顺|长/.test(hair)) push('hairstyle', '及腰长发');
+    else push('hairstyle', '及腰长发');
+  }
+
+  // 肤色
+  const skin = s(info.appearance_skin || info.skin_tone);
+  if (skin) {
+    if (/tan|小麦/.test(skin)) push('skin', '小麦色');
+    else if (/bronze|古铜/.test(skin)) push('skin', '古铜色');
+    else if (/dark|deep|黑/.test(skin)) push('skin', '深色皮肤');
+    else if (/warm|暖/.test(skin)) push('skin', '暖黄皮');
+    else push('skin', '冷白皮');
+  }
+
+  // 服装
+  const fashion = s(info.appearance_style || info.fashion_style);
+  if (fashion) {
+    if (/lingerie|内衣/.test(fashion)) push('outfit', '内衣');
+    else if (/bikini|swim|泳/.test(fashion)) push('outfit', '泳装');
+    else if (/latex|乳胶/.test(fashion)) push('outfit', '乳胶衣');
+    else if (/maid|女仆/.test(fashion)) push('outfit', '女仆装');
+    else if (/nurse|护士/.test(fashion)) push('outfit', '护士装');
+    else if (/teacher|教师/.test(fashion)) push('outfit', '教师装');
+    else if (/kimono|和服/.test(fashion)) push('outfit', '和服');
+    else if (/hanfu|汉服/.test(fashion)) push('outfit', '汉服');
+    else if (/wedding|婚纱/.test(fashion)) push('outfit', '婚纱');
+    else if (/evening|gown|礼服|formal/.test(fashion)) push('outfit', '晚礼服');
+    else if (/business|office|职场|suit/.test(fashion)) push('outfit', '职场西装');
+    else if (/sport|运动/.test(fashion)) push('outfit', '运动装');
+    else push('outfit', '日常便装');
+  }
+
+  // 气质
+  const personality = s(info.personality);
+  if (personality) {
+    if (/sweet|甜美/.test(personality)) push('temperament', '甜美');
+    else if (/cool|aloof|高冷/.test(personality)) push('temperament', '高冷');
+    else if (/mature|elegant|御姐|sexy/.test(personality)) push('temperament', '御姐');
+    else if (/innocent|pure|清纯/.test(personality)) push('temperament', '清纯');
+    else if (/gentle|温柔/.test(personality)) push('temperament', '温柔');
+    else if (/energetic|lively|活泼/.test(personality)) push('temperament', '活泼');
+    else if (/quiet|文静|shy/.test(personality)) push('temperament', '文静');
+    else if (/intellectual|知性/.test(personality)) push('temperament', '知性');
+    else if (/wild|狂野/.test(personality)) push('temperament', '狂野');
+    else if (/lazy|慵懒/.test(personality)) push('temperament', '慵懒');
+    else push('temperament', '温柔');
+  }
+
+  return picks;
+}
+

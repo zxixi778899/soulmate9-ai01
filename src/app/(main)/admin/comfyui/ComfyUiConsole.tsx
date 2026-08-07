@@ -18,7 +18,10 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { PROMPT_PRESETS, type PromptPreset } from '@/lib/comfyui-console/prompt-presets-full';
-import { orderCategories } from '@/lib/comfyui-console/prompt-category-presets';
+import {
+  orderCategories,
+  presetSelectionsFromCompanion,
+} from '@/lib/comfyui-console/prompt-category-presets';
 
 /** 取景按钮：写入提示词，随表单独立调用（每个工作流独立，非全局） */
 const FRAMING_OPTIONS = [
@@ -482,18 +485,35 @@ export default function ComfyUiConsole() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [girlfriendId]);
 
-  /** 用伴侣基础信息预填 prompt：描述 + 性别 + 风格 */
-  const prefillPrompt = useCallback((base: Any): Any => {
+  /** 伴侣基础信息 ↔ 提示词预设：自动匹配预设 chips 并组合提示词（描述 + 外貌/服装/气质预设 + 性别/风格），避免描述与画面不符 */
+  const composeCompanionPresetPrompt = useCallback((base: Any, force = false): Any => {
     const g = (girlfriendRef.current || {}) as Any;
     const desc = String(g.description || '').trim();
-    if (desc && typeof base.prompt === 'string' && !base.prompt.trim()) {
-      const genderRaw = String(g.gender || '').toLowerCase();
-      const gender = /male|男/.test(genderRaw) ? 'male' : /trans|跨/.test(genderRaw) ? 'transgender' : 'female';
-      const style = String(g.render_style || g.anime_render_style || g.visual_style || 'realistic').trim();
-      const baseInfo = [gender, style].filter(Boolean);
-      return { ...base, prompt: `${desc}${baseInfo.length ? `, ${baseInfo.join(', ')}` : ''}` };
+    const cur = String(base.prompt || '').trim();
+    if (!force && cur) return base;
+    const picks = presetSelectionsFromCompanion(g);
+    const parts: string[] = [];
+    if (desc) parts.push(desc);
+    for (const p of picks) {
+      const text = String(p.text || '').trim();
+      if (text && !parts.some((x) => x.toLowerCase().includes(text.toLowerCase()))) parts.push(text);
     }
-    return base;
+    const genderRaw = String(g.gender || '').toLowerCase();
+    const gender = /male|男/.test(genderRaw) ? 'male' : /trans|跨/.test(genderRaw) ? 'transgender' : 'female';
+    const style = String(g.render_style || g.anime_render_style || g.visual_style || 'realistic').trim();
+    const baseInfo = [gender, style].filter(Boolean);
+    if (baseInfo.length && !parts.some((x) => baseInfo.some((b) => x.toLowerCase().includes(b.toLowerCase())))) {
+      parts.push(baseInfo.join(', '));
+    }
+    setActivePresetChips((prev) => {
+      const next = { ...prev };
+      for (const p of picks) {
+        const chipKey = `prompt|${p.catKey}|${p.label}`;
+        next[chipKey] = String(p.text || '');
+      }
+      return next;
+    });
+    return { ...base, prompt: parts.join(', ') };
   }, []);
 
   /** 选中工作流 → 重置表单 */
@@ -501,7 +521,7 @@ export default function ComfyUiConsole() {
     if (!activeWf) return;
     const defaults = JSON.parse(JSON.stringify(activeWf.defaults || {}));
     const saved = activeKey ? loadWorkflowForm(activeKey) : null;
-    setForm(saved?.form ? { ...defaults, ...saved.form } : prefillPrompt(defaults));
+    setForm(saved?.form ? { ...defaults, ...saved.form } : composeCompanionPresetPrompt(defaults));
     if (saved?.rawText) {
       setRawText(saved.rawText);
     } else {
@@ -517,7 +537,7 @@ export default function ComfyUiConsole() {
   /** 伴侣数据加载完成 → 若当前表单 prompt 为空则补填 */
   useEffect(() => {
     if (!girlfriend) return;
-    setForm((prev: Any) => prefillPrompt(prev || {}));
+    setForm((prev: Any) => composeCompanionPresetPrompt(prev || {}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [girlfriend]);
 
@@ -1488,6 +1508,23 @@ export default function ComfyUiConsole() {
                 }}
               >
                 <Sparkles className="h-3 w-3" /> 填入伴侣描述
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-200 hover:bg-emerald-500/20"
+                onClick={() => {
+                  const g = girlfriend as Any;
+                  const picks = presetSelectionsFromCompanion(g || {});
+                  if (!String(g?.description || '').trim() && !picks.length) {
+                    toast.error('该伴侣暂无描述与外观信息');
+                    return;
+                  }
+                  setForm((prev: Any) => composeCompanionPresetPrompt(prev || {}, true));
+                  toast.success(`已按基础信息匹配 ${picks.length} 个预设并填入提示词`);
+                }}
+              >
+                <Wand2 className="h-3 w-3" /> 按基础信息匹配预设
               </Button>
               <Button
                 variant="outline"
