@@ -128,30 +128,32 @@ export async function listGifts(
   supabase: SupabaseClient,
   opts?: { includeInactive?: boolean },
 ): Promise<{ gifts: ChatGift[]; source: GiftStoreSource; hint?: string }> {
-  // 1) Dedicated table
-  let q = supabase.from('chat_gifts').select('*').order('sort_order', { ascending: true });
-  if (!opts?.includeInactive) q = q.eq('is_active', true);
-  const { data, error } = await q;
-  if (!error) {
+  // 1) site_settings is the primary store (chat_gifts table does not exist)
+  const fromSettings = await loadFromSiteSettings(supabase);
+  if (fromSettings !== null && fromSettings.length > 0) {
+    const list = opts?.includeInactive
+      ? fromSettings
+      : fromSettings.filter((g) => g.is_active);
     return {
-      gifts: (data || []).map((r) => normalizeGiftRow(r as Record<string, unknown>)),
-      source: 'db',
+      gifts: list,
+      source: 'site_settings',
+      hint: '使用 site_settings 存储（chat_gifts 表不存在）',
     };
   }
 
-  // 2) site_settings
-  if (isTableMissingError(error.message || '') || error) {
-    const fromSettings = await loadFromSiteSettings(supabase);
-    if (fromSettings !== null && fromSettings.length > 0) {
-      const list = opts?.includeInactive
-        ? fromSettings
-        : fromSettings.filter((g) => g.is_active);
+  // 2) Dedicated table (only probed when site_settings is empty)
+  try {
+    let q = supabase.from('chat_gifts').select('*').order('sort_order', { ascending: true });
+    if (!opts?.includeInactive) q = q.eq('is_active', true);
+    const { data, error } = await q;
+    if (!error) {
       return {
-        gifts: list,
-        source: 'site_settings',
-        hint: '使用 site_settings 存储（chat_gifts 表不存在）',
+        gifts: (data || []).map((r) => normalizeGiftRow(r as Record<string, unknown>)),
+        source: 'db',
       };
     }
+  } catch {
+    /* table missing — fall through */
   }
 
   // 3) local file
@@ -216,17 +218,7 @@ export async function createGift(
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase.from('chat_gifts').insert(row).select('*').single();
-  if (!error && data) {
-    // mirror file for backup
-    const listed = await listGifts(supabase, { includeInactive: true });
-    if (listed.source === 'db') {
-      await saveToFile(listed.gifts).catch(() => undefined);
-    }
-    return { gift: normalizeGiftRow(data as Record<string, unknown>), source: 'db' };
-  }
-
-  // Fallback path
+  // site_settings is the primary store (chat_gifts table does not exist)
   let existing: ChatGift[] = [];
   const fromSettings = await loadFromSiteSettings(supabase);
   if (fromSettings) existing = fromSettings;
@@ -244,10 +236,7 @@ export async function createGift(
   const saved = await persistFallback(supabase, next);
   if (!saved.ok) {
     return {
-      error:
-        saved.error ||
-        error?.message ||
-        '保存失败',
+      error: saved.error || '保存失败',
     };
   }
   return { gift, source: saved.source };
@@ -270,43 +259,12 @@ export async function updateGift(
     return created;
   }
 
-  const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  const map: Array<keyof ChatGift> = [
-    'name',
-    'description',
-    'emoji',
-    'icon_url',
-    'cost_tokens',
-    'intimacy_boost',
-    'desire_boost',
-    'development_boost',
-    'kink_boost',
-    'effect_type',
-    'effect_config',
-    'effect_asset_url',
-    'sort_order',
-    'is_active',
-  ];
-  for (const k of map) {
-    if (patch[k] !== undefined) row[k] = patch[k];
-  }
-
-  const { data, error } = await supabase
-    .from('chat_gifts')
-    .update(row)
-    .eq('id', id)
-    .select('*')
-    .maybeSingle();
-
-  if (!error && data) {
-    return { gift: normalizeGiftRow(data as Record<string, unknown>), source: 'db' };
-  }
-
+  // site_settings is the primary store (chat_gifts table does not exist)
   let existing = (await loadFromSiteSettings(supabase)) || (await loadFromFile());
   if (existing.length === 0) existing = DEFAULT_CHAT_GIFTS.map((g) => ({ ...g, id: randomId() }));
 
   const idx = existing.findIndex((g) => g.id === id || g.code === id);
-  if (idx < 0) return { error: error?.message || '礼物不存在' };
+  if (idx < 0) return { error: '礼物不存在' };
 
   const merged: ChatGift = {
     ...existing[idx],
@@ -329,17 +287,7 @@ export async function deleteGift(
     return { error: '种子数据请先同步后再删除' };
   }
 
-  if (soft) {
-    const { error } = await supabase
-      .from('chat_gifts')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', id);
-    if (!error) return { ok: true, source: 'db' };
-  } else {
-    const { error } = await supabase.from('chat_gifts').delete().eq('id', id);
-    if (!error) return { ok: true, source: 'db' };
-  }
-
+  // site_settings is the primary store (chat_gifts table does not exist)
   const existing = (await loadFromSiteSettings(supabase)) || (await loadFromFile());
   const next = soft
     ? existing.map((g) => (g.id === id ? { ...g, is_active: false } : g))
@@ -352,42 +300,10 @@ export async function deleteGift(
 export async function seedDefaultGifts(
   supabase: SupabaseClient,
 ): Promise<{ seeded: number; source: GiftStoreSource; error?: string }> {
+  // site_settings is the primary store (chat_gifts table does not exist)
   let seeded = 0;
-  let tableWorks = true;
 
-  for (const g of DEFAULT_CHAT_GIFTS) {
-    const row = {
-      code: g.code,
-      name: g.name,
-      description: g.description,
-      emoji: g.emoji,
-      cost_tokens: g.cost_tokens,
-      intimacy_boost: g.intimacy_boost,
-      desire_boost: g.desire_boost,
-      development_boost: g.development_boost,
-      kink_boost: g.kink_boost,
-      effect_type: g.effect_type,
-      effect_config: g.effect_config,
-      sort_order: g.sort_order,
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    };
-    const { error } = await supabase.from('chat_gifts').upsert(row, { onConflict: 'code' });
-    if (error) {
-      if (isTableMissingError(error.message || '')) {
-        tableWorks = false;
-        break;
-      }
-      logger.warn('[gifts/store] seed row failed', { code: g.code, err: error.message });
-    } else {
-      seeded += 1;
-    }
-  }
-  if (tableWorks && seeded > 0) {
-    return { seeded, source: 'db' };
-  }
-
-  // Merge into fallback store
+  // Merge defaults into site_settings store
   const existing = (await loadFromSiteSettings(supabase)) || (await loadFromFile());
   const byCode = new Map(existing.map((g) => [g.code, g]));
   for (const g of DEFAULT_CHAT_GIFTS) {
