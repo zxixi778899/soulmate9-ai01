@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Image as ImageIcon, Brain, ChevronDown, Home, Camera } from 'lucide-react';
+import { Image as ImageIcon, Brain, ChevronDown, Home, Camera, Volume2 } from 'lucide-react';
 import type { ChatGirlfriend, IntimacyData } from './types';
 import { HEAT_UNLOCK_HINTS, getIntimacyProgress } from '@/lib/constants';
 import type { INTIMACY_LEVELS } from '@/lib/constants';
@@ -27,9 +27,11 @@ export function ChatAppBar(props: {
   onMemories: () => void;
   onAlbum: () => void;
   onOpenProfile?: () => void;
+  voiceReply?: boolean;
+  onVoiceReplyChange?: (v: boolean) => void;
 }) {
   const { t, locale } = useTranslation();
-  const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories, onAlbum, onOpenProfile } = props;
+  const { girlfriend, levelInfo, intimacy, isTyping, onBack, onSelfie, isGenerating, onMemories, onAlbum, onOpenProfile, voiceReply, onVoiceReplyChange } = props;
   const name = girlfriend?.name?.trim() || 'Companion';
   const color = levelInfo?.color || '#ff2e88';
   const score = Math.round(intimacy?.score ?? 0);
@@ -115,6 +117,15 @@ export function ChatAppBar(props: {
 
         <button
           type="button"
+          onClick={() => onVoiceReplyChange?.(!voiceReply)}
+          className={`glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center transition-all active:scale-95 touch-manipulation ${voiceReply ? 'text-[#ff6ba6] ring-1 ring-[#ff6ba6]/40' : 'text-[#ffb3cd] hover:text-white'}`}
+          aria-label="语音回复"
+          title={voiceReply ? '语音回复已开启' : '开启语音回复'}
+        >
+          <Volume2 className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
           onClick={onSelfie}
           disabled={isGenerating}
           className="inline-flex items-center justify-center gap-1 h-11 w-11 sm:w-auto sm:px-3.5 rounded-full text-xs font-medium text-white glass active:scale-95 disabled:opacity-50 transition-all touch-manipulation"
@@ -127,7 +138,7 @@ export function ChatAppBar(props: {
           type="button"
           onClick={onAlbum}
           className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white active:scale-95 transition-all touch-manipulation"
-          aria-label="相册"
+          aria-label={t('chats.album')}
         >
           <Camera className="h-5 w-5" />
         </button>
@@ -152,10 +163,8 @@ export function ChatAppBar(props: {
           <div className="mb-1 flex items-center justify-between gap-3 text-[10px] text-[#ff6ba6]/90">
             <span className="truncate">
               {progress.isMax
-                ? (locale === 'zh' ? '亲密值已满，全部等级内容已解锁' : 'Max intimacy: every level reward is unlocked')
-                : locale === 'zh'
-                  ? `再提升 ${progress.remaining} 点解锁${progress.next?.title_zh}${progress.next?.level === 3 ? '与成人聊天/生图' : ''}`
-                  : HEAT_UNLOCK_HINTS.find((h) => h.level === level)?.hint || 'Build intimacy together'}
+                ? t('chatApp.maxIntimacy')
+                : t('chatApp.intimacyHint', { remaining: String(progress.remaining), title: (locale === 'zh' ? progress.next?.title_zh : progress.next?.title) || '' })}
             </span>
             <span className="shrink-0 font-mono tabular-nums">{score}/{progress.next?.min_score ?? 1500}</span>
           </div>

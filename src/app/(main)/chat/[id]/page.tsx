@@ -43,6 +43,7 @@ import UpgradeModal from '@/components/UpgradeModal';
 import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 import { detectMessageLocale } from '@/lib/chat-locale';
 import { syncRewards } from '@/lib/reward-events';
+import { useTtsPlayer } from '@/hooks/useTtsPlayer';
 
 
 type OutfitItem = {
@@ -75,6 +76,7 @@ export default function ChatPage() {
 
   // Data
   const [girlfriend, setGirlfriend] = useState<Girlfriend | null>(null);
+  const tts = useTtsPlayer();
   const [messages, setMessages] = useState<Message[]>([]);
   const [intimacy, setIntimacy] = useState<IntimacyData>({ score: 0, level: 1, daily_score_gained: 0 });
   const [outfits, setOutfits] = useState<OutfitItem[]>([]);
@@ -122,6 +124,25 @@ export default function ChatPage() {
 
   // Chat reply mode: scene (current style) vs dialogue (spoken words only)
   const [replyMode, setReplyMode] = useState<'scene' | 'dialogue'>('scene');
+
+  // 语音回复（听觉沉浸）：开启后把伴侣文字回复转成语音附加到气泡
+  const [voiceReply, setVoiceReply] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('soulmate_voice_reply');
+      if (saved === '1' || saved === 'true') setVoiceReply(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const handleVoiceReplyChange = (v: boolean) => {
+    setVoiceReply(v);
+    try {
+      localStorage.setItem('soulmate_voice_reply', v ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  };
   useEffect(() => {
     if (!id) return;
     try {
@@ -546,9 +567,7 @@ export default function ChatPage() {
       {
         id: waitId,
         role: 'assistant',
-        content: zh
-          ? '刚刚的照片还在生成中，我帮你接着等… 💕'
-          : 'Your photo is still developing — picking up where we left off… 💕',
+        content: t('chat.photoStillGenerating'),
         created_at: new Date().toISOString(),
       },
     ]);
@@ -571,7 +590,7 @@ export default function ChatPage() {
               {
                 id: `selfie-${Date.now()}`,
                 role: 'assistant',
-                content: zh ? '拍好啦～这是专门为你拍的新照片 💕' : "Here's a brand-new photo just for you 💕",
+                content: t('chat.newPhotoReady'),
                 created_at: new Date().toISOString(),
                 media_url: doneUrl,
                 media_type: 'image',
@@ -620,9 +639,7 @@ export default function ChatPage() {
           {
             id: `selfie-err-${Date.now()}`,
             role: 'assistant' as const,
-            content: zh
-              ? '照片生成超时了…稍后再让我试一次好不好？'
-              : 'Photo generation timed out… want me to try again?',
+            content: t('chat.photoGenTimeout'),
             created_at: new Date().toISOString(),
           },
         ];
@@ -658,11 +675,11 @@ export default function ChatPage() {
 
   const handlePickImage = (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('Image must be under 10MB');
+      toast.error(t('common.imageTooLarge10mb'));
       return;
     }
     if (!/^image\//.test(file.type)) {
-      toast.error('Please choose an image file');
+      toast.error(t('common.chooseImage'));
       return;
     }
     const previewUrl = URL.createObjectURL(file);
@@ -710,7 +727,7 @@ export default function ChatPage() {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(mediaChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
         if (blob.size < 800) {
-          toast.error('Recording too short');
+          toast.error(t('chat.recordingTooShort'));
           return;
         }
         const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type });
@@ -734,7 +751,7 @@ export default function ChatPage() {
       }, 1000);
     } catch (err) {
       logger.warn('mic denied', { err: err instanceof Error ? err.message : String(err) });
-      toast.error('Microphone permission needed for voice notes');
+      toast.error(t('chat.micPermissionNeeded'));
     }
   };
 
@@ -760,7 +777,7 @@ export default function ChatPage() {
     );
     clearGenJob(id);
     const zh = String(locale || '').toLowerCase().startsWith('zh');
-    toast.message(zh ? '已取消，照片不拍了～' : 'Cancelled — no photo this time');
+    toast.message(t('chat.photoCancelled'));
   };
 
   /** Generate a photo of the girlfriend from optional user request (auto or button). */
@@ -772,7 +789,7 @@ export default function ChatPage() {
       const busyZh =
         /[\u4e00-\u9fff]/.test(userRequest || '') ||
         String(locale || '').toLowerCase().startsWith('zh');
-      toast.message(busyZh ? '她已经在拍照了，稍等一下…' : 'She is already taking a photo, hold on…');
+      toast.message(t('chat.sheAlreadyTakingPhoto'));
       return;
     }
     cancelGenRef.current = false;
@@ -785,9 +802,7 @@ export default function ChatPage() {
     const waitZh =
       /[\u4e00-\u9fff]/.test(req) ||
       String(locale || '').toLowerCase().startsWith('zh');
-    const waitText = waitZh
-      ? '我正在为你拍一张全新的照片哦，稍等我换个姿势和场景，拍好就发给你 💕'
-      : "I'm taking a brand-new photo for you—give me a moment to change the pose and scene 💕";
+    const waitText = t('chat.takingNewPhotoForYou');
     const waitId = `selfie-wait-${Date.now()}`;
     setMessages((prev) => [
       ...prev,
@@ -800,10 +815,8 @@ export default function ChatPage() {
     ]);
     setIsTyping(true);
     setAutoScroll(true);
-    toast.message(waitZh ? '她正在拍一张新照片…' : 'She is taking a new photo…', {
-      description: waitZh
-        ? '正在根据聊天内容更换场景和姿势，请稍候。'
-        : 'Matching the scene and pose to your conversation.',
+    toast.message(t('chat.sheTakingNewPhoto'), {
+      description: t('chat.matchingSceneToChat'),
     });
 
     try {
@@ -888,7 +901,7 @@ export default function ChatPage() {
                 falAttempted = true;
                 setMessages((prev) => prev.map((m) => m.id === waitId ? {
                   ...m,
-                  content: waitZh ? 'GPU 有点忙，我换个更快的方式给你拍… ⚡' : 'GPU is busy, switching to a faster method… ⚡',
+                  content: t('chat.gpuBusyFasterMethod'),
                 } : m));
                 try {
                   const falRes = await authedFetch('/api/chat/generate-image', {
@@ -911,13 +924,13 @@ export default function ChatPage() {
               if (p === 5) {
                 setMessages((prev) => prev.map((m) => m.id === waitId ? {
                   ...m,
-                  content: waitZh ? '还在排队中，GPU 正在热身…再等我一小会儿 💕' : 'Still in queue, GPU is warming up… just a little longer 💕',
+                  content: t('chat.stillInQueue'),
                 } : m));
               }
               if (p === 20) {
                 setMessages((prev) => prev.map((m) => m.id === waitId ? {
                   ...m,
-                  content: waitZh ? '正在生成中，马上就好… 📸' : 'Generating now, almost there… 📸',
+                  content: t('chat.generatingNow'),
                 } : m));
               }
             } catch {
@@ -942,7 +955,7 @@ export default function ChatPage() {
           retried = true;
           setMessages((prev) => prev.map((m) => m.id === waitId ? {
             ...m,
-            content: waitZh ? '第一次没成功，我再试一次… 💪' : 'First attempt failed, trying again… 💪',
+            content: t('chat.firstAttemptFailed'),
           } : m));
           try {
             const retryRes = await authedFetch('/api/chat/generate-image', {
@@ -981,17 +994,15 @@ export default function ChatPage() {
         if (result.url) {
           imageUrl = result.url;
           clearGenJob(id);
-          caption = waitZh ? '拍好啦～这是专门为你拍的新照片 💕' : "Here's a brand-new photo just for you 💕";
+          caption = t('chat.newPhotoReady');
         } else {
-          throw new Error(waitZh ? 'GPU 排队超时，请稍后再试' : 'GPU queue timeout, please try again');
+          throw new Error(t('chat.gpuQueueTimeout'));
         }
       }
 
       setIsTyping(false);
       if (imageUrl) {
-        const readyText = caption || (waitZh
-          ? '拍好啦～这是专门为你拍的新照片 💕'
-          : "Here's a brand-new photo just for you 💕");
+        const readyText = caption || t('chat.newPhotoReady');
         const newMsg: Message = {
           id: `selfie-${Date.now()}`,
           role: 'assistant',
@@ -1024,9 +1035,7 @@ export default function ChatPage() {
         message: err instanceof Error ? err.message : String(err),
       });
       setMessages((prev) => prev.filter((message) => message.id !== waitId));
-      const sorry = waitZh
-        ? '不小心手抖拍坏了…再拍一张吗？'
-        : "Oops, I fumbled the shot… want me to take another one?";
+      const sorry = t('chat.fumbledShot');
       setMessages((prev) => [
         ...prev,
         {
@@ -1046,16 +1055,14 @@ export default function ChatPage() {
       const busyZh =
         /[\u4e00-\u9fff]/.test(userRequest || '') ||
         String(locale || '').toLowerCase().startsWith('zh');
-      toast.message(busyZh ? '她正在生成中，稍等一下…' : 'She is already generating something, hold on…');
+      toast.message(t('chat.sheAlreadyGenerating'));
       return;
     }
     cancelGenRef.current = false;
     const session = ++genSessionRef.current;
     setIsGenerating(true);
     const waitZh = /[\u4e00-\u9fff]/.test(userRequest || '') || String(locale || '').toLowerCase().startsWith('zh');
-    const waitText = waitZh
-      ? '我正在为你录一段小视频哦，先拍张照片再让它动起来，稍等 💕'
-      : "I'm making a short video for you—taking a photo first, then animating it. Hold on 💕";
+    const waitText = t('chat.makingVideoForYou');
     const waitId = `video-wait-${Date.now()}`;
     setMessages((prev) => [...prev, { id: waitId, role: 'assistant', content: waitText, created_at: new Date().toISOString() }]);
 
@@ -1081,7 +1088,7 @@ export default function ChatPage() {
           if (p === 5) {
             setMessages((prev) => prev.map((m) => m.id === waitId ? {
               ...m,
-              content: waitZh ? '照片还在排队中，GPU 正在热身… 💕' : 'Photo still in queue, GPU is warming up… 💕',
+              content: t('chat.photoStillInQueue'),
             } : m));
           }
           const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(imgData.job_id)}${imgData.endpoint_id ? `&endpoint_id=${encodeURIComponent(imgData.endpoint_id)}` : ''}`);
@@ -1101,7 +1108,7 @@ export default function ChatPage() {
       const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; endpoint_id?: string; error?: string; code?: string }>(vidRes);
       if (!vidRes.ok) {
         if (vidData.code === 'gpu_busy') {
-          throw new Error(waitZh ? 'GPU 繁忙，请稍后再试' : 'GPU is busy, please try again in a minute');
+          throw new Error(t('chat.gpuBusyTryLater'));
         }
         throw new Error(vidData.error || 'Video generation failed');
       }
@@ -1118,13 +1125,13 @@ export default function ChatPage() {
           if (p === 3) {
             setMessages((prev) => prev.map((m) => m.id === waitId ? {
               ...m,
-              content: waitZh ? '照片拍好了，正在让它动起来… 🎬' : 'Photo ready, now animating it… 🎬',
+              content: t('chat.photoReadyAnimating'),
             } : m));
           }
           if (p === 15) {
             setMessages((prev) => prev.map((m) => m.id === waitId ? {
               ...m,
-              content: waitZh ? '视频渲染中，马上就好… 💕' : 'Rendering video, almost there… 💕',
+              content: t('chat.videoRendering'),
             } : m));
           }
           const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(vidData.job_id)}`);
@@ -1133,10 +1140,10 @@ export default function ChatPage() {
           if (pollData.status === 'FAILED') throw new Error('Video generation failed');
         }
       }
-      if (!videoUrl) throw new Error(waitZh ? '视频生成超时' : 'Video generation timed out');
+      if (!videoUrl) throw new Error(t('chat.videoGenTimeout'));
 
       // Show video in chat
-      const caption = waitZh ? '给你录了一段小视频～看看我动起来的样子 💕' : "Here's a little video just for you～ see me move 💕";
+      const caption = t('chat.videoReady');
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== waitId),
         { id: `video-${Date.now()}`, role: 'assistant', content: caption, created_at: new Date().toISOString(), media_url: videoUrl, media_type: 'video' },
@@ -1146,7 +1153,7 @@ export default function ChatPage() {
       const failText = err instanceof Error ? err.message : 'Video failed';
       setMessages((prev) => [...prev, {
         id: `video-err-${Date.now()}`, role: 'assistant',
-        content: waitZh ? `视频生成失败了… ${failText} 稍后再试好不好？` : `Video glitched… ${failText} Want me to try again?`,
+        content: t('chat.videoFailed', { detail: failText }),
         created_at: new Date().toISOString(),
       }]);
     }
@@ -1175,7 +1182,7 @@ export default function ChatPage() {
     let mediaType: string | undefined;
     try {
       if (mediaSnapshot?.file) {
-        toast.message(mediaSnapshot.kind === 'audio' ? 'Uploading voice…' : 'Uploading photo…');
+        toast.message(mediaSnapshot.kind === 'audio' ? t('chat.uploadingVoice') : t('chat.uploadingPhoto'));
         mediaUrl = await uploadUserFile(
           mediaSnapshot.file,
           mediaSnapshot.kind === 'audio' ? `chat_voice/${id}` : `chat_user/${id}`,
@@ -1366,6 +1373,29 @@ export default function ChatPage() {
         }
       }
 
+      // 语音回复：开启后把文字回复转成伴侣语音（≤300 字），异步附加到气泡
+      if (voiceReply && fullContent && fullContent.length <= 300) {
+        void (async () => {
+          try {
+            const vres = await authedFetch('/api/ai/voice', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: fullContent, girlfriend_id: id }),
+            });
+            const vdata = await readResponseJson<{ audio_url?: string; url?: string }>(vres);
+            const vurl = String(vdata.audio_url || vdata.url || '').trim();
+            if (!vres.ok || !vurl) return;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistId ? { ...m, media_url: vurl, media_type: 'audio' } : m,
+              ),
+            );
+          } catch {
+            /* TTS 不可用则保持纯文字 */
+          }
+        })();
+      }
+
       setIsTyping(false);
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'read' } : m)));
 
@@ -1466,8 +1496,8 @@ export default function ChatPage() {
             (a) => a.user_progress?.unlocked && !a.user_progress?.reward_claimed,
           );
           if (newUnlocks.length > 0) {
-            toast.success(`🏆 Achievement Unlocked: ${newUnlocks[0].name}!`, {
-              description: `+${newUnlocks[0].reward_tokens} tokens`,
+            toast.success(t('chat.achievementUnlocked', { name: newUnlocks[0].name || '' }), {
+              description: t('chat.achievementReward', { tokens: newUnlocks[0].reward_tokens ?? 0 }),
               duration: 4000,
             });
           }
@@ -1485,9 +1515,7 @@ export default function ChatPage() {
             role: 'assistant',
             content: msg === t('chat.messageDailyLimit') || /次数已用完|daily message limit/i.test(msg)
               ? msg
-              : locale === 'zh'
-                ? `${t('chat.sendFailed')} 请再发送一次。`
-                : `I missed that for a second... ${msg}. Try sending again?`,
+              : t('chat.sendFailedRetry', { msg }),
             created_at: new Date().toISOString(),
           },
         ]);
@@ -1508,6 +1536,15 @@ export default function ChatPage() {
     void sendMessage(msg.content);
   };
 
+  const handleSpeakMessage = useCallback((msg: Message) => {
+    if (!girlfriend?.id) return;
+    // Strip markdown formatting from text before sending to TTS
+    const cleanText = msg.content.replace(/[*_~`#>\[\]()]/g, '').trim();
+    if (cleanText) {
+      tts.speak(cleanText, girlfriend.id, msg.id);
+    }
+  }, [girlfriend?.id, tts]);
+
   const clearGiftBurst = useCallback(() => {
     setGiftBurst(null);
   }, []);
@@ -1522,13 +1559,13 @@ export default function ChatPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || 'Failed to send gift', {
-          description: data.code === 'insufficient_credits' ? 'Buy more credits in the shop!' : undefined,
+        toast.error(data.error || t('chat.giftSendFailed'), {
+          description: data.code === 'insufficient_credits' ? t('chat.buyMoreCredits') : undefined,
         });
         return;
       }
     } catch {
-      toast.error('Network error sending gift');
+      toast.error(t('chat.giftNetworkError'));
       return;
     }
 
@@ -1672,7 +1709,7 @@ export default function ChatPage() {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
-      toast.success(zh ? '照片已保存' : 'Photo saved');
+      toast.success(t('chat.photoSaved'));
     } catch {
       window.open(showLightbox, '_blank');
     }
@@ -1682,9 +1719,9 @@ export default function ChatPage() {
     return (
       <div className="flex min-h-[50dvh] items-center justify-center bg-[#0b0b12] px-6">
         <div className="text-center">
-          <p className="text-white/40">This chat link is invalid or expired.</p>
+          <p className="text-white/40">{t('chat.invalidLink')}</p>
           <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => router.push('/chats')}>
-            Go back
+            {t('chat.goBack')}
           </Button>
         </div>
       </div>
@@ -1744,6 +1781,16 @@ export default function ChatPage() {
           />
         ) : null;
       })()}
+      {/* NSFW 热感光晕：进入亲密通道时轻呼吸 */}
+      {aiChannel === 'nsfw' && (
+        <div
+          className="pointer-events-none absolute inset-0 z-0 animate-pulse"
+          style={{
+            background:
+              'radial-gradient(ellipse 60% 45% at 50% 72%, rgba(255,45,120,0.12), transparent 70%)',
+          }}
+        />
+      )}
       {/* Dark gradient overlay for readability */}
       <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0b0b12]/70 via-[#0b0b12]/50 to-[#0b0b12]/90" />
 
@@ -1760,6 +1807,8 @@ export default function ChatPage() {
         onMemories={() => setShowMemories(true)}
         onAlbum={() => setShowAlbum(true)}
         onOpenProfile={girlfriend?.id ? () => router.push(`/companion/${girlfriend.id}`) : undefined}
+        voiceReply={voiceReply}
+        onVoiceReplyChange={handleVoiceReplyChange}
       />
 
       {/* Compact intimacy strip — full IntimacyProgress was crowding the dialog */}
@@ -1796,6 +1845,9 @@ export default function ChatPage() {
         onCancelGeneration={handleCancelGeneration}
         onRetrySelfie={handleRetrySelfie}
         onRetryMessage={handleRetryMessage}
+        onSpeakMessage={handleSpeakMessage}
+        speakingMsgId={tts.activeMsgId}
+        speakingLoading={tts.loading}
       />
 
       {showScrollDown && (
@@ -1815,7 +1867,7 @@ export default function ChatPage() {
           <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${
             aiChannel === 'nsfw' ? 'bg-rose-500/15 text-rose-300' : 'bg-emerald-500/15 text-emerald-300'
           }`}>
-            {aiChannel === 'nsfw' ? 'Intimate heat' : 'Soft heat'}
+            {aiChannel === 'nsfw' ? t('chat.intimateHeat') : t('chat.softHeat')}
           </span>
           {aiModel && <span className="truncate opacity-70">{aiModel}</span>}
         </div>
@@ -1851,7 +1903,7 @@ export default function ChatPage() {
                 className="shrink-0 h-8 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] text-white text-[11px] font-semibold px-4 shadow-[0_2px_10px_rgba(255,45,120,0.35)] hover:opacity-90 active:scale-95 transition-all border-0"
               >
                 <Crown className="h-3 w-3 mr-1" />
-                Upgrade
+                {t('chat.upgrade')}
               </Button>
               <button
                 onClick={() => setUsageBannerDismissed(true)}
@@ -1984,7 +2036,7 @@ export default function ChatPage() {
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <Camera className="h-8 w-8 text-[#8B8BA3]/30 mb-3" />
                     <p className="text-xs text-[#8B8BA3]">
-                      还没有相册内容，聊天中生成的图片和视频会保存在这里
+                      {t('chat.noAlbumContentYet')}
                     </p>
                   </div>
                 );
