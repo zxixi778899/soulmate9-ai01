@@ -158,6 +158,8 @@ function ChatStreamInner(props: {
   onCancelGeneration?: () => void;
   onRetrySelfie?: () => void;
   onRetryMessage?: (msg: ChatMessage) => void;
+  /** 2 次生成：成功的照片下方提供“再来一张” */
+  onRegenerateSelfie?: (msg: ChatMessage) => void;
   onSpeakMessage?: (msg: ChatMessage) => void;
   speakingMsgId?: string | null;
   speakingLoading?: boolean;
@@ -166,7 +168,7 @@ function ChatStreamInner(props: {
   const {
     scrollRef, onScroll, girlfriend, rows, isTyping,
     hasMore, loadingMore, onLoadHistory, levelColor, onOpenImage, bottomRef,
-    onCancelGeneration, onRetrySelfie, onRetryMessage,
+    onCancelGeneration, onRetrySelfie, onRetryMessage, onRegenerateSelfie,
     onSpeakMessage, speakingMsgId, speakingLoading,
   } = props;
 
@@ -345,6 +347,16 @@ function ChatStreamInner(props: {
                       ) : (
                         <ChatImage url={msg.media_url} onOpen={onOpenImage} />
                       ))}
+                    {/* 2 次生成：成功的照片下方提供“再来一张”（新种子重拍） */}
+                    {isAssistant && msg.media_type === 'image' && msg.media_url && onRegenerateSelfie && (
+                      <button
+                        type="button"
+                        onClick={() => onRegenerateSelfie(msg)}
+                        className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-white/40 hover:text-[#ff6ba6] active:scale-95 transition-all"
+                      >
+                        <RefreshCw className="h-3 w-3" /> {t('chat.genAgain')}
+                      </button>
+                    )}
                     {/* Actionable retry chip on selfie failure bubbles */}
                     {isSelfieErr && onRetrySelfie && (
                       <button

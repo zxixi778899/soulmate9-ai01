@@ -1869,6 +1869,7 @@ export default function ChatPage() {
         onCancelGeneration={handleCancelGeneration}
         onRetrySelfie={handleRetrySelfie}
         onRetryMessage={handleRetryMessage}
+        onRegenerateSelfie={() => void generateSelfie(lastSelfieReqRef.current)}
         onSpeakMessage={handleSpeakMessage}
         speakingMsgId={tts.activeMsgId}
         speakingLoading={tts.loading}
