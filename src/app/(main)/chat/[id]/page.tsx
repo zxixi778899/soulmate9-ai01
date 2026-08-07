@@ -1035,7 +1035,7 @@ export default function ChatPage() {
         let falAttempted = false;
         // Hard cap on total wait time (aligns with the 2-min safety net below).
         // Bounds the initial poll AND the auto-retry so the card can never hang for minutes.
-        const genDeadline = Date.now() + 110_000;
+        const genDeadline = Date.now() + 170_000;
         const pollStart = Date.now();
         saveGenJob(id, { job_id: jobId, endpoint_id: data.endpoint_id, startedAt: Date.now(), req });
         const pollStatus = async (jid: string, endpointId?: string): Promise<{ url?: string; failed?: boolean; error?: string; cancelled?: boolean }> => {
@@ -1089,6 +1089,12 @@ export default function ChatPage() {
                   content: t('chat.generatingNow'),
                 } : m));
               }
+              if (p === 35) {
+                setMessages((prev) => prev.map((m) => m.id === waitId ? {
+                  ...m,
+                  content: t('chat.gpuBusyWaiting'),
+                } : m));
+              }
             } catch {
               // Transient network error — keep polling
             }
@@ -1106,14 +1112,27 @@ export default function ChatPage() {
           return;
         }
 
-        // Auto-retry once on failure
+        // Auto-retry once on failure: GPU 繁忙时续等同一任务，真失败才重新提交
         if (result.failed && !retried && !cancelGenRef.current && genSessionRef.current === session) {
           retried = true;
-          setMessages((prev) => prev.map((m) => m.id === waitId ? {
-            ...m,
-            content: t('chat.firstAttemptFailed'),
-          } : m));
-          try {
+          if (result.error === 'timeout' || /queue|busy|GPU|throttl/i.test(result.error || '')) {
+            setMessages((prev) => prev.map((m) => m.id === waitId ? {
+              ...m,
+              content: t('chat.gpuBusyWaiting'),
+            } : m));
+            result = await pollStatus(jobId, data.endpoint_id);
+            if (result.cancelled) {
+              clearGenJob(id);
+              setIsTyping(false);
+              if (genSessionRef.current === session) setIsGenerating(false);
+              return;
+            }
+          } else {
+            setMessages((prev) => prev.map((m) => m.id === waitId ? {
+              ...m,
+              content: t('chat.firstAttemptFailed'),
+            } : m));
+            try {
             const retryRes = await authedFetch('/api/chat/generate-image', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1144,6 +1163,7 @@ export default function ChatPage() {
             }
           } catch {
             // Retry submit failed — fall through to error
+            }
           }
         }
 
