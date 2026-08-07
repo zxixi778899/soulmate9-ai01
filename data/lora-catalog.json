@@ -53,7 +53,11 @@
       "default_strength": 0.35,
       "nsfw": false,
       "usage": "Female 主风格 LoRA",
-      "trigger_words": [],
+      "trigger_words": [
+        "写实",
+        "realistic",
+        "photoreal"
+      ],
       "workflows": [
         "wf-girlfriend"
       ],
@@ -71,7 +75,11 @@
       "default_strength": 0.35,
       "nsfw": false,
       "usage": "Male 主风格 LoRA",
-      "trigger_words": [],
+      "trigger_words": [
+        "写实",
+        "realism",
+        "photoreal"
+      ],
       "workflows": [
         "wf-girlfriend"
       ],
@@ -89,7 +97,11 @@
       "default_strength": 0.35,
       "nsfw": false,
       "usage": "Transgender 主风格 LoRA",
-      "trigger_words": [],
+      "trigger_words": [
+        "超写实",
+        "hyperreal",
+        "photorealistic"
+      ],
       "workflows": [
         "wf-girlfriend"
       ],
@@ -107,7 +119,11 @@
       "default_strength": 0.25,
       "nsfw": false,
       "usage": "通用细节增强副 LoRA",
-      "trigger_words": [],
+      "trigger_words": [
+        "细节",
+        "details",
+        "enhance"
+      ],
       "workflows": [
         "wf-girlfriend"
       ],
@@ -125,7 +141,11 @@
       "default_strength": 0.3,
       "nsfw": false,
       "usage": "Anime 类别主 LoRA",
-      "trigger_words": [],
+      "trigger_words": [
+        "细节增强",
+        "detail enhance",
+        "anime detail"
+      ],
       "workflows": [
         "wf-girlfriend"
       ],
@@ -143,7 +163,12 @@
       "default_strength": 0.4,
       "nsfw": true,
       "usage": "NSFW intensity>=3 时使用",
-      "trigger_words": [],
+      "trigger_words": [
+        "NSFW",
+        "裸体",
+        "nude",
+        "explicit"
+      ],
       "workflows": [
         "wf-girlfriend"
       ],
@@ -161,7 +186,11 @@
       "default_strength": 0.3,
       "nsfw": true,
       "usage": "NSFW 辅助 LoRA",
-      "trigger_words": [],
+      "trigger_words": [
+        "无审查",
+        "uncensored",
+        "explicit"
+      ],
       "workflows": [
         "wf-girlfriend"
       ],
@@ -180,7 +209,10 @@
       "nsfw": false,
       "usage": "仅用于 Pony 系列模型的细节增强。",
       "trigger_words": [
-        "detailerlora"
+        "detailerlora",
+        "细节",
+        "detail",
+        "pony"
       ],
       "workflows": [
         "wf-girlfriend"
@@ -208,7 +240,11 @@
       "default_strength": 0.3,
       "nsfw": false,
       "usage": "仅用于 Illustrious 模型的微细节增强。",
-      "trigger_words": [],
+      "trigger_words": [
+        "微细节",
+        "micro detail",
+        "illustrious"
+      ],
       "workflows": [
         "wf-girlfriend"
       ],
@@ -235,7 +271,11 @@
       "default_strength": 0.3,
       "nsfw": false,
       "usage": "仅用于 Illustrious 模型的细节滑块。",
-      "trigger_words": [],
+      "trigger_words": [
+        "细节滑块",
+        "detail slider",
+        "illustrious"
+      ],
       "workflows": [
         "wf-girlfriend"
       ],
@@ -263,7 +303,10 @@
       "nsfw": false,
       "usage": "Pony Beta V3 背景细节版本",
       "trigger_words": [
-        "detailed background"
+        "detailed background",
+        "背景细节",
+        "背景",
+        "background"
       ],
       "workflows": [
         "wf-girlfriend"
@@ -291,8 +334,16 @@
       "default_strength": 0.35,
       "nsfw": false,
       "usage": "写实风格主 LoRA：生成立绘、角色卡与写实姿势时叠加，强度 0.3~0.4；与皮肤细节 LoRA 总强度勿超 0.5。",
-      "trigger_words": ["photorealistic"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "photorealistic",
+        "写实",
+        "真实感"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1084957",
       "base_model": "FLUX.1",
@@ -309,8 +360,17 @@
       "default_strength": 0.25,
       "nsfw": false,
       "usage": "皮肤质感增强：近景/特写必挂，强度 0.2~0.3，避免塑料感。",
-      "trigger_words": ["natural skin texture"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "natural skin texture",
+        "皮肤",
+        "肤质",
+        "皮肤纹理"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/827325",
       "base_model": "FLUX.1",
@@ -327,8 +387,17 @@
       "default_strength": 0.25,
       "nsfw": false,
       "usage": "真实肤质增强：与 skin_v1 二选一，追求自然皮肤质感时使用。",
-      "trigger_words": ["natural skin"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "natural skin",
+        "自然肤质",
+        "皮肤",
+        "非塑料感"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1301668",
       "base_model": "FLUX.1",
@@ -345,8 +414,17 @@
       "default_strength": 0.25,
       "nsfw": false,
       "usage": "手部细节修正：含手部特写的姿势必挂，强度 0.2~0.3。",
-      "trigger_words": ["detailed hands"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "detailed hands",
+        "手部",
+        "手",
+        "手指"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1003317",
       "base_model": "FLUX.1",
@@ -363,8 +441,16 @@
       "default_strength": 0.4,
       "nsfw": false,
       "usage": "曲线/丰满身形：写实角色卡与立绘使用，强度 0.35~0.5。",
-      "trigger_words": ["curvy body"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "curvy body",
+        "丰满",
+        "曲线"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1668530",
       "base_model": "FLUX.1",
@@ -381,8 +467,16 @@
       "default_strength": 0.4,
       "nsfw": false,
       "usage": "梨形身材 LoRA：需要特定臀腿曲线时叠加，强度 0.35~0.5。",
-      "trigger_words": ["pear body"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "pear body",
+        "梨形",
+        "身材"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1276427",
       "base_model": "FLUX.1",
@@ -399,8 +493,16 @@
       "default_strength": 0.45,
       "nsfw": true,
       "usage": "NSFW 动态姿势：NSFW 强度 ≥3 时叠加，配合 vLLM-Qwen3 提示词优化，强度 0.4~0.55。",
-      "trigger_words": ["dynamic pose"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "dynamic pose",
+        "NSFW姿势",
+        "动态姿势"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/746602",
       "base_model": "FLUX.1",
@@ -417,8 +519,16 @@
       "default_strength": 0.45,
       "nsfw": true,
       "usage": "内衣/情趣服饰：NSFW 强度 2~3 时使用，强度 0.4~0.55。",
-      "trigger_words": ["lingerie"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "lingerie",
+        "内衣",
+        "情趣"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/869894",
       "base_model": "FLUX.1",
@@ -435,8 +545,16 @@
       "default_strength": 0.45,
       "nsfw": false,
       "usage": "泳装/比基尼：泳池、海滩场景使用，强度 0.4~0.55。",
-      "trigger_words": ["bikini"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "bikini",
+        "泳装",
+        "比基尼"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1184191",
       "base_model": "FLUX.1",
@@ -453,8 +571,17 @@
       "default_strength": 0.45,
       "nsfw": true,
       "usage": "皮衣/胶衣风格：暗黑性感风，强度 0.4~0.55。",
-      "trigger_words": ["latex outfit"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "latex outfit",
+        "乳胶",
+        "胶衣",
+        "皮衣"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/734230",
       "base_model": "FLUX.1",
@@ -471,8 +598,16 @@
       "default_strength": 0.3,
       "nsfw": false,
       "usage": "电影感光影：夜景、情绪氛围场景，强度 0.25~0.4。",
-      "trigger_words": ["cinematic"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "cinematic",
+        "电影感",
+        "光影"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/953083",
       "base_model": "FLUX.1",
@@ -491,8 +626,17 @@
       "gender": "male",
       "style": "realistic",
       "usage": "男体写实主 LoRA：男性角色、猛男/健身体型；与皮肤细节 LoRA 叠加总强度勿超 0.6。",
-      "trigger_words": [],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "男性",
+        "male",
+        "masc",
+        "健壮"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1967998",
       "base_model": "FLUX.1",
@@ -511,8 +655,16 @@
       "gender": "male",
       "style": "realistic",
       "usage": "肌肉线条增强：男性健身/力量感身材，强度 0.3~0.45。",
-      "trigger_words": ["muscle"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "muscle",
+        "肌肉",
+        "健身"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/820334",
       "base_model": "FLUX.1",
@@ -531,8 +683,17 @@
       "gender": "transgender",
       "style": "realistic",
       "usage": "跨性别 MtF 写实 LoRA：保持女性化面部与身材细节，强度 0.35~0.5。",
-      "trigger_words": [],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "跨性别",
+        "MtF",
+        "transgender",
+        "trans"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1027537",
       "base_model": "FLUX.1",
@@ -551,8 +712,16 @@
       "gender": "femboy",
       "style": "realistic",
       "usage": "伪娘/女性化男性角色 LoRA：保持男性身份与女性化装扮，强度 0.35~0.5。",
-      "trigger_words": [],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "伪娘",
+        "femboy",
+        "女性化"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1747185",
       "base_model": "FLUX.1",
@@ -571,8 +740,16 @@
       "gender": "any",
       "style": "anime",
       "usage": "二次元/动漫风格主 LoRA：2D 画风角色与场景，强度 0.4~0.6。",
-      "trigger_words": [],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "二次元",
+        "动漫",
+        "anime"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/863817",
       "base_model": "FLUX.1",
@@ -591,8 +768,16 @@
       "gender": "any",
       "style": "3d",
       "usage": "3D 渲染/塑料着色风格：3D 角色卡与立绘，强度 0.4~0.6。",
-      "trigger_words": ["3d"],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "3d",
+        "3D",
+        "渲染"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/828678",
       "base_model": "FLUX.1",
@@ -611,8 +796,17 @@
       "gender": "any",
       "style": "any",
       "usage": "通用 NSFW LoRA：NSFW 强度 ≥3 时与姿势/服装 LoRA 叠加，强度 0.25~0.4。",
-      "trigger_words": [],
-      "workflows": ["wf-character", "wf-portrait", "wf-pose"],
+      "trigger_words": [
+        "NSFW",
+        "色情",
+        "lewd",
+        "explicit"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
       "source": "civitai",
       "download_url": "https://civitai.com/api/download/models/1020932",
       "base_model": "FLUX.1",

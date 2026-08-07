@@ -615,7 +615,7 @@ export async function POST(req: NextRequest) {
         {
           role: 'system' as const,
           content:
-            'You are the prompt engineer for a FLUX/WAN companion generator. Output ONE English image/video prompt: a single paragraph of comma-separated descriptive clauses (subject, pose, outfit, scene, lighting, mood, framing). NEVER output markdown, labels, or explanations. Keep identity consistent (same woman/face) when a reference is used. Avoid the generic "AI look": emphasize natural skin texture, unique facial features, subtle asymmetries and a candid believable expression. Respect the CONTENT BOUNDARY exactly.',
+            'You are a prompt POLISHER for a FLUX/WAN companion generator. Output ONE English image/video prompt as a single paragraph of comma-separated descriptive clauses. IMPORTANT: ONLY refine the wording, grammar and details of the RAW PROMPT. Keep every existing concept and keyword exactly; NEVER invent or add new subjects, scenes, outfits, poses, actions or objects that are not already in the RAW PROMPT, and never remove the user\'s key terms. Keep identity consistent (same person/face) when a reference is used. Avoid the generic "AI look": emphasize natural skin texture, unique facial features, subtle asymmetries and a candid believable expression. Respect the CONTENT BOUNDARY exactly. NEVER output markdown, labels, or explanations.',
         },
         {
           role: 'user' as const,
@@ -626,7 +626,7 @@ export async function POST(req: NextRequest) {
         endpoint: picked.primary,
         fallbackEndpoints: picked.fallback,
         messages,
-        temperature: 0.8,
+        temperature: 0.55,
         maxTokens: Math.min(320, picked.primary.max_tokens || 320),
         userId: admin.user?.id,
         taskType: 'prompt_optimization',

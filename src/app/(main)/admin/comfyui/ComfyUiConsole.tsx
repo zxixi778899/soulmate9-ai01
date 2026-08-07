@@ -18,6 +18,7 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { PROMPT_PRESETS, type PromptPreset } from '@/lib/comfyui-console/prompt-presets-full';
+import { orderCategories } from '@/lib/comfyui-console/prompt-category-presets';
 
 /** 取景按钮：写入提示词，随表单独立调用（每个工作流独立，非全局） */
 const FRAMING_OPTIONS = [
@@ -981,6 +982,80 @@ export default function ComfyUiConsole() {
       return { ...prev, prompt: cur ? `${cur}, ${text}` : text };
     });
   };
+  /** 分类预设：已选 chips 追加/移除（prompt/negative 独立） */
+  const [activePresetChips, setActivePresetChips] = useState<Record<string, string>>({});
+  const [presetPanelOpen, setPresetPanelOpen] = useState<Record<string, boolean>>({ prompt: true, negative: true });
+  const togglePresetChip = (target: 'prompt' | 'negative', catKey: string, label: string, text: string) => {
+    const chipKey = `${target}|${catKey}|${label}`;
+    const fieldKey = target === 'negative' ? 'negative' : 'prompt';
+    setForm((prev: Any) => {
+      const cur = String(prev[fieldKey] || '').trim();
+      const existing = activePresetChips[chipKey];
+      if (existing) {
+        const cleaned = cur
+          .replace(existing, '')
+          .replace(/,\s*,/g, ',')
+          .replace(/^\s*,\s*|\s*,\s*$/g, '')
+          .trim();
+        return { ...prev, [fieldKey]: cleaned };
+      }
+      return { ...prev, [fieldKey]: cur ? `${cur}, ${text}` : text };
+    });
+    setActivePresetChips((prev) => {
+      const next = { ...prev };
+      if (next[chipKey]) delete next[chipKey];
+      else next[chipKey] = text;
+      return next;
+    });
+  };
+  /** 分类预设面板：按工作台侧重排序，追加/移除组合出提示词 */
+  const renderPresetChips = (target: 'prompt' | 'negative') => {
+    const groups = orderCategories(activeWf?.key).filter((g) => g.target === target);
+    if (!groups.length) return null;
+    const open = Boolean(presetPanelOpen[target]);
+    return (
+      <div className="space-y-1.5 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold text-slate-400">提示词预设</span>
+          <button
+            type="button"
+            onClick={() => setPresetPanelOpen((prev) => ({ ...prev, [target]: !prev[target] }))}
+            className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-400 hover:text-white"
+          >
+            {open ? '收起' : '展开'}
+          </button>
+        </div>
+        {open &&
+          groups.map((g) => (
+            <div key={g.key} className="flex flex-wrap items-center gap-1">
+              <span className={cn('w-16 shrink-0 text-[10px]', g.nsfw ? 'text-rose-400' : 'text-violet-400')}>{g.zh}</span>
+              {g.items.map((it) => {
+                const chipKey = `${target}|${g.key}|${it.label}`;
+                const active = Boolean(activePresetChips[chipKey]);
+                return (
+                  <button
+                    key={it.label}
+                    type="button"
+                    title={it.text}
+                    onClick={() => togglePresetChip(target, g.key, it.label, it.text)}
+                    className={cn(
+                      'rounded-full border px-2 py-0.5 text-[10px] transition active:scale-95',
+                      active
+                        ? 'border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-200'
+                        : g.nsfw
+                          ? 'border-rose-500/20 bg-rose-500/5 text-rose-300/80 hover:text-rose-200'
+                          : 'border-white/10 bg-white/[0.04] text-slate-400 hover:text-white',
+                    )}
+                  >
+                    {it.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+      </div>
+    );
+  };
   /** 取景（全身/半身/特写）：写入提示词，随表单独立调用 */
   const setFraming = (fm: { key: string; zh: string; clause: string }) => {
     setForm((prev: Any) => {
@@ -1149,6 +1224,7 @@ export default function ComfyUiConsole() {
                   }}
                 />
               </div>
+              {renderPresetChips('prompt')}
               {/* 取景：全身 / 半身 / 特写（放到提示词上方，随表单独立） */}
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 <span className="text-[10px] text-slate-500">取景</span>
@@ -1172,6 +1248,7 @@ export default function ComfyUiConsole() {
             ) : (
               <FieldLabel field={f} />
             )}
+            {f.key === 'negative' && activeWf?.engine !== 'raw' && renderPresetChips('negative')}
             {Array.isArray(f.chips) && f.chips.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {f.chips.map((c: Any) => (
