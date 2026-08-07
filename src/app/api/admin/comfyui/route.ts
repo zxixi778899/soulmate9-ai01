@@ -734,7 +734,9 @@ export async function POST(req: NextRequest) {
               );
             }
           }
-          const auto = buildAutoLoraStack(cfg, gender, style, Number(merged.intensity) || 1);
+          const auto = buildAutoLoraStack(cfg, gender, style, Number(merged.intensity) || 1, [
+            ...getVerifiedInstalledLoraSet(),
+          ]);
           if (auto.length) {
             merged.loras = auto.map((p) => ({ id: p.id, strength: p.strength }));
             logger.info('[comfyui] auto lora stack', {
@@ -773,6 +775,14 @@ export async function POST(req: NextRequest) {
           strength_model: Number((l.strength_model * scale).toFixed(3)),
           strength_clip: Number((l.strength_clip * scale).toFixed(3)),
         }));
+
+        if (!normalizedLoras.length && !hasImageRef) {
+          logger.warn('[comfyui] no LoRA applied (auto stack empty or all filtered by volume inventory)', {
+            girlfriendId: girlfriendId || null,
+            auto: Array.isArray(merged.loras) ? merged.loras.length : 0,
+            skipped: skippedLoras,
+          });
+        }
 
         const width = roundTo(clampNum(merged.width, 256, 2048, 832), 8);
         const height = roundTo(clampNum(merged.height, 256, 2048, 1216), 8);

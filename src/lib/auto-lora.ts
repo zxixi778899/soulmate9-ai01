@@ -32,10 +32,10 @@ const AUTO_MATRIX: Record<string, LoraAutoPick[]> = {
 };
 
 export function resolveAutoGender(gender?: unknown): string {
-  const g = String(gender || '').toLowerCase();
+  const g = String(gender || '').toLowerCase().trim();
   if (/femboy|feminine boy|cd$/.test(g)) return 'femboy';
   if (/trans|shemale|ladyboy|futanari/.test(g)) return 'transgender';
-  if (/male|boy|man|masculine|he$/.test(g)) return 'male';
+  if (/^(male|man|boy|masculine|he|guy|dude)\b/.test(g)) return 'male';
   return 'female';
 }
 
@@ -57,6 +57,7 @@ export function buildAutoLoraStack(
   gender?: unknown,
   style?: unknown,
   intensity?: number,
+  installedOverride?: Array<string | null | undefined>,
 ): LoraAutoPick[] {
   const g = resolveAutoGender(gender);
   const s = resolveAutoStyle(style);
@@ -75,7 +76,9 @@ export function buildAutoLoraStack(
   if (level >= 4) picks.push({ id: 'flux-pose-nsfw-dynamic-v1', strength: 0.4 });
   else if (level >= 3) picks.push({ id: 'flux-lewd-v1', strength: 0.25 });
 
-  const installedSet = new Set((cfg.installed_loras || []).map((f) => String(f || '')));
+  const installedSet = new Set(
+    (installedOverride ?? cfg.installed_loras ?? []).map((f) => String(f || '')),
+  );
   return picks
     .filter((p) => {
       const entry = cfg.loras.find((l) => l.id === p.id);
