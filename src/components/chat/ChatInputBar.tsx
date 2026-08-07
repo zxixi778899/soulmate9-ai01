@@ -147,6 +147,16 @@ export function ChatInputBar(props: {
     { key: 'pose', labelZh: '姿势', labelEn: 'POSE', items: CHAT_POSES, selected: selectedPose, set: setSelectedPose },
     { key: 'env', labelZh: '环境', labelEn: 'SCENE', items: CHAT_ENVS, selected: selectedEnvironment, set: setSelectedEnvironment },
   ];
+  const NSFW_SCENES: Array<{ key: string; zh: string; en: string; icon: typeof Flame; text: string }> = [
+    { key: 'teacher', zh: '师生', en: 'Teacher', icon: Brain, text: '今晚玩个角色扮演：你是我的家教老师，我是你最不听话的学生……' },
+    { key: 'sibling', zh: '兄妹', en: 'Sibling', icon: Heart, text: '嘘，今晚就当我们还是小时候：我是你的妹妹，你是我的哥哥……' },
+    { key: 'boss', zh: '上司', en: 'Boss', icon: Building2, text: '老板，就剩我们两个人加班了……' },
+    { key: 'neighbor', zh: '邻居', en: 'Neighbor', icon: Sofa, text: '楼下邻居来借点东西……要不要进来坐坐？' },
+    { key: 'shower', zh: '浴室', en: 'Shower', icon: ShowerHead, text: '浴室水声停了，门没有锁……' },
+    { key: 'lingerie', zh: '情趣', en: 'Lingerie', icon: Flame, text: '我买了件新睡衣，你要不要看看？' },
+  ];
+  const [showScenes, setShowScenes] = useState(false);
+
   const taRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -447,6 +457,17 @@ export function ChatInputBar(props: {
               accent="#fbbf24"
             />
             <ToolButton
+              active={showScenes}
+              onClick={() => {
+                setMoreOpen(false);
+                closeTray();
+                setShowScenes((v) => !v);
+              }}
+              icon={<Heart className="h-4 w-4" />}
+              label={t('chat.scenes')}
+              accent="#FF2D78"
+            />
+            <ToolButton
               onClick={() => {
                 setMoreOpen(false);
                 closeTray();
@@ -550,6 +571,44 @@ export function ChatInputBar(props: {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {showScenes && (
+        <div className="max-w-3xl xl:max-w-4xl 2xl:max-w-5xl mx-auto px-3 pt-1 pb-1.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF2D78]/70">
+              {isZh ? '情景速启 · 点一下自动开场' : 'Quick scenes · tap to start'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowScenes(false)}
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-white/10 bg-white/[0.04] text-[10px] text-white/50 hover:text-white active:scale-95 transition-all"
+            >
+              <X className="h-3 w-3" />
+              {isZh ? '关闭' : 'Close'}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {NSFW_SCENES.map((s) => {
+              const Icon = s.icon;
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => {
+                    const next = input.trim() ? `${input.trimEnd()}\n${s.text}` : s.text;
+                    setInput(next);
+                    taRef.current?.focus();
+                  }}
+                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] transition-all active:scale-95 glass text-[#8B8BA3] hover:text-white hover:border-[#FF2D78]/40"
+                >
+                  <Icon className="h-3 w-3" />
+                  {isZh ? s.zh : s.en}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

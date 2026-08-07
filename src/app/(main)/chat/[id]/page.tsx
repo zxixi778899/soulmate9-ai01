@@ -1129,7 +1129,11 @@ export default function ChatPage() {
       const vidRes = await authedFetch('/api/ai/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input_image: imageUrl, girlfriend_id: id }),
+        body: JSON.stringify({
+          input_image: imageUrl,
+          girlfriend_id: id,
+          duration: membership.tier === 'unlimited' ? 10 : 5,
+        }),
       });
       const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; endpoint_id?: string; error?: string; code?: string }>(vidRes);
       if (!vidRes.ok) {
@@ -1873,6 +1877,13 @@ export default function ChatPage() {
               style={{ width: `${computeProgress(intimacy.score, levelInfo.level)}%` }}
             />
           </div>
+          {levelInfo.level < 3 && (
+            <span className="shrink-0 rounded-full border border-[#FF2D78]/25 bg-[#FF2D78]/10 px-2 py-0.5 text-[10px] font-medium text-[#ff9ec4]">
+              {String(locale || '').toLowerCase().startsWith('zh')
+                ? `距解锁成人内容还差 ${Math.max(0, 300 - Math.round(intimacy.score))}`
+                : `${Math.max(0, 300 - Math.round(intimacy.score))} pts to adult unlock`}
+            </span>
+          )}
           <span className="text-[10px] font-mono tabular-nums text-white/40 shrink-0">
             {t('chat.pointsHeat', { count: Math.round(intimacy.score) })}
           </span>
