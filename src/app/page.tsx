@@ -426,10 +426,9 @@ export default function HomePage() {
                   alt={ad.title}
                   className="w-full h-28 sm:h-36 object-cover group-hover:scale-[1.02] transition-transform duration-300"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
-                <div className="absolute bottom-2 left-3 z-[2]">
-                  <span className="text-xs sm:text-sm font-bold text-white drop-shadow">{ad.title}</span>
-                </div>
+                <span className="absolute top-2 right-2 z-[2] rounded-md bg-black/45 px-1.5 py-0.5 text-[9px] font-bold tracking-widest text-white/80 ring-1 ring-white/20 backdrop-blur">
+                  AD
+                </span>
               </a>
             ))}
           </section>
