@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import { PROMPT_PRESETS, type PromptPreset } from '@/lib/comfyui-console/prompt-presets-full';
 import {
-  Workflow, Play, Loader2, User, Frame, Mountain, Shirt, Wand2, PersonStanding,
+  Workflow, Play, Loader2, User, Frame, Mountain, Shirt, Wand2, PersonStanding, Zap,
   Image as ImageIcon, Video, Braces, RefreshCw, Save, Trash2, Copy, Plus,
   Upload, X, Dices, CheckCircle2, XCircle, Clock, ExternalLink, Settings2,
   Layers, Server, FileJson, History, Sparkles, ChevronDown, AlertTriangle, Power,
@@ -562,6 +562,117 @@ export default function ComfyUiConsole() {
       );
     } catch {
       toast.error('提示词优化请求失败');
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const [idFraming, setIdFraming] = useState<'waist-up' | 'close-up'>('waist-up');
+
+  /** 一键生成：自动补身份参考 + 提示词，直接提交当前工作流 */
+  const handleOneClickGenerate = async () => {
+    const wf = activeWf;
+    if (!wf) {
+      toast.error('请先选择工作流');
+      return;
+    }
+    const params: Any = { ...form };
+    const schema = (wf.params_schema || []) as Any[];
+    const refTarget = schema.find(
+      (f) => f.key === 'ip_adapter_image' || f.key === 'input_image' || f.key === 'image',
+    );
+    if (refTarget) {
+      const ref =
+        String(params[refTarget.key] || '').trim() ||
+        String(
+          girlfriend?.face_reference_url ||
+            girlfriend?.portrait_url ||
+            girlfriend?.avatar_url ||
+            girlfriend?.image_url ||
+            '',
+        ).trim();
+      if (ref) params[refTarget.key] = ref;
+      else toast.warning('未找到伴侣身份参考图，已跳过（可先点「生成 ID 参考图」）');
+    }
+    if (!String(params.prompt || '').trim() && girlfriend?.description) {
+      params.prompt = String(girlfriend.description);
+    }
+    setSubmitting(true);
+    try {
+      const res = await authedFetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit',
+          workflow_key: wf.key,
+          params,
+          girlfriend_id: girlfriendId || undefined,
+        }),
+      });
+      const data = await readResponseJson<Any>(res);
+      if (!res.ok || data.error) {
+        toast.error(data.error || `提交失败 (HTTP ${res.status})`);
+        return;
+      }
+      toast.success('一键生成已提交，GPU 排队中…');
+      setActiveJob(data.job);
+      void pollUntilDone(String(data.job.id));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /** 生成 ID 参考图（半身/特写）：读取伴侣基础信息 → 角色提示词 → 参考图 */
+  const handleGenerateIdReference = async () => {
+    if (!girlfriend || !girlfriendId) {
+      toast.error('请先选择伴侣');
+      return;
+    }
+    setOptimizing(true);
+    try {
+      const g = girlfriend as Any;
+      const res = await authedFetch('/api/girlfriends/generate-portrait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: String(g.name || 'Companion'),
+          gender: String(g.gender || 'female'),
+          ethnicity: g.appearance_race || g.ethnicity || undefined,
+          face_shape: g.appearance_face || undefined,
+          hair_style: g.appearance_hair || undefined,
+          hair_color: g.appearance_hair_color || undefined,
+          eye_color: g.appearance_eyes || undefined,
+          body_type: g.appearance_body || undefined,
+          fashion_style: g.appearance_style || undefined,
+          skin_tone: g.appearance_skin || undefined,
+          visual_style: String(g.render_style || g.anime_render_style || 'realistic'),
+          appearance_prompt: String(g.description || '') || undefined,
+          personality: String(g.personality || '') || undefined,
+          framing: idFraming,
+          count: 1,
+        }),
+      });
+      const data = await readResponseJson<Any>(res);
+      if (!res.ok) {
+        toast.error(data.error || 'ID 参考图生成失败');
+        return;
+      }
+      const url = String(
+        data.imageUrl || data.portrait_url || data.url || data.image_url || '',
+      ).trim();
+      if (!url) {
+        toast.error('生成成功但未返回图片');
+        return;
+      }
+      const schema = ((activeWf?.params_schema || []) as Any[]);
+      const target = schema.find(
+        (f) => f.key === 'ip_adapter_image' || f.key === 'input_image' || f.key === 'image',
+      );
+      if (target) setField(String(target.key), url);
+      toast.success(`ID 参考图已生成（${idFraming === 'waist-up' ? '半身' : '特写'}）`);
+      void loadAll(true);
+    } catch {
+      toast.error('ID 参考图生成失败');
     } finally {
       setOptimizing(false);
     }
@@ -1227,6 +1338,30 @@ export default function ComfyUiConsole() {
               >
                 <ImageIcon className="h-3 w-3" /> 设肖像为人脸参考
               </Button>
+              <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setIdFraming('waist-up')}
+                  className={cn('h-6 rounded-full px-2 text-[10px] transition', idFraming === 'waist-up' ? 'bg-violet-500/25 text-violet-200' : 'text-slate-400 hover:text-white')}
+                >
+                  半身
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIdFraming('close-up')}
+                  className={cn('h-6 rounded-full px-2 text-[10px] transition', idFraming === 'close-up' ? 'bg-violet-500/25 text-violet-200' : 'text-slate-400 hover:text-white')}
+                >
+                  特写
+                </button>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 border-fuchsia-500/30 bg-fuchsia-500/10 text-[11px] text-fuchsia-200 hover:bg-fuchsia-500/20"
+                onClick={() => void handleGenerateIdReference()}
+              >
+                <ImageIcon className="h-3 w-3" /> 生成 ID 参考图
+              </Button>
               <button
                 type="button"
                 onClick={() => selectGirlfriend('')}
@@ -1455,6 +1590,13 @@ export default function ComfyUiConsole() {
                   )}
 
                   <div className="mt-4 flex items-center gap-2 border-t border-white/10 pt-3">
+                    <Button
+                      onClick={() => void handleOneClickGenerate()}
+                      disabled={submitting || !girlfriend}
+                      className="gap-1.5 bg-gradient-to-r from-[#FF2D78] to-[#A855F7] text-[12px] font-semibold hover:opacity-90"
+                    >
+                      <Zap className="h-4 w-4" /> 一键生成
+                    </Button>
                     <Button
                       onClick={handleSubmit}
                       disabled={submitting}
