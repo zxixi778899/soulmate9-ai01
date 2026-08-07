@@ -25,6 +25,27 @@ const FRAMING_OPTIONS = [
   { key: 'waist', zh: '半身', clause: 'waist-up framing, half-body portrait' },
   { key: 'close', zh: '特写', clause: 'close-up portrait framing, face focus' },
 ];
+
+/** 每个工作流独立保存参数面板（localStorage，按工作流 key 隔离） */
+const WORKFLOW_FORM_PREFIX = 'comfyui_form_';
+function loadWorkflowForm(key: string): { form?: Any; rawText?: string; rawValues?: Any } | null {
+  try {
+    const raw = localStorage.getItem(`${WORKFLOW_FORM_PREFIX}${key}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function saveWorkflowForm(key: string, form: Any, rawText: string, rawValues: Any): void {
+  try {
+    localStorage.setItem(
+      `${WORKFLOW_FORM_PREFIX}${key}`,
+      JSON.stringify({ form, rawText, rawValues, savedAt: Date.now() }),
+    );
+  } catch {
+    /* storage full / unavailable */
+  }
+}
 import {
   Workflow, Play, Loader2, User, Frame, Mountain, Shirt, Wand2, PersonStanding, Zap,
   Image as ImageIcon, Video, Braces, RefreshCw, Save, Trash2, Copy, Plus,
@@ -477,10 +498,16 @@ export default function ComfyUiConsole() {
   /** 选中工作流 → 重置表单 */
   useEffect(() => {
     if (!activeWf) return;
-    setForm(prefillPrompt(JSON.parse(JSON.stringify(activeWf.defaults || {}))));
-    const graph = activeWf.workflow_json || null;
-    setRawText(graph ? JSON.stringify(graph, null, 2) : '');
-    setRawValues({});
+    const defaults = JSON.parse(JSON.stringify(activeWf.defaults || {}));
+    const saved = activeKey ? loadWorkflowForm(activeKey) : null;
+    setForm(saved?.form ? { ...defaults, ...saved.form } : prefillPrompt(defaults));
+    if (saved?.rawText) {
+      setRawText(saved.rawText);
+    } else {
+      const graph = activeWf.workflow_json || null;
+      setRawText(graph ? JSON.stringify(graph, null, 2) : '');
+    }
+    setRawValues(saved?.rawValues || {});
     setShowAdvanced(false);
     setShowGraph(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -492,6 +519,13 @@ export default function ComfyUiConsole() {
     setForm((prev: Any) => prefillPrompt(prev || {}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [girlfriend]);
+
+  /** 每个工作流独立保存参数面板（localStorage） */
+  useEffect(() => {
+    if (!activeKey) return;
+    saveWorkflowForm(activeKey, form, rawText, rawValues);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, rawText, rawValues, activeKey]);
 
   const rawControls: RawControl[] = useMemo(() => {
     if (activeWf?.engine !== 'raw' || !rawText) return [];
@@ -1617,6 +1651,57 @@ export default function ComfyUiConsole() {
                     </div>
                   ) : (
                     <div className="space-y-3">
+                      {(() => {
+                        const wk = String(activeWf?.key || '');
+                        const faceRef = String(
+                          (girlfriend as Any)?.face_reference_url || (girlfriend as Any)?.portrait_url || '',
+                        ).trim();
+                        const setRef = () => {
+                          if (!faceRef) {
+                            toast.error('该伴侣暂无人脸参考图');
+                            return;
+                          }
+                          const schema = ((activeWf?.params_schema || []) as Any[]);
+                          const target = schema.find(
+                            (f) => f.key === 'ip_adapter_image' || f.key === 'input_image' || f.key === 'image',
+                          );
+                          if (target) setField(String(target.key), faceRef);
+                          toast.success('已填入 ID 参考图');
+                        };
+                        const bar: { hint: string; btn?: { label: string; onClick: () => void } } =
+                          wk === 'wf-character'
+                            ? { hint: '角色头像 / ID 参考图：生成半身或特写头像作为身份锚点，存入 ID 参考目录。' }
+                            : wk === 'wf-portrait'
+                              ? { hint: '立绘：ID 参考图控制人物，提示词控制画面内容；关键词自动触发对应 LoRA。', btn: { label: '填入 ID 参考图', onClick: setRef } }
+                              : wk === 'wf-scene'
+                                ? { hint: '空镜场景（无人物）：输出存入场景预设目录，供相册背景与卡片使用。' }
+                                : wk === 'wf-outfit'
+                                  ? { hint: '服装 / 道具（隐形模特）：输出存入服装目录，供商城调用。' }
+                                  : wk === 'wf-tryon'
+                                    ? { hint: '一键换装：ID 固定人物 + 提示词指定新服装 → 换装立绘。', btn: { label: '填入 ID 参考图', onClick: setRef } }
+                                    : wk === 'wf-pose'
+                                      ? { hint: '一键姿势：ID + 动作参考图 → 姿势立绘，自动存入伴侣相册。', btn: { label: '填入 ID 参考图', onClick: setRef } }
+                                      : wk === 'wf-bgswap'
+                                        ? { hint: '换背景：保留人物与服装，仅替换背景。', btn: { label: '填入 ID 参考图', onClick: setRef } }
+                                        : wk === 'wf-dynamic'
+                                          ? { hint: '动态工作流：输出存入公共资源库，供全站调用。' }
+                                          : { hint: '' };
+                        if (!bar.hint && !bar.btn) return null;
+                        return (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-500/20 bg-violet-500/[0.06] px-3 py-2">
+                            <span className="text-[11px] leading-relaxed text-violet-200/90">{bar.hint}</span>
+                            {bar.btn && (
+                              <button
+                                type="button"
+                                onClick={bar.btn.onClick}
+                                className="rounded-full border border-violet-400/40 bg-violet-500/15 px-2.5 py-1 text-[10px] font-medium text-violet-200 hover:bg-violet-500/25 active:scale-95 transition-all"
+                              >
+                                {bar.btn.label}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {mainFields.map(renderField)}
                       {advFields.length > 0 && (
                         <div>

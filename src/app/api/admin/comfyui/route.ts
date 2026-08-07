@@ -63,10 +63,29 @@ function girlfriendAssetRole(workflowKey: string): string {
       return 'character-art';
     case 'wf-scene':
       return 'scene';
+    case 'wf-outfit':
+      return 'outfit';
     case 'wf-pose':
       return 'pose-reference';
+    case 'wf-tryon':
+    case 'wf-bgswap':
+      return 'character-art';
     default:
       return 'album';
+  }
+}
+
+function workflowCategory(workflowKey: string): string {
+  switch (workflowKey) {
+    case 'wf-scene':
+      return 'scene';
+    case 'wf-outfit':
+      return 'outfit';
+    case 'wf-dynamic':
+    case 'raw':
+      return 'public';
+    default:
+      return 'photo';
   }
 }
 
@@ -951,6 +970,7 @@ export async function POST(req: NextRequest) {
                 comfyui_job_id: jobId,
                 media_kind: 'image',
                 asset_role: role,
+                category: workflowCategory(jobWorkflowKey),
               },
             });
           } else {
@@ -969,6 +989,35 @@ export async function POST(req: NextRequest) {
         if (assetErr) {
           assetWarning = assetErr.message;
           logger.warn('[comfyui] generation_assets insert failed', { err: assetErr.message });
+        }
+
+        // 同步到伴侣相册（仅照片类；场景/服装/公共不入相册），供聊天与资料页直接展示
+        const albumRows = assetRows
+          .filter((r) => {
+            const meta = r.meta && typeof r.meta === 'object'
+              ? r.meta as Record<string, unknown>
+              : {};
+            return String(meta.category || '') === 'photo' && Boolean(r.girlfriend_id);
+          })
+          .map((r) => ({
+            girlfriend_id: r.girlfriend_id,
+            category: 'photo',
+            media_type: 'image',
+            url: r.url,
+            visibility: 'private',
+            meta: {
+              source: 'comfyui_console',
+              workflow_key: jobWorkflowKey,
+              asset_role: girlfriendAssetRole(jobWorkflowKey),
+            },
+          }));
+        if (albumRows.length) {
+          const { error: albumErr } = await admin.supabase
+            .from('companion_assets')
+            .insert(albumRows);
+          if (albumErr) {
+            logger.warn('[comfyui] companion_assets sync failed', { err: albumErr.message });
+          }
         }
       }
       const patch: Record<string, unknown> = {
