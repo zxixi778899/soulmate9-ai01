@@ -18,6 +18,8 @@ export type PromptCategoryKey =
   | 'temperament'
   | 'skin'
   | 'accessory'
+  | 'prop'
+  | 'mood'
   | 'neg_quality'
   | 'neg_anatomy';
 
@@ -283,6 +285,49 @@ export const PROMPT_CATEGORY_PRESETS: PromptCategoryPreset[] = [
       { label: '戒指', text: 'elegant rings' },
     ],
   },
+  // ── 道具 ─────────────────────────────────────────────────
+  {
+    key: 'prop',
+    zh: '道具',
+    target: 'prompt',
+    items: [
+      { label: '玫瑰花束', text: 'holding a bouquet of red roses' },
+      { label: '雨伞', text: 'holding a translucent umbrella' },
+      { label: '吉他', text: 'playing an acoustic guitar' },
+      { label: '书本', text: 'holding an open book' },
+      { label: '咖啡杯', text: 'holding a warm coffee cup' },
+      { label: '红酒', text: 'holding a glass of red wine' },
+      { label: '手机', text: 'holding a smartphone' },
+      { label: '玩偶', text: 'hugging a plush teddy bear' },
+      { label: '花环', text: 'wearing a flower crown' },
+      { label: '扇子', text: 'holding a folding fan' },
+      { label: '相机', text: 'holding a vintage camera' },
+      { label: '麦克风', text: 'holding a microphone' },
+      { label: '武士刀', text: 'holding a katana' },
+      { label: '香槟', text: 'toasting with champagne glasses' },
+      { label: '宠物猫', text: 'cradling a fluffy cat' },
+    ],
+  },
+  // ── 气氛 ─────────────────────────────────────────────────
+  {
+    key: 'mood',
+    zh: '气氛',
+    target: 'prompt',
+    items: [
+      { label: '浪漫', text: 'romantic mood, soft intimate atmosphere' },
+      { label: '温馨', text: 'warm cozy atmosphere' },
+      { label: '神秘', text: 'mysterious atmosphere, soft haze' },
+      { label: '梦幻', text: 'dreamy ethereal atmosphere' },
+      { label: '治愈', text: 'soothing peaceful mood' },
+      { label: '暧昧', text: 'sensual charged atmosphere, teasing tension' },
+      { label: '惊悚', text: 'eerie unsettling atmosphere' },
+      { label: '欢快', text: 'cheerful lively mood' },
+      { label: '伤感', text: 'melancholic wistful mood' },
+      { label: '庄严', text: 'solemn majestic atmosphere' },
+      { label: '慵懒', text: 'lazy afternoon mood, relaxed calm' },
+      { label: '激情', text: 'passionate intense atmosphere' },
+    ],
+  },
   // ── 负向 · 画质 ──────────────────────────────────────────
   {
     key: 'neg_quality',
@@ -317,27 +362,41 @@ export const PROMPT_CATEGORY_PRESETS: PromptCategoryPreset[] = [
   },
 ];
 
-/** 各工作台分类优先级（key -> 分类顺序）；未命中的用默认顺序 */
-export const WORKFLOW_CATEGORY_ORDER: Record<string, PromptCategoryKey[]> = {
-  'wf-girlfriend': ['style', 'body', 'face', 'hairstyle', 'temperament', 'skin', 'accessory', 'outfit', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
-  'wf-character': ['style', 'body', 'face', 'hairstyle', 'temperament', 'skin', 'accessory', 'outfit', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
-  'wf-portrait': ['face', 'hairstyle', 'skin', 'temperament', 'body', 'style', 'outfit', 'lighting', 'background', 'action_nsfw', 'action_sfw'],
-  'wf-scene': ['background', 'lighting', 'style', 'outfit', 'body', 'face', 'hairstyle', 'action_sfw', 'action_nsfw'],
-  'wf-outfit': ['outfit', 'style', 'body', 'face', 'hairstyle', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
-  'wf-tryon': ['outfit', 'style', 'body', 'face', 'hairstyle', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
+/** 每个工作台调用对应的预设分类（key -> 分类顺序）；未命中的工作台用全部分类 */
+export const WORKFLOW_PRESET_SETS: Record<string, PromptCategoryKey[]> = {
+  // 生成伴侣 / 生成角色：预设主要集中外貌特征描述
+  'wf-girlfriend': ['style', 'body', 'face', 'hairstyle', 'temperament', 'skin', 'accessory', 'outfit', 'prop', 'lighting', 'background'],
+  'wf-character': ['style', 'body', 'face', 'hairstyle', 'temperament', 'skin', 'accessory', 'outfit', 'prop'],
+  // 生成立绘：预设主要描述画面 / 姿势 / 服装 / 道具 / 场景
+  'wf-portrait': ['style', 'action_sfw', 'action_nsfw', 'outfit', 'accessory', 'prop', 'background', 'lighting', 'mood', 'body', 'face', 'hairstyle', 'temperament', 'skin'],
+  // 生成场景：预设主要描述场景 / 气氛 / 灯光
+  'wf-scene': ['background', 'lighting', 'mood', 'style'],
+  // 生成服装 / 一键换装：预设主要描述服装 / 配饰 / 道具
+  'wf-outfit': ['outfit', 'accessory', 'prop', 'style', 'background', 'lighting'],
+  'wf-tryon': ['outfit', 'accessory', 'prop', 'style', 'background', 'lighting'],
+  // 一键姿势：预设主要描述动作（NSFW / SFW）与身材
   'wf-pose': ['action_nsfw', 'action_sfw', 'body', 'outfit', 'background', 'lighting', 'style'],
-  'wf-bgswap': ['background', 'lighting', 'style', 'outfit', 'body', 'face', 'hairstyle', 'action_sfw', 'action_nsfw'],
-  'wf-video': ['background', 'lighting', 'action_nsfw', 'action_sfw', 'body', 'style', 'outfit'],
+  // 一键换背景：预设主要描述背景 / 灯光 / 气氛
+  'wf-bgswap': ['background', 'lighting', 'mood', 'style'],
+  // 视频：预设主要描述动作 / 场景 / 气氛 / 灯光
+  'wf-video': ['action_sfw', 'action_nsfw', 'background', 'lighting', 'mood', 'style', 'outfit'],
 };
 
-/** 按工作台排序后的分类列表（默认顺序兜底） */
+/** 负向预设（画质 / 结构）任何工作台都保留 */
+const NEGATIVE_GROUP_KEYS: PromptCategoryKey[] = ['neg_quality', 'neg_anatomy'];
+
+/** 按工作台返回预设分类列表：每个工作台只调用对应的预设；负向分类始终保留 */
 export function orderCategories(wfKey?: string | null): PromptCategoryPreset[] {
-  const order = (wfKey && WORKFLOW_CATEGORY_ORDER[wfKey]) || null;
-  if (!order) return PROMPT_CATEGORY_PRESETS;
   const byKey = new Map(PROMPT_CATEGORY_PRESETS.map((g) => [g.key, g]));
-  const ordered = order
-    .map((k) => byKey.get(k))
-    .filter((g): g is PromptCategoryPreset => Boolean(g));
-  const rest = PROMPT_CATEGORY_PRESETS.filter((g) => !order.includes(g.key));
-  return [...ordered, ...rest];
+  const setKeys = (wfKey && WORKFLOW_PRESET_SETS[wfKey]) || null;
+  let keys: PromptCategoryKey[];
+  if (setKeys) {
+    keys = [...setKeys];
+    for (const k of NEGATIVE_GROUP_KEYS) {
+      if (!keys.includes(k) && byKey.has(k)) keys.push(k);
+    }
+  } else {
+    keys = PROMPT_CATEGORY_PRESETS.map((g) => g.key);
+  }
+  return keys.map((k) => byKey.get(k)).filter((g): g is PromptCategoryPreset => Boolean(g));
 }
