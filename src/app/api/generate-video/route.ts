@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Video generation submit failed' }, { status: 502 });
     }
 
-    const { id: jobId } = (await submitRes.json()) as { id: string };
+    let jobId = String(((await submitRes.json()) as { id?: string }).id || '');
     if (!jobId) {
       return NextResponse.json({ error: 'No job ID returned' }, { status: 502 });
     }
@@ -159,6 +159,7 @@ export async function POST(request: NextRequest) {
     // Poll for completion (max 150s under Vercel timeout)
     const pollIntervalMs = 3000;
     const maxAttempts = Math.floor(150_000 / pollIntervalMs);
+    let videoRetried = false;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise((r) => setTimeout(r, pollIntervalMs));
@@ -231,6 +232,45 @@ export async function POST(request: NextRequest) {
 
       if (status.status === 'FAILED') {
         const failMsg = status.error || 'Video generation failed';
+        // 稳定性：任务失败自动重提一次（换新 job），降低“抽卡”式失败
+        if (!videoRetried) {
+          videoRetried = true;
+          logger.warn('[generate-video] job failed, resubmitting once', {
+            jobId,
+            failMsg: failMsg.slice(0, 160),
+          });
+          let resubmitOk = false;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            const sres = await fetch(`${baseUrl}/run`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                input: {
+                  input_image: imagePayload,
+                  motion_bucket_id: motionBucketId,
+                  fps,
+                  num_frames: numFrames,
+                  decode_chunk_size: decodeChunkSize,
+                },
+              }),
+              signal: AbortSignal.timeout(15000),
+            });
+            if (sres.ok) {
+              const sj = (await sres.json().catch(() => ({}))) as { id?: string };
+              if (sj.id) {
+                jobId = sj.id;
+                resubmitOk = true;
+                break;
+              }
+            }
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+          if (resubmitOk) {
+            logger.info('[generate-video] resubmitted', { jobId });
+            attempt = -1;
+            continue;
+          }
+        }
         const gpuBusy = isGpuCapacityError(failMsg);
         // Auto-refund the video cost on failure.
         await grantCredits(client, user.id, videoCost, 'refund', jobId).catch(() => {});

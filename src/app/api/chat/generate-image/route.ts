@@ -82,6 +82,20 @@ function membershipFromProfile(profile: Record<string, unknown> | null): Members
   return 'free';
 }
 
+/** 稳定性：生图首次失败自动换种子重试一次，降低“抽卡”式失败率 */
+async function routeImageGenerationWithRetry(
+  opts: Parameters<typeof routeImageGeneration>[0],
+) {
+  try {
+    return await routeImageGeneration(opts);
+  } catch (firstErr) {
+    logger.warn('[chat-generate-image] attempt 1 failed, retrying once with a fresh seed', {
+      err: firstErr instanceof Error ? firstErr.message : String(firstErr),
+    });
+    return routeImageGeneration({ ...opts, seed: Math.floor(Math.random() * 2 ** 32) });
+  }
+}
+
 export async function POST(request: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(request);
   if (!user || !client) {
@@ -492,7 +506,7 @@ export async function POST(request: NextRequest) {
 
     // --- Unified multi-provider image router (RunPod → fal.ai failover) ---
     const requestedProvider = String((body as { provider?: string }).provider || '') as ImageProvider | '';
-    const routerResult = await routeImageGeneration({
+    const routerResult = await routeImageGenerationWithRetry({
       prompt,
       negative_prompt: negativePrompt,
       width: generationRoute.width || sceneCfg.width || 704,
