@@ -526,6 +526,20 @@ export default function ComfyUiConsole() {
       }
       await sleep(4000);
     }
+    // 12 分钟轮询预算耗尽仍无最终状态：明确标记失败，避免任务永远“生成中”。
+    try {
+      const res = await authedFetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'fail_timeout', job_id: jobId }),
+      });
+      const data = await readResponseJson<Any>(res);
+      if (data?.job) setActiveJob(data.job);
+      toast.error('生成超时，任务已标记失败，请重新生成');
+      void refreshJobs();
+    } catch {
+      /* ignore */
+    }
   }, [refreshJobs, loadAll]);
 
   const [optimizing, setOptimizing] = useState(false);

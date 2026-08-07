@@ -31,6 +31,13 @@ interface UserStats {
   companionCount: number;
   createdCompanions: number;
   checkinStreak: number;
+  proactiveMessages: number;
+  questsCompleted: number;
+  communityFollows: number;
+  communityFans: number;
+  publishedWorks: number;
+  nsfwFlaggedMessages: number;
+  memoriesCreated: number;
 }
 
 type SupabaseLike = {
@@ -231,6 +238,34 @@ export async function checkAchievements(
       q.eq('user_id', userId).gte('level', 6),
     );
 
+    const proactiveMessagesPromise = safeCount(supabase, 'chat_messages', (q) =>
+      q.eq('user_id', userId).eq('is_proactive', true),
+    );
+
+    const questsCompletedPromise = safeCount(supabase, 'daily_quest_claims', (q) =>
+      q.eq('user_id', userId),
+    );
+
+    const communityFollowsPromise = safeCount(supabase, 'user_follows', (q) =>
+      q.eq('follower_id', userId),
+    );
+
+    const communityFansPromise = safeCount(supabase, 'user_follows', (q) =>
+      q.eq('followee_id', userId),
+    );
+
+    const publishedWorksPromise = safeCount(supabase, 'girlfriends', (q) =>
+      q.eq('user_id', userId).eq('is_public', true).eq('review_status', 'approved'),
+    );
+
+    const nsfwFlaggedMessagesPromise = safeCount(supabase, 'chat_messages', (q) =>
+      q.eq('user_id', userId).eq('content_nsfw_flagged', true),
+    );
+
+    const memoriesPromise = safeCount(supabase, 'memories', (q) =>
+      q.eq('user_id', userId),
+    );
+
     const achievementsPromise = supabase
       .from('achievements')
       .select('*')
@@ -254,6 +289,13 @@ export async function checkAchievements(
       ssrCompanions,
       companionsIntimacy5,
       companionsIntimacy6,
+      proactiveMessages,
+      questsCompleted,
+      communityFollows,
+      communityFans,
+      publishedWorks,
+      nsfwFlaggedMessages,
+      memoriesCreated,
       achievementResult,
     ] = await Promise.all([
       msgCountPromise,
@@ -273,6 +315,13 @@ export async function checkAchievements(
       ssrCompanionsPromise,
       companionsIntimacy5Promise,
       companionsIntimacy6Promise,
+      proactiveMessagesPromise,
+      questsCompletedPromise,
+      communityFollowsPromise,
+      communityFansPromise,
+      publishedWorksPromise,
+      nsfwFlaggedMessagesPromise,
+      memoriesPromise,
       achievementsPromise,
     ]);
 
@@ -298,6 +347,13 @@ export async function checkAchievements(
       companionCount,
       createdCompanions,
       checkinStreak: Number(profileRow?.checkin_streak || 0),
+      proactiveMessages,
+      questsCompleted,
+      communityFollows,
+      communityFans,
+      publishedWorks,
+      nsfwFlaggedMessages,
+      memoriesCreated,
     };
 
     let allAchievements = achievementResult?.data || [];
@@ -386,6 +442,27 @@ export async function checkAchievements(
           break;
         case 'companions_intimacy_6':
           currentProgress = stats.companionsIntimacy6;
+          break;
+        case 'proactive_messages':
+          currentProgress = stats.proactiveMessages;
+          break;
+        case 'quests_completed':
+          currentProgress = stats.questsCompleted;
+          break;
+        case 'community_follows':
+          currentProgress = stats.communityFollows;
+          break;
+        case 'community_fans':
+          currentProgress = stats.communityFans;
+          break;
+        case 'published_works':
+          currentProgress = stats.publishedWorks;
+          break;
+        case 'nsfw_flagged_messages':
+          currentProgress = stats.nsfwFlaggedMessages;
+          break;
+        case 'memories_created':
+          currentProgress = stats.memoriesCreated;
           break;
         default:
           currentProgress = 0;

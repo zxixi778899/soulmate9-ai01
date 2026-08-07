@@ -398,6 +398,19 @@ export async function GET(req: NextRequest) {
 
   if (view === 'jobs') {
     const limit = Math.min(Number(new URL(req.url).searchParams.get('limit') || 60), 200);
+    // Stale-job recovery: IN_PROGRESS/IN_QUEUE jobs untouched for 20+ min are
+    // treated as lost (RunPod may purge the job) and auto-failed so the UI
+    // never shows a forever-spinning generation.
+    const staleCutoff = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+    await admin.supabase
+      .from('comfyui_jobs')
+      .update({
+        status: 'FAILED',
+        error: '生成超时：任务超过 20 分钟未完成（RunPod 任务可能已丢失），请重新生成。',
+        updated_at: new Date().toISOString(),
+      })
+      .in('status', ['IN_PROGRESS', 'IN_QUEUE'])
+      .lt('updated_at', staleCutoff);
     const { data, error } = await admin.supabase
       .from('comfyui_jobs')
       .select('*')
@@ -1012,6 +1025,25 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 取消任务 ─────────────────────────────────────────────────
+  if (action === 'fail_timeout') {
+    const jobId = String(body.job_id || '').trim();
+    const { data: row } = await admin.supabase
+      .from('comfyui_jobs')
+      .select('*')
+      .eq('id', jobId)
+      .maybeSingle();
+    if (!row) return NextResponse.json({ error: '任务不存在' }, { status: 404 });
+    await admin.supabase
+      .from('comfyui_jobs')
+      .update({
+        status: 'FAILED',
+        error: '生成超时：超过 12 分钟未完成，请重新生成。',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', jobId);
+    return NextResponse.json({ success: true });
+  }
+
   if (action === 'cancel') {
     const jobId = String(body.job_id || '').trim();
     const { data: row } = await admin.supabase
