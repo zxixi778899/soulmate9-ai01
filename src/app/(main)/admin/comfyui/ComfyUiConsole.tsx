@@ -18,6 +18,13 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { PROMPT_PRESETS, type PromptPreset } from '@/lib/comfyui-console/prompt-presets-full';
+
+/** 取景按钮：写入提示词，随表单独立调用（每个工作流独立，非全局） */
+const FRAMING_OPTIONS = [
+  { key: 'full', zh: '全身', clause: 'full-body shot, complete head to toe in frame' },
+  { key: 'waist', zh: '半身', clause: 'waist-up framing, half-body portrait' },
+  { key: 'close', zh: '特写', clause: 'close-up portrait framing, face focus' },
+];
 import {
   Workflow, Play, Loader2, User, Frame, Mountain, Shirt, Wand2, PersonStanding, Zap,
   Image as ImageIcon, Video, Braces, RefreshCw, Save, Trash2, Copy, Plus,
@@ -453,11 +460,16 @@ export default function ComfyUiConsole() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [girlfriendId]);
 
-  /** 用伴侣描述预填 prompt 字段 */
+  /** 用伴侣基础信息预填 prompt：描述 + 性别 + 风格 */
   const prefillPrompt = useCallback((base: Any): Any => {
-    const desc = String(girlfriendRef.current?.description || '').trim();
+    const g = (girlfriendRef.current || {}) as Any;
+    const desc = String(g.description || '').trim();
     if (desc && typeof base.prompt === 'string' && !base.prompt.trim()) {
-      return { ...base, prompt: desc };
+      const genderRaw = String(g.gender || '').toLowerCase();
+      const gender = /male|男/.test(genderRaw) ? 'male' : /trans|跨/.test(genderRaw) ? 'transgender' : 'female';
+      const style = String(g.render_style || g.anime_render_style || g.visual_style || 'realistic').trim();
+      const baseInfo = [gender, style].filter(Boolean);
+      return { ...base, prompt: `${desc}${baseInfo.length ? `, ${baseInfo.join(', ')}` : ''}` };
     }
     return base;
   }, []);
@@ -935,6 +947,23 @@ export default function ComfyUiConsole() {
       return { ...prev, prompt: cur ? `${cur}, ${text}` : text };
     });
   };
+  /** 取景（全身/半身/特写）：写入提示词，随表单独立调用 */
+  const setFraming = (fm: { key: string; zh: string; clause: string }) => {
+    setForm((prev: Any) => {
+      const cur = String(prev.prompt || '').trim();
+      if (prev.framing === fm.key) {
+        return {
+          ...prev,
+          framing: undefined,
+          prompt: cur
+            ? cur.replace(fm.clause, '').replace(/,\s*,/g, ',').replace(/^\s*,\s*|\s*,\s*$/g, '').trim()
+            : cur,
+        };
+      }
+      return { ...prev, framing: fm.key, prompt: cur ? `${cur}, ${fm.clause}` : fm.clause };
+    });
+  };
+
   /** 导入预设：JSON [{label,text,nsfw}] 或 txt（label|英文提示词） */
   const importPresets = async (file: File) => {
     const text = await file.text();
@@ -1085,6 +1114,25 @@ export default function ComfyUiConsole() {
                     if (file) void importPresets(file);
                   }}
                 />
+              </div>
+              {/* 取景：全身 / 半身 / 特写（放到提示词上方，随表单独立） */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-slate-500">取景</span>
+                {FRAMING_OPTIONS.map((fm) => (
+                  <button
+                    key={fm.key}
+                    type="button"
+                    onClick={() => setFraming(fm)}
+                    className={cn(
+                      'inline-flex h-7 items-center rounded-full border px-2.5 text-[10px] transition active:scale-95',
+                      form.framing === fm.key
+                        ? 'border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-200'
+                        : 'border-white/10 bg-white/[0.04] text-slate-400 hover:text-white',
+                    )}
+                  >
+                    {fm.zh}
+                  </button>
+                ))}
               </div>
               </>
             ) : (

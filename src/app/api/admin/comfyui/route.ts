@@ -8,7 +8,7 @@ import {
   type ConsoleWorkflowPreset,
 } from '@/lib/comfyui-console/console-presets';
 import { validateRawGraph } from '@/lib/comfyui-console/workflow-controls';
-import { buildAutoLoraStack } from '@/lib/auto-lora';
+import { buildAutoLoraStack, buildKeywordLoras } from '@/lib/auto-lora';
 import { invokeChat } from '@/lib/ai-modules/invoke';
 import { loadAiModules } from '@/lib/ai-modules';
 import { pickImagePromptEndpoint, sanitizeLlmPrompt } from '@/lib/image-prompt-llm';
@@ -745,6 +745,24 @@ export async function POST(req: NextRequest) {
               style,
               ids: auto.map((p) => p.id),
             });
+          }
+
+          // 关键词触发 LoRA：提示词出现 内衣/泳装/乳胶/阴茎/肌肉/丰满/电影感 等自动补挂
+          const keywordPicks = buildKeywordLoras(prompt, cfg, [...getVerifiedInstalledLoraSet()]);
+          if (keywordPicks.length) {
+            const existingIds = new Set(
+              (Array.isArray(merged.loras) ? merged.loras : []).map((l) =>
+                String((l as Record<string, unknown>).id || ''),
+              ),
+            );
+            const extra = keywordPicks.filter((p) => !existingIds.has(p.id));
+            if (extra.length) {
+              merged.loras = [
+                ...(Array.isArray(merged.loras) ? merged.loras : []),
+                ...extra,
+              ].slice(0, 3);
+              logger.info('[comfyui] keyword lora stack', { ids: extra.map((p) => p.id) });
+            }
           }
         }
 

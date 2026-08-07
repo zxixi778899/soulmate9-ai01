@@ -86,3 +86,34 @@ export function buildAutoLoraStack(
     })
     .slice(0, 3);
 }
+
+/** 提示词关键词 → LoRA 自动触发（如 内衣/泳装/乳胶/阴茎/肌肉/丰满/电影感）。 */
+const KEYWORD_LORA_RULES: Array<{ id: string; re: RegExp }> = [
+  { id: 'flux-outfit-lingerie-v1', re: /lingerie|bra|panties|内衣|情趣|蕾丝|吊带|睡衣/i },
+  { id: 'flux-outfit-bikini-v1', re: /bikini|swim|泳装|比基尼|泳衣/i },
+  { id: 'flux-outfit-latex-v1', re: /latex|rubber|乳胶|皮衣|皮裤/i },
+  { id: 'flux-pose-nsfw-dynamic-v1', re: /dick|penis|cock|penetrat|anal|oral|creampie|facial|doggy|missionary|鸡巴|阴茎|肉棒|插入|后入|口交|肛交/i },
+  { id: 'flux-male-muscle-v1', re: /muscle|六块腹肌|肌肉/i },
+  { id: 'flux-body-curvy-v1', re: /curvy|丰满|曲线|巨乳|大胸/i },
+  { id: 'flux-body-pear-v1', re: /pear|梨形|蜜桃臀/i },
+  { id: 'flux-style-cinematic-v1', re: /cinematic|电影感|夜景|霓虹|氛围光/i },
+];
+
+export function buildKeywordLoras(
+  prompt: string,
+  cfg: AutoConfig,
+  installed?: Array<string | null | undefined>,
+): LoraAutoPick[] {
+  const installedSet = new Set(
+    (installed ?? cfg.installed_loras ?? []).map((f) => String(f || '')),
+  );
+  const out: LoraAutoPick[] = [];
+  for (const rule of KEYWORD_LORA_RULES) {
+    if (!rule.re.test(prompt || '')) continue;
+    const entry = cfg.loras.find((l) => l.id === rule.id);
+    if (entry?.filename && installedSet.has(entry.filename)) {
+      out.push({ id: rule.id, strength: 0.35 });
+    }
+  }
+  return out.slice(0, 3);
+}
