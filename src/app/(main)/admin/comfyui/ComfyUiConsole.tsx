@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { PROMPT_PRESETS } from '@/lib/comfyui-console/prompt-presets';
+import { PROMPT_PRESETS, type PromptPreset } from '@/lib/comfyui-console/prompt-presets-full';
 import {
   Workflow, Play, Loader2, User, Frame, Mountain, Shirt, Wand2, PersonStanding,
   Image as ImageIcon, Video, Braces, RefreshCw, Save, Trash2, Copy, Plus,
@@ -798,13 +798,47 @@ export default function ComfyUiConsole() {
   };
 
   const [presetValue, setPresetValue] = useState('');
-  /** 预设只追加、不覆盖：中文选择 → 英文自然语言追加到提示词 */
+  const [presetMode, setPresetMode] = useState<'append' | 'replace'>('append');
+  const [importedPresets, setImportedPresets] = useState<PromptPreset[]>([]);
+  const presetFileRef = useRef<HTMLInputElement>(null);
+  /** 预设：追加模式拼到末尾；独立模式完整替换 */
   const applyPreset = (text: string) => {
     if (!text) return;
     setForm((prev: Any) => {
+      if (presetMode === 'replace') return { ...prev, prompt: text };
       const cur = String(prev.prompt || '').trim();
       return { ...prev, prompt: cur ? `${cur}, ${text}` : text };
     });
+  };
+  /** 导入预设：JSON [{label,text,nsfw}] 或 txt（label|英文提示词） */
+  const importPresets = async (file: File) => {
+    const text = await file.text();
+    let items: PromptPreset[] = [];
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        items = parsed
+          .filter((p) => p && typeof p.label === 'string' && typeof p.text === 'string')
+          .map((p) => ({ label: String(p.label), text: String(p.text), nsfw: Boolean(p.nsfw) }));
+      }
+    } catch {
+      items = text
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => {
+          const sep = l.indexOf('|');
+          if (sep <= 0) return null;
+          return { label: l.slice(0, sep).trim(), text: l.slice(sep + 1).trim(), nsfw: /nsfw/i.test(l.slice(0, sep)) };
+        })
+        .filter((x): x is PromptPreset => Boolean(x));
+    }
+    if (items.length) {
+      setImportedPresets((prev) => [...prev, ...items]);
+      toast.success(`已导入 ${items.length} 个预设`);
+    } else {
+      toast.error('预设文件格式无效（JSON 数组或 label|prompt 每行一个）');
+    }
   };
 
   /** 表单字段渲染 */
@@ -816,6 +850,7 @@ export default function ComfyUiConsole() {
         return (
           <div className="space-y-1.5" key={f.key}>
             {f.key === 'prompt' && activeWf?.engine !== 'raw' ? (
+              <>
               <div className="flex items-center justify-between gap-2">
                 <FieldLabel field={f} />
                 <div className="flex items-center gap-1.5">
@@ -832,7 +867,7 @@ export default function ComfyUiConsole() {
                     <SelectContent className="border-white/10 bg-[#16161f] text-slate-200 max-h-80">
                       <SelectGroup>
                         <SelectLabel className="text-[10px] text-violet-400">SFW · 场景 / 画质</SelectLabel>
-                        {PROMPT_PRESETS.filter((p) => !p.nsfw).map((p) => (
+                        {[...PROMPT_PRESETS, ...importedPresets].filter((p) => !p.nsfw).map((p) => (
                           <SelectItem key={p.label} value={p.text} className="text-[11px]">
                             {p.label}
                           </SelectItem>
@@ -840,7 +875,7 @@ export default function ComfyUiConsole() {
                       </SelectGroup>
                       <SelectGroup>
                         <SelectLabel className="text-[10px] text-rose-400">NSFW · 性爱 / 姿势</SelectLabel>
-                        {PROMPT_PRESETS.filter((p) => p.nsfw).map((p) => (
+                        {[...PROMPT_PRESETS, ...importedPresets].filter((p) => p.nsfw).map((p) => (
                           <SelectItem key={p.label} value={p.text} className="text-[11px]">
                             {p.label}
                           </SelectItem>
@@ -863,6 +898,70 @@ export default function ComfyUiConsole() {
                 </button>
                 </div>
               </div>
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <Select
+                  value={String(form.gender || 'female')}
+                  onValueChange={(v) => setForm((prev: Any) => ({ ...prev, gender: v }))}
+                >
+                  <SelectTrigger className="h-7 w-[104px] border-white/15 bg-white/5 text-[10px] text-slate-200">
+                    <SelectValue placeholder="性别" />
+                  </SelectTrigger>
+                  <SelectContent className="border-white/10 bg-[#16161f] text-slate-200">
+                    <SelectItem value="female">女性</SelectItem>
+                    <SelectItem value="male">男性</SelectItem>
+                    <SelectItem value="transgender">跨性别</SelectItem>
+                    <SelectItem value="femboy">伪娘</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(form.render_style || 'realistic')}
+                  onValueChange={(v) => setForm((prev: Any) => ({ ...prev, render_style: v }))}
+                >
+                  <SelectTrigger className="h-7 w-[104px] border-white/15 bg-white/5 text-[10px] text-slate-200">
+                    <SelectValue placeholder="风格" />
+                  </SelectTrigger>
+                  <SelectContent className="border-white/10 bg-[#16161f] text-slate-200">
+                    <SelectItem value="realistic">写实</SelectItem>
+                    <SelectItem value="anime">二次元</SelectItem>
+                    <SelectItem value="3d">3D</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setPresetMode('append')}
+                    className={cn('h-6 rounded-full px-2 text-[10px] transition', presetMode === 'append' ? 'bg-violet-500/25 text-violet-200' : 'text-slate-400 hover:text-white')}
+                  >
+                    追加
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetMode('replace')}
+                    className={cn('h-6 rounded-full px-2 text-[10px] transition', presetMode === 'replace' ? 'bg-violet-500/25 text-violet-200' : 'text-slate-400 hover:text-white')}
+                  >
+                    独立
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => presetFileRef.current?.click()}
+                  className="inline-flex h-7 items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 text-[10px] text-slate-300 hover:text-white active:scale-95 transition-all"
+                >
+                  <Upload className="h-3 w-3" /> 导入预设
+                </button>
+                <input
+                  ref={presetFileRef}
+                  type="file"
+                  accept=".json,.txt"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (file) void importPresets(file);
+                  }}
+                />
+              </div>
+              </>
             ) : (
               <FieldLabel field={f} />
             )}
