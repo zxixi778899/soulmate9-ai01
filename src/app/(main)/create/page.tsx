@@ -29,6 +29,16 @@ import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
+import type { TranslationKey } from '@/lib/i18n/types';
+
+/** 捏脸立绘内容级别 1-5（SFW → NSFW）对应的 i18n key */
+const CONTENT_LEVEL_KEYS: Record<number, TranslationKey> = {
+  1: 'create.contentLevel1',
+  2: 'create.contentLevel2',
+  3: 'create.contentLevel3',
+  4: 'create.contentLevel4',
+  5: 'create.contentLevel5',
+};
 import { companionScore, type Rarity } from '@/lib/rarity';
 import { CreateSuccessModal, type CreatedCompanionReveal } from '@/components/creator/CreateSuccessModal';
 import type { CreatorPreset } from '@/lib/creator-presets';
@@ -154,6 +164,8 @@ export default function CreatePage() {
 
   // Steps: info → portrait
   const [step, setStep] = useState<'info' | 'portrait'>('info');
+  /** 立绘内容级别：1-5 全部支持（默认 1 = SFW，捏脸不锁定 NSFW） */
+  const [nsfwLevel, setNsfwLevel] = useState(1);
 
   // Data from backend
   const [presets, setPresets] = useState<CreatorPreset[]>([]);
@@ -319,7 +331,8 @@ export default function CreatePage() {
     skin_tone: partPrompt('skin_tone', skinTone) || undefined,
     // Preset cache: only when the look still matches the preset exactly
     preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
-  }), [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, partPrompt, skinTone, selectedPreset]);
+    nsfw_level: nsfwLevel,
+  }), [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, partPrompt, skinTone, selectedPreset, nsfwLevel]);
 
   const pollJob = useCallback(async (jobId: string, endpointId?: string): Promise<string | null> => {
     for (let i = 0; i < 80; i++) {
@@ -334,7 +347,7 @@ export default function CreatePage() {
     return null;
   }, []);
 
-  const runBatch = useCallback(async () => {
+  const runBatch = useCallback(async (level?: number) => {
     const run = ++batchRun.current;
     setBatchRunning(true);
     setError(null);
@@ -344,7 +357,7 @@ export default function CreatePage() {
       const res = await authedFetch('/api/girlfriends/generate-portrait', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...portraitRequestBody(), count: SLOT_COUNT }),
+        body: JSON.stringify({ ...portraitRequestBody(), count: SLOT_COUNT, ...(level ? { nsfw_level: level } : {}) }),
       });
       const data = await readResponseJson<PortraitBatchResponse>(res);
       if (batchRun.current !== run) return;
@@ -1033,6 +1046,30 @@ export default function CreatePage() {
                         ? (t('create.tapFavoriteToFinish'))
                         : (t('create.pickWhenReady'))}
                   </p>
+                </div>
+
+                {/* 内容级别 1-5：SFW → NSFW 全部支持（默认 1 = SFW） */}
+                <div className="mb-4 flex flex-wrap items-center justify-center gap-1.5">
+                  <span className="text-[11px] font-medium text-white/40">{t('create.contentLevel')}</span>
+                  {[1, 2, 3, 4, 5].map((lv) => (
+                    <button
+                      key={lv}
+                      type="button"
+                      disabled={batchRunning}
+                      onClick={() => {
+                        setNsfwLevel(lv);
+                        if (slots.some((s) => s.status === 'ready' || s.status === 'error')) void runBatch(lv);
+                      }}
+                      className={cn(
+                        'rounded-full border px-2.5 py-1 text-[11px] transition disabled:opacity-40',
+                        nsfwLevel === lv
+                          ? 'border-[#FF2D78]/60 bg-[#FF2D78]/15 text-white shadow-[0_0_12px_rgba(255,45,120,0.25)]'
+                          : 'border-white/10 bg-white/[0.04] text-white/50 hover:text-white',
+                      )}
+                    >
+                      {lv} · {t(CONTENT_LEVEL_KEYS[lv])}
+                    </button>
+                  ))}
                 </div>
 
                 {/* 4 portrait cards — first row side by side on desktop */}

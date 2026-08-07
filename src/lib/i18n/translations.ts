@@ -1278,6 +1278,12 @@ export const en = {
   'create.voicePreviewLoading': 'Generating…',
   'create.voiceSelected': 'Selected',
   'create.voiceSkip': 'Skip (default)',
+  'create.contentLevel': 'Content level',
+  'create.contentLevel1': 'SFW · Clothed',
+  'create.contentLevel2': 'Lingerie',
+  'create.contentLevel3': 'Nude',
+  'create.contentLevel4': 'Solo',
+  'create.contentLevel5': 'Sex',
 };
 
 const zh: Record<string, string> = {
@@ -2547,6 +2553,12 @@ const zh: Record<string, string> = {
   'create.voicePreviewLoading': '生成中…',
   'create.voiceSelected': '已选',
   'create.voiceSkip': '跳过（默认）',
+  'create.contentLevel': '内容级别',
+  'create.contentLevel1': 'SFW · 穿着',
+  'create.contentLevel2': '内衣',
+  'create.contentLevel3': '全裸',
+  'create.contentLevel4': '自慰',
+  'create.contentLevel5': '性爱',
 };
 
 const ja: Record<string, string> = {
@@ -3416,6 +3428,12 @@ const ja: Record<string, string> = {
   'chat.gifts': '',
   // TODO(ja): translate
   'home.title': '',
+  'create.contentLevel': 'コンテンツレベル',
+  'create.contentLevel1': 'SFW · 着衣',
+  'create.contentLevel2': '下着',
+  'create.contentLevel3': 'ヌード',
+  'create.contentLevel4': 'ソロ',
+  'create.contentLevel5': '性行為',
 };
 
 const ko: Record<string, string> = {
@@ -4285,6 +4303,12 @@ const ko: Record<string, string> = {
   'chat.gifts': '',
   // TODO(ko): translate
   'home.title': '',
+  'create.contentLevel': '콘텐츠 수준',
+  'create.contentLevel1': 'SFW · 착의',
+  'create.contentLevel2': '란제리',
+  'create.contentLevel3': '누드',
+  'create.contentLevel4': '솔로',
+  'create.contentLevel5': '성행위',
 };
 
 const es: Record<string, string> = {
@@ -5154,6 +5178,12 @@ const es: Record<string, string> = {
   'chat.gifts': '',
   // TODO(es): translate
   'home.title': '',
+  'create.contentLevel': 'Nivel de contenido',
+  'create.contentLevel1': 'SFW · Vestido',
+  'create.contentLevel2': 'Lencería',
+  'create.contentLevel3': 'Desnudo',
+  'create.contentLevel4': 'Solo',
+  'create.contentLevel5': 'Sexo',
 };
 
 const fr: Record<string, string> = {
@@ -6023,6 +6053,12 @@ const fr: Record<string, string> = {
   'chat.gifts': '',
   // TODO(fr): translate
   'home.title': '',
+  'create.contentLevel': 'Niveau de contenu',
+  'create.contentLevel1': 'SFW · Habillé',
+  'create.contentLevel2': 'Lingerie',
+  'create.contentLevel3': 'Nu',
+  'create.contentLevel4': 'Solo',
+  'create.contentLevel5': 'Sexe',
 };
 
 const de: Record<string, string> = {
@@ -6892,6 +6928,12 @@ const de: Record<string, string> = {
   'chat.gifts': '',
   // TODO(de): translate
   'home.title': '',
+  'create.contentLevel': 'Inhaltsstufe',
+  'create.contentLevel1': 'SFW · Bekleidet',
+  'create.contentLevel2': 'Unterwäsche',
+  'create.contentLevel3': 'Nackt',
+  'create.contentLevel4': 'Solo',
+  'create.contentLevel5': 'Sex',
 };
 
 const translations: Record<string, Record<string, string>> = { en, zh, ja, ko, es, fr, de };

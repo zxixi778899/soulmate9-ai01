@@ -20,6 +20,9 @@ import {
   visualMatchesPreset,
 } from '@/lib/preset-portrait-cache';
 import { GIRLFRIEND_SCENE_RECIPES } from '@/lib/prompt/girlfriend';
+import { buildAutoLoraStack, buildKeywordLoras } from '@/lib/auto-lora';
+import { sanitizeLoraForVolume, getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
+import { translatePromptToEnglish } from '@/lib/prompt-translate';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -131,12 +134,19 @@ async function generateImage(input: {
   renderStyle: ReturnType<typeof normalizeCompanionRenderStyle>;
   endpointId?: string;
   referenceImage?: string;
+  /** NSFW 级别 1-5：捏脸系统不锁定，SFW/NSFW 均可生成 */
+  nsfwLevel?: number;
+  /** 每张图独立随机种子，避免 4 张完全相同 */
+  seed?: number;
+  /** 自动 LoRA 栈（已按运行卷校验） */
+  loras?: Array<{ name: string; strength_model: number; strength_clip: number }>;
 }): Promise<{ image?: string; jobId?: string; endpointId?: string; pending?: boolean }> {
+  const nsfwLevel = Math.max(1, Math.min(5, Math.round(Number(input.nsfwLevel) || 1)));
   const route = resolveImageGenerationRoute({
     surface: 'companion',
     category: input.category,
     renderStyle: input.renderStyle,
-    nsfwIntensity: 3,
+    nsfwIntensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
   });
   const result = await routeImageGeneration({
     prompt: input.prompt,
@@ -145,6 +155,7 @@ async function generateImage(input: {
     height: 1024,
     num_inference_steps: route.steps,
     guidance_scale: route.cfg,
+    seed: input.seed,
     ip_adapter_image: input.referenceImage,
     ip_adapter_weight: input.referenceImage ? 0.62 : undefined,
     ckpt_name: route.checkpoint,
@@ -154,7 +165,8 @@ async function generateImage(input: {
     model_family: route.modelFamily,
     force_provider: route.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2',
     endpoint_id: input.endpointId || route.endpointId || undefined,
-    nsfw: true,
+    nsfw: nsfwLevel >= 3,
+    loras: input.loras?.length ? input.loras : undefined,
   });
   if (result.pending) {
     return { jobId: result.job_id, endpointId: input.endpointId || route.endpointId || undefined, pending: true };
@@ -300,28 +312,39 @@ export async function POST(request: NextRequest) {
       renderStyle: body.render_style,
       animeRenderStyle: body.anime_render_style,
     });
+    // 捏脸系统取消 NSFW 锁定：支持 1-5 全部级别（默认 1 = SFW，传 nsfw_level/intensity 可生成任意级别）
+    const nsfwLevel = Math.max(1, Math.min(5, Math.round(Number(body.nsfw_level ?? body.intensity) || 1)));
     const config = await loadComfyConfig(client);
     const route = resolveImageGenerationRoute({
       surface: 'companion',
       category,
       renderStyle,
-      nsfwIntensity: 3,
+      nsfwIntensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
     });
     const referencePlan = buildReferenceGenerationPlan({
       surface: 'companion',
       category,
       renderStyle,
       modelFamily: route.modelFamily,
-      nsfwLevel: 3,
+      nsfwLevel,
       allowIdentity: false,
       controls: config.reference_control,
       assets: config.reference_assets || [],
     });
+    // 中文自由描述自动转英文（与后台控制台同一套翻译逻辑）
+    const translatedIdentity = await translatePromptToEnglish({
+      text: prompt,
+      intensity: nsfwLevel,
+      mode: 'positive',
+      supabase: client,
+      userId: user.id,
+    });
+    const finalIdentity = translatedIdentity || prompt;
     const naturalPrompt = buildStudioPromptEnhancement({
       category,
-      intensity: 3,
+      intensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
       animeStyle: renderStyle,
-      identity: prompt,
+      identity: finalIdentity,
       scene: [
         buildIdReferencePrompt(framing),
         ...referencePlan.promptHints,
@@ -329,19 +352,49 @@ export async function POST(request: NextRequest) {
     });
     const negativePrompt = studioNegativePrompt(category, renderStyle);
 
+    // 自动 LoRA：与后台一致（性别/风格固定组合 + 提示词关键词触发，仅用运行卷已验证文件）
+    const installedSet = [...getVerifiedInstalledLoraSet()];
+    const autoPicks = buildAutoLoraStack(config, body.gender, body.visual_style, nsfwLevel, installedSet);
+    const keywordPicks = buildKeywordLoras(finalIdentity + ', ' + naturalPrompt, config, installedSet);
+    const combinedPicks = [...autoPicks, ...keywordPicks];
+    const seenIds = new Set<string>();
+    const loraStack: Array<{ name: string; strength_model: number; strength_clip: number }> = [];
+    for (const p of combinedPicks) {
+      if (seenIds.has(p.id)) continue;
+      seenIds.add(p.id);
+      if (loraStack.length >= 3) break;
+      const asset = config.loras.find((l) => l.id === p.id);
+      if (!asset?.filename) continue;
+      const san = sanitizeLoraForVolume(asset.filename, { fallback: null, allowNull: true });
+      if (!san.lora_name) continue;
+      const strength = Math.min(1.5, Math.max(0, Number(p.strength ?? asset.default_strength ?? 0.7) || 0.7));
+      loraStack.push({ name: san.lora_name, strength_model: strength, strength_clip: strength });
+    }
+    const totalStrength = loraStack.reduce((s, l) => s + l.strength_model, 0);
+    const scale = totalStrength > 1.55 ? 1.55 / totalStrength : 1;
+    const normalizedLoras = loraStack.map((l) => ({
+      ...l,
+      strength_model: Number((l.strength_model * scale).toFixed(3)),
+      strength_clip: Number((l.strength_clip * scale).toFixed(3)),
+    }));
+
     // ── Batch path: N parallel jobs → N candidate portraits ──────────────
     if (count > 1) {
       logger.info('[Generate Portrait] Batch generating', {
         name, count, category, renderStyle, promptLen: naturalPrompt.length,
       });
       const jobs = await Promise.all(
-        Array.from({ length: count }, () =>
+        Array.from({ length: count }, (_, idx) =>
           generateImage({
             prompt: naturalPrompt,
             negativePrompt,
             category,
             renderStyle,
             endpointId: route.endpointId || undefined,
+            nsfwLevel,
+            // 每张图独立随机种子：拉高随机值，避免 4 张完全相同
+            seed: Math.floor(Math.random() * 2_147_483_647),
+            loras: normalizedLoras.length ? normalizedLoras : undefined,
           }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
         ),
       );
@@ -393,6 +446,9 @@ export async function POST(request: NextRequest) {
       category,
       renderStyle,
       endpointId: route.endpointId || undefined,
+      nsfwLevel,
+      seed: Math.floor(Math.random() * 2_147_483_647),
+      loras: normalizedLoras.length ? normalizedLoras : undefined,
     });
 
     // If still pending, return job_id for client-side polling
