@@ -12,23 +12,23 @@ type AutoConfig = {
 
 const AUTO_MATRIX: Record<string, LoraAutoPick[]> = {
   female: [
-    { id: 'flux-style-photoreal-v1', strength: 0.35 },
-    { id: 'flux-detail-skin-v1', strength: 0.25 },
+    { id: 'flux-style-photoreal-v1', strength: 0.28 },
+    { id: 'flux-detail-skin-v1', strength: 0.2 },
   ],
   male: [
-    { id: 'flux-male-masc-v1', strength: 0.4 },
-    { id: 'flux-detail-skin-v1', strength: 0.2 },
+    { id: 'flux-male-masc-v1', strength: 0.32 },
+    { id: 'flux-detail-skin-v1', strength: 0.18 },
   ],
   transgender: [
-    { id: 'flux-mtf-trans-v1', strength: 0.4 },
-    { id: 'flux-detail-skin-v1', strength: 0.2 },
+    { id: 'flux-mtf-trans-v1', strength: 0.32 },
+    { id: 'flux-detail-skin-v1', strength: 0.18 },
   ],
   femboy: [
-    { id: 'flux-femboy-v1', strength: 0.4 },
-    { id: 'flux-detail-skin-v1', strength: 0.2 },
+    { id: 'flux-femboy-v1', strength: 0.32 },
+    { id: 'flux-detail-skin-v1', strength: 0.18 },
   ],
-  anime: [{ id: 'flux-anime-v1', strength: 0.5 }],
-  '3d': [{ id: 'flux-3d-render-v1', strength: 0.5 }],
+  anime: [{ id: 'flux-anime-v1', strength: 0.45 }],
+  '3d': [{ id: 'flux-3d-render-v1', strength: 0.45 }],
 };
 
 export function resolveAutoGender(gender?: unknown): string {
@@ -71,12 +71,15 @@ export function buildAutoLoraStack(
   }
 
   const level = Math.max(1, Math.min(5, Math.round(Number(intensity) || 1)));
-  if (level >= 3) picks.push({ id: 'flux-lewd-v1', strength: 0.3 });
-  if (level >= 4) picks.push({ id: 'flux-pose-nsfw-dynamic-v1', strength: 0.45 });
+  // NSFW 只叠一个姿势/通用 LoRA，避免多 LoRA 叠加导致人体结构错误
+  if (level >= 4) picks.push({ id: 'flux-pose-nsfw-dynamic-v1', strength: 0.4 });
+  else if (level >= 3) picks.push({ id: 'flux-lewd-v1', strength: 0.25 });
 
   const installedSet = new Set((cfg.installed_loras || []).map((f) => String(f || '')));
-  return picks.filter((p) => {
-    const entry = cfg.loras.find((l) => l.id === p.id);
-    return Boolean(entry?.filename && installedSet.has(entry.filename));
-  });
+  return picks
+    .filter((p) => {
+      const entry = cfg.loras.find((l) => l.id === p.id);
+      return Boolean(entry?.filename && installedSet.has(entry.filename));
+    })
+    .slice(0, 3);
 }

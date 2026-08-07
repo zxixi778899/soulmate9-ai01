@@ -208,7 +208,12 @@ async function ensurePresetsSeeded(supabase: ReturnType<typeof getSupabaseClient
       const schema = Array.isArray(r.params_schema)
         ? (r.params_schema as Array<Record<string, unknown>>)
         : [];
-      return !schema.some((f) => f?.key === 'intensity');
+      const defaults = (r as { defaults?: Record<string, unknown> }).defaults || {};
+      const promptDefault = String(defaults.prompt || '');
+      return (
+        !schema.some((f) => f?.key === 'intensity') ||
+        !/natural skin texture/i.test(promptDefault)
+      );
     });
     if (existingKeys.size === presetKeys.size && !stale) return;
     const rows = CONSOLE_PRESETS.map((p) => ({
@@ -680,6 +685,13 @@ export async function POST(req: NextRequest) {
         if (!prompt) {
           return NextResponse.json({ error: '提示词不能为空' }, { status: 400 });
         }
+        // 全局去“蜡像 / AI 感”：只要提示词没带自然肤质，就强制追加自然感后缀
+        const finalPrompt = `${prompt}${
+          /natural skin texture/i.test(prompt)
+            ? ''
+            : ', natural skin texture with visible pores, subtle asymmetric imperfections, candid realistic expression, fine film grain, not airbrushed'
+        }, correct realistic anatomy, natural body proportions, well-formed hands and fingers, no extra limbs, coherent posture`;
+        merged.prompt = finalPrompt;
         const ckptName =
           String(merged.ckpt_name || '').trim() || 'flux1-dev-fp8.safetensors';
         const family = modelFamilyFromCheckpoint(ckptName);
@@ -760,7 +772,7 @@ export async function POST(req: NextRequest) {
         const schedulerRaw = String(merged.scheduler || 'simple');
 
         const result = await runpodClient.generate({
-          prompt,
+          prompt: finalPrompt,
           negative_prompt: String(merged.negative || '').trim() || undefined,
           width,
           height,

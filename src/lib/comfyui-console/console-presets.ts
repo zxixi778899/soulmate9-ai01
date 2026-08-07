@@ -53,10 +53,10 @@ const FLUX_NEG_BASE =
 
 /** 自然感正向补丁：降低“AI 味”，让脸部有辨识度 */
 const NATURAL_POSITIVE =
-  ', natural skin texture with visible pores, unique facial features, candid realistic expression, subtle asymmetric imperfections, editorial photography, fine film grain';
-/** 反“AI 脸”负向词：塑料感 / 千篇一律脸 */
+  ', natural skin texture with visible pores, subtle freckles and blemishes, soft subsurface scattering, natural color grading, candid realistic expression, subtle asymmetric imperfections, correct realistic anatomy, natural body proportions, well-formed hands and fingers, fine film grain, not airbrushed, editorial photography';
+/** 反“AI 脸”负向词：塑料感 / 蜡像 / 千篇一律脸 */
 const ANTI_AI_NEGATIVE =
-  ', plastic skin, airbrushed, doll-like, porcelain skin, generic face, same-face look, AI-generated look, oversmoothed, waxy, uncanny';
+  ', plastic skin, airbrushed, doll-like, porcelain skin, wax figure, mannequin, generic face, same-face look, AI-generated look, oversmoothed, waxy, uncanny, CGI render';
 
 const SAMPLER_OPTIONS = [
   { value: 'euler', label: 'euler（推荐）' },
@@ -241,7 +241,7 @@ export const CONSOLE_PRESETS: ConsoleWorkflowPreset[] = [
       negative: FLUX_NEG_BASE + ', child, underage' + ANTI_AI_NEGATIVE,
       width: 832,
       height: 1216,
-      steps: 34,
+      steps: 38,
       flux_guidance: 4,
       sampler: 'euler',
       scheduler: 'simple',
@@ -315,7 +315,7 @@ export const CONSOLE_PRESETS: ConsoleWorkflowPreset[] = [
       ip_adapter_weight: 0.75,
       width: 832,
       height: 1216,
-      steps: 34,
+      steps: 38,
       flux_guidance: 4,
       sampler: 'euler',
       scheduler: 'simple',
@@ -693,7 +693,7 @@ export const CONSOLE_PRESETS: ConsoleWorkflowPreset[] = [
       ip_adapter_weight: 0.8,
       width: 832,
       height: 1216,
-      steps: 32,
+      steps: 36,
       flux_guidance: 4,
       sampler: 'euler',
       scheduler: 'simple',
