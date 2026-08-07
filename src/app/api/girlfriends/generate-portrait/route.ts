@@ -157,7 +157,7 @@ async function generateImage(input: {
     guidance_scale: route.cfg,
     seed: input.seed,
     ip_adapter_image: input.referenceImage,
-    ip_adapter_weight: input.referenceImage ? 0.62 : undefined,
+    ip_adapter_weight: input.referenceImage ? 0.55 : undefined,
     ckpt_name: route.checkpoint,
     sampler_name: route.sampler,
     scheduler: route.scheduler,
