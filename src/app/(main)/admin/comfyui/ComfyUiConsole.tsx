@@ -15,8 +15,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { PROMPT_PRESETS } from '@/lib/comfyui-console/prompt-presets';
 import {
   Workflow, Play, Loader2, User, Frame, Mountain, Shirt, Wand2, PersonStanding,
   Image as ImageIcon, Video, Braces, RefreshCw, Save, Trash2, Copy, Plus,
@@ -527,6 +528,45 @@ export default function ComfyUiConsole() {
     }
   }, [refreshJobs, loadAll]);
 
+  const [optimizing, setOptimizing] = useState(false);
+  const optimizePrompt = async () => {
+    const wf = activeWf;
+    const prompt = String(form.prompt || '').trim();
+    if (!wf || !prompt) {
+      toast.error('请先填写提示词');
+      return;
+    }
+    setOptimizing(true);
+    try {
+      const res = await authedFetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'optimize_prompt',
+          prompt,
+          intensity: Number(form.intensity) || 1,
+          engine: wf.engine,
+          girlfriend_id: girlfriendId || undefined,
+        }),
+      });
+      const data = await readResponseJson<Any>(res);
+      if (!res.ok || data.error) {
+        toast.error(data.error || '提示词优化失败');
+        return;
+      }
+      setForm((prev: Any) => ({ ...prev, prompt: data.optimized }));
+      toast.success(
+        data.channel === 'nsfw'
+          ? `已用 ${data.model}（NSFW 路由）优化提示词`
+          : `已用 ${data.model} 优化提示词`,
+      );
+    } catch {
+      toast.error('提示词优化请求失败');
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const wf = activeWf;
     if (!wf) return;
@@ -614,7 +654,7 @@ export default function ComfyUiConsole() {
     toast.success(`已发送到「${target.name}」`);
   };
 
-  const useAsCurrentReference = (url: string) => {
+  const asCurrentReference = (url: string) => {
     const wf = activeWf;
     if (!wf) return;
     const schema = (wf.params_schema || []) as Any[];
@@ -757,6 +797,16 @@ export default function ComfyUiConsole() {
     setHealthResults((prev: Any) => ({ ...prev, [endpointId]: data }));
   };
 
+  const [presetValue, setPresetValue] = useState('');
+  /** 预设只追加、不覆盖：中文选择 → 英文自然语言追加到提示词 */
+  const applyPreset = (text: string) => {
+    if (!text) return;
+    setForm((prev: Any) => {
+      const cur = String(prev.prompt || '').trim();
+      return { ...prev, prompt: cur ? `${cur}, ${text}` : text };
+    });
+  };
+
   /** 表单字段渲染 */
   const renderField = (f: Any) => {
     const value = form[f.key];
@@ -765,7 +815,57 @@ export default function ComfyUiConsole() {
       case 'textarea':
         return (
           <div className="space-y-1.5" key={f.key}>
-            <FieldLabel field={f} />
+            {f.key === 'prompt' && activeWf?.engine !== 'raw' ? (
+              <div className="flex items-center justify-between gap-2">
+                <FieldLabel field={f} />
+                <div className="flex items-center gap-1.5">
+                  <Select
+                    value={presetValue}
+                    onValueChange={(v) => {
+                      applyPreset(v);
+                      setPresetValue('');
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-[132px] border-white/15 bg-white/5 text-[10px] text-violet-300">
+                      <SelectValue placeholder="预设模板 (20 SFW + 30 NSFW)" />
+                    </SelectTrigger>
+                    <SelectContent className="border-white/10 bg-[#16161f] text-slate-200 max-h-80">
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] text-violet-400">SFW · 场景 / 画质</SelectLabel>
+                        {PROMPT_PRESETS.filter((p) => !p.nsfw).map((p) => (
+                          <SelectItem key={p.label} value={p.text} className="text-[11px]">
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] text-rose-400">NSFW · 性爱 / 姿势</SelectLabel>
+                        {PROMPT_PRESETS.filter((p) => p.nsfw).map((p) => (
+                          <SelectItem key={p.label} value={p.text} className="text-[11px]">
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <button
+                    type="button"
+                    onClick={() => void optimizePrompt()}
+                  disabled={optimizing}
+                  className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-[10px] font-medium text-violet-300 hover:bg-violet-500/20 disabled:opacity-50 active:scale-95 transition-all"
+                >
+                  {optimizing ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3 w-3" />
+                  )}
+                  AI 优化提示词
+                </button>
+                </div>
+              </div>
+            ) : (
+              <FieldLabel field={f} />
+            )}
             {Array.isArray(f.chips) && f.chips.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {f.chips.map((c: Any) => (
@@ -1359,7 +1459,7 @@ export default function ComfyUiConsole() {
                             <button
                               type="button"
                               className="text-[10px] text-violet-400 hover:text-violet-300"
-                              onClick={() => useAsCurrentReference(url)}
+                              onClick={() => asCurrentReference(url)}
                             >
                               设为参考图
                             </button>
