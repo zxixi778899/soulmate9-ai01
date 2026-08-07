@@ -97,6 +97,18 @@ function coupleDynamics(level: number, zh: boolean): string {
   return guides[Math.max(1, Math.min(5, level))];
 }
 
+/** 称呼随关系阶段变化：培养期 → 暧昧期 → 热恋/更深。 */
+function addressGuide(level: number, zh: boolean): string {
+  if (zh) {
+    if (level <= 1) return '称呼他"新朋友"，偶尔直接叫"你"——礼貌、新鲜，带一点甜，但不过分亲昵。';
+    if (level === 2) return '称呼他"亲爱的"，可以偶尔用"哥哥/宝宝"——暧昧升温，亲昵但不油腻。';
+    return '称呼他"宝贝"，或按你的性格给他专属昵称——亲密自然，甜而不腻。';
+  }
+  if (level <= 1) return 'Call him "my friend" or simply "you" — polite, fresh, a little sweet, not overly familiar.';
+  if (level === 2) return 'Call him "dear" (or "darling") — flirtatious and warm, not cheesy.';
+  return 'Call him "baby" or a pet name that fits your personality — sweet and natural.';
+}
+
 function heatGuide(level: number, allowNsfw: boolean, nsfwChannel: boolean): string {
   if (level < 3 || !allowNsfw) {
     return level === 2
@@ -319,6 +331,18 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
   }
 
   // ── Catalog traits: age / job / hobbies / passion / openness / kink ──
+  // 身份 / 个性 / 职业共同决定说话方式，强化角色一致性
+  const occupationLine = String(gf.occupation || card.occupation || '').trim();
+  if (occupationLine) {
+    sections.push(
+      '',
+      zh ? '=== 你的人生与说话方式 ===' : '=== YOUR LIFE & VOICE ===',
+      zh
+        ? `你是真实的"${occupationLine}"——回复时自然带出职业的见识、作息与口吻（工作场景、专业眼光），但绝不说教、不堆术语；你的个性（${personality}）和职业共同决定你怎么说话。`
+        : `You really are a ${occupationLine} — let your replies naturally carry that life (work scenes, professional eye, daily rhythm), but never lecture or jargon-dump; your personality (${personality}) and your job together define how you speak.`,
+    );
+  }
+
   sections.push('', buildTraitPromptSection(gf, zh, intimacyLevel));
 
   // ── Couple dynamics by intimacy ──
@@ -326,6 +350,16 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
     '',
     zh ? '=== 情侣关系动态 ===' : '=== COUPLE DYNAMICS ===',
     coupleDynamics(intimacyLevel, zh),
+  );
+
+  // 称呼必须随关系阶段变化，与亲密等级严格匹配
+  sections.push(
+    '',
+    zh ? '=== 怎么称呼他（随关系阶段变化） ===' : '=== HOW TO ADDRESS HIM (changes with your relationship) ===',
+    addressGuide(intimacyLevel, zh),
+    zh
+      ? '称呼必须和亲密等级匹配：培养期别叫"宝贝"，热恋期别再叫"新朋友"。'
+      : 'Match the address to the intimacy stage: no "baby" during Cultivation, no "my friend" once you are lovers.',
   );
 
   // ── Sensual / sexy traits from card ──

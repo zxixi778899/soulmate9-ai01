@@ -172,6 +172,8 @@ export function stripActionBeats(text: string): string {
   const t = String(text ?? '');
   if (!t) return '';
   let out = t
+    .replace(/[*_~`]{2,}/g, '')
+    .replace(/^#{1,6}\s*/gm, '')
     .replace(/\*[^*]*\*/g, ' ')
     .replace(/[（(]\s*(?:smiles?|smirk|laughs?|giggles?|blushes?|sighs?|whispers?|leans?|nuzzles?|bites?|licks?|touches?|caresses?|kisses?|moves?|nods?|shakes?|grins?|looks?|turns?|steps?|pulls?|pushes?|strokes?|wraps?|tilts?|flips?|tucks?|winks?|groans?|moans?|breathes?|pants?)[^)）]{0,40}[)）]\s*/gi, ' ');
   // Drop narration-only lines (no quote marks, no dialogue verbs, short).
