@@ -18,7 +18,8 @@ import {
   buildImageActionFromChat,
   type ChatContextLine,
 } from '@/lib/chat-image-intent';
-import { getIntimacyGenerationPolicy, getIntimacyUnlockPayload } from '@/lib/intimacy-policy';
+import { getIntimacyGenerationPolicy } from '@/lib/intimacy-policy';
+import { buildIntimacyDowngradeReply } from '@/lib/intimacy-downgrade';
 import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
 import {
   buildStudioPromptEnhancement,
@@ -154,13 +155,11 @@ export async function POST(request: NextRequest) {
     const intimacyScore = Number(intimacyRow?.score || 0);
     const intimacyPolicy = getIntimacyGenerationPolicy(intimacyScore);
 
-    if (adultRequested && !intimacyPolicy.adultAllowed) {
-      return NextResponse.json({
-        error: zh ? '\u4eb2\u5bc6\u503c\u8fbe\u5230 300 \u540e\u89e3\u9501\u6210\u4eba\u804a\u5929\u4e0e\u751f\u56fe\u3002' : 'Reach 300 intimacy to unlock adult chat and image generation.',
-        code: 'intimacy_locked',
-        ...getIntimacyUnlockPayload(intimacyScore),
-      }, { status: 403 });
-    }
+    // 亲密值不足时不再报错：自动降级为 SFW 生成，并由伴侣回复解锁提示。
+    const intimacyDowngraded = adultRequested && !intimacyPolicy.adultAllowed;
+    const downgradeReply = intimacyDowngraded
+      ? buildIntimacyDowngradeReply(intimacyScore, zh)
+      : null;
 
     const effectiveAdult = intimacyPolicy.adultAllowed;
     const resolved = resolveImageCall(aiModules, { scene: 'chat_selfie', tier, adult: effectiveAdult });
@@ -548,6 +547,8 @@ export async function POST(request: NextRequest) {
           referenceRoles: referencePlan.selected.map((asset) => asset.role),
           attempts: routerResult.attempts,
         },
+        downgraded: intimacyDowngraded || undefined,
+        downgrade_reply: downgradeReply,
         message: 'Image is being generated. Poll /api/ai/status?job_id=' + routerResult.job_id,
       });
     }
@@ -594,11 +595,13 @@ export async function POST(request: NextRequest) {
           ? `${gfName} sends you a new teasing photo—just for you 🔥`
           : `${gfName} sends you a brand-new photo 📸`;
 
+    const finalCaption = downgradeReply || caption;
+
     const { data: savedMessage, error: messageError } = await client.from('chat_messages').insert({
       user_id: user.id,
       girlfriend_id,
       role: 'assistant',
-      content: caption,
+      content: finalCaption,
       media_url: generatedUrl,
       media_type: 'image',
     }).select('id').maybeSingle();
@@ -636,7 +639,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       imageUrl: generatedUrl,
       image_url: generatedUrl,
-      message: caption,
+      message: finalCaption,
+      downgraded: intimacyDowngraded || undefined,
+      downgrade_reply: downgradeReply,
+      code: intimacyDowngraded ? 'intimacy_downgrade' : undefined,
       scene: 'chat_selfie',
       kind: intent.kind,
       prompt_engine: promptEngine,

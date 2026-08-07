@@ -877,6 +877,8 @@ export default function ChatPage() {
         job_id?: string;
         endpoint_id?: string;
         status?: string;
+        downgrade_reply?: string;
+        downgradeReply?: string;
       }>(res);
       if (!res.ok) {
         if (data?.code === 'daily_limit') {
@@ -893,6 +895,7 @@ export default function ChatPage() {
       // Handle async pending — poll until GPU finishes
       let imageUrl = data.image_url || data.imageUrl;
       let caption = data.message;
+      const downgradeReply = data.downgrade_reply || data.downgradeReply || '';
       if (data.pending && data.job_id) {
         let jobId = data.job_id;
         let retried = false;
@@ -1014,7 +1017,7 @@ export default function ChatPage() {
         if (result.url) {
           imageUrl = result.url;
           clearGenJob(id);
-          caption = t('chat.newPhotoReady');
+          caption = downgradeReply || t('chat.newPhotoReady');
         } else {
           throw new Error(t('chat.gpuQueueTimeout'));
         }
