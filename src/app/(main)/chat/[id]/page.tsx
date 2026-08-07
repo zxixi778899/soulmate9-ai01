@@ -1859,7 +1859,7 @@ export default function ChatPage() {
 
       {/* Compact intimacy strip — full IntimacyProgress was crowding the dialog */}
       <div className="shrink-0 px-3 sm:px-4 py-1.5 border-b border-white/[0.05] bg-[#0a0612]/60">
-        <div className="flex items-center gap-2 max-w-3xl mx-auto">
+        <div className="flex items-center gap-2 max-w-3xl xl:max-w-4xl 2xl:max-w-5xl mx-auto">
           <Heart className="h-3.5 w-3.5 text-[#FF6BA6] shrink-0" />
           <span className="text-[11px] text-white/70 shrink-0">
             Lv.{levelInfo.level} · {levelInfo.title}

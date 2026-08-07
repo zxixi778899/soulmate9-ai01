@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
+import DesktopSidebar from '@/components/DesktopSidebar';
 import { Loader2 } from 'lucide-react';
 
 /**
@@ -142,11 +143,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         />
       )}
 
+      <DesktopSidebar />
+
       <main
         className={
           lockViewport
-            ? 'relative z-10 flex-1 overflow-hidden w-full min-h-0'
-            : `relative z-10 flex-1 w-full overflow-x-hidden ${
+            ? `relative z-10 flex-1 overflow-hidden w-full min-h-0 ${!isAdmin ? 'md:pl-64' : ''}`
+            : `relative z-10 flex-1 w-full overflow-x-hidden ${!isAdmin ? 'md:pl-64' : ''} ${
                 !isAdmin
                   ? 'pb-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:pb-6'
                   : ''

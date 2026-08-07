@@ -87,7 +87,7 @@ export default function GlobalTopNav() {
 
   return (
     <nav
-      className="sticky top-0 z-[60] border-b border-[#ff2e88]/15 bg-[#08040e]/80 backdrop-blur-2xl"
+      className="sticky top-0 z-[60] border-b border-[#ff2e88]/15 bg-[#08040e]/80 backdrop-blur-2xl md:pl-64"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className="max-w-7xl mx-auto px-3 sm:px-5 h-12 sm:h-14 flex items-center gap-2 sm:gap-3">

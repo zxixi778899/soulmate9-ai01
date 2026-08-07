@@ -208,7 +208,7 @@ function ChatStreamInner(props: {
         )}
       </div>
 
-      <div className="relative max-w-3xl mx-auto">
+      <div className="relative max-w-3xl xl:max-w-4xl 2xl:max-w-5xl mx-auto">
         {hasMore && rows.length > 0 && (
           <div className="flex justify-center py-1">
             <button
@@ -304,7 +304,7 @@ function ChatStreamInner(props: {
                   </div>
                 )}
 
-                <div className={`max-w-[82%] sm:max-w-[78%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                <div className={`max-w-[82%] sm:max-w-[78%] xl:max-w-[72%] 2xl:max-w-[70%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                   <div
                     className={`relative px-3.5 py-2 text-[14px] leading-relaxed shadow-sm break-words ${
                       isUser
@@ -446,7 +446,7 @@ function ChatStreamInner(props: {
           })}
 
           {isTyping && (
-            <div className="flex items-center gap-2 px-4 py-2 max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="flex items-center gap-2 px-4 py-2 max-w-3xl xl:max-w-4xl 2xl:max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
               {girlfriend?.avatar_url && (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={girlfriend.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover" />
