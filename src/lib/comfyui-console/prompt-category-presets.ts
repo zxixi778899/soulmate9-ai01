@@ -12,6 +12,12 @@ export type PromptCategoryKey =
   | 'action_sfw'
   | 'action_nsfw'
   | 'style'
+  | 'body'
+  | 'hairstyle'
+  | 'face'
+  | 'temperament'
+  | 'skin'
+  | 'accessory'
   | 'neg_quality'
   | 'neg_anatomy';
 
@@ -160,6 +166,123 @@ export const PROMPT_CATEGORY_PRESETS: PromptCategoryPreset[] = [
       { label: '素颜自然', text: 'natural no-makeup look, believable skin' },
     ],
   },
+  // ── 身材 ─────────────────────────────────────────────────
+  {
+    key: 'body',
+    zh: '身材',
+    target: 'prompt',
+    items: [
+      { label: '沙漏身材', text: 'hourglass figure, curvy waist-to-hip ratio' },
+      { label: '丰满曲线', text: 'full curvy figure, soft generous curves' },
+      { label: '梨形身材', text: 'pear-shaped body, wider hips and thighs' },
+      { label: '纤细苗条', text: 'slender slim figure, delicate frame' },
+      { label: '高挑修长', text: 'tall and willowy, long graceful limbs' },
+      { label: '娇小可爱', text: 'petite small frame, cute compact build' },
+      { label: '健美运动', text: 'athletic toned body, visible muscle definition' },
+      { label: '肌肉发达', text: 'muscular body, defined biceps and abs' },
+      { label: '微胖软萌', text: 'soft plush figure, gentle rounded curves' },
+      { label: '大胸', text: 'large full breasts, natural heavy bust' },
+      { label: '平胸纤细', text: 'flat chest, slim elegant silhouette' },
+      { label: '翘臀', text: 'round firm buttocks, lifted back view' },
+      { label: '长腿', text: 'long legs, slender thighs, high hip line' },
+      { label: '宽肩窄腰', text: 'broad shoulders, narrow waist, athletic V-taper' },
+      { label: '六块腹肌', text: 'defined six-pack abs, toned core' },
+    ],
+  },
+  // ── 发型 ─────────────────────────────────────────────────
+  {
+    key: 'hairstyle',
+    zh: '发型',
+    target: 'prompt',
+    items: [
+      { label: '黑长直', text: 'long straight black hair' },
+      { label: '大波浪', text: 'long wavy hair, soft loose curls' },
+      { label: '双马尾', text: 'twin tails, high twin ponytails' },
+      { label: '高马尾', text: 'high ponytail, swept-back hair' },
+      { label: '短发', text: 'short bob haircut' },
+      { label: '齐刘海', text: 'blunt bangs, straight fringe' },
+      { label: '麻花辫', text: 'braided pigtails' },
+      { label: '丸子头', text: 'bun hairstyle, top knot' },
+      { label: '及腰长发', text: 'waist-length flowing hair' },
+      { label: '卷发', text: 'curly voluminous hair' },
+      { label: '狼尾', text: 'wolf-cut layered hair' },
+      { label: '挑染', text: 'highlighted streaks, dyed hair tips' },
+    ],
+  },
+  // ── 面部特征 ─────────────────────────────────────────────
+  {
+    key: 'face',
+    zh: '面部特征',
+    target: 'prompt',
+    items: [
+      { label: '泪痣', text: 'beauty mark under the eye, teardrop mole' },
+      { label: '雀斑', text: 'light freckles across nose and cheeks' },
+      { label: '酒窝', text: 'dimples when smiling' },
+      { label: '异色瞳', text: 'heterochromia, different colored eyes' },
+      { label: '单眼皮', text: 'monolid eyes, subtle eye shape' },
+      { label: '高鼻梁', text: 'straight high-bridged nose' },
+      { label: '厚唇', text: 'full plump lips' },
+      { label: '小虎牙', text: 'small fang tooth, cute canine' },
+      { label: '眼尾上挑', text: 'sharp upturned eyes, fox-like gaze' },
+      { label: '娃娃脸', text: 'round youthful face, soft features' },
+      { label: '方下巴', text: 'strong defined jawline' },
+      { label: '精灵耳', text: 'pointed elf ears' },
+    ],
+  },
+  // ── 气质 ─────────────────────────────────────────────────
+  {
+    key: 'temperament',
+    zh: '气质',
+    target: 'prompt',
+    items: [
+      { label: '清纯', text: 'innocent pure aura, fresh natural look' },
+      { label: '御姐', text: 'mature elegant aura, confident poise' },
+      { label: '甜美', text: 'sweet girl-next-door charm' },
+      { label: '高冷', text: 'cool aloof expression, distant gaze' },
+      { label: '知性', text: 'intellectual refined demeanor' },
+      { label: '活泼', text: 'energetic lively personality' },
+      { label: '文静', text: 'quiet gentle temperament' },
+      { label: '狂野', text: 'wild untamed attitude' },
+      { label: '病娇', text: 'obsessive intense expression, unsettling smile' },
+      { label: '温柔', text: 'gentle warm temperament' },
+      { label: '飒爽', text: 'cool heroic bearing, sharp confidence' },
+      { label: '慵懒', text: 'lazy relaxed vibe, sleepy eyes' },
+    ],
+  },
+  // ── 肤色 ─────────────────────────────────────────────────
+  {
+    key: 'skin',
+    zh: '肤色',
+    target: 'prompt',
+    items: [
+      { label: '冷白皮', text: 'fair porcelain skin, cool undertone' },
+      { label: '暖黄皮', text: 'warm honey skin tone' },
+      { label: '小麦色', text: 'tan sun-kissed skin' },
+      { label: '古铜色', text: 'bronze glowing skin' },
+      { label: '深色皮肤', text: 'deep brown skin tone' },
+      { label: '白皙透亮', text: 'luminous fair skin, soft glow' },
+      { label: '黑皮', text: 'dark melanin-rich skin' },
+    ],
+  },
+  // ── 配饰 ─────────────────────────────────────────────────
+  {
+    key: 'accessory',
+    zh: '配饰',
+    target: 'prompt',
+    items: [
+      { label: '金丝眼镜', text: 'gold-rimmed glasses' },
+      { label: '耳环', text: 'dangling earrings' },
+      { label: '珍珠项链', text: 'pearl necklace' },
+      { label: '锁骨链', text: 'delicate choker necklace' },
+      { label: '纹身', text: 'visible tattoos on arm and shoulder' },
+      { label: '头饰', text: 'ornate hair accessory, flower crown' },
+      { label: '皇冠', text: 'small elegant tiara' },
+      { label: '项圈', text: 'leather collar choker' },
+      { label: '手链', text: 'beaded bracelet' },
+      { label: '手套', text: 'long silk gloves' },
+      { label: '戒指', text: 'elegant rings' },
+    ],
+  },
   // ── 负向 · 画质 ──────────────────────────────────────────
   {
     key: 'neg_quality',
@@ -196,15 +319,15 @@ export const PROMPT_CATEGORY_PRESETS: PromptCategoryPreset[] = [
 
 /** 各工作台分类优先级（key -> 分类顺序）；未命中的用默认顺序 */
 export const WORKFLOW_CATEGORY_ORDER: Record<string, PromptCategoryKey[]> = {
-  'wf-girlfriend': ['style', 'outfit', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
-  'wf-character': ['style', 'lighting', 'background', 'outfit', 'action_sfw', 'action_nsfw'],
-  'wf-portrait': ['style', 'outfit', 'lighting', 'background', 'action_nsfw', 'action_sfw'],
-  'wf-scene': ['background', 'lighting', 'style', 'outfit', 'action_sfw', 'action_nsfw'],
-  'wf-outfit': ['outfit', 'style', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
-  'wf-tryon': ['outfit', 'style', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
-  'wf-pose': ['action_nsfw', 'action_sfw', 'outfit', 'background', 'lighting', 'style'],
-  'wf-bgswap': ['background', 'lighting', 'style', 'outfit', 'action_sfw', 'action_nsfw'],
-  'wf-video': ['background', 'lighting', 'action_nsfw', 'action_sfw', 'style', 'outfit'],
+  'wf-girlfriend': ['style', 'body', 'face', 'hairstyle', 'temperament', 'skin', 'accessory', 'outfit', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
+  'wf-character': ['style', 'body', 'face', 'hairstyle', 'temperament', 'skin', 'accessory', 'outfit', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
+  'wf-portrait': ['face', 'hairstyle', 'skin', 'temperament', 'body', 'style', 'outfit', 'lighting', 'background', 'action_nsfw', 'action_sfw'],
+  'wf-scene': ['background', 'lighting', 'style', 'outfit', 'body', 'face', 'hairstyle', 'action_sfw', 'action_nsfw'],
+  'wf-outfit': ['outfit', 'style', 'body', 'face', 'hairstyle', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
+  'wf-tryon': ['outfit', 'style', 'body', 'face', 'hairstyle', 'lighting', 'background', 'action_sfw', 'action_nsfw'],
+  'wf-pose': ['action_nsfw', 'action_sfw', 'body', 'outfit', 'background', 'lighting', 'style'],
+  'wf-bgswap': ['background', 'lighting', 'style', 'outfit', 'body', 'face', 'hairstyle', 'action_sfw', 'action_nsfw'],
+  'wf-video': ['background', 'lighting', 'action_nsfw', 'action_sfw', 'body', 'style', 'outfit'],
 };
 
 /** 按工作台排序后的分类列表（默认顺序兜底） */
