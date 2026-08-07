@@ -136,7 +136,7 @@ async function generateImage(input: {
     surface: 'companion',
     category: input.category,
     renderStyle: input.renderStyle,
-    nsfwIntensity: 1,
+    nsfwIntensity: 3,
   });
   const result = await routeImageGeneration({
     prompt: input.prompt,
@@ -154,7 +154,7 @@ async function generateImage(input: {
     model_family: route.modelFamily,
     force_provider: route.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2',
     endpoint_id: input.endpointId || route.endpointId || undefined,
-    nsfw: false,
+    nsfw: true,
   });
   if (result.pending) {
     return { jobId: result.job_id, endpointId: input.endpointId || route.endpointId || undefined, pending: true };
@@ -305,21 +305,21 @@ export async function POST(request: NextRequest) {
       surface: 'companion',
       category,
       renderStyle,
-      nsfwIntensity: 1,
+      nsfwIntensity: 3,
     });
     const referencePlan = buildReferenceGenerationPlan({
       surface: 'companion',
       category,
       renderStyle,
       modelFamily: route.modelFamily,
-      nsfwLevel: 1,
+      nsfwLevel: 3,
       allowIdentity: false,
       controls: config.reference_control,
       assets: config.reference_assets || [],
     });
     const naturalPrompt = buildStudioPromptEnhancement({
       category,
-      intensity: 1,
+      intensity: 3,
       animeStyle: renderStyle,
       identity: prompt,
       scene: [

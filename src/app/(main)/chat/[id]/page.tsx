@@ -26,6 +26,7 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
@@ -114,7 +115,7 @@ export default function ChatPage() {
   const resumedGenRef = useRef(false);
   const lastSelfieReqRef = useRef<string>('send me a sexy selfie');
   const lastVideoReqRef = useRef<string>('');
-  const [albumMedia, setAlbumMedia] = useState<Array<{ id: string; url: string; media_type: string; created_at?: string }>>([]);
+  const [albumMedia, setAlbumMedia] = useState<Array<{ id: string; url: string; media_type: string; created_at?: string; source?: 'chat' | 'library' }>>([]);
   const [albumLoading, setAlbumLoading] = useState(false);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
 
@@ -520,14 +521,16 @@ export default function ChatPage() {
         const chatItems = Array.isArray((mediaData as { media?: unknown[] }).media)
           ? ((mediaData as { media: Array<{ id: string; url: string; media_type: string; created_at?: string }> }).media)
           : [];
-        const chatMedia = chatItems.filter((m) => m.url && m.url.startsWith('http'));
+        const chatMedia = chatItems
+          .filter((m) => m.url && m.url.startsWith('http'))
+          .map((m) => ({ ...m, source: 'chat' as const }));
 
         const assetRows = Array.isArray((assetData as { assets?: unknown[] }).assets)
           ? ((assetData as { assets: Array<{ id: string; url: string; media_type: string; category: string }> }).assets)
           : [];
         const libraryMedia = assetRows
           .filter((a) => a.url && a.url.startsWith('http') && a.category !== 'id_reference')
-          .map((a) => ({ id: a.id, url: a.url, media_type: a.media_type }));
+          .map((a) => ({ id: a.id, url: a.url, media_type: a.media_type, source: 'library' as const }));
 
         const seen = new Set(libraryMedia.map((m) => m.url));
         setAlbumMedia([...libraryMedia, ...chatMedia.filter((m) => !seen.has(m.url))]);
@@ -535,6 +538,23 @@ export default function ChatPage() {
       .catch(() => setAlbumMedia([]))
       .finally(() => setAlbumLoading(false));
   }, [showAlbum, id]);
+
+  const deleteAlbumMedia = async (item: { id: string; source?: 'chat' | 'library' }) => {
+    try {
+      const url = item.source === 'library'
+        ? `/api/companion/${id}/assets?assetId=${encodeURIComponent(item.id)}`
+        : `/api/chat/${id}/media?mediaId=${encodeURIComponent(item.id)}`;
+      const res = await authedFetch(url, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await readResponseJson<{ error?: string }>(res).catch(() => ({ error: undefined }));
+        throw new Error(data?.error || 'Failed to delete');
+      }
+      setAlbumMedia((prev) => prev.filter((m) => m.id !== item.id));
+      toast.success(t('chat.albumDeleted'));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete');
+    }
+  };
 
   // Resume an in-flight generation job after page refresh / re-enter
   useEffect(() => {
@@ -866,9 +886,7 @@ export default function ChatPage() {
         const msg =
           data?.code === 'daily_limit'
             ? (data.localized_error || t('chat.imageDailyLimit'))
-            : waitZh
-              ? t('chat.imageFailed')
-              : (data?.localized_error || data?.error || t('chat.imageFailed'));
+            : (data?.localized_error || data?.error || t('chat.imageFailed'));
         throw new Error(msg);
       }
 
@@ -1038,6 +1056,8 @@ export default function ChatPage() {
       });
       setMessages((prev) => prev.filter((message) => message.id !== waitId));
       const sorry = t('chat.fumbledShot');
+      const failReason = err instanceof Error ? err.message : String(err);
+      if (failReason) toast.error(failReason, { duration: 6000 });
       setMessages((prev) => [
         ...prev,
         {
@@ -2047,7 +2067,7 @@ export default function ChatPage() {
               // Combine message media + stored album media, deduplicate by URL
               const msgMedia = messages
                 .filter((m) => m.media_url && m.media_url.startsWith('http'))
-                .map((m) => ({ id: m.id, url: m.media_url!, media_type: m.media_type || 'image' }));
+                .map((m) => ({ id: m.id, url: m.media_url!, media_type: m.media_type || 'image', source: undefined }));
               const seen = new Set(msgMedia.map((m) => m.url));
               const extraMedia = albumMedia.filter((m) => !seen.has(m.url));
               const allMedia = [...msgMedia, ...extraMedia];
@@ -2072,28 +2092,45 @@ export default function ChatPage() {
               return (
                 <div className="grid grid-cols-3 gap-1.5">
                   {allMedia.map((m) => (
-                    <button
+                    <div
                       key={m.id}
-                      type="button"
-                      onClick={() => { setShowLightbox(m.url); setShowAlbum(false); }}
-                      className="aspect-square rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors"
+                      className="relative aspect-square rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors group"
                     >
-                      {m.media_type === 'video' ? (
-                        <video
-                          src={m.url}
-                          className="h-full w-full object-cover"
-                          muted
-                          preload="metadata"
-                        />
-                      ) : (
-                        <img
-                          src={m.url}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      )}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowLightbox(m.url); setShowAlbum(false); }}
+                        className="h-full w-full"
+                      >
+                        {m.media_type === 'video' ? (
+                          <video
+                            src={m.url}
+                            className="h-full w-full object-cover"
+                            muted
+                            preload="metadata"
+                          />
+                        ) : (
+                          <img
+                            src={m.url}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        )}
+                      </button>
+                      {m.source ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(t('chat.albumDeleteConfirm'))) void deleteAlbumMedia(m);
+                          }}
+                          className="absolute top-1 right-1 z-[3] rounded-md bg-black/55 p-1 text-white/80 opacity-0 group-hover:opacity-100 transition-opacity"
+                          aria-label="Delete"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               );

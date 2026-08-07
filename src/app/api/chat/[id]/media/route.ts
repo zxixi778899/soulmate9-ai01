@@ -133,3 +133,49 @@ export async function POST(
     );
   }
 }
+
+/**
+ * DELETE /api/chat/[id]/media?mediaId=xxx
+ * Delete a chat-generated media item from the companion album (owner only).
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const { user, client } = await getAuthUser(req);
+  if (!user || !client) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const mediaId = new URL(req.url).searchParams.get('mediaId') || '';
+  if (!mediaId) {
+    return NextResponse.json({ error: 'mediaId is required' }, { status: 400 });
+  }
+
+  try {
+    const { data: row } = await client
+      .from('chat_media')
+      .select('id')
+      .eq('id', mediaId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!row) return NextResponse.json({ error: 'Media not found' }, { status: 404 });
+
+    const { error } = await client
+      .from('chat_media')
+      .delete()
+      .eq('id', mediaId)
+      .eq('user_id', user.id);
+    if (error) {
+      logger.error('[chat/media] DELETE failed', { err: error.message });
+      return NextResponse.json({ error: 'Failed to delete media' }, { status: 500 });
+    }
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    logger.error('[chat/media] DELETE failed', {
+      err: e instanceof Error ? e.message : String(e),
+    });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
