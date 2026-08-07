@@ -243,7 +243,7 @@ export function buildFluxWorkflow(opts: {
   const useIpAdapter = !!opts.ip_adapter_image;
   const ipAdapterNodes: Record<string, unknown> = {};
   if (useIpAdapter) {
-    const ipWeight = Math.min(1.0, Math.max(0.25, opts.ip_adapter_weight ?? 0.58));
+    const ipWeight = Math.min(1.0, Math.max(0.25, opts.ip_adapter_weight ?? 0.7));
     const ipModel = opts.ip_adapter_model || 'ip-adapter.bin';
     const clipVision = opts.clip_vision_model || 'google/siglip-so400m-patch14-384';
     ipAdapterNodes['30'] = {
@@ -253,10 +253,10 @@ export function buildFluxWorkflow(opts: {
         ipadapter_flux: ['31', 0],
         image: ['33', 0],
         weight: ipWeight,
-        // style transfer：只锁五官身份，不复制参考图的构图/姿势，提示词才能真正控制画面
+        // 实测工作机节点会忽略 weight_type（三种模式输出一致），身份强度由 weight + 作用区间控制
         weight_type: 'style transfer',
         start_percent: 0.0,
-        end_percent: 0.7,
+        end_percent: 0.95,
       },
     };
     ipAdapterNodes['31'] = {

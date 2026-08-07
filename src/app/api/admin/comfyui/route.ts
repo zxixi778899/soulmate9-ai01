@@ -947,7 +947,7 @@ export async function POST(req: NextRequest) {
           loras: normalizedLoras.length ? normalizedLoras : undefined,
           ip_adapter_image: ipAdapterImage,
           ip_adapter_weight: ipAdapterImage
-            ? clampNum(merged.ip_adapter_weight, 0.25, 1, 0.6)
+            ? clampNum(merged.ip_adapter_weight, 0.25, 1, 0.7)
             : undefined,
           endpoint_id: endpointId,
           submit_only: true,
