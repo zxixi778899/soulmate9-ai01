@@ -160,6 +160,8 @@ function ChatStreamInner(props: {
   onRetryMessage?: (msg: ChatMessage) => void;
   /** 2 次生成：成功的照片下方提供“再来一张” */
   onRegenerateSelfie?: (msg: ChatMessage) => void;
+  /** 2 次生成：成功的视频下方提供“再来一段” */
+  onRegenerateVideo?: (msg: ChatMessage) => void;
   onSpeakMessage?: (msg: ChatMessage) => void;
   speakingMsgId?: string | null;
   speakingLoading?: boolean;
@@ -168,7 +170,7 @@ function ChatStreamInner(props: {
   const {
     scrollRef, onScroll, girlfriend, rows, isTyping,
     hasMore, loadingMore, onLoadHistory, levelColor, onOpenImage, bottomRef,
-    onCancelGeneration, onRetrySelfie, onRetryMessage, onRegenerateSelfie,
+    onCancelGeneration, onRetrySelfie, onRetryMessage, onRegenerateSelfie, onRegenerateVideo,
     onSpeakMessage, speakingMsgId, speakingLoading,
   } = props;
 
@@ -338,12 +340,24 @@ function ChatStreamInner(props: {
                       ) : msg.media_type === 'video' ||
                         /\.(mp4|webm|mov)(\?|$)/i.test(msg.media_url) ||
                         msg.media_url.startsWith('data:video') ? (
+                        <>
                         <video
                           controls
                           src={msg.media_url}
                           className="mt-2 w-full max-h-[280px] rounded-xl border border-white/10"
                           preload="metadata"
                         />
+                        {/* 2 次生成：成功的视频下方提供“再来一段”（同一请求重拍） */}
+                        {isAssistant && msg.media_type === 'video' && msg.media_url && onRegenerateVideo && (
+                          <button
+                            type="button"
+                            onClick={() => onRegenerateVideo(msg)}
+                            className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-white/40 hover:text-[#ff6ba6] active:scale-95 transition-all"
+                          >
+                            <RefreshCw className="h-3 w-3" /> {t('chat.videoAgain')}
+                          </button>
+                        )}
+                        </>
                       ) : (
                         <ChatImage url={msg.media_url} onOpen={onOpenImage} />
                       ))}

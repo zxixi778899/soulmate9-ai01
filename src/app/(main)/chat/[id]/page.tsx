@@ -113,6 +113,7 @@ export default function ChatPage() {
   const genSessionRef = useRef(0);
   const resumedGenRef = useRef(false);
   const lastSelfieReqRef = useRef<string>('send me a sexy selfie');
+  const lastVideoReqRef = useRef<string>('');
   const [albumMedia, setAlbumMedia] = useState<Array<{ id: string; url: string; media_type: string; created_at?: string }>>([]);
   const [albumLoading, setAlbumLoading] = useState(false);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
@@ -1063,6 +1064,7 @@ export default function ChatPage() {
     const session = ++genSessionRef.current;
     setIsGenerating(true);
     const waitZh = /[\u4e00-\u9fff]/.test(userRequest || '') || String(locale || '').toLowerCase().startsWith('zh');
+    lastVideoReqRef.current = userRequest || 'send me a selfie';
     const waitText = t('chat.makingVideoForYou');
     const waitId = `video-wait-${Date.now()}`;
     setMessages((prev) => [...prev, { id: waitId, role: 'assistant', content: waitText, created_at: new Date().toISOString() }]);
@@ -1870,6 +1872,7 @@ export default function ChatPage() {
         onRetrySelfie={handleRetrySelfie}
         onRetryMessage={handleRetryMessage}
         onRegenerateSelfie={() => void generateSelfie(lastSelfieReqRef.current)}
+        onRegenerateVideo={() => void generateVideo(lastVideoReqRef.current)}
         onSpeakMessage={handleSpeakMessage}
         speakingMsgId={tts.activeMsgId}
         speakingLoading={tts.loading}
