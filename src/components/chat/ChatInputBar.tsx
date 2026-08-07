@@ -74,6 +74,12 @@ export function ChatInputBar(props: {
   setSelectedPose: (v: string | null) => void;
   selectedEnvironment: string | null;
   setSelectedEnvironment: (v: string | null) => void;
+  nsfwIntensity?: number;
+  setNsfwIntensity?: (v: number) => void;
+  whisperMode?: boolean;
+  setWhisperMode?: (v: boolean) => void;
+  videoTier?: 3 | 5 | 10;
+  setVideoTier?: (v: 3 | 5 | 10) => void;
   pendingMedia?: PendingMedia | null;
   onPickImage?: (file: File) => void;
   onClearMedia?: () => void;
@@ -112,6 +118,12 @@ export function ChatInputBar(props: {
     setSelectedPose,
     selectedEnvironment,
     setSelectedEnvironment,
+    nsfwIntensity = 3,
+    setNsfwIntensity,
+    whisperMode = false,
+    setWhisperMode,
+    videoTier = 5,
+    setVideoTier,
     pendingMedia,
     onPickImage,
     onClearMedia,
@@ -571,6 +583,76 @@ export function ChatInputBar(props: {
               </div>
             </div>
           ))}
+          {/* NSFW 强度 1-5（随消息生效） */}
+          <div className="flex items-start gap-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#FF2D78]/70 w-10 shrink-0 leading-6 pt-0.5">
+              {isZh ? '强度' : 'NSFW'}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {[1, 2, 3, 4, 5].map((iv) => (
+                <button
+                  key={iv}
+                  type="button"
+                  onClick={() => setNsfwIntensity?.(iv)}
+                  className={cn(
+                    'inline-flex items-center justify-center h-7 w-7 rounded-full border text-[11px] transition-all active:scale-95',
+                    nsfwIntensity === iv
+                      ? iv <= 2
+                        ? 'bg-sky-500/20 border-sky-400/40 text-sky-200'
+                        : 'bg-[#FF2D78]/20 border-[#FF2D78]/45 text-[#ff9ec4]'
+                      : 'glass text-[#8B8BA3] hover:text-white',
+                  )}
+                >
+                  {iv}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 视频档位 */}
+          <div className="flex items-start gap-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#a78bfa]/70 w-10 shrink-0 leading-6 pt-0.5">
+              {isZh ? '视频' : 'VIDEO'}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {([3, 5, 10] as const).map((sec) => (
+                <button
+                  key={sec}
+                  type="button"
+                  onClick={() => setVideoTier?.(sec)}
+                  className={cn(
+                    'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] transition-all active:scale-95',
+                    videoTier === sec
+                      ? 'glass-btn !rounded-full !h-auto !px-2.5 !py-1 text-white border-[#a855f7]/40'
+                      : 'glass text-[#8B8BA3] hover:text-white',
+                  )}
+                >
+                  {sec === 3 ? (isZh ? '3秒 快速' : '3s quick') : sec === 5 ? (isZh ? '5秒 标准' : '5s std') : (isZh ? '10秒 高清' : '10s HD')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 深夜低语 */}
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[11px] text-white/55">{isZh ? '深夜低语（呼吸感语音）' : 'Late-night whisper voice'}</span>
+            <button
+              type="button"
+              onClick={() => setWhisperMode?.(!whisperMode)}
+              className={cn(
+                'relative h-6 w-11 shrink-0 rounded-full transition-colors',
+                whisperMode ? 'bg-[#FF2D78]/50' : 'bg-white/10',
+              )}
+              aria-label="Whisper"
+            >
+              <span
+                className={cn(
+                  'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all',
+                  whisperMode ? 'left-[22px]' : 'left-0.5',
+                )}
+              />
+            </button>
+          </div>
         </div>
       )}
 

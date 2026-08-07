@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
       .single(),
     client
       .from('chat_messages')
-      .select('content, role')
+      .select('content, role, metadata')
       .eq('girlfriend_id', girlfriend_id)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
@@ -429,6 +429,17 @@ export async function POST(request: NextRequest) {
   const timeContext = zhChat
     ? `[时间感] 现在大约是${weekdayNames[nowUtc.getUTCDay()]} ${hhmm}（UTC，他的当地时间可能不同）。可自然带出时段氛围（深夜、清晨、周末），但别武断地说「早上好」之类，除非他先提到。`
     : `[TIME SENSE] It is roughly ${weekdayNames[nowUtc.getUTCDay()]} ${hhmm} UTC (his local time may differ). You can lean into the time-of-day vibe (late night, weekend), but never assert "good morning"-style greetings unless he mentions it first.`;
+  const desiredIntensity = Math.max(1, Math.min(5, Math.round(Number(body.nsfw_intensity) || 3)));
+  const effectiveIntensity = intimacyLevel >= 3 ? desiredIntensity : Math.min(desiredIntensity, 2);
+  const lastMeta =
+    recentMessages && recentMessages[0] && recentMessages[0].metadata &&
+    typeof recentMessages[0].metadata === 'object'
+      ? recentMessages[0].metadata as Record<string, unknown>
+      : null;
+  const sceneRecap =
+    lastMeta && typeof lastMeta.scene_state === 'string' && lastMeta.scene_state
+      ? String(lastMeta.scene_state)
+      : '';
   const systemPrompt =
     buildCharacterPrompt({
       gf,
@@ -439,9 +450,13 @@ export async function POST(request: NextRequest) {
       presets,
       locale: chatLocale,
       allowNsfw: intimacyLevel >= 3 && chatResolved.allowNsfw,
-      nsfwChannel: intimacyLevel >= 3 && chatResolved.channel === 'nsfw',
+      nsfwChannel: intimacyLevel >= 3 && chatResolved.channel === 'nsfw' && effectiveIntensity >= 3,
       replyMode,
+      nsfwIntensity: effectiveIntensity,
     }) +
+    (sceneRecap
+      ? `\n\n${zhChat ? `[SCENE RECAP] 上一幕：${sceneRecap}` : `[SCENE RECAP] Previous scene: ${sceneRecap}`}`
+      : '') +
     `\n\n${langLock}` +
     `\n\n${timeContext}` +
     (chatResolved.systemLanguageSuffix ? `\n\n${chatResolved.systemLanguageSuffix}` : '');
@@ -665,6 +680,11 @@ export async function POST(request: NextRequest) {
             girlfriend_id,
             role: 'assistant',
             content: fullResponse,
+            metadata: {
+              reply_mode: replyMode,
+              nsfw_intensity: effectiveIntensity,
+              scene_state: fullResponse.slice(0, 120),
+            },
           });
         }
 

@@ -46,13 +46,14 @@ export async function POST(request: NextRequest) {
 
     const girlfriendId = String(body.girlfriend_id || '').trim() || null;
     const motionBucketId = Number(body.motion_bucket_id) || 127;
+    const requestedDuration = Number(body.duration) === 10 ? 10 : Number(body.duration) === 3 ? 3 : 5;
     const fps = Number(body.fps) || 7;
-    const numFrames = Number(body.num_frames) || 25;
+    const numFrames = Number(body.num_frames) || (requestedDuration === 3 ? 14 : requestedDuration === 10 ? 40 : 25);
     const decodeChunkSize = Number(body.decode_chunk_size) || 8;
 
     // Site-wide credit rule: videos cost credits (5s default / 10s premium).
-    const durationSec = Number(body.duration) === 10 ? 10 : 5;
-    const videoCost = durationSec === 10 ? CREDIT_COSTS.video_10s : CREDIT_COSTS.video_5s;
+    const durationSec = requestedDuration;
+    const videoCost = durationSec === 10 ? CREDIT_COSTS.video_10s : durationSec === 3 ? CREDIT_COSTS.video_3s : CREDIT_COSTS.video_5s;
     const deducted = await deductCredits(client, user.id, videoCost, 'video_gen', girlfriendId || undefined);
     if (!deducted.ok) {
       const { data: balProfile } = await client

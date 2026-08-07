@@ -127,6 +127,9 @@ export default function ChatPage() {
 
   // Chat reply mode: scene (current style) vs dialogue (spoken words only)
   const [replyMode, setReplyMode] = useState<'scene' | 'dialogue'>('scene');
+  const [nsfwIntensity, setNsfwIntensity] = useState(3);
+  const [whisperMode, setWhisperMode] = useState(false);
+  const [videoTier, setVideoTier] = useState<3 | 5 | 10>(5);
 
   // 语音回复（听觉沉浸）：开启后把伴侣文字回复转成语音附加到气泡
   const [voiceReply, setVoiceReply] = useState(false);
@@ -1075,7 +1078,7 @@ export default function ChatPage() {
   };
 
   /** Generate a short video: first create an image, then animate it via RunPod SVD */
-  const generateVideo = async (userRequest?: string) => {
+  const generateVideo = async (userRequest?: string, tier: 3 | 5 | 10 = videoTier) => {
     if (isGenerating) {
       const busyZh =
         /[\u4e00-\u9fff]/.test(userRequest || '') ||
@@ -1132,7 +1135,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           input_image: imageUrl,
           girlfriend_id: id,
-          duration: membership.tier === 'unlimited' ? 10 : 5,
+          duration: tier,
         }),
       });
       const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; endpoint_id?: string; error?: string; code?: string }>(vidRes);
@@ -1266,6 +1269,7 @@ export default function ChatPage() {
           environment: selectedEnvironment,
           locale,
           reply_mode: replyMode,
+          nsfw_intensity: nsfwIntensity,
           ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}),
         }),
       });
@@ -1413,7 +1417,7 @@ export default function ChatPage() {
               body: JSON.stringify({
                 text: fullContent,
                 girlfriend_id: id,
-                emotion: aiChannel === 'nsfw' ? 'seductive' : 'gentle',
+                emotion: whisperMode ? 'whisper' : aiChannel === 'nsfw' ? 'seductive' : 'gentle',
               }),
             });
             const vdata = await readResponseJson<{ audio_url?: string; url?: string }>(vres);
@@ -1993,6 +1997,12 @@ export default function ChatPage() {
         setSelectedPose={setSelectedPose}
         selectedEnvironment={selectedEnvironment}
         setSelectedEnvironment={setSelectedEnvironment}
+        nsfwIntensity={nsfwIntensity}
+        setNsfwIntensity={setNsfwIntensity}
+        whisperMode={whisperMode}
+        setWhisperMode={setWhisperMode}
+        videoTier={videoTier}
+        setVideoTier={setVideoTier}
         pendingMedia={pendingMedia}
         onPickImage={handlePickImage}
         onClearMedia={clearPendingMedia}

@@ -13,6 +13,7 @@ export const VOICE_EMOTIONS = {
   excited: { labelEn: 'Excited', labelZh: '兴奋', pitch: 1.15, speed: 1.1, instruction: 'speak excitedly with high energy' },
   angry: { labelEn: 'Angry', labelZh: '生气', pitch: 0.9, speed: 1.1, instruction: 'speak with irritation' },
   sad: { labelEn: 'Sad', labelZh: '委屈', pitch: 0.95, speed: 0.85, instruction: 'speak sadly, almost crying' },
+  whisper: { labelEn: 'Whisper', labelZh: '低语', pitch: 0.9, speed: 0.76, instruction: 'speak in a soft intimate whisper, low and breathy' },
 } as const;
 
 export function emotionLabel(id: string, locale: string): string {

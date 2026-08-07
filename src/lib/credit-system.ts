@@ -41,6 +41,8 @@ export const CREDIT_COSTS = {
   image_gen_hd: 10,
   /** Voice message (1–3 credits depending on length) */
   tts: 2,
+  /** 3-second quick video */
+  video_3s: 30,
   /** 5-second video */
   video_5s: 50,
   /** 10-second video */

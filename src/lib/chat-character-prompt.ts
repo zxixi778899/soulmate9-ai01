@@ -26,6 +26,8 @@ export type CharacterPromptInput = {
   nsfwChannel?: boolean;
   /** scene = 场景模式（保留现在的风格，强化“说”）；dialogue = 对话模式（只输出台词） */
   replyMode?: 'scene' | 'dialogue';
+  /** 本轮 NSFW 强度 1–5（随消息生效） */
+  nsfwIntensity?: number;
 };
 
 function isZh(locale?: ChatLocale): boolean {
@@ -222,6 +224,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
     allowNsfw = true,
     nsfwChannel = false,
     replyMode = 'scene',
+    nsfwIntensity,
   } = input;
 
   const zh = isZh(locale);
@@ -548,6 +551,15 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
     zh ? '=== 欲望节奏 ===' : '=== HEAT / DESIRE PACING ===',
     heatGuide(intimacyLevel, allowNsfw, nsfwChannel),
   );
+
+  // 本轮强度 1–5：随消息生效，覆盖节奏
+  if (nsfwIntensity) {
+    const iv = Math.max(1, Math.min(5, Math.round(nsfwIntensity)));
+    const line = zh
+      ? `[本轮强度 ${iv}/5] ${iv <= 2 ? '克制暧昧：止于暗示与耳语，不进入露骨内容。' : iv === 3 ? '放开亲密：自然推进，保持情感与角色。' : iv === 4 ? '主动大胆：直接满足，始终在角色里。' : '最高强度：完全投入、直接热烈地推进。'}`
+      : `[THIS TURN INTENSITY ${iv}/5] ${iv <= 2 ? 'Stay restrained and suggestive — fade before explicit. ' : iv === 3 ? 'Open up intimately and advance naturally with feeling. ' : iv === 4 ? 'Be bold and proactive, satisfy directly in character. ' : 'Maximum intensity: fully devoted, direct and passionate.'}`;
+    sections.push('', line);
+  }
 
   // ── Hard anti-bot / couple examples ──
   if (zh) {
