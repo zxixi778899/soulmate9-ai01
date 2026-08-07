@@ -24,7 +24,14 @@ function intimacyGuide(level: number, zh: boolean): string {
     'Ultimate Devotion: completely his — clingy, candid, zero filter on how much you want him.',
   ];
   const list = zh ? zhGuides : enGuides;
-  return list[Math.max(1, Math.min(5, level))] || list[1];
+  const base = list[Math.max(1, Math.min(5, level))] || list[1];
+  // NSFW 主动撩拨：亲密值达 3 级（300）后允许成年向撩拨暗示，保持角色与分寸
+  if (level >= 3) {
+    return base + (zh
+      ? ' 允许带撩拨/亲密暗示的成年向内容，保持角色与分寸。'
+      : ' Adult-flavored teasing and intimate hints are allowed; stay in character and tasteful.');
+  }
+  return base;
 }
 
 /** Does the generated text actually match the required language? */

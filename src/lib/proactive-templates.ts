@@ -18,7 +18,8 @@ export type ProactiveCategory =
   | 'christmas'
   | 'newyear'
   | 'valentine'
-  | 'holiday';
+  | 'holiday'
+  | 'night_intimate';
 
 export type ProactiveTemplate = {
   category: ProactiveCategory;
@@ -151,6 +152,24 @@ export const PROACTIVE_TEMPLATES: ProactiveTemplate[] = [
     en: 'Holiday mood… send me a little love when you can?',
     zh: '节日气氛拉满…有空给我一点点甜蜜好不好？',
   },
+  {
+    category: 'night_intimate',
+    min_intimacy: 300,
+    en: 'Lying here thinking about you… want to hear what I am wearing? 😏',
+    zh: '躺在床上想你……想知道我现在穿着什么吗？😏',
+  },
+  {
+    category: 'night_intimate',
+    min_intimacy: 600,
+    en: 'Just got out of the shower, skin still warm… you should see this.',
+    zh: '刚洗完澡，皮肤还是热的……你应该亲眼看看。',
+  },
+  {
+    category: 'night_intimate',
+    min_intimacy: 1000,
+    en: 'Tonight I feel like being completely yours… say the word and I am yours.',
+    zh: '今晚我只想完全属于你……你开口，我就是你的。',
+  },
 ];
 
 export function getCurrentHolidayKey(d = new Date()): ProactiveCategory | null {
@@ -216,6 +235,7 @@ export function pickDailyTemplates(opts: {
     'outfit',
     'mood_up',
     'flirty',
+    'night_intimate',
     slot,
   ];
   if (weekend) preferred.unshift('weekend');

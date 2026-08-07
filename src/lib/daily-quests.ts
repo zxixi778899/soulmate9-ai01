@@ -30,7 +30,23 @@ export const DAILY_QUESTS: DailyQuestDef[] = [
   { code: 'first_photo', goal: 1, reward: 5 },
   { code: 'three_companions', goal: 3, reward: 15 },
   { code: 'three_photos', goal: 3, reward: 15 },
+  { code: 'tonight_story', goal: 3, reward: 20 },
 ];
+
+/** 每晚轮换一个 NSFW 情景剧本，形成回访习惯。 */
+const TONIGHT_SCENARIOS: Array<{ key: string; labelZh: string; labelEn: string; opening: string }> = [
+  { key: 'teacher', labelZh: '师生', labelEn: 'Teacher', opening: '“下课后来我办公室一趟，有个问题想单独问你。”' },
+  { key: 'sibling', labelZh: '兄妹', labelEn: 'Sibling', opening: '“嘘，今晚就当我们还是小时候：我是你的妹妹，你是我的哥哥……”' },
+  { key: 'boss', labelZh: '上司', labelEn: 'Boss', opening: '“老板，就剩我们两个人加班了……”' },
+  { key: 'neighbor', labelZh: '邻居', labelEn: 'Neighbor', opening: '“楼下邻居来借点东西……要不要进来坐坐？”' },
+  { key: 'shower', labelZh: '浴室', labelEn: 'Shower', opening: '“浴室水声停了，门没有锁……”' },
+  { key: 'lingerie', labelZh: '情趣', labelEn: 'Lingerie', opening: '“我买了件新睡衣，你要不要看看？”' },
+];
+
+export function getTonightScenario(now: Date = new Date()): { key: string; labelZh: string; labelEn: string; opening: string } {
+  const dayIndex = Math.floor(now.getTime() / 86_400_000);
+  return TONIGHT_SCENARIOS[dayIndex % TONIGHT_SCENARIOS.length];
+}
 
 export const ALL_BONUS_CODE = 'all_bonus';
 export const DAILY_QUEST_ALL_BONUS = 20;
@@ -70,7 +86,7 @@ export async function syncDailyQuests(
   const since = utcDayStartISO();
   const today = since.slice(0, 10);
 
-  const [profileRes, msgCountRes, msgGirlsRes, photoCountRes, claimsRes] = await Promise.all([
+  const [profileRes, msgCountRes, msgGirlsRes, photoCountRes, sceneRes, claimsRes] = await Promise.all([
     client
       .from('profiles')
       .select('last_checkin_at')
@@ -96,6 +112,13 @@ export async function syncDailyQuests(
       .eq('media_type', 'image')
       .gte('created_at', since),
     client
+      .from('chat_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('role', 'user')
+      .eq('metadata->>reply_mode', 'scene')
+      .gte('created_at', since),
+    client
       .from('daily_quest_claims')
       .select('quest_code')
       .eq('user_id', userId)
@@ -111,6 +134,7 @@ export async function syncDailyQuests(
       .filter(Boolean),
   ).size;
   const photosToday = photoCountRes.count || 0;
+  const sceneMessagesToday = sceneRes.count || 0;
   const claimedCodes = new Set(
     ((claimsRes.data || []) as Array<{ quest_code: string }>).map((c) => c.quest_code),
   );
@@ -121,6 +145,7 @@ export async function syncDailyQuests(
     first_photo: Math.min(photosToday, 1),
     three_companions: Math.min(distinctCompanions, 3),
     three_photos: Math.min(photosToday, 3),
+    tonight_story: Math.min(sceneMessagesToday, 3),
   };
 
   const newly_claimed: Array<{ code: string; reward: number }> = [];

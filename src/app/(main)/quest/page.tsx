@@ -8,6 +8,7 @@ import {
   MessageCircle, Camera, Users, Images, Crown, ChevronRight,
   Medal, Star, Lock, Gift, ShoppingBag, Heart, Target,
 } from 'lucide-react';
+import { getTonightScenario } from '@/lib/daily-quests';
 import { NeonGridBackground } from '@/components/discover/NeonGridBackground';
 import { authedFetch } from '@/lib/supabase';
 import { readResponseJson } from '@/lib/safe-json';
@@ -68,6 +69,7 @@ const QUEST_ICONS: Record<string, typeof MessageCircle> = {
   first_photo: Camera,
   three_companions: Users,
   three_photos: Images,
+  tonight_story: Flame,
 };
 
 const QUEST_DESC_KEYS: Record<string, { key: string; fallback: string }> = {
@@ -76,6 +78,7 @@ const QUEST_DESC_KEYS: Record<string, { key: string; fallback: string }> = {
   first_photo: { key: 'quest.daily.firstPhotoDesc', fallback: 'Receive your first AI photo today' },
   three_companions: { key: 'quest.daily.threeCompanionsDesc', fallback: 'Message 3 different companions today' },
   three_photos: { key: 'quest.daily.threePhotosDesc', fallback: 'Collect 3 AI photos today' },
+  tonight_story: { key: 'quest.daily.tonightStoryDesc', fallback: 'Play 3 scenes of tonight\'s story in scene mode' },
 };
 
 const RARITY_CONFIG: Record<string, { color: string; bg: string; ring: string; icon: typeof Trophy }> = {
@@ -302,6 +305,8 @@ function QuestPageInner() {
   const claimedToday = checkin?.claimed_today ?? false;
   const quests = questsData?.quests ?? [];
   const doneCount = quests.filter((q) => q.done).length;
+  const tonightScenario = getTonightScenario();
+  const zhUi = String(locale || '').toLowerCase().startsWith('zh');
   const allComplete = Boolean(questsData?.all_complete);
 
   return (
@@ -502,6 +507,13 @@ function QuestPageInner() {
                               )}
                             </div>
                             <p className="text-[11px] text-zinc-400 mt-0.5">{questDesc(q.code)}</p>
+                            {q.code === 'tonight_story' && (
+                              <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-[#ff2e88]/25 bg-[#ff2e88]/10 px-2 py-0.5 text-[10px] font-semibold text-[#ff9ec4]">
+                                <Flame className="h-3 w-3" />
+                                {zhUi ? `今晚：${tonightScenario.labelZh}` : `Tonight: ${tonightScenario.labelEn}`}
+                                <span className="text-white/45 font-normal">· {tonightScenario.opening}</span>
+                              </div>
+                            )}
                             <div className="mt-2.5 flex items-center gap-2">
                               <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                                 <div

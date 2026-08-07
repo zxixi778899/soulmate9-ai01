@@ -525,6 +525,7 @@ export async function POST(request: NextRequest) {
     girlfriend_id,
     role: 'user',
     content: truncatedMessage,
+    metadata: { reply_mode: replyMode },
     ...(mediaUrl
       ? {
           media_url: mediaUrl,
