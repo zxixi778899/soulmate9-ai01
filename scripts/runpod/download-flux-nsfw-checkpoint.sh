@@ -21,10 +21,6 @@ FILENAME="fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors"
 URL="https://civitai.com/api/download/models/${MODEL_VERSION}?type=Model&format=SafeTensor"
 EXPECTED_BYTES=11891283720
 
-CLIP_URL="https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors"
-T5_URL="https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors"
-VAE_URL="https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/ae.safetensors"
-
 # 最小体积校验（MB）：低于阈值视为下载不完整
 CLIP_MIN_MB=200
 T5_MIN_MB=4500
@@ -88,9 +84,10 @@ else
   echo "大小校验通过: $ACTUAL_BYTES 字节"
 fi
 
-# ------------------------------------------------------- CLIP-L + T5 文本编码器
+# ------------------------------------------------------- CLIP-L + T5 + VAE
 download_if_missing() {
-  local name="$1" url="$2" min_mb="$3" dir="$4"
+  local name="$1" min_mb="$2" dir="$3"
+  shift 3
   local target="$dir/$name"
   if [ -s "$target" ]; then
     local mb
@@ -100,8 +97,18 @@ download_if_missing() {
       return 0
     fi
   fi
-  echo "下载 $name（$url）..."
-  curl -sL --fail -C - --retry 3 --retry-delay 5 -o "$target" "$url"
+  local ok=0
+  for url in "$@"; do
+    echo "下载 $name <- $url"
+    if curl -sL --fail -C - --retry 2 --retry-delay 3 -o "$target" "$url"; then
+      ok=1
+      break
+    fi
+  done
+  if [ "$ok" != "1" ] || [ ! -s "$target" ]; then
+    echo "!! $name 下载失败（所有镜像均失败），请重跑"
+    exit 1
+  fi
   local mb
   mb=$(du -m "$target" | awk '{print $1}')
   if [ "$mb" -lt "$min_mb" ]; then
@@ -111,9 +118,13 @@ download_if_missing() {
   echo "OK $name (${mb}MB)"
 }
 
-download_if_missing "clip_l.safetensors" "$CLIP_URL" "$CLIP_MIN_MB" "$CLIP_DIR"
-download_if_missing "t5xxl_fp8_e4m3fn.safetensors" "$T5_URL" "$T5_MIN_MB" "$CLIP_DIR"
-download_if_missing "ae.safetensors" "$VAE_URL" "$VAE_MIN_MB" "$VAE_DIR"
+download_if_missing "clip_l.safetensors" "$CLIP_MIN_MB" "$CLIP_DIR" \
+  "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors"
+download_if_missing "t5xxl_fp8_e4m3fn.safetensors" "$T5_MIN_MB" "$CLIP_DIR" \
+  "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors"
+download_if_missing "ae.safetensors" "$VAE_MIN_MB" "$VAE_DIR" \
+  "https://huggingface.co/unsloth/FLUX.1-schnell/resolve/main/ae.safetensors" \
+  "https://huggingface.co/foxmail/flux_vae/resolve/main/ae.safetensors"
 
 echo ""
 echo "=== 安装完成 ==="
