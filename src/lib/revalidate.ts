@@ -56,7 +56,6 @@ export function invalidateGirlfriends(slug?: string | null): void {
  */
 export function invalidateShop(): void {
   revalidatePath('/shop');
-  revalidatePath('/shop-v2');
   revalidatePath('/wardrobe');
   invalidateTag([TAG.shop, TAG.wardrobe]);
 }
@@ -136,7 +135,7 @@ export function invalidateAll(): void {
   const allTags = Object.values(TAG);
   invalidateTag(allTags);
   const paths = [
-    '/', '/explore', '/summon', '/shop', '/shop-v2', '/wardrobe',
+    '/', '/explore', '/summon', '/shop', '/wardrobe',
     '/pricing', '/achievements', '/api/gifts', '/api/v2/shop/tokens',
   ];
   for (const p of paths) {

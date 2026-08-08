@@ -301,7 +301,7 @@ export default function ProfilePage() {
 
   if (authLoading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0f]">
+      <div className="flex h-full min-h-0 items-center justify-center bg-transparent">
         <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]/70" />
       </div>
     );
@@ -309,7 +309,7 @@ export default function ProfilePage() {
 
   if (loading || !mem) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0f]">
+      <div className="flex h-full min-h-0 items-center justify-center bg-transparent">
         <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]/70" />
       </div>
     );
@@ -328,8 +328,8 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      <div className="mx-auto max-w-3xl px-4 pb-28 pt-4 sm:pt-6">
+    <div className="h-full min-h-0 overflow-y-auto bg-transparent text-white [scrollbar-gutter:stable]">
+      <div className="mx-auto min-h-full w-full max-w-[1600px] px-4 pb-28 pt-4 sm:px-6 sm:pt-6 lg:px-10 xl:px-14">
         {/* Top bar */}
         <div className="mb-4 flex items-center gap-2">
           <button

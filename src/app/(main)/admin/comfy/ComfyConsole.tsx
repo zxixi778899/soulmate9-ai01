@@ -246,7 +246,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setGenerationSurface('companion');
     const isFinalProduct = role === 'character-art' || role === 'album' || role === 'scene';
     setGenMode(isAvatar || isFinalProduct ? 'txt2img' : hasIdentityRef ? 'img2img' : 'txt2img');
-    setInputImage(isAvatar || isFinalProduct ? '' : hasIdentityRef ? identityImage : '');
+    setInputImage(isAvatar ? inputImage : isFinalProduct ? '' : hasIdentityRef ? identityImage : '');
     setIdentityConsistency(preset.consistency);
     setWidth(preset.width);
     setHeight(preset.height);
@@ -622,6 +622,21 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
     toast.success(`已应用配方：${recipe.label}`);
     setTab('generate');
+  }
+
+  function applyImageTransformation(kind: 'outfit' | 'pose' | 'background') {
+    setGenMode('img2img');
+    setGenerationSurface('companion');
+    setIdentityConsistency(true);
+    setDenoise(kind === 'pose' ? 0.52 : 0.44);
+    const instruction = kind === 'outfit'
+      ? 'Keep the same adult character identity and body proportions. Change only the wardrobe described below; preserve the face, pose and background unless explicitly requested.'
+      : kind === 'pose'
+        ? 'Keep the same adult character identity, wardrobe and setting. Change only the pose, gesture, gaze and camera framing described below.'
+        : 'Keep the same adult character identity, body, wardrobe and pose. Replace only the background, lighting and environmental interaction described below.';
+    setPrompt((current) => `${instruction}\n\n${current}`.trim());
+    setPromptProfileApplied(true);
+    toast.success(kind === 'outfit' ? '已切换到一键换装' : kind === 'pose' ? '已切换到一键姿势' : '已切换到一键背景');
   }
 
   const workflows: Any[] = config?.workflows || [];
@@ -1540,6 +1555,42 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       {/* GENERATE — SD: left params sticky / right preview */}
       {tab === 'generate' && (
         <div className="space-y-4 text-slate-100">
+          <section className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-white">统一创作入口</h2>
+                <p className="mt-1 text-[11px] text-slate-400">参考图在这里统一读取：角色 ID 使用 IP-Adapter 锁定身份，换装、姿势和背景使用图生图工作流。</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => applyImageTransformation('outfit')}>一键换装</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => applyImageTransformation('pose')}>一键姿势</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => applyImageTransformation('background')}>一键背景</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => { setGenMode('img2video'); applyRecommendedParameters('img2video'); }}>Wan 2.2 图生视频</Button>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={referenceImageUploading}
+                onClick={() => referenceImageInputRef.current?.click()}
+                className="border-cyan-600/60 text-cyan-100"
+              >
+                {referenceImageUploading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />}
+                上传身份/取景参考
+              </Button>
+              <Input value={inputImage} onChange={(event) => setInputImage(event.target.value)} className="border-slate-700 bg-slate-950 text-xs font-mono" placeholder="上传后自动填入，或粘贴 HTTPS 图片地址" />
+              {inputImage ? <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-200">参考图已生效</Badge> : <Badge variant="outline">未使用参考图</Badge>}
+            </div>
+            <input
+              ref={referenceImageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(event) => void uploadReferenceImage(event.target.files?.[0] || null)}
+            />
+          </section>
           <section className="border-y border-slate-700 bg-slate-950/50 px-3 py-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -2134,13 +2185,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         上传图片
                       </Button>
                     </div>
-                    <input
-                      ref={referenceImageInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      onChange={(event) => void uploadReferenceImage(event.target.files?.[0] || null)}
-                    />
                   </div>
                   <Input value={inputImage} onChange={(e) => setInputImage(e.target.value)} className="bg-slate-950 border-slate-700 text-xs font-mono" placeholder="也可粘贴 HTTPS 图片地址" />
                   {inputImage ? (

@@ -1,19 +1,13 @@
 'use client';
 
-import { Suspense } from 'react';
-import { Loader2 } from 'lucide-react';
-import ComfyUiConsole from './ComfyUiConsole';
+import { AdminRedirect } from '@/components/admin/AdminRedirect';
 
-export default function AdminComfyUiPage(): React.JSX.Element {
+export default function LegacyComfyUiRedirect(): React.JSX.Element {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-64 items-center justify-center text-slate-400">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-      }
-    >
-      <ComfyUiConsole />
-    </Suspense>
+    <AdminRedirect
+      to="/admin/studio"
+      title="ComfyUI 已合并到创作工作台"
+      reason="模型、LoRA、IP-Adapter、工作流导入和 Wan 2.2 视频现在统一在一个专业工作页中。"
+    />
   );
 }

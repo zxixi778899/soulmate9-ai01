@@ -1336,9 +1336,12 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     // IP-Adapter keeps identity without copying the portrait composition. The
     // avatar is generated without any reference; every other identity asset uses
     // the avatar as its IP-Adapter anchor.
+    // Explicit top-level identity references must also affect the first ID
+    // portrait. Automatic avatar production remains pure txt2img; uploading a
+    // reference intentionally opts this stage into IP-Adapter identity control.
     const ipAdapterEnabled =
       process.env.RUNPOD_IPADAPTER_INSTALLED === '1' &&
-      assetRole !== 'avatar-closeup';
+      (assetRole !== 'avatar-closeup' || Boolean(suppliedReference));
     // Final products (character-art/album/scene) are txt2img + IP-Adapter: the
     // avatar locks the face, the prompt controls composition. Feeding the avatar
     // as an img2img base dragged the output back into a portrait crop, so it is
@@ -1380,9 +1383,11 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     // Identity reference sheets lock hard to the avatar; final products
     // (character-art, album, scene) use a slightly looser weight so the reference
     // guides identity without copying the portrait composition.
-    const defaultIpAdapterWeight = assetRole.startsWith('identity-')
-      ? 0.82
-      : 0.68;
+    const defaultIpAdapterWeight = assetRole === 'avatar-closeup'
+      ? 0.74
+      : assetRole.startsWith('identity-')
+        ? 0.82
+        : 0.68;
     const ipAdapterWeight = ipAdapterEnabled
       ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight ?? defaultIpAdapterWeight)))
       : undefined;

@@ -9,7 +9,6 @@ import {
   Users,
   Brain,
   Settings,
-  Wand2,
   Trophy,
   type LucideIcon,
 } from 'lucide-react';
@@ -81,14 +80,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
           '/admin/creator-previews',
           '/admin/presets',
           '/admin/preset-library',
+          '/admin/comfyui',
         ],
-      },
-      {
-        label: 'ComfyUI 控制台',
-        href: '/admin/comfyui',
-        icon: Wand2,
-        hint: '预设工作流、LoRA 与 WAN 视频',
-        aliases: [],
       },
       {
         label: '社区排行榜',

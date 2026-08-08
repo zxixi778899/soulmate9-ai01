@@ -23,6 +23,7 @@ const AUTH_REQUIRED_PREFIXES = [
   '/voice',
   '/summon',
   '/profile',
+  '/account',
   '/shop',
   '/purchases',
   '/payment',
@@ -108,9 +109,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const isChatDetail = pathname?.startsWith('/chat/');
   const isChats = pathname === '/chats' || pathname?.startsWith('/chats/');
   const isCreate = pathname?.startsWith('/create');
+  const isProfile = pathname === '/profile' || pathname?.startsWith('/profile/');
 
   // Chat / chats / create: full-height fixed shell. Other pages: scrollable mobile canvas.
-  const lockViewport = isChatDetail || isChats || isCreate || isAdmin;
+  const lockViewport = isChatDetail || isChats || isCreate || isProfile || isAdmin;
 
   // /chats keeps the sticky top nav visible, so the locked shell must subtract the
   // nav height (3rem mobile / 3.5rem desktop + 1px border + safe-area top inset)
