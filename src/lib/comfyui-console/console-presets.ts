@@ -139,19 +139,34 @@ function identityFields(required: boolean): ConsoleParamField[] {
 /** 动态工作流（raw 引擎）的默认 Flux txt2img 图 */
 export const DEFAULT_RAW_GRAPH: Record<string, unknown> = {
   '1': {
-    class_type: 'CheckpointLoaderSimple',
-    inputs: { ckpt_name: 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors' },
+    class_type: 'UNETLoader',
+    inputs: {
+      unet_name: 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors',
+      weight_dtype: 'default',
+    },
+  },
+  '22': {
+    class_type: 'DualCLIPLoader',
+    inputs: {
+      clip_name1: 'clip_l.safetensors',
+      clip_name2: 't5xxl_fp8_e4m3fn.safetensors',
+      type: 'flux',
+    },
+  },
+  '23': {
+    class_type: 'VAELoader',
+    inputs: { vae_name: 'ae.safetensors' },
   },
   '2': {
     class_type: 'CLIPTextEncode',
     inputs: {
       text: 'a stunning photorealistic portrait of an adult woman, soft studio light, sharp focus, high detail',
-      clip: ['1', 1],
+      clip: ['22', 0],
     },
   },
   '3': {
     class_type: 'CLIPTextEncode',
-    inputs: { text: FLUX_NEG_BASE, clip: ['1', 1] },
+    inputs: { text: FLUX_NEG_BASE, clip: ['22', 0] },
   },
   '4': {
     class_type: 'EmptyLatentImage',
@@ -176,7 +191,7 @@ export const DEFAULT_RAW_GRAPH: Record<string, unknown> = {
       latent_image: ['4', 0],
     },
   },
-  '6': { class_type: 'VAEDecode', inputs: { samples: ['5', 0], vae: ['1', 2] } },
+  '6': { class_type: 'VAEDecode', inputs: { samples: ['5', 0], vae: ['23', 0] } },
   '7': {
     class_type: 'SaveImage',
     inputs: { filename_prefix: 'comfyui-console', images: ['6', 0] },

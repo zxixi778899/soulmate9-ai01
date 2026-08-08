@@ -21,6 +21,7 @@ describe('buildFluxWorkflow LoRA stacking', () => {
   it('chains multiple LoRA loaders and samples from the final loader', () => {
     const graph = buildFluxWorkflow({
       prompt: 'adult woman, natural pose, window light, sharp focus',
+      ckpt_loader: 'checkpoint',
       loras: [
         { name: 'flux_style_photoreal_v1.safetensors', strength_model: 0.5 },
         { name: 'flux_body_curvy_v1.safetensors', strength_model: 0.65 },
@@ -40,6 +41,7 @@ describe('buildFluxWorkflow LoRA stacking', () => {
   it('connects transgender LoRAs to both CLIP and the sampled model', () => {
     const graph = buildFluxWorkflow({
       prompt: 'MtF trans. An adult transgender woman in a relaxed three-quarter pose.',
+      ckpt_loader: 'checkpoint',
       loras: [
         { name: 'Anet_Valence_futanari_FLUX-000004.safetensors', strength_model: 0.8, strength_clip: 0.55 },
         { name: 'realistic-mtf-trans.safetensors', strength_model: 0.58, strength_clip: 0.45 },
@@ -102,7 +104,7 @@ describe('buildFluxWorkflow LoRA stacking', () => {
     expect(graph['30'].inputs.model).toEqual(['1', 0]);
     expect(graph['30'].inputs.ipadapter_flux).toEqual(['31', 0]);
     expect(graph['30'].inputs.image).toEqual(['33', 0]);
-    expect(graph['30'].inputs.weight).toBe(0.72);
+    expect(graph['30'].inputs.weight).toBe(0.7);
     expect(graph['31'].class_type).toBe('IPAdapterFluxLoader');
     expect(graph['31'].inputs).toEqual({
       ipadapter: 'ip-adapter.bin',
@@ -131,6 +133,63 @@ describe('buildFluxWorkflow LoRA stacking', () => {
     }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
 
     expect(String(graph['2'].inputs.text)).not.toMatch(/dreamy blur|soft focus/i);
+  });
+});
+
+describe('buildFluxWorkflow split loader (UNET-only checkpoint)', () => {
+  it('uses UNETLoader + DualCLIPLoader + VAELoader for Flux Unchained', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'An adult woman in natural window light.',
+      ckpt_name: 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors',
+      loras: [{ name: 'flux_style_photoreal_v1.safetensors', strength_model: 0.5 }],
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+
+    expect(graph['1'].class_type).toBe('UNETLoader');
+    expect(graph['1'].inputs.unet_name).toBe('fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
+    expect(graph['22'].class_type).toBe('DualCLIPLoader');
+    expect(graph['22'].inputs).toEqual({
+      clip_name1: 'clip_l.safetensors',
+      clip_name2: 't5xxl_fp8_e4m3fn.safetensors',
+      type: 'flux',
+    });
+    expect(graph['23'].class_type).toBe('VAELoader');
+    expect(graph['23'].inputs.vae_name).toBe('ae.safetensors');
+    expect(graph['2'].inputs.clip).toEqual(['22', 0]);
+    expect(graph['3'].inputs.clip).toEqual(['22', 0]);
+    expect(graph['6'].inputs.vae).toEqual(['23', 0]);
+    // LoRA model chains from the previous loader; CLIP always from DualCLIPLoader.
+    expect(graph['14'].class_type).toBe('LoraLoader');
+    expect(graph['14'].inputs.model).toEqual(['1', 0]);
+    expect(graph['14'].inputs.clip).toEqual(['22', 0]);
+    expect(graph['5'].inputs.model).toEqual(['14', 0]);
+  });
+
+  it('falls back to CheckpointLoaderSimple for full checkpoints', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'An adult woman in natural window light.',
+      ckpt_name: 'flux1-dev-fp8.safetensors',
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+
+    expect(graph['1'].class_type).toBe('CheckpointLoaderSimple');
+    expect(graph['1'].inputs.ckpt_name).toBe('flux1-dev-fp8.safetensors');
+    expect(graph['2'].inputs.clip).toEqual(['1', 1]);
+    expect(graph['6'].inputs.vae).toEqual(['1', 2]);
+  });
+
+  it('supports ckpt_loader override and custom clip/vae filenames', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'An adult woman in natural window light.',
+      ckpt_name: 'flux1-dev-fp8.safetensors',
+      ckpt_loader: 'split',
+      clip_name: 'clip_l_custom.safetensors',
+      t5_name: 't5xxl_custom.safetensors',
+      vae_name: 'ae_custom.safetensors',
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+
+    expect(graph['1'].class_type).toBe('UNETLoader');
+    expect(graph['22'].inputs.clip_name1).toBe('clip_l_custom.safetensors');
+    expect(graph['22'].inputs.clip_name2).toBe('t5xxl_custom.safetensors');
+    expect(graph['23'].inputs.vae_name).toBe('ae_custom.safetensors');
   });
 });
 

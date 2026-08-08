@@ -7,7 +7,8 @@ export type ImageModelFamily = 'flux' | 'pony' | 'illustrious';
 
 /**
  * Single unified ComfyUI endpoint — ALL image generation goes through here.
- * Currently only flux1-dev-fp8.safetensors is available on the worker.
+ * Default checkpoint is Flux Unchained by SCG (UNET-only fp8, loaded with
+ * UNETLoader + DualCLIPLoader + VAELoader); flux1-dev-fp8 remains as fallback.
  * All routes use FLUX parameters; LoRAs are auto-selected downstream by
  * resolveModelLoraPlan() based on model family + category + intensity.
  */
@@ -68,7 +69,7 @@ export function resolveImageGenerationRoute(input: {
       sampler: 'euler',
       scheduler: 'simple',
       steps: 8,
-      cfg: 1.5,
+      cfg: 1,
       clipSkip: 1,
       width: 832,
       height: 1216,

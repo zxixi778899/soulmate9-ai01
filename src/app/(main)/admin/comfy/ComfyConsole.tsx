@@ -120,7 +120,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   // Generate form
   const [workflowId, setWorkflowId] = useState('wf-girlfriend');
   const [endpointKey, setEndpointKey] = useState('portrait-v9');
-  const [ckptId, setCkptId] = useState('flux-fp8');
+  const [ckptId, setCkptId] = useState('flux-unchained');
   const [loraId, setLoraId] = useState('none');
   const [loraStrength, setLoraStrength] = useState(0.8);
   const [selectedLoras, setSelectedLoras] = useState<Array<{ id: string; strength: number }>>([]);
@@ -132,7 +132,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(1);
   const [width, setWidth] = useState(832);
   const [height, setHeight] = useState(1216);
-  const [steps, setSteps] = useState(28);
+  const [steps, setSteps] = useState(8);
   const [cfg, setCfg] = useState(1);
   const [imageCount, setImageCount] = useState(1);
   const [customPresets, setCustomPresets] = useState<Array<GenPreset>>([]);
@@ -447,7 +447,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setKind(wf.kind || 'custom');
     setGenerationSurface(wf.kind === 'outfit' ? 'outfit' : wf.kind === 'prop' ? 'prop' : wf.kind === 'advert' ? 'advert' : 'companion');
     setEndpointKey(wf.defaults?.endpoint_key || 'comfy-default');
-    setCkptId(wf.defaults?.ckpt_id || 'flux-fp8');
+    setCkptId(wf.defaults?.ckpt_id || 'flux-unchained');
     setLoraId(wf.defaults?.lora_id || 'none');
     setLoraStrength(wf.defaults?.lora_strength ?? 0.8);
     setSelectedLoras(wf.defaults?.lora_id
@@ -690,7 +690,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   useEffect(() => {
     const endpoint = generationRoute.modelFamily === 'flux' ? 'comfy-flux-cd1' : 'comfy-sdxl-cd2';
     const checkpoint = generationRoute.modelFamily === 'flux'
-      ? 'flux-fp8'
+      ? 'flux-unchained'
       : generationRoute.modelFamily === 'pony'
         ? 'pony-realism-v22'
         : 'wai-mature-illustrious-v20';

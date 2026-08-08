@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   const started = Date.now();
   try {
     const body = await request.json();
-    let prompt = body.prompt;
+    const prompt = body.prompt;
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
     }
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
     const latency = Date.now() - started;
     void logModelUsage({
       provider: 'runpod',
-      model_id: sceneCfg.endpoint_id || 'flux1-dev-fp8',
+      model_id: sceneCfg.endpoint_id || 'fluxUnchainedBySCG_hyfu8StepHybridV10',
       task_type: 'image_generation',
       user_id: user.id,
       latency_ms: latency,

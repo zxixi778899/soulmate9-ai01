@@ -19,22 +19,22 @@ const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>
     anime: 'The adult character wears lingerie, nightwear, or an adult fantasy costume and poses seductively with genitals covered and no sexual act.',
   },
   3: {
-    female: 'She poses completely nude, bare natural breasts and exposed vulva clearly visible, full frontal nude body, no clothing, without performing a sexual act.',
+    female: 'She poses fully nude, bare natural breasts and exposed vulva clearly visible, full frontal nude body, no clothing, without performing a sexual act.',
     male: 'He poses fully nude with his muscular torso, large penis, and testicles clearly visible, without performing a sexual act.',
     transgender: 'She poses fully nude with developed breasts, feminine curves, a large penis, and testicles clearly visible, without performing a sexual act.',
-    anime: 'The adult character poses completely nude, mature bare breasts and exposed stylized vulva clearly visible, full nude figure, no clothing, without performing a sexual act.',
+    anime: 'The adult character poses fully nude, mature bare breasts and exposed stylized vulva clearly visible, full nude figure, no clothing, without performing a sexual act.',
   },
   4: {
-    female: 'Solo masturbation scene, she spreads her bare vulva with her fingers, completely nude, legs wide open, before climax and without visible sexual fluids.',
+    female: 'Solo masturbation scene, she spreads her clearly visible bare vulva with her fingers, fully nude, legs wide open, before climax and without visible sexual fluids.',
     male: 'He masturbates his clearly visible large penis, before climax and without visible semen.',
     transgender: 'She masturbates her clearly visible large penis while her developed breasts and feminine curves remain in frame, before climax and without visible semen.',
     anime: 'The adult character performs clearly visible solo masturbation, bare vulva spread by fingers, completely nude, before climax and without visible sexual fluids.',
   },
   5: {
-    female: 'Clear consensual sexual intercourse, completely nude adult woman with an adult man, visible penetration, bare breasts and spread vulva clearly shown, naked bodies fully visible, coherent anatomy through to climax.',
-    male: 'He has clearly visible, consensual sex with another unmistakably adult partner; his large penis and testicles remain visible, and the requested act through to climax with any visible semen are anatomically coherent and fully readable.',
-    transgender: 'She has clearly visible, consensual sex with another unmistakably adult partner; her developed breasts, feminine curves, large penis, and testicles remain visible and consistent, and the requested act through to climax with any visible semen are fully readable.',
-    anime: 'The unmistakably adult character has clearly visible consensual sex, completely nude, mature bare breasts and stylized vulva visible, penetration clearly shown, coherent anatomy through to climax.',
+    female: 'Clear consensual intercourse, completely nude adult woman with an unmistakably adult partner, a mature man, visible penetration, bare breasts and spread vulva clearly visible, naked bodies fully visible, coherent anatomy through to climax.',
+    male: 'He engages in clear consensual intercourse with another unmistakably adult partner; his large penis and testicles remain visible, and the requested act through to climax with any visible semen are anatomically coherent and fully readable.',
+    transgender: 'She engages in clear consensual intercourse with another unmistakably adult partner; her developed breasts, feminine curves, large penis, and testicles remain visible and consistent, and the requested act through to climax with any visible semen are fully readable.',
+    anime: 'The unmistakably adult character engages in clear consensual intercourse with an unmistakably adult partner, completely nude, mature bare breasts and stylized vulva visible, penetration clearly shown, coherent anatomy through to climax.',
   },
 };
 
@@ -90,7 +90,7 @@ export function studioPromptSatisfiesIntensity(prompt: string, intensity: NsfwIn
     2: [/(lingerie|nightdress|sleepwear|fantasy costume)/, /no sexual act/, /covered/],
     3: [/fully nude/, /clearly visible/, /without performing a sexual act/],
     4: [/masturbat/, /clearly visible/, /before climax/],
-    5: [/consensual sex/, /unmistakably adult partner/, /climax/],
+    5: [/(consensual sex|consensual intercourse)/, /unmistakably adult partner/, /climax/],
   };
   return contracts[intensity].every((contract) => contract.test(value));
 }

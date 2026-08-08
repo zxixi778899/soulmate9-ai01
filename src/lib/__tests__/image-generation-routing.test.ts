@@ -29,11 +29,11 @@ describe('unified image generation routing', () => {
     expect(route.sampler).toBe('euler');
     expect(route.scheduler).toBe('simple');
     expect(route.cfg).toBe(1);
-    expect(route.steps).toBeGreaterThanOrEqual(26);
+    expect(route.steps).toBe(8);
     expect(route.width).toBe(768);
     expect(route.height).toBe(1152);
     expect(route.clipSkip).toBe(1);
-    expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
+    expect(route.checkpoint).toBe('fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
   });
 
   it('routes 2D and 3D both to FLUX (only checkpoint available)', () => {
@@ -62,7 +62,7 @@ describe('unified image generation routing', () => {
     ];
     for (const route of routes) {
       expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
-      expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
+      expect(route.checkpoint).toBe('fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
       expect(route.sampler).toBe('euler');
       expect(route.scheduler).toBe('simple');
       expect(route.clipSkip).toBe(1);

@@ -169,7 +169,7 @@ async function generateAndUpload(
               Math.floor(Math.random() * 1e6),
             ),
           ),
-    ckpt_name: String(params.ckpt_name || 'flux1-dev-fp8.safetensors'),
+    ckpt_name: String(params.ckpt_name || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors'),
     loras: loraArray || undefined,
     lora_name: loraArray ? null : loraPlan.lora_name,
     lora_strength_model: loraPlan.lora_strength_model,

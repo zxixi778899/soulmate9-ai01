@@ -1133,7 +1133,7 @@ if (body.action === 'verify_loras') {
     const workflowId = body.workflow_id as string | undefined;
     const wf = cfg.workflows.find((w) => w.id === workflowId);
 
-    const ckptId = body.ckpt_id || wf?.defaults.ckpt_id || 'flux-fp8';
+    const ckptId = body.ckpt_id || wf?.defaults.ckpt_id || 'flux-unchained';
     const ckpt = cfg.checkpoints.find((c) => c.id === ckptId) || cfg.checkpoints[0];
     const loraId = body.lora_id !== undefined ? body.lora_id : wf?.defaults.lora_id;
     const lora = loraId

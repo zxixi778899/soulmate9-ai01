@@ -230,7 +230,20 @@ async function ensurePresetsSeeded(supabase: ReturnType<typeof getSupabaseClient
         : [];
       const defaults = (r as { defaults?: Record<string, unknown> }).defaults || {};
       const promptDefault = String(defaults.prompt || '');
+      // Re-seed when the raw preset still loads Flux Unchained via CheckpointLoaderSimple
+      // (UNET-only model needs UNETLoader + DualCLIPLoader + VAELoader).
+      const wfJson = (r as { workflow_json?: Record<string, unknown> }).workflow_json;
+      const node1 =
+        wfJson && typeof wfJson === 'object'
+          ? (wfJson['1'] as { class_type?: string; inputs?: Record<string, unknown> } | undefined)
+          : undefined;
+      const rawStale =
+        node1?.class_type === 'CheckpointLoaderSimple' &&
+        String((node1.inputs as Record<string, unknown> | undefined)?.ckpt_name || '').includes(
+          'fluxUnchainedBySCG',
+        );
       return (
+        rawStale ||
         !schema.some((f) => f?.key === 'intensity') ||
         !/natural skin texture/i.test(promptDefault)
       );

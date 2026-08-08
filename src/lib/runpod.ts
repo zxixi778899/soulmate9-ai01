@@ -6,6 +6,7 @@
  *
  * Architecture verified on this endpoint:
  * - CheckpointLoaderSimple with 'flux1-dev-fp8.safetensors'
+ * - UNETLoader + DualCLIPLoader + VAELoader for UNET-only fp8 (Flux Unchained)
  * - CLIPTextEncode (positive + negative)
  * - EmptyLatentImage  KSampler  VAEDecode  SaveImage
  */
@@ -43,8 +44,16 @@ function getRunPodConfig(): { apiKey: string; endpointId: string; baseUrl: strin
 
 // 
 // FLUX.1-dev ComfyUI Workflow Template (API format)
-// Using CheckpointLoaderSimple (single unified checkpoint file)
+// CheckpointLoaderSimple for single-file checkpoints (flux1-dev-fp8);
+// UNETLoader + DualCLIPLoader + VAELoader for UNET-only fp8 checkpoints
+// (Flux Unchained by SCG has no built-in CLIP/VAE - clip/t5/vae must be on
+// the worker under models/clip and models/vae).
 // 
+
+/** UNET-only FLUX checkpoints: need DualCLIPLoader (clip_l + t5xxl) + VAELoader (ae). */
+const SPLIT_FLUX_CHECKPOINTS = new Set([
+  'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors',
+]);
 
 /**
  * Fetch / decode a portrait URL or data-URL into base64 for RunPod img2img.
@@ -105,6 +114,18 @@ export function buildFluxWorkflow(opts: {
   denoising_strength?: number;
   /** Checkpoint filename as seen by Comfy on the worker / network volume */
   ckpt_name?: string;
+  /**
+   * Loader strategy: 'checkpoint' = CheckpointLoaderSimple; 'split' = UNETLoader +
+   * DualCLIPLoader + VAELoader (required for UNET-only checkpoints like Flux Unchained).
+   * Defaults to auto-detect by checkpoint filename.
+   */
+  ckpt_loader?: 'checkpoint' | 'split';
+  /** CLIP-L filename under models/clip (split mode). Default RUNPOD_FLUX_CLIP / clip_l.safetensors */
+  clip_name?: string;
+  /** T5-XXL fp8 filename under models/clip (split mode). Default RUNPOD_FLUX_T5 / t5xxl_fp8_e4m3fn.safetensors */
+  t5_name?: string;
+  /** FLUX VAE filename under models/vae (split mode). Default RUNPOD_FLUX_VAE / ae.safetensors */
+  vae_name?: string;
   /** LoRA filename under models/loras (network volume supported if mounted) */
   lora_name?: string | null;
   lora_strength_model?: number;
@@ -146,6 +167,15 @@ export function buildFluxWorkflow(opts: {
   const scheduler = opts.scheduler || (isFlux ? 'simple' : 'karras');
   const batchSize = Math.min(4, Math.max(1, Math.floor(opts.batch_size ?? 1)));
   const ckpt = opts.ckpt_name || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
+  // Flux Unchained by SCG ships UNET-only (fp8, no CLIP/VAE inside). It must be
+  // loaded with UNETLoader + DualCLIPLoader + VAELoader, not CheckpointLoaderSimple.
+  const useSplitLoader =
+    isFlux &&
+    (opts.ckpt_loader === 'split' ||
+      (opts.ckpt_loader !== 'checkpoint' && SPLIT_FLUX_CHECKPOINTS.has(ckpt)));
+  const clipName = opts.clip_name || process.env.RUNPOD_FLUX_CLIP || 'clip_l.safetensors';
+  const t5Name = opts.t5_name || process.env.RUNPOD_FLUX_T5 || 't5xxl_fp8_e4m3fn.safetensors';
+  const vaeName = opts.vae_name || process.env.RUNPOD_FLUX_VAE || 'ae.safetensors';
   const requestedStack = opts.loras?.length
     ? opts.loras
     : opts.lora_name
@@ -201,9 +231,34 @@ export function buildFluxWorkflow(opts: {
   const lastLoraNodeId = loraStack.length ? String(14 + loraStack.length - 1) : '1';
   let modelRef: [string, number] = [lastLoraNodeId, 0];
   const clipSkip = isFlux ? 1 : Math.min(2, Math.max(1, Math.round(opts.clip_skip || 2)));
-  const clipRef: [string, number] = clipSkip > 1 ? ['20', 0] : [lastLoraNodeId, 1];
-  const vaeRef: [string, number] = ['1', 2];
+  const clipRef: [string, number] = useSplitLoader
+    ? ['22', 0]
+    : clipSkip > 1
+      ? ['20', 0]
+      : [lastLoraNodeId, 1];
+  const vaeRef: [string, number] = useSplitLoader ? ['23', 0] : ['1', 2];
   const positiveRef: [string, number] = isFlux ? ['21', 0] : ['2', 0];
+  const loaderNodes: Record<string, unknown> = useSplitLoader
+    ? {
+        '1': {
+          class_type: 'UNETLoader',
+          inputs: { unet_name: ckpt, weight_dtype: 'default' },
+        },
+        '22': {
+          class_type: 'DualCLIPLoader',
+          inputs: { clip_name1: clipName, clip_name2: t5Name, type: 'flux' },
+        },
+        '23': {
+          class_type: 'VAELoader',
+          inputs: { vae_name: vaeName },
+        },
+      }
+    : {
+        '1': {
+          class_type: 'CheckpointLoaderSimple',
+          inputs: { ckpt_name: ckpt },
+        },
+      };
 
   const loraNodes = Object.fromEntries(loraStack.map((item, index) => {
     const id = String(14 + index);
@@ -215,7 +270,7 @@ export function buildFluxWorkflow(opts: {
           strength_model: item.strength_model ?? 0.7,
           strength_clip: item.strength_clip ?? item.strength_model ?? 0.7,
           model: [previousId, 0],
-          clip: [previousId, 1],
+          clip: useSplitLoader ? ['22', 0] : [previousId, 1],
         },
       }];
   }));
@@ -279,10 +334,6 @@ export function buildFluxWorkflow(opts: {
   if (opts.input_image) {
     const denoise = opts.denoising_strength ?? 0.55;
     const graph: Record<string, unknown> = {
-      '1': {
-        class_type: 'CheckpointLoaderSimple',
-        inputs: { ckpt_name: ckpt },
-      },
       '2': {
         class_type: 'CLIPTextEncode',
         inputs: { text: promptText, clip: clipRef },
@@ -333,16 +384,12 @@ export function buildFluxWorkflow(opts: {
         inputs: { pixels: ['12', 0], vae: vaeRef },
       },
     };
-    Object.assign(graph, loraNodes, clipSkipNodes, fluxGuidanceNodes, ipAdapterNodes);
+    Object.assign(graph, loaderNodes, loraNodes, clipSkipNodes, fluxGuidanceNodes, ipAdapterNodes);
     return graph;
   }
 
   // txt2img (default) — FLUX-safe empty negative + cfg≈1
   const graph: Record<string, unknown> = {
-    '1': {
-      class_type: 'CheckpointLoaderSimple',
-      inputs: { ckpt_name: ckpt },
-    },
     '2': {
       class_type: 'CLIPTextEncode',
       inputs: { text: promptText, clip: clipRef },
@@ -379,7 +426,7 @@ export function buildFluxWorkflow(opts: {
       inputs: { filename_prefix: 'soulmate', images: ['6', 0] },
     },
   };
-  Object.assign(graph, loraNodes, clipSkipNodes, fluxGuidanceNodes, ipAdapterNodes);
+  Object.assign(graph, loaderNodes, loraNodes, clipSkipNodes, fluxGuidanceNodes, ipAdapterNodes);
   return graph;
 }
 
@@ -406,6 +453,11 @@ export interface RunPodGenerateOptions {
   input_image?: string;      // For img2img (character consistency)
   denoising_strength?: number; // 0-1, lower = closer to input
   ckpt_name?: string;
+  /** Loader strategy (auto-detect by filename when omitted). 'split' = UNET + CLIP + VAE loaders. */
+  ckpt_loader?: 'checkpoint' | 'split';
+  clip_name?: string;
+  t5_name?: string;
+  vae_name?: string;
   lora_name?: string | null;
   lora_strength_model?: number;
   lora_strength_clip?: number;
@@ -833,6 +885,10 @@ class RunPodClient {
           : undefined),
       denoising_strength: options.denoising_strength,
       ckpt_name: options.ckpt_name,
+      ckpt_loader: options.ckpt_loader,
+      clip_name: options.clip_name,
+      t5_name: options.t5_name,
+      vae_name: options.vae_name,
       model_family: options.model_family,
       lora_name: options.lora_name,
       lora_strength_model: options.lora_strength_model,
@@ -848,6 +904,7 @@ class RunPodClient {
     logger.info('[runpod] workflow resolved', {
       model_family: options.model_family || 'flux',
       checkpoint_loader: checkpointNode?.class_type,
+      loader_mode: checkpointNode?.class_type === 'UNETLoader' ? 'split' : 'checkpoint',
       checkpoint: options.ckpt_name || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors',
       width: options.width ?? 832,
       height: options.height ?? 1216,
@@ -1192,7 +1249,7 @@ class RunPodClient {
     const hint =
       endpointId.startsWith('h0p7dpiv')
         ? ' [提示: 端点 h0p7dpiv* 在项目文档中标记为不可用，请把 Vercel RUNPOD_ENDPOINT_ID 改成可用的 Comfy 端点，例如本地 b6r5nhhrddf8dx]'
-        : ' [提示: 确认 RUNPOD_ENDPOINT_ID 是 Comfy/FLUX 出图端点，且 worker 上有 flux1-dev-fp8.safetensors]';
+        : ' [提示: 确认 RUNPOD_ENDPOINT_ID 是 Comfy/FLUX 出图端点；Flux Unchained 需 worker 有 clip_l.safetensors + t5xxl_fp8_e4m3fn.safetensors (models/clip) 与 ae.safetensors (models/vae)]';
 
     throw new Error(`RunPod generation failed: ${joined}${hint}`);
   }

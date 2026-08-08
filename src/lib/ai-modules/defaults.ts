@@ -131,7 +131,7 @@ export function createDefaultAiModules(): AiModulesConfig {
         id: 'flux-portrait',
         label: 'RunPod FLUX Portrait',
         provider: 'runpod',
-        model_id: 'flux1-dev-fp8',
+        model_id: 'fluxUnchainedBySCG_hyfu8StepHybridV10',
         api_base_url: null,
         api_key_env: 'RUNPOD_API_KEY',
         temperature: 0,
