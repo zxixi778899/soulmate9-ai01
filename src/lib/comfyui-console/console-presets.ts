@@ -53,7 +53,7 @@ const FLUX_NEG_BASE =
 
 /** 自然感正向补丁：降低“AI 味”，让脸部有辨识度 */
 const NATURAL_POSITIVE =
-  ', youthful fresh healthy skin, natural skin texture with soft realistic detail, clear bright youthful eyes, soft natural diffused lighting, gentle realistic shadows, natural color grading, candid relaxed expression, correct realistic anatomy, natural body proportions, well-formed hands and fingers, not airbrushed';
+  ', youthful fresh healthy skin, natural skin texture with subtle fine pores and soft realistic detail, clear bright youthful expressive eyes, genuine lively expression, relaxed unposed candid moment, soft natural diffused lighting, gentle realistic shadows, natural color grading, correct realistic anatomy, natural body proportions, well-formed hands and fingers, not airbrushed';
 /** 反“AI 脸”负向词：塑料感 / 蜡像 / 千篇一律脸 */
 const ANTI_AI_NEGATIVE =
   ', plastic skin, airbrushed, doll-like, porcelain skin, wax figure, mannequin, generic face, same-face look, AI-generated look, oversmoothed, waxy, uncanny, CGI render, aged appearance, wrinkles, sagging skin, dull complexion, acne, blemishes';

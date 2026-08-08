@@ -1213,9 +1213,12 @@ export function buildLoraPlan(
   }
 
   if (!secondary && (opts?.preferDetail || /skin|pores|texture|close.?up/.test(bag))) {
-    const skin = LORA_REGISTRY.find((item) => item.file.includes('detail_skin') && !item.file.includes('nplastic') && isLoraInstalled(item.file));
+    // 优先 "无塑料感" 皮肤细节 LoRA（真实肤质），未安装再退回普通 skin_v1
+    const skin =
+      LORA_REGISTRY.find((item) => item.file.includes('detail_skin_nplastic') && isLoraInstalled(item.file)) ||
+      LORA_REGISTRY.find((item) => item.file.includes('detail_skin') && isLoraInstalled(item.file));
     if (skin) {
-      const strength = /close.?up|portrait|selfie/.test(bag) ? 0.42 : 0.34;
+      const strength = /close.?up|portrait|selfie/.test(bag) ? 0.5 : 0.4;
       secondary = { name: skin.file, strength_model: strength, strength_clip: strength, note: 'detail-skin' };
     }
   }

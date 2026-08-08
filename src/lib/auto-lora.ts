@@ -13,19 +13,19 @@ type AutoConfig = {
 const AUTO_MATRIX: Record<string, LoraAutoPick[]> = {
   female: [
     { id: 'flux-style-photoreal-v1', strength: 0.28 },
-    { id: 'flux-detail-skin-v1', strength: 0.2 },
+    { id: 'flux-detail-skin-nplastic-v1', strength: 0.3 },
   ],
   male: [
     { id: 'flux-male-masc-v1', strength: 0.32 },
-    { id: 'flux-detail-skin-v1', strength: 0.18 },
+    { id: 'flux-detail-skin-nplastic-v1', strength: 0.25 },
   ],
   transgender: [
     { id: 'flux-mtf-trans-v1', strength: 0.32 },
-    { id: 'flux-detail-skin-v1', strength: 0.18 },
+    { id: 'flux-detail-skin-nplastic-v1', strength: 0.25 },
   ],
   femboy: [
     { id: 'flux-femboy-v1', strength: 0.32 },
-    { id: 'flux-detail-skin-v1', strength: 0.18 },
+    { id: 'flux-detail-skin-nplastic-v1', strength: 0.25 },
   ],
   anime: [{ id: 'flux-anime-v1', strength: 0.45 }],
   '3d': [{ id: 'flux-3d-render-v1', strength: 0.45 }],
@@ -70,10 +70,10 @@ export function buildAutoLoraStack(
     picks.push({ id: 'flux-pose-nsfw-dynamic-v1', strength: 0.55 });
     picks.push({ id: 'flux-lewd-v1', strength: 0.4 });
     const animePick = AUTO_MATRIX.anime[0];
-    picks.push(s === 'anime' && animePick ? animePick : { id: 'flux-detail-skin-v1', strength: 0.18 });
+    picks.push(s === 'anime' && animePick ? animePick : { id: 'flux-detail-skin-nplastic-v1', strength: 0.25 });
   } else if (level === 3) {
     picks.push({ id: 'flux-lewd-v1', strength: 0.55 });
-    picks.push({ id: 'flux-detail-skin-v1', strength: 0.2 });
+    picks.push({ id: 'flux-detail-skin-nplastic-v1', strength: 0.3 });
     const animePick = AUTO_MATRIX.anime[0];
     if (s === 'anime' && animePick) picks.push(animePick);
   } else {

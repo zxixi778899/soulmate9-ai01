@@ -855,19 +855,19 @@
     "flux": {
       "female": [
         "flux-style-photoreal-v1",
-        "flux-detail-skin-v1"
+        "flux-detail-skin-nplastic-v1"
       ],
       "male": [
         "flux-male-masc-v1",
-        "flux-detail-skin-v1"
+        "flux-detail-skin-nplastic-v1"
       ],
       "transgender": [
         "flux-mtf-trans-v1",
-        "flux-detail-skin-v1"
+        "flux-detail-skin-nplastic-v1"
       ],
       "femboy": [
         "flux-femboy-v1",
-        "flux-detail-skin-v1"
+        "flux-detail-skin-nplastic-v1"
       ],
       "anime": [
         "flux-anime-v1"
@@ -899,7 +899,7 @@
     "flux": {
       "scheduler": "simple",
       "cfg": 1,
-      "steps": 28,
+      "steps": 8,
       "sampler": "euler"
     }
   },

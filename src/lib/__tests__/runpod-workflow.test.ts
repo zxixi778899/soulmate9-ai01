@@ -201,8 +201,10 @@ describe('applyFluxNaturalLook (anti AI/wax look)', () => {
       'blurry, lowres, watermark',
     );
     expect(result.positive).toContain('youthful fresh healthy skin');
-    expect(result.positive).toContain('natural skin texture with soft realistic detail');
+    expect(result.positive).toContain('natural skin texture with subtle fine pores');
     expect(result.positive).toContain('soft natural diffused lighting');
+    expect(result.positive).toContain('genuine lively expression');
+    expect(result.positive).toContain('relaxed unposed candid moment');
     expect(result.positive).not.toContain('fair luminous skin');
     expect(result.positive).not.toContain('visible pores');
     expect(result.positive).not.toContain('film grain');

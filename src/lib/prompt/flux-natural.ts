@@ -14,7 +14,7 @@
  * - 保留真实皮肤质感但去掉 pores/grain/blemishes，避免 "杂质感 / 蜡像感"
  */
 export const FLUX_NATURAL_POSITIVE =
-  ', youthful fresh healthy skin, natural skin texture with soft realistic detail, clear bright youthful eyes, soft natural diffused lighting, gentle realistic shadows, natural color grading, candid relaxed expression, correct realistic anatomy, natural body proportions, well-formed hands and fingers, not airbrushed';
+  ', youthful fresh healthy skin, natural skin texture with subtle fine pores and soft realistic detail, clear bright youthful expressive eyes, genuine lively expression, relaxed unposed candid moment, soft natural diffused lighting, gentle realistic shadows, natural color grading, correct realistic anatomy, natural body proportions, well-formed hands and fingers, not airbrushed';
 
 /** 反 "AI 脸 / 蜡像" 负向片段 */
 export const FLUX_ANTI_AI_NEGATIVE =
