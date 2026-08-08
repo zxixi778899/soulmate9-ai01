@@ -1147,8 +1147,8 @@ if (body.action === 'verify_loras') {
 
     let width = Number(body.width || wf?.defaults.width || 832);
     let height = Number(body.height || wf?.defaults.height || 1216);
-    const categoryForParams = String(body.companion_category || 'female');
-    const minimumSteps = categoryForParams === 'transgender' ? 32 : 28;
+    // Flux Unchained 8 步规范：不再强制 28/32 步
+    const minimumSteps = 8;
     const steps = Math.max(minimumSteps, Number(body.steps || body.num_inference_steps || wf?.defaults.steps || minimumSteps));
     const allowedSamplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_sde']);
     const allowedSchedulers = new Set(['simple', 'normal', 'karras', 'sgm_uniform']);

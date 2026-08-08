@@ -5,6 +5,7 @@
  */
 import { catalogToLoraAssets, LORA_CATALOG } from './lora-catalog';
 import type { LibraryItem } from '@/lib/model-library';
+import { getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
 import {
   DEFAULT_REFERENCE_CONTROLS,
   type ReferenceAsset,
@@ -111,7 +112,13 @@ export const COMFY_CONFIG_KEY = 'comfy_console';
 
 /** Merge static catalog + model-library LoRAs for Comfy dropdown. */
 export function mergeLoraAssets(libraryItems?: LibraryItem[]): LoraAsset[] {
-  const base = catalogToLoraAssets() as LoraAsset[];
+  // 只暴露 worker 上真实存在的 LoRA（运行时清单为准），避免选到已删除文件后
+  // 提交被 RunPod 校验拒绝；运行时清单缺失时退回展示全量（下载/管理场景）。
+  const installed = getVerifiedInstalledLoraSet();
+  const hasInventory = installed.size > 0;
+  const base = (catalogToLoraAssets() as LoraAsset[]).filter(
+    (l) => !hasInventory || !l.filename || installed.has(l.filename),
+  );
   if (!libraryItems?.length) return base;
 
   const byFilename = new Map<string, LoraAsset>();
@@ -124,6 +131,8 @@ export function mergeLoraAssets(libraryItems?: LibraryItem[]): LoraAsset[] {
   const extra: LoraAsset[] = [];
   for (const it of libraryItems) {
     if (it.kind !== 'lora' || !it.filename) continue;
+    // 运行时清单存在时，资料库条目同样只暴露 worker 上真实存在的文件
+    if (hasInventory && !installed.has(it.filename)) continue;
     // catalog seeds already in base
     if (it.source === 'catalog') {
       const bare = it.id.replace(/^catalog:/, '');
