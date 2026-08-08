@@ -13,6 +13,7 @@ import { invokeChat } from '@/lib/ai-modules/invoke';
 import { loadAiModules } from '@/lib/ai-modules';
 import { pickImagePromptEndpoint, sanitizeLlmPrompt } from '@/lib/image-prompt-llm';
 import { compactFluxPrompt, studioIntensityDirection } from '@/lib/comfy-console/studio-profile';
+import { applyFluxNaturalLook } from '@/lib/prompt/flux-natural';
 import { normalizeCompanionCategory } from '@/lib/companion-category';
 import { uploadImageBase64, uploadFile, extractKeyFromUrl } from '@/lib/storage';
 import { sanitizeLoraForVolume, getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
@@ -800,6 +801,8 @@ export async function POST(req: NextRequest) {
           'positive',
         );
         if (rawTranslated) merged.prompt = rawTranslated;
+        const naturalRaw = applyFluxNaturalLook(String(merged.prompt || '').trim());
+        if (naturalRaw.positive) merged.prompt = naturalRaw.positive;
         const { graph, images } = await prepareRawGraph(
           graphCandidate,
           String(merged.prompt || '').trim() || undefined,

@@ -14,6 +14,7 @@
 import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
 import { validateModelLoraName } from '@/lib/model-lora-routing';
 import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
+import { applyFluxNaturalLook } from '@/lib/prompt/flux-natural';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from './analytics';
 
@@ -217,7 +218,11 @@ export function buildFluxWorkflow(opts: {
     .trim();
 
   // FLUX: empty negative is safest. Long SD negatives → black / muddy images.
-  const rawNeg = String(opts.negativePrompt ?? '').trim();
+  // 统一注入 "自然写实" 提示词（皮肤纹理/瑕疵/胶片颗粒），降低 AI 感 / 蜡像感；
+  // 非人物类提示词（服装/道具/广告）原样放行。
+  const naturalized = applyFluxNaturalLook(promptText, String(opts.negativePrompt ?? '').trim());
+  promptText = naturalized.positive;
+  const rawNeg = naturalized.negative;
   const negativeParts = [...new Set(rawNeg.split(',').map((part) => part.trim()).filter(Boolean))];
   let negText = '';
   for (const part of negativeParts) {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildFluxWorkflow } from '../runpod';
+import { applyFluxNaturalLook } from '../prompt/flux-natural';
 import { ensureStudioFluxPrompt, studioPromptSatisfiesIntensity } from '../comfy-console/studio-profile';
 import { assembleGirlfriendFromRow } from '../prompt/girlfriend';
 
@@ -190,6 +191,37 @@ describe('buildFluxWorkflow split loader (UNET-only checkpoint)', () => {
     expect(graph['22'].inputs.clip_name1).toBe('clip_l_custom.safetensors');
     expect(graph['22'].inputs.clip_name2).toBe('t5xxl_custom.safetensors');
     expect(graph['23'].inputs.vae_name).toBe('ae_custom.safetensors');
+  });
+});
+
+describe('applyFluxNaturalLook (anti AI/wax look)', () => {
+  it('appends natural skin/photography cues to human prompts and merges anti-AI negative', () => {
+    const result = applyFluxNaturalLook(
+      'portrait of a beautiful adult woman with fair luminous skin, sharp focus',
+      'blurry, lowres, watermark',
+    );
+    expect(result.positive).toContain('natural skin texture with visible pores');
+    expect(result.positive).toContain('fine film grain');
+    expect(result.positive).not.toContain('fair luminous skin');
+    expect(result.negative).toContain('plastic skin');
+    expect(result.negative).toContain('blurry');
+    expect(result.negative).toContain('wax figure');
+  });
+
+  it('leaves non-human prompts (ghost mannequin outfits) untouched', () => {
+    const prompt =
+      'sexy cosplay costume as game wardrobe item, invisible ghost mannequin, full garment front view, no person no face';
+    const result = applyFluxNaturalLook(prompt, 'person, face, skin, model');
+    expect(result.positive).toBe(prompt);
+    expect(result.positive).not.toContain('natural skin texture');
+    expect(result.negative).toBe('person, face, skin, model');
+  });
+
+  it('does not duplicate the natural look when already present', () => {
+    const result = applyFluxNaturalLook(
+      'adult woman, natural skin texture with visible pores, window light',
+    );
+    expect(result.positive.match(/natural skin texture/g)?.length ?? 0).toBe(1);
   });
 });
 
