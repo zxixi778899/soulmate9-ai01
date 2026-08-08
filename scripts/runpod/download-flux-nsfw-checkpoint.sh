@@ -9,6 +9,9 @@
 #     models/vae/ae.safetensors                 (~335MB, FLUX VAE)
 #   底模放入 models/diffusion_models/（UNETLoader 扫描目录）。
 #
+# 注意：NFS 网络卷上 worker 不识别软链接，所以 diffusion_models 里必须放
+#   硬链接或真实文件（硬链接不占额外空间，优先使用）。
+#
 # 用法（在 POD 终端执行）：
 #     export CIVITAI_TOKEN='684f419ed32660cf70e8ad945abc5159'
 #     bash /tmp/download-flux-nsfw-checkpoint.sh
@@ -88,13 +91,39 @@ if [ "$FREE_KB" -lt $((NEED_MB * 1024)) ]; then
 fi
 
 # ---------------------------------------------------------------- 底模 UNET
-if [ -s "$UNET_DIR/$FILENAME" ] && [ "$(stat -c %s "$UNET_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
-  echo "SKIP $FILENAME（diffusion_models 已存在且校验通过）"
-elif [ -s "$CKPT_DIR/$FILENAME" ] && [ "$(stat -c %s "$CKPT_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
-  echo "检测到 checkpoints 已有完整文件，创建 diffusion_models 软链接（节省 11GB）..."
-  ln -sf "../checkpoints/$FILENAME" "$UNET_DIR/$FILENAME"
-  ls -lh "$UNET_DIR/$FILENAME"
-else
+# NFS worker 不识别软链接：diffusion_models 里的文件必须是硬链接或真实文件。
+UNET_PRESENT=0
+if [ -s "$UNET_DIR/$FILENAME" ]; then
+  if [ "$(stat -c %s "$UNET_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
+    if [ -L "$UNET_DIR/$FILENAME" ]; then
+      echo "diffusion_models 里是软链接（NFS worker 不识别），改为硬链接..."
+      rm -f "$UNET_DIR/$FILENAME"
+      if ln "$CKPT_DIR/$FILENAME" "$UNET_DIR/$FILENAME" 2>/dev/null; then
+        echo "OK 硬链接已创建（不占额外空间）"
+        UNET_PRESENT=1
+      else
+        echo "硬链接失败，复制文件（约 11GB）..."
+        cp "$CKPT_DIR/$FILENAME" "$UNET_DIR/$FILENAME"
+        UNET_PRESENT=1
+      fi
+    else
+      echo "SKIP $FILENAME（diffusion_models 已存在且校验通过）"
+      UNET_PRESENT=1
+    fi
+  fi
+fi
+if [ "$UNET_PRESENT" != "1" ] && [ -s "$CKPT_DIR/$FILENAME" ] && [ "$(stat -c %s "$CKPT_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
+  echo "检测到 checkpoints 已有完整文件，创建 diffusion_models 硬链接（节省 11GB）..."
+  if ln "$CKPT_DIR/$FILENAME" "$UNET_DIR/$FILENAME" 2>/dev/null; then
+    echo "OK 硬链接已创建（不占额外空间）"
+    UNET_PRESENT=1
+  else
+    echo "硬链接失败，改为复制（约 11GB）..."
+    cp "$CKPT_DIR/$FILENAME" "$UNET_DIR/$FILENAME"
+    UNET_PRESENT=1
+  fi
+fi
+if [ "$UNET_PRESENT" != "1" ]; then
   echo ""
   echo "开始下载 $FILENAME（约 11GB，支持断点续传）..."
   cd "$UNET_DIR"
