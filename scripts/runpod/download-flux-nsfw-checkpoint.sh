@@ -7,10 +7,11 @@
 #     models/clip/clip_l.safetensors            (~246MB, CLIP-L)
 #     models/clip/t5xxl_fp8_e4m3fn.safetensors  (~4.9GB, T5-XXL fp8)
 #     models/vae/ae.safetensors                 (~335MB, FLUX VAE)
-#   底模放入 models/diffusion_models/（UNETLoader 扫描目录）。
+#   底模放入 models/diffusion_models/ 和 models/unet/（不同 ComfyUI 版本
+#   UNETLoader 扫描目录不同，两个都放最稳）。
 #
-# 注意：NFS 网络卷上 worker 不识别软链接，所以 diffusion_models 里必须放
-#   硬链接或真实文件（硬链接不占额外空间，优先使用）。
+# 注意：NFS 网络卷上 worker 不识别软链接，所以必须用硬链接或真实文件
+#   （硬链接不占额外空间，优先使用）。
 #
 # 用法（在 POD 终端执行）：
 #     export CIVITAI_TOKEN='684f419ed32660cf70e8ad945abc5159'
@@ -48,10 +49,11 @@ if [ -z "$MODELS_ROOT" ]; then
 fi
 
 UNET_DIR="$MODELS_ROOT/diffusion_models"
+UNET_DIR2="$MODELS_ROOT/unet"
 CKPT_DIR="$MODELS_ROOT/checkpoints"
 CLIP_DIR="$MODELS_ROOT/clip"
 VAE_DIR="$MODELS_ROOT/vae"
-mkdir -p "$UNET_DIR" "$CLIP_DIR" "$VAE_DIR"
+mkdir -p "$UNET_DIR" "$UNET_DIR2" "$CLIP_DIR" "$VAE_DIR"
 
 echo "models 根目录: $MODELS_ROOT"
 df -h "$MODELS_ROOT"
@@ -60,6 +62,8 @@ df -h "$MODELS_ROOT"
 NEED_MB=512
 unet_missing=1
 if [ -s "$UNET_DIR/$FILENAME" ] && [ "$(stat -c %s "$UNET_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
+  unet_missing=0
+elif [ -s "$UNET_DIR2/$FILENAME" ] && [ "$(stat -c %s "$UNET_DIR2/$FILENAME")" = "$EXPECTED_BYTES" ]; then
   unet_missing=0
 elif [ -s "$CKPT_DIR/$FILENAME" ] && [ "$(stat -c %s "$CKPT_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
   unet_missing=0
@@ -91,51 +95,55 @@ if [ "$FREE_KB" -lt $((NEED_MB * 1024)) ]; then
 fi
 
 # ---------------------------------------------------------------- 底模 UNET
-# NFS worker 不识别软链接：diffusion_models 里的文件必须是硬链接或真实文件。
-UNET_PRESENT=0
-if [ -s "$UNET_DIR/$FILENAME" ]; then
-  if [ "$(stat -c %s "$UNET_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
-    if [ -L "$UNET_DIR/$FILENAME" ]; then
-      echo "diffusion_models 里是软链接（NFS worker 不识别），改为硬链接..."
-      rm -f "$UNET_DIR/$FILENAME"
-      if ln "$CKPT_DIR/$FILENAME" "$UNET_DIR/$FILENAME" 2>/dev/null; then
-        echo "OK 硬链接已创建（不占额外空间）"
-        UNET_PRESENT=1
-      else
-        echo "硬链接失败，复制文件（约 11GB）..."
-        cp "$CKPT_DIR/$FILENAME" "$UNET_DIR/$FILENAME"
-        UNET_PRESENT=1
-      fi
-    else
-      echo "SKIP $FILENAME（diffusion_models 已存在且校验通过）"
-      UNET_PRESENT=1
+# NFS worker 不识别软链接，且不同 ComfyUI 版本 UNETLoader 扫描目录不同
+# （diffusion_models 或 unet），两个目录都放硬链接最稳。
+link_from_checkpoints() {
+  local target_dir="$1"
+  local target="$target_dir/$FILENAME"
+  if [ -s "$target" ] && [ "$(stat -c %s "$target")" = "$EXPECTED_BYTES" ] && [ ! -L "$target" ]; then
+    echo "SKIP $FILENAME（$target_dir 已存在且校验通过）"
+    return 0
+  fi
+  if [ -L "$target" ]; then
+    echo "移除 $target_dir 里的软链接（NFS worker 不识别）..."
+    rm -f "$target"
+  fi
+  if [ -s "$CKPT_DIR/$FILENAME" ] && [ "$(stat -c %s "$CKPT_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
+    echo "为 $target_dir 创建硬链接（节省 11GB）..."
+    if ln "$CKPT_DIR/$FILENAME" "$target" 2>/dev/null; then
+      echo "OK 硬链接已创建（不占额外空间）"
+      return 0
     fi
-  fi
-fi
-if [ "$UNET_PRESENT" != "1" ] && [ -s "$CKPT_DIR/$FILENAME" ] && [ "$(stat -c %s "$CKPT_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
-  echo "检测到 checkpoints 已有完整文件，创建 diffusion_models 硬链接（节省 11GB）..."
-  if ln "$CKPT_DIR/$FILENAME" "$UNET_DIR/$FILENAME" 2>/dev/null; then
-    echo "OK 硬链接已创建（不占额外空间）"
-    UNET_PRESENT=1
-  else
     echo "硬链接失败，改为复制（约 11GB）..."
-    cp "$CKPT_DIR/$FILENAME" "$UNET_DIR/$FILENAME"
-    UNET_PRESENT=1
+    cp "$CKPT_DIR/$FILENAME" "$target"
+    return 0
   fi
-fi
-if [ "$UNET_PRESENT" != "1" ]; then
+  return 1
+}
+
+NEED_DOWNLOAD=0
+for d in "$UNET_DIR" "$UNET_DIR2"; do
+  mkdir -p "$d"
+  if ! link_from_checkpoints "$d"; then
+    NEED_DOWNLOAD=1
+  fi
+done
+
+if [ "$NEED_DOWNLOAD" = "1" ]; then
   echo ""
   echo "开始下载 $FILENAME（约 11GB，支持断点续传）..."
-  cd "$UNET_DIR"
   curl -sL --fail -C - --retry 3 --retry-delay 5 \
     -H "Authorization: Bearer $CIVITAI_TOKEN" \
-    -o "$FILENAME" "$URL"
-  ACTUAL_BYTES=$(stat -c %s "$FILENAME" 2>/dev/null || echo 0)
+    -o "$UNET_DIR/$FILENAME" "$URL"
+  ACTUAL_BYTES=$(stat -c %s "$UNET_DIR/$FILENAME" 2>/dev/null || echo 0)
   if [ "$ACTUAL_BYTES" != "$EXPECTED_BYTES" ]; then
     echo "!! 大小校验失败：实际 $ACTUAL_BYTES 字节，预期 $EXPECTED_BYTES 字节（文件不完整，删除后重新下载）"
     exit 1
   fi
   echo "大小校验通过: $ACTUAL_BYTES 字节"
+  if [ ! -s "$UNET_DIR2/$FILENAME" ]; then
+    ln "$UNET_DIR/$FILENAME" "$UNET_DIR2/$FILENAME" 2>/dev/null || cp "$UNET_DIR/$FILENAME" "$UNET_DIR2/$FILENAME"
+  fi
 fi
 
 # ------------------------------------------------------- CLIP-L + T5 + VAE
@@ -182,7 +190,7 @@ download_if_missing "ae.safetensors" "$VAE_MIN_MB" "$VAE_DIR" \
 
 echo ""
 echo "=== 安装完成 ==="
-echo "UNET : $UNET_DIR/$FILENAME"
+echo "UNET : $UNET_DIR/$FILENAME + $UNET_DIR2/$FILENAME"
 echo "CLIP : $CLIP_DIR/clip_l.safetensors + $CLIP_DIR/t5xxl_fp8_e4m3fn.safetensors"
 echo "VAE  : $VAE_DIR/ae.safetensors"
 echo ""
