@@ -53,7 +53,32 @@ mkdir -p "$UNET_DIR" "$CLIP_DIR" "$VAE_DIR"
 echo "models 根目录: $MODELS_ROOT"
 df -h "$MODELS_ROOT"
 
-NEED_MB=$((11340 + CLIP_MIN_MB + T5_MIN_MB + VAE_MIN_MB + 512))
+# Only count what actually still needs to be downloaded (skip files already present).
+NEED_MB=512
+unet_missing=1
+if [ -s "$UNET_DIR/$FILENAME" ] && [ "$(stat -c %s "$UNET_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
+  unet_missing=0
+elif [ -s "$CKPT_DIR/$FILENAME" ] && [ "$(stat -c %s "$CKPT_DIR/$FILENAME")" = "$EXPECTED_BYTES" ]; then
+  unet_missing=0
+fi
+if [ "$unet_missing" = "1" ]; then
+  NEED_MB=$((NEED_MB + 11340))
+fi
+need_mb_for() {
+  local f="$1" min="$2"
+  if [ -s "$f" ]; then
+    local mb
+    mb=$(du -m "$f" | awk '{print $1}')
+    if [ "$mb" -ge "$min" ]; then
+      echo 0
+      return
+    fi
+  fi
+  echo "$min"
+}
+NEED_MB=$((NEED_MB + $(need_mb_for "$CLIP_DIR/clip_l.safetensors" "$CLIP_MIN_MB")))
+NEED_MB=$((NEED_MB + $(need_mb_for "$CLIP_DIR/t5xxl_fp8_e4m3fn.safetensors" "$T5_MIN_MB")))
+NEED_MB=$((NEED_MB + $(need_mb_for "$VAE_DIR/ae.safetensors" "$VAE_MIN_MB")))
 FREE_KB=$(df -k "$MODELS_ROOT" | awk 'NR==2 {print $4}')
 if [ "$FREE_KB" -lt $((NEED_MB * 1024)) ]; then
   echo ""
