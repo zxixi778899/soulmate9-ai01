@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Flame, Gift, Loader2, Share2, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,6 +23,7 @@ export default function RetentionLoop() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
@@ -86,7 +87,8 @@ export default function RetentionLoop() {
 
   const completedGoals = goals.reduce((total, goal) => total + Number(goal.done), 0);
   const rewardReady = Boolean(checkin && !checkin.claimed_today);
-  const hidden = !user || HIDDEN_ROUTE_PREFIXES.some((prefix) => pathname?.startsWith(prefix));
+  const isCompanionChat = Boolean(pathname?.startsWith('/companion/')) && searchParams.get('tab') === 'chat';
+  const hidden = !user || isCompanionChat || HIDDEN_ROUTE_PREFIXES.some((prefix) => pathname?.startsWith(prefix));
 
   const claimReward = async (): Promise<void> => {
     if (!checkin || checkin.claimed_today || claiming) return;
@@ -173,7 +175,7 @@ export default function RetentionLoop() {
                 {completedGoals < goals.length ? (t('chat.sayHello') || 'Say hello') : (t('home.moduleQuest') || 'Quests')}<ChevronRight className="h-4 w-4" />
               </Link>
             )}
-            <Link href="/achievements" className="flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] text-amber-300 transition hover:bg-amber-300/15" aria-label={t('home.moduleQuest') || 'Achievements'}>
+            <Link href="/quest?tab=achievements" className="flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] text-amber-300 transition hover:bg-amber-300/15" aria-label={t('home.moduleQuest') || 'Achievements'}>
               <Trophy className="h-4 w-4" />
             </Link>
           </div>

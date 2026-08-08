@@ -334,7 +334,7 @@ export default function ProfilePage() {
         <div className="mb-4 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => router.push('/')}
+            onClick={() => router.back()}
             className="glass flex h-10 w-10 items-center justify-center rounded-full text-[#ffb3cd] hover:text-white active:scale-95 transition-all"
             aria-label={t('general.back')}
           >
@@ -528,13 +528,6 @@ export default function ProfilePage() {
                     </div>
                     <div className="mt-1 text-[10px] text-white/40">{t('profile.creationCards')}</div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/create')}
-                    className="shrink-0 rounded-full bg-white/[0.08] px-2.5 py-1 text-[10px] font-bold text-white/70 hover:text-white active:scale-95 transition-all"
-                  >
-                    {t('common.goCreate')}
-                  </button>
                 </div>
               </div>
 
@@ -586,7 +579,7 @@ export default function ProfilePage() {
                     <button
                       key={gf.id}
                       type="button"
-                      onClick={() => router.push(`/chat/${gf.id}`)}
+                      onClick={() => router.push(`/companion/${gf.id}?tab=chat`)}
                       className="group relative overflow-hidden rounded-xl ring-1 ring-white/10 hover:ring-[#ff2e88]/45 transition-all active:scale-[0.98] text-left"
                     >
                       <div className="relative aspect-[3/4]">

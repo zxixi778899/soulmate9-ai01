@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Check,
@@ -24,6 +24,7 @@ import {
   type GroupedAssets,
 } from '@/components/companion/CompanionAssetLibrary';
 import type { AssetCategory } from '@/lib/companion-assets';
+import ChatView from '@/components/chat/ChatView';
 
 interface ProfileData {
   girlfriend: Record<string, unknown>;
@@ -38,24 +39,43 @@ interface ProfileData {
   counts: { id_reference: number; photo: number; video: number };
 }
 
-type TabKey = 'profile' | 'album' | 'video' | 'id_reference';
+type TabKey = 'profile' | 'album' | 'video' | 'id_reference' | 'chat';
 
 export default function CompanionProfilePage() {
   const params = useParams<{ id: string }>();
   const id = params?.id || '';
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const { t, locale } = useTranslation();
 
   const [data, setData] = useState<ProfileData | null>(null);
   const [httpStatus, setHttpStatus] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabKey>('album');
+  const [tab, setTab] = useState<TabKey>(() => {
+    const urlTab = searchParams.get('tab');
+    if (urlTab === 'chat' || urlTab === 'profile' || urlTab === 'album' || urlTab === 'video' || urlTab === 'id_reference') {
+      return urlTab as TabKey;
+    }
+    return 'album';
+  });
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [playingGreeting, setPlayingGreeting] = useState(false);
   const greetingAudioRef = useRef<HTMLAudioElement>(null);
+
+  // Sync tab state with URL
+  const handleTabChange = useCallback((newTab: TabKey) => {
+    setTab(newTab);
+    const url = new URL(window.location.href);
+    if (newTab === 'album') {
+      url.searchParams.delete('tab');
+    } else {
+      url.searchParams.set('tab', newTab);
+    }
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [router]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -132,16 +152,18 @@ export default function CompanionProfilePage() {
   const reviewStatus = String(g.review_status || 'draft');
   const rejectionReason = String(g.rejection_reason || '');
 
+  // Switch to chat tab — handles friend check/add automatically
   const handleChat = async () => {
     if (!user) {
       router.push(`/login?next=${encodeURIComponent(`/companion/${id}`)}`);
       return;
     }
+    // Already friends — go straight to chat tab
     if (access.friendId) {
-      router.push(`/chat/${access.friendId}`);
+      handleTabChange('chat');
       return;
     }
-    // Add friend first, then enter chat
+    // Add friend first, then switch to chat
     setAdding(true);
     try {
       const res = await authedFetch('/api/friends', {
@@ -155,7 +177,11 @@ export default function CompanionProfilePage() {
         (json as { girlfriend?: { id: string } }).girlfriend;
       if (res.ok && friend?.id) {
         setAdded(true);
-        router.push(`/chat/${friend.id}`);
+        // Update access so chat tab has the friendId
+        setData((prev) =>
+          prev ? { ...prev, access: { ...prev.access, friendId: friend.id } } : prev,
+        );
+        handleTabChange('chat');
         return;
       }
       const code = (json as { code?: string }).code;
@@ -225,6 +251,13 @@ export default function CompanionProfilePage() {
       count: data.counts.id_reference,
     });
   }
+  // Chat tab — only show for non-owners who are friends (or owners themselves for testing)
+  if (access.friendId || access.isOwner) {
+    tabs.push({
+      key: 'chat',
+      label: t('companion.chat') || 'Chat',
+    });
+  }
 
   const onAssetsChanged = (next: GroupedAssets) => {
     setData((prev) =>
@@ -247,6 +280,16 @@ export default function CompanionProfilePage() {
     { label: t('companion.relationship'), value: String(g.relationship || '') },
     { label: t('companion.hobbies'), value: String(g.hobbies || '') },
   ].filter((r) => r.value.trim()) as { label: string; value: string }[];
+
+  // ── Chat tab: full-viewport immersive chat experience ──
+  if (tab === 'chat' && (access.friendId || access.isOwner)) {
+    return (
+      <ChatView
+        companionId={id}
+        onBack={() => handleTabChange('album')}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -424,7 +467,7 @@ export default function CompanionProfilePage() {
             <button
               key={tb.key}
               type="button"
-              onClick={() => setTab(tb.key)}
+              onClick={() => handleTabChange(tb.key)}
               className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
                 tab === tb.key ? 'text-white' : 'text-[#8B8BA3] hover:text-white/80'
               }`}

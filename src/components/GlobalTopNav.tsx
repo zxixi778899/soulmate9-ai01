@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState, useEffect } from 'react';
 import {
   Menu, X, User, LogOut, Crown, Flame, ArrowLeft,
@@ -21,6 +21,7 @@ export default function GlobalTopNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut } = useAuth();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { t } = useTranslation();
   const { settings } = useSiteSettings();
@@ -47,7 +48,8 @@ export default function GlobalTopNav() {
   const hideChrome =
     Boolean(pathname?.startsWith('/admin')) ||
     Boolean(pathname?.startsWith('/chat/')) ||
-    Boolean(pathname?.startsWith('/create'));
+    Boolean(pathname?.startsWith('/create')) ||
+    (Boolean(pathname?.startsWith('/companion/')) && searchParams.get('tab') === 'chat');
 
   // Close sheet on route change
   useEffect(() => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import { Loader2 } from 'lucide-react';
@@ -54,6 +54,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
   const isAdmin = pathname?.startsWith('/admin');
 
@@ -110,9 +111,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const isChats = pathname === '/chats' || pathname?.startsWith('/chats/');
   const isCreate = pathname?.startsWith('/create');
   const isProfile = pathname === '/profile' || pathname?.startsWith('/profile/');
+  const isCompanionChat = pathname?.startsWith('/companion/') && searchParams.get('tab') === 'chat';
 
   // Chat / chats / create: full-height fixed shell. Other pages: scrollable mobile canvas.
-  const lockViewport = isChatDetail || isChats || isCreate || isProfile || isAdmin;
+  const lockViewport = isChatDetail || isChats || isCreate || isProfile || isAdmin || isCompanionChat;
 
   // /chats keeps the sticky top nav visible, so the locked shell must subtract the
   // nav height (3rem mobile / 3.5rem desktop + 1px border + safe-area top inset)

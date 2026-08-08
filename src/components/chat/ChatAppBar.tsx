@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Image as ImageIcon, Brain, ChevronDown, Home, Camera, Volume2 } from 'lucide-react';
+import { Image as ImageIcon, Brain, Home, Camera, Volume2, ArrowLeft } from 'lucide-react';
 import type { ChatGirlfriend, IntimacyData } from './types';
 import { HEAT_UNLOCK_HINTS, getIntimacyProgress } from '@/lib/constants';
 import type { INTIMACY_LEVELS } from '@/lib/constants';
@@ -51,7 +51,7 @@ export function ChatAppBar(props: {
           className="glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-[#ffb3cd] hover:text-white transition-all active:scale-95 touch-manipulation"
           aria-label={t('general.back')}
         >
-          <ChevronDown className="h-5 w-5 rotate-90" />
+          <ArrowLeft className="h-5 w-5" />
         </button>
         <div
           className="relative shrink-0 cursor-pointer"

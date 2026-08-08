@@ -87,7 +87,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
           const chatId = await ensureCompanionChatId(girl);
           if (chatId) {
             setSelected(null);
-            router.push(`/chat/${encodeURIComponent(chatId)}`);
+            router.push(`/companion/${encodeURIComponent(chatId)}?tab=chat`);
             return;
           }
         } catch {
@@ -121,7 +121,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
       }
       toast.success(t('explore.addedToFriends', { name: girl.name }), {
         description: t('explore.goToMessages'),
-        action: { label: t('common.goChat'), onClick: () => router.push(`/chat/${encodeURIComponent(chatId)}`) },
+        action: { label: t('common.goChat'), onClick: () => router.push(`/companion/${encodeURIComponent(chatId)}?tab=chat`) },
       });
       void friendStatus.refresh();
       setSelected(null);

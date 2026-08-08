@@ -1221,7 +1221,7 @@ export default function ChatsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => router.push(`/chat/${selFriend.id}`)}
+                onClick={() => router.push(`/companion/${selFriend.id}?tab=chat`)}
                 className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-white/60 hover:text-white hover:bg-white/[0.05] transition-colors touch-manipulation"
               >
                 <MessageCircle className="h-4 w-4 text-sky-400" />

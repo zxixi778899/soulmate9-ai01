@@ -140,7 +140,7 @@ export default function CharacterCardsPage() {
                   <p><span className="text-[#8B8BA3]">Tags:</span> {result.girlfriend.tags.join(', ') || 'None'}</p>
                   <p><span className="text-[#8B8BA3]">First Message:</span> {result.girlfriend.hasFirstMessage ? '' : ''}</p>
                 </div>
-                <Button size="sm" variant="outline" className="w-full" onClick={() => window.open(`/chat/${result.girlfriend.id}`, '_blank')}>
+                <Button size="sm" variant="outline" className="w-full" onClick={() => window.open(`/companion/${result.girlfriend.id}?tab=chat`, '_blank')}>
                   Open Chat
                 </Button>
               </div>

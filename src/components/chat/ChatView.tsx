@@ -1943,7 +1943,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       <div className="flex h-[100dvh] items-center justify-center bg-[#0b0b12] px-6">
         <div className="text-center">
           <p className="text-white/40">{t('chat.companionNotFound') || 'Companion not found'}</p>
-          <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => router.push('/chats')}>
+          <Button variant="outline" className="mt-4 border-white/15 text-white" onClick={() => onBack ? onBack() : router.push('/chats')}>
             Go back
           </Button>
         </div>
@@ -2012,12 +2012,12 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         levelInfo={levelInfo}
         intimacy={intimacy}
         isTyping={isTyping}
-        onBack={() => router.push('/chats')}
+        onBack={() => onBack ? onBack() : router.push('/chats')}
         onSelfie={generateSelfie}
         isGenerating={isGenerating}
         onMemories={() => setShowMemories(true)}
         onAlbum={() => setShowAlbum(true)}
-        onOpenProfile={girlfriend?.id ? () => router.push(`/companion/${girlfriend.id}`) : undefined}
+        onOpenProfile={undefined}
         voiceReply={voiceReply}
         onVoiceReplyChange={handleVoiceReplyChange}
       />
