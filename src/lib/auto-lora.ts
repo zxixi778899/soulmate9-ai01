@@ -73,8 +73,8 @@ export function buildAutoLoraStack(
 
   const level = Math.max(1, Math.min(5, Math.round(Number(intensity) || 1)));
   // NSFW 只叠一个姿势/通用 LoRA，避免多 LoRA 叠加导致人体结构错误
-  if (level >= 4) picks.push({ id: 'flux-pose-nsfw-dynamic-v1', strength: 0.4 });
-  else if (level >= 3) picks.push({ id: 'flux-lewd-v1', strength: 0.25 });
+  if (level >= 4) picks.push({ id: 'flux-pose-nsfw-dynamic-v1', strength: 0.45 });
+  else if (level >= 3) picks.push({ id: 'flux-lewd-v1', strength: 0.35 });
 
   const installedSet = new Set(
     (installedOverride ?? cfg.installed_loras ?? []).map((f) => String(f || '')),

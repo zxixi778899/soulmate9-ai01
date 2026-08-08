@@ -12,7 +12,8 @@ import { buildAutoLoraStack, buildKeywordLoras } from '@/lib/auto-lora';
 import { invokeChat } from '@/lib/ai-modules/invoke';
 import { loadAiModules } from '@/lib/ai-modules';
 import { pickImagePromptEndpoint, sanitizeLlmPrompt } from '@/lib/image-prompt-llm';
-import { compactFluxPrompt } from '@/lib/comfy-console/studio-profile';
+import { compactFluxPrompt, studioIntensityDirection } from '@/lib/comfy-console/studio-profile';
+import { normalizeCompanionCategory } from '@/lib/companion-category';
 import { uploadImageBase64, uploadFile, extractKeyFromUrl } from '@/lib/storage';
 import { sanitizeLoraForVolume, getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
@@ -818,6 +819,42 @@ export async function POST(req: NextRequest) {
             : ', natural skin texture with visible pores, subtle asymmetric imperfections, candid realistic expression, fine film grain, not airbrushed'
         }, correct realistic anatomy, natural body proportions, well-formed hands and fingers, no extra limbs, coherent posture`;
         merged.prompt = finalPrompt;
+        // NSFW 强度生效：>=3 时按强度注入对应内容方向（与对话/捏脸同一套 INTENSITY_ACTIONS），
+        // 避免提示词本身温和时「强度调到 5 出图仍是 SFW」
+        const nsfwLevel = Math.max(1, Math.min(5, Math.round(Number(merged.intensity) || 1)));
+        if (nsfwLevel >= 3) {
+          let genderRaw = String(merged.gender || '').trim().toLowerCase();
+          let styleRaw = String(merged.render_style || merged.style || '').trim().toLowerCase();
+          if ((!genderRaw || !styleRaw) && girlfriendId) {
+            const { data: gfRow } = await admin.supabase
+              .from('girlfriends')
+              .select('gender, render_style, anime_render_style, visual_style')
+              .eq('id', girlfriendId)
+              .maybeSingle();
+            if (gfRow) {
+              const g = gfRow as Record<string, unknown>;
+              if (!genderRaw) genderRaw = String(g.gender || '').toLowerCase();
+              if (!styleRaw) styleRaw = String(
+                g.render_style || g.anime_render_style || g.visual_style || '',
+              ).toLowerCase();
+            }
+          }
+          const nsfwCategory = /2d|anime|manga/.test(styleRaw)
+            ? 'anime'
+            : normalizeCompanionCategory({ gender: genderRaw || 'female' });
+          const direction = studioIntensityDirection(
+            nsfwCategory,
+            nsfwLevel as 1 | 2 | 3 | 4 | 5,
+          );
+          if (direction) {
+            merged.prompt = `${String(merged.prompt || '').trim()}, ${direction}`;
+            logger.info('[comfyui] nsfw direction injected', {
+              level: nsfwLevel,
+              category: nsfwCategory,
+              promptLen: String(merged.prompt || '').length,
+            });
+          }
+        }
         const ckptName =
           String(merged.ckpt_name || '').trim() || 'flux1-dev-fp8.safetensors';
         const family = modelFamilyFromCheckpoint(ckptName);
