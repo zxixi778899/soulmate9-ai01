@@ -97,7 +97,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     category: 'girlfriend',
     positivePrompt:
       'luxury rooftop terrace at night, city skyline bokeh-free sharp lights, shiny red snakeskin crop top and matching leggings, ' +
-      'leaning over glass table, arched back, diamond earrings, blue twilight sky, glamorous nightlife editorial, bright key light on face, natural skin texture, clear exposure',
+      'leaning over glass table, arched back, diamond earrings, blue twilight sky, glamorous nightlife editorial, soft natural light on face, natural skin texture, natural exposure',
     negativePrompt: '',
   },
   {
@@ -106,7 +106,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     category: 'girlfriend',
     positivePrompt:
       'candid bathroom mirror selfie, phone in hand, cropped black graphic tee lifted, low-rise ripped jeans, ' +
-      'messy wavy hair, one arm in hair, bright hard flash on face, natural skin texture, clear exposure, raw intimate energy, tattoos optional',
+      'messy wavy hair, one arm in hair, bright hard flash on face, natural skin texture, natural exposure, raw intimate energy, tattoos optional',
     negativePrompt: '',
   },
   {
@@ -115,7 +115,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     category: 'girlfriend',
     positivePrompt:
       'sitting on beige sofa in pink apartment, teal velvet corset with gold hooks, tiny denim shorts, ' +
-      'framed night city skyline prints, calm soft smile, bright warm indoor key on face, natural skin texture, polished girlfriend editorial',
+      'framed night city skyline prints, calm soft smile, soft warm indoor light on face, natural skin texture, polished girlfriend editorial',
     negativePrompt: '',
   },
   {
@@ -124,7 +124,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     category: 'girlfriend',
     positivePrompt:
       'standing by tall window with white lace curtains, strong golden side light, lace shadow patterns on skin, ' +
-      'looking back over shoulder with soft smile, bright golden key on face, natural skin texture, intimate sunlit body portrait',
+      'looking back over shoulder with soft smile, soft golden window light on face, natural skin texture, intimate sunlit body portrait',
     negativePrompt: '',
   },
   {
@@ -133,7 +133,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     category: 'girlfriend',
     positivePrompt:
       'kneeling on pastel pink bed with LED strip lights and plush toys, black lingerie garter and sheer stockings, ' +
-      'looking back over shoulder with bright flirty smile, natural skin texture, bright pink/warm key on face, playful NSFW bedroom vibe',
+      'looking back over shoulder with bright flirty smile, natural skin texture, soft warm light on face, playful NSFW bedroom vibe',
     negativePrompt: '',
   },
   {
@@ -142,7 +142,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     category: 'girlfriend',
     positivePrompt:
       'seated on ornate black gothic throne, black lace lingerie, jeweled crown and sapphire jewelry, smoke god rays, ' +
-      'legs open throne pose, alive eyes, bright key light on face, natural skin texture, dark background only, dark queen fantasy',
+      'legs open throne pose, alive eyes, soft natural light on face, natural skin texture, dark background only, dark queen fantasy',
     negativePrompt: '',
   },
   {
@@ -151,7 +151,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     category: 'girlfriend',
     positivePrompt:
       'photorealistic three-quarter body portrait, looking at viewer, sharp focus, detailed face and eyes, ' +
-      'natural skin texture, bright studio softbox key on face, clean seamless backdrop, professional fashion photography',
+      'natural skin texture, soft diffused studio light on face, clean seamless backdrop, professional fashion photography',
     negativePrompt: '',
   },
   {
@@ -168,7 +168,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     category: 'girlfriend',
     positivePrompt:
       'reclining on white sheets, looking at viewer, seductive expression, soft parted lips, ' +
-      'bright window key on face, natural skin texture, well-lit bedroom, intimate editorial',
+      'soft window light on face, natural skin texture, well-lit bedroom, intimate editorial',
     negativePrompt: '',
   },
   {
@@ -176,7 +176,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     label: '咖啡馆',
     category: 'girlfriend',
     positivePrompt:
-      'at a cafe table, warm smile, coffee cup, bright daylight on face, natural skin texture, natural smile, sharp detailed face, bright clear image',
+      'at a cafe table, warm smile, coffee cup, soft daylight on face, natural skin texture, natural smile, sharp detailed face, bright clear image',
     negativePrompt: '',
   },
   {
@@ -185,7 +185,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     category: 'girlfriend',
     positivePrompt:
       'stylish young woman on a city street at night, neon reflections, confident look at viewer, ' +
-      'bright practical key on face, neon only in background, natural skin texture, crisp details, cinematic photoreal',
+      'soft practical light on face, neon only in background, natural skin texture, crisp details, cinematic photoreal',
     negativePrompt: '',
   },
   {
@@ -193,7 +193,7 @@ export const FLUX_SCENE_PRESETS: ScenePromptPreset[] = [
     label: '泳池假日',
     category: 'girlfriend',
     positivePrompt:
-      'by a turquoise pool, natural skin texture, playful natural smile, bright midday sunlight on face, sharp focus, vibrant colors',
+      'by a turquoise pool, natural skin texture, playful natural smile, soft midday sunlight on face, sharp focus, vibrant colors',
     negativePrompt: '',
   },
   {

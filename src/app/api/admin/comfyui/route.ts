@@ -832,7 +832,7 @@ export async function POST(req: NextRequest) {
         const finalPrompt = `${prompt}${
           /natural skin texture/i.test(prompt)
             ? ''
-            : ', natural skin texture with visible pores, subtle asymmetric imperfections, candid realistic expression, fine film grain, not airbrushed'
+            : ', youthful fresh healthy skin, natural skin texture with soft realistic detail, clear bright youthful eyes, soft natural diffused lighting, gentle realistic shadows, natural color grading, candid relaxed expression, not airbrushed'
         }, correct realistic anatomy, natural body proportions, well-formed hands and fingers, no extra limbs, coherent posture`;
         merged.prompt = finalPrompt;
         // NSFW 强度生效：>=3 时按强度注入对应内容方向（与对话/捏脸同一套 INTENSITY_ACTIONS），

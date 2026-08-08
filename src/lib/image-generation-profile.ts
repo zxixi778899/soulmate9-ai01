@@ -16,13 +16,13 @@ export function resolveImageGenerationProfile(gender: GenderStyle, adult: boolea
   const checkpoint = env('RUNPOD_PHOTOREAL_CHECKPOINT', 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
   const photo = env('RUNPOD_PHOTOREAL_LORA', 'flux_style_photoreal_v1.safetensors');
   const profiles: Record<GenderStyle, ImageGenerationProfile> = {
-    female: { checkpoint, loras: [{ name: photo, strength_model: 0.5, strength_clip: 0.5 }, { name: env('RUNPOD_SKIN_LORA', 'flux_detail_skin_v1.safetensors'), strength_model: 0.35, strength_clip: 0.35 }], promptSuffix: 'adult woman, feminine anatomy, natural proportions', negativePrompt: `male body, masculine face, ${BLOCKED}`, steps: 8, guidance: 1 },
-    male: { checkpoint, loras: [{ name: env('RUNPOD_MALE_LORA', photo), strength_model: 0.5, strength_clip: 0.5 }], promptSuffix: 'adult man, masculine anatomy, broad shoulders, natural male proportions', negativePrompt: `female body, breasts, feminine face, ${BLOCKED}`, steps: 8, guidance: 1 },
-    transgender: { checkpoint, loras: [{ name: env('RUNPOD_TRANSGENDER_LORA', photo), strength_model: 0.5, strength_clip: 0.5 }], promptSuffix: 'adult transgender person, confident authentic gender presentation, natural anatomy', negativePrompt: `caricature, fetishized stereotype, ${BLOCKED}`, steps: 8, guidance: 1 },
+    female: { checkpoint, loras: [{ name: photo, strength_model: 0.5, strength_clip: 0.5 }, { name: env('RUNPOD_SKIN_LORA', 'flux_detail_skin_v1.safetensors'), strength_model: 0.35, strength_clip: 0.35 }], promptSuffix: 'young adult woman in her mid-20s, youthful fresh skin, feminine anatomy, natural proportions', negativePrompt: `male body, masculine face, ${BLOCKED}`, steps: 8, guidance: 1 },
+    male: { checkpoint, loras: [{ name: env('RUNPOD_MALE_LORA', photo), strength_model: 0.5, strength_clip: 0.5 }], promptSuffix: 'young adult man in his mid-20s, youthful fresh skin, masculine anatomy, broad shoulders, natural male proportions', negativePrompt: `female body, breasts, feminine face, ${BLOCKED}`, steps: 8, guidance: 1 },
+    transgender: { checkpoint, loras: [{ name: env('RUNPOD_TRANSGENDER_LORA', photo), strength_model: 0.5, strength_clip: 0.5 }], promptSuffix: 'young adult transgender woman in her mid-20s, youthful fresh skin, confident authentic gender presentation, natural anatomy', negativePrompt: `caricature, fetishized stereotype, ${BLOCKED}`, steps: 8, guidance: 1 },
     cartoon: {
       checkpoint: env('RUNPOD_CARTOON_CHECKPOINT', checkpoint),
       loras: process.env.RUNPOD_CARTOON_LORA?.trim() ? [{ name: process.env.RUNPOD_CARTOON_LORA.trim(), strength_model: 0.7, strength_clip: 0.7 }] : [],
-      promptSuffix: 'adult character, polished 2D illustration, clean line art, expressive eyes, cel shading',
+      promptSuffix: 'young adult character, polished 2D illustration, clean line art, expressive eyes, cel shading',
       negativePrompt: `photograph, photorealistic, 3d render, low quality, ${BLOCKED}`,
       steps: 8,
       guidance: 1,

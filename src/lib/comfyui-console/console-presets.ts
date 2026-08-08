@@ -53,10 +53,10 @@ const FLUX_NEG_BASE =
 
 /** 自然感正向补丁：降低“AI 味”，让脸部有辨识度 */
 const NATURAL_POSITIVE =
-  ', natural skin texture with visible pores, subtle freckles and blemishes, soft subsurface scattering, natural color grading, candid realistic expression, subtle asymmetric imperfections, correct realistic anatomy, natural body proportions, well-formed hands and fingers, fine film grain, not airbrushed, editorial photography';
+  ', youthful fresh healthy skin, natural skin texture with soft realistic detail, clear bright youthful eyes, soft natural diffused lighting, gentle realistic shadows, natural color grading, candid relaxed expression, correct realistic anatomy, natural body proportions, well-formed hands and fingers, not airbrushed';
 /** 反“AI 脸”负向词：塑料感 / 蜡像 / 千篇一律脸 */
 const ANTI_AI_NEGATIVE =
-  ', plastic skin, airbrushed, doll-like, porcelain skin, wax figure, mannequin, generic face, same-face look, AI-generated look, oversmoothed, waxy, uncanny, CGI render';
+  ', plastic skin, airbrushed, doll-like, porcelain skin, wax figure, mannequin, generic face, same-face look, AI-generated look, oversmoothed, waxy, uncanny, CGI render, aged appearance, wrinkles, sagging skin, dull complexion, acne, blemishes';
 
 const SAMPLER_OPTIONS = [
   { value: 'euler', label: 'euler（推荐）' },

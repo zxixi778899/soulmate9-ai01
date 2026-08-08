@@ -8,13 +8,17 @@
  * 非人物类提示词（服装/道具/广告等）原样放行，避免污染 ghost-mannequin 输出。
  */
 
-/** 自然写实正向片段：脸部/皮肤有真实纹理与瑕疵，降低平滑塑料感 */
+/**
+ * 自然写实正向片段（平衡版）：
+ * - 年轻新鲜皮肤 + 柔和自然光，避免 "显老 / 假光"
+ * - 保留真实皮肤质感但去掉 pores/grain/blemishes，避免 "杂质感 / 蜡像感"
+ */
 export const FLUX_NATURAL_POSITIVE =
-  ', natural skin texture with visible pores, subtle freckles and blemishes, soft subsurface scattering, natural color grading, candid realistic expression, subtle asymmetric imperfections, correct realistic anatomy, natural body proportions, well-formed hands and fingers, fine film grain, shot on 35mm, editorial photography, not airbrushed';
+  ', youthful fresh healthy skin, natural skin texture with soft realistic detail, clear bright youthful eyes, soft natural diffused lighting, gentle realistic shadows, natural color grading, candid relaxed expression, correct realistic anatomy, natural body proportions, well-formed hands and fingers, not airbrushed';
 
 /** 反 "AI 脸 / 蜡像" 负向片段 */
 export const FLUX_ANTI_AI_NEGATIVE =
-  ', plastic skin, airbrushed, doll-like, porcelain skin, wax figure, mannequin, generic face, same-face look, AI-generated look, oversmoothed, waxy, uncanny valley, CGI render, beauty filter, instagram filter';
+  ', plastic skin, airbrushed, doll-like, porcelain skin, wax figure, mannequin, generic face, same-face look, AI-generated look, oversmoothed, waxy, uncanny valley, CGI render, beauty filter, instagram filter, aged appearance, wrinkles, sagging skin, dull complexion, acne, blemishes';
 
 /** 提示词已含自然皮肤表达时跳过追加 */
 const NATURAL_ALREADY =
@@ -47,7 +51,7 @@ export function applyFluxNaturalLook(
     positive = `${positive},${FLUX_NATURAL_POSITIVE}`;
   }
   positive = positive
-    .replace(WAX_POSITIVE, 'natural skin texture with visible pores')
+    .replace(WAX_POSITIVE, 'natural skin texture with soft realistic detail')
     .replace(/\s{2,}/g, ' ')
     .replace(/,\s*,/g, ',')
     .replace(/,+$/, '')

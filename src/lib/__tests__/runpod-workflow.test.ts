@@ -200,12 +200,16 @@ describe('applyFluxNaturalLook (anti AI/wax look)', () => {
       'portrait of a beautiful adult woman with fair luminous skin, sharp focus',
       'blurry, lowres, watermark',
     );
-    expect(result.positive).toContain('natural skin texture with visible pores');
-    expect(result.positive).toContain('fine film grain');
+    expect(result.positive).toContain('youthful fresh healthy skin');
+    expect(result.positive).toContain('natural skin texture with soft realistic detail');
+    expect(result.positive).toContain('soft natural diffused lighting');
     expect(result.positive).not.toContain('fair luminous skin');
+    expect(result.positive).not.toContain('visible pores');
+    expect(result.positive).not.toContain('film grain');
     expect(result.negative).toContain('plastic skin');
     expect(result.negative).toContain('blurry');
     expect(result.negative).toContain('wax figure');
+    expect(result.negative).toContain('aged appearance');
   });
 
   it('leaves non-human prompts (ghost mannequin outfits) untouched', () => {
