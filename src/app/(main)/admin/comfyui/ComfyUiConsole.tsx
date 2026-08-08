@@ -32,7 +32,7 @@ const FRAMING_OPTIONS = [
 
 /** 每个工作流独立保存参数面板（localStorage，按工作流 key 隔离） */
 const WORKFLOW_FORM_PREFIX = 'comfyui_form_';
-function loadWorkflowForm(key: string): { form?: Any; rawText?: string; rawValues?: Any } | null {
+function loadWorkflowForm(key: string): { form?: Any; rawText?: string; rawValues?: Any; defaultsVersion?: number } | null {
   try {
     const raw = localStorage.getItem(`${WORKFLOW_FORM_PREFIX}${key}`);
     return raw ? JSON.parse(raw) : null;
@@ -44,7 +44,7 @@ function saveWorkflowForm(key: string, form: Any, rawText: string, rawValues: An
   try {
     localStorage.setItem(
       `${WORKFLOW_FORM_PREFIX}${key}`,
-      JSON.stringify({ form, rawText, rawValues, savedAt: Date.now() }),
+      JSON.stringify({ form, rawText, rawValues, savedAt: Date.now(), defaultsVersion: 2 }),
     );
   } catch {
     /* storage full / unavailable */
@@ -521,7 +521,21 @@ export default function ComfyUiConsole() {
     if (!activeWf) return;
     const defaults = JSON.parse(JSON.stringify(activeWf.defaults || {}));
     const saved = activeKey ? loadWorkflowForm(activeKey) : null;
-    setForm(saved?.form ? { ...defaults, ...saved.form } : composeCompanionPresetPrompt(defaults));
+    setForm(
+      saved?.form
+        ? {
+            ...defaults,
+            ...saved.form,
+            // 旧面板自动迁移到新底模默认参数（8 步 / guidance 3.5），提示词保持不变
+            ...(saved.defaultsVersion !== 2
+              ? {
+                  steps: Number(defaults.steps ?? 8) || 8,
+                  flux_guidance: Number(defaults.flux_guidance ?? 3.5) || 3.5,
+                }
+              : {}),
+          }
+        : composeCompanionPresetPrompt(defaults),
+    );
     if (saved?.rawText) {
       setRawText(saved.rawText);
     } else {

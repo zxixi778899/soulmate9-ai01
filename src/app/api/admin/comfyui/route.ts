@@ -954,7 +954,7 @@ export async function POST(req: NextRequest) {
 
         const width = roundTo(clampNum(merged.width, 256, 2048, 832), 8);
         const height = roundTo(clampNum(merged.height, 256, 2048, 1216), 8);
-        const steps = Math.round(clampNum(merged.steps, 8, 60, 28));
+        const steps = Math.round(clampNum(merged.steps, 8, 60, 8));
         const seed = Number(merged.seed ?? -1);
         const numImages = Math.round(clampNum(merged.num_images, 1, 4, 1));
         const samplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_sde']);

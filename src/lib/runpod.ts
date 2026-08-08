@@ -134,7 +134,7 @@ export function buildFluxWorkflow(opts: {
   const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 32);
   const width = opts.width ?? 832;
   const height = opts.height ?? 1216;
-  const steps = Math.max(opts.steps ?? 20, 12);
+  const steps = Math.max(opts.steps ?? 8, 8);
   // The Comfy single-file FLUX.1-dev FP8 checkpoint is distilled for CFG 1.
   // Higher values amplify colour casts and destroy low-frequency structure.
   // Enforce this at the final workflow boundary so stale callers cannot regress it.
@@ -815,7 +815,7 @@ class RunPodClient {
       negativePrompt: options.negative_prompt,
       width: options.width,
       height: options.height,
-      steps: options.num_inference_steps ?? 18,
+      steps: options.num_inference_steps ?? 8,
       guidance: options.guidance_scale ?? 1.0,
       flux_guidance: options.flux_guidance,
       seed: options.seed,
