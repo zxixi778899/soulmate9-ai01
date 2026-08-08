@@ -7,8 +7,9 @@ export type ImageModelFamily = 'flux' | 'pony' | 'illustrious';
 
 /**
  * Single unified ComfyUI endpoint — ALL image generation goes through here.
- * Default checkpoint is Flux Unchained by SCG (UNET-only fp8, loaded with
- * UNETLoader + DualCLIPLoader + VAELoader); flux1-dev-fp8 remains as fallback.
+ * 双底模策略（A/B 选定）：
+ *  - SFW / 写实（intensity < 3）：flux1-dev-fp8 完整底模，24 步，皮肤自然
+ *  - NSFW（intensity >= 3）：Flux Unchained by SCG（UNET-only split 加载），8 步
  * All routes use FLUX parameters; LoRAs are auto-selected downstream by
  * resolveModelLoraPlan() based on model family + category + intensity.
  */
@@ -55,7 +56,8 @@ export function resolveImageGenerationRoute(input: {
   const complexScene = isComplexAdultScene(semantics);
   // Single endpoint for all model families
   const endpointId = env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT);
-  const fluxCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
+  const sfwCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
+  const nsfwCheckpoint = env('RUNPOD_FLUX_NSFW_CHECKPOINT', 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
 
   // ─── Turbo preview mode ───────────────────────────────────────────────────
   // Quick draft for companion chat: 12 steps + low cfg produces a recognizable
@@ -65,7 +67,7 @@ export function resolveImageGenerationRoute(input: {
       surface: input.surface,
       modelFamily: 'flux',
       endpointId,
-      checkpoint: fluxCheckpoint,
+      checkpoint: nsfwCheckpoint,
       sampler: 'euler',
       scheduler: 'simple',
       steps: 8,
@@ -86,10 +88,10 @@ export function resolveImageGenerationRoute(input: {
       surface: input.surface,
       modelFamily: 'flux',
       endpointId,
-      checkpoint: fluxCheckpoint,
+      checkpoint: intensity >= 3 ? nsfwCheckpoint : sfwCheckpoint,
       sampler: 'euler',
       scheduler: 'simple',
-      steps: 8,
+      steps: intensity >= 3 ? 8 : 24,
       cfg: 1,
       clipSkip: 1,
       width: 832,
@@ -112,7 +114,7 @@ export function resolveImageGenerationRoute(input: {
       surface: input.surface,
       modelFamily: 'flux',
       endpointId,
-      checkpoint: fluxCheckpoint,
+      checkpoint: nsfwCheckpoint,
       sampler: 'euler',
       scheduler: 'simple',
       steps: 8,
@@ -133,10 +135,10 @@ export function resolveImageGenerationRoute(input: {
     surface: input.surface,
     modelFamily: 'flux',
     endpointId,
-    checkpoint: fluxCheckpoint,
+    checkpoint: sfwCheckpoint,
     sampler: 'euler',
     scheduler: 'simple',
-    steps: 8,
+    steps: 24,
     cfg: 1,
     clipSkip: 1,
     width: input.surface === 'companion' ? 832 : 1024,

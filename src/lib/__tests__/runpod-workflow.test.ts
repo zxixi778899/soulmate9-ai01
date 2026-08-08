@@ -199,6 +199,12 @@ describe('buildFluxWorkflow split loader (UNET-only checkpoint)', () => {
     }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
     expect(graph['21'].inputs.guidance).toBe(3.0);
 
+    const devGraph = buildFluxWorkflow({
+      prompt: 'An adult woman in natural window light.',
+      ckpt_name: 'flux1-dev-fp8.safetensors',
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+    expect(devGraph['21'].inputs.guidance).toBe(3.5);
+
     const overridden = buildFluxWorkflow({
       prompt: 'An adult woman in natural window light.',
       flux_guidance: 4.2,

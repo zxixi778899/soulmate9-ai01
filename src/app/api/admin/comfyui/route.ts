@@ -871,9 +871,16 @@ export async function POST(req: NextRequest) {
             });
           }
         }
-        const ckptName =
-          String(merged.ckpt_name || '').trim() || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
+        // 双底模默认：SFW 用 flux1-dev-fp8（24 步，自然皮肤）；NSFW>=3 自动切 Unchained（8 步）
+        const nsfwDefaultCkpt = 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
+        const sfwDefaultCkpt = 'flux1-dev-fp8.safetensors';
+        let ckptName =
+          String(merged.ckpt_name || '').trim() || (nsfwLevel >= 3 ? nsfwDefaultCkpt : sfwDefaultCkpt);
+        if (nsfwLevel >= 3 && ckptName === sfwDefaultCkpt) {
+          ckptName = nsfwDefaultCkpt;
+        }
         const family = modelFamilyFromCheckpoint(ckptName);
+        const isSplitFlux = ckptName.includes('unchained');
         const inputImage = String(merged.input_image || '').trim() || undefined;
         const ipAdapterImage = String(merged.ip_adapter_image || '').trim() || undefined;
         const hasImageRef = !!inputImage;
@@ -970,7 +977,7 @@ export async function POST(req: NextRequest) {
 
         const width = roundTo(clampNum(merged.width, 256, 2048, 832), 8);
         const height = roundTo(clampNum(merged.height, 256, 2048, 1216), 8);
-        const steps = Math.round(clampNum(merged.steps, 8, 60, 8));
+        const steps = Math.round(clampNum(merged.steps, 8, 60, isSplitFlux ? 8 : 24));
         const seed = Number(merged.seed ?? -1);
         const numImages = Math.round(clampNum(merged.num_images, 1, 4, 1));
         const samplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_sde']);
@@ -985,7 +992,9 @@ export async function POST(req: NextRequest) {
           height,
           num_inference_steps: steps,
           guidance_scale: family === 'flux' ? 1 : clampNum(merged.cfg, 3, 9, 5),
-          flux_guidance: family === 'flux' ? clampNum(merged.flux_guidance, 2, 5, 3.0) : undefined,
+          flux_guidance: family === 'flux'
+            ? clampNum(merged.flux_guidance, 2, 5, isSplitFlux ? 3.0 : 3.5)
+            : undefined,
           sampler_name: samplers.has(samplerRaw) ? samplerRaw : 'euler',
           scheduler: schedulers.has(schedulerRaw) ? schedulerRaw : 'simple',
           clip_skip: family === 'flux' ? 1 : 2,

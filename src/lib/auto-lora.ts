@@ -13,19 +13,19 @@ type AutoConfig = {
 const AUTO_MATRIX: Record<string, LoraAutoPick[]> = {
   female: [
     { id: 'flux-style-photoreal-v1', strength: 0.28 },
-    { id: 'flux-detail-skin-nplastic-v1', strength: 0.3 },
+    { id: 'flux-detail-skin-nplastic-v1', strength: 0.22 },
   ],
   male: [
     { id: 'flux-male-masc-v1', strength: 0.32 },
-    { id: 'flux-detail-skin-nplastic-v1', strength: 0.25 },
+    { id: 'flux-detail-skin-nplastic-v1', strength: 0.2 },
   ],
   transgender: [
     { id: 'flux-mtf-trans-v1', strength: 0.32 },
-    { id: 'flux-detail-skin-nplastic-v1', strength: 0.25 },
+    { id: 'flux-detail-skin-nplastic-v1', strength: 0.2 },
   ],
   femboy: [
     { id: 'flux-femboy-v1', strength: 0.32 },
-    { id: 'flux-detail-skin-nplastic-v1', strength: 0.25 },
+    { id: 'flux-detail-skin-nplastic-v1', strength: 0.2 },
   ],
   anime: [{ id: 'flux-anime-v1', strength: 0.45 }],
   '3d': [{ id: 'flux-3d-render-v1', strength: 0.45 }],

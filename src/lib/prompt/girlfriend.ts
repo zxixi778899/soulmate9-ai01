@@ -1170,7 +1170,8 @@ export function buildLoraPlan(
     primary = registryByCategory('style') || primary;
   }
 
-  const primaryStrength = adult ? 0.46 : /portrait|selfie|face/.test(bag) ? 0.52 : 0.48;
+  // LoRA 总强度控制：写实 + 皮肤细节合计不超过 ~0.55，避免塑料感/杂质
+  const primaryStrength = adult ? 0.35 : /portrait|selfie|face/.test(bag) ? 0.4 : 0.38;
   let secondary: LoraPlan['secondary'] = null;
 
   const outfitRules: Array<[RegExp, string, string]> = [
@@ -1185,7 +1186,7 @@ export function buildLoraPlan(
     const token = outfitRule?.[1] || 'outfit_lingerie';
     const entry = LORA_REGISTRY.find((item) => item.file.includes(token) && isLoraInstalled(item.file));
     if (entry) {
-      const strength = Math.min(0.72, Math.max(0.5, entry.strength + (adult ? 0.05 : -0.05)));
+      const strength = Math.min(0.55, Math.max(0.4, entry.strength + (adult ? 0.05 : -0.05)));
       secondary = { name: entry.file, strength_model: strength, strength_clip: strength * 0.9, note: outfitRule?.[2] || 'outfit' };
     }
   }
@@ -1193,7 +1194,7 @@ export function buildLoraPlan(
   if (!secondary && (opts?.preferNsfwPose || (adult && /pose|kneel|crawl|arch|bend|spread|straddl|dance|dynamic/.test(bag)))) {
     const pose = registryByCategory('pose');
     if (pose) {
-      const strength = /dynamic|straddl|crawl|bend/.test(bag) ? 0.64 : 0.54;
+      const strength = /dynamic|straddl|crawl|bend/.test(bag) ? 0.5 : 0.42;
       secondary = { name: pose.file, strength_model: strength, strength_clip: strength * 0.85, note: 'pose-adult-dynamic' };
     }
   }
@@ -1201,13 +1202,13 @@ export function buildLoraPlan(
   if (!secondary && (opts?.preferBody || /curvy|busty|hourglass|voluptuous|large breasts/.test(bag))) {
     const body = LORA_REGISTRY.find((item) => item.file.includes('body_curvy') && isLoraInstalled(item.file));
     if (body) {
-      const strength = adult ? 0.54 : 0.46;
+      const strength = adult ? 0.45 : 0.4;
       secondary = { name: body.file, strength_model: strength, strength_clip: strength, note: 'body-curvy' };
     }
   } else if (!secondary && /pear|wide hips|big ass|thick thighs/.test(bag)) {
     const body = LORA_REGISTRY.find((item) => item.file.includes('body_pear') && isLoraInstalled(item.file));
     if (body) {
-      const strength = adult ? 0.54 : 0.46;
+      const strength = adult ? 0.45 : 0.4;
       secondary = { name: body.file, strength_model: strength, strength_clip: strength, note: 'body-pear' };
     }
   }
@@ -1218,7 +1219,7 @@ export function buildLoraPlan(
       LORA_REGISTRY.find((item) => item.file.includes('detail_skin_nplastic') && isLoraInstalled(item.file)) ||
       LORA_REGISTRY.find((item) => item.file.includes('detail_skin') && isLoraInstalled(item.file));
     if (skin) {
-      const strength = /close.?up|portrait|selfie/.test(bag) ? 0.5 : 0.4;
+      const strength = /close.?up|portrait|selfie/.test(bag) ? 0.25 : 0.2;
       secondary = { name: skin.file, strength_model: strength, strength_clip: strength, note: 'detail-skin' };
     }
   }

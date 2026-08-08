@@ -163,10 +163,6 @@ export function buildFluxWorkflow(opts: {
   const guidance = isFlux
     ? 1.0
     : Math.min(Math.max(opts.guidance ?? 6.0, 3.0), 9.0);
-  const fluxGuidance = Math.min(5, Math.max(2, opts.flux_guidance ?? 3.0));
-  const sampler_name = opts.sampler_name || (isFlux ? 'euler' : 'dpmpp_2m_sde');
-  const scheduler = opts.scheduler || (isFlux ? 'simple' : 'karras');
-  const batchSize = Math.min(4, Math.max(1, Math.floor(opts.batch_size ?? 1)));
   const ckpt = opts.ckpt_name || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
   // Flux Unchained by SCG ships UNET-only (fp8, no CLIP/VAE inside). It must be
   // loaded with UNETLoader + DualCLIPLoader + VAELoader, not CheckpointLoaderSimple.
@@ -174,6 +170,12 @@ export function buildFluxWorkflow(opts: {
     isFlux &&
     (opts.ckpt_loader === 'split' ||
       (opts.ckpt_loader !== 'checkpoint' && SPLIT_FLUX_CHECKPOINTS.has(ckpt)));
+  // 双底模默认：完整版 flux1-dev-fp8（非蒸馏）用 guidance 3.5；
+  // Unchained（split 加载，8 步蒸馏）用 guidance 3.0（A/B 选定）。
+  const fluxGuidance = Math.min(5, Math.max(2, opts.flux_guidance ?? (useSplitLoader ? 3.0 : 3.5)));
+  const sampler_name = opts.sampler_name || (isFlux ? 'euler' : 'dpmpp_2m_sde');
+  const scheduler = opts.scheduler || (isFlux ? 'simple' : 'karras');
+  const batchSize = Math.min(4, Math.max(1, Math.floor(opts.batch_size ?? 1)));
   const clipName = opts.clip_name || process.env.RUNPOD_FLUX_CLIP || 'clip_l.safetensors';
   const t5Name = opts.t5_name || process.env.RUNPOD_FLUX_T5 || 't5xxl_fp8_e4m3fn.safetensors';
   const vaeName = opts.vae_name || process.env.RUNPOD_FLUX_VAE || 'ae.safetensors';

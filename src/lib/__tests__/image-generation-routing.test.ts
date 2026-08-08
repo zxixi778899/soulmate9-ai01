@@ -53,7 +53,25 @@ describe('unified image generation routing', () => {
     expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
   });
 
-  it('all routes share the same unified endpoint and FLUX checkpoint', () => {
+  it('uses dev-fp8 (24 steps) for SFW and Unchained (8 steps) for NSFW', () => {
+    const sfw = resolveImageGenerationRoute({
+      surface: 'companion',
+      renderStyle: 'realistic',
+      nsfwIntensity: 1,
+    });
+    expect(sfw.checkpoint).toBe('flux1-dev-fp8.safetensors');
+    expect(sfw.steps).toBe(24);
+
+    const nsfw = resolveImageGenerationRoute({
+      surface: 'companion',
+      renderStyle: 'realistic',
+      nsfwIntensity: 5,
+    });
+    expect(nsfw.checkpoint).toBe('fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
+    expect(nsfw.steps).toBe(8);
+  });
+
+  it('all routes share the same unified endpoint and FLUX sampler defaults', () => {
     const routes = [
       resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 1 }),
       resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 5 }),
@@ -62,7 +80,6 @@ describe('unified image generation routing', () => {
     ];
     for (const route of routes) {
       expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
-      expect(route.checkpoint).toBe('fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
       expect(route.sampler).toBe('euler');
       expect(route.scheduler).toBe('simple');
       expect(route.clipSkip).toBe(1);
