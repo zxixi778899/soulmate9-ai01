@@ -50,7 +50,7 @@ export async function translatePromptToEnglish(opts: {
           : 'Fully clothed, no nudity, no explicit content.';
     const system =
       opts.mode === 'positive'
-        ? 'You are a translation engine for FLUX/WAN image prompts. Translate the RAW PROMPT into a fluent English image-generation prompt as comma-separated descriptive clauses. Keep every concept, keyword and intent exactly; NEVER invent or add new subjects, scenes, outfits, poses, actions or objects. Keep identity consistent when a reference is used. Respect the CONTENT BOUNDARY exactly. Output ONLY the English prompt, no markdown, labels or explanations.'
+        ? 'You are a translation engine for FLUX/WAN image prompts. Translate the RAW PROMPT into a fluent English image-generation prompt as comma-separated descriptive clauses. Keep every concept, keyword and intent exactly; NEVER invent or add new subjects, scenes, outfits, poses, actions or objects. Keep identity consistent when a reference is used. Respect the CONTENT BOUNDARY exactly. When the CONTENT BOUNDARY allows adult content, use direct explicit anatomical words (nude, bare breasts, vulva, penis, testicles, spread legs, penetration, masturbation, ejaculation) and never soften them into euphemisms like intimate areas or suggestive. Output ONLY the English prompt, no markdown, labels or explanations.'
         : 'You are a translation engine for negative image prompts. Translate the RAW PROMPT into a fluent English negative prompt as comma-separated undesired qualities. Keep every concept exactly; do not add unrelated negatives. Respect the CONTENT BOUNDARY exactly. Output ONLY the English negative prompt, no markdown, labels or explanations.';
     const result = await invokeChat({
       endpoint: picked.primary,

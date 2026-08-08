@@ -61,20 +61,30 @@ export function buildAutoLoraStack(
 ): LoraAutoPick[] {
   const g = resolveAutoGender(gender);
   const s = resolveAutoStyle(style);
+  const level = Math.max(1, Math.min(5, Math.round(Number(intensity) || 1)));
   const picks: LoraAutoPick[] = [];
 
-  if (s === 'anime') {
-    picks.push(...AUTO_MATRIX.anime);
-  } else if (s === '3d') {
-    picks.push(...AUTO_MATRIX['3d']);
+  // NSFW 强度生效：>=3 时以 NSFW LoRA 为主、高权重（FLUX.1-dev 自带对齐训练，
+  // 只有高权重 NSFW LoRA 才能让内容真正生效），避免普通风格 LoRA 抢占位置
+  if (level >= 4) {
+    picks.push({ id: 'flux-pose-nsfw-dynamic-v1', strength: 0.55 });
+    picks.push({ id: 'flux-lewd-v1', strength: 0.4 });
+    const animePick = AUTO_MATRIX.anime[0];
+    picks.push(s === 'anime' && animePick ? animePick : { id: 'flux-detail-skin-v1', strength: 0.18 });
+  } else if (level === 3) {
+    picks.push({ id: 'flux-lewd-v1', strength: 0.55 });
+    picks.push({ id: 'flux-detail-skin-v1', strength: 0.2 });
+    const animePick = AUTO_MATRIX.anime[0];
+    if (s === 'anime' && animePick) picks.push(animePick);
   } else {
-    picks.push(...(AUTO_MATRIX[g] || AUTO_MATRIX.female));
+    if (s === 'anime') {
+      picks.push(...AUTO_MATRIX.anime);
+    } else if (s === '3d') {
+      picks.push(...AUTO_MATRIX['3d']);
+    } else {
+      picks.push(...(AUTO_MATRIX[g] || AUTO_MATRIX.female));
+    }
   }
-
-  const level = Math.max(1, Math.min(5, Math.round(Number(intensity) || 1)));
-  // NSFW 只叠一个姿势/通用 LoRA，避免多 LoRA 叠加导致人体结构错误
-  if (level >= 4) picks.push({ id: 'flux-pose-nsfw-dynamic-v1', strength: 0.45 });
-  else if (level >= 3) picks.push({ id: 'flux-lewd-v1', strength: 0.35 });
 
   const installedSet = new Set(
     (installedOverride ?? cfg.installed_loras ?? []).map((f) => String(f || '')),
