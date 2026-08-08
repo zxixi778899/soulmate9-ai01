@@ -117,6 +117,21 @@ describe('buildFluxWorkflow LoRA stacking', () => {
     expect(graph['32']).toBeUndefined();
   });
 
+  it('uses reference img2img instead of the FLUX-only IP-Adapter for SDXL identity continuity', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'An adult woman walking through a sunlit kitchen.',
+      model_family: 'pony',
+      ckpt_name: 'ponyRealism_V22.safetensors',
+      ip_adapter_image: 'identity.png',
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+
+    expect(graph['30']).toBeUndefined();
+    expect(graph['11'].class_type).toBe('LoadImage');
+    expect(graph['11'].inputs.image).toBe('identity.png');
+    expect(graph['5'].inputs.denoise).toBe(0.62);
+    expect(graph['5'].inputs.model).toEqual(['1', 0]);
+  });
+
   it('keeps a compact quality negative instead of dropping a long negative prompt', () => {
     const graph = buildFluxWorkflow({
       prompt: 'An adult subject in natural window light.',

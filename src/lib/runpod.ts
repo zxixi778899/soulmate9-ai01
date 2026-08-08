@@ -302,7 +302,12 @@ export function buildFluxWorkflow(opts: {
   // ─── IP-Adapter face identity nodes (optional) ─────────────────────────────
   // Locks facial identity from a reference image WITHOUT locking composition.
   // Requires Shakker-Labs/ComfyUI-IPAdapter-Flux on the worker.
-  const useIpAdapter = !!opts.ip_adapter_image;
+  // ApplyIPAdapterFlux is architecture-specific. For SDXL/Pony/Illustrious,
+  // use the same canonical face reference as a moderate-denoise img2img anchor
+  // until a verified SDXL FaceID/InstantID workflow is available.
+  const useIpAdapter = !!opts.ip_adapter_image && isFlux;
+  const sdxlReferenceImage = !isFlux ? opts.ip_adapter_image : undefined;
+  const effectiveInputImage = opts.input_image || sdxlReferenceImage;
   const ipAdapterNodes: Record<string, unknown> = {};
   if (useIpAdapter) {
     const ipWeight = Math.min(1.0, Math.max(0.25, opts.ip_adapter_weight ?? 0.7));
@@ -338,8 +343,8 @@ export function buildFluxWorkflow(opts: {
   }
 
   // img2img path
-  if (opts.input_image) {
-    const denoise = opts.denoising_strength ?? 0.55;
+  if (effectiveInputImage) {
+    const denoise = opts.denoising_strength ?? (sdxlReferenceImage ? 0.62 : 0.55);
     const graph: Record<string, unknown> = {
       '2': {
         class_type: 'CLIPTextEncode',
@@ -374,7 +379,7 @@ export function buildFluxWorkflow(opts: {
       },
       '11': {
         class_type: 'LoadImage',
-        inputs: { image: opts.input_image },
+        inputs: { image: effectiveInputImage },
       },
       '12': {
         class_type: 'ImageScale',

@@ -504,7 +504,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       });
       // Prompt optimization is a short utility task — prefer the faster 9B endpoint
       // (0-3 workers, lower cold-start risk) over the 30B primary used for chat.
-      const fastEp = resolved.fallbackChain.find((ep) => ep.id === 'runpod-qwen35-9b-abliterated');
+      const fastEp = resolved.fallbackChain.find((ep) => ep.id === 'runpod-qwen3-8b-pro-nsfw');
       if (fastEp && resolved.endpoint.id === 'runpod-qwen3-30b-roleplay') {
         resolved.fallbackChain = [resolved.endpoint, ...resolved.fallbackChain.filter((ep) => ep.id !== fastEp.id)];
         resolved.endpoint = fastEp;

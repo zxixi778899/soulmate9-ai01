@@ -32,6 +32,7 @@ export type ImageGenerationRoute = {
 };
 
 const env = (name: string, fallback: string): string => process.env[name]?.trim() || fallback;
+const optionalEnv = (name: string): string => process.env[name]?.trim() || '';
 
 /**
  * Resolve generation parameters for the unified ComfyUI endpoint.
@@ -58,6 +59,48 @@ export function resolveImageGenerationRoute(input: {
   const endpointId = env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT);
   const sfwCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
   const nsfwCheckpoint = env('RUNPOD_FLUX_NSFW_CHECKPOINT', 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
+  const sdxlEndpoint = optionalEnv('RUNPOD_ENDPOINT_ID_SDXL');
+
+  // Specialist routes are opt-in: missing SDXL capacity safely falls back to
+  // the universal FLUX worker instead of becoming a user-visible outage.
+  if (input.surface === 'companion' && renderStyle === '2d' && sdxlEndpoint) {
+    return {
+      surface: input.surface,
+      modelFamily: 'illustrious',
+      endpointId: sdxlEndpoint,
+      checkpoint: env('RUNPOD_CHECKPOINT_ILLUSTRIOUS', 'waiMatureIllustrious_v20.safetensors'),
+      sampler: 'dpmpp_2m_sde',
+      scheduler: 'karras',
+      steps: complexScene ? 32 : 28,
+      cfg: 6,
+      clipSkip: 2,
+      width: 832,
+      height: 1216,
+      presetId: complexScene ? 'illustrious-2d-multi-control' : 'illustrious-2d-portrait',
+      reason: 'Illustrious is configured for stable 2D anatomy and composition.',
+    };
+  }
+
+  const ponyEligible = input.surface === 'companion' && renderStyle === 'realistic' &&
+    (intensity >= 3 || category === 'transgender' || complexScene);
+  if (ponyEligible && sdxlEndpoint) {
+    const highControl = semantics.powerDynamic === 'sm' || semantics.pairing === 'group_4i';
+    return {
+      surface: input.surface,
+      modelFamily: 'pony',
+      endpointId: sdxlEndpoint,
+      checkpoint: env('RUNPOD_CHECKPOINT_PONY', 'ponyRealism_V22.safetensors'),
+      sampler: 'dpmpp_2m_sde',
+      scheduler: 'karras',
+      steps: highControl || complexScene ? 32 : 28,
+      cfg: 6,
+      clipSkip: 2,
+      width: 832,
+      height: 1216,
+      presetId: highControl ? 'pony-adult-composition-control' : complexScene ? 'pony-adult-pair' : 'pony-adult-portrait',
+      reason: 'Pony is configured as the specialist adult anatomy route.',
+    };
+  }
 
   // ─── Turbo preview mode ───────────────────────────────────────────────────
   // Quick draft for companion chat: 12 steps + low cfg produces a recognizable

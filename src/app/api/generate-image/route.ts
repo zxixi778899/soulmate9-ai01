@@ -15,6 +15,7 @@ import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
 import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
 import { classifyImageScene } from '@/lib/image-scene-semantics';
 import type { CompanionCategory } from '@/lib/companion-category';
+import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 
 const HOURLY_HARD_CAP = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
 
@@ -143,12 +144,28 @@ export async function POST(request: NextRequest) {
     const requestedCategory = String(body.companion_category || 'female') as CompanionCategory;
     const category: CompanionCategory = requestedCategory === 'anime' ? 'female' : requestedCategory;
     const sceneSemantics = classifyImageScene(prompt, category);
+    const renderStyle = body.anime_render_style === '2d' ? '2d' : body.anime_render_style === '3d' ? '3d' : 'realistic';
+    const nsfwIntensity = Math.min(5, Math.max(1, Number(body.nsfw_intensity || 1))) as 1 | 2 | 3 | 4 | 5;
     const generationRoute = resolveImageGenerationRoute({
       surface,
       category,
-      renderStyle: body.anime_render_style === '2d' ? '2d' : body.anime_render_style === '3d' ? '3d' : 'realistic',
-      nsfwIntensity: Math.min(5, Math.max(1, Number(body.nsfw_intensity || 1))) as 1 | 2 | 3 | 4 | 5,
+      renderStyle,
+      nsfwIntensity,
       sceneSemantics,
+    });
+    const modelLoraPlan = resolveModelLoraPlan({
+      modelFamily: generationRoute.modelFamily,
+      category,
+      intensity: nsfwIntensity,
+      animeStyle: renderStyle,
+      requested: generationRoute.modelFamily === 'flux' && sceneCfg.lora_name
+        ? [{
+            name: sceneCfg.lora_name,
+            strength_model: sceneCfg.lora_strength_model ?? 0.6,
+            strength_clip: sceneCfg.lora_strength_clip ?? sceneCfg.lora_strength_model ?? 0.6,
+          }]
+        : [],
+      maxLoras: generationRoute.modelFamily === 'flux' ? 3 : 2,
     });
     let width = generationRoute.width || sceneCfg.width;
     let height = generationRoute.height || sceneCfg.height;
@@ -192,9 +209,7 @@ export async function POST(request: NextRequest) {
       denoising_strength:
         typeof body.denoising_strength === 'number' ? body.denoising_strength : undefined,
       ckpt_name: generationRoute.checkpoint || sceneCfg.ckpt_name || undefined,
-      lora_name: generationRoute.modelFamily === 'flux' ? sceneCfg.lora_name || undefined : undefined,
-      lora_strength_model: sceneCfg.lora_strength_model,
-      lora_strength_clip: sceneCfg.lora_strength_clip,
+      loras: modelLoraPlan.selected,
       sampler_name: generationRoute.sampler,
       scheduler: generationRoute.scheduler,
       clip_skip: generationRoute.clipSkip,

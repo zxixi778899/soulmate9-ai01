@@ -13,11 +13,62 @@ export const maxDuration = 180;
 
 const VIDEO_LIMIT = { maxRequests: 6, windowMs: 60 * 60 * 1000 };
 
+type VideoModel = 'svd' | 'wan22';
+
+export function resolveVideoModelRoute(requested: unknown): { model: VideoModel; endpointId: string } {
+  const configuredDefault: VideoModel = process.env.VIDEO_DEFAULT_MODEL === 'svd' ? 'svd' : 'wan22';
+  const model: VideoModel = requested === 'wan22' || requested === 'wan-2.2'
+    ? 'wan22'
+    : requested === 'svd' ? 'svd' : configuredDefault;
+  const endpointId = model === 'wan22'
+    ? process.env.RUNPOD_WAN_VIDEO_ENDPOINT?.trim() || ''
+    : (process.env.RUNPOD_VIDEO_ENDPOINT_ID || process.env.RUNPOD_SVD_ENDPOINT_ID || '').trim();
+  return { model, endpointId };
+}
+
+export function buildVideoWorkerInput(input: {
+  model: VideoModel;
+  imagePayload: string;
+  prompt?: string;
+  negativePrompt?: string;
+  duration: 3 | 5 | 10;
+  fps?: number;
+  numFrames?: number;
+  motionBucketId?: number;
+  decodeChunkSize?: number;
+}): Record<string, unknown> {
+  if (input.model === 'wan22') {
+    const duration = input.duration === 10 ? 10 : 5;
+    const fps = Math.min(24, Math.max(8, input.fps || 16));
+    const numFrames = input.numFrames || (duration === 10 ? 161 : 81);
+    return {
+      model: 'wan22',
+      prompt: input.prompt || 'subtle natural movement, stable identity, smooth motion, static camera',
+      negative_prompt: input.negativePrompt || 'blurry, flicker, distorted face, identity drift, extra limbs, watermark, text',
+      image: input.imagePayload,
+      image_base64: input.imagePayload,
+      width: 832,
+      height: 480,
+      num_frames: Math.min(161, Math.max(16, numFrames)),
+      fps,
+      num_inference_steps: 30,
+      guidance_scale: 5,
+    };
+  }
+  return {
+    input_image: input.imagePayload,
+    motion_bucket_id: input.motionBucketId || 127,
+    fps: input.fps || 7,
+    num_frames: input.numFrames || (input.duration === 10 ? 40 : input.duration === 3 ? 14 : 25),
+    decode_chunk_size: input.decodeChunkSize || 8,
+  };
+}
+
 /**
  * POST /api/generate-video
  *
- * Generates a short video from an input image using RunPod SVD (Stable Video Diffusion).
- * Body: { input_image (url or base64), girlfriend_id?, motion_bucket_id?, fps? }
+ * Generates a short image-to-video clip. WAN 2.2 is the production route;
+ * SVD remains an explicit legacy fallback during migration.
  */
 export async function POST(request: NextRequest) {
   const { user, client, error: authError } = await getAuthUser(request);
@@ -50,6 +101,9 @@ export async function POST(request: NextRequest) {
     const fps = Number(body.fps) || 7;
     const numFrames = Number(body.num_frames) || (requestedDuration === 3 ? 14 : requestedDuration === 10 ? 40 : 25);
     const decodeChunkSize = Number(body.decode_chunk_size) || 8;
+    const videoRoute = resolveVideoModelRoute(body.model || body.video_model);
+    const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+    const negativePrompt = typeof body.negative_prompt === 'string' ? body.negative_prompt.trim() : '';
 
     // Site-wide credit rule: videos cost credits (5s default / 10s premium).
     const durationSec = requestedDuration;
@@ -73,11 +127,11 @@ export async function POST(request: NextRequest) {
     }
 
     const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
-    const videoEndpointId = process.env.RUNPOD_VIDEO_ENDPOINT_ID || process.env.RUNPOD_SVD_ENDPOINT_ID || '';
+    const videoEndpointId = videoRoute.endpointId;
 
     if (!apiKey || !videoEndpointId) {
       return NextResponse.json(
-        { error: 'Video generation is not configured. Set RUNPOD_VIDEO_ENDPOINT_ID.', code: 'not_configured' },
+        { error: `Video generation model ${videoRoute.model} is not configured.`, code: 'not_configured' },
         { status: 503 },
       );
     }
@@ -104,7 +158,19 @@ export async function POST(request: NextRequest) {
       imagePayload = inputImage.replace(/^data:image\/\w+;base64,/, '');
     }
 
-    // Submit to RunPod SVD. GPU-capacity failures (429 / 5xx / OOM / no worker)
+    const workerInput = buildVideoWorkerInput({
+      model: videoRoute.model,
+      imagePayload,
+      prompt,
+      negativePrompt,
+      duration: requestedDuration,
+      fps,
+      numFrames: Number(body.num_frames) || undefined,
+      motionBucketId,
+      decodeChunkSize,
+    });
+
+    // Submit to RunPod. GPU-capacity failures (429 / 5xx / OOM / no worker)
     // are retried once after a short delay before surfacing a friendly error.
     let submitRes: Response | null = null;
     let submitErrText = '';
@@ -113,13 +179,7 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          input: {
-            input_image: imagePayload,
-            motion_bucket_id: motionBucketId,
-            fps,
-            num_frames: numFrames,
-            decode_chunk_size: decodeChunkSize,
-          },
+          input: workerInput,
         }),
         signal: AbortSignal.timeout(15000),
       });
@@ -155,7 +215,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No job ID returned' }, { status: 502 });
     }
 
-    logger.info('[generate-video] job submitted', { jobId, girlfriendId });
+    logger.info('[generate-video] job submitted', { jobId, girlfriendId, model: videoRoute.model });
 
     // Poll for completion (max 150s under Vercel timeout)
     const pollIntervalMs = 3000;
@@ -245,15 +305,7 @@ export async function POST(request: NextRequest) {
             const sres = await fetch(`${baseUrl}/run`, {
               method: 'POST',
               headers,
-              body: JSON.stringify({
-                input: {
-                  input_image: imagePayload,
-                  motion_bucket_id: motionBucketId,
-                  fps,
-                  num_frames: numFrames,
-                  decode_chunk_size: decodeChunkSize,
-                },
-              }),
+              body: JSON.stringify({ input: workerInput }),
               signal: AbortSignal.timeout(15000),
             });
             if (sres.ok) {

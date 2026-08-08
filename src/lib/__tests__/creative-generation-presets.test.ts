@@ -31,10 +31,10 @@ describe('creative generation presets', () => {
     expect(preset.modelFamily).toBe('flux');
     expect(preset.sampler).toBe('euler');
     expect(preset.scheduler).toBe('simple');
-    expect(preset.steps).toBeGreaterThanOrEqual(26);
+    expect(preset.steps).toBe(8);
   });
 
-  it('uses a five-second 40-frame animation preset', () => {
+  it('uses the five-second Wan2.2 image-to-video preset', () => {
     const preset = resolveCreativeGenerationPreset({
       mode: 'img2video',
       surface: 'companion',
@@ -43,8 +43,9 @@ describe('creative generation presets', () => {
       intensity: 5,
     });
     expect(preset.durationSeconds).toBe(5);
-    expect(preset.fps).toBe(8);
-    expect(preset.frames).toBe(40);
+    expect(preset.modelFamily).toBe('wan22');
+    expect(preset.fps).toBe(16);
+    expect(preset.frames).toBe(81);
     expect(preset.motionStrength).toBe(7);
   });
 

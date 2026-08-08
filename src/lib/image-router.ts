@@ -159,7 +159,7 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
   {
     id: 'fal-fast',
     provider: 'fal',
-    label: 'fal.ai FLUX (Fast, NSFW OK)',
+    label: 'fal.ai FLUX (SFW emergency fallback)',
     enabled: true,
     priority: 5,
     timeout_ms: 60_000,
@@ -168,13 +168,13 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
     reset_ms: 30_000,
     supports_lora: false,
     supports_reference: true,
-    nsfw_capable: true,
-    notes: 'fal.ai hosted FLUX.1 dev. 3-5s, pay-per-image (~$0.02). NSFW OK, no LoRA.',
+    nsfw_capable: false,
+    notes: 'Fast SFW fallback only. It cannot preserve the local character LoRA stack.',
   },
   {
     id: 'runpod-lora',
     provider: 'runpod',
-    label: 'RunPod FLUX (LoRA + NSFW)',
+    label: 'RunPod FLUX (SFW + product LoRAs)',
     enabled: true,
     priority: 10,
     timeout_ms: 30_000,
@@ -184,7 +184,7 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
     supports_lora: true,
     supports_reference: true,
     nsfw_capable: true,
-    notes: 'Self-hosted ComfyUI + LoRA stack. Only used when LoRA/NSFW required. Scale to 0 idle.',
+    notes: 'Self-hosted FLUX for SFW companions, identity assets, 3D and product generation.',
   },
   {
     id: 'runpod-dc2',
@@ -199,8 +199,8 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
     supports_lora: true,
     supports_reference: true,
     nsfw_capable: true,
-    endpoint_env: 'RUNPOD_ENDPOINT_ID',
-    notes: 'Pony Realism for adult realistic/transgender, Illustrious for 2D. Same unified endpoint.',
+    endpoint_env: 'RUNPOD_ENDPOINT_ID_SDXL',
+    notes: 'Dedicated SDXL endpoint: Pony for adult realism/transgender; Illustrious for 2D.',
   },
 ];
 

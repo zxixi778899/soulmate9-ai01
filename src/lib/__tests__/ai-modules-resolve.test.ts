@@ -13,6 +13,8 @@ describe('ai-modules resolve', () => {
     for (const k of [
       'TOGETHER_API_KEY',
       'RUNPOD_VLLM_URL',
+      'RUNPOD_PRO_CHAT_URL',
+      'RUNPOD_UNLIMITED_CHAT_URL',
       'RUNPOD_VLLM_API_KEY',
       'RUNPOD_API_KEY',
     ]) {
@@ -21,6 +23,8 @@ describe('ai-modules resolve', () => {
     // Simulate local .env: RunPod present, Together absent
     delete process.env.TOGETHER_API_KEY;
     process.env.RUNPOD_VLLM_URL = 'https://api.runpod.ai/v2/test';
+    process.env.RUNPOD_PRO_CHAT_URL = 'https://api.runpod.ai/v2/pro/openai/v1';
+    process.env.RUNPOD_UNLIMITED_CHAT_URL = 'https://api.runpod.ai/v2/unlimited/openai/v1';
     process.env.RUNPOD_VLLM_API_KEY = 'test-key';
   });
 
@@ -38,7 +42,7 @@ describe('ai-modules resolve', () => {
 
   it('routes free users to SFW even with nsfw keywords', () => {
     const cfg = createDefaultAiModules();
-    cfg.chat.tiers.free.fallback_endpoint_ids = ['runpod-qwen35-9b-abliterated'];
+    cfg.chat.tiers.free.fallback_endpoint_ids = ['runpod-qwen3-8b-pro-nsfw'];
     const r = resolveChatCall(cfg, {
       tier: 'free',
       intimacyLevel: 6,
@@ -54,8 +58,8 @@ describe('ai-modules resolve', () => {
   it('skips Together when key is missing and uses RunPod', () => {
     const cfg = createDefaultAiModules();
     cfg.chat.tiers.free.sfw_endpoint_id = 'together-llama-8b';
-    cfg.chat.tiers.free.fallback_endpoint_ids = ['runpod-qwen35-9b-abliterated'];
-    cfg.chat.fallback_endpoint_id = 'runpod-qwen35-9b-abliterated';
+    cfg.chat.tiers.free.fallback_endpoint_ids = ['runpod-qwen3-8b-pro-nsfw'];
+    cfg.chat.fallback_endpoint_id = 'runpod-qwen3-8b-pro-nsfw';
     const r = resolveChatCall(cfg, {
       tier: 'free',
       intimacyLevel: 1,
@@ -75,6 +79,16 @@ describe('ai-modules resolve', () => {
     });
     expect(r.channel).toBe('nsfw');
     expect(r.endpoint.nsfw_capable).toBe(true);
+    expect(r.endpoint.id).toBe('runpod-qwen3-8b-pro-nsfw');
+  });
+
+  it('routes unlimited chat to the dedicated 30B endpoint', () => {
+    const result = resolveChatCall(createDefaultAiModules(), {
+      tier: 'unlimited',
+      intimacyLevel: 5,
+      message: 'continue our long story and remember the relationship details',
+    });
+    expect(result.endpoint.id).toBe('runpod-qwen3-30b-roleplay');
   });
 
   it('continues an adult route from the last three messages', () => {

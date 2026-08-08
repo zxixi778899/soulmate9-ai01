@@ -16,7 +16,7 @@ export type CreativeGenerationMode = 'txt2img' | 'img2img' | 'img2video';
 export type CreativeGenerationPreset = {
   mode: CreativeGenerationMode;
   label: string;
-  modelFamily: ImageModelFamily | 'animatediff';
+  modelFamily: ImageModelFamily | 'wan22';
   checkpoint: string;
   sampler: string;
   scheduler: string;
@@ -47,17 +47,17 @@ export function resolveCreativeGenerationPreset(input: {
     return {
       mode: input.mode,
       label: explicitMotion ? '人设动画 · 高动作控制' : '人设动画 · 自然动作',
-      modelFamily: 'animatediff',
-      checkpoint: 'realisticVisionV60B1_v51VAE.safetensors',
-      sampler: 'euler_ancestral',
-      scheduler: 'normal',
-      steps: explicitMotion ? 24 : 20,
-      cfg: explicitMotion ? 7.5 : 7,
-      width: 512,
-      height: 768,
+      modelFamily: 'wan22',
+      checkpoint: 'Wan2.2 I2V',
+      sampler: 'wan22-i2v',
+      scheduler: 'production',
+      steps: 30,
+      cfg: 5,
+      width: 832,
+      height: 480,
       durationSeconds: 5,
-      fps: 8,
-      frames: 40,
+      fps: 16,
+      frames: 81,
       motionStrength: explicitMotion ? 7 : 5,
       denoise: explicitMotion ? 0.63 : 0.55,
       reason: '图生视频固定为 5 秒；高强度动作提高运动幅度和控制步数。',

@@ -26,7 +26,7 @@ export const SERVICE_REGISTRY: ServiceEndpoint[] = [
     label: 'vLLM Qwen3-8B Pro NSFW',
     category: 'chat',
     provider: 'runpod',
-    endpoint_env: 'RUNPOD_VLLM_URL',
+    endpoint_env: 'RUNPOD_PRO_CHAT_URL',
     api_key_env: 'RUNPOD_API_KEY',
     gpu_type: '24GB (ADA_24)',
     model_name: 'Qwen3-8B',
@@ -39,7 +39,7 @@ export const SERVICE_REGISTRY: ServiceEndpoint[] = [
     label: 'vLLM Qwen3-30B Unlimited',
     category: 'chat',
     provider: 'runpod',
-    endpoint_env: 'RUNPOD_VLLM_30B_URL',
+    endpoint_env: 'RUNPOD_UNLIMITED_CHAT_URL',
     api_key_env: 'RUNPOD_API_KEY',
     gpu_type: '80GB (AMPERE_80 / A100)',
     model_name: 'Qwen3-30B-A3B (MoE)',
@@ -50,17 +50,30 @@ export const SERVICE_REGISTRY: ServiceEndpoint[] = [
 
   // ── Image Generation ────────────────────────────────────
   {
-    id: 'comfyui-image',
-    label: 'ComfyUI 生图 (FLUX+Pony+Illustrious)',
+    id: 'comfyui-flux-image',
+    label: 'ComfyUI FLUX 生图',
     category: 'image',
     provider: 'runpod',
     endpoint_env: 'RUNPOD_ENDPOINT_ID',
     api_key_env: 'RUNPOD_API_KEY',
     gpu_type: '24GB (ADA_24)',
-    model_name: 'FLUX.1-dev-fp8 + Pony + Illustrious',
+    model_name: 'FLUX.1-dev-fp8 / FLUX Unchained',
     status: 'active',
     cost_per_hour: 0.44,
-    notes: 'Endpoint: wozrrlcdipyl3p. Workers 0-3. 11 LoRAs on volume p1dup48kuq. 自动路由.',
+    notes: 'SFW companion, identity portraits, 3D, outfit, prop and advert generation. FLUX LoRAs only.',
+  },
+  {
+    id: 'comfyui-sdxl-image',
+    label: 'ComfyUI SDXL 生图',
+    category: 'image',
+    provider: 'runpod',
+    endpoint_env: 'RUNPOD_ENDPOINT_ID_SDXL',
+    api_key_env: 'RUNPOD_API_KEY',
+    gpu_type: '24GB+ (48GB recommended)',
+    model_name: 'Pony Realism V2.2 + WAI Mature Illustrious V2',
+    status: 'standby',
+    cost_per_hour: 0.44,
+    notes: 'Realistic NSFW/transgender/complex anatomy and 2D companion generation. SDXL LoRAs only.',
   },
 
   // ── Voice / TTS ─────────────────────────────────────────
@@ -79,20 +92,6 @@ export const SERVICE_REGISTRY: ServiceEndpoint[] = [
   },
 
   // ── Animation ───────────────────────────────────────────
-  {
-    id: 'animatediff-portraits',
-    label: 'AnimateDiff 动态肖像',
-    category: 'animation',
-    provider: 'runpod',
-    endpoint_env: 'RUNPOD_ANIMATEDIFF_ENDPOINT',
-    api_key_env: 'RUNPOD_API_KEY',
-    gpu_type: '24GB (ADA_24)',
-    model_name: 'RealisticVision + AnimateDiff mm_sd_v15_v2',
-    status: 'standby',
-    cost_per_hour: 0.44,
-    notes: 'Endpoint: 6f8mvq08rv4i9b. Workers 0-1. 8动画预设. ComfyUI workflow.',
-  },
-
   // ── Video Generation ────────────────────────────────────
   {
     id: 'wan-video',
@@ -103,9 +102,9 @@ export const SERVICE_REGISTRY: ServiceEndpoint[] = [
     api_key_env: 'RUNPOD_API_KEY',
     gpu_type: '48GB+ (A6000 / A100)',
     model_name: 'Wan2.2-14B with LoRA',
-    status: 'standby',
+    status: 'active',
     cost_per_hour: 0.79,
-    notes: 'Endpoint: vb3mqlf5cleuvq. Workers 0-1. 图生视频/文生视频.',
+    notes: 'Primary user video route. Image-to-video first, 5s/10s presets, text-to-video admin-only.',
   },
 ];
 

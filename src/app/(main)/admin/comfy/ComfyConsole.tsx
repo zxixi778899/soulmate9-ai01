@@ -959,26 +959,23 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         const params = buildStageGenerationParams(stage, prompt, negative, loras, refs);
 
         if (stage.mode === 'img2video') {
-          // Video: call AnimateDiff via /api/admin/animations
-          const videoRes = await authedFetch('/api/admin/animations', {
+          // Video: the production route is Wan2.2 image-to-video.
+          const videoRes = await authedFetch('/api/generate-video', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              action: 'generate_custom',
-              companion_id: companionId,
+              model: 'wan22',
+              girlfriend_id: companionId,
               input_image: refs.inputImage || localAssets['avatar-closeup'] || '',
               prompt,
               negative_prompt: negative,
-              duration_seconds: stage.video?.durationSeconds ?? 5,
-              fps: stage.video?.fps ?? 8,
-              motion_strength: stage.video?.motionStrength ?? 5,
-              steps: stage.steps,
-              cfg: stage.guidance,
+              duration: stage.video?.durationSeconds === 10 ? 10 : 5,
+              fps: stage.video?.fps ?? 16,
             }),
           });
           const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
           if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');
-          const videoUrl = String(videoData.url || videoData.video_url || '');
+          const videoUrl = String(videoData.video_url || '');
           if (videoUrl) localAssets[stage.assetRole] = videoUrl;
           setPipelineResults((prev) => prev.map((r) => r.stageId === stage.id ? { ...r, status: 'completed', prompt, negative, videoUrl, loras } : r));
         } else {
@@ -1122,19 +1119,24 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       setSelectedLoras(effectiveLoras);
 
       if (genMode === 'img2video') {
-        const videoRes = await authedFetch('/api/admin/animations', {
+        const videoRes = await authedFetch('/api/generate-video', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'generate_custom', companion_id: companionId, input_image: inputImage.trim(), prompt: effectivePrompt, negative_prompt: effectiveNegative, duration_seconds: recommendedPreset.durationSeconds || 5, fps: recommendedPreset.fps || 8, motion_strength: recommendedPreset.motionStrength || 5, steps: recommendedPreset.steps, cfg: recommendedPreset.cfg, sampler: recommendedPreset.sampler, scheduler: recommendedPreset.scheduler, nsfw_intensity: nsfwIntensity }),
+          body: JSON.stringify({ model: 'wan22', girlfriend_id: companionId, input_image: inputImage.trim(), prompt: effectivePrompt, negative_prompt: effectiveNegative, duration: recommendedPreset.durationSeconds === 10 ? 10 : 5, fps: recommendedPreset.fps || 16, nsfw_intensity: nsfwIntensity }),
         });
         const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
         if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');
-        const ready = Array.isArray(videoData.results) ? videoData.results.find((item: Any) => item.status === 'ready' && item.video_url) : null;
+        if (videoData.pending) {
+          setLastGenerationTrace({ model: 'Wan2.2', endpoint: 'RUNPOD_WAN_VIDEO_ENDPOINT', job_id: videoData.job_id, status: videoData.status });
+          toast.message('Wan2.2 video is still in the GPU queue');
+          return;
+        }
+        const ready = videoData.video_url ? { animation_id: videoData.job_id, video_url: videoData.video_url } : null;
         if (!ready) {
           const failed = Array.isArray(videoData.results) ? videoData.results.find((item: Any) => item.error) : null;
           throw new Error(failed?.error || '视频生成完成但未返回地址');
         }
         setLastResult([{ id: ready.animation_id, url: ready.video_url, media_type: 'video', duration_seconds: 5 }]);
-        setLastGenerationTrace({ category: companionCategory, intensity: nsfwIntensity, checkpoint: 'AnimateDiff img2video', steps: 20, cfg: 7, sampler: 'euler_ancestral', scheduler: 'normal', referenceDenoise: nsfwIntensity >= 4 ? 0.63 : 0.55, identitySource: 'selected_reference_image', loras: [] });
+        setLastGenerationTrace({ category: companionCategory, intensity: nsfwIntensity, model: 'Wan2.2', endpoint: 'RUNPOD_WAN_VIDEO_ENDPOINT', identitySource: 'selected_reference_image', loras: [] });
         toast.success('5 秒人设动画已生成并保存');
         return;
       }

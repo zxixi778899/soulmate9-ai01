@@ -22,6 +22,7 @@ function mergeById<T extends { id: string }>(defaults: T[], saved?: T[]): T[] {
   const defaultIds = new Set(defaults.map((item) => item.id));
   return [...merged, ...(saved || []).filter((item) => !defaultIds.has(item.id))];
 }
+const RETIRED_ENDPOINT_IDS = new Set(['comfy-unified', 'vllm-luminaid']);
 function mergeDeep(base: ComfyConsoleConfig, patch: Partial<ComfyConsoleConfig>): ComfyConsoleConfig {
   // LoRA list always comes from catalog + model-library (base.loras already merged).
   // Keep user endpoint / workflow edits.
@@ -29,7 +30,7 @@ function mergeDeep(base: ComfyConsoleConfig, patch: Partial<ComfyConsoleConfig>)
     ...base,
     ...patch,
     network_volume: { ...base.network_volume, ...(patch.network_volume || {}) },
-    endpoints: mergeById(base.endpoints, patch.endpoints),
+    endpoints: mergeById(base.endpoints, patch.endpoints).filter((item) => !RETIRED_ENDPOINT_IDS.has(item.id)),
     checkpoints: mergeById(base.checkpoints, patch.checkpoints),
     loras: base.loras,
     lora_stacking_tips: base.lora_stacking_tips,

@@ -28,17 +28,26 @@ const DEFAULT_FAMILY_LORAS: Record<ImageModelFamily, Partial<Record<CompanionCat
     nsfw: [],
   },
   pony: {
-    female: ['pony_detailifier_v5.safetensors'],
-    male: ['pony_detailifier_v5.safetensors'],
-    transgender: ['pony_detailifier_v5.safetensors'],
+    female: ['pony_detailifier_v5.safetensors', 'pony_mature_female_slider_v2.safetensors'],
+    male: ['pony_detailifier_v5.safetensors', 'pony_gender_transition_slider.safetensors'],
+    transgender: [
+      'pony_detailifier_v5.safetensors',
+      'pony_gender_transition_slider.safetensors',
+      'pony_futa_style.safetensors',
+    ],
     anime: ['pony_detailifier_v5.safetensors'],
-    nsfw: ['pony_detailifier_v5.safetensors'],
+    nsfw: ['BackgroundDetailerV3-000004.safetensors'],
   },
   illustrious: {
-    female: ['AddMicroDetails_Illustrious_v6.safetensors'],
-    male: ['AddMicroDetails_Illustrious_v6.safetensors'],
-    transgender: ['AddMicroDetails_Illustrious_v6.safetensors'],
+    female: ['AddMicroDetails_Illustrious_v6.safetensors', 'illustrious_nsfw_slider_v1.safetensors'],
+    male: ['AddMicroDetails_Illustrious_v6.safetensors', 'illustrious_gender_transition_slider.safetensors'],
+    transgender: [
+      'AddMicroDetails_Illustrious_v6.safetensors',
+      'illustrious_gender_transition_slider.safetensors',
+      'illustrious_nsfw_slider_v1.safetensors',
+    ],
     anime: ['AddMicroDetails_Illustrious_v6.safetensors'],
+    nsfw: ['illustrious_nsfw_slider_v1.safetensors'],
     '2d': ['StS-Illustrious-Detail-Slider-v1.0.safetensors'],
   },
 };
@@ -127,6 +136,10 @@ function triggersForLora(name: string): string[] {
   if (lower.includes('backgrounddetailer')) return ['detailed background'];
   if (lower.includes('addmicrodetails')) return ['micro details', 'detailed skin'];
   if (lower.includes('detail-slider') || lower.includes('detail_slider')) return ['detail slider'];
+  if (lower.includes('gender_transition') || lower.includes('gender-transition')) return ['adult', 'mature body'];
+  if (lower.includes('futa')) return ['adult transgender', 'futanari'];
+  if (lower.includes('nsfw_slider') || lower.includes('nsfw-slider')) return ['explicit adult'];
+  if (lower.includes('sex_box') || lower.includes('sex-box')) return ['s3xb0x'];
   if (lower.includes('detail_enhancer') || lower.includes('detail-enhancer')) return ['intricate details'];
   if (lower.includes('add_details') || lower.includes('add-details')) return ['sharp focus'];
   if (lower.includes('xlabs') || lower.includes('realism_xlabs')) return ['raw photo'];

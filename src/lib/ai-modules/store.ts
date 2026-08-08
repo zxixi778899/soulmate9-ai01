@@ -16,9 +16,18 @@ function normalizeAiModules(raw: Partial<AiModulesConfig>): AiModulesConfig {
   const merged = deepMerge(defaults as unknown as Record<string, unknown>, raw as unknown as Record<string, unknown>) as unknown as AiModulesConfig;
   const customEndpoints = Array.isArray(raw.endpoints) ? raw.endpoints : [];
   merged.endpoints = [
-    ...customEndpoints,
+    ...customEndpoints.filter((item) => item.id !== 'runpod-qwen35-9b-abliterated'),
     ...defaults.endpoints.filter((candidate) => !customEndpoints.some((item) => item.id === candidate.id)),
   ];
+  const replaceRetired = (id: string): string =>
+    id === 'runpod-qwen35-9b-abliterated' ? 'runpod-qwen3-8b-pro-nsfw' : id;
+  for (const tier of Object.values(merged.chat.tiers)) {
+    tier.sfw_endpoint_id = replaceRetired(tier.sfw_endpoint_id);
+    if (tier.nsfw_endpoint_id) tier.nsfw_endpoint_id = replaceRetired(tier.nsfw_endpoint_id);
+    if (tier.default_endpoint_id) tier.default_endpoint_id = replaceRetired(tier.default_endpoint_id);
+    if (tier.complex_endpoint_id) tier.complex_endpoint_id = replaceRetired(tier.complex_endpoint_id);
+    tier.fallback_endpoint_ids = (tier.fallback_endpoint_ids || []).map(replaceRetired);
+  }
   if ((raw.version || 1) < 2) {
     merged.version = 2;
     merged.chat = { ...merged.chat, ...defaults.chat, global_system_suffix: merged.chat.global_system_suffix || defaults.chat.global_system_suffix };

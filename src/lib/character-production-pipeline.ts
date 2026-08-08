@@ -281,7 +281,7 @@ export function resolvePipelineLoras(
   stage: PipelineStageConfig,
   ctx: PipelineContext,
 ): RoutedLora[] {
-  if (stage.mode === 'img2video') return []; // AnimateDiff uses its own model
+  if (stage.mode === 'img2video') return []; // Wan2.2 uses the approved source frame, not image LoRAs.
   const plan = resolveModelLoraPlan({
     modelFamily: 'flux',
     category: ctx.category === 'anime' ? 'female' : ctx.category,
@@ -317,7 +317,7 @@ export function resolveStageReference(
         ipAdapterImage: avatarUrl || undefined,
       };
     case 'video':
-      // AnimateDiff reference = avatar (best face clarity)
+      // Wan2.2 image-to-video reference = avatar (best face clarity).
       return { inputImage: avatarUrl || undefined };
     default:
       return {};

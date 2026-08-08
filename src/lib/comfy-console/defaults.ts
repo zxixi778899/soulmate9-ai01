@@ -186,7 +186,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
     lora_stacking_tips: LORA_CATALOG.stacking_tips || [],
     lora_recipes: LORA_CATALOG.apply_recipes || [],
     network_volume: {
-      name: LORA_CATALOG.target_volume || 'soulmate-models-ca2',
+      name: 'FLUX: p1dup48kuq / SDXL: 5am7zczzwj',
       region: LORA_CATALOG.region || 'US-CA-2',
       mount_hint: '/runpod-volume 或 ComfyUI/models（以你镜像为准）',
       checkpoints_dir: 'models/checkpoints',
@@ -204,17 +204,17 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
     },
     endpoints: [
       {
-        id: 'comfy-unified',
-        label: 'ComfyUI (FLUX + Pony + Illustrious)',
+        id: 'comfy-flux-cd1',
+        label: 'ComfyUI FLUX · SFW / Shop / Advertising',
         endpoint_id: process.env.RUNPOD_ENDPOINT_ID || 'wozrrlcdipyl3p',
         kind: 'comfy',
         notes: '统一端点：所有模型(FLUX/Pony/Illustrious)和LoRA均挂载在同一worker',
       },
       {
-        id: 'vllm-luminaid',
-        label: 'soulmate-vllm-luminaid',
-        endpoint_id: '',
-        kind: 'vllm',
+        id: 'comfy-sdxl-cd2',
+        label: 'ComfyUI SDXL · Pony / Illustrious',
+        endpoint_id: process.env.RUNPOD_ENDPOINT_ID_SDXL || '6jc28kjitp0qq3',
+        kind: 'comfy',
         notes: '聊天用 vLLM，不是出图；RUNPOD_VLLM_URL 使用',
       },
     ],

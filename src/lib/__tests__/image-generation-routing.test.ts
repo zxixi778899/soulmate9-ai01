@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { resolveImageGenerationRoute, UNIFIED_COMFY_ENDPOINT } from '@/lib/image-generation-routing';
+
+const ORIGINAL_ENV = { ...process.env };
+afterEach(() => { process.env = { ...ORIGINAL_ENV }; });
 
 describe('unified image generation routing', () => {
   it('routes explicit and transgender realism to FLUX on unified endpoint', () => {
@@ -37,6 +40,7 @@ describe('unified image generation routing', () => {
   });
 
   it('routes 2D and 3D both to FLUX (only checkpoint available)', () => {
+    delete process.env.RUNPOD_ENDPOINT_ID_SDXL;
     expect(resolveImageGenerationRoute({
       surface: 'companion',
       renderStyle: '2d',
@@ -45,6 +49,27 @@ describe('unified image generation routing', () => {
       surface: 'companion',
       renderStyle: '3d',
     }).modelFamily).toBe('flux');
+  });
+
+  it('uses Pony for realistic NSFW when the specialist endpoint is configured', () => {
+    process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
+    const route = resolveImageGenerationRoute({
+      surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 5,
+    });
+    expect(route.modelFamily).toBe('pony');
+    expect(route.endpointId).toBe('sdxl-endpoint');
+    expect(route.checkpoint).toBe('ponyRealism_V22.safetensors');
+    expect(route.steps).toBeGreaterThanOrEqual(28);
+    expect(route.cfg).toBe(6);
+    expect(route.clipSkip).toBe(2);
+  });
+
+  it('uses Illustrious for 2D when the specialist endpoint is configured', () => {
+    process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
+    const route = resolveImageGenerationRoute({ surface: 'companion', renderStyle: '2d', nsfwIntensity: 4 });
+    expect(route.modelFamily).toBe('illustrious');
+    expect(route.checkpoint).toBe('waiMatureIllustrious_v20.safetensors');
+    expect(route.scheduler).toBe('karras');
   });
 
   it.each(['outfit', 'prop', 'advert'] as const)('keeps %s assets on FLUX via unified endpoint', (surface) => {
