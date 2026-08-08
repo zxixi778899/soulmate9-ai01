@@ -53,12 +53,19 @@ if [ "$FREE_KB" -lt "$NEED_KB" ]; then
   echo "       flux_add_details / flux_detail_enhancer / flux_nsfw_klein_v2 / flux_uncensored / pony_detailifier_v5"
   echo "     - 确认切到新底模后，可删除旧 checkpoint：flux1-dev-fp8.safetensors"
   echo "   清理命令示例：cd $TARGET && rm -f flux1-dev-fp8.safetensors"
-  echo "   （若不清理，下载会在磁盘写满时报错，脚本不会自动删除任何文件）"
+  if [ "${FORCE:-0}" != "1" ]; then
+    echo "   → 空间不足，脚本已中止（不会产出损坏文件）。确认清理后重跑，或用 FORCE=1 强制（风险自担）"
+    exit 1
+  fi
 fi
 
 echo ""
 echo "开始下载 $FILENAME（约 $((EXPECTED_MB / 1024))GB，支持断点续传）..."
 cd "$TARGET"
+if [ -s "$FILENAME" ]; then
+  PREV=$(stat -c %s "$FILENAME" 2>/dev/null || echo 0)
+  echo "检测到已有部分文件 $PREV 字节，继续续传..."
+fi
 curl -sL --fail -C - --retry 3 --retry-delay 5 \
   -H "Authorization: Bearer $CIVITAI_TOKEN" \
   -o "$FILENAME" "$URL"
@@ -72,7 +79,15 @@ ACTUAL_MB=$(du -m "$FILENAME" | awk '{print $1}')
 echo "下载完成: $FILENAME = ${ACTUAL_MB} MB（预期 ~$((EXPECTED_MB / 1024))GB）"
 if [ "$ACTUAL_MB" -lt $((EXPECTED_MB - 256)) ]; then
   echo "警告: 文件大小与预期不符，可能下载不完整，请重试"
+  exit 1
 fi
+
+ACTUAL_BYTES=$(stat -c %s "$FILENAME")
+if [ "$ACTUAL_BYTES" != "12346749423" ]; then
+  echo "!! 大小校验失败：实际 $ACTUAL_BYTES 字节，预期 12346749423 字节（文件不完整，删除后重新下载）"
+  exit 1
+fi
+echo "大小校验通过: $ACTUAL_BYTES 字节"
 
 echo ""
 echo "下一步："
