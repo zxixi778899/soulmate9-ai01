@@ -985,7 +985,7 @@ export async function POST(req: NextRequest) {
           height,
           num_inference_steps: steps,
           guidance_scale: family === 'flux' ? 1 : clampNum(merged.cfg, 3, 9, 5),
-          flux_guidance: family === 'flux' ? clampNum(merged.flux_guidance, 2, 5, 3.5) : undefined,
+          flux_guidance: family === 'flux' ? clampNum(merged.flux_guidance, 2, 5, 3.0) : undefined,
           sampler_name: samplers.has(samplerRaw) ? samplerRaw : 'euler',
           scheduler: schedulers.has(schedulerRaw) ? schedulerRaw : 'simple',
           clip_skip: family === 'flux' ? 1 : 2,

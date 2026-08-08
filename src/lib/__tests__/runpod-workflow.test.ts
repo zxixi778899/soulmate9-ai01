@@ -65,7 +65,7 @@ describe('buildFluxWorkflow LoRA stacking', () => {
     expect(graph['5'].inputs.cfg).toBe(1);
     expect(graph['21'].class_type).toBe('FluxGuidance');
     expect(graph['21'].inputs.conditioning).toEqual(['2', 0]);
-    expect(graph['21'].inputs.guidance).toBe(3.5);
+    expect(graph['21'].inputs.guidance).toBe(3.0);
     expect(graph['5'].inputs.positive).toEqual(['21', 0]);
   });
   it('connects every NSFW level prompt through FLUX guidance to the sampler', () => {
@@ -191,6 +191,19 @@ describe('buildFluxWorkflow split loader (UNET-only checkpoint)', () => {
     expect(graph['22'].inputs.clip_name1).toBe('clip_l_custom.safetensors');
     expect(graph['22'].inputs.clip_name2).toBe('t5xxl_custom.safetensors');
     expect(graph['23'].inputs.vae_name).toBe('ae_custom.safetensors');
+  });
+
+  it('defaults flux guidance to 3.0 (A/B selected base) unless overridden', () => {
+    const graph = buildFluxWorkflow({
+      prompt: 'An adult woman in natural window light.',
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+    expect(graph['21'].inputs.guidance).toBe(3.0);
+
+    const overridden = buildFluxWorkflow({
+      prompt: 'An adult woman in natural window light.',
+      flux_guidance: 4.2,
+    }) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+    expect(overridden['21'].inputs.guidance).toBe(4.2);
   });
 });
 

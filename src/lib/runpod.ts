@@ -103,7 +103,7 @@ export function buildFluxWorkflow(opts: {
   height?: number;
   steps?: number;
   guidance?: number;
-  /** FLUX conditioning guidance. KSampler CFG remains 1. Default 3.5. */
+  /** FLUX conditioning guidance. KSampler CFG remains 1. Default 3.0 (A/B 选定). */
   flux_guidance?: number;
   seed?: number;
   sampler_name?: string;
@@ -163,7 +163,7 @@ export function buildFluxWorkflow(opts: {
   const guidance = isFlux
     ? 1.0
     : Math.min(Math.max(opts.guidance ?? 6.0, 3.0), 9.0);
-  const fluxGuidance = Math.min(5, Math.max(2, opts.flux_guidance ?? 3.5));
+  const fluxGuidance = Math.min(5, Math.max(2, opts.flux_guidance ?? 3.0));
   const sampler_name = opts.sampler_name || (isFlux ? 'euler' : 'dpmpp_2m_sde');
   const scheduler = opts.scheduler || (isFlux ? 'simple' : 'karras');
   const batchSize = Math.min(4, Math.max(1, Math.floor(opts.batch_size ?? 1)));
