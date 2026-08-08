@@ -217,6 +217,12 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
         type: 'checkpoint',
       },
       {
+        id: 'project-gaia-nf4',
+        label: 'Project Gaia FLUX1.D Uncensored（NF4/fp8）',
+        filename: 'projectGaiaFlux1D_v20NF4Uncensored.safetensors',
+        type: 'checkpoint',
+      },
+      {
         id: 'flux-dev',
         label: 'FLUX.1 dev (full)',
         filename: 'flux1-dev.safetensors',
