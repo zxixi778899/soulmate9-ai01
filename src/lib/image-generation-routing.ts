@@ -54,7 +54,7 @@ export function resolveImageGenerationRoute(input: {
   const complexScene = isComplexAdultScene(semantics);
   // Single endpoint for all model families
   const endpointId = env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT);
-  const fluxCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
+  const fluxCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'projectGaiaFlux1D_v20NF4Uncensored.safetensors');
 
   // ─── Turbo preview mode ───────────────────────────────────────────────────
   // Quick draft for companion chat: 12 steps + low cfg produces a recognizable

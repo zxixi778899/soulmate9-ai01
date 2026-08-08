@@ -145,7 +145,7 @@ export function buildFluxWorkflow(opts: {
   const sampler_name = opts.sampler_name || (isFlux ? 'euler' : 'dpmpp_2m_sde');
   const scheduler = opts.scheduler || (isFlux ? 'simple' : 'karras');
   const batchSize = Math.min(4, Math.max(1, Math.floor(opts.batch_size ?? 1)));
-  const ckpt = opts.ckpt_name || 'flux1-dev-fp8.safetensors';
+  const ckpt = opts.ckpt_name || 'projectGaiaFlux1D_v20NF4Uncensored.safetensors';
   const requestedStack = opts.loras?.length
     ? opts.loras
     : opts.lora_name
@@ -848,7 +848,7 @@ class RunPodClient {
     logger.info('[runpod] workflow resolved', {
       model_family: options.model_family || 'flux',
       checkpoint_loader: checkpointNode?.class_type,
-      checkpoint: options.ckpt_name || 'flux1-dev-fp8.safetensors',
+      checkpoint: options.ckpt_name || 'projectGaiaFlux1D_v20NF4Uncensored.safetensors',
       width: options.width ?? 832,
       height: options.height ?? 1216,
       steps: samplerNode?.inputs?.steps,
