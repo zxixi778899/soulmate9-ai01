@@ -856,7 +856,7 @@ export async function POST(req: NextRequest) {
           }
         }
         const ckptName =
-          String(merged.ckpt_name || '').trim() || 'projectGaiaFlux1D_v20NF4Uncensored.safetensors';
+          String(merged.ckpt_name || '').trim() || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
         const family = modelFamilyFromCheckpoint(ckptName);
         const inputImage = String(merged.input_image || '').trim() || undefined;
         const ipAdapterImage = String(merged.ip_adapter_image || '').trim() || undefined;

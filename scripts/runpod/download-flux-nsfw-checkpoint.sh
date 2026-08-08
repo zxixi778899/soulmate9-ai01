@@ -9,10 +9,10 @@
 set -uo pipefail
 
 CIVITAI_TOKEN="${CIVITAI_TOKEN:-}"
-MODEL_VERSION="836886"
-FILENAME="projectGaiaFlux1D_v20NF4Uncensored.safetensors"
+MODEL_VERSION="768009"
+FILENAME="fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors"
 URL="https://civitai.com/api/download/models/${MODEL_VERSION}?type=Model&format=SafeTensor"
-EXPECTED_MB=11774
+EXPECTED_MB=11340
 
 if [ -z "$CIVITAI_TOKEN" ]; then
   echo "缺少 CIVITAI_TOKEN（export CIVITAI_TOKEN=xxx）"
@@ -83,8 +83,8 @@ if [ "$ACTUAL_MB" -lt $((EXPECTED_MB - 256)) ]; then
 fi
 
 ACTUAL_BYTES=$(stat -c %s "$FILENAME")
-if [ "$ACTUAL_BYTES" != "12346749423" ]; then
-  echo "!! 大小校验失败：实际 $ACTUAL_BYTES 字节，预期 12346749423 字节（文件不完整，删除后重新下载）"
+if [ "$ACTUAL_BYTES" != "11891283720" ]; then
+  echo "!! 大小校验失败：实际 $ACTUAL_BYTES 字节，预期 11891283720 字节（文件不完整，删除后重新下载）"
   exit 1
 fi
 echo "大小校验通过: $ACTUAL_BYTES 字节"
