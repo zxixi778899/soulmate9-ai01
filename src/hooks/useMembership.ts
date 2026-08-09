@@ -52,6 +52,7 @@ export interface MembershipState {
   loading: boolean;
   canSendMessage: boolean;
   remainingFreeMessages: number;
+  subscriptionEnd: string | null;
   capabilities: (typeof MEMBERSHIP_LIMITS)[MembershipTier];
   refresh: () => Promise<void>;
 }
@@ -77,6 +78,7 @@ export function useMembership(): MembershipState {
   const [tier, setTier] = useState<MembershipTier>('free');
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [todayCount, setTodayCount] = useState(0);
+  const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchState = useCallback(async () => {
@@ -97,6 +99,7 @@ export function useMembership(): MembershipState {
         data.messages_sent_today ??
         0;
       setTodayCount(Number(sentToday) || 0);
+      setSubscriptionEnd(data.subscription_end || null);
     } catch {
       // keep last known state
     } finally {
@@ -146,6 +149,7 @@ export function useMembership(): MembershipState {
     loading,
     canSendMessage,
     remainingFreeMessages,
+    subscriptionEnd,
     capabilities,
     refresh: fetchState,
   };

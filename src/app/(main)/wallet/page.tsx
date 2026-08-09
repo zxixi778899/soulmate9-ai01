@@ -39,6 +39,16 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [packages, setPackages] = useState<TokenPackage[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
+  const [cryptoDialog, setCryptoDialog] = useState<{
+    open: boolean;
+    paymentId: string | null;
+    walletAddress: string;
+    network: string;
+    amountUsd: number;
+    txHash: string;
+    step: 'pay' | 'submitting' | 'done';
+    pkgName: string;
+  } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -65,11 +75,20 @@ export default function WalletPage() {
       const res = await authedFetch("/api/v2/shop/tokens", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ package_id: pkg.id, provider: "stripe" }),
+        body: JSON.stringify({ package_id: pkg.id, provider: "crypto" }),
       });
       const result = await res.json();
-      if (result.url) {
-        window.location.href = result.url;
+      if (result.provider === 'crypto') {
+        setCryptoDialog({
+          open: true,
+          paymentId: result.paymentId,
+          walletAddress: result.walletAddress,
+          network: result.network,
+          amountUsd: result.amountUsd,
+          txHash: '',
+          step: 'pay',
+          pkgName: pkg.name,
+        });
       } else if (result.error) {
         toast.error(result.error);
       } else {
@@ -80,6 +99,41 @@ export default function WalletPage() {
     }
     setBuying(null);
   }, [zh]);
+
+  const handleSubmitCryptoPayment = async () => {
+    if (!cryptoDialog?.txHash?.trim() || cryptoDialog.txHash.trim().length < 10) {
+      toast.error('Please enter a valid transaction hash');
+      return;
+    }
+    setCryptoDialog({ ...cryptoDialog, step: 'submitting' });
+    try {
+      const res = await authedFetch('/api/crypto/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId: cryptoDialog.paymentId, txHash: cryptoDialog.txHash.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCryptoDialog({ ...cryptoDialog, step: 'done' });
+        if (data.autoConfirmed) {
+          toast.success(t('wallet.paymentConfirmed'), { description: data.message });
+          // Refresh data
+          authedFetch(`/api/credits/history?page=${page}&limit=20`)
+            .then((r) => r.json())
+            .then((d) => setData(d as HistoryData))
+            .catch(() => {});
+        } else {
+          toast.info(t('wallet.paymentPending'), { description: data.message });
+        }
+      } else {
+        toast.error(data.error || 'Failed to submit payment');
+        setCryptoDialog({ ...cryptoDialog, step: 'pay' });
+      }
+    } catch {
+      toast.error(t('common.networkError'));
+      setCryptoDialog({ ...cryptoDialog, step: 'pay' });
+    }
+  };
 
   const totalPages = data ? Math.ceil(data.total / 20) : 1;
 
@@ -216,7 +270,7 @@ export default function WalletPage() {
               })}
             </div>
             <p className="text-[10px] text-gray-600 mt-1 text-center">
-              {t('wallet.stripeNote')}
+              ₮ USDT · TRC-20 · {t('wallet.securePayment')}
             </p>
           </div>
         )}
@@ -308,6 +362,83 @@ export default function WalletPage() {
           </div>
         </div>
       </div>
+
+      {/* USDT Payment Dialog */}
+      {cryptoDialog?.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setCryptoDialog(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-gray-900 border border-gray-800 p-6 mx-4" onClick={(e) => e.stopPropagation()}>
+            {cryptoDialog.step === 'pay' && (
+              <>
+                <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
+                  <Coins className="w-5 h-5 text-yellow-400" />
+                  {t('wallet.sendUsdt')}
+                </h3>
+                <p className="text-sm text-gray-400 mb-4">
+                  {t('wallet.sendUsdtDesc', { amount: cryptoDialog.amountUsd.toFixed(2) })}
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">{t('wallet.depositAddress')}</label>
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-black/40 border border-gray-800">
+                      <code className="flex-1 text-xs break-all font-mono text-yellow-300">{cryptoDialog.walletAddress}</code>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(cryptoDialog.walletAddress); toast.success(t('common.copied')); }}
+                        className="shrink-0 text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-800"
+                      >
+                        {t('common.copy')}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-amber-400 mt-1">⚠ {t('wallet.usdtOnly', { network: cryptoDialog.network })}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">{t('wallet.txHash')}</label>
+                    <input
+                      type="text"
+                      placeholder="TRC-20 tx hash..."
+                      value={cryptoDialog.txHash}
+                      onChange={(e) => setCryptoDialog({ ...cryptoDialog, txHash: e.target.value })}
+                      className="w-full rounded-lg border border-gray-800 bg-black/40 px-3 py-2 text-sm font-mono text-white placeholder:text-gray-600 focus:border-yellow-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <button onClick={() => setCryptoDialog(null)} className="flex-1 h-10 rounded-lg border border-gray-700 text-sm text-gray-400 hover:bg-gray-800">{t('common.cancel')}</button>
+                  <button
+                    onClick={handleSubmitCryptoPayment}
+                    disabled={!cryptoDialog.txHash?.trim() || cryptoDialog.txHash.trim().length < 10}
+                    className="flex-1 h-10 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-600 text-sm font-bold text-black disabled:opacity-40"
+                  >
+                    {t('wallet.submitPayment')}
+                  </button>
+                </div>
+              </>
+            )}
+            {cryptoDialog.step === 'submitting' && (
+              <div className="py-8 text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-yellow-400 mx-auto mb-3" />
+                <p className="text-gray-400">{t('wallet.verifyingPayment')}</p>
+              </div>
+            )}
+            {cryptoDialog.step === 'done' && (
+              <>
+                <div className="text-center py-4">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-3">
+                    <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-emerald-400">{t('wallet.paymentSubmitted')}</h3>
+                  <p className="text-sm text-gray-400 mt-1">{t('wallet.paymentSubmittedDesc')}</p>
+                </div>
+                <button
+                  onClick={() => setCryptoDialog(null)}
+                  className="w-full h-10 rounded-lg bg-gray-800 text-sm font-medium hover:bg-gray-700"
+                >
+                  {t('common.done')}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

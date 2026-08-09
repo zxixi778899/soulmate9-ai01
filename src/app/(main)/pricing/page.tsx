@@ -115,7 +115,7 @@ function PricingContent() {
     }
   }, [canceled]);
 
-  const { tier } = useMembership();
+  const { tier, subscriptionEnd } = useMembership();
   const { user } = useAuth();
   const TIER_ORDER: Record<string, number> = { free: 0, pro: 1, unlimited: 2, admin: 3 };
   const currentRank = TIER_ORDER[tier] ?? 0;
@@ -352,6 +352,13 @@ function PricingContent() {
                       ? 'Sign Up to Subscribe'
                       : 'Pay with USDT'}
                   </Button>
+                )}
+                {plan.id === tier && subscriptionEnd && (
+                  <p className="text-[11px] text-emerald-400/80 text-center">
+                    {new Date(subscriptionEnd) < new Date()
+                      ? `Expired ${new Date(subscriptionEnd).toLocaleDateString()}`
+                      : `Expires ${new Date(subscriptionEnd).toLocaleDateString()}`}
+                  </p>
                 )}
                 {plan.id !== 'free' && (TIER_ORDER[plan.id] ?? 0) > currentRank && (
                   <p className="text-[10px] text-muted-foreground/60 text-center">

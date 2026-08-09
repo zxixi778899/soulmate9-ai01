@@ -398,7 +398,7 @@ export default function ShopPage() {
   const buyTokenPack = (packageId: string) => {
     const pkg = tokenPackages.find((p) => p.id === packageId) || null;
     setPayPkg(pkg || { id: packageId, name: 'Credit Pack', token_count: 0, price_cents: 0 });
-    setPayStep('method');
+    setPayStep('crypto');
     setPayWallet(null);
     setPayOpen(true);
   };
@@ -859,40 +859,6 @@ export default function ShopPage() {
             )}
           </DialogHeader>
 
-          {payStep === 'method' && (
-            <div className="space-y-3 py-2">
-              <button
-                type="button"
-                disabled={processingPay}
-                onClick={() => setPayStep('crypto')}
-                className="w-full flex items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3.5 hover:border-[#ffd700]/60 hover:bg-white/10 transition text-left"
-              >
-                <span>
-                  <span className="block font-bold">₿ Crypto</span>
-                  <span className="block text-xs text-white/45">USDT · BTC · ETH · SOL — via NOWPayments</span>
-                </span>
-                <span className="text-white/40">›</span>
-              </button>
-              <button
-                type="button"
-                disabled={processingPay}
-                onClick={() => void confirmTokenPay('nexapay', 'card_latam')}
-                className="w-full flex items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3.5 hover:border-[#ff2e88]/60 hover:bg-white/10 transition text-left"
-              >
-                <span>
-                  <span className="block font-bold">💳 Credit Card</span>
-                  <span className="block text-xs text-white/45">LATAM cards · BRL — via NexaPay</span>
-                </span>
-                <span className="text-white/40">›</span>
-              </button>
-              {processingPay && (
-                <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-1">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
-                </div>
-              )}
-            </div>
-          )}
-
           {payStep === 'crypto' && (
             <div className="py-2">
               <p className="text-xs text-white/45 mb-3">Select a coin to pay ${(payPkg ? (payPkg.price_cents / 100).toFixed(2) : '0.00')}:</p>
@@ -917,7 +883,7 @@ export default function ShopPage() {
               )}
               <button
                 type="button"
-                onClick={() => setPayStep('method')}
+                onClick={() => setPayOpen(false)}
                 className="mt-3 text-xs text-white/40 hover:text-white/70"
               >
                 ← {t('shop.cancel')}

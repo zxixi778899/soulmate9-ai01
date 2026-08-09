@@ -278,6 +278,45 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ── Crypto (direct USDT TRC-20) ──────────────────────────────────────
+    if (provider === 'crypto') {
+      const { CRYPTO_CURRENCIES } = await import('@/lib/crypto-config');
+      const usdt = CRYPTO_CURRENCIES.find((c) => c.id === 'usdt-trc20');
+      if (!usdt || !usdt.address) {
+        return NextResponse.json({ error: 'USDT wallet not configured' }, { status: 503 });
+      }
+
+      // order_id uses crypto_{userId}_tokens_{totalTokens}_{ts} prefix for webhook detection
+      const { data: paymentRecord } = await auth.client
+        .from('crypto_payments')
+        .insert({
+          user_id: auth.user.id,
+          plan_id: packageId,
+          amount_usd: priceCents / 100,
+          currency: 'USDT',
+          wallet_address: usdt.address,
+          billing: 'one_time',
+          status: 'awaiting_payment',
+        })
+        .select('id')
+        .single();
+
+      if (!paymentRecord) {
+        return NextResponse.json({ error: 'Failed to create payment record' }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        status: 'checkout_created',
+        provider: 'crypto',
+        paymentId: paymentRecord.id,
+        walletAddress: usdt.address,
+        network: usdt.network,
+        amountUsd: priceCents / 100,
+        package: tokenPackage,
+        token_count: totalTokens,
+      });
+    }
+
     // ── Stripe (default / fallback) ─────────────────────────────────────────
     // Prefer env-mapped Stripe Price IDs when present; else dynamic price_data.
     const envPriceMap: Record<string, string> = {

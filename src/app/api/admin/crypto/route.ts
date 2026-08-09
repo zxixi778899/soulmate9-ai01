@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { invalidateSettings, invalidateTokens } from '@/lib/revalidate';
+import { grantCryptoPayment } from '@/lib/payment-grant';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: Request) {
   try {
@@ -73,7 +75,7 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
       }
 
-      // Update payment status
+      // Update payment status to confirmed
       const { error: updateErr } = await supabase
         .from('crypto_payments')
         .update({
@@ -85,41 +87,21 @@ export async function PATCH(request: Request) {
 
       if (updateErr) throw updateErr;
 
-      // Set membership tier based on plan
-      let membershipTier = 'free';
-      let credits = 0;
-      if (payment.plan_id === 'basic') {
-        membershipTier = 'basic';
-        credits = 200;
-      } else if (payment.plan_id === 'pro') {
-        membershipTier = 'pro';
-        credits = 500;
-      } else if (payment.plan_id === 'unlimited') {
-        membershipTier = 'unlimited';
-        credits = 9999;
+      // Determine payment type and grant rewards via shared logic
+      const paymentType = ['pro', 'unlimited', 'basic'].includes(payment.plan_id)
+        ? 'subscription' as const
+        : 'tokens' as const;
+
+      const grantResult = await grantCryptoPayment(supabase, payment, paymentType);
+      if (!grantResult.ok) {
+        logger.error('[admin/crypto] grant failed:', { paymentId: id, error: grantResult.error });
+        // Don't throw — payment is confirmed, admin can retry grant manually
       }
-
-      // Update user's profile
-      const { error: profileErr } = await supabase
-        .from('profiles')
-        .update({ membership_tier: membershipTier, credits_remaining: credits })
-        .eq('user_id', payment.user_id);
-
-      if (profileErr) throw profileErr;
-
-      // Send notification to user
-      await supabase.from('notifications').insert({
-        user_id: payment.user_id,
-        title: 'Crypto Payment Confirmed ',
-        message: `Your ${payment.plan_id.toUpperCase()} (${payment.billing || 'monthly'}) payment via ${payment.currency} has been confirmed!`,
-        type: 'payment_confirmed',
-        link_url: '/profile',
-      });
 
       invalidateSettings();
       invalidateTokens();
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, grant: grantResult });
     }
 
     if (action === 'reject') {
