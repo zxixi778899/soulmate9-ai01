@@ -1218,6 +1218,7 @@ export const en = {
   'companion.posts': 'Posts',
   'companion.heat': 'Heat',
   'companion.initialIntimacy': 'Intimacy',
+  'companion.intimacyLevel': 'Intimacy Level',
   'companion.published': 'Published',
   'companion.withdraw': 'Withdraw',
 
@@ -2510,6 +2511,7 @@ const zh: Record<string, string> = {
   'companion.posts': '作品',
   'companion.heat': '热度',
   'companion.initialIntimacy': '初始亲密',
+  'companion.intimacyLevel': '亲密等级',
   'companion.published': '已上架',
   'companion.withdraw': '撤回审核',
 

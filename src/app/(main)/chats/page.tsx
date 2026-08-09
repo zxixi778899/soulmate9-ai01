@@ -499,7 +499,7 @@ export default function ChatsPage() {
   // ── Avatar / portrait click → companion profile page (抖音风格个人主页) ──
   const handleOpenProfile = (gf: Friend, e: MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    router.push(`/chats?friend=${encodeURIComponent(gf.id)}`);
+    router.push(`/companion/${encodeURIComponent(gf.id)}`);
   };
 
   // ── Publish / withdraw: private companions enter the public library only

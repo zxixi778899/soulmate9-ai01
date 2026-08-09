@@ -135,6 +135,23 @@ export async function GET(
       friendId = (friendRow as { id?: string } | null)?.id || null;
     }
 
+    // Intimacy score for the current user (friend level display)
+    let intimacy: { score: number; level: number } | null = null;
+    if (userId && friendId) {
+      const { data: intimacyRow } = await client
+        .from('intimacy_scores')
+        .select('score, level')
+        .eq('user_id', userId)
+        .eq('girlfriend_id', id)
+        .maybeSingle();
+      if (intimacyRow) {
+        intimacy = {
+          score: Number((intimacyRow as { score?: number }).score || 0),
+          level: Number((intimacyRow as { level?: number }).level || 1),
+        };
+      }
+    }
+
     const assets = await listVisibleAssets(client, ctx);
     const grouped = {
       id_reference: assets.filter((a) => a.category === 'id_reference'),
@@ -144,6 +161,7 @@ export async function GET(
 
     return NextResponse.json({
       girlfriend,
+      intimacy,
       access: {
         isOwner: ctx.isOwner,
         isAdmin: ctx.isAdmin,

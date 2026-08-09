@@ -28,6 +28,7 @@ import ChatView from '@/components/chat/ChatView';
 
 interface ProfileData {
   girlfriend: Record<string, unknown>;
+  intimacy: { score: number; level: number } | null;
   access: {
     isOwner: boolean;
     isAdmin: boolean;
@@ -357,8 +358,19 @@ export default function CompanionProfilePage() {
             <p className="text-[11px] text-white/40">{t('companion.heat')}</p>
           </div>
           <div className="flex-1">
-            <p className="text-base font-bold tabular-nums">{Number(g.base_intimacy ?? 0)}</p>
-            <p className="text-[11px] text-white/40">{t('companion.initialIntimacy')}</p>
+            <p className="text-base font-bold tabular-nums">
+              {data.intimacy ? (
+                <span className="inline-flex items-center gap-1">
+                  Lv.{data.intimacy.level}
+                  <span className="text-xs font-normal text-white/40">({data.intimacy.score})</span>
+                </span>
+              ) : (
+                Number(g.base_intimacy ?? 0)
+              )}
+            </p>
+            <p className="text-[11px] text-white/40">
+              {data.intimacy ? t('companion.intimacyLevel') || 'Intimacy' : t('companion.initialIntimacy')}
+            </p>
           </div>
         </div>
 
