@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { authedFetch } from "@/lib/supabase";
 import { useTranslation } from "@/lib/i18n/context";
 import { Coins, TrendingUp, TrendingDown, CalendarCheck, MessageCircle, Image, Video, Gift, ShoppingBag, Zap, Loader2, ShieldCheck, Film } from "lucide-react";
+import { QRCode } from "@/components/QRCode";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -377,6 +378,12 @@ export default function WalletPage() {
                   {t('wallet.sendUsdtDesc', { amount: cryptoDialog.amountUsd.toFixed(2) })}
                 </p>
                 <div className="space-y-4">
+                  {/* QR Code for scanning */}
+                  <div className="flex justify-center">
+                    <div className="p-3 bg-white rounded-xl">
+                      <QRCode value={cryptoDialog.walletAddress} size={160} />
+                    </div>
+                  </div>
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">{t('wallet.depositAddress')}</label>
                     <div className="flex items-center gap-2 p-3 rounded-lg bg-black/40 border border-gray-800">

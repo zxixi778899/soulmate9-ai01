@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, Wallet, AlertCircle } from 'lucide-react';
+import { QRCode } from '@/components/QRCode';
 import { toast } from 'sonner';
 import { useMembership } from '@/hooks/useMembership';
 import { useAuth } from '@/components/AuthProvider';
@@ -418,6 +419,13 @@ function PricingContent() {
               </DialogHeader>
 
               <div className="space-y-4 py-2">
+                {/* QR Code */}
+                <div className="flex justify-center">
+                  <div className="p-3 bg-white rounded-xl">
+                    <QRCode value={cryptoWallet} size={160} />
+                  </div>
+                </div>
+
                 {/* Wallet Address */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Deposit Address ({cryptoNetwork})</label>
