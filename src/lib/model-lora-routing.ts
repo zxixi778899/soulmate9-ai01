@@ -179,6 +179,8 @@ export function resolveModelLoraPlan(input: {
   requested?: RoutedLora[];
   maxLoras?: number;
   identityAsset?: boolean;
+  /** Runtime inventory supplied by the browser/admin volume API. */
+  installedFiles?: Iterable<string>;
 }): ModelLoraPlan {
   // Identity anchors use the base checkpoint only. Style/detail LoRAs can change
   // age, facial geometry and colour before a stable identity exists.
@@ -194,7 +196,10 @@ export function resolveModelLoraPlan(input: {
   const maxLoras = input.identityAsset
     ? 1
     : Math.min(4, Math.max(1, input.maxLoras || 3));
-  const inventory = inventoryForFamily(input.modelFamily);
+  const suppliedInventory = input.installedFiles ? new Set(input.installedFiles) : null;
+  const inventory = suppliedInventory
+    ? { files: suppliedInventory, source: 'runtime-volume' }
+    : inventoryForFamily(input.modelFamily);
   const configured = configuredCandidates(
     input.modelFamily,
     input.category,
@@ -202,7 +207,7 @@ export function resolveModelLoraPlan(input: {
     input.animeStyle || 'realistic',
   );
   const requested = input.requested || [];
-  const canAutoSelectInventory = inventory.source === `RUNPOD_INSTALLED_LORAS_${input.modelFamily.toUpperCase()}`;
+  const canAutoSelectInventory = inventory.source === 'runtime-volume' || inventory.source === `RUNPOD_INSTALLED_LORAS_${input.modelFamily.toUpperCase()}`;
   const inventoryCandidates = configured.length === 0 && canAutoSelectInventory
     ? rankInventory(inventory.files, input.category, input.intensity)
     : [];

@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { authedFetch } from '@/lib/supabase';
 import { readResponseJson } from '@/lib/safe-json';
 import { useAuth } from '@/components/AuthProvider';
@@ -274,6 +274,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 function AdminGirlfriendsMediaPageInner() {
   const { user } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [items, setItems] = useState<Girlfriend[]>([]);
   const [total, setTotal] = useState(0);
@@ -289,6 +290,7 @@ function AdminGirlfriendsMediaPageInner() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [randomizing, setRandomizing] = useState(false);
+  const [randomizingCurrent, setRandomizingCurrent] = useState(false);
   const [randomizeConfirmOpen, setRandomizeConfirmOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [videoUploading, setVideoUploading] = useState<VideoField | null>(null);
@@ -465,19 +467,44 @@ function AdminGirlfriendsMediaPageInner() {
     }
   };
 
-  const randomizeCurrentForm = () => {
-    const rnd = randomizeGirlfriendTraits();
-    setForm((f) => ({
-      ...f,
-      age: rnd.age,
-      occupation: rnd.occupation || f.occupation,
-      hobbies: rnd.hobbies || f.hobbies,
-      base_intimacy: rnd.base_intimacy,
-      base_desire: rnd.base_desire,
-      base_development: rnd.base_development,
-      base_kink: rnd.base_kink,
-    }));
-    toast.message('已为本卡随机生成基础参数（保存后生效）');
+  const randomizeCurrentForm = async () => {
+    setRandomizingCurrent(true);
+    try {
+      const res = await authedFetch('/api/admin/girlfriends', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'randomize_profile', gender: form.gender }),
+      });
+      const data = await readResponseJson<{ error?: string; profile?: Omit<Partial<FormState>, 'tags'> & { tags?: string[] | string } }>(res);
+      if (!res.ok || !data.profile) throw new Error(data.error || '随机完整角色卡失败');
+      const profile = data.profile;
+      setForm((current) => ({
+        ...current,
+        ...profile,
+        gender: (profile.gender || current.gender) as FormState['gender'],
+        tags: Array.isArray(profile.tags) ? profile.tags.join(', ') : String(profile.tags || ''),
+        // Media and publishing state belong to this record and must not be randomized.
+        portrait_url: current.portrait_url,
+        avatar_url: current.avatar_url,
+        card_url: current.card_url,
+        portrait_video_url: current.portrait_video_url,
+        avatar_video_url: current.avatar_video_url,
+        voice: current.voice,
+        is_public: current.is_public,
+        review_status: current.review_status,
+        access_status: current.access_status,
+        unlock_price_tokens: current.unlock_price_tokens,
+        is_hot: current.is_hot,
+        is_featured: current.is_featured,
+        hot_score: current.hot_score,
+        sort_order: current.sort_order,
+      }));
+      toast.success('已随机生成完整角色卡；保存后同步到创作工作台');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '随机完整角色卡失败');
+    } finally {
+      setRandomizingCurrent(false);
+    }
   };
 
   const handleBatchCreate = async () => {
@@ -518,10 +545,10 @@ function AdminGirlfriendsMediaPageInner() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!form.name.trim()) {
       toast.error('请填写名字');
-      return;
+      return false;
     }
     setSaving(true);
     try {
@@ -555,11 +582,20 @@ function AdminGirlfriendsMediaPageInner() {
         closeDialog();
       }
       await load();
+      return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '保存失败');
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleOpenStudio = async (): Promise<void> => {
+    if (!selected?.id || saving) return;
+    const saved = await handleSave();
+    if (!saved) return;
+    router.push(`/admin/studio?girlfriendId=${encodeURIComponent(selected.id)}`);
   };
 
   const handleDelete = async () => {
@@ -1138,9 +1174,11 @@ function AdminGirlfriendsMediaPageInner() {
                   size="sm"
                   variant="outline"
                   className="h-7 border-white/15 text-[11px]"
-                  onClick={randomizeCurrentForm}
+                  disabled={randomizingCurrent}
+                  onClick={() => void randomizeCurrentForm()}
                 >
-                  <Sparkles className="mr-1 h-3 w-3" /> 随机本卡数值
+                  {randomizingCurrent ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                  {randomizingCurrent ? '生成完整角色卡…' : '随机完整角色卡'}
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1480,12 +1518,15 @@ function AdminGirlfriendsMediaPageInner() {
                         <input type="file" accept="audio/*" className="hidden" onChange={(e) => void handleAudioFile(e.target.files?.[0])} />
                       </label>
                     </div>
-                    <Link
-                      href={`/admin/comfyui?girlfriendId=${selected.id}`}
-                      className="flex items-center justify-center gap-2 rounded-lg bg-violet-600/90 py-2 text-sm font-medium text-white hover:bg-violet-500"
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void handleOpenStudio()}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600/90 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-wait disabled:opacity-60"
                     >
-                      <Sparkles className="h-4 w-4" /> 为该伴侣创作（资产进独立库）
-                    </Link>
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {saving ? '正在保存并载入工作台…' : '保存并进入该伴侣创作工作台'}
+                    </button>
                   </div>
                 ) : (
                   <p className="text-xs text-slate-400">先保存创建后可上传媒体与进入创作台。</p>

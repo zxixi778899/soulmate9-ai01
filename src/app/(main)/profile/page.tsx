@@ -579,7 +579,7 @@ export default function ProfilePage() {
                     <button
                       key={gf.id}
                       type="button"
-                      onClick={() => router.push(`/companion/${gf.id}?tab=chat`)}
+                      onClick={() => router.push(`/chats?friend=${encodeURIComponent(gf.id)}`)}
                       className="group relative overflow-hidden rounded-xl ring-1 ring-white/10 hover:ring-[#ff2e88]/45 transition-all active:scale-[0.98] text-left"
                     >
                       <div className="relative aspect-[3/4]">
@@ -706,7 +706,7 @@ export default function ProfilePage() {
                     <button
                       key={w.id}
                       type="button"
-                      onClick={() => router.push(`/companion/${w.id}`)}
+                      onClick={() => router.push(`/chats?friend=${encodeURIComponent(w.id)}`)}
                       className="group relative overflow-hidden rounded-xl ring-1 ring-white/10 hover:ring-[#ff2e88]/45 transition-all active:scale-[0.98] text-left"
                     >
                       <div className="relative aspect-[3/4]">

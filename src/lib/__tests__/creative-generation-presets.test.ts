@@ -19,7 +19,7 @@ describe('creative generation presets', () => {
     expect(preset.modelFamily).toBe('flux');
   });
 
-  it('routes explicit realistic art to FLUX parameters', () => {
+  it('routes high-NSFW realistic art to verified FLUX while SDXL inventory is unavailable', () => {
     const preset = resolveCreativeGenerationPreset({
       mode: 'img2img',
       surface: 'companion',

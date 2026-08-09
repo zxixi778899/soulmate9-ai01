@@ -11,6 +11,7 @@ import {
   randomizeGirlfriendTraits,
 } from '@/lib/girlfriend-traits';
 import { generateText } from '@/lib/llm-service';
+import { rarityFromTraits } from '@/lib/rarity';
 
 export const dynamic = 'force-dynamic';
 // Batch create polls a RunPod LLM job; warm runs take ~90s and cold starts
@@ -419,6 +420,44 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    // Build one complete, unsaved character card for the admin editor.
+    // Media and publishing controls are intentionally left untouched client-side.
+    if (body?.action === 'randomize_profile') {
+      const gender = ['Female', 'Male', 'Transgender'].includes(String(body.gender))
+        ? String(body.gender)
+        : 'Female';
+      const profile = generateRandomProfiles(1, gender)[0];
+      const traits = randomizeGirlfriendTraits({ keepAge: profile.age });
+      const rarity = rarityFromTraits(traits.base_desire, traits.base_development, traits.base_kink);
+      return NextResponse.json({
+        profile: {
+          name: profile.name,
+          age: profile.age,
+          gender,
+          slug: makeGirlfriendSlug(profile.name),
+          personality: profile.personality,
+          tags: profile.tags,
+          short_description: profile.short_description,
+          backstory: profile.backstory,
+          occupation: traits.occupation,
+          hobbies: traits.hobbies,
+          appearance_hair: profile.appearance.hair,
+          appearance_hair_color: profile.appearance.hair_color,
+          appearance_eyes: profile.appearance.eyes,
+          appearance_body: profile.appearance.body,
+          appearance_style: profile.appearance.style,
+          appearance_race: profile.appearance.race,
+          image_prompt: buildImagePrompt(profile, gender),
+          negative_prompt: 'child, teen, underage, young-looking, low resolution, blur, deformed anatomy, extra limbs, fused hands, malformed hands, duplicate person, cropped head, cropped feet, text, watermark',
+          base_intimacy: traits.base_intimacy,
+          base_desire: traits.base_desire,
+          base_development: traits.base_development,
+          base_kink: traits.base_kink,
+          rarity,
+        },
+      });
+    }
 
     // Bulk: randomize age / intimacy / occupation / hobbies / passion / openness / kink
     if (body?.action === 'randomize_traits') {

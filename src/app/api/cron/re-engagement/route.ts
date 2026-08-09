@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
 
       const girlfriendName = gf?.name || 'Your companion';
       const lastMessagePreview = (info.last_msg || '').slice(0, 120);
-      const ctaUrl = `${appUrl}/companion/${info.girlfriend_id}?tab=chat`;
+      const ctaUrl = `${appUrl}/chats?friend=${encodeURIComponent(info.girlfriend_id)}`;
 
       // 1) 
       if (subs && profile.email) {

@@ -43,12 +43,12 @@ describe('image scene semantics', () => {
       sceneText: '4i SM with four consenting adults',
     });
     expect(route).toMatchObject({
-      modelFamily: 'pony',
-      presetId: 'pony-adult-composition-control',
-      sampler: 'dpmpp_sde',
-      steps: 28,
-      width: 1024,
-      height: 1344,
+      modelFamily: 'flux',
+      presetId: 'flux-adult-composition-control',
+      sampler: 'euler',
+      steps: 8,
+      width: 768,
+      height: 1152,
     });
   });
 });

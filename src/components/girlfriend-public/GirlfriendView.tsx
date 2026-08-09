@@ -85,7 +85,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
     try {
       const result = await addGirlfriendToCollection();
       if (result && 'id' in result && result.id) {
-        router.push(`/companion/${result.id}?tab=chat`);
+        router.push(`/chats?friend=${encodeURIComponent(result.id)}`);
         return;
       }
       const err = result && 'error' in result ? result : null;

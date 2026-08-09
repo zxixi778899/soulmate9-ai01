@@ -4,8 +4,8 @@ import { resolveImageGenerationRoute, UNIFIED_COMFY_ENDPOINT } from '@/lib/image
 const ORIGINAL_ENV = { ...process.env };
 afterEach(() => { process.env = { ...ORIGINAL_ENV }; });
 
-describe('unified image generation routing', () => {
-  it('routes explicit and transgender realism to FLUX on unified endpoint', () => {
+describe('model-aware image generation routing', () => {
+  it('keeps specialist models disabled until their runtime inventory is marked ready', () => {
     expect(resolveImageGenerationRoute({
       surface: 'companion',
       category: 'female',
@@ -17,29 +17,29 @@ describe('unified image generation routing', () => {
       category: 'transgender',
       renderStyle: 'realistic',
       nsfwIntensity: 1,
-    }).endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
+    }).modelFamily).toBe('flux');
   });
 
-  it.each(['female', 'male', 'transgender'] as const)('uses FLUX parameters for %s NSFW without a second prompt prefix', (category) => {
+  it.each(['female', 'male', 'transgender'] as const)('uses Pony specialist parameters for %s high NSFW', (category) => {
+    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
+    process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
     const route = resolveImageGenerationRoute({
       surface: 'companion',
       category,
       renderStyle: 'realistic',
       nsfwIntensity: 5,
     });
-    expect(route.modelFamily).toBe('flux');
+    expect(route.modelFamily).toBe('pony');
     expect(route).not.toHaveProperty('promptPrefix');
-    expect(route.sampler).toBe('euler');
-    expect(route.scheduler).toBe('simple');
-    expect(route.cfg).toBe(1);
-    expect(route.steps).toBe(8);
-    expect(route.width).toBe(768);
-    expect(route.height).toBe(1152);
-    expect(route.clipSkip).toBe(1);
-    expect(route.checkpoint).toBe('fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
+    expect(route.sampler).toBe('dpmpp_2m_sde');
+    expect(route.scheduler).toBe('karras');
+    expect(route.cfg).toBe(6);
+    expect(route.steps).toBeGreaterThanOrEqual(28);
+    expect(route.clipSkip).toBe(2);
+    expect(route.checkpoint).toBe('ponyRealism_V22.safetensors');
   });
 
-  it('routes 2D and 3D both to FLUX (only checkpoint available)', () => {
+  it('keeps 2D and 3D on FLUX while the specialist volume is unverified', () => {
     delete process.env.RUNPOD_ENDPOINT_ID_SDXL;
     expect(resolveImageGenerationRoute({
       surface: 'companion',
@@ -52,6 +52,7 @@ describe('unified image generation routing', () => {
   });
 
   it('uses Pony for realistic NSFW when the specialist endpoint is configured', () => {
+    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
     process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
     const route = resolveImageGenerationRoute({
       surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 5,
@@ -64,7 +65,20 @@ describe('unified image generation routing', () => {
     expect(route.clipSkip).toBe(2);
   });
 
+  it('routes NSFW level 3 to Pony when specialist inventory is ready', () => {
+    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
+    process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
+    const route = resolveImageGenerationRoute({
+      surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 3,
+    });
+    expect(route.modelFamily).toBe('pony');
+    expect(route.checkpoint).toBe('ponyRealism_V22.safetensors');
+    expect(route.sampler).toBe('dpmpp_2m_sde');
+    expect(route.scheduler).toBe('karras');
+  });
+
   it('uses Illustrious for 2D when the specialist endpoint is configured', () => {
+    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
     process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
     const route = resolveImageGenerationRoute({ surface: 'companion', renderStyle: '2d', nsfwIntensity: 4 });
     expect(route.modelFamily).toBe('illustrious');
@@ -78,7 +92,7 @@ describe('unified image generation routing', () => {
     expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
   });
 
-  it('uses dev-fp8 (24 steps) for SFW and Unchained (8 steps) for NSFW', () => {
+  it('uses dev-fp8 for SFW and Unchained for moderate NSFW', () => {
     const sfw = resolveImageGenerationRoute({
       surface: 'companion',
       renderStyle: 'realistic',
@@ -90,17 +104,15 @@ describe('unified image generation routing', () => {
     const nsfw = resolveImageGenerationRoute({
       surface: 'companion',
       renderStyle: 'realistic',
-      nsfwIntensity: 5,
+      nsfwIntensity: 3,
     });
     expect(nsfw.checkpoint).toBe('fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
     expect(nsfw.steps).toBe(8);
   });
 
-  it('all routes share the same unified endpoint and FLUX sampler defaults', () => {
+  it('keeps FLUX routes on the unified endpoint and sends specialist routes to SDXL', () => {
     const routes = [
       resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 1 }),
-      resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 5 }),
-      resolveImageGenerationRoute({ surface: 'companion', renderStyle: '2d' }),
       resolveImageGenerationRoute({ surface: 'outfit' }),
     ];
     for (const route of routes) {
@@ -109,5 +121,9 @@ describe('unified image generation routing', () => {
       expect(route.scheduler).toBe('simple');
       expect(route.clipSkip).toBe(1);
     }
+    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
+    process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
+    expect(resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 5 }).modelFamily).toBe('pony');
+    expect(resolveImageGenerationRoute({ surface: 'companion', renderStyle: '2d' }).modelFamily).toBe('illustrious');
   });
 });

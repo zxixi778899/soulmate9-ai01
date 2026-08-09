@@ -53,6 +53,9 @@ import {
   resolveCreativeGenerationPreset,
   type CreativeGenerationMode,
 } from '@/lib/creative-generation-presets';
+import { buildStudioSceneDraft, buildStudioTaskPrompt } from '@/lib/comfy-console/studio-task-prompt';
+import { adultModelPromptSuffix, selectAdultScenePreset } from '@/lib/comfy-console/adult-scene-presets';
+import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import {
   CHARACTER_ID_PACK,
@@ -97,11 +100,57 @@ const RESOURCE_FOLDERS: Array<{ id: string; label: string; match: (role: string)
 
 type ComfyConsoleProps = { girlfriendId?: string; embedded?: boolean };
 
+type CameraFraming = 'close-up' | 'near' | 'medium' | 'full' | 'long';
+type CameraAngle = 'eye-level' | 'low-angle' | 'high-angle';
+
+const CAMERA_FRAMINGS: Array<{ id: CameraFraming; label: string; prompt: string }> = [
+  { id: 'close-up', label: '特写', prompt: 'CAMERA COMPOSITION REQUIREMENT: tight facial close-up, face and expression dominate the frame, shoulders may be visible' },
+  { id: 'near', label: '近景', prompt: 'CAMERA COMPOSITION REQUIREMENT: close shot from head to upper torso, both shoulders clearly inside the frame' },
+  { id: 'medium', label: '中景', prompt: 'CAMERA COMPOSITION REQUIREMENT: medium waist-up shot, head, arms and waist clearly inside the frame' },
+  { id: 'full', label: '全身', prompt: 'CAMERA COMPOSITION REQUIREMENT: full-body shot from head to feet, both feet completely visible, no cropped head, hands or feet' },
+  { id: 'long', label: '远景', prompt: 'CAMERA COMPOSITION REQUIREMENT: wide long shot, the complete person occupies less than half of the frame and the environment remains clearly visible' },
+];
+
+const CAMERA_ANGLES: Array<{ id: CameraAngle; label: string; prompt: string }> = [
+  { id: 'eye-level', label: '平视', prompt: 'eye-level camera, neutral perspective' },
+  { id: 'low-angle', label: '仰视', prompt: 'LOW-ANGLE CAMERA REQUIREMENT: camera placed below eye level and looking upward, visible upward perspective' },
+  { id: 'high-angle', label: '俯视', prompt: 'HIGH-ANGLE CAMERA REQUIREMENT: camera placed above eye level and looking downward, visible downward perspective' },
+];
+
+const PROMPT_APPEND_PRESETS = [
+  { group: '光线', items: [
+    { label: '明亮柔光', prompt: 'bright soft key light, balanced fill light, face and body clearly illuminated, correct exposure, no crushed shadows' },
+    { label: '窗边日光', prompt: 'bright natural window light, soft frontal fill, clean highlights, visible skin and clothing detail' },
+    { label: '影棚布光', prompt: 'professional three-point studio lighting, bright key light, soft fill light, controlled rim light, even exposure' },
+  ] },
+  { group: '质量', items: [
+    { label: '真实皮肤', prompt: 'natural skin texture, visible pores, accurate skin tone, realistic fabric detail, restrained sharpening' },
+    { label: '高清细节', prompt: 'sharp subject detail, detailed eyes, detailed hands, clean edges, high dynamic range, professional finish' },
+  ] },
+  { group: '服装', items: [
+    { label: '日常休闲', prompt: 'wearing a fitted contemporary casual outfit with realistic fabric folds and complete garment construction' },
+    { label: '优雅礼服', prompt: 'wearing an elegant fitted evening dress with refined tailoring and realistic fabric sheen' },
+    { label: '蕾丝内衣', prompt: 'wearing a coordinated adult lace lingerie set with realistic lace texture and tasteful styling' },
+  ] },
+  { group: '场景', items: [
+    { label: '明亮卧室', prompt: 'in a bright modern bedroom with clean daylight, soft neutral decor and clear background depth' },
+    { label: '落地窗边', prompt: 'beside a large floor-to-ceiling window in a modern interior, bright daylight filling the room' },
+    { label: '摄影棚', prompt: 'in a professional portrait studio with a clean seamless background and controlled lighting' },
+  ] },
+  { group: '动作', items: [
+    { label: '自然站立', prompt: 'standing naturally with relaxed shoulders, balanced posture, hands clearly visible' },
+    { label: '回眸', prompt: 'turning the upper body slightly and looking back toward the camera with a natural expression' },
+    { label: '坐姿', prompt: 'sitting with supported posture, anatomically natural leg placement and relaxed hands' },
+  ] },
+] as const;
+
 export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyConsoleProps) {
   const [tab, setTab] = useState<'generate' | 'loras' | 'library' | 'workflows' | 'infra'>('generate');
   const [config, setConfig] = useState<Any | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generationStage, setGenerationStage] = useState<'idle' | 'submitting' | 'queued' | 'finalizing'>('idle');
+  const [fastPreview, setFastPreview] = useState(true);
   const [optimizingPrompt, setOptimizingPrompt] = useState(false);
   const [assets, setAssets] = useState<Any[]>([]);
   const [companionAssets, setCompanionAssets] = useState<Any[]>([]);
@@ -118,7 +167,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [syncingInstalled, setSyncingInstalled] = useState(false);
 
   // Generate form
-  const [workflowId, setWorkflowId] = useState('wf-girlfriend');
+  const [workflowId, setWorkflowId] = useState('auto');
   const [endpointKey, setEndpointKey] = useState('portrait-v9');
   const [ckptId, setCkptId] = useState('flux-unchained');
   const [loraId, setLoraId] = useState('none');
@@ -130,6 +179,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
   const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('realistic');
   const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(1);
+  const [activeAdultPreset, setActiveAdultPreset] = useState<{ id: string; label: string } | null>(null);
+  const [cameraFraming, setCameraFraming] = useState<CameraFraming>('medium');
+  const [cameraAngle, setCameraAngle] = useState<CameraAngle>('eye-level');
   const [width, setWidth] = useState(832);
   const [height, setHeight] = useState(1216);
   const [steps, setSteps] = useState(8);
@@ -174,8 +226,15 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   // ─── Resource library (companion folder browser) ─────────────────────────
   const [resourceLibraryOpen, setResourceLibraryOpen] = useState(false);
+  const [studioTask, setStudioTask] = useState<'identity' | 'portrait' | 'outfit' | 'pose' | 'background' | 'video'>('identity');
   const [resourceFolderFilter, setResourceFolderFilter] = useState<string>('all');
   const [libraryFolderFilter, setLibraryFolderFilter] = useState<string>('all');
+
+  const identityReferenceAsset = useMemo(() => identityReferenceRolePriority(assetRole)
+    .map((role) => companionAssets.find((item) => String(item.meta?.asset_role || item.asset_role || '') === role))
+    .find(Boolean), [assetRole, companionAssets]);
+  const identityReferenceUrl = String(identityReferenceAsset?.url || '');
+  const identityConsistencyActive = Boolean(identityReferenceUrl);
 
   /** Group companion assets into folders by asset_role for the resource library */
   const resourceFolders = useMemo(() => {
@@ -204,7 +263,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     const recommendations = recommendedStudioLoras(category, animeStyle, intensity);
     const available = recommendations
       .map((item) => ({ item, asset: (config?.loras || []).find((l: Any) => l.id === item.id) }))
-      .filter((entry) => entry.asset && (!entry.asset.filename || installedLoras.includes(String(entry.asset.filename))))
+      .filter((entry) => entry.item.id !== 'none' && entry.asset && (!entry.asset.filename || installedLoras.includes(String(entry.asset.filename))))
       .map((entry) => ({
         id: entry.item.id,
         strength: Number(Math.min(1.05, entry.item.strength * studioLoraStrengthScale(intensity)).toFixed(2)),
@@ -231,6 +290,18 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     applyRecommendedLoras(companionCategory);
     toast.success(`已应用预设：${p.name}`);
   };
+
+  const appendPromptControl = (addition: string, label: string) => {
+    const normalized = addition.trim();
+    if (!normalized) return;
+    setPrompt((current) => {
+      const base = current.trim().replace(/[,.\s]+$/, '');
+      if (base.toLowerCase().includes(normalized.toLowerCase())) return current;
+      return base ? `${base}, ${normalized}` : normalized;
+    });
+    setPromptProfileApplied(false);
+    toast.success(`已追加${label}`);
+  };
   const applyProductionPreset = (role: CharacterAssetRole) => {
     const preset = getCharacterProductionPreset(role);
     // avatar-closeup is ALWAYS pure txt2img — no reference image, no img2img redraw
@@ -244,12 +315,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setAssetRole(role);
     setKind('girlfriend');
     setGenerationSurface('companion');
-    const isFinalProduct = role === 'character-art' || role === 'album' || role === 'scene';
-    setGenMode(isAvatar || isFinalProduct ? 'txt2img' : hasIdentityRef ? 'img2img' : 'txt2img');
-    setInputImage(isAvatar ? inputImage : isFinalProduct ? '' : hasIdentityRef ? identityImage : '');
-    setIdentityConsistency(preset.consistency);
+    setGenMode(isAvatar ? 'txt2img' : hasIdentityRef ? 'img2img' : 'txt2img');
+    setInputImage(isAvatar ? '' : hasIdentityRef ? identityImage : '');
+    setIdentityConsistency(hasIdentityRef);
     setWidth(preset.width);
     setHeight(preset.height);
+    if (role === 'avatar-closeup') setCameraFraming('near');
+    if (role === 'character-art') setCameraFraming('full');
     const isIdentityAsset = role === 'avatar-closeup' || role.startsWith('identity-');
     const assembled = scopedGirlfriend
       ? buildCompanionGenerationPrompt(scopedGirlfriend as Record<string, unknown>, {
@@ -259,23 +331,36 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           intensity: isIdentityAsset ? 1 : nsfwIntensity,
         })
       : null;
+    const roleRoute = resolveImageGenerationRoute({
+      surface: 'companion',
+      category: assembled?.category || companionCategory,
+      renderStyle: animeRenderStyle,
+      nsfwIntensity: isIdentityAsset ? 1 : nsfwIntensity,
+      specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
+    });
+    const portraitScene = buildStudioSceneDraft({
+      task: role === 'character-art' ? 'portrait' : studioTask,
+      modelFamily: roleRoute.modelFamily,
+      currentPrompt: hasIdentityRef ? '' : String(scopedGirlfriend?.image_prompt || '').trim(),
+      intensity: isIdentityAsset ? 1 : nsfwIntensity,
+      renderStyle: animeRenderStyle,
+    });
     if (assembled) {
       setCompanionCategory(assembled.category);
       if (isIdentityAsset) {
         // 身份资产用精简提示词：场景预设控制构图，数据库简报控制一致性（与服务端一致，避免 1200+ 长提示词）
-        const brief = buildCompanionIdentityBrief(scopedGirlfriend as Record<string, unknown>);
-        setPrompt(`${preset.scene}, ${brief}`);
+        setPrompt('');
         setNegative(assembled.negative);
       } else if (hasIdentityRef) {
-        // Identity is controlled by the reference image; retain scene and level-specific realism.
-        setPrompt(compactFluxPrompt(assembled.positive));
+        // Identity comes from the ID image; scene content follows the selected NSFW/model contract.
+        setPrompt(portraitScene);
         setNegative(assembled.negative);
       } else {
-        setPrompt(compactFluxPrompt(assembled.positive));
+        setPrompt(portraitScene);
         setNegative(assembled.negative);
       }
     }
-    setPromptProfileApplied(true);
+    setPromptProfileApplied(Boolean(prompt.trim() || scopedGirlfriend?.image_prompt));
     applyRecommendedLoras(assembled?.category || companionCategory, animeRenderStyle, nsfwIntensity);
     if (isAvatar) toast.success(`已切换：${preset.label}，纯文生图（不使用参考图）`);
     else if (wantsIdentityRef && !identityImage) toast.warning('尚无人设参考图，将用完整描述生成；建议先生成半身头像');
@@ -344,10 +429,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       const data = await readResponseJson(res).catch(() => ({} as any));
       if (!res.ok) throw new Error(data.error || '加载失败');
       setConfig(data.config);
-      const wf = data.config?.workflows?.find((w: Any) => w.id === 'wf-girlfriend')
-        || data.config?.workflows?.[0];
-      // 有伴侣卡时只套参数，不写死通用 positive（避免盖住已调试提示词）
-      if (wf) applyWorkflow(wf, data.config, { preservePrompt: Boolean(girlfriendId) });
+      setWorkflowId('auto');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -375,6 +457,35 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
   }, [productionGirlfriendId, girlfriendId]);
 
+  const persistAssetsToCompanionLibrary = useCallback(async (
+    id: string,
+    generatedAssets: Any[],
+    defaultRole: CharacterAssetRole = 'album',
+  ): Promise<Any[]> => {
+    const created = await Promise.all(generatedAssets.map(async (item) => {
+      const url = String(item?.url || '').trim();
+      if (!url) return null;
+      const rawRole = String(item.meta?.asset_role || item.asset_role || defaultRole) as CharacterAssetRole;
+      const role: CharacterAssetRole = rawRole === 'avatar-closeup' ? 'avatar-closeup' : rawRole.startsWith('identity-') ? rawRole : defaultRole;
+      const response = await authedFetch(`/api/companion/${encodeURIComponent(id)}/assets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: role === 'avatar-closeup' || role.startsWith('identity-') ? 'id_reference' : 'photo',
+          media_type: 'image',
+          url,
+          thumbnail_url: item.thumbnail_url || null,
+          visibility: 'private',
+          caption: item.caption || null,
+          meta: { ...(item.meta || {}), asset_role: role, generation_asset_id: item.id || null },
+        }),
+      });
+      const data = await readResponseJson(response).catch(() => ({} as Any));
+      return response.ok && data.asset ? data.asset as Any : null;
+    }));
+    return created.filter(Boolean) as Any[];
+  }, []);
+
   const loadCompanionAssets = useCallback(async (id: string) => {
     if (!id) {
       setCompanionAssets([]);
@@ -382,16 +493,92 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
     try {
       const params = new URLSearchParams({ view: 'assets', girlfriend_id: id, limit: '120' });
-      const res = await authedFetch(`/api/admin/comfy?${params.toString()}`);
-      const data = await readResponseJson(res).catch(() => ({} as Any));
-      const nextAssets = Array.isArray(data.assets) ? data.assets : [];
+      const [libraryRes, generatedRes] = await Promise.all([
+        authedFetch(`/api/companion/${encodeURIComponent(id)}/assets`),
+        authedFetch(`/api/admin/comfy?${params.toString()}`),
+      ]);
+      const libraryData = await readResponseJson(libraryRes).catch(() => ({} as Any));
+      const generatedData = await readResponseJson(generatedRes).catch(() => ({} as Any));
+      const libraryAssets: Any[] = Array.isArray(libraryData.assets) ? libraryData.assets : [];
+      const knownUrls = new Set(libraryAssets.map((item) => String(item.url || '')));
+      const missingGenerated = (Array.isArray(generatedData.assets) ? generatedData.assets : [])
+        .filter((item: Any) => item.url && !knownUrls.has(String(item.url)));
+      const backfilled = missingGenerated.length
+        ? await persistAssetsToCompanionLibrary(id, missingGenerated, 'album')
+        : [];
+      const nextAssets = [...backfilled, ...libraryAssets].filter((item, index, all) =>
+        all.findIndex((candidate) => String(candidate.id || candidate.url) === String(item.id || item.url)) === index,
+      );
       setCompanionAssets(nextAssets);
       return nextAssets as Any[];
     } catch {
       setCompanionAssets([]);
       return [] as Any[];
     }
-  }, []);
+  }, [persistAssetsToCompanionLibrary]);
+
+  const assignCompanionAssetRole = async (asset: Any, role: CharacterAssetRole) => {
+    if (!productionGirlfriendId || !asset?.id) return;
+    try {
+      const previousIdentityAssets = role === 'avatar-closeup'
+        ? companionAssets.filter((item) => item.id !== asset.id && String(item.meta?.asset_role || item.asset_role || '') === 'avatar-closeup')
+        : [];
+      await Promise.all(previousIdentityAssets.map(async (item) => {
+        const demotedMeta = { ...(item.meta || {}), asset_role: 'album' };
+        const response = await authedFetch(`/api/companion/${encodeURIComponent(productionGirlfriendId)}/assets`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assetId: item.id, category: 'photo', meta: demotedMeta }),
+        });
+        if (!response.ok) throw new Error('旧 ID 锁脸图更新失败');
+      }));
+      const nextMeta = { ...(asset.meta || {}), asset_role: role };
+      const res = await authedFetch(`/api/companion/${encodeURIComponent(productionGirlfriendId)}/assets`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId: asset.id, category: role === 'avatar-closeup' || role.startsWith('identity-') ? 'id_reference' : 'photo', meta: nextMeta }),
+      });
+      const data = await readResponseJson(res).catch(() => ({} as Any));
+      if (!res.ok) throw new Error(data.error || '参考类型保存失败');
+      setCompanionAssets((current) => current.map((item) => {
+        if (item.id === asset.id) return { ...item, ...data.asset };
+        if (role === 'avatar-closeup' && previousIdentityAssets.some((previous) => previous.id === item.id)) {
+          return { ...item, category: 'photo', meta: { ...(item.meta || {}), asset_role: 'album' }, asset_role: 'album' };
+        }
+        return item;
+      }));
+      if (role === 'avatar-closeup') {
+        setIdentityConsistency(true);
+      }
+      toast.success(`已设置为${getCharacterProductionPreset(role).shortLabel}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '参考类型保存失败');
+    }
+  };
+
+  const setCompanionAssetAsReference = (asset: Any) => {
+    const url = String(asset?.url || '');
+    if (!url) return;
+    setInputImage(url);
+    if (genMode !== 'img2video') setGenMode('img2img');
+    toast.success('已设为当前画面参考；ID 锁脸图仍仅负责头像一致性');
+  };
+
+  const deleteCompanionAsset = async (asset: Any) => {
+    if (!productionGirlfriendId || !asset?.id) return;
+    if (!confirm('删除这项伴侣资源？此操作会从该伴侣资源库中移除图片。')) return;
+    try {
+      const query = new URLSearchParams({ assetId: String(asset.id) });
+      const res = await authedFetch(`/api/companion/${encodeURIComponent(productionGirlfriendId)}/assets?${query.toString()}`, { method: 'DELETE' });
+      const data = await readResponseJson(res).catch(() => ({} as Any));
+      if (!res.ok) throw new Error(data.error || '资源删除失败');
+      setCompanionAssets((current) => current.filter((item) => item.id !== asset.id));
+      if (String(asset.url || '') === inputImage) setInputImage('');
+      toast.success('伴侣资源已删除');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '资源删除失败');
+    }
+  };
   useEffect(() => {
     loadConfig();
     loadVolume();
@@ -474,14 +661,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         adult: nsfwIntensity >= 3,
         intensity: nsfwIntensity,
       });
-      const nextPrompt = compactFluxPrompt(assembled.positive);
+      const nextPrompt = String(row.image_prompt || '').trim();
       setCompanionCategory(assembled.category);
       const nextNeg = String(assembled.negative || GIRLFRIEND_NEGATIVE_FLUX).trim();
-      if (!nextPrompt) return false;
       if (opts?.force) {
         setPrompt(nextPrompt);
-        setPromptProfileApplied(true);
-        setNegative(nextNeg || GIRLFRIEND_NEGATIVE_FLUX);
+        setPromptProfileApplied(Boolean(nextPrompt));
+        setNegative(String(row.negative_prompt || nextNeg || GIRLFRIEND_NEGATIVE_FLUX));
       } else {
         setPrompt((prev: string) => {
           const p = (prev || '').trim();
@@ -489,7 +675,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             !p ||
             p.startsWith('three-quarter body portrait of a beautiful young adult woman') ||
             p === String((config as Any)?.workflows?.find((w: Any) => w.id === 'wf-girlfriend')?.defaults?.positive || '').trim();
-          return isGeneric ? nextPrompt : p;
+          return isGeneric && nextPrompt ? nextPrompt : p;
         });
         setNegative((prev: string) => {
           const n = (prev || '').trim();
@@ -519,7 +705,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       }
 
       if (opts?.toastOn !== false) {
-        toast.success(`已套用伴侣卡提示词配方：${row.name || 'companion'}`);
+        toast.success(nextPrompt
+          ? `已读取伴侣提示词：${row.name || 'companion'}`
+          : '当前伴侣没有保存提示词；可选择提示词预设或使用 AI 生成');
       }
       return true;
     } catch (e) {
@@ -528,54 +716,38 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     }
   }
 
-  /** LLM-only prompt optimization. No local preset or random-pool fallback. */
-  const optimizePromptWithLlm = useCallback(async () => {
+  /** Parameter-first prompt optimization: instant, deterministic and model-aware. */
+  const optimizePromptWithLlm = async () => {
     setOptimizingPrompt(true);
     try {
-      const res = await authedFetch('/api/admin/comfy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'optimize_prompt',
-          prompt,
-          companion_category: companionCategory,
-          anime_render_style: animeRenderStyle,
-          nsfw_intensity: nsfwIntensity,
-          gen_mode: genMode,
-          asset_role: assetRole,
-          companion: scopedGirlfriend || undefined,
-          previous_prompts: llmPromptHistoryRef.current,
-          variation_seed: globalThis.crypto.randomUUID(),
-        }),
+      const route = resolveImageGenerationRoute({
+        surface: generationSurface,
+        category: companionCategory,
+        renderStyle: animeRenderStyle,
+        nsfwIntensity,
+        specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
       });
-      const data = await readResponseJson(res).catch(() => ({} as Any));
-      if (!res.ok || (data.source !== 'llm' && data.source !== 'preset')) {
-        throw new Error(data.error || 'LLM 提示词优化失败');
-      }
-      const generatedPrompt = String(data.prompt || '');
+      const modelFamily = genMode === 'img2video' ? 'wan22' : route.modelFamily;
+      const generatedPrompt = buildStudioSceneDraft({
+        task: studioTask,
+        modelFamily,
+        currentPrompt: prompt,
+        intensity: nsfwIntensity,
+        renderStyle: animeRenderStyle,
+      });
       setPrompt(generatedPrompt);
       llmPromptHistoryRef.current = [...llmPromptHistoryRef.current, generatedPrompt].filter(Boolean).slice(-5);
       setPromptProfileApplied(true);
-      setNegative(String(data.negative || studioNegativePrompt(companionCategory, animeRenderStyle)));
-      const planned = Array.isArray(data.loras) ? data.loras : [];
-      setSelectedLoras(planned);
-      setLoraId(planned[0]?.id || 'none');
-      if (planned[0]) setLoraStrength(Number(planned[0].strength));
-      const missingLoras = Array.isArray(data.missing_loras) ? data.missing_loras : [];
-      if (missingLoras.length > 0) {
-        toast.warning(`???? LoRA ?????${missingLoras.map((item: Any) => item.id).join(', ')}`);
-      }
-      if (data.source === 'preset') {
-        toast.warning('LLM 不可用，已使用本地预设降级');
-      } else {
-        toast.success(`LLM 已按${COMPANION_CATEGORY_LABELS[companionCategory].zh}和强度 ${nsfwIntensity}/5 重写提示词`);
-      }
+      setNegative(studioNegativePrompt(companionCategory, animeRenderStyle));
+      applyRecommendedLoras(companionCategory, animeRenderStyle, nsfwIntensity);
+      applyRecommendedParameters(genMode, nsfwIntensity);
+      toast.success(`已按${modelFamily.toUpperCase()} · NSFW ${nsfwIntensity}/5 · ${studioTask}完成提示词与反向词优化`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'LLM 提示词优化失败');
+      toast.error(error instanceof Error ? error.message : '提示词优化失败');
     } finally {
       setOptimizingPrompt(false);
     }
-  }, [animeRenderStyle, assetRole, companionCategory, genMode, nsfwIntensity, prompt, scopedGirlfriend]);
+  };
 
   /** 一键调用：选中 LoRA + 强度 + 触发词写入提示词 */
   function applyLora(lora: Any, opts?: { appendTriggers?: boolean; goGenerate?: boolean }) {
@@ -625,25 +797,24 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   }
 
   function applyImageTransformation(kind: 'outfit' | 'pose' | 'background') {
+    setStudioTask(kind);
     setGenMode('img2img');
     setGenerationSurface('companion');
     setIdentityConsistency(true);
     setDenoise(kind === 'pose' ? 0.52 : 0.44);
-    const instruction = kind === 'outfit'
-      ? 'Keep the same adult character identity and body proportions. Change only the wardrobe described below; preserve the face, pose and background unless explicitly requested.'
-      : kind === 'pose'
-        ? 'Keep the same adult character identity, wardrobe and setting. Change only the pose, gesture, gaze and camera framing described below.'
-        : 'Keep the same adult character identity, body, wardrobe and pose. Replace only the background, lighting and environmental interaction described below.';
-    setPrompt((current) => `${instruction}\n\n${current}`.trim());
+    setPrompt('');
     setPromptProfileApplied(true);
     toast.success(kind === 'outfit' ? '已切换到一键换装' : kind === 'pose' ? '已切换到一键姿势' : '已切换到一键背景');
   }
 
-  const workflows: Any[] = config?.workflows || [];
-  const endpoints: Any[] = config?.endpoints || [];
-  const checkpoints: Any[] = config?.checkpoints || [];
-  const allLoras: Any[] = config?.loras || [];
-  const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity });
+  const workflows: Any[] = useMemo(() => config?.workflows || [], [config?.workflows]);
+  const endpoints: Any[] = useMemo(() => config?.endpoints || [], [config?.endpoints]);
+  const checkpoints: Any[] = useMemo(() => config?.checkpoints || [], [config?.checkpoints]);
+  const studioCheckpoints = checkpoints.filter((item) =>
+    ['flux-fp8', 'flux-unchained', 'pony-realism-v22', 'wai-mature-illustrious-v20'].includes(String(item.id)),
+  );
+  const allLoras: Any[] = useMemo(() => config?.loras || [], [config?.loras]);
+  const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity, turbo: fastPreview && genMode !== 'img2video', specialistModelsReady: volumeInfo?.sdxl_models_ready === true });
   const recommendedPreset = resolveCreativeGenerationPreset({
     mode: genMode,
     surface: generationSurface,
@@ -653,6 +824,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     assetRole,
     scene: prompt,
     identityConsistency,
+    turbo: fastPreview && genMode !== 'img2video',
+    specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
   });
   const applyRecommendedParameters = (
     mode: CreativeGenerationMode = genMode,
@@ -667,6 +840,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       assetRole,
       scene: prompt,
       identityConsistency,
+      turbo: fastPreview && mode !== 'img2video',
+      specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
     });
     setWidth(preset.width);
     setHeight(preset.height);
@@ -677,14 +852,124 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     if (preset.denoise != null) setDenoise(preset.denoise);
     return preset;
   };
+  const applyNsfwIntensity = (next: NsfwIntensity) => {
+    const specialistReady = volumeInfo?.sdxl_models_ready === true;
+    const route = resolveImageGenerationRoute({
+      surface: generationSurface,
+      category: companionCategory,
+      renderStyle: animeRenderStyle,
+      nsfwIntensity: next,
+      turbo: false,
+      specialistModelsReady: specialistReady,
+    });
+    const adultPreset = selectAdultScenePreset(next);
+    const promptTask = next >= 3 || assetRole === 'character-art' || assetRole === 'scene'
+      ? 'portrait'
+      : studioTask;
+    const scene = adultPreset?.scene || buildStudioSceneDraft({
+      task: promptTask,
+      modelFamily: route.modelFamily,
+      intensity: next,
+      renderStyle: animeRenderStyle,
+    });
+    const loraPlan = resolveModelLoraPlan({
+      modelFamily: route.modelFamily,
+      category: companionCategory,
+      intensity: next,
+      animeStyle: animeRenderStyle,
+      installedFiles: installedLoras,
+      maxLoras: next >= 3 ? 3 : 2,
+    });
+    const routedSelections = loraPlan.selected.flatMap((selected) => {
+      const asset = (config?.loras || []).find((item: Any) => String(item.filename || '') === selected.name);
+      return asset ? [{ id: String(asset.id), strength: selected.strength_model }] : [];
+    });
+    const nextPrompt = buildStudioTaskPrompt({
+      task: promptTask,
+      modelFamily: route.modelFamily,
+      companion: scopedGirlfriend as Record<string, unknown> | null,
+      scene: [scene, adultPreset ? adultModelPromptSuffix(route.modelFamily) : ''].filter(Boolean).join(', '),
+      framing: [
+        CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt,
+        CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt,
+      ].filter(Boolean).join(', '),
+      loraTriggers: loraPlan.triggerWords,
+      category: companionCategory,
+      renderStyle: animeRenderStyle,
+      hasIdentityReference: identityConsistencyActive,
+    });
+    const parameterPreset = resolveCreativeGenerationPreset({
+      mode: genMode,
+      surface: generationSurface,
+      category: companionCategory,
+      renderStyle: animeRenderStyle,
+      intensity: next,
+      assetRole,
+      scene: nextPrompt,
+      identityConsistency,
+      turbo: false,
+      specialistModelsReady: specialistReady,
+    });
+    setNsfwIntensity(next);
+    setFastPreview(false);
+    setPrompt(compactFluxPrompt(nextPrompt));
+    setNegative(studioNegativePrompt(companionCategory, animeRenderStyle));
+    setPromptProfileApplied(true);
+    setActiveAdultPreset(adultPreset ? { id: adultPreset.id, label: adultPreset.label } : null);
+    setSelectedLoras(routedSelections);
+    setLoraId(routedSelections[0]?.id || 'none');
+    if (routedSelections[0]) setLoraStrength(routedSelections[0].strength);
+    setWidth(parameterPreset.width);
+    setHeight(parameterPreset.height);
+    setSteps(parameterPreset.steps);
+    setCfg(parameterPreset.cfg);
+    setSampler(parameterPreset.sampler);
+    setScheduler(parameterPreset.scheduler);
+    if (parameterPreset.denoise != null) setDenoise(parameterPreset.denoise);
+    const checkpointAsset = (config?.checkpoints || []).find((item: Any) => String(item.filename || '') === route.checkpoint);
+    if (checkpointAsset?.id) setCkptId(String(checkpointAsset.id));
+    const endpointAsset = (config?.endpoints || []).find((item: Any) =>
+      String(item.endpoint_id || '') === route.endpointId || String(item.id || '') === route.endpointId,
+    );
+    if (endpointAsset?.id) setEndpointKey(String(endpointAsset.id));
+    setWorkflowId('auto');
+    if (next >= 3 && !specialistReady && animeRenderStyle !== '3d') {
+      toast.error('Pony/Illustrious 专用端点尚未验证；不会降级到 FLUX');
+      return;
+    }
+    toast.success(`NSFW ${next}/5：${adultPreset?.label || studioIntensityLabel(next)} · ${route.modelFamily.toUpperCase()} · ${routedSelections.length} 个 LoRA`);
+  };
+  const installedSet = useMemo(() => new Set(installedLoras), [installedLoras]);
   const loras: Any[] = useMemo(
     () => allLoras.filter((lora) => isLoraAllowedForContext(lora, { surface: generationSurface, category: companionCategory, modelFamily: generationRoute.modelFamily })),
     [allLoras, companionCategory, generationRoute.modelFamily, generationSurface],
   );
+  const compatibleSelectedLoras = useMemo(
+    () => selectedLoras.filter((selection) => loras.some((lora) =>
+      lora.id === selection.id && (!lora.filename || (volumeInfo?.inventory_source === 'runtime-volume' && installedSet.has(String(lora.filename)))),
+    )),
+    [installedSet, loras, selectedLoras, volumeInfo?.inventory_source],
+  );
+  const activeLoraTriggers = useMemo(() => compatibleSelectedLoras.flatMap((selection) => {
+    const lora = loras.find((item) => item.id === selection.id);
+    return Array.isArray(lora?.trigger_words) ? lora.trigger_words.map(String) : [];
+  }), [compatibleSelectedLoras, loras]);
+  const resolvedTaskPrompt = useMemo(() => buildStudioTaskPrompt({
+    task: studioTask,
+    modelFamily: genMode === 'img2video' ? 'wan22' : generationRoute.modelFamily,
+    companion: scopedGirlfriend as Record<string, unknown> | null,
+    scene: prompt,
+    framing: [
+      CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt,
+      CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt,
+    ].filter(Boolean).join(', '),
+    loraTriggers: activeLoraTriggers,
+    category: companionCategory,
+    renderStyle: animeRenderStyle,
+    hasIdentityReference: identityConsistencyActive,
+  }), [activeLoraTriggers, animeRenderStyle, cameraAngle, cameraFraming, companionCategory, genMode, generationRoute.modelFamily, identityConsistencyActive, prompt, scopedGirlfriend, studioTask]);
   const recipes: Any[] = config?.lora_recipes || [];
   const stackingTips: string[] = config?.lora_stacking_tips || [];
-
-  const installedSet = useMemo(() => new Set(installedLoras), [installedLoras]);
 
   const lorasByCat = useMemo(() => {
     const map: Record<string, Any[]> = {};
@@ -704,20 +989,23 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   );
   useEffect(() => {
     const endpoint = generationRoute.modelFamily === 'flux' ? 'comfy-flux-cd1' : 'comfy-sdxl-cd2';
-    const checkpoint = generationRoute.modelFamily === 'flux'
-      ? 'flux-unchained'
+    const routedCheckpoint = checkpoints.find((item) =>
+      item.filename === generationRoute.checkpoint || item.id === generationRoute.checkpoint,
+    );
+    const checkpoint = routedCheckpoint?.id || (generationRoute.modelFamily === 'flux'
+      ? (generationRoute.checkpoint.toLowerCase().includes('unchained') ? 'flux-unchained' : 'flux-fp8')
       : generationRoute.modelFamily === 'pony'
         ? 'pony-realism-v22'
-        : 'wai-mature-illustrious-v20';
+        : 'wai-mature-illustrious-v20');
     setEndpointKey(endpoint);
     setCkptId(checkpoint);
     setSteps(generationRoute.steps);
     setCfg(generationRoute.cfg);
     setSampler(generationRoute.sampler);
     setScheduler(generationRoute.scheduler);
-    setSelectedLoras((current) => current.filter((selection) => loras.some((lora) => lora.id === selection.id)));
+    setSelectedLoras((current) => current.filter((selection) => selection.id !== 'none' && loras.some((lora) => lora.id === selection.id)));
     setLoraId((current) => current === 'none' || loras.some((lora) => lora.id === current) ? current : 'none');
-  }, [generationRoute.cfg, generationRoute.modelFamily, generationRoute.sampler, generationRoute.scheduler, generationRoute.steps, loras]);
+  }, [checkpoints, generationRoute.cfg, generationRoute.checkpoint, generationRoute.modelFamily, generationRoute.sampler, generationRoute.scheduler, generationRoute.steps, loras]);
 
   const filteredBatchGirlfriends = useMemo(() => {
     const query = batchSearch.trim().toLowerCase();
@@ -756,14 +1044,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const generationBody = (overrides?: { girlfriendId?: string; prompt?: string; negative?: string; assetRole?: CharacterAssetRole; promptSource?: 'llm' }) => ({
     action: 'generate',
     girlfriend_id: overrides?.girlfriendId || productionGirlfriendId || girlfriendId || undefined,
-    workflow_id: workflowId,
+    workflow_id: workflowId === 'auto' ? undefined : workflowId,
     endpoint_key: endpointKey,
     endpoint_id: selectedEndpoint?.endpoint_id || undefined,
     ckpt_id: ckptId,
     lora_id: loraId === 'none' ? null : loraId,
     lora_strength: loraStrength,
-    loras: selectedLoras,
-    prompt: compactFluxPrompt(overrides?.prompt ?? prompt),
+    loras: compatibleSelectedLoras,
+    prompt: overrides?.prompt ? compactFluxPrompt(overrides.prompt) : resolvedTaskPrompt,
     negative: overrides?.negative ?? negative,
     width,
     height,
@@ -774,29 +1062,45 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     num_images: imageCount,
     seed,
     denoise: genMode === 'img2img' || inputImage ? denoise : undefined,
-    input_image: genMode === 'img2img' || inputImage.trim() ? inputImage.trim() || undefined : undefined,
-    character_consistency: identityConsistency,
+    input_image: genMode === 'img2img' || inputImage.trim() || identityConsistencyActive
+      ? inputImage.trim() || identityReferenceUrl || undefined
+      : undefined,
+    character_consistency: (overrides?.assetRole || assetRole) !== 'avatar-closeup' && identityConsistencyActive,
     reference_controls: {
-      enabled: identityConsistency || referenceAutoSelect,
-      autoSelect: referenceAutoSelect,
-      maxReferences: referenceMax,
-      identityStrength,
-      poseStrength,
-      styleStrength,
-      compositionStrength,
+      enabled: (overrides?.assetRole || assetRole) !== 'avatar-closeup' && identityConsistencyActive,
+      autoSelect: true,
+      maxReferences: 4,
+      identityStrength: 0.82,
+      poseStrength: 0.68,
+      styleStrength: 0.32,
+      compositionStrength: 0.48,
       requireExactCategory: true,
       requireExactStyle: true,
     },
     gen_mode: genMode,
     generation_surface: generationSurface,
     model_family: generationRoute.modelFamily,
+    prompt_contract: {
+      task: studioTask,
+      modelFamily: genMode === 'img2video' ? 'wan22' : generationRoute.modelFamily,
+      identityFromText: studioTask === 'identity',
+      identityFromReference: studioTask !== 'identity',
+      loraTriggers: activeLoraTriggers,
+    },
+    fast_preview: fastPreview && genMode !== 'img2video',
     companion_category: companionCategory,
     anime_render_style: animeRenderStyle,
     nsfw_intensity: nsfwIntensity,
     prompt_profile_applied: overrides?.promptSource === 'llm' || (overrides?.prompt ? false : promptProfileApplied),
     prompt_source: overrides?.promptSource,
     asset_role: overrides?.assetRole || assetRole,
-    reference_role: getCharacterProductionPreset(overrides?.assetRole || assetRole).referenceRole,
+    reference_role: studioTask === 'pose'
+      ? 'pose'
+      : studioTask === 'background'
+        ? 'composition'
+        : studioTask === 'outfit'
+          ? 'style'
+          : getCharacterProductionPreset(overrides?.assetRole || assetRole).referenceRole,
     kind,
   });
 
@@ -885,12 +1189,13 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           if (data.pending && data.job_id) {
             const jobId = String(data.job_id);
             let done = false;
-            for (let poll = 0; poll < 60; poll++) {
-              await new Promise((resolve) => setTimeout(resolve, 3000));
+            for (let poll = 0; poll < 24; poll++) {
               const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${overrides?.girlfriendId ? `&girlfriend_id=${encodeURIComponent(overrides.girlfriendId)}` : ''}&asset_role=${encodeURIComponent(String(overrides?.assetRole || assetRole))}`);
               const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
               if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-                const saved = await finalizeAssets(jobId, pollData.images, executedOverrides);
+                const saved = Array.isArray(pollData.assets) && pollData.assets.length
+                  ? pollData.assets as Any[]
+                  : await finalizeAssets(jobId, pollData.images, executedOverrides);
                 if (!saved?.length) throw new Error(`${preset.label} asset catalog registration failed`);
                 generatedAssets.push(...saved);
                 done = true;
@@ -1014,8 +1319,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           if (data.pending && data.job_id) {
             const jobId = String(data.job_id);
             let imageUrl = '';
-            for (let attempt = 0; attempt < 60; attempt++) {
-              await new Promise((resolve) => setTimeout(resolve, 3000));
+            for (let attempt = 0; attempt < 24; attempt++) {
               const statusRes = await authedFetch(`/api/runpod/status?job_id=${jobId}&admin_source=true&girlfriend_id=${companionId}&asset_role=${stage.assetRole}`);
               const statusData = await readResponseJson(statusRes).catch(() => ({} as Any));
               if (statusData.status === 'COMPLETED' || statusData.status === 'completed') {
@@ -1084,7 +1388,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   };
 
   const generate = async () => {
-    if (!prompt.trim()) {
+    if (!resolvedTaskPrompt.trim()) {
       toast.error('请填写正向提示词');
       return;
     }
@@ -1098,40 +1402,15 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       return;
     }
     setGenerating(true);
+    setGenerationStage('submitting');
     setLastResult([]);
     try {
-      // The editor contains intent only. The LLM writes the final, varied prompt for every generation.
-      const promptRes = await authedFetch('/api/admin/comfy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'optimize_prompt',
-          prompt,
-          companion_category: companionCategory,
-          anime_render_style: animeRenderStyle,
-          nsfw_intensity: nsfwIntensity,
-          gen_mode: genMode,
-          asset_role: assetRole,
-          companion: scopedGirlfriend || undefined,
-          previous_prompts: llmPromptHistoryRef.current,
-          variation_seed: globalThis.crypto.randomUUID(),
-        }),
-      });
-      const promptData = await readResponseJson(promptRes).catch(() => ({} as Any));
-      if (!promptRes.ok || (promptData.source !== 'llm' && promptData.source !== 'preset') || !String(promptData.prompt || '').trim()) {
-        throw new Error(promptData.error || 'LLM failed to create a unique generation prompt');
-      }
-      const effectivePrompt = String(promptData.prompt).trim();
-      const effectiveNegative = String(promptData.negative || negative).trim();
-      const fluxPreset = promptData.generation_preset && typeof promptData.generation_preset === 'object'
-        ? promptData.generation_preset as Any
-        : recommendedPreset;
-      const effectiveLoras = Array.isArray(promptData.loras) ? promptData.loras : [];
-      llmPromptHistoryRef.current = [...llmPromptHistoryRef.current, effectivePrompt].slice(-5);
-      setPrompt(effectivePrompt);
-      setNegative(effectiveNegative);
-      setPromptProfileApplied(true);
-      setSelectedLoras(effectiveLoras);
+      // The task-aware compiler already produced the final model-specific prompt.
+      // Submit immediately; AI optimization remains an explicit optional button.
+      const effectivePrompt = resolvedTaskPrompt;
+      const effectiveNegative = negative.trim() || studioNegativePrompt(companionCategory, animeRenderStyle);
+      const fluxPreset = recommendedPreset;
+      const effectiveLoras = compatibleSelectedLoras;
 
       if (genMode === 'img2video') {
         const videoRes = await authedFetch('/api/generate-video', {
@@ -1176,21 +1455,30 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
 
       // Handle async pending response — poll until job completes
       if (data.pending && data.job_id) {
+        setGenerationStage('queued');
         toast.message('GPU 排队中，等待出图…');
         const jobId = String(data.job_id);
-        const maxPolls = 60; // 60 × 3s = 3 min max
+        const maxPolls = 24; // status endpoint long-polls up to 8s; about 3 minutes total
         let completed = false;
         for (let i = 0; i < maxPolls; i++) {
-          await new Promise((r) => setTimeout(r, 3000));
           try {
             const activeGfId = productionGirlfriendId || girlfriendId || '';
             const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${activeGfId ? `&girlfriend_id=${encodeURIComponent(activeGfId)}` : ''}&asset_role=${encodeURIComponent(String(assetRole))}`);
             const pollData = await readResponseJson(pollRes).catch(() => ({} as any));
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-              const saved = await finalizeAssets(jobId, pollData.images);
+              setGenerationStage('finalizing');
+              const saved = Array.isArray(pollData.assets) && pollData.assets.length
+                ? pollData.assets as Any[]
+                : await finalizeAssets(jobId, pollData.images);
               if (!saved?.length) throw new Error('Generation completed but asset catalog registration failed');
               const polledAssets: Any[] = saved;
               setLastResult(polledAssets);
+              if (activeGfId) {
+                const libraryAssets = await persistAssetsToCompanionLibrary(activeGfId, polledAssets, 'album');
+                setCompanionAssets((current) => [...libraryAssets, ...current].filter((item, index, all) =>
+                  all.findIndex((candidate) => String(candidate.id || candidate.url) === String(item.id || item.url)) === index,
+                ));
+              }
               toast.success(`生成成功 ${polledAssets.length} 张`);
               if (tab === 'library') loadAssets();
               completed = true;
@@ -1234,12 +1522,19 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         throw new Error('生成完成但没有可预览的 HTTPS 地址');
       }
       setLastResult(assets);
+      if (companionId) {
+        const libraryAssets = await persistAssetsToCompanionLibrary(companionId, assets, 'album');
+        setCompanionAssets((current) => [...libraryAssets, ...current].filter((item, index, all) =>
+          all.findIndex((candidate) => String(candidate.id || candidate.url) === String(item.id || item.url)) === index,
+        ));
+      }
       toast.success(`生成成功 ${assets.length} 张`);
       if (tab === 'library') loadAssets();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '生成失败');
     } finally {
       setGenerating(false);
+      setGenerationStage('idle');
     }
   };
 
@@ -1390,6 +1685,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       if (!/^https?:\/\//i.test(url)) throw new Error('上传成功但未返回可用的 HTTPS 图片地址');
       setInputImage(url);
       setGenMode('img2img');
+      if (activeGirlfriendId) await loadCompanionAssets(activeGirlfriendId);
       toast.success('参考图已上传并启用图生图');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '参考图上传失败');
@@ -1494,11 +1790,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-900/50 p-1 w-fit">
         {[
-          { id: 'generate', label: '生成', icon: Play },
-          { id: 'loras', label: 'LoRA 清单', icon: Layers },
-          { id: 'library', label: '图库', icon: ImageIcon },
-          { id: 'workflows', label: '工作流', icon: Workflow },
-          { id: 'infra', label: '网络卷/端点', icon: HardDrive },
+          { id: 'generate', label: '创作台', icon: Play },
+          { id: 'library', label: '角色资源库', icon: ImageIcon },
+          { id: 'workflows', label: '工作流预设', icon: Workflow },
+          { id: 'loras', label: '模型与 LoRA', icon: Layers },
+          { id: 'infra', label: '运行配置', icon: HardDrive },
         ].map((tabItem) => (
           <button
             key={tabItem.id}
@@ -1514,11 +1810,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           </button>
         ))}
         </div>
-        <Button size="sm" variant="outline" className="border-cyan-800 text-cyan-200 h-9" disabled={syncingInstalled} onClick={syncInstalled}>
+        <Button size="sm" variant="outline" className={cn('border-cyan-800 text-cyan-200 h-9', tab !== 'infra' && 'hidden')} disabled={syncingInstalled} onClick={syncInstalled}>
           {syncingInstalled ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <HardDrive className="h-3.5 w-3.5 mr-1" />}
           同步盘状态
         </Button>
-        <Button size="sm" variant="outline" className="border-emerald-800 text-emerald-200 h-9" onClick={async () => {
+        <Button size="sm" variant="outline" className={cn('border-emerald-800 text-emerald-200 h-9', tab !== 'loras' && 'hidden')} onClick={async () => {
           try {
             const res = await authedFetch('/api/admin/comfy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'verify_loras' }) });
             const data = await res.json();
@@ -1537,7 +1833,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         <Button
           size="sm"
           variant="outline"
-          className={cn('h-9 border-violet-700 text-violet-100', batchOpen && 'bg-violet-600/25')}
+          className={cn('h-9 border-violet-700 text-violet-100', batchOpen && 'bg-violet-600/25', tab !== 'generate' && 'hidden')}
           onClick={() => {
             const next = !batchOpen;
             setBatchOpen(next);
@@ -1547,7 +1843,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           <Users className="mr-1 h-3.5 w-3.5" /> 批量生成
           {batchSelectedIds.length ? <Badge className="ml-1.5 bg-violet-500 text-white">{batchSelectedIds.length}</Badge> : null}
         </Button>
-        <span className="text-[10px] text-slate-400">
+        <span className={cn('text-[10px] text-slate-400', tab !== 'infra' && 'hidden')}>
           {volumeInfo?.inventory_source === 'runtime-volume' ? `卷上已验证 ${installedLoras.length}` : '卷清单未验证'} · {volumeInfo?.paths?.loras || config.network_volume?.loras_dir || 'models/loras'}
         </span>
       </div>
@@ -1560,12 +1856,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div>
                 <h2 className="text-sm font-bold text-white">统一创作入口</h2>
                 <p className="mt-1 text-[11px] text-slate-400">参考图在这里统一读取：角色 ID 使用 IP-Adapter 锁定身份，换装、姿势和背景使用图生图工作流。</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => applyImageTransformation('outfit')}>一键换装</Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => applyImageTransformation('pose')}>一键姿势</Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => applyImageTransformation('background')}>一键背景</Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => { setGenMode('img2video'); applyRecommendedParameters('img2video'); }}>Wan 2.2 图生视频</Button>
               </div>
             </div>
             <div className="mt-3 grid gap-2 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
@@ -1591,15 +1881,67 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               onChange={(event) => void uploadReferenceImage(event.target.files?.[0] || null)}
             />
           </section>
+          <section className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300">Production flow</p>
+                <h2 className="mt-1 text-sm font-bold text-white">选择本次创作任务</h2>
+                <p className="mt-1 text-[11px] text-slate-400">先选伴侣，再沿同一身份资产继续创作。每一步都会读取该伴侣资料与资源库，不重复创建人物身份。</p>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                <span className={cn('rounded-full px-2 py-1', productionGirlfriendId ? 'bg-emerald-500/15 text-emerald-200' : 'bg-amber-500/15 text-amber-200')}>
+                  {productionGirlfriendId ? '伴侣已绑定' : '尚未选择伴侣'}
+                </span>
+                <span>→</span><span>身份参考</span><span>→</span><span>生成结果归档</span>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              {([
+                { id: 'identity', step: '01', title: '生成角色', note: '建立身份参考图', icon: Users },
+                { id: 'portrait', step: '02', title: '生成立绘', note: '继承角色外观', icon: ImageIcon },
+                { id: 'outfit', step: '03', title: '一键换装', note: 'IP-Adapter 锁身份', icon: Layers },
+                { id: 'pose', step: '04', title: '一键姿势', note: '姿势参考控制', icon: Sparkles },
+                { id: 'background', step: '05', title: '一键背景', note: '保持人物不变', icon: Workflow },
+                { id: 'video', step: '06', title: 'Wan 2.2 视频', note: '选图生成视频', icon: Play },
+              ] as const).map((task) => (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={() => {
+                    setStudioTask(task.id);
+                    if (task.id === 'identity') applyProductionPreset('avatar-closeup');
+                    if (task.id === 'portrait') applyProductionPreset('character-art');
+                    if (task.id === 'outfit') applyImageTransformation('outfit');
+                    if (task.id === 'pose') applyImageTransformation('pose');
+                    if (task.id === 'background') applyImageTransformation('background');
+                    if (task.id === 'video') { setGenMode('img2video'); applyRecommendedParameters('img2video'); }
+                    requestAnimationFrame(() => document.getElementById('studio-composer')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                  }}
+                  className={cn(
+                    'group rounded-lg border p-3 text-left transition',
+                    studioTask === task.id ? 'border-violet-400 bg-violet-500/15 shadow-lg shadow-violet-950/30' : 'border-slate-700 bg-slate-900/60 hover:border-slate-500 hover:bg-slate-900',
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] text-slate-500">{task.step}</span>
+                    <task.icon className={cn('h-4 w-4', studioTask === task.id ? 'text-violet-300' : 'text-slate-500 group-hover:text-slate-300')} />
+                  </div>
+                  <p className="mt-3 text-xs font-semibold text-white">{task.title}</p>
+                  <p className="mt-1 text-[10px] text-slate-400">{task.note}</p>
+                </button>
+              ))}
+            </div>
+          </section>
+          {(
           <section className="border-y border-slate-700 bg-slate-950/50 px-3 py-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-white">系统角色生产</h2>
-                <p className="mt-1 text-[11px] text-slate-400">3 阶段自动管线：文生图半身头像（IP-Adapter 身份锚点）→ 图生图广告立绘 → 图生视频。提示词 AI 生成，LoRA 自动匹配。</p>
+                <p className="mt-1 text-[11px] text-slate-400">3 阶段自动管线：文生图半身头像（IP-Adapter 身份锚点）→ 图生图广告立绘 → 图生视频。优先读取伴侣提示词，模型、参数与 LoRA 自动路由。</p>
               </div>
               <Link href="/admin/girlfriends" className="text-xs font-medium text-violet-300 hover:text-violet-200">新建/编辑伴侣基础信息 →</Link>
             </div>
-            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(240px,360px)_1fr]">
+            <div className="hidden">
               <div>
                 <Label className="mb-1 block text-[11px] text-slate-300">当前伴侣</Label>
                 <Select value={productionGirlfriendId || 'none'} onValueChange={(id) => {
@@ -1612,7 +1954,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     const gender = String(girlfriend.gender || '').toLowerCase();
                     setCompanionCategory(gender.includes('trans') ? 'transgender' : gender.includes('male') && !gender.includes('female') ? 'male' : 'female');
                   }
-                  setIdentityConsistency(true);
+                  setIdentityConsistency(false);
                   void loadCompanionAssets(id);
                 }}>
                   <SelectTrigger className="h-10 border-slate-600 bg-slate-950 text-sm"><SelectValue placeholder="选择系统伴侣" /></SelectTrigger>
@@ -1658,6 +2000,67 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 ))}
               </div>
             </div>
+            {scopedGirlfriend && productionGirlfriendId ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-[10px]">
+                <span className="font-semibold text-emerald-200">当前伴侣</span>
+                <Badge variant="outline">{String(scopedGirlfriend.name || productionGirlfriendId)}</Badge>
+                {scopedGirlfriend.age ? <Badge variant="outline">{String(scopedGirlfriend.age)} 岁</Badge> : null}
+                {scopedGirlfriend.gender ? <Badge variant="outline">{String(scopedGirlfriend.gender)}</Badge> : null}
+                {scopedGirlfriend.occupation ? <Badge variant="outline">{String(scopedGirlfriend.occupation)}</Badge> : null}
+                <span className="text-slate-400">欲望 {Number(scopedGirlfriend.base_desire || 0)} · 开发 {Number(scopedGirlfriend.base_development || 0)} · 变态 {Number(scopedGirlfriend.base_kink || 0)}</span>
+                <span className="ml-auto text-slate-500">生成结果自动归档到该伴侣资源库</span>
+              </div>
+            ) : null}
+            {productionGirlfriendId ? (
+              <div className="mt-3 rounded-xl border border-slate-700 bg-slate-950/60 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-white">当前伴侣资源库</p>
+                    <p className="mt-0.5 text-[10px] text-slate-400">ID 锁脸只控制头像一致性；“设为画面参考”用于换装、姿势、背景与构图。左右拖动查看更多。</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" size="sm" variant="outline" className="h-8" disabled={referenceImageUploading} onClick={() => referenceImageInputRef.current?.click()}>
+                      {referenceImageUploading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />}
+                      上传图片
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setResourceLibraryOpen(true)}>查看全部</Button>
+                  </div>
+                </div>
+                {companionAssets.length ? (
+                  <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2 [scrollbar-color:rgb(71_85_105)_transparent] [scrollbar-width:thin]">
+                    {companionAssets.map((item) => {
+                      const role = String(item.meta?.asset_role || item.asset_role || 'scene');
+                      return (
+                        <div key={String(item.id || item.url)} className={cn('group relative w-40 shrink-0 snap-start overflow-hidden rounded-lg border bg-slate-900', inputImage === String(item.url || '') ? 'border-cyan-400 ring-1 ring-cyan-400/50' : 'border-slate-700')}>
+                          <button type="button" aria-label="删除伴侣资源" title="删除" onClick={() => void deleteCompanionAsset(item)} className="absolute right-1.5 top-1.5 z-10 rounded-md border border-red-400/40 bg-black/75 p-1.5 text-red-300 opacity-0 transition hover:bg-red-950 group-hover:opacity-100 focus:opacity-100">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button type="button" className="block aspect-[3/4] w-full overflow-hidden bg-black" onClick={() => setLightboxUrl(String(item.url || ''))}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={String(item.thumbnail_url || item.url || '')} alt="伴侣资源" className="h-full w-full object-cover" />
+                          </button>
+                          <button type="button" onClick={() => setCompanionAssetAsReference(item)} className={cn('h-8 w-full border-t border-slate-700 px-2 text-[10px] font-semibold transition', inputImage === String(item.url || '') ? 'bg-cyan-500/20 text-cyan-100' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white')}>
+                            {inputImage === String(item.url || '') ? '当前画面参考' : '设为画面参考'}
+                          </button>
+                          <Select value={role} onValueChange={(value) => void assignCompanionAssetRole(item, value as CharacterAssetRole)}>
+                            <SelectTrigger className="h-8 rounded-none border-x-0 border-b-0 border-slate-700 bg-slate-950 px-2 text-[10px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="avatar-closeup">ID 锁脸（唯一）</SelectItem>
+                              <SelectItem value="pose-reference">姿势参考</SelectItem>
+                              <SelectItem value="style-reference">风格参考</SelectItem>
+                              <SelectItem value="composition-reference">构图参考</SelectItem>
+                              <SelectItem value="character-art">立绘</SelectItem>
+                              <SelectItem value="album">相册（默认）</SelectItem>
+                              <SelectItem value="scene">场景</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <div className="rounded-lg border border-dashed border-slate-700 px-3 py-6 text-center text-xs text-slate-500">暂无资源，先生成头像或上传参考图</div>}
+              </div>
+            ) : null}
             {productionGirlfriendId ? (
               <div className="mt-3 border-t border-slate-800 pt-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1670,7 +2073,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                       <X className="mr-1 h-3.5 w-3.5" /> 取消
                     </Button>
                   )}
-                  <span className="text-[10px] text-slate-400">AI 自动生成提示词 · 自动匹配 LoRA · 一致性参考</span>
+                  <span className="text-[10px] text-slate-400">读取伴侣提示词 · 自动匹配模型与 LoRA · ID 参考存在时自动保持一致</span>
                 </div>
                 {/* Pipeline stage indicators */}
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1719,6 +2122,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
             ) : <p className="mt-3 text-[11px] text-amber-300">先选择伴侣；如果还没有角色，请到“伴侣与媒体”填写基础信息。</p>}
           </section>
+          )}
           {batchOpen ? (
             <section className="rounded-xl border border-violet-500/40 bg-violet-950/20 p-3 shadow-lg shadow-violet-950/20">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1785,7 +2189,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               ) : null}
             </section>
           ) : null}
-          <section className="rounded-md border border-slate-700 bg-[#111214] p-3 shadow-xl shadow-black/30">
+          <section id="studio-composer" className="scroll-mt-4 rounded-xl border border-slate-700 bg-[#111214] p-4 shadow-xl shadow-black/30">
             <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-slate-700 pb-3">
               {([
                 ['companion', '伴侣人物'],
@@ -1830,7 +2234,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div className="mb-3 grid gap-3 rounded-md border border-fuchsia-500/20 bg-fuchsia-950/10 p-3 md:grid-cols-[220px_1fr]">
               <div>
                 <Label className="mb-2 block text-[11px] text-slate-200">NSFW 强度：{nsfwIntensity}/5</Label>
-                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => { const next = Number(event.target.value) as NsfwIntensity; setNsfwIntensity(next); setPromptProfileApplied(false); applyRecommendedLoras(companionCategory, animeRenderStyle, next); applyRecommendedParameters(genMode, next); }} className="w-full accent-rose-500" />
+                <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => applyNsfwIntensity(Number(event.target.value) as NsfwIntensity)} className="w-full accent-rose-500" />
+                <p className="mt-1 text-[10px] text-cyan-300">{activeAdultPreset ? `随机预设：${activeAdultPreset.label}` : '滑块会同步刷新提示词、模型、参数与 LoRA'}</p>
                 <p className="mt-1 text-[10px] font-medium text-rose-200">当前：{studioIntensityLabel(nsfwIntensity)}</p>
                 <p className="mt-1 text-[10px] text-slate-400">滑块只更新等级、参数和 LoRA；生成时由 AI 按当前场景意图重写一次，避免重复堆叠提示词。</p>
               </div>
@@ -1857,15 +2262,67 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <p className="mt-2 text-[10px] text-slate-400">画风只改变渲染与风格 LoRA，不改变女性、男性或跨性别的身体逻辑。</p>
               </div>
             </div>
+            <div className="mb-3 rounded-lg border border-slate-700 bg-slate-950/60 p-3">
+              <Label className="mb-2 block text-[11px] text-slate-200">构图取景（景别与机位同时生效）</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="mr-1 text-[10px] text-slate-500">景别</span>
+                {CAMERA_FRAMINGS.map((item) => (
+                  <Button
+                    key={item.id}
+                    type="button"
+                    size="sm"
+                    variant={cameraFraming === item.id ? 'default' : 'outline'}
+                    className={cn('h-8', cameraFraming === item.id && 'bg-cyan-600 hover:bg-cyan-500')}
+                    onClick={() => { setCameraFraming(item.id); toast.success(`已应用${item.label}景别`); }}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2">
+                <span className="mr-1 text-[10px] text-slate-500">机位</span>
+                {CAMERA_ANGLES.map((item) => (
+                  <Button
+                    key={item.id}
+                    type="button"
+                    size="sm"
+                    variant={cameraAngle === item.id ? 'default' : 'outline'}
+                    className={cn('h-8', cameraAngle === item.id && 'bg-cyan-600 hover:bg-cyan-500')}
+                    onClick={() => { setCameraAngle(item.id); toast.success(`已应用${item.label}机位`); }}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </div>
+              <p className="mt-2 text-[10px] text-cyan-300/80">当前最终控制：{CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.label} · {CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.label}</p>
+            </div>
+            <div className="mb-3 rounded-lg border border-violet-500/25 bg-violet-950/10 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <Label className="text-[11px] text-violet-100">提示词追加控制</Label>
+                <span className="text-[10px] text-slate-400">不会替换伴侣提示词，可分别叠加光线、质量、服装、场景和动作</span>
+              </div>
+              <div className="space-y-2">
+                {PROMPT_APPEND_PRESETS.map((group) => (
+                  <div key={group.group} className="flex flex-wrap items-center gap-2">
+                    <span className="w-9 shrink-0 text-[10px] font-semibold text-violet-300">{group.group}</span>
+                    {group.items.map((item) => (
+                      <Button key={item.label} type="button" size="sm" variant="outline" className="h-8 border-violet-500/35 text-violet-100" onClick={() => appendPromptControl(item.prompt, item.label)}>
+                        + {item.label}
+                      </Button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-white">正向提示词 · 人物 + 做什么</h2>
                 <p className="text-[11px] text-slate-300">使用自然语言描述成年 AI 伴侣及其正在进行的性感、妩媚或亲密动作。</p>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-7 gap-1 border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10" onClick={optimizePromptWithLlm} disabled={optimizingPrompt} title="调用 LLM 按当前伴侣、性别和 NSFW 强度重写提示词">
+                <Button variant="outline" size="sm" className="h-7 gap-1 border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/10" onClick={optimizePromptWithLlm} disabled={optimizingPrompt} title="读取任务、NSFW、模型、LoRA、取景和当前提示词后立即优化">
                   {optimizingPrompt ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  {optimizingPrompt ? 'LLM 优化中' : 'AI 优化提示词'}
+                  {optimizingPrompt ? 'AI 编译中' : 'AI 优化提示词'}
                 </Button>
                 <Badge className="border-violet-400/40 bg-violet-500/15 text-violet-100">{prompt.length} 字符</Badge>
               </div>
@@ -1874,9 +2331,20 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <Textarea value={prompt} onChange={(e) => { setPrompt(e.target.value); setPromptProfileApplied(false); }} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-400 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年伴侣。她正倚在床边，用妩媚的眼神邀请观众靠近。" />
               <Button className="min-h-28 bg-slate-100 text-base font-bold !text-slate-950 hover:bg-white" disabled={generating} onClick={generate}>
                 {generating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
-                {generating ? '生成中…' : '生成'}
+                {generationStage === 'submitting'
+                  ? '正在提交…'
+                  : generationStage === 'queued'
+                    ? 'GPU 生成中…'
+                    : generationStage === 'finalizing'
+                      ? '正在保存…'
+                      : '生成'}
               </Button>
             </div>
+            <details className="mt-2 rounded-lg border border-cyan-500/20 bg-cyan-950/10 px-3 py-2">
+              <summary className="cursor-pointer text-[11px] font-semibold text-cyan-100">实际提交提示词 · {genMode === 'img2video' ? 'WAN 2.2' : generationRoute.modelFamily.toUpperCase()} · {studioTask}</summary>
+              <p className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-slate-300">{resolvedTaskPrompt}</p>
+              <p className="mt-2 text-[10px] text-slate-500">该提示词由当前任务、模型族、兼容 LoRA 触发词和参考图角色编译；不会跨模型复用语法。</p>
+            </details>
             <div className="mt-2">
               <div className="mb-1 text-[11px] font-semibold text-slate-300">反向提示词</div>
               <Textarea value={negative} onChange={(e) => setNegative(e.target.value)} rows={2} className="min-h-16 resize-y border-slate-700 bg-[#0b0c0e] font-mono text-xs leading-5 text-slate-200 placeholder:text-slate-600 focus-visible:ring-rose-500" placeholder="blurry, bad anatomy, underage, watermark…" />
@@ -1893,11 +2361,26 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
               <div className="mt-1 text-[10px] text-slate-400">{recommendedPreset.reason}</div>
             </div>
+            <button
+              type="button"
+              aria-pressed={fastPreview}
+              onClick={() => {
+                const next = !fastPreview;
+                setFastPreview(next);
+                toast.message(next ? '已开启极速预览：优先快速确认构图' : '已切换完整质量模式');
+              }}
+              className={cn(
+                'rounded-md border px-3 py-2 text-xs font-semibold transition',
+                fastPreview ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-100' : 'border-slate-600 text-slate-300',
+              )}
+            >
+              {fastPreview ? '极速预览 · 开' : '完整质量'}
+            </button>
             <Button type="button" size="sm" variant="outline" className="border-cyan-500/50 text-cyan-100" onClick={() => { const preset = applyRecommendedParameters(); toast.success(`已应用${preset.label}`); }}>
               应用推荐参数
             </Button>
           </section>
-          <section className="grid gap-3 rounded-md border border-slate-700 bg-[#17181b] p-3 md:grid-cols-[1fr_1fr_1.2fr]">
+          <section className="hidden gap-3 rounded-md border border-slate-700 bg-[#17181b] p-3 sm:grid-cols-2 xl:grid-cols-4">
             <div>
               <Label className="mb-1 block text-[11px] text-slate-300">采样方法 (Sampler)</Label>
               <Select value={sampler} onValueChange={setSampler}>
@@ -1926,6 +2409,29 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div>
               <div className="mb-1 flex justify-between text-[11px] text-slate-300"><span>迭代步数 (Steps)</span><span>{steps}</span></div>
               <input type="range" min={8} max={50} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="mt-2 w-full accent-violet-500" />
+            </div>
+            <div>
+              <Label className="mb-1 block text-[11px] text-slate-300">生成尺寸</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" min={256} max={2048} step={64} value={width} onChange={(event) => setWidth(Number(event.target.value))} className="h-9 border-slate-600 bg-[#0b0c0e] text-xs" aria-label="宽度" />
+                <Input type="number" min={256} max={2048} step={64} value={height} onChange={(event) => setHeight(Number(event.target.value))} className="h-9 border-slate-600 bg-[#0b0c0e] text-xs" aria-label="高度" />
+              </div>
+            </div>
+            <div>
+              <Label className="mb-1 block text-[11px] text-slate-300">CFG</Label>
+              <Input type="number" min={0.5} max={20} step={0.5} value={cfg} onChange={(event) => setCfg(Number(event.target.value))} className="h-9 border-slate-600 bg-[#0b0c0e] text-xs" />
+            </div>
+            <div>
+              <Label className="mb-1 block text-[11px] text-slate-300">Seed（-1 随机）</Label>
+              <Input type="number" min={-1} value={seed} onChange={(event) => setSeed(Number(event.target.value))} className="h-9 border-slate-600 bg-[#0b0c0e] text-xs" />
+            </div>
+            <div>
+              <div className="mb-1 flex justify-between text-[11px] text-slate-300"><span>Denoise</span><span>{denoise.toFixed(2)}</span></div>
+              <input type="range" min={0.05} max={1} step={0.05} value={denoise} onChange={(event) => setDenoise(Number(event.target.value))} disabled={genMode === 'txt2img'} className="mt-2 w-full accent-violet-500 disabled:opacity-35" />
+            </div>
+            <div>
+              <Label className="mb-1 block text-[11px] text-slate-300">生成数量</Label>
+              <Input type="number" min={1} max={4} value={imageCount} onChange={(event) => setImageCount(Math.min(4, Math.max(1, Number(event.target.value))))} className="h-9 border-slate-600 bg-[#0b0c0e] text-xs" />
             </div>
           </section>
 
@@ -1971,7 +2477,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                   return next;
                 })}
                 className={cn(
-                  'mt-2 flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition',
+                  'hidden mt-2 w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition',
                   identityConsistency
                     ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-50'
                     : 'border-slate-600 bg-slate-950/60 text-slate-300 hover:border-slate-500',
@@ -1987,7 +2493,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     : '关闭'}
                 </span>
               </button>
-              <div className="mt-3 border-t border-slate-700 pt-3">
+              <div className="hidden mt-3 border-t border-slate-700 pt-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-white">混合参考控制</span>
                   <button
@@ -2025,7 +2531,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-900 p-3 space-y-2 shadow-lg shadow-black/20">
+            <div className="hidden rounded-xl border border-slate-700 bg-slate-900 p-3 space-y-2 shadow-lg shadow-black/20">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-semibold text-white">快速预设</div>
                 <Badge variant="outline" className="text-[10px]">中文</Badge>
@@ -2055,16 +2561,57 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             </div>
 
             <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-lg shadow-black/20 [&_label]:font-medium [&_label]:text-slate-200">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[11px] text-slate-400">Sampler</Label>
+                  <Select value={sampler} onValueChange={setSampler}>
+                    <SelectTrigger className="h-9 border-slate-700 bg-slate-950 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="euler">Euler（FLUX 推荐）</SelectItem>
+                      <SelectItem value="euler_ancestral">Euler ancestral</SelectItem>
+                      <SelectItem value="dpmpp_2m">DPM++ 2M</SelectItem>
+                      <SelectItem value="dpmpp_2m_sde">DPM++ 2M SDE</SelectItem>
+                      <SelectItem value="dpmpp_sde">DPM++ SDE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[11px] text-slate-400">Scheduler</Label>
+                  <Select value={scheduler} onValueChange={setScheduler}>
+                    <SelectTrigger className="h-9 border-slate-700 bg-slate-950 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="simple">Simple（FLUX 推荐）</SelectItem>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="karras">Karras</SelectItem>
+                      <SelectItem value="sgm_uniform">SGM Uniform</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div className="flex items-center gap-2 text-sm font-semibold text-violet-300">
                 <Settings2 className="h-4 w-4" /> 参数
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-[11px] text-slate-400">工作流</Label>
-                  <Select value={workflowId} onValueChange={(id) => { const wf = workflows.find((w) => w.id === id); if (wf) applyWorkflow(wf); else setWorkflowId(id); }}>
+                  <Select value={workflowId} onValueChange={(id) => {
+                    if (id === 'auto') {
+                      setWorkflowId('auto');
+                      applyRecommendedParameters(genMode, nsfwIntensity);
+                      toast.success('已使用任务自动工作流，不锁定构图');
+                      return;
+                    }
+                    const wf = workflows.find((w) => w.id === id);
+                    if (wf) applyWorkflow(wf, undefined, { preservePrompt: true });
+                    else setWorkflowId(id);
+                  }}>
                     <SelectTrigger className="h-9 bg-slate-950 border-slate-700 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>{workflows.map((w) => (<SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>))}</SelectContent>
+                    <SelectContent>
+                      <SelectItem value="auto">自动工作流 · 跟随任务与取景</SelectItem>
+                      {workflows.map((w) => (<SelectItem key={w.id} value={w.id}>{w.name}（手动）</SelectItem>))}
+                    </SelectContent>
                   </Select>
+                  <p className="mt-1 text-[10px] text-cyan-300/80">自动模式不会写入固定 3/4 全身构图。</p>
                 </div>
                 <div>
                   <Label className="text-[11px] text-slate-400">端点</Label>
@@ -2078,14 +2625,18 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <Label className="text-[11px] text-slate-400">Checkpoint</Label>
                 <Select value={ckptId} onValueChange={setCkptId}>
                   <SelectTrigger className="h-9 bg-slate-950 border-slate-700 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>{checkpoints.map((c) => (<SelectItem key={c.id} value={c.id}>{c.label || c.filename || c.id}</SelectItem>))}</SelectContent>
+                  <SelectContent>{(studioCheckpoints.length ? studioCheckpoints : checkpoints).map((c) => (<SelectItem key={c.id} value={c.id}>{c.label || c.filename || c.id}</SelectItem>))}</SelectContent>
                 </Select>
+                <p className="mt-1 text-[10px] leading-4 text-cyan-300/80">
+                  自动路由：NSFW {nsfwIntensity}/5 · {animeRenderStyle} · {generationRoute.modelFamily.toUpperCase()} · {generationRoute.reason}
+                </p>
               </div>
               <div>
                 <Label className="text-[11px] flex items-center justify-between">
                   <span>LoRA 叠加（最多 4 个）</span>
                   <span className="text-[10px] text-cyan-300">已选 {selectedLoras.length}</span>
                 </Label>
+                <p className="mb-1 text-[10px] text-slate-400">仅显示与当前 {generationRoute.modelFamily.toUpperCase()} 模型兼容的 LoRA；用途和建议强度见下方。</p>
                 <Select value="none" onValueChange={(id) => {
                   if (id === 'none') return;
                   const l = loras.find((x) => x.id === id);

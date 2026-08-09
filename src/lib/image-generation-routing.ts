@@ -34,6 +34,16 @@ export type ImageGenerationRoute = {
 const env = (name: string, fallback: string): string => process.env[name]?.trim() || fallback;
 const optionalEnv = (name: string): string => process.env[name]?.trim() || '';
 
+export function specialistModelsReadyFromEnv(): boolean {
+  if (process.env.RUNPOD_SDXL_MODELS_READY?.trim().toLowerCase() === 'true') return true;
+  return Boolean(
+    optionalEnv('RUNPOD_ENDPOINT_ID_SDXL') &&
+    optionalEnv('RUNPOD_CHECKPOINT_PONY') &&
+    optionalEnv('RUNPOD_CHECKPOINT_ILLUSTRIOUS') &&
+    optionalEnv('RUNPOD_INSTALLED_LORAS_PONY') &&
+    optionalEnv('RUNPOD_INSTALLED_LORAS_ILLUSTRIOUS')
+  );
+}
 /**
  * Resolve generation parameters for the unified ComfyUI endpoint.
  * ALL requests use the FLUX checkpoint (the only one currently deployed).
@@ -49,6 +59,8 @@ export function resolveImageGenerationRoute(input: {
   sceneSemantics?: ImageSceneSemantics;
   /** Quick preview mode: minimal steps + low cfg for fast companion drafts */
   turbo?: boolean;
+  /** Runtime-verified SDXL inventory; clients receive this from the admin volume API. */
+  specialistModelsReady?: boolean;
 }): ImageGenerationRoute {
   const renderStyle = input.renderStyle || 'realistic';
   const intensity = input.nsfwIntensity || 1;
@@ -59,10 +71,14 @@ export function resolveImageGenerationRoute(input: {
   const endpointId = env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT);
   const sfwCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
   const nsfwCheckpoint = env('RUNPOD_FLUX_NSFW_CHECKPOINT', 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
-  const sdxlEndpoint = optionalEnv('RUNPOD_ENDPOINT_ID_SDXL');
+  // An endpoint ID only proves that a worker exists. Specialist routing is
+  // enabled only after its runtime volume has been verified to expose both
+  // checkpoints and LoRAs; otherwise Comfy returns `value_not_in_list: []`.
+  const sdxlModelsReady = input.specialistModelsReady ?? specialistModelsReadyFromEnv();
+  const sdxlEndpoint = sdxlModelsReady ? optionalEnv('RUNPOD_ENDPOINT_ID_SDXL') : '';
 
-  // Specialist routes are opt-in: missing SDXL capacity safely falls back to
-  // the universal FLUX worker instead of becoming a user-visible outage.
+  // The studio may use a dedicated SDXL worker after its mounted inventory is
+  // explicitly marked ready. Until then all requests stay on verified FLUX.
   if (input.surface === 'companion' && renderStyle === '2d' && sdxlEndpoint) {
     return {
       surface: input.surface,
@@ -105,12 +121,19 @@ export function resolveImageGenerationRoute(input: {
   // ─── Turbo preview mode ───────────────────────────────────────────────────
   // Quick draft for companion chat: 12 steps + low cfg produces a recognizable
   // image in ~3s instead of ~8s. Used for "typing…" previews and pool warm-up.
-  if (input.surface === 'companion' && input.turbo) {
+  if (
+    input.surface === 'companion' &&
+    input.turbo &&
+    renderStyle === 'realistic' &&
+    intensity < 3 &&
+    category !== 'transgender' &&
+    !complexScene
+  ) {
     return {
       surface: input.surface,
       modelFamily: 'flux',
       endpointId,
-      checkpoint: nsfwCheckpoint,
+      checkpoint: sfwCheckpoint,
       sampler: 'euler',
       scheduler: 'simple',
       steps: 8,
@@ -149,7 +172,7 @@ export function resolveImageGenerationRoute(input: {
   // ─── Adult / NSFW anatomy (FLUX pipeline) ─────────────────────────────────
   // Uses FLUX with explicit natural-language prompt. LoRA routing will select
   // Model-family routing may add only runtime-verified LoRAs downstream.
-  const needsAdultAnatomy = input.surface === 'companion' && renderStyle === 'realistic' &&
+  const needsAdultAnatomy = input.surface === 'companion' && renderStyle !== '2d' &&
     (intensity >= 3 || category === 'transgender' || complexScene);
   if (needsAdultAnatomy) {
     const highControl = semantics.powerDynamic === 'sm' || semantics.pairing === 'group_4i';

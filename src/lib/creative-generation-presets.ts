@@ -41,6 +41,8 @@ export function resolveCreativeGenerationPreset(input: {
   assetRole?: CharacterAssetRole;
   scene?: string;
   identityConsistency?: boolean;
+  turbo?: boolean;
+  specialistModelsReady?: boolean;
 }): CreativeGenerationPreset {
   if (input.mode === 'img2video') {
     const explicitMotion = input.intensity >= 4;
@@ -70,6 +72,8 @@ export function resolveCreativeGenerationPreset(input: {
     renderStyle: input.renderStyle,
     nsfwIntensity: input.intensity,
     sceneText: input.scene,
+    turbo: input.turbo,
+    specialistModelsReady: input.specialistModelsReady,
   });
   const isIdentityAsset = input.assetRole === 'avatar-closeup' || (input.assetRole?.startsWith('identity-') ?? false);
   const denoise = input.mode === 'img2img'

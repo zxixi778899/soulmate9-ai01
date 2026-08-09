@@ -532,7 +532,7 @@ export default function CreatePage() {
   const handleGoChat = useCallback(() => {
     const id = reveal?.id;
     setReveal(null);
-    if (id) router.push(`/companion/${id}?tab=chat`);
+    if (id) router.push(`/chats?friend=${encodeURIComponent(id)}`);
     else router.push('/chats');
   }, [reveal, router]);
 

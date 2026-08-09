@@ -132,6 +132,14 @@ export async function POST(
       uploaded_by: userId,
     };
 
+    const { data: existing } = await client
+      .from('companion_assets')
+      .select('*')
+      .eq('girlfriend_id', id)
+      .eq('url', url)
+      .maybeSingle();
+    if (existing) return NextResponse.json({ asset: existing });
+
     const { data, error } = await client
       .from('companion_assets')
       .insert(row)
@@ -170,6 +178,12 @@ export async function PATCH(
       updates.caption = body.caption ? String(body.caption).slice(0, 300) : null;
     }
     if ('sort_order' in body) updates.sort_order = Math.round(Number(body.sort_order) || 0);
+    if ('category' in body) {
+      const category = normalizeCategory(body.category);
+      if (!category) return NextResponse.json({ error: 'invalid category' }, { status: 400 });
+      updates.category = category;
+      updates.media_type = category === 'video' ? 'video' : 'image';
+    }
     if ('url' in body) {
       const u = String(body.url || '').trim();
       if (!looksLikeAssetUrl(u)) {
@@ -179,6 +193,9 @@ export async function PATCH(
     }
     if ('thumbnail_url' in body) {
       updates.thumbnail_url = String(body.thumbnail_url || '').trim() || null;
+    }
+    if ('meta' in body && body.meta && typeof body.meta === 'object' && !Array.isArray(body.meta)) {
+      updates.meta = body.meta as Record<string, unknown>;
     }
 
     const { data, error } = await client
@@ -216,13 +233,32 @@ export async function DELETE(
       return NextResponse.json({ error: 'assetId is required' }, { status: 400 });
     }
 
-    const { error, count } = await client
+    const { data: target } = await client
       .from('companion_assets')
-      .delete({ count: 'exact' })
+      .select('id,url')
       .eq('id', assetId)
-      .eq('girlfriend_id', id);
+      .eq('girlfriend_id', id)
+      .maybeSingle();
+    if (!target) return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+
+    const { data: deleted, error } = await client
+      .from('companion_assets')
+      .delete()
+      .eq('id', assetId)
+      .eq('girlfriend_id', id)
+      .select('id');
     if (error) throw error;
-    if (!count) return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    if (!deleted?.length) return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    if (target.url) {
+      const { error: generationDeleteError } = await client
+        .from('generation_assets')
+        .delete()
+        .eq('girlfriend_id', id)
+        .eq('url', target.url);
+      if (generationDeleteError) {
+        logger.warn('[companion/assets] generation asset cleanup failed', { id, assetId, err: generationDeleteError.message });
+      }
+    }
     return NextResponse.json({ success: true });
   } catch (e) {
     logger.error('[companion/assets] DELETE failed', { id, err: e instanceof Error ? e.message : String(e) });

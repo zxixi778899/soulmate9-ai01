@@ -295,5 +295,5 @@ export function loraUsageZh(lora: { id?: string; label?: string; filename?: stri
     style: '画风控制：改变整体视觉风格；不要叠加互相冲突的风格 LoRA。',
     prop: '道具控制：增加指定物件或主题场景；需在提示词中写出对应道具。',
   };
-  return map[category] || '用途尚未识别：请根据模型页面的触发词，以 0.4 强度开始测试。';
+  return map[category] || '当前模型兼容的画面增强 LoRA；请结合下方触发词，从 0.4 强度开始测试。';
 }

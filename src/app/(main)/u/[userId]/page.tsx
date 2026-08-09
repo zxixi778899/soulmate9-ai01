@@ -145,7 +145,7 @@ export default function CreatorProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0f]">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-transparent">
         <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]/70" />
       </div>
     );
@@ -153,7 +153,7 @@ export default function CreatorProfilePage() {
 
   if (!data || notFound) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0a0a0f] px-6 text-center">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-transparent px-6 text-center">
         <Lock className="h-8 w-8 text-[#8B8BA3]/50" />
         <p className="text-sm text-[#8B8BA3]">
           {t('creator.userNotFound')}
@@ -173,8 +173,8 @@ export default function CreatorProfilePage() {
   const isSelf = !isVirtual && user?.id === userId;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      <div className="mx-auto max-w-3xl px-4 pb-28 pt-4 sm:pt-6">
+    <div className="min-h-[100dvh] w-full bg-transparent text-white">
+      <div className="mx-auto min-h-[100dvh] w-full max-w-[1760px] px-4 pb-28 pt-4 sm:px-6 sm:pt-6 lg:px-10 xl:px-14">
         {/* Top bar */}
         <div className="mb-4 flex items-center gap-2">
           <button
@@ -321,12 +321,12 @@ export default function CreatorProfilePage() {
             {t('creator.noPublishedWorks')}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-4">
+          <div className="grid grid-cols-2 gap-3 pt-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
             {data.works.map((w) => (
               <button
                 key={w.id}
                 type="button"
-                onClick={() => router.push(`/companion/${w.id}`)}
+                onClick={() => router.push(`/chats?friend=${encodeURIComponent(w.id)}`)}
                 className="group relative overflow-hidden rounded-xl ring-1 ring-white/10 hover:ring-[#ff2e88]/45 transition-all active:scale-[0.98] text-left"
               >
                 <div className="relative aspect-[3/4]">

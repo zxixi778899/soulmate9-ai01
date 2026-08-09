@@ -26,7 +26,7 @@ import { resolveChatCall } from '@/lib/ai-modules/resolve';
 import { invokeChat } from '@/lib/ai-modules/invoke';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { COMPANION_CATEGORIES, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
-import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
+import { resolveImageGenerationRoute, specialistModelsReadyFromEnv, type ImageSurface } from '@/lib/image-generation-routing';
 import { classifyImageScene, normalizeLlmImageScene } from '@/lib/image-scene-semantics';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
@@ -34,6 +34,7 @@ import { buildStudioPromptEnhancement, compactFluxPrompt, ensureStudioFluxPrompt
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
+import { adultModelPromptSuffix, selectAdultScenePreset } from '@/lib/comfy-console/adult-scene-presets';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -105,6 +106,7 @@ export async function GET(req: NextRequest) {
       installed_loras: installed,
       code_allowlist: installed,
       inventory_source: installed.length ? 'runtime-volume' : 'unavailable',
+      sdxl_models_ready: specialistModelsReadyFromEnv(),
       env_override: !!(process.env.RUNPOD_INSTALLED_LORAS || process.env.COMFY_INSTALLED_LORAS),
       paths: {
         loras: cfg.network_volume?.loras_dir || 'models/loras',
@@ -468,9 +470,12 @@ export async function POST(req: NextRequest) {
       ? body.previous_prompts.filter((value: unknown): value is string => typeof value === 'string').slice(-5)
       : [];
     const variationSeed = String(body.variation_seed || `${Date.now()}-${Math.random()}`).slice(0, 120);
-    const systemPrompt = `You are the final prompt writer for a photorealistic adult companion image system. Return strict JSON only with keys: "scene", "negative", "pairing", "protagonist", "power_dynamic", "tags".
+    const optimizationInstruction = currentPrompt
+      ? 'Polish the supplied prompt without replacing its subject, scene, wardrobe, action, framing, or intent. Improve clarity, physical coherence, camera language, and model readability only.'
+      : 'No prompt was supplied. Create one task-appropriate scene for the selected asset role and generation mode.';
+    const systemPrompt = `You are the final prompt editor for a photorealistic adult companion image system. Return strict JSON only with keys: "scene", "negative", "pairing", "protagonist", "power_dynamic", "tags".
 
-Write a NEW natural-English generation prompt on every request. Do not copy a stock template and do not merely polish the current prompt. Treat the supplied companion profile, mode, asset role, NSFW level and user scene intent as constraints, then invent one specific lived-in moment.
+${optimizationInstruction}
 
 For realistic images, make the result feel like a real person photographed during a real event: choose a plausible location, available light source, neutral skin-preserving color, ordinary environmental evidence, a physically achievable action with preparation and follow-through, stable center of gravity, purposeful hands, contact pressure, material response, a spontaneous micro-expression, and a believable 35mm or 50mm camera position. Avoid generic beauty language, symmetrical mannequin posing, neon wash on skin, cinematic teal-orange grading, luxury-set clichés and excessive bokeh.
 
@@ -485,10 +490,12 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       `Generation mode: ${generationMode}`,
       `Asset role: ${requestedAssetRole}`,
       `Authoritative companion profile: ${profile}`,
-      `User scene intent (a constraint, not final prose): ${currentPrompt || 'invent a plausible scene suited to this companion'}`,
+      `Current prompt: ${currentPrompt || 'none'}`,
       `Recent prompts that must not be repeated: ${previousPrompts.length ? JSON.stringify(previousPrompts) : 'none'}`,
       `Mandatory negative concepts: ${studioNegativePrompt(category, animeStyle)}`,
-      'Write only the variable scene field in 20-35 words: a specific believable location, wardrobe appropriate to the selected level, spatial layout, motivated light, and camera distance. Do not repeat identity, anatomy, consent, age, exposure level, sexual action, quality tags, model names, or negative instructions; the server adds those deterministically. Use concrete nouns and verbs without headings.',
+      currentPrompt
+        ? 'Return a polished scene field that preserves every concrete choice in the current prompt. Do not invent a different scene.'
+        : 'Write a new variable scene field in 20-35 words for the selected function. Use concrete nouns and verbs without headings.',
     ].join('\n');
     try {
       const aiConfig = await loadAiModules(admin.supabase);
@@ -547,14 +554,8 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
       const sceneSemantics = normalizeLlmImageScene(parsed, fallbackSemantics);
       const optimizedScene = String(parsed.scene || parsed.prompt || '').replace(/\s+/g, ' ').trim();
-      const optimizedPrompt = ensureStudioFluxPrompt({
-        prompt: optimizedScene,
-        category,
-        intensity,
-        animeStyle,
-        identity,
-      });
-      if (optimizedPrompt.length < 80) throw new Error('LLM returned an incomplete prompt');
+      const optimizedPrompt = compactFluxPrompt(optimizedScene);
+      if (optimizedPrompt.length < 40) throw new Error('LLM returned an incomplete prompt');
       if (previousPrompts.some((previous) => previous.trim() === optimizedPrompt)) {
         throw new Error('LLM repeated a previous prompt');
       }
@@ -598,20 +599,8 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
         error: error instanceof Error ? error.message : String(error),
       });
       // Preset fallback: assemble a usable prompt from companion identity + user scene intent
-      const identityParts = [
-        companion.name, companion.appearance_race, companion.appearance_body,
-        companion.appearance_hair_color, companion.appearance_hair, companion.appearance_eyes,
-      ].filter(Boolean).map(String);
       const sceneBase = currentPrompt || 'relaxed candid moment, natural soft window light, warm neutral tones';
-      const fallbackPrompt = generationMode === 'img2video'
-        ? sceneBase
-        : ensureStudioFluxPrompt({
-            prompt: sceneBase,
-            category,
-            intensity,
-            animeStyle,
-            identity: generationMode === 'txt2img' ? identityParts.join(', ') : undefined,
-          });
+      const fallbackPrompt = compactFluxPrompt(sceneBase);
       const fallbackSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
       const generationRoute = resolveImageGenerationRoute({
         surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intensity, sceneSemantics: fallbackSemantics,
@@ -1226,8 +1215,29 @@ if (body.action === 'verify_loras') {
       });
     }
     const surface = (body.generation_surface || (kind === 'girlfriend' ? 'companion' : kind) || 'companion') as ImageSurface;
+    const adultPreset = surface === 'companion' && !isIdentityAsset
+      ? selectAdultScenePreset(generationIntensity)
+      : null;
+    if (adultPreset) {
+      prompt = [prompt.trim(), adultPreset.scene].filter(Boolean).join(', ');
+    }
     const sceneSemantics = classifyImageScene(prompt, category);
-    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics });
+    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics, turbo: body.fast_preview === true });
+    if (
+      surface === 'companion' &&
+      !isIdentityAsset &&
+      generationIntensity >= 3 &&
+      animeStyle !== '3d' &&
+      generationRoute.modelFamily === 'flux'
+    ) {
+      return NextResponse.json({
+        error: 'NSFW 3–5 requires the verified Pony/Illustrious endpoint. Generation was stopped instead of being downgraded to FLUX.',
+        code: 'NSFW_SPECIALIST_NOT_READY',
+      }, { status: 503 });
+    }
+    if (adultPreset) {
+      prompt = `${prompt}, ${adultModelPromptSuffix(generationRoute.modelFamily)}`;
+    }
     if (body.width == null) width = generationRoute.width;
     if (body.height == null) height = generationRoute.height;
     // Identity assets have fixed production dimensions — the avatar is a portrait
@@ -1254,6 +1264,7 @@ if (body.action === 'verify_loras') {
 
     const suppliedReference = String(body.input_image || '').trim();
     const storedIdentityUrls: string[] = [];
+    const storedControlAssets: ReferenceAsset[] = [];
     let storedAvatarUrl = '';
     if (girlfriendId && characterConsistency) {
       const { data: storedIdentityRows, error: storedIdentityError } = await admin.supabase
@@ -1262,13 +1273,26 @@ if (body.action === 'verify_loras') {
         .eq('girlfriend_id', girlfriendId)
         .order('created_at', { ascending: false })
         .limit(40);
+      const { data: companionReferenceRows, error: companionReferenceError } = await admin.supabase
+        .from('companion_assets')
+        .select('url, meta, created_at')
+        .eq('girlfriend_id', girlfriendId)
+        .order('created_at', { ascending: false })
+        .limit(80);
+      if (companionReferenceError) {
+        logger.warn('[comfy] companion reference asset lookup failed', {
+          girlfriend_id: girlfriendId,
+          error: companionReferenceError.message,
+        });
+      }
+      const allStoredReferenceRows = [...(companionReferenceRows || []), ...(storedIdentityRows || [])];
       if (storedIdentityError) {
         logger.warn('[comfy] identity asset lookup failed', {
           girlfriend_id: girlfriendId,
           error: storedIdentityError.message,
         });
       } else {
-        const avatarMatch = (storedIdentityRows || []).find((row) => {
+        const avatarMatch = allStoredReferenceRows.find((row) => {
           const meta = row.meta && typeof row.meta === 'object'
             ? row.meta as Record<string, unknown>
             : {};
@@ -1277,13 +1301,36 @@ if (body.action === 'verify_loras') {
         storedAvatarUrl = avatarMatch?.url ? String(avatarMatch.url).trim() : '';
         const rolePriority = identityReferenceRolePriority(assetRole);
         for (const role of rolePriority) {
-          const match = (storedIdentityRows || []).find((row) => {
+          const match = allStoredReferenceRows.find((row) => {
             const meta = row.meta && typeof row.meta === 'object'
               ? row.meta as Record<string, unknown>
               : {};
             return String(meta.asset_role || '') === role && typeof row.url === 'string' && row.url.trim();
           });
           if (match?.url) storedIdentityUrls.push(String(match.url).trim());
+        }
+        for (const row of allStoredReferenceRows) {
+          const meta = row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {};
+          const storedRole = String(meta.asset_role || '');
+          const referenceRole = storedRole === 'pose-reference'
+            ? 'pose'
+            : storedRole === 'style-reference'
+              ? 'style'
+              : storedRole === 'composition-reference'
+                ? 'composition'
+                : null;
+          if (referenceRole && typeof row.url === 'string' && row.url.trim()) {
+            storedControlAssets.push({
+              id: String(meta.id || `${storedRole}-${storedControlAssets.length}`),
+              url: row.url.trim(),
+              role: referenceRole,
+              companionId: girlfriendId,
+              category,
+              renderStyle: animeStyle,
+              modelFamily: generationRoute.modelFamily,
+              qualityScore: 95,
+            });
+          }
         }
       }
     }
@@ -1298,12 +1345,15 @@ if (body.action === 'verify_loras') {
           modelFamily: generationRoute.modelFamily,
         })
       : [];
+    const requestedManualRole = body.reference_role === 'pose' || body.reference_role === 'style' || body.reference_role === 'composition'
+      ? body.reference_role
+      : 'identity';
     const manualAssets: ReferenceAsset[] = suppliedReference
       ? [{
           id: 'manual-reference',
           url: suppliedReference,
-          role: girlfriendId && characterConsistency ? 'identity' : 'pose',
-          companionId: girlfriendId && characterConsistency ? girlfriendId : undefined,
+          role: requestedManualRole,
+          companionId: requestedManualRole === 'identity' ? girlfriendId || undefined : undefined,
           category,
           renderStyle: animeStyle,
           modelFamily: generationRoute.modelFamily,
@@ -1322,12 +1372,12 @@ if (body.action === 'verify_loras') {
       companionId: girlfriendId || undefined,
       nsfwLevel: generationIntensity,
       controls: requestedReferenceControls,
-      assets: [...identityAssets, ...manualAssets, ...(cfg.reference_assets || [])],
+      assets: [...identityAssets, ...storedControlAssets, ...manualAssets, ...(cfg.reference_assets || [])],
     });
     if (referencePlan.promptHints.length > 0) {
 prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
-    prompt = surface === 'companion' && !isIdentityAsset
+    prompt = surface === 'companion' && !isIdentityAsset && generationRoute.modelFamily === 'flux'
       ? ensureStudioFluxPrompt({ prompt, category, intensity: generationIntensity, animeStyle })
       : compactFluxPrompt(prompt);
     const resolvedReferenceImage =
@@ -1443,7 +1493,9 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     });
     const effectiveLoras = compatibleLoraPlan.selected;
     if (compatibleLoraPlan.triggerWords.length > 0) {
-      prompt = `${compatibleLoraPlan.triggerWords.join(', ')}. ${prompt}`;
+      const promptLower = prompt.toLowerCase();
+      const missingTriggers = compatibleLoraPlan.triggerWords.filter((word) => !promptLower.includes(word.toLowerCase()));
+      if (missingTriggers.length > 0) prompt = `${missingTriggers.join(', ')}. ${prompt}`;
     }
     prompt = compactFluxPrompt(prompt);
 
@@ -1463,6 +1515,9 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       const effectiveGuidance = generationRoute.modelFamily === 'flux'
         ? 1
         : Math.min(9, Math.max(3, Number(body.cfg || body.guidance_scale || generationRoute.cfg)));
+      // Manual workflow controls may tune dimensions/steps, but NSFW 3–5 must
+      // never override the specialist endpoint/checkpoint selected by routing.
+      const allowManualRouting = Boolean(body.workflow_id && wf) && generationIntensity < 3;
       const generationOptions = {
         prompt,
         negative_prompt: negative,
@@ -1477,7 +1532,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         seed: seed >= 0 ? seed : undefined,
         input_image: effectiveInputImage,
         denoising_strength: effectiveDenoise,
-        ckpt_name: body.ckpt_name || generationRoute.checkpoint || ckpt?.filename,
+        ckpt_name: allowManualRouting ? body.ckpt_name || ckpt?.filename || generationRoute.checkpoint : generationRoute.checkpoint,
         model_family: generationRoute.modelFamily,
         lora_name: effectiveLoras.length ? null : loraSan.lora_name,
         lora_strength_model: loraStrength,
@@ -1485,7 +1540,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         loras: effectiveLoras,
         ip_adapter_image: ipAdapterImage,
         ip_adapter_weight: ipAdapterWeight,
-        endpoint_id: body.endpoint_id || generationRoute.endpointId || endpointId,
+        endpoint_id: allowManualRouting ? body.endpoint_id || endpointId || generationRoute.endpointId : generationRoute.endpointId,
         submit_only: true,
       };
       const result = await runpodClient.generate(generationOptions);
@@ -1517,12 +1572,15 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
             } : undefined,
             prompt,
             negative,
+            adultPreset: adultPreset ? { id: adultPreset.id, label: adultPreset.label } : null,
+            modelFamily: generationRoute.modelFamily,
+            routePreset: generationRoute.presetId,
             loras: effectiveLoras.length
               ? effectiveLoras
               : loraSan.lora_name
                 ? [{ name: loraSan.lora_name, strength_model: loraStrength, strength_clip: loraStrength }]
                 : [],
-            checkpoint: body.ckpt_name || ckpt?.filename,
+            checkpoint: allowManualRouting ? body.ckpt_name || ckpt?.filename : generationRoute.checkpoint,
             steps,
             cfg: effectiveGuidance,
             sampler: samplerName,
@@ -1552,8 +1610,8 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
           prompt,
           negative_prompt: negative,
           workflow_id: workflowId || null,
-          endpoint_id: body.endpoint_id || generationRoute.endpointId || endpointId,
-          ckpt_name: body.ckpt_name || ckpt?.filename || null,
+          endpoint_id: allowManualRouting ? body.endpoint_id || endpointId || generationRoute.endpointId : generationRoute.endpointId,
+          ckpt_name: allowManualRouting ? body.ckpt_name || ckpt?.filename || null : generationRoute.checkpoint,
           lora_name: effectiveLoras.length
             ? effectiveLoras.map((item) => item.name).join(',')
             : loraSan.lora_name,
@@ -1571,6 +1629,11 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
             loras: effectiveLoras,
             requested_lora_total_strength: totalLoraStrength,
             denoise: effectiveDenoise ?? 1,
+            adult_preset_id: adultPreset?.id || null,
+            adult_preset_label: adultPreset?.label || null,
+            nsfw_intensity: generationIntensity,
+            routed_model_family: generationRoute.modelFamily,
+            routed_preset_id: generationRoute.presetId,
             character_consistency: characterConsistency,
             consistency_reference: body.input_image
               ? 'uploaded_reference'

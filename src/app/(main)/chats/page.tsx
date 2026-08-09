@@ -13,7 +13,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, type MouseEvent } fr
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useDataSync, notifyDataChange } from '@/hooks/useDataSync';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useMembership } from '@/hooks/useMembership';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -44,6 +44,7 @@ import { loadChatCache, saveChatCache, mergeMessages, deriveMood, deleteChatCach
 import { parseChatImageIntent } from '@/lib/chat-image-intent';
 import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 import { DEFAULT_CHAT_GIFTS, type ChatGift } from '@/lib/gifts/catalog';
+import { companionScore, rarityFromScore } from '@/lib/rarity';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -97,6 +98,47 @@ function computeProgress(score: number, level: number): number {
   const curMin = Number(INTIMACY_LEVELS[safeLevel - 1]?.min_score) || 0;
   const nextMin = Number(INTIMACY_LEVELS[safeLevel]?.min_score) || curMin + 100;
   return Math.min(100, Math.max(0, Math.round(((safeScore - curMin) / (nextMin - curMin)) * 100)));
+}
+
+function clampTrait(value: number | null | undefined): number {
+  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+}
+
+function GrowthStrip({ girlfriend, zh }: { girlfriend: ChatGirlfriend; zh: boolean }) {
+  const metrics = [
+    { key: 'desire', label: zh ? '欲望值' : 'Desire', value: clampTrait(girlfriend.base_desire), hint: zh ? '决定热情与主动程度' : 'Passion and initiative', color: '#FF4D8D' },
+    { key: 'development', label: zh ? '开发值' : 'Development', value: clampTrait(girlfriend.base_development), hint: zh ? '决定亲密行为开放度' : 'Intimacy openness', color: '#B66CFF' },
+    { key: 'kink', label: zh ? '变态值' : 'Kink', value: clampTrait(girlfriend.base_kink), hint: zh ? '决定玩法刺激程度' : 'Intensity and experimentation', color: '#FF9F43' },
+  ];
+  const score = companionScore(girlfriend.base_desire, girlfriend.base_development, girlfriend.base_kink);
+  const rarityCode = rarityFromScore(score);
+  const rarityLabel = rarityCode === 'SSR' ? (zh ? '传说' : 'Legendary') : rarityCode === 'SR' ? (zh ? '史诗' : 'Epic') : rarityCode === 'R' ? (zh ? '稀有' : 'Rare') : (zh ? '普通' : 'Common');
+  const next = score < 70 ? { value: 70, code: 'R', name: zh ? '稀有' : 'Rare' } : score < 80 ? { value: 80, code: 'SR', name: zh ? '史诗' : 'Epic' } : score < 90 ? { value: 90, code: 'SSR', name: zh ? '传说' : 'Legendary' } : null;
+
+  return (
+    <div className="shrink-0 border-b border-white/[0.06] bg-[#0a0612]/80 px-3 py-2 backdrop-blur-xl sm:px-4">
+      <div className="mx-auto flex max-w-5xl items-stretch gap-2 overflow-x-auto">
+        {metrics.map((metric) => (
+          <div key={metric.key} className="min-w-[132px] flex-1 rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-2">
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="font-semibold text-white/80">{metric.label}</span>
+              <span className="font-mono font-bold tabular-nums" style={{ color: metric.color }}>{metric.value}</span>
+            </div>
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/[0.08]">
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${metric.value}%`, backgroundColor: metric.color }} />
+            </div>
+            <p className="mt-1 text-[9px] leading-tight text-white/35">{metric.hint}</p>
+          </div>
+        ))}
+        <div className="min-w-[160px] flex-[1.15] rounded-lg border border-[#FF2D78]/20 bg-[#FF2D78]/[0.07] px-2.5 py-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#ff9ec4]"><Crown className="h-3.5 w-3.5" />{zh ? '当前稀有度' : 'Current rarity'} · {rarityCode} {rarityLabel}</div>
+          <p className="mt-1 text-[9px] leading-snug text-white/45">
+            {next ? (zh ? `综合值 ${score}，达到 ${next.value} 解锁 ${next.code} ${next.name}` : `Score ${score}; reach ${next.value} to unlock ${next.code} ${next.name}`) : (zh ? `综合值 ${score}，已达到最高稀有阶段` : `Score ${score}; highest rarity reached`)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Friend Row ──────────────────────────────────────────────────────────────
@@ -243,6 +285,8 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
 export default function ChatsPage() {
   const { t, locale } = useTranslation();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedFriendId = searchParams.get('friend');
   const { user } = useAuth();
   const membership = useMembership();
   const { unreadCounts, refreshUnread } = useUnreadMessages();
@@ -257,6 +301,10 @@ export default function ChatsPage() {
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedId(requestedFriendId || null);
+  }, [requestedFriendId]);
 
   // ── Chat state ──
   const [girlfriend, setGirlfriend] = useState<ChatGirlfriend | null>(null);
@@ -451,7 +499,7 @@ export default function ChatsPage() {
   // ── Avatar / portrait click → companion profile page (抖音风格个人主页) ──
   const handleOpenProfile = (gf: Friend, e: MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    router.push(`/companion/${gf.id}`);
+    router.push(`/chats?friend=${encodeURIComponent(gf.id)}`);
   };
 
   // ── Publish / withdraw: private companions enter the public library only
@@ -928,7 +976,7 @@ export default function ChatsPage() {
                   onAlbum={handleAlbumClick}
                   onWardrobe={handleWardrobeClick}
                   onOpenProfile={handleOpenProfile}
-                  onClick={() => setSelectedId(gf.id)}
+                  onClick={() => router.push(`/chats?friend=${encodeURIComponent(gf.id)}`)}
                 />
               ))}
             </ul>
@@ -955,15 +1003,15 @@ export default function ChatsPage() {
                 levelInfo={levelInfo as Parameters<typeof ChatAppBar>[0]['levelInfo']}
                 intimacy={intimacy}
                 isTyping={isTyping}
-                onBack={() => setSelectedId(null)}
+                onBack={() => router.push('/chats')}
                 onSelfie={() => void generateSelfie('send me a sexy selfie')}
                 isGenerating={isGenerating}
                 onMemories={() => setShowMemories(true)}
                 onAlbum={() => setShowAlbum(true)}
               />
 
-              {/* Intimacy strip */}
-              <div className="shrink-0 px-3 sm:px-4 py-1.5 border-b border-white/[0.05] bg-[#0a0612]/60">
+              <GrowthStrip girlfriend={girlfriend} zh={locale === 'zh'} />
+              <div className="hidden">
                 <div className="flex items-center gap-2 max-w-3xl mx-auto">
                   <Heart className="h-3.5 w-3.5 text-[#FF6BA6] shrink-0" />
                   <span className="text-[11px] text-white/70 shrink-0">Lv.{levelInfo.level} · {levelInfo.title}</span>
@@ -1081,7 +1129,7 @@ export default function ChatsPage() {
                 className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] cursor-pointer transition-opacity hover:opacity-90"
                 role="button"
                 aria-label={t('chats.openCompanionProfile')}
-                onClick={() => router.push(`/companion/${selFriend.id}`)}
+                onClick={() => router.push(`/chats?friend=${encodeURIComponent(selFriend.id)}`)}
               >
                 {(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url) ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -1221,7 +1269,7 @@ export default function ChatsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => router.push(`/companion/${selFriend.id}?tab=chat`)}
+                onClick={() => router.push(`/chats?friend=${encodeURIComponent(selFriend.id)}`)}
                 className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-white/60 hover:text-white hover:bg-white/[0.05] transition-colors touch-manipulation"
               >
                 <MessageCircle className="h-4 w-4 text-sky-400" />
