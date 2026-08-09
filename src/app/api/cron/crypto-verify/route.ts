@@ -1,11 +1,12 @@
 /**
  * Cron: retry TRC-20 USDT verification for pending payments.
  *
- * Runs every 10 minutes. Picks up crypto_payments stuck in
+ * Runs daily. Picks up crypto_payments stuck in
  * `pending_verification` for > 5 minutes, verifies them on-chain,
- * and auto-confirms if valid.
+ * and auto-confirms if valid. Main verification happens inline in
+ * /api/crypto/submit; this cron is a safety net for missed payments.
  *
- * Trigger: Vercel cron "every 10 minutes" (slash-10 star star star star)
+ * Trigger: Vercel cron "0 6 * * *" (daily 06:00 UTC — Hobby plan limit)
  * Auth: CRON_SECRET header or query param
  */
 
