@@ -24,9 +24,11 @@ export interface TTSVoiceProfile {
   id: string;
   companion_id: string;
   name: string;
-  engine: 'fish-speech' | 'cosyvoice';
+  engine: 'fish-speech' | 'cosyvoice' | 'edge-tts';
   reference_audio_url?: string;
   voice_id?: string;
+  /** Edge TTS specific: voice name like 'en-US-JennyNeural' */
+  edge_voice?: string;
   language: 'en' | 'zh' | 'auto';
   pitch?: number;
   speed?: number;
@@ -63,10 +65,9 @@ function getTTSConfig(): { apiKey: string; endpointId: string; baseUrl: string }
   return { apiKey, endpointId, baseUrl };
 }
 
-/** True when the TTS endpoint + API key are configured. */
+/** Always true — Edge TTS provides a fallback when RunPod is unavailable. */
 export function isTTSConfigured(): boolean {
-  const { apiKey, endpointId } = getTTSConfig();
-  return !!(apiKey && endpointId);
+  return true;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -146,6 +147,89 @@ function extractAudioFromOutput(output: unknown): string | null {
   return visit(output, 0);
 }
 
+// ─── Edge TTS (always-available fallback) ──────────────────────────────────
+
+/** Curated Edge TTS voice pools — natural-sounding female voices. */
+const EDGE_VOICES_EN = [
+  'en-US-JennyNeural',
+  'en-US-AriaNeural',
+  'en-US-SaraNeural',
+  'en-US-CoraNeural',
+  'en-US-ElizabethNeural',
+  'en-US-MichelleNeural',
+  'en-GB-SoniaNeural',
+  'en-GB-LibbyNeural',
+  'en-AU-NatashaNeural',
+];
+
+const EDGE_VOICES_ZH = [
+  'zh-CN-XiaoxiaoNeural',
+  'zh-CN-XiaoyiNeural',
+  'zh-CN-XiaochenNeural',
+  'zh-CN-XiaohanNeural',
+  'zh-CN-XiaomoNeural',
+  'zh-CN-XiaoshuangNeural',
+  'zh-TW-HsiaoChenNeural',
+];
+
+/** Deterministic voice assignment based on companion ID hash. */
+function assignEdgeVoice(companionId: string, language: 'en' | 'zh' | 'auto' = 'auto'): string {
+  const hash = createHash('md5').update(companionId).digest();
+  const idx = hash[0]! % 256;
+  const pool = language === 'zh' ? EDGE_VOICES_ZH : language === 'en' ? EDGE_VOICES_EN : [...EDGE_VOICES_EN, ...EDGE_VOICES_ZH];
+  return pool[idx % pool.length]!;
+}
+
+/**
+ * Synthesize speech using Microsoft Edge TTS (free, no GPU, always available).
+ * Returns opus audio in an ogg container.
+ */
+async function edgeTtsSynthesize(
+  text: string,
+  voice: TTSVoiceProfile,
+  opts?: TTSSynthesizeOptions,
+): Promise<TTSResult> {
+  const { MsEdgeTTS, OUTPUT_FORMAT } = await import('msedge-tts');
+
+  const voiceName = voice.edge_voice || assignEdgeVoice(voice.companion_id, voice.language);
+  const speed = voice.speed ?? 1.0;
+
+  const tts = new MsEdgeTTS();
+  await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+
+  const started = Date.now();
+  const result = tts.toStream(text);
+  const stream = result.audioStream;
+  const chunks: Buffer[] = [];
+
+  await new Promise<void>((resolve, reject) => {
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('end', resolve);
+    stream.on('error', reject);
+    // Safety timeout
+    setTimeout(() => reject(new Error('Edge TTS stream timeout')), 30_000);
+  });
+
+  const audioBuffer = Buffer.concat(chunks);
+  const audioBase64 = audioBuffer.toString('base64');
+  const durationMs = Date.now() - started;
+
+  logger.info('[tts] edge-tts success', {
+    voice: voiceName,
+    companion_id: voice.companion_id,
+    text_len: text.length,
+    bytes: audioBuffer.length,
+    duration_ms: durationMs,
+  });
+
+  return {
+    audio_base64: audioBase64,
+    format: 'mp3',
+    duration_ms: durationMs,
+    voice_id: voiceName,
+  };
+}
+
 // ─── Synthesis ───────────────────────────────────────────────────────────────
 
 /**
@@ -159,9 +243,33 @@ export async function synthesizeSpeech(
   opts?: TTSSynthesizeOptions,
 ): Promise<TTSResult> {
   const { apiKey, endpointId, baseUrl } = getTTSConfig();
-  if (!apiKey || !endpointId) {
-    throw new Error('TTS is not configured. Set RUNPOD_TTS_ENDPOINT_ID and RUNPOD_TTS_API_KEY.');
+  const runpodAvailable = !!(apiKey && endpointId);
+
+  // If engine is explicitly edge-tts, or RunPod is not configured, use Edge TTS directly
+  if (voice.engine === 'edge-tts' || !runpodAvailable) {
+    return edgeTtsSynthesize(text, voice, opts);
   }
+
+  // Try RunPod first, fall back to Edge TTS on failure
+  try {
+    return await synthesizeViaRunPod(text, voice, opts, { apiKey, endpointId, baseUrl });
+  } catch (runpodErr) {
+    logger.warn('[tts] RunPod failed, falling back to Edge TTS', {
+      err: runpodErr instanceof Error ? runpodErr.message : String(runpodErr),
+      companion_id: voice.companion_id,
+    });
+    return edgeTtsSynthesize(text, voice, opts);
+  }
+}
+
+/** Internal: RunPod synthesis (extracted from original synthesizeSpeech). */
+async function synthesizeViaRunPod(
+  text: string,
+  voice: TTSVoiceProfile,
+  opts: TTSSynthesizeOptions | undefined,
+  config: { apiKey: string; endpointId: string; baseUrl: string },
+): Promise<TTSResult> {
+  const { apiKey, endpointId, baseUrl } = config;
 
   const maxLength = Math.max(1, Math.min(opts?.max_length ?? DEFAULT_MAX_TEXT, 2000));
   const cleanText = String(text || '').trim().slice(0, maxLength);
@@ -419,14 +527,42 @@ async function writeProfilesMap(
   }
 }
 
-/** Look up the voice profile configured for a companion (or null). */
+/** Look up the voice profile configured for a companion. Auto-creates Edge TTS profile if none exists. */
 export async function getVoiceForCompanion(
   companionId: string,
   supabase: SupabaseClient,
 ): Promise<TTSVoiceProfile | null> {
   if (!companionId) return null;
   const map = await readProfilesMap(supabase);
-  return map[companionId] ?? null;
+
+  if (map[companionId]) return map[companionId]!;
+
+  // Auto-assign an Edge TTS voice (deterministic based on companion ID)
+  const edgeVoice = assignEdgeVoice(companionId);
+  const autoProfile: TTSVoiceProfile = {
+    id: `vp_${companionId}`,
+    companion_id: companionId,
+    name: 'Edge TTS (auto)',
+    engine: 'edge-tts',
+    edge_voice: edgeVoice,
+    voice_id: edgeVoice,
+    language: edgeVoice.startsWith('zh') ? 'zh' : 'en',
+  };
+
+  // Persist so it stays consistent across requests
+  map[companionId] = autoProfile;
+  await writeProfilesMap(supabase, map).catch((err) => {
+    logger.warn('[tts] auto-save voice profile failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  });
+
+  logger.info('[tts] auto-assigned Edge TTS voice', {
+    companion_id: companionId,
+    voice: edgeVoice,
+  });
+
+  return autoProfile;
 }
 
 /** List all configured voice profiles. */

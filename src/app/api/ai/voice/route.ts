@@ -8,7 +8,6 @@ import {
   cacheVoiceAudio,
   getCachedVoiceUrl,
   getVoiceForCompanion,
-  isTTSConfigured,
   synthesizeSpeech,
 } from '@/lib/tts-service';
 
@@ -42,17 +41,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!isTTSConfigured()) {
-      return NextResponse.json(
-        {
-          error:
-            'Voice messages are not available right now. The TTS service is not configured ' +
-            '(set RUNPOD_TTS_ENDPOINT_ID and RUNPOD_TTS_API_KEY).',
-          code: 'tts_not_configured',
-        },
-        { status: 503 },
-      );
-    }
+    // TTS is always available now (Edge TTS fallback)
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const text = String(body.text || '').trim();
