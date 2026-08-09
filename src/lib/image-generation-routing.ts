@@ -77,6 +77,20 @@ export function resolveImageGenerationRoute(input: {
   const sdxlModelsReady = input.specialistModelsReady ?? specialistModelsReadyFromEnv();
   const sdxlEndpoint = sdxlModelsReady ? optionalEnv('RUNPOD_ENDPOINT_ID_SDXL') : '';
 
+  // Runtime diagnostic logging
+  console.log(JSON.stringify({
+    msg: '[image-routing] resolve',
+    intensity,
+    renderStyle,
+    category,
+    complexScene,
+    sdxlModelsReady,
+    sdxlEndpoint: sdxlEndpoint || '(empty)',
+    env_SDXL_MODELS_READY: process.env.RUNPOD_SDXL_MODELS_READY || '(unset)',
+    env_ENDPOINT_ID_SDXL: process.env.RUNPOD_ENDPOINT_ID_SDXL || '(unset)',
+    input_specialistModelsReady: input.specialistModelsReady,
+  }));
+
   // The studio may use a dedicated SDXL worker after its mounted inventory is
   // explicitly marked ready. Until then all requests stay on verified FLUX.
   if (input.surface === 'companion' && renderStyle === '2d' && sdxlEndpoint) {
