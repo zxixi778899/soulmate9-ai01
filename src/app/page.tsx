@@ -178,6 +178,7 @@ export default function HomePage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [paused, setPaused] = useState(false);
   const [bonding, setBonding] = useState(false);
+  const [addedCompanion, setAddedCompanion] = useState<{ id: string; name: string; portrait?: string } | null>(null);
 
   const loadData = useCallback(async () => {
     const r = await fetchCompanionCatalog(24);
@@ -311,7 +312,7 @@ export default function HomePage() {
           const chatId = await ensureCompanionChatId(girl);
           if (chatId) {
             setDetail(null);
-            router.push(`/chats?friend=${encodeURIComponent(chatId)}`);
+            router.push(`/companion/${encodeURIComponent(chatId)}`);
             return;
           }
         } catch {
@@ -346,11 +347,8 @@ export default function HomePage() {
         }
         return;
       }
-      toast.success(t('explore.addedToFriends', { name: girl.name }), {
-        description: t('explore.goToMessages'),
-        action: { label: t('common.goChat'), onClick: () => router.push(`/chats?friend=${encodeURIComponent(chatId)}`) },
-      });
       void friendStatus.refresh();
+      setAddedCompanion({ id: chatId, name: girl.name, portrait: girl.portrait || girl.avatar || '' });
     } catch (err) {
       const e = err as Error & { code?: string };
       if (e.code === 'SEAT_LIMIT') {
@@ -918,6 +916,35 @@ export default function HomePage() {
         }}
       />
 
+      {/* Add-friend success popup */}
+      {addedCompanion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setAddedCompanion(null)}>
+          <div className="w-80 rounded-2xl bg-gray-900 border border-purple-500/30 p-6 mx-4 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {addedCompanion.portrait && (
+              <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-purple-500/50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={addedCompanion.portrait} alt="" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <h3 className="text-lg font-bold text-white mb-1">{t('explore.addedToFriends', { name: addedCompanion.name })}</h3>
+            <p className="text-sm text-gray-400 mb-5">{addedCompanion.name} is now in your companion list</p>
+            <div className="space-y-2">
+              <button
+                onClick={() => { router.push(`/companion/${addedCompanion.id}?tab=chat`); setAddedCompanion(null); }}
+                className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white text-sm font-bold hover:opacity-90 transition"
+              >
+                💬 {t('explore.goToMessages')}
+              </button>
+              <button
+                onClick={() => { router.push(`/companion/${addedCompanion.id}`); setAddedCompanion(null); }}
+                className="w-full h-11 rounded-xl border border-gray-700 text-gray-300 text-sm font-medium hover:bg-gray-800 transition"
+              >
+                {t('explore.viewProfile')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </GameShell>
   );
 }

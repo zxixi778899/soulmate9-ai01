@@ -94,7 +94,7 @@ export async function openCompanionChat(
     } catch {
       /* ignore */
     }
-    router.push(`/chats?friend=${encodeURIComponent(chatId)}`);
+    router.push(`/companion/${encodeURIComponent(chatId)}`);
     return true;
   } catch (err) {
     throw err;
