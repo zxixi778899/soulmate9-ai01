@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   }
 
   const GF_FIELDS =
-    'id, name, slug, avatar_url, portrait_url, personality, short_description, review_status, is_public, age, tags, character_card, submitted_at, rejection_reason';
+    'id, name, slug, avatar_url, portrait_url, personality, short_description, review_status, is_public, age, tags, character_card, submitted_at, rejection_reason, voice_promo_url';
 
   const { data: rows, error } = await client
     .from('user_friends')

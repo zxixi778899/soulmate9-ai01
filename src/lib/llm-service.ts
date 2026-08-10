@@ -23,10 +23,10 @@ const LORA_NAME = process.env.RUNPOD_VLLM_LORA || 'rp'; // which LoRA to apply
 // RunPod serverless cold starts often exceed 60s (queue delay alone can be 70s+).
 const FETCH_TIMEOUT = 120000;
 
-const DEFAULT_TEMPERATURE         = Number(process.env.LLM_TEMPERATURE || 0.7);
-const DEFAULT_MAX_TOKENS          = Number(process.env.LLM_MAX_TOKENS || 1024);
+const DEFAULT_TEMPERATURE         = Number(process.env.LLM_TEMPERATURE || 0.65);
+const DEFAULT_MAX_TOKENS          = Number(process.env.LLM_MAX_TOKENS || 512);
 const DEFAULT_TOP_P               = Number(process.env.LLM_TOP_P || 0.9);
-const DEFAULT_REPETITION_PENALTY  = Number(process.env.LLM_REPETITION_PENALTY || 1.05);
+const DEFAULT_REPETITION_PENALTY  = Number(process.env.LLM_REPETITION_PENALTY || 1.13);
 
 function isConfigured() { return !!(RP_BASE && RP_KEY); }
 
@@ -285,7 +285,7 @@ async function streamRunPodReal(
     body: JSON.stringify({
       model,
       messages,
-      max_tokens: options.maxTokens ?? 1024,
+      max_tokens: options.maxTokens ?? 512,
       temperature: options.temperature ?? DEFAULT_TEMPERATURE,
       top_p: options.topP ?? DEFAULT_TOP_P,
       repetition_penalty: options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY,
@@ -398,7 +398,7 @@ export async function streamText(options: GenOptions): Promise<Response> {
     try {
       const content = await callTogetherChat(messages as { role: string; content: string }[], {
         ...options,
-        maxTokens: options.maxTokens ?? 1024,
+        maxTokens: options.maxTokens ?? 512,
       });
       logger.debug('[llm] response', { data: { ms: Date.now() - start, len: content.length, provider: 'together' } });
       return sseFromText(content);

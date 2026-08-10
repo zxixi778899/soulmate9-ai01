@@ -7,7 +7,7 @@ import { uploadFile } from '@/lib/storage';
 import {
   cacheVoiceAudio,
   getCachedVoiceUrl,
-  getVoiceForCompanion,
+  getVoiceForCompanionV2,
   synthesizeSpeech,
 } from '@/lib/tts-service';
 
@@ -68,8 +68,28 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2) Resolve the companion's voice profile.
-    const voice = await getVoiceForCompanion(girlfriendId, client);
+    // 2) Resolve the companion's voice profile (personality-aware).
+    const { data: companionRow } = await client
+      .from('girlfriends')
+      .select('id, name, personality, backstory, language, occupation, character_card')
+      .eq('id', girlfriendId)
+      .maybeSingle();
+
+    const companion = companionRow as Record<string, unknown> | null;
+    const voice = await getVoiceForCompanionV2(
+      {
+        id: girlfriendId,
+        name: String(companion?.name || ''),
+        personality: String(companion?.personality || ''),
+        backstory: String(companion?.backstory || ''),
+        language: String(companion?.language || 'en'),
+        occupation: String(companion?.occupation || ''),
+        voice: String(
+          (companion?.character_card as Record<string, unknown> | null)?.voice || '',
+        ),
+      },
+      client,
+    );
     if (!voice) {
       return NextResponse.json(
         {

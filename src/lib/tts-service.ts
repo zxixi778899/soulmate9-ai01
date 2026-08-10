@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { resolveBucketName, toPublicUrl, uploadFile } from '@/lib/storage';
 import { VOICE_EMOTIONS, isVoiceEmotion } from '@/lib/tts-emotion';
+import { assignVoiceByPersonality, getArchetypeForPersonality } from '@/lib/voice-personality';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,10 @@ export interface TTSVoiceProfile {
   pitch?: number;
   speed?: number;
   emotion_presets?: string[];
+  /** Voice promo: self-introduction + hook audio URL */
+  voice_promo_url?: string;
+  /** Voice promo: the text used for synthesis */
+  voice_promo_text?: string;
 }
 
 export interface TTSResult {
@@ -466,6 +471,10 @@ function normalizeProfile(raw: Record<string, unknown>, companionId: string): TT
     pitch,
     speed,
     emotion_presets: emotionPresets && emotionPresets.length ? emotionPresets : undefined,
+    voice_promo_url:
+      typeof raw.voice_promo_url === 'string' && raw.voice_promo_url ? raw.voice_promo_url : undefined,
+    voice_promo_text:
+      typeof raw.voice_promo_text === 'string' && raw.voice_promo_text ? raw.voice_promo_text : undefined,
   };
 }
 
@@ -601,4 +610,102 @@ export async function deleteVoiceProfile(
   delete map[companionId];
   await writeProfilesMap(supabase, map);
   logger.info('[tts] voice profile deleted', { companion_id: companionId });
+}
+
+// ─── Personality-aware voice profile (V2) ──────────────────────────────────
+
+export interface CompanionVoiceInput {
+  id: string;
+  name: string;
+  personality?: string;
+  backstory?: string;
+  language?: string;
+  occupation?: string;
+  voice?: string; // explicit voice override (e.g. from character_card)
+}
+
+/**
+ * Get a personality-aware voice profile for a companion.
+ *
+ * Precedence:
+ *   1. Explicitly saved profile (from site_settings map)
+ *   2. Explicit voice override on the companion row (voice_id)
+ *   3. Personality-aware assignment (archetype-based)
+ *   4. Hash-based Edge TTS fallback
+ *
+ * The result is persisted so all future TTS uses the same voice/timbre.
+ */
+export async function getVoiceForCompanionV2(
+  companion: CompanionVoiceInput,
+  supabase: SupabaseClient,
+): Promise<TTSVoiceProfile | null> {
+  if (!companion?.id) return null;
+
+  // 1. Check for an explicitly saved profile (read raw map — do NOT auto-assign)
+  const map = await readProfilesMap(supabase);
+  if (map[companion.id]) return map[companion.id]!;
+
+  // Determine language from companion row
+  const language: 'en' | 'zh' | 'auto' =
+    companion.language === 'zh'
+      ? 'zh'
+      : companion.language === 'en'
+        ? 'en'
+        : 'auto';
+
+  // 2. Explicit voice override (a voice_id/edge_voice set on the companion)
+  if (companion.voice) {
+    const override: TTSVoiceProfile = {
+      id: `vp_${companion.id}`,
+      companion_id: companion.id,
+      name: `${companion.name || 'Companion'} Voice`,
+      engine: 'edge-tts',
+      edge_voice: companion.voice,
+      voice_id: companion.voice,
+      language,
+    };
+    await saveVoiceProfile(override, supabase).catch((err) => {
+      logger.warn('[tts] save override failed', {
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
+    return override;
+  }
+
+  // 3. Personality-aware assignment
+  const assigned = assignVoiceByPersonality(
+    companion.id,
+    companion.personality || '',
+    language,
+    companion.backstory,
+    companion.occupation,
+  );
+
+  const profile: TTSVoiceProfile = {
+    id: `vp_${companion.id}`,
+    companion_id: companion.id,
+    name: `${assigned.archetype.label}`,
+    engine: 'edge-tts',
+    edge_voice: assigned.edge_voice,
+    voice_id: assigned.edge_voice,
+    language,
+    pitch: assigned.pitch,
+    speed: assigned.speed,
+  };
+
+  // Persist so it stays consistent
+  await saveVoiceProfile(profile, supabase).catch((err) => {
+    logger.warn('[tts] auto-save personality voice profile failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  });
+
+  logger.info('[tts] personality voice assigned', {
+    companion_id: companion.id,
+    name: companion.name,
+    archetype: assigned.archetype.id,
+    voice: assigned.edge_voice,
+  });
+
+  return profile;
 }

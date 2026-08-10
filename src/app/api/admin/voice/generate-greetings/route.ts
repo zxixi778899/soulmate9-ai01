@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/require-admin';
 import { logger } from '@/lib/logger';
 import { uploadFile } from '@/lib/storage';
 import {
-  getVoiceForCompanion,
+  getVoiceForCompanionV2,
   synthesizeSpeech,
   type TTSVoiceProfile,
 } from '@/lib/tts-service';
@@ -145,8 +145,22 @@ export async function POST(req: NextRequest) {
             companionLangTyped,
           );
 
-        // Get or auto-create voice profile
-        const voice = await getVoiceForCompanion(companion.id, supabase);
+        // Get personality-aware voice profile (auto-assigns the archetype-matched voice)
+        const card = companion.character_card && typeof companion.character_card === 'object'
+          ? (companion.character_card as Record<string, unknown>)
+          : {};
+        const voice = await getVoiceForCompanionV2(
+          {
+            id: companion.id,
+            name: companion.name,
+            personality: companion.personality || '',
+            backstory: companion.backstory || '',
+            language: companion.language || 'en',
+            occupation: String(card.occupation || ''),
+            voice: String(card.voice || ''),
+          },
+          supabase,
+        );
         if (!voice) {
           failed++;
           results.push({ id: companion.id, name: companion.name, status: 'failed', error: 'No voice profile' });
