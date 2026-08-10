@@ -134,6 +134,104 @@ async function getLoreContext(client: SupabaseClient, girlfriend_id: string, mes
   }
 }
 
+async function extractMilestonesFromChat(
+  client: SupabaseClient,
+  userId: string,
+  girlfriendId: string,
+  gfName: string,
+) {
+  const { extractMilestones } = await import('@/lib/milestone-extractor');
+  const { embed } = await import('@/lib/memory-rag');
+
+  // Get recent messages (including the one we just saved)
+  const recent = (await client
+    .from('chat_messages')
+    .select('role, content')
+    .eq('girlfriend_id', girlfriendId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(10)
+  ).data || [];
+
+  // Extract structured milestones using LLM
+  const extracted = await extractMilestones(recent.slice(0, 8));
+
+  for (const m of extracted) {
+    // Check if this milestone already exists (by title + date combination)
+    const { data: existing } = await client
+      .from('companion_milestones')
+      .select('id')
+      .eq('girlfriend_id', girlfriendId)
+      .eq('user_id', userId)
+      .eq('event_type', m.event_type)
+      .ilike('title', `%${m.title.slice(0, 20)}%`)
+      .limit(1);
+
+    if (existing && existing.length > 0) continue;
+
+    // Insert the milestone
+    const { data: inserted } = await client
+      .from('companion_milestones')
+      .insert({
+        user_id: userId,
+        girlfriend_id: girlfriendId,
+        event_type: m.event_type,
+        title: m.title,
+        description: m.description,
+        event_date: m.event_date,
+        participants: m.participants || [],
+        location: m.location,
+        emotional_context: m.emotional_context,
+        keywords: m.keywords,
+        importance: m.importance,
+      })
+      .select('id')
+      .single();
+
+    if (inserted?.id) {
+      logger.debug('chat/stream: milestone extracted', {
+        milestoneId: inserted.id,
+        eventType: m.event_type,
+        title: m.title,
+      });
+    }
+  }
+}
+
+async function updateSceneStateAfterReply(
+  client: SupabaseClient,
+  userId: string,
+  girlfriendId: string,
+  assistantReply: string,
+) {
+  const { getOrCreateScenario, updateScenarioState, suggestPhaseProgression } = await import('@/lib/scenario-engine');
+
+  // Get the active scenario
+  const scenario = await getOrCreateScenario(client, userId, girlfriendId);
+  if (!scenario || !scenario.id) return;
+
+  // Extract scene context from the reply (first 150 chars as a recap)
+  const sceneSnippet = assistantReply.slice(0, 150);
+
+  // Get current duration and suggest phase
+  const currentState = scenario.scenario_state;
+  const durationBeats = (currentState.duration_beats || 0) + 1;
+  const nextPhase = suggestPhaseProgression(durationBeats, currentState.phase);
+
+  // Update scenario state
+  await updateScenarioState(client, scenario.id, {
+    phase: nextPhase,
+    current_scene: sceneSnippet,
+    duration_beats: durationBeats,
+  });
+
+  logger.debug('chat/stream: scenario state updated', {
+    scenarioId: scenario.id,
+    phase: nextPhase,
+    durationBeats,
+  });
+}
+
 export async function POST(request: NextRequest) {
   const { user, client } = await getAuthUser(request);
   if (!user || !client) {
@@ -404,6 +502,21 @@ export async function POST(request: NextRequest) {
   const { retrieveMemories } = await import('@/lib/memory-rag');
   const memories = await retrieveMemories(client, user.id, girlfriend_id, messageText, 5);
 
+  // 千人千面：关键词触发的关键节点回忆
+  const { retrieveMilestones } = await import('@/lib/milestone-retriever');
+  const milestoneRecalls = await retrieveMilestones(client, user.id, girlfriend_id, messageText, 3);
+
+  // 情景模式：获取当前活跃情景状态
+  let scenarioRecap = '';
+  if (replyMode === 'scene') {
+    const { getOrCreateScenario, buildScenarioRecap } = await import('@/lib/scenario-engine');
+    const gfRel = String((gf.relationship as string) || (gf.metadata as Record<string, unknown> | undefined)?.relationship || '').trim().toLowerCase();
+    const activeScenario = await getOrCreateScenario(client, user.id, girlfriend_id, replyMode === 'scene' ? gfRel : undefined);
+    if (activeScenario) {
+      scenarioRecap = buildScenarioRecap(activeScenario, chatLocale === 'zh');
+    }
+  }
+
   // Re-resolve after memory retrieval so long-term continuity can upgrade the model.
   chatResolved = resolveChatCall(aiModules, {
     tier: membershipTier, userId: user.id,
@@ -446,6 +559,9 @@ export async function POST(request: NextRequest) {
       intimacyLevel,
       detectedEmotion,
       memories: memories || [],
+      milestones: milestoneRecalls.length > 0
+        ? milestoneRecalls.map((r) => ({ milestone_text: r.recall_text, relevance_score: r.relevance_score }))
+        : undefined,
       loreContext,
       presets,
       locale: chatLocale,
@@ -453,6 +569,7 @@ export async function POST(request: NextRequest) {
       nsfwChannel: intimacyLevel >= 3 && chatResolved.channel === 'nsfw' && effectiveIntensity >= 3,
       replyMode,
       nsfwIntensity: effectiveIntensity,
+      scenarioRecap: scenarioRecap || undefined,
     }) +
     (sceneRecap
       ? `\n\n${zhChat ? `[SCENE RECAP] 上一幕：${sceneRecap}` : `[SCENE RECAP] Previous scene: ${sceneRecap}`}`
@@ -685,6 +802,7 @@ export async function POST(request: NextRequest) {
               reply_mode: replyMode,
               nsfw_intensity: effectiveIntensity,
               scene_state: fullResponse.slice(0, 120),
+              ...(scenarioRecap ? { scenario_recap: scenarioRecap } : {}),
             },
           });
         }
@@ -720,6 +838,21 @@ export async function POST(request: NextRequest) {
               err: memoryError instanceof Error ? memoryError.message : String(memoryError),
             });
           });
+
+          // 千人千面：最佳努力提取关键节点
+          await Promise.race([
+            extractMilestonesFromChat(client, user.id, girlfriend_id, gf.name),
+            new Promise((r) => setTimeout(r, 8_000)),
+          ]).catch((milestoneError: unknown) => {
+            logger.warn('chat/stream: milestone extraction failed', {
+              err: milestoneError instanceof Error ? milestoneError.message : String(milestoneError),
+            });
+          });
+        }
+
+        // 情景模式：更新情景状态（scene mode 专用）
+        if (replyMode === 'scene' && fullResponse) {
+          updateSceneStateAfterReply(client, user.id, girlfriend_id, fullResponse).catch(() => {});
         }
 
         // Check achievements (fire and forget)
