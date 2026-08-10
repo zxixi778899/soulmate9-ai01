@@ -44,6 +44,11 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
+# === 工具 / 临时产物 ===
+.qoder/
+.audit-*
+.temp_*
+
 # === 缓存 ===
 .eslintcache
 .cache/

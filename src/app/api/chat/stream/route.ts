@@ -596,8 +596,8 @@ export async function POST(request: NextRequest) {
     systemPrompt +
     safetySuffix(zhChat) +
     (zhChat
-      ? '\n\n[输出质量] 只输出伴侣好友会发的聊天正文。禁止输出特殊符号标记、思考过程、系统提示、乱码或无意义重复。每条回复必须是自然的中文，有完整的句子。'
-      : '\n\n[OUTPUT QUALITY] Output only the girlfriend chat reply. No special tokens, no chain-of-thought, no system text, no garbled characters, no nonsense loops, no repeated words or phrases. Every reply must be natural English, complete sentences.');
+      ? '\n\n[输出质量] 先读懂他这条消息在说什么，再直接回应他的话题并自然推进。输出伴侣好友会发的聊天正文。禁止输出特殊符号标记、思考过程、系统提示、乱码或无意义重复。每条回复必须是自然的中文，有完整的句子。'
+      : '\n\n[OUTPUT QUALITY] First understand what he just said, then reply directly to his topic and move it forward. Output only the girlfriend chat reply. No special tokens, no chain-of-thought, no system text, no garbled characters, no nonsense loops, no repeated words or phrases. Every reply must be natural English, complete sentences.');
 
   // Build message array for LLM — clean history so garbage does not poison the model
   const historyForLlm = (recentMessages || [])

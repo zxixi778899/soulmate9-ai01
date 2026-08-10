@@ -802,6 +802,7 @@ class RunPodClient {
    */
   async generate(options: RunPodGenerateOptions, pollIntervalMs = 2000): Promise<RunPodGenerateResult> {
     this.refreshConfig();
+    options = this.preflightValidateModelOptions(options);
     const endpointId = options.endpoint_id || this.endpointId;
     const baseUrl = endpointId ? `https://api.runpod.ai/v2/${endpointId}` : this.baseUrl;
     if (!this.apiKey || !endpointId) {
@@ -1382,6 +1383,78 @@ class RunPodClient {
       }
     }
     return urls;
+  }
+
+  /**
+   * Validate and adjust model options before submission.
+   * Prevents submit_only jobs from failing with value_not_in_list errors
+   * when the endpoint lacks the requested checkpoint or LoRAs.
+   */
+  private preflightValidateModelOptions(options: RunPodGenerateOptions): RunPodGenerateOptions {
+    const adjusted = { ...options };
+    const family = options.model_family || 'flux';
+
+    // FLUX checkpoint validation: fluxUnchained requires the NSFW volume to be ready.
+    if (family === 'flux') {
+      const nsfwReady = process.env.RUNPOD_FLUX_NSFW_READY === 'true';
+      const requestedCkpt = options.ckpt_name || process.env.RUNPOD_FLUX_NSFW_CHECKPOINT || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
+      const safeCkpt = process.env.RUNPOD_FLUX_CHECKPOINT || 'flux1-dev-fp8.safetensors';
+
+      if (requestedCkpt === 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors' && !nsfwReady) {
+        logger.warn('[runpod] NSFW checkpoint not ready, falling back to base FLUX checkpoint', {
+          requested: requestedCkpt,
+          fallback: safeCkpt,
+        });
+        adjusted.ckpt_name = safeCkpt;
+        adjusted.ckpt_loader = 'checkpoint';
+      }
+    }
+
+    // Filter LoRAs against the installed inventory for this model family.
+    const inventoryEnv =
+      family === 'flux'
+        ? 'RUNPOD_INSTALLED_LORAS_FLUX'
+        : family === 'pony'
+          ? 'RUNPOD_INSTALLED_LORAS_PONY'
+          : family === 'illustrious'
+            ? 'RUNPOD_INSTALLED_LORAS_ILLUSTRIOUS'
+            : 'RUNPOD_INSTALLED_LORAS_FLUX';
+    const installedRaw = process.env[inventoryEnv] || '';
+    const installed = new Set(
+      installedRaw
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    const filterLoras = (loras: Array<{ name: string; strength_model?: number; strength_clip?: number }> | undefined) => {
+      if (!loras || loras.length === 0) return loras;
+      const kept = loras.filter((l) => {
+        const base = l.name.split('/').pop() || l.name;
+        const key = base.trim().toLowerCase();
+        return installed.size === 0 || installed.has(key);
+      });
+      if (kept.length !== loras.length) {
+        logger.warn('[runpod] filtered LoRAs not present on endpoint', {
+          removed: loras.filter((l) => !kept.includes(l)).map((l) => l.name),
+        });
+      }
+      return kept.length > 0 ? kept : undefined;
+    };
+
+    adjusted.loras = filterLoras(options.loras);
+    if (options.lora_name) {
+      const base = options.lora_name.split('/').pop() || options.lora_name;
+      const key = base.trim().toLowerCase();
+      if (installed.size > 0 && !installed.has(key)) {
+        logger.warn('[runpod] dropping single LoRA not present on endpoint', {
+          removed: options.lora_name,
+        });
+        adjusted.lora_name = null;
+      }
+    }
+
+    return adjusted;
   }
 
   private refreshConfig(): void {
