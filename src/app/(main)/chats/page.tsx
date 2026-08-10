@@ -830,12 +830,14 @@ export default function ChatsPage() {
       if (fullContent) void fetchSmartSuggestions(fullContent, text);
       if (wantsPhoto && text) void generateSelfie(text);
 
-      // Intimacy update
-      const intRes = await authedFetch('/api/intimacy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ girlfriend_id: selectedId, message_type: 'normal' }) });
-      const intData = (await readResponseJson(intRes).catch(() => ({}))) as { score?: number; level?: number; gained?: number };
+      // Intimacy refresh (read-only — the stream route already increments it
+      // server-side; POSTing here again would double-count the gain)
+      const intRes = await authedFetch(`/api/intimacy?girlfriend_id=${encodeURIComponent(selectedId)}`);
+      const intData = (await readResponseJson(intRes).catch(() => ({}))) as { scores?: Array<{ girlfriend_id: string; score: number; level: number; daily_score_gained?: number }> };
+      const intRow = (intData.scores || []).find((s) => s.girlfriend_id === selectedId) || (intData.scores || [])[0];
       let nextIntimacy = intimacy;
-      if (typeof intData.score === 'number') {
-        nextIntimacy = { score: intData.score, level: typeof intData.level === 'number' ? intData.level : 1, daily_score_gained: (intimacy.daily_score_gained || 0) + (typeof intData.gained === 'number' ? intData.gained : 0) };
+      if (intRow && typeof intRow.score === 'number') {
+        nextIntimacy = { score: intRow.score, level: typeof intRow.level === 'number' ? intRow.level : 1, daily_score_gained: Number(intRow.daily_score_gained) || 0 };
         setIntimacy(nextIntimacy);
       }
       setMessages((prev) => {

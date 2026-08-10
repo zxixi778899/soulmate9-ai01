@@ -16,24 +16,27 @@ export async function GET(
   // M12  limit  30 100 limit=100000  DB
   const { page, limit, offset } = parsePagination(request, { defaultLimit: 30, maxLimit: 100 });
 
-  const { data: messages, error } = await client
-    .from('chat_messages')
-    .select('*')
-    .eq('girlfriend_id', id)
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+  // Fetch the page and the total count in parallel (independent queries).
+  const [messagesRes, countRes] = await Promise.all([
+    client
+      .from('chat_messages')
+      .select('*')
+      .eq('girlfriend_id', id)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1),
+    client
+      .from('chat_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('girlfriend_id', id)
+      .eq('user_id', user.id),
+  ]);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (messagesRes.error) {
+    return NextResponse.json({ error: messagesRes.error.message }, { status: 500 });
   }
-
-  // Get total count for pagination
-  const { count } = await client
-    .from('chat_messages')
-    .select('*', { count: 'exact', head: true })
-    .eq('girlfriend_id', id)
-    .eq('user_id', user.id);
+  const messages = messagesRes.data;
+  const count = countRes.count;
 
   const resolvedMessages = await Promise.all(
     (messages || []).reverse().map(async (message) => ({

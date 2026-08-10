@@ -30,12 +30,21 @@ import {
   stripActionBeats,
 } from '@/lib/chat-reply-sanitize';
 import { moderateText, type ContentMode } from '@/lib/content-moderation';
-import { deductCredits } from '@/lib/credit-system';
 import { checkCompanionAccess } from '@/lib/companion-access';
 import { getIntimacyLevel } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// Hard-coded daily message limits, used only when the admin-configured AI
+// module does not define one for the tier. -1 = unlimited.
+const FALLBACK_DAILY_LIMITS: Record<MembershipTier, number> = {
+  free: 40,
+  basic: 150,
+  pro: 300,
+  unlimited: -1,
+  admin: -1,
+};
 
 // Emotion detection is inlined below using quickEmotion() + LLM fallback
 // (saves ~1 LLM call per message + 2-5s latency on every chat).
@@ -241,7 +250,7 @@ export async function POST(request: NextRequest) {
   // Rate limiting: 60 requests/minute per user
   const { data: profile } = await client
     .from('profiles')
-    .select('membership_tier, credits_remaining, newbie_expires_at, preferred_locale, locale, subscription_tier, plan')
+    .select('membership_tier, newbie_expires_at, preferred_locale, locale, subscription_tier, plan, timezone_offset')
     .eq('user_id', user.id)
     .single();
 
@@ -251,42 +260,6 @@ export async function POST(request: NextRequest) {
     const rl = rateLimitMiddleware(`chat:${user.id}`, RATE_LIMITS.chat);
     if (!rl.allowed) {
       return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429, headers: rl.headers });
-    }
-  }
-
-  // ─── Daily message limit + credit overflow ───────────────────────────────────
-  const tier = String(profile?.membership_tier || 'free').toLowerCase();
-  const TIER_LIMITS: Record<string, number> = { free: 40, basic: 150, pro: 300, unlimited: -1 };
-  const dailyLimit = TIER_LIMITS[tier] ?? 40;
-
-  if (!isNewbieTrial && dailyLimit > 0) {
-    const today = new Date().toISOString().split('T')[0];
-    const { count } = await client
-      .from('chat_messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('role', 'user')
-      .gte('created_at', today);
-
-    if (count && count >= dailyLimit) {
-      // Over limit → text is subscription-only, no credit charge (soft limit)
-      const cost = 0;
-      const balance = profile?.credits_remaining ?? 0;
-      if (balance < cost) {
-        return NextResponse.json({
-          error: 'Daily message limit reached. Insufficient credits (need ' + cost + '). Buy credits or upgrade!',
-          code: 'insufficient_credits',
-          required: cost,
-          balance,
-        }, { status: 403 });
-      }
-      const deductResult = await deductCredits(client, user.id, cost, 'chat_extra');
-      if (!deductResult.ok) {
-        return NextResponse.json({
-          error: 'Failed to deduct credits. Please try again.',
-          code: 'credit_deduct_failed',
-        }, { status: 500 });
-      }
     }
   }
 
@@ -468,11 +441,17 @@ export async function POST(request: NextRequest) {
     locale: chatLocale,
   });
 
-  // Apply configured daily limit from modules (override hard-coded free limit when present)
+  // Daily message limit — single enforcement point (the legacy "soft limit"
+  // block never blocked and wasted an extra count query per message).
+  // Admin-configured per-tier value wins; hard-coded fallback otherwise.
   const tierRoute = aiModules.chat.tiers[
     membershipTier === 'unlimited' ? 'unlimited' : membershipTier === 'pro' ? 'pro' : membershipTier === 'basic' ? 'basic' : 'free'
   ];
-  if (tierRoute.daily_message_limit != null && !isNewbieTrial) {
+  const effectiveDailyLimit =
+    tierRoute.daily_message_limit != null
+      ? tierRoute.daily_message_limit
+      : FALLBACK_DAILY_LIMITS[membershipTier] ?? 40;
+  if (!isNewbieTrial && effectiveDailyLimit >= 0) {
     const today = new Date().toISOString().split('T')[0];
     const { count } = await client
       .from('chat_messages')
@@ -480,13 +459,13 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .eq('role', 'user')
       .gte('created_at', today);
-    if (count && count >= tierRoute.daily_message_limit) {
+    if (count && count >= effectiveDailyLimit) {
       return NextResponse.json(
         {
-          error: `You've reached your daily message limit (${tierRoute.daily_message_limit}). Upgrade for more chats!`,
+          error: `You've reached your daily message limit (${effectiveDailyLimit}). Upgrade for more chats!`,
           localized_error: chatLocale === 'zh'
-            ? `今日消息次数已用完（${tierRoute.daily_message_limit} 条），请升级套餐后继续聊天。`
-            : `You've reached your daily message limit (${tierRoute.daily_message_limit}). Upgrade for more chats!`,
+            ? `今日消息次数已用完（${effectiveDailyLimit} 条），请升级套餐后继续聊天。`
+            : `You've reached your daily message limit (${effectiveDailyLimit}). Upgrade for more chats!`,
           code: 'daily_message_limit',
         },
         { status: 403 },
@@ -535,13 +514,22 @@ export async function POST(request: NextRequest) {
   // Build system prompt: character + hard language lock from this turn's message
   const zhChat = chatLocale === 'zh';
   const langLock = languageLockInstruction(chatLocale);
-  // Soft time awareness — server clock is UTC, so frame it as approximate.
+  // Soft time awareness — convert to the user's detected timezone when
+  // available (profiles.timezone_offset, minutes from UTC); server clock is
+  // UTC otherwise, so frame it as approximate.
   const nowUtc = new Date();
+  const rawTzOffset = (profileAny?.timezone_offset as number | string | null | undefined) ?? null;
+  const tzOffsetMin = Number(rawTzOffset) || 0;
+  const tzKnown = rawTzOffset != null && Number.isFinite(Number(rawTzOffset));
+  const localNow = new Date(nowUtc.getTime() + tzOffsetMin * 60_000);
   const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const hhmm = `${String(nowUtc.getUTCHours()).padStart(2, '0')}:${String(nowUtc.getUTCMinutes()).padStart(2, '0')}`;
+  const hhmm = `${String(localNow.getUTCHours()).padStart(2, '0')}:${String(localNow.getUTCMinutes()).padStart(2, '0')}`;
+  const tzNote = zhChat
+    ? tzKnown ? '按他的时区换算' : 'UTC，他的当地时间可能不同'
+    : tzKnown ? "converted to his timezone" : 'UTC (his local time may differ)';
   const timeContext = zhChat
-    ? `[时间感] 现在大约是${weekdayNames[nowUtc.getUTCDay()]} ${hhmm}（UTC，他的当地时间可能不同）。可自然带出时段氛围（深夜、清晨、周末），但别武断地说「早上好」之类，除非他先提到。`
-    : `[TIME SENSE] It is roughly ${weekdayNames[nowUtc.getUTCDay()]} ${hhmm} UTC (his local time may differ). You can lean into the time-of-day vibe (late night, weekend), but never assert "good morning"-style greetings unless he mentions it first.`;
+    ? `[时间感] 现在大约是${weekdayNames[localNow.getUTCDay()]} ${hhmm}（${tzNote}）。可自然带出时段氛围（深夜、清晨、周末），但别武断地说「早上好」之类，除非他先提到。`
+    : `[TIME SENSE] It is roughly ${weekdayNames[localNow.getUTCDay()]} ${hhmm} (${tzNote}). You can lean into the time-of-day vibe (late night, weekend), but never assert "good morning"-style greetings unless he mentions it first.`;
   const desiredIntensity = Math.max(1, Math.min(5, Math.round(Number(body.nsfw_intensity) || 3)));
   const effectiveIntensity = intimacyLevel >= 3 ? desiredIntensity : Math.min(desiredIntensity, 2);
   const lastMeta =
@@ -828,26 +816,28 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
 
-        // Best-effort memory extraction AFTER stream close (with timeout guard).
+        // Best-effort memory + milestone extraction AFTER stream close.
+        // Run both in parallel (they are independent) with timeout guards.
         if (messageText && messageText !== '[media]') {
-          await Promise.race([
-            extractMemories(client, user.id, girlfriend_id, messageText, gf.name),
-            new Promise((r) => setTimeout(r, 12_000)),
-          ]).catch((memoryError: unknown) => {
-            logger.warn('chat/stream: memory extraction failed', {
-              err: memoryError instanceof Error ? memoryError.message : String(memoryError),
-            });
-          });
-
-          // 千人千面：最佳努力提取关键节点
-          await Promise.race([
-            extractMilestonesFromChat(client, user.id, girlfriend_id, gf.name),
-            new Promise((r) => setTimeout(r, 8_000)),
-          ]).catch((milestoneError: unknown) => {
-            logger.warn('chat/stream: milestone extraction failed', {
-              err: milestoneError instanceof Error ? milestoneError.message : String(milestoneError),
-            });
-          });
+          await Promise.all([
+            Promise.race([
+              extractMemories(client, user.id, girlfriend_id, messageText, gf.name),
+              new Promise((r) => setTimeout(r, 12_000)),
+            ]).catch((memoryError: unknown) => {
+              logger.warn('chat/stream: memory extraction failed', {
+                err: memoryError instanceof Error ? memoryError.message : String(memoryError),
+              });
+            }),
+            // 千人千面：最佳努力提取关键节点
+            Promise.race([
+              extractMilestonesFromChat(client, user.id, girlfriend_id, gf.name),
+              new Promise((r) => setTimeout(r, 8_000)),
+            ]).catch((milestoneError: unknown) => {
+              logger.warn('chat/stream: milestone extraction failed', {
+                err: milestoneError instanceof Error ? milestoneError.message : String(milestoneError),
+              });
+            }),
+          ]);
         }
 
         // 情景模式：更新情景状态（scene mode 专用）

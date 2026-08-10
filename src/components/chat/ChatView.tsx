@@ -1612,24 +1612,21 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         void generateVideo(text);
       }
 
-      const intRes = await authedFetch('/api/intimacy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ girlfriend_id: id, message_type: 'normal' }),
-      });
+      // Intimacy refresh (read-only): the chat stream route already
+      // increments intimacy server-side per message — POSTing here again
+      // would double-count the gain.
+      const intRes = await authedFetch(`/api/intimacy?girlfriend_id=${encodeURIComponent(id)}`);
       const intData = (await readResponseJson(intRes).catch(() => ({}))) as {
-        score?: number;
-        level?: number;
-        gained?: number;
+        scores?: Array<{ girlfriend_id: string; score: number; level: number; daily_score_gained?: number }>;
       };
+      const intRow =
+        (intData.scores || []).find((s) => s.girlfriend_id === id) || (intData.scores || [])[0];
       let nextIntimacy = intimacy;
-      if (typeof intData.score === 'number') {
+      if (intRow && typeof intRow.score === 'number') {
         nextIntimacy = {
-          score: intData.score,
-          level: typeof intData.level === 'number' ? intData.level : 1,
-          daily_score_gained:
-            (intimacy.daily_score_gained || 0) +
-            (typeof intData.gained === 'number' ? intData.gained : 0),
+          score: intRow.score,
+          level: typeof intRow.level === 'number' ? intRow.level : 1,
+          daily_score_gained: Number(intRow.daily_score_gained) || 0,
         };
         setIntimacy(nextIntimacy);
       }
