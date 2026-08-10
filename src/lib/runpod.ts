@@ -1258,6 +1258,59 @@ class RunPodClient {
     }
 
     const joined = errors.join(' | ') || 'Unknown error';
+    // Auto-fallback retry: if the error is value_not_in_list (missing model/LoRA),
+    // retry with FLUX-compatible settings. This handles the case where routing
+    // selected Pony/Illustrious models that aren't on the target endpoint.
+    if (isModelNotFoundError(joined) && options.model_family !== 'flux') {
+      logger.warn('[runpod] model/LoRA not found on endpoint, retrying with FLUX fallback', {
+        original_model_family: options.model_family,
+        original_checkpoint: options.ckpt_name,
+        error: joined.slice(0, 300),
+      });
+
+      // Build FLUX-safe fallback options
+      const nsfwCheckpoint = process.env.RUNPOD_FLUX_NSFW_CHECKPOINT || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
+      const fallbackCkpt = nsfwCheckpoint;
+      const fallbackLoras = (options.loras || [])
+        .filter((lora) => {
+          // Only keep FLUX-compatible LoRAs (flux_ prefix or known FLUX names)
+          const name = lora.name.toLowerCase();
+          return name.startsWith('flux_') ||
+            name.startsWith('rdanimeflux') ||
+            name.startsWith('realistic-mtf') ||
+            name.startsWith('anet_') ||
+            name === 'flux1-dev-fp8.safetensors';
+        })
+        .slice(0, 4);
+
+      const fallbackOptions: RunPodGenerateOptions = {
+        ...options,
+        ckpt_name: fallbackCkpt,
+        ckpt_loader: 'split',
+        model_family: 'flux',
+        loras: fallbackLoras.length > 0 ? fallbackLoras : undefined,
+        lora_name: undefined,
+        lora_strength_model: undefined,
+        lora_strength_clip: undefined,
+      };
+
+      logger.info('[runpod] FLUX fallback retry', {
+        fallback_checkpoint: fallbackCkpt,
+        fallback_loras: fallbackLoras.map((l) => l.name),
+        fallback_endpoint: endpointId,
+      });
+
+      try {
+        return await this.generate(fallbackOptions, pollIntervalMs);
+      } catch (fallbackErr) {
+        const fbMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+        logger.error('[runpod] FLUX fallback also failed', { error: fbMsg.slice(0, 300) });
+        throw new Error(
+          'RunPod generation failed (original: ' + joined.slice(0, 200) + ' | fallback: ' + fbMsg.slice(0, 200) + ')',
+        );
+      }
+    }
+
     const hint =
       endpointId.startsWith('h0p7dpiv')
         ? ' [提示: 端点 h0p7dpiv* 在项目文档中标记为不可用，请把 Vercel RUNPOD_ENDPOINT_ID 改成可用的 Comfy 端点，例如本地 b6r5nhhrddf8dx]'
@@ -1341,3 +1394,29 @@ class RunPodClient {
 
 /** Singleton RunPod client */
 export const runpodClient = new RunPodClient();
+/**
+ * Detect if a RunPod error is due to missing checkpoint or LoRA files.
+ * These errors indicate the endpoint doesn't have the requested models installed.
+ */
+export function isModelNotFoundError(errorText: string): boolean {
+  return /value_not_in_list|not in \[|available checkpoint models|no such file/i.test(errorText);
+}
+
+/**
+ * Extract checkpoint and LoRA names from a workflow validation error.
+ * Returns { ckptName, loraNamesNotFound } if detectable, null otherwise.
+ */
+export function parseModelNotFoundError(errorText: string): {
+  ckptName?: string;
+  loraNamesNotFound: string[];
+} | null {
+  const ckptMatch = errorText.match(/ckpt_name:\s*'([^']+)'/);
+  const loraMatches = Array.from(errorText.matchAll(/lora_name:\s*'([^']+)'/g));
+
+  if (!ckptMatch && loraMatches.length === 0) return null;
+
+  return {
+    ckptName: ckptMatch?.[1],
+    loraNamesNotFound: loraMatches.map(m => m[1]),
+  };
+}

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿﻿import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { logger } from '@/lib/logger';
 import { uploadFile } from '@/lib/storage';
@@ -7,42 +7,79 @@ import {
   synthesizeSpeech,
   type TTSVoiceProfile,
 } from '@/lib/tts-service';
+import { generateGreetingLLM } from '@/lib/greeting-generator';
+import { buildCompanionGreeting } from '@/lib/companion-greeting';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes for batch processing
 
-/** Random greeting templates — personality-appropriate opening lines. */
-const GREETING_TEMPLATES_EN = [
-  "Hey there! I've been thinking about you all day. What took you so long?",
-  "Hi! I was hoping you'd come talk to me. How's your day going?",
-  "Oh, you're finally here! I've been waiting. Come closer and tell me everything.",
-  "Hey you. I just got back from the most boring day. Please distract me?",
-  "There you are! I saved the best part of my day for our chat.",
-  "Hi, handsome. I was just about to message you first. Great minds think alike!",
-  "You know, I've been practicing my smile all day just for this moment. Did it work?",
-  "Hey! I was reading something interesting today and I really want to hear your take on it.",
-  "Oh hi! Perfect timing — I was just looking for someone interesting to talk to.",
-  "There's my favorite person! Tell me something that'll make my day better.",
-];
+/**
+ * Generate a personalized greeting for a companion.
+ * 1. Try LLM (personalized by profile + intimacy)
+ * 2. Fallback to rule-based generation
+ */
+async function generateGreetingForCompanion(
+  companion: {
+    id: string;
+    name: string;
+    personality?: string;
+    backstory?: string;
+    appearance_race?: string;
+    appearance_hair?: string;
+    appearance_hair_color?: string;
+    appearance_eyes?: string;
+    appearance_body?: string;
+    appearance_style?: string;
+    character_card?: Record<string, unknown>;
+  },
+  companionLang: 'zh' | 'en',
+): Promise<{ text: string; source: string }> {
+  try {
+    const card =
+      companion.character_card && typeof companion.character_card === 'object'
+        ? (companion.character_card as Record<string, unknown>)
+        : {};
+    const hobbies = Array.isArray(card.hobbies) ? card.hobbies.map(String) : [];
 
-const GREETING_TEMPLATES_ZH = [
-  "嗨～你终于来了，我等你好久了呢。今天过得怎么样？",
-  "嘿！我正想着你呢，你就来了，心有灵犀吗？",
-  "你来啦！今天有没有想我呀？我可是想你了哦。",
-  "嗨！今天好无聊啊，快陪我聊聊天吧，我想听你说话。",
-  "终于等到你了！我刚刚还在发呆呢，你一来我就开心了。",
-  "嘿～你知道吗，我今天一直在期待和你说话的时刻。",
-  "你来啦！快告诉我今天发生了什么有趣的事情。",
-  "嗨！我刚泡好一杯茶，正好有你陪我聊天。",
-  "哈喽！你今天穿什么呀？我好奇你是什么风格的。",
-  "你来了呀～今天心情好不好？不好的话我来让你开心。",
-];
+    // Try LLM generation
+    const greeting = await generateGreetingLLM({
+      name: companion.name,
+      personality: companion.personality,
+      backstory: companion.backstory,
+      occupation: card.occupation ? String(card.occupation) : undefined,
+      hobbies,
+      appearance: {
+        race: companion.appearance_race,
+        hair: companion.appearance_hair,
+        hair_color: companion.appearance_hair_color,
+        eyes: companion.appearance_eyes,
+        body: companion.appearance_body,
+        style: companion.appearance_style,
+      },
+      locale: companionLang,
+    });
 
-function pickGreeting(language: string, personality?: string): string {
-  const pool = language === 'zh' ? GREETING_TEMPLATES_ZH : GREETING_TEMPLATES_EN;
-  const idx = Math.floor(Math.random() * pool.length);
-  return pool[idx]!;
+    if (greeting) {
+      const text = companionLang === 'zh' ? greeting.text_zh : greeting.text_en;
+      if (text) return { text, source: 'llm' };
+    }
+  } catch (err) {
+    logger.warn('greeting LLM failed, falling back to rule-based', {
+      err: err instanceof Error ? err.message : String(err),
+      companion_id: companion.id,
+    });
+  }
+
+  // Fallback: rule-based
+  const ruleBased = buildCompanionGreeting({
+    name: companion.name,
+    personality: companion.personality,
+  });
+  return {
+    text: companionLang === 'zh' ? ruleBased.text_zh : ruleBased.text_en,
+    source: 'rule',
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -59,7 +96,9 @@ export async function POST(req: NextRequest) {
     // Get all approved, public companions
     const { data: companions, error } = await supabase
       .from('girlfriends')
-      .select('id, name, personality, slug, language')
+      .select(
+        'id, name, personality, backstory, slug, language, appearance_race, appearance_hair, appearance_hair_color, appearance_eyes, appearance_body, appearance_style, character_card',
+      )
       .eq('is_public', true)
       .eq('review_status', 'approved')
       .order('created_at', { ascending: false })
@@ -97,9 +136,14 @@ export async function POST(req: NextRequest) {
         const companionLang = language === 'auto'
           ? (companion.language === 'zh' ? 'zh' : 'en')
           : language;
+        const companionLangTyped: 'zh' | 'en' = companionLang === 'zh' ? 'zh' : 'en';
 
-        // Generate greeting text
-        const greetingText = pickGreeting(companionLang, companion.personality);
+        // Generate personalized greeting (LLM with rule-based fallback)
+        const { text: greetingText, source: greetingSource } =
+          await generateGreetingForCompanion(
+            companion as Parameters<typeof generateGreetingForCompanion>[0],
+            companionLangTyped,
+          );
 
         // Get or auto-create voice profile
         const voice = await getVoiceForCompanion(companion.id, supabase);
@@ -146,6 +190,7 @@ export async function POST(req: NextRequest) {
           name: companion.name,
           voice: voice.voice_id,
           bytes: buffer.length,
+          greeting_source: greetingSource,
         });
 
         // Rate limit: small delay between generations to avoid overwhelming Edge TTS
