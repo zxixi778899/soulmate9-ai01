@@ -1389,15 +1389,35 @@ class RunPodClient {
    * Validate and adjust model options before submission.
    * Prevents submit_only jobs from failing with value_not_in_list errors
    * when the endpoint lacks the requested checkpoint or LoRAs.
+   * Handles all model families: FLUX, Pony, Illustrious.
    */
   private preflightValidateModelOptions(options: RunPodGenerateOptions): RunPodGenerateOptions {
     const adjusted = { ...options };
     const family = options.model_family || 'flux';
 
+    // Check if SDXL specialist models (Pony/Illustrious) are actually ready.
+    // If RUNPOD_SDXL_MODELS_READY is not explicitly 'true', the SDXL endpoint
+    // may not have the required checkpoints/LoRAs installed.
+    const sdxlReady = process.env.RUNPOD_SDXL_MODELS_READY === 'true';
+
+    // Pony / Illustrious: fall back to FLUX if SDXL models are not ready.
+    if ((family === 'pony' || family === 'illustrious') && !sdxlReady) {
+      logger.warn('[runpod] SDXL models not ready, falling back to FLUX', {
+        requested_family: family,
+        fallback: 'flux',
+      });
+      adjusted.model_family = 'flux';
+      adjusted.ckpt_name = process.env.RUNPOD_FLUX_CHECKPOINT || 'flux1-dev-fp8.safetensors';
+      adjusted.ckpt_loader = 'checkpoint';
+      // Clear SDXL-specific LoRAs; they will be re-filtered below.
+      adjusted.loras = undefined;
+      adjusted.lora_name = null;
+    }
+
     // FLUX checkpoint validation: fluxUnchained requires the NSFW volume to be ready.
-    if (family === 'flux') {
+    if ((adjusted.model_family || family) === 'flux') {
       const nsfwReady = process.env.RUNPOD_FLUX_NSFW_READY === 'true';
-      const requestedCkpt = options.ckpt_name || process.env.RUNPOD_FLUX_NSFW_CHECKPOINT || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
+      const requestedCkpt = adjusted.ckpt_name || process.env.RUNPOD_FLUX_NSFW_CHECKPOINT || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
       const safeCkpt = process.env.RUNPOD_FLUX_CHECKPOINT || 'flux1-dev-fp8.safetensors';
 
       if (requestedCkpt === 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors' && !nsfwReady) {
@@ -1411,12 +1431,14 @@ class RunPodClient {
     }
 
     // Filter LoRAs against the installed inventory for this model family.
+    // Use adjusted.model_family to reflect any fallback (e.g. Pony -> FLUX).
+    const effectiveFamily = adjusted.model_family || family;
     const inventoryEnv =
-      family === 'flux'
+      effectiveFamily === 'flux'
         ? 'RUNPOD_INSTALLED_LORAS_FLUX'
-        : family === 'pony'
+        : effectiveFamily === 'pony'
           ? 'RUNPOD_INSTALLED_LORAS_PONY'
-          : family === 'illustrious'
+          : effectiveFamily === 'illustrious'
             ? 'RUNPOD_INSTALLED_LORAS_ILLUSTRIOUS'
             : 'RUNPOD_INSTALLED_LORAS_FLUX';
     const installedRaw = process.env[inventoryEnv] || '';
