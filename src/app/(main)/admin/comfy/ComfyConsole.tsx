@@ -117,32 +117,57 @@ const CAMERA_ANGLES: Array<{ id: CameraAngle; label: string; prompt: string }> =
   { id: 'high-angle', label: '俯视', prompt: 'HIGH-ANGLE CAMERA REQUIREMENT: camera placed above eye level and looking downward, visible downward perspective' },
 ];
 
-const PROMPT_APPEND_PRESETS = [
-  { group: '光线', items: [
-    { label: '明亮柔光', prompt: 'bright soft key light, balanced fill light, face and body clearly illuminated, correct exposure, no crushed shadows' },
-    { label: '窗边日光', prompt: 'bright natural window light, soft frontal fill, clean highlights, visible skin and clothing detail' },
-    { label: '影棚布光', prompt: 'professional three-point studio lighting, bright key light, soft fill light, controlled rim light, even exposure' },
-  ] },
-  { group: '质量', items: [
-    { label: '真实皮肤', prompt: 'natural skin texture, visible pores, accurate skin tone, realistic fabric detail, restrained sharpening' },
-    { label: '高清细节', prompt: 'sharp subject detail, detailed eyes, detailed hands, clean edges, high dynamic range, professional finish' },
-  ] },
-  { group: '服装', items: [
-    { label: '日常休闲', prompt: 'wearing a fitted contemporary casual outfit with realistic fabric folds and complete garment construction' },
-    { label: '优雅礼服', prompt: 'wearing an elegant fitted evening dress with refined tailoring and realistic fabric sheen' },
-    { label: '蕾丝内衣', prompt: 'wearing a coordinated adult lace lingerie set with realistic lace texture and tasteful styling' },
-  ] },
-  { group: '场景', items: [
-    { label: '明亮卧室', prompt: 'in a bright modern bedroom with clean daylight, soft neutral decor and clear background depth' },
-    { label: '落地窗边', prompt: 'beside a large floor-to-ceiling window in a modern interior, bright daylight filling the room' },
-    { label: '摄影棚', prompt: 'in a professional portrait studio with a clean seamless background and controlled lighting' },
-  ] },
-  { group: '动作', items: [
-    { label: '自然站立', prompt: 'standing naturally with relaxed shoulders, balanced posture, hands clearly visible' },
-    { label: '回眸', prompt: 'turning the upper body slightly and looking back toward the camera with a natural expression' },
-    { label: '坐姿', prompt: 'sitting with supported posture, anatomically natural leg placement and relaxed hands' },
-  ] },
-] as const;
+function getPromptAppendPresets(nsfwLevel: NsfwIntensity) {
+  const base = [
+    { group: '光线', items: [
+      { label: '明亮柔光', prompt: 'bright soft key light, balanced fill light, face and body clearly illuminated, correct exposure, no crushed shadows' },
+      { label: '窗边日光', prompt: 'bright natural window light, soft frontal fill, clean highlights, visible skin and clothing detail' },
+      { label: '影棚布光', prompt: 'professional three-point studio lighting, bright key light, soft fill light, controlled rim light, even exposure' },
+    ] },
+    { group: '质量', items: [
+      { label: '真实皮肤', prompt: 'natural skin texture, visible pores, accurate skin tone, realistic fabric detail, restrained sharpening' },
+      { label: '高清细节', prompt: 'sharp subject detail, detailed eyes, detailed hands, clean edges, high dynamic range, professional finish' },
+    ] },
+    { group: '服装', items: [
+      { label: '日常休闲', prompt: 'wearing a fitted contemporary casual outfit with realistic fabric folds and complete garment construction' },
+      { label: '优雅礼服', prompt: 'wearing an elegant fitted evening dress with refined tailoring and realistic fabric sheen' },
+      { label: '蕾丝内衣', prompt: 'wearing a coordinated adult lace lingerie set with realistic lace texture and tasteful styling' },
+    ] },
+    { group: '场景', items: [
+      { label: '明亮卧室', prompt: 'in a bright modern bedroom with clean daylight, soft neutral decor and clear background depth' },
+      { label: '落地窗边', prompt: 'beside a large floor-to-ceiling window in a modern interior, bright daylight filling the room' },
+      { label: '摄影棚', prompt: 'in a professional portrait studio with a clean seamless background and controlled lighting' },
+    ] },
+    { group: '动作', items: [
+      { label: '自然站立', prompt: 'standing naturally with relaxed shoulders, balanced posture, hands clearly visible' },
+      { label: '回眸', prompt: 'turning the upper body slightly and looking back toward the camera with a natural expression' },
+      { label: '坐姿', prompt: 'sitting with supported posture, anatomically natural leg placement and relaxed hands' },
+    ] },
+  ];
+  if (nsfwLevel >= 2) {
+    base[2].items.push(
+      { label: '透视薄纱', prompt: 'wearing a sheer translucent fabric that reveals body contours beneath, elegant sensual styling' },
+      { label: '情趣套装', prompt: 'wearing an adult fantasy lingerie costume with straps and cutouts, bold sensual styling' },
+    );
+  }
+  if (nsfwLevel >= 3) {
+    base[4].items.push(
+      { label: '裸体展示', prompt: 'standing fully nude with natural confident posture, full body clearly visible, hands resting naturally' },
+      { label: '抚摸姿势', prompt: 'one hand gently touching her own body, sensual self-caress, intimate expression' },
+    );
+  }
+  if (nsfwLevel >= 4) {
+    base[4].items.push(
+      { label: '自慰动作', prompt: 'performing solo masturbation with clear hand-to-body contact, explicit adult action' },
+    );
+  }
+  if (nsfwLevel >= 5) {
+    base[4].items.push(
+      { label: '交合动作', prompt: 'engaged in consensual intercourse with an unmistakably adult partner, explicit sexual contact' },
+    );
+  }
+  return base;
+}
 
 export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyConsoleProps) {
   const [tab, setTab] = useState<'generate' | 'loras' | 'library' | 'workflows' | 'infra'>('generate');
@@ -275,11 +300,16 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   };
 
   const applyPreset = (p: GenPreset) => {
+    const framing = [
+      CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt,
+      CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt,
+    ].filter(Boolean).join(', ');
     setPrompt(compactFluxPrompt(buildStudioPromptEnhancement({
       category: companionCategory,
       intensity: nsfwIntensity,
       animeStyle: animeRenderStyle,
       scene: p.prompt,
+      framing: framing || undefined,
     })));
     setPromptProfileApplied(true);
     setNegative(`${studioNegativePrompt(companionCategory, animeRenderStyle)}, ${p.negative}`);
@@ -370,11 +400,16 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const applyCategoryPrompt = (category: CompanionCategory) => {
     const preset = STUDIO_PROMPTS[category];
     setCompanionCategory(category);
+    const framing = [
+      CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt,
+      CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt,
+    ].filter(Boolean).join(', ');
     setPrompt(compactFluxPrompt(buildStudioPromptEnhancement({
       category,
       intensity: nsfwIntensity,
       animeStyle: animeRenderStyle,
       scene: preset.prompt,
+      framing: framing || undefined,
     })));
     setPromptProfileApplied(true);
     setNegative(`${studioNegativePrompt(category, animeRenderStyle)}, ${preset.negative}`);
@@ -2302,7 +2337,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <span className="text-[10px] text-slate-400">不会替换伴侣提示词，可分别叠加光线、质量、服装、场景和动作</span>
               </div>
               <div className="space-y-2">
-                {PROMPT_APPEND_PRESETS.map((group) => (
+                {getPromptAppendPresets(nsfwIntensity).map((group) => (
                   <div key={group.group} className="flex flex-wrap items-center gap-2">
                     <span className="w-9 shrink-0 text-[10px] font-semibold text-violet-300">{group.group}</span>
                     {group.items.map((item) => (

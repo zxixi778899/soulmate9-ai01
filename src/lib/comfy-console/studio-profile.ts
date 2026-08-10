@@ -131,14 +131,15 @@ export function buildStudioPromptSections(input: {
   animeStyle?: AnimeRenderStyle;
   scene?: string;
   identity?: string;
+  framing?: string;
 }): StudioPromptSections {
-const composition = input.intensity >= 4
+const composition = input.framing ?? (input.intensity >= 4
     ? 'Vertical head-to-knee or full-body framing; faces, hands, pelvis and contact points visible; physically stable pose.'
     : input.intensity === 3
       ? 'Vertical head-to-knee or full-body framing; head, hands, torso and pelvis visible; natural weight.'
       : input.category === 'transgender'
         ? 'Relaxed three-quarter full-body view with feminine face, chest, waist and hips clearly readable.'
-        : 'Relaxed three-quarter full-body view, natural weight and candid eye contact.';
+        : 'Relaxed three-quarter full-body view, natural weight and candid eye contact.');
   return {
     identity: input.identity
       ? `${CATEGORY_SUBJECTS[input.category]}${compactIdentity(input.identity)}`
@@ -156,6 +157,7 @@ export function buildStudioPromptEnhancement(input: {
   animeStyle?: AnimeRenderStyle;
   scene?: string;
   identity?: string;
+  framing?: string;
 }): string {
   const sections = buildStudioPromptSections(input);
   return [
