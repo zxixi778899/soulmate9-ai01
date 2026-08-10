@@ -19,15 +19,18 @@ export type CharacterPromptInput = {
   intimacyLevel: number;
   detectedEmotion: string;
   memories?: { content: string; type: string }[];
+  milestones?: { milestone_text: string; relevance_score: number }[];
   loreContext?: string;
   presets?: { mood?: string; pose?: string; environment?: string };
   locale?: ChatLocale;
   allowNsfw?: boolean;
   nsfwChannel?: boolean;
-  /** scene = 场景模式（保留现在的风格，强化“说”）；dialogue = 对话模式（只输出台词） */
+  /** scene = 场景模式（保留现在的风格，强化”说”）；dialogue = 对话模式（只输出台词） */
   replyMode?: 'scene' | 'dialogue';
   /** 本轮 NSFW 强度 1–5（随消息生效） */
   nsfwIntensity?: number;
+  /** 情景模式的场景信息 */
+  scenarioRecap?: string;
 };
 
 function isZh(locale?: ChatLocale): boolean {
@@ -218,6 +221,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
     intimacyLevel,
     detectedEmotion,
     memories,
+    milestones,
     loreContext,
     presets,
     locale = 'en',
@@ -225,6 +229,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
     nsfwChannel = false,
     replyMode = 'scene',
     nsfwIntensity,
+    scenarioRecap,
   } = input;
 
   const zh = isZh(locale);
@@ -534,6 +539,30 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       zh
         ? '（自然提起，别列清单。记得的细节会让他更上瘾。）'
         : '(Reference naturally — remembered details make him addicted to you.)',
+    );
+  }
+
+  // ── 关键节点回忆（关键词触发的结构化事件） ──
+  if (milestones && milestones.length > 0) {
+    sections.push(
+      '',
+      zh ? '=== 共享回忆（关键节点） ===' : '=== SHARED MEMORIES (MILESTONES) ===',
+      ...milestones.map((m) => `- ${m.milestone_text}`),
+      zh
+        ? '（以上是你们之间的真实回忆。用感叹、怀念、撒娇的方式提起，让他觉得你记得所有细节。不要全部列出，自然融入对话挑一两件提。）'
+        : '(These are real shared memories between you. Bring them up with warmth, nostalgia, or playfulness — pick one or two naturally, never list them all.)',
+    );
+  }
+
+  // ── 情景模式状态 ──
+  if (scenarioRecap) {
+    sections.push(
+      '',
+      zh ? '=== 当前情景状态 ===' : '=== CURRENT SCENARIO STATE ===',
+      scenarioRecap,
+      zh
+        ? '（请保持当前情景阶段和氛围的一致性，不要跳阶段。每句话都推进剧情。）'
+        : '(Stay consistent with the current scenario phase and atmosphere. Every line should advance the scene.)',
     );
   }
 
