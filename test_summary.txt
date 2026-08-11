@@ -1,0 +1,24 @@
+﻿
+[31m     鈫?expected 'runpod-qwen3-8b-pro-nsfw' to be 'together-qwen35-9b' // Object.is equality[39m
+[31m     鈫?expected 'runpod-qwen3-30b-roleplay' to be 'together-kimi-k26' // Object.is equality[39m
+[31m     鈫?expected false to be true // Object.is equality[39m
+[31m     鈫?expected false to be true // Object.is equality[39m
+[31m     鈫?expected false to be true // Object.is equality[39m
+[31m     鈫?expected false to be true // Object.is equality[39m
+[31m     鈫?expected 'Catalog provenance incomplete: versio鈥? to be null[39m
+[31m     鈫?expected 827 to be less than 700[39m
+[31m     鈫?expected 783 to be less than 700[39m
+[31m     鈫?expected 850 to be less than 700[39m
+[31m     鈫?expected { id: 'nsfw-2-lingerie-mirror', 鈥?3) } to be null[39m
+[31m     鈫?expected false to be true // Object.is equality[39m
+[31m[1mAssertionError[22m: expected { id: 'nsfw-2-lingerie-mirror', 鈥?3) } to be null[39m
+[31m[1mAssertionError[22m: expected 'runpod-qwen3-8b-pro-nsfw' to be 'together-qwen35-9b' // Object.is equality[39m
+[31m[1mAssertionError[22m: expected 'runpod-qwen3-30b-roleplay' to be 'together-kimi-k26' // Object.is equality[39m
+[31m[1mAssertionError[22m: expected 827 to be less than 700[39m
+[31m[1mAssertionError[22m: expected 783 to be less than 700[39m
+[31m[1mAssertionError[22m: expected 850 to be less than 700[39m
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+[31m[1mAssertionError[22m: expected 'Catalog provenance incomplete: versio鈥? to be null[39m
+
+

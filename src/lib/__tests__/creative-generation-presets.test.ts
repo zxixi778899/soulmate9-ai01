@@ -19,7 +19,7 @@ describe('creative generation presets', () => {
     expect(preset.modelFamily).toBe('flux');
   });
 
-  it('routes high-NSFW realistic art to verified FLUX while SDXL inventory is unavailable', () => {
+  it('routes high-NSFW realistic art to verified FLUX with full steps', () => {
     const preset = resolveCreativeGenerationPreset({
       mode: 'img2img',
       surface: 'companion',
@@ -31,7 +31,7 @@ describe('creative generation presets', () => {
     expect(preset.modelFamily).toBe('flux');
     expect(preset.sampler).toBe('euler');
     expect(preset.scheduler).toBe('simple');
-    expect(preset.steps).toBe(8);
+    expect(preset.steps).toBeGreaterThanOrEqual(28); // NSFW gets 28+ steps on flux1-dev-fp8
   });
 
   it('uses the five-second Wan2.2 image-to-video preset', () => {

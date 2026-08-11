@@ -63,7 +63,9 @@ describe('companion generation prompt', () => {
       expect(result.positive).toContain('Natural candid photograph');
       expect(result.positive).toContain('neutral skin tone');
       expect(result.positive).toContain('supported spine');
-      expect(result.positive.length).toBeLessThan(700);
+      // Spec: FLUX prompt is more detailed now (includes camera, lighting, anatomy) ~800-900 chars
+      expect(result.positive.length).toBeGreaterThan(750);
+      expect(result.positive.length).toBeLessThan(1000);
     } else {
       expect(result.positive).toContain('high-resolution 2D anime frame');
     }
