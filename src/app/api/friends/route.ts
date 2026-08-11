@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
   }
 
   type FriendRow = Record<string, unknown> & { id: string };
-  const owned = (ownedRows || []) as FriendRow[];
+  const owned = (ownedRows || []) as unknown as FriendRow[];
   const ownedIds = new Set(owned.map((g) => String(g.id)));
 
   const addedLinks = links
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     if (addedErr) {
       logger.warn('[friends] added-friends lookup failed', { err: addedErr.message });
     } else {
-      const byId = new Map(((addedRows || []) as FriendRow[]).map((g) => [String(g.id), g]));
+      const byId = new Map(((addedRows || []) as unknown as FriendRow[]).map((g) => [String(g.id), g]));
       addedFriends = addedLinks
         .map((l) => byId.get(l.girlfriend_id))
         .filter((g): g is FriendRow => Boolean(g));
