@@ -969,8 +969,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     if (endpointAsset?.id) setEndpointKey(String(endpointAsset.id));
     setWorkflowId('auto');
     if (next >= 3 && !specialistReady && animeRenderStyle !== '3d') {
-      toast.error('Pony/Illustrious 专用端点尚未验证；不会降级到 FLUX');
-      return;
+      // resolveImageGenerationRoute already fell back to FLUX (specialist
+      // branches require a verified SDXL endpoint) — inform, don't block.
+      toast.warning('Pony/Illustrious 专用端点尚未验证，已降级到 FLUX 生成');
     }
     toast.success(`NSFW ${next}/5：${adultPreset?.label || studioIntensityLabel(next)} · ${route.modelFamily.toUpperCase()} · ${routedSelections.length} 个 LoRA`);
   };
