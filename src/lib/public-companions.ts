@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 
 /** Columns that always exist on production girlfriends table */
 const CORE_SELECT =
-  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, card_url, personality, appearance_style, created_at, is_public, review_status, avatar_video_url, portrait_video_url, voice_promo_url';
+  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, card_url, personality, appearance_style, created_at, is_public, review_status, avatar_video_url, portrait_video_url';
 
 /** Optional catalog columns (migration 0007) — probed once */
 let _optionalCols: string | null | undefined;
@@ -30,6 +30,24 @@ async function optionalSelectFragment(): Promise<string> {
   _optionalCols =
     ', gender, rarity, relationship, access_status, unlock_price_tokens, base_intimacy, base_desire, base_development, base_kink, occupation, hobbies, is_active, is_hot, is_featured, hot_score, sort_order';
   return _optionalCols;
+}
+
+/** Optional voice promo column (migration 0036) — probed once */
+let _voiceCol: string | null | undefined;
+
+async function voiceSelectFragment(): Promise<string> {
+  if (_voiceCol !== undefined) return _voiceCol || '';
+  const sb = getSupabaseClient();
+  const { error } = await sb.from('girlfriends').select('voice_promo_url').limit(1);
+  if (error) {
+    _voiceCol = '';
+    logger.warn('[public-companions] voice_promo_url missing — skipping voice promos', {
+      err: error.message,
+    });
+    return '';
+  }
+  _voiceCol = ', voice_promo_url';
+  return _voiceCol;
 }
 
 function sanitizeName(raw: string, slug?: string | null): string {
@@ -130,7 +148,7 @@ export interface PublicCompanionRow {
 export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanionRow[]> {
   const sb = getSupabaseClient();
   const opt = await optionalSelectFragment();
-  const select = CORE_SELECT + opt;
+  const select = CORE_SELECT + opt + (await voiceSelectFragment());
 
   let q = sb
     .from('girlfriends')
@@ -246,7 +264,7 @@ export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[
 
     const { data: baseRows, error: bErr } = await sb
       .from('girlfriends')
-      .select(CORE_SELECT + (await optionalSelectFragment()))
+      .select(CORE_SELECT + (await optionalSelectFragment()) + (await voiceSelectFragment()))
       .in('id', baseIds)
       .eq('review_status', 'approved')
       .eq('is_active', true);

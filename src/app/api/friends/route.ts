@@ -13,8 +13,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const GF_FIELDS =
+  const GF_FIELDS_FULL =
     'id, name, slug, avatar_url, portrait_url, personality, short_description, review_status, is_public, age, tags, character_card, submitted_at, rejection_reason, voice_promo_url';
+  const GF_FIELDS_CORE =
+    'id, name, slug, avatar_url, portrait_url, personality, short_description, review_status, is_public, age, tags, character_card, submitted_at, rejection_reason';
+  // voice_promo_url ships with migration 0036; DBs without it must not 500.
+  const { error: voiceProbeErr } = await client
+    .from('girlfriends')
+    .select('voice_promo_url')
+    .limit(1);
+  const GF_FIELDS = voiceProbeErr ? GF_FIELDS_CORE : GF_FIELDS_FULL;
 
   const { data: rows, error } = await client
     .from('user_friends')
