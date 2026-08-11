@@ -1230,10 +1230,14 @@ if (body.action === 'verify_loras') {
       animeStyle !== '3d' &&
       generationRoute.modelFamily === 'flux'
     ) {
-      return NextResponse.json({
-        error: 'NSFW 3–5 requires the verified Pony/Illustrious endpoint. Generation was stopped instead of being downgraded to FLUX.',
-        code: 'NSFW_SPECIALIST_NOT_READY',
-      }, { status: 503 });
+      // Specialist (Pony/Illustrious) endpoint not verified — proceed on the
+      // verified FLUX pipeline instead of stopping generation entirely.
+      // runpod preflight remains the final checkpoint/endpoint safety net.
+      logger.warn('[comfy] specialist endpoint not verified; NSFW 3-5 downgraded to FLUX', {
+        intensity: generationIntensity,
+        render_style: animeStyle,
+        checkpoint: generationRoute.checkpoint,
+      });
     }
     if (adultPreset) {
       prompt = `${prompt}, ${adultModelPromptSuffix(generationRoute.modelFamily)}`;
