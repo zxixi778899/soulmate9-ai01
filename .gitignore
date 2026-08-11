@@ -81,3 +81,9 @@ package-lock.json
 package-lock.json
 .vercel
 .env*
+
+# local temp artifacts
+_tmp_16_*
+vercel-env-out.txt
+_tmp_db_probe.mjs
+_tmp_apply_0036.mjs
