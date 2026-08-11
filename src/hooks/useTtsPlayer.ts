@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { authedFetch } from '@/lib/supabase';
 
 interface TtsState {
   playing: boolean;
@@ -29,7 +30,9 @@ export function useTtsPlayer() {
     setState({ playing: false, loading: true, error: null, activeMsgId: msgId });
 
     try {
-      const res = await fetch('/api/ai/voice', {
+      // authedFetch injects the x-session header required by getAuthUser —
+      // a plain fetch would be rejected with 401.
+      const res = await authedFetch('/api/ai/voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.slice(0, 300), girlfriend_id: girlfriendId }),

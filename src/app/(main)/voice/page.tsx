@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from '@/lib/i18n/context';
 import { Volume2, Square, Loader2, Mic } from 'lucide-react';
 import { VOICE_EMOTIONS, emotionLabel } from '@/lib/tts-emotion';
+import { authedFetch } from '@/lib/supabase';
 
 interface CompanionVoice {
   id: string;
@@ -20,9 +21,9 @@ export default function VoicePage() {
   const [generating, setGenerating] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Fetch user's companions
+  // Fetch user's companions (authedFetch injects the required x-session header)
   useEffect(() => {
-    fetch('/api/girlfriends')
+    authedFetch('/api/girlfriends')
       .then(r => r.json())
       .then(data => {
         const items = (data.items || data || []).map((g: any) => ({
@@ -55,7 +56,7 @@ export default function VoicePage() {
         ? `\u4f60\u597d\uff0c\u6211\u662f${companionName}\u3002\u5f88\u9ad8\u5174\u8ba4\u8bc6\u4f60\uff0c\u4eca\u5929\u60f3\u804a\u4e9b\u4ec0\u4e48\u5462\uff1f`
         : `Hi there, I'm ${companionName}. So happy to meet you! What shall we talk about today?`;
 
-      const res = await fetch('/api/ai/voice', {
+      const res = await authedFetch('/api/ai/voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, girlfriend_id: companionId }),

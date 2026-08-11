@@ -3,12 +3,13 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { CREDIT_COSTS, deductCredits, grantCredits } from '@/lib/credit-system';
-import { uploadFile } from '@/lib/storage';
 import {
+  audioMime,
   cacheVoiceAudio,
   getCachedVoiceUrl,
   getVoiceForCompanionV2,
   synthesizeSpeech,
+  type TTSResult,
 } from '@/lib/tts-service';
 
 export const runtime = 'nodejs';
@@ -57,18 +58,8 @@ export async function POST(req: NextRequest) {
 
     const cleanText = text.slice(0, MAX_TEXT_LENGTH);
 
-    // 1) Shared cache hit — same line already spoken by this companion.
-    const cached = await getCachedVoiceUrl(cleanText, girlfriendId, client);
-    if (cached) {
-      return NextResponse.json({
-        audio_url: cached,
-        duration_ms: 0,
-        format: 'opus',
-        cached: true,
-      });
-    }
-
-    // 2) Resolve the companion's voice profile (personality-aware).
+    // 1) Resolve the companion's voice profile (personality-aware). Done
+    //    before the cache lookup so the expected audio format is known.
     const { data: companionRow } = await client
       .from('girlfriends')
       .select('id, name, personality, backstory, language, occupation, character_card')
@@ -98,6 +89,20 @@ export async function POST(req: NextRequest) {
         },
         { status: 404 },
       );
+    }
+
+    // Edge TTS emits MP3; RunPod Fish-Speech/CosyVoice emit Opus.
+    const expectedFormat: TTSResult['format'] = voice.engine === 'edge-tts' ? 'mp3' : 'opus';
+
+    // 2) Shared cache hit — same line already spoken by this companion.
+    const cached = await getCachedVoiceUrl(cleanText, girlfriendId, client, expectedFormat);
+    if (cached) {
+      return NextResponse.json({
+        audio_url: cached,
+        duration_ms: 0,
+        format: expectedFormat,
+        cached: true,
+      });
     }
 
     // 3) Charge credits before generating.
@@ -143,16 +148,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5) Persist the user's voice message.
-    const buffer = Buffer.from(tts.audio_base64, 'base64');
-    const key = `voice-messages/${user.id}/${girlfriendId}/${Date.now()}.opus`;
-    const { url } = await uploadFile(buffer, key, 'audio/ogg', '');
-
-    // 6) Best-effort shared cache for repeated lines.
-    await cacheVoiceAudio(cleanText, girlfriendId, tts.audio_base64);
+    // 5) Persist the audio once into the shared cache (correct MIME/extension)
+    //    and serve it straight from there — no duplicate per-user copy.
+    const cacheUrl = await cacheVoiceAudio(cleanText, girlfriendId, tts.audio_base64, tts.format);
+    let audioUrl = cacheUrl;
+    if (!audioUrl) {
+      // Cache write failed — synthesize once more into an inline data URL so
+      // the user still gets their paid audio.
+      audioUrl = `data:${audioMime(tts.format)};base64,${tts.audio_base64}`;
+    }
 
     return NextResponse.json({
-      audio_url: url,
+      audio_url: audioUrl,
       duration_ms: tts.duration_ms,
       format: tts.format,
       cost,

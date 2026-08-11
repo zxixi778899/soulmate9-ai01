@@ -103,8 +103,7 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const buildSha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null;
-  const buildBranch = process.env.VERCEL_GIT_COMMIT_REF ?? null;
-  const buildMessage = process.env.VERCEL_GIT_COMMIT_MESSAGE ?? null;
+
 
   return NextResponse.json(
     {
@@ -117,14 +116,12 @@ export async function GET(): Promise<NextResponse> {
         runpod: { ok: runpod.ok, latencyMs: runpod.latencyMs },
         upstash: { ok: upstash.ok, latencyMs: upstash.latencyMs },
       },
-      // 部署元信息:用于一眼判断"线上是不是最新的 commit"
-      build: {
+      // 部署元信息
+build: {
         sha: buildSha,
-        branch: buildBranch,
-        message: buildMessage,
         environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'unknown',
       },
-      // 旧字段保留(向后兼容),值 = build.sha 或 fallback
+      // 版本号
       version: buildSha ?? process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev',
     },
     { status },

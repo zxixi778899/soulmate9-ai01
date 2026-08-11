@@ -10,10 +10,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing authorization code' }, { status: 400 });
     }
 
-    const protocol = req.headers.get('x-forwarded-proto') || 'https';
-    const host = req.headers.get('host') || 'www.oxmate-ai.com';
-    // Must match the redirect_to used in the authorize step (old /auth/callback GET route)
-    const redirectUri = `${protocol}://${host}/auth/callback`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.oxmate-ai.com';
+    // Use fixed app URL for redirect_uri to prevent host-header injection
+    const redirectUri = `${appUrl}/auth/callback`;
 
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`, {
       method: 'POST',

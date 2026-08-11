@@ -6,6 +6,10 @@ import { useAuth } from '@/components/AuthProvider';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import { Loader2 } from 'lucide-react';
 
+// All pages in the (main) route group are user-facing and depend on auth state.
+// Force dynamic rendering so the auth-redirect logic below runs per-request.
+export const dynamic = 'force-dynamic';
+
 /**
  * Route prefixes that require authentication.
  * Guests can freely browse everything else (explore, category, pricing…).

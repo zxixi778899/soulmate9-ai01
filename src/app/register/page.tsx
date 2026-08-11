@@ -3,6 +3,9 @@ import { useState } from "react";
 import { createBrowserClient, SOULMATE_BUILD_ID } from "@/lib/supabase";
 import { useTranslation } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+
+// Auth page — relies on cookies for session redirect. Must stay dynamic.
+export const dynamic = "force-dynamic";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { GoogleGIcon } from "@/components/GoogleGIcon";

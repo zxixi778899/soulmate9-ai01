@@ -1,5 +1,8 @@
 'use client';
 
+// Home lobby is user-facing — fetches companion catalog + live user data.
+export const dynamic = 'force-dynamic';
+
 /**
  * Home lobby
  * - Tall full-body portrait (main visual) + VFX
@@ -525,10 +528,11 @@ export default function HomePage() {
               </button>
 
               {/* CSS-only fade (no layout thrash from AnimatePresence exit) */}
-              <div
+              <button
+                type="button"
                 key={featured.id}
                 className={cn(
-                  'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation',
+                  'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation text-left',
                   'aspect-[3/4] max-h-[min(52dvh,440px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
                   `game-rarity-${String(featured.rarity || 'R').toLowerCase()}`,
                 )}
@@ -536,6 +540,7 @@ export default function HomePage() {
                   boxShadow: `0 0 0 1px ${rc.color}55, 0 16px 48px rgba(0,0,0,0.45)`,
                 }}
                 onClick={onPortraitClick}
+                aria-label={`View ${featured.name} profile`}
               >
                 <CardMedia
                   src={featured.portrait || featured.avatar}
@@ -577,7 +582,7 @@ export default function HomePage() {
                     <div className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
                   </div>
                 </div>
-              </div>
+              </button>
             </div>
 
             {/* RIGHT — stats + actions + avatar strip */}
@@ -918,7 +923,14 @@ export default function HomePage() {
 
       {/* Add-friend success popup */}
       {addedCompanion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setAddedCompanion(null)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setAddedCompanion(null)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setAddedCompanion(null); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Added companion confirmation"
+        >
           <div className="w-80 rounded-2xl bg-gray-900 border border-purple-500/30 p-6 mx-4 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {addedCompanion.portrait && (
               <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-purple-500/50">

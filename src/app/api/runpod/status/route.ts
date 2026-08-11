@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { runpodClient } from '@/lib/runpod';
@@ -6,16 +7,131 @@ import { uploadDataUrl, uploadImageBase64, resolveImageUrl } from '@/lib/storage
 import { normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { logger } from '@/lib/logger';
 import { checkAchievements } from '@/lib/achievement-checker';
+import { CREDIT_COSTS, grantCredits } from '@/lib/credit-system';
 
 /**
  * GET /api/runpod/status?job_id=xxx[&girlfriend_id=yyy&scene=chat_selfie]
  * Poll a RunPod job status and return images if completed.
  *
- * Two modes:
+ * Three modes:
  *  - Chat mode (default): persists image to chat_messages + chat_media.
  *  - Admin mode (admin_source=true): uploads to girlfriends/{id}/{asset_role}/
  *    and inserts a generation_assets record directly — no separate finalize needed.
+ *  - Video mode (kind=video): polls a WAN/SVD video endpoint, uploads the
+ *    result and persists it to chat_media (used by /api/generate-video's
+ *    async continuation).
  */
+
+/** In-memory guard so a failed video job is refunded at most once per instance. */
+const refundedVideoJobs = new Set<string>();
+
+/** Extract a video URL from a RunPod video job output (tolerant of worker shapes). */
+function extractVideoUrl(output: unknown): string {
+  if (!output || typeof output !== 'object') return '';
+  const out = output as Record<string, unknown>;
+  const candidates = [out.video, out.video_url, out.output, out.url, out.data_url];
+  for (const c of candidates) {
+    if (typeof c === 'string' && (c.startsWith('http') || c.startsWith('data:video/'))) return c;
+  }
+  if (typeof out.output === 'object' && out.output) {
+    const inner = out.output as Record<string, unknown>;
+    for (const c of [inner.video, inner.video_url, inner.url]) {
+      if (typeof c === 'string' && (c.startsWith('http') || c.startsWith('data:'))) return c;
+    }
+  }
+  return '';
+}
+
+async function handleVideoStatus(
+  req: NextRequest,
+  params: {
+    jobId: string;
+    endpointId: string | undefined;
+    girlfriendId: string | undefined;
+    userId: string;
+    client: SupabaseClient | null;
+    costRequested: number;
+  },
+): Promise<NextResponse> {
+  const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
+  if (!apiKey || !params.endpointId) {
+    return NextResponse.json(
+      { error: 'Video status requires endpoint_id and a configured RunPod key', status: 'FAILED' },
+      { status: 400 },
+    );
+  }
+  const baseUrl = `https://api.runpod.ai/v2/${params.endpointId}`;
+  const headers = { Authorization: `Bearer ${apiKey}` };
+
+  const statusRes = await fetch(`${baseUrl}/status/${params.jobId}`, {
+    headers,
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!statusRes.ok) {
+    return NextResponse.json({ status: 'IN_PROGRESS', pending: true, job_id: params.jobId });
+  }
+  const status = (await statusRes.json()) as { status: string; output?: unknown; error?: string };
+
+  if (status.status === 'COMPLETED') {
+    let videoUrl = extractVideoUrl(status.output);
+    if (!videoUrl) {
+      return NextResponse.json(
+        { error: 'Video generation completed but no video URL returned', status: 'FAILED' },
+        { status: 500 },
+      );
+    }
+    if (videoUrl.startsWith('data:video/') && params.client) {
+      try {
+        const folder = params.girlfriendId ? `chat_videos/${params.girlfriendId}` : 'chat_videos';
+        const key = await uploadDataUrl(videoUrl, folder);
+        videoUrl = (await resolveImageUrl(key)) || key;
+      } catch (e) {
+        logger.warn('[runpod/status] video upload failed, using original URL', { err: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    // Persist once to the album when girlfriend context is provided.
+    if (params.girlfriendId && params.client) {
+      const { data: existingMedia } = await params.client
+        .from('chat_media')
+        .select('id')
+        .eq('user_id', params.userId)
+        .eq('girlfriend_id', params.girlfriendId)
+        .contains('metadata', { job_id: params.jobId })
+        .limit(1)
+        .maybeSingle();
+      if (!existingMedia) {
+        const { error: mediaError } = await params.client.from('chat_media').insert({
+          user_id: params.userId,
+          girlfriend_id: params.girlfriendId,
+          media_type: 'video',
+          url: videoUrl,
+          metadata: { job_id: params.jobId, source: 'video_status_poll' },
+        });
+        if (mediaError) logger.warn('[runpod/status] video chat_media insert failed', { err: mediaError.message });
+      }
+      void checkAchievements(params.client, params.userId);
+    }
+    return NextResponse.json({ status: 'COMPLETED', video_url: videoUrl, job_id: params.jobId });
+  }
+
+  if (status.status === 'FAILED') {
+    // Auto-refund once per failed job; capped at the 10s cost so a client
+    // can never inflate the refund amount.
+    if (params.client && !refundedVideoJobs.has(params.jobId)) {
+      refundedVideoJobs.add(params.jobId);
+      const refund = Math.min(Math.max(0, Math.floor(params.costRequested)), CREDIT_COSTS.video_10s);
+      if (refund > 0) {
+        await grantCredits(params.client, params.userId, refund, 'refund', params.jobId).catch(() => undefined);
+      }
+    }
+    return NextResponse.json(
+      { error: status.error || 'Video generation failed', status: 'FAILED', refunded: true },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ status: status.status || 'IN_QUEUE', pending: true, job_id: params.jobId });
+}
 export async function GET(req: NextRequest) {
   try {
     const { user, client } = await getAuthUser(req);
@@ -30,11 +146,25 @@ export async function GET(req: NextRequest) {
     }
     const girlfriendId = searchParams.get('girlfriend_id') || undefined;
     const scene = searchParams.get('scene') || 'chat_selfie';
+    const locale = (searchParams.get('locale') || 'en').toLowerCase();
     const requestedEndpointId = searchParams.get('endpoint_id') || undefined;
     const endpointId =
       requestedEndpointId && /^[a-zA-Z0-9_-]+$/.test(requestedEndpointId)
         ? requestedEndpointId
         : undefined;
+
+    // Video jobs use a different RunPod endpoint and output shape — handle
+    // them before the image-oriented pollJob path.
+    if (searchParams.get('kind') === 'video') {
+      return await handleVideoStatus(req, {
+        jobId,
+        endpointId,
+        girlfriendId,
+        userId: user.id,
+        client: (client as SupabaseClient | undefined) ?? null,
+        costRequested: Number(searchParams.get('cost')) || 0,
+      });
+    }
 
     // Admin studio context — save directly to the correct asset folder
     const adminSource = searchParams.get('admin_source') === 'true';
@@ -178,9 +308,13 @@ export async function GET(req: NextRequest) {
               .order('score', { ascending: false })
               .limit(1)
               .maybeSingle();
-            const caption = scene === 'chat_selfie'
-              ? '\u4e3a\u4f60\u751f\u6210\u4e86\u4e00\u5f20\u7b26\u5408\u6211\u4eec\u5f53\u524d\u804a\u5929\u60c5\u5883\u7684\u65b0\u7acb\u7ed8 \ud83d\udc97'
-              : '\u65b0\u7684\u7167\u7247\u6765\u5566 \ud83d\udcf8';
+            const caption = locale.startsWith('zh')
+              ? scene === 'chat_selfie'
+                ? '\u4e3a\u4f60\u751f\u6210\u4e86\u4e00\u5f20\u7b26\u5408\u6211\u4eec\u5f53\u524d\u804a\u5929\u60c5\u5883\u7684\u65b0\u7acb\u7ed8 \ud83d\udc97'
+                : '\u65b0\u7684\u7167\u7247\u6765\u5566 \ud83d\udcf8'
+              : scene === 'chat_selfie'
+                ? 'I made a fresh picture just for our moment together \ud83d\udc97'
+                : 'Here is a new photo for you \ud83d\udcf8';
             const { data: message, error: messageError } = await client
               .from('chat_messages')
               .insert({

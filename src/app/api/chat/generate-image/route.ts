@@ -3,7 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { resolveImageUrl, uploadDataUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
-import { loadAiModules, resolveImageCall, type MembershipTier } from '@/lib/ai-modules';
+import { loadAiModules, resolveImageCall } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
 import {
   buildLoraPlan,
@@ -40,6 +40,12 @@ import {
   resolveImagePromptChannel,
 } from '@/lib/image-prompt-llm';
 import { buildContentOnlyPrompt } from '@/lib/companion-prompt-pipeline';
+import {
+  IMAGE_GEN_RATE_KEY,
+  countTodayImageUsage,
+  membershipFromProfile,
+  timezoneOffsetFromProfile,
+} from '@/lib/ai-quota';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -74,15 +80,6 @@ const ENV_TAGS: Record<string, string> = {
   outdoor: 'natural outdoor daylight setting',
 };
 
-function membershipFromProfile(profile: Record<string, unknown> | null): MembershipTier {
-  const raw = String(
-    profile?.membership_tier || profile?.subscription_tier || profile?.plan || 'free',
-  ).toLowerCase();
-  if (raw.includes('unlimit') || raw === 'admin') return 'unlimited';
-  if (raw.includes('pro') || raw.includes('plus') || raw.includes('premium')) return 'pro';
-  return 'free';
-}
-
 /** 稳定性：生图首次失败自动换种子重试一次，降低“抽卡”式失败率 */
 async function routeImageGenerationWithRetry(
   opts: Parameters<typeof routeImageGeneration>[0],
@@ -103,7 +100,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
   }
 
-  const rl = await checkRateLimitAsync(`chat-img-gen:${user.id}`, IMAGE_GEN_LIMIT);
+  // Shared counter across all image entries — limits cannot be stacked.
+  const rl = await checkRateLimitAsync(`${IMAGE_GEN_RATE_KEY}:${user.id}`, IMAGE_GEN_LIMIT);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: 'Too many image generation requests. Please try again later.' },
@@ -139,7 +137,7 @@ export async function POST(request: NextRequest) {
     const aiModules = await loadAiModules(client);
     const { data: profile } = await client
       .from('profiles')
-      .select('membership_tier, subscription_tier, plan')
+      .select('membership_tier, subscription_tier, plan, timezone_offset')
       .eq('id', user.id)
       .maybeSingle();
     const tier = membershipFromProfile((profile as Record<string, unknown>) || null);
@@ -178,16 +176,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (resolved.dailyLimit != null) {
-      const dayStart = new Date();
-      dayStart.setUTCHours(0, 0, 0, 0);
-      const { count } = await client
-        .from('ai_model_usage_logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('task_type', 'image_generation')
-        .eq('success', true)
-        .gte('created_at', dayStart.toISOString());
-      if ((count || 0) >= resolved.dailyLimit) {
+      // Timezone-aware local day boundary (profiles.timezone_offset).
+      const usage = await countTodayImageUsage(
+        client,
+        user.id,
+        timezoneOffsetFromProfile((profile as Record<string, unknown>) || null),
+      );
+      if (usage.used >= resolved.dailyLimit) {
         return NextResponse.json(
           {
             error: `Daily image limit reached (${resolved.dailyLimit}). Upgrade or try again tomorrow.`,
@@ -196,7 +191,7 @@ export async function POST(request: NextRequest) {
               : `Daily image limit reached (${resolved.dailyLimit}). Upgrade or try again tomorrow.`,
             code: 'daily_limit',
             limit: resolved.dailyLimit,
-            used: count || 0,
+            used: usage.used,
           },
           { status: 403 },
         );
@@ -505,6 +500,11 @@ export async function POST(request: NextRequest) {
 
     // --- Unified multi-provider image router (RunPod → fal.ai failover) ---
     const requestedProvider = String((body as { provider?: string }).provider || '') as ImageProvider | '';
+    // Only force the self-hosted RunPod path when the request actually needs
+    // its capabilities (NSFW, LoRA stack, identity reference). Plain SFW
+    // generations can fall through to the free Together FLUX primary.
+    const needsRunPod = effectiveAdult || intelligentLoras.length > 0 || useConsistency;
+    const defaultProvider: ImageProvider = generationRoute.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2';
     const candidateCount = Math.max(1, Math.min(4, Math.round(Number((body as { count?: number }).count) || 1)));
     const candidateMode = (body as { candidate?: boolean }).candidate === true && candidateCount > 1;
     const genOpts = {
@@ -523,7 +523,7 @@ export async function POST(request: NextRequest) {
       scheduler: generationRoute.scheduler,
       clip_skip: generationRoute.clipSkip,
       model_family: generationRoute.modelFamily,
-      force_provider: requestedProvider || (generationRoute.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2'),
+      force_provider: requestedProvider || (needsRunPod ? defaultProvider : undefined),
       nsfw: effectiveAdult,
       endpoint_id: generationRoute.endpointId || resolved.endpointId || undefined,
     };

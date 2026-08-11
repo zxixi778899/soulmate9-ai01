@@ -397,26 +397,43 @@ async function synthesizeViaRunPod(
 // ─── Voice cache (Supabase Storage) ─────────────────────────────────────────
 
 /** Stable storage key for a text+companion pair. */
-export function voiceCacheKey(text: string, companionId: string): string {
+export function voiceCacheKey(
+  text: string,
+  companionId: string,
+  format: TTSResult['format'] = 'opus',
+): string {
   const hash = createHash('md5').update(text.trim()).digest('hex');
-  return `voice-cache/${companionId}/${hash}.opus`;
+  const ext = format === 'mp3' ? 'mp3' : format === 'wav' ? 'wav' : 'opus';
+  return `voice-cache/${companionId}/${hash}.${ext}`;
+}
+
+/** MIME type matching a synthesis output format. */
+export function audioMime(format: TTSResult['format']): string {
+  return format === 'mp3' ? 'audio/mpeg' : format === 'wav' ? 'audio/wav' : 'audio/ogg';
 }
 
 /**
  * Return a public URL if this exact line was already synthesized and cached.
+ * Checks the format-specific key first, then the legacy `.opus` key (older
+ * entries stored Edge-TTS MP3 bytes under an .opus name).
  * Returns null on miss (or any storage error — caching is best-effort).
  */
 export async function getCachedVoiceUrl(
   text: string,
   companionId: string,
   supabase: SupabaseClient,
+  format: TTSResult['format'] = 'opus',
 ): Promise<string | null> {
   try {
-    const key = voiceCacheKey(text, companionId);
     const bucket = resolveBucketName();
-    const { data, error } = await supabase.storage.from(bucket).exists(key);
-    if (error || !data) return null;
-    return toPublicUrl(key) || null;
+    const keys = [voiceCacheKey(text, companionId, format)];
+    const legacy = voiceCacheKey(text, companionId, 'opus');
+    if (!keys.includes(legacy)) keys.push(legacy);
+    for (const key of keys) {
+      const { data, error } = await supabase.storage.from(bucket).exists(key);
+      if (!error && data) return toPublicUrl(key) || null;
+    }
+    return null;
   } catch (err) {
     logger.warn('[tts] cache lookup failed', {
       err: err instanceof Error ? err.message : String(err),
@@ -425,17 +442,21 @@ export async function getCachedVoiceUrl(
   }
 }
 
-/** Persist generated audio to the shared voice cache. Best-effort. */
+/**
+ * Persist generated audio to the shared voice cache with the correct MIME
+ * type and return its public URL. Best-effort.
+ */
 export async function cacheVoiceAudio(
   text: string,
   companionId: string,
   audioBase64: string,
+  format: TTSResult['format'] = 'opus',
 ): Promise<string | null> {
   try {
-    const key = voiceCacheKey(text, companionId);
+    const key = voiceCacheKey(text, companionId, format);
     const buffer = Buffer.from(audioBase64, 'base64');
     if (buffer.length < 32) return null;
-    const { url } = await uploadFile(buffer, key, 'audio/ogg', '');
+    const { url } = await uploadFile(buffer, key, audioMime(format), '');
     return url;
   } catch (err) {
     logger.warn('[tts] cache write failed', {

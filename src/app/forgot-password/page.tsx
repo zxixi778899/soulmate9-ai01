@@ -3,6 +3,9 @@ import { useTranslation } from '@/lib/i18n/context';
 
 import { useState } from 'react';
 import Link from 'next/link';
+
+// Auth page — password reset requires session validation. Must be dynamic.
+export const dynamic = 'force-dynamic';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

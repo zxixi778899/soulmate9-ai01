@@ -15,6 +15,7 @@ import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
 import { validateModelLoraName } from '@/lib/model-lora-routing';
 import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
 import { applyFluxNaturalLook } from '@/lib/prompt/flux-natural';
+import { specialistCheckpointInventory } from '@/lib/image-generation-routing';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from './analytics';
 
@@ -1269,9 +1270,10 @@ class RunPodClient {
         error: joined.slice(0, 300),
       });
 
-      // Build FLUX-safe fallback options
-      const nsfwCheckpoint = process.env.RUNPOD_FLUX_NSFW_CHECKPOINT || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
-      const fallbackCkpt = nsfwCheckpoint;
+      // Build FLUX-safe fallback options. Use the base FLUX checkpoint with the
+      // simple CheckpointLoader (guaranteed on the primary endpoint) — the NSFW
+      // split checkpoint may also be missing from the failing worker's volume.
+      const fallbackCkpt = process.env.RUNPOD_FLUX_CHECKPOINT || 'flux1-dev-fp8.safetensors';
       const fallbackLoras = (options.loras || [])
         .filter((lora) => {
           // Only keep FLUX-compatible LoRAs (flux_ prefix or known FLUX names)
@@ -1287,13 +1289,20 @@ class RunPodClient {
       const fallbackOptions: RunPodGenerateOptions = {
         ...options,
         ckpt_name: fallbackCkpt,
-        ckpt_loader: 'split',
+        ckpt_loader: 'checkpoint',
         model_family: 'flux',
         loras: fallbackLoras.length > 0 ? fallbackLoras : undefined,
         lora_name: undefined,
         lora_strength_model: undefined,
         lora_strength_clip: undefined,
       };
+
+      // Retry on the primary FLUX endpoint — the SDXL endpoint that failed
+      // validation may not carry any FLUX checkpoints either.
+      const sdxlEndpoint = process.env.RUNPOD_ENDPOINT_ID_SDXL;
+      if (fallbackOptions.endpoint_id && sdxlEndpoint && fallbackOptions.endpoint_id === sdxlEndpoint) {
+        fallbackOptions.endpoint_id = process.env.RUNPOD_ENDPOINT_ID || undefined;
+      }
 
       logger.info('[runpod] FLUX fallback retry', {
         fallback_checkpoint: fallbackCkpt,
@@ -1399,11 +1408,22 @@ class RunPodClient {
     // If RUNPOD_SDXL_MODELS_READY is not explicitly 'true', the SDXL endpoint
     // may not have the required checkpoints/LoRAs installed.
     const sdxlReady = process.env.RUNPOD_SDXL_MODELS_READY === 'true';
+    // Inventory cross-check: when RUNPOD_SDXL_CHECKPOINTS declares the mounted
+    // checkpoint list, a requested checkpoint missing from it means the worker
+    // would reject the workflow with value_not_in_list — fall back early.
+    const inventory = specialistCheckpointInventory();
+    const requestedCkptKey = (adjusted.ckpt_name || '').trim().toLowerCase();
+    const checkpointMissingFromInventory = Boolean(
+      inventory && requestedCkptKey && !inventory.has(requestedCkptKey),
+    );
 
     // Pony / Illustrious: fall back to FLUX if SDXL models are not ready.
-    if ((family === 'pony' || family === 'illustrious') && !sdxlReady) {
-      logger.warn('[runpod] SDXL models not ready, falling back to FLUX', {
+    if ((family === 'pony' || family === 'illustrious') && (!sdxlReady || checkpointMissingFromInventory)) {
+      logger.warn('[runpod] SDXL models unavailable, falling back to FLUX', {
         requested_family: family,
+        requested_checkpoint: adjusted.ckpt_name,
+        sdxl_ready: sdxlReady,
+        checkpoint_missing_from_inventory: checkpointMissingFromInventory,
         fallback: 'flux',
       });
       adjusted.model_family = 'flux';
@@ -1412,6 +1432,18 @@ class RunPodClient {
       // Clear SDXL-specific LoRAs; they will be re-filtered below.
       adjusted.loras = undefined;
       adjusted.lora_name = null;
+      // Also route to the primary FLUX endpoint, not the SDXL one. The SDXL
+      // endpoint may or may not have FLUX checkpoints installed; the primary
+      // endpoint is guaranteed to. Without this, the request still goes to the
+      // SDXL endpoint with FLUX settings and can fail with value_not_in_list.
+      const sdxlEndpoint = process.env.RUNPOD_ENDPOINT_ID_SDXL;
+      if (adjusted.endpoint_id && sdxlEndpoint && adjusted.endpoint_id === sdxlEndpoint) {
+        adjusted.endpoint_id = process.env.RUNPOD_ENDPOINT_ID || undefined;
+        logger.warn('[runpod] remapped SDXL endpoint to primary FLUX endpoint', {
+          from: sdxlEndpoint,
+          to: adjusted.endpoint_id,
+        });
+      }
     }
 
     // FLUX checkpoint validation: fluxUnchained requires the NSFW volume to be ready.
