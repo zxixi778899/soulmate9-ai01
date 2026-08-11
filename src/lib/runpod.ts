@@ -308,6 +308,13 @@ export function buildFluxWorkflow(opts: {
   // until a verified SDXL FaceID/InstantID workflow is available.
   const useIpAdapter = !!opts.ip_adapter_image && isFlux;
   const sdxlReferenceImage = !isFlux ? opts.ip_adapter_image : undefined;
+  if (opts.ip_adapter_image && !isFlux) {
+    // ApplyIPAdapterFlux is FLUX-only; legacy families use the reference as a
+    // moderate-denoise img2img anchor instead. Surface this for debugging.
+    logger.debug('[runpod] ip_adapter_image downgraded to img2img anchor for non-flux family', {
+      modelFamily,
+    });
+  }
   const effectiveInputImage = opts.input_image || sdxlReferenceImage;
   const ipAdapterNodes: Record<string, unknown> = {};
   if (useIpAdapter) {
@@ -1459,6 +1466,22 @@ class RunPodClient {
         });
         adjusted.ckpt_name = safeCkpt;
         adjusted.ckpt_loader = 'checkpoint';
+        // flux1-dev-fp8 is NOT distilled — the 8-step Unchained budget would
+        // produce smeared undercooked frames. Restore the dev-fp8 step floor.
+        if ((adjusted.num_inference_steps ?? 0) < 24) {
+          logger.warn('[runpod] raising steps for non-distilled FLUX fallback', {
+            from: adjusted.num_inference_steps,
+            to: 24,
+          });
+          adjusted.num_inference_steps = 24;
+        }
+      }
+      // IP-Adapter: log when image exists but flag is off
+      if (adjusted.ip_adapter_image && process.env.RUNPOD_IPADAPTER_INSTALLED !== '1') {
+        logger.debug('[runpod] ip_adapter_image provided but RUNPOD_IPADAPTER_INSTALLED not enabled, using img2img fallback', {
+          hasIpAdapterImage: true,
+          flagStatus: process.env.RUNPOD_IPADAPTER_INSTALLED || 'not set',
+        });
       }
     }
 

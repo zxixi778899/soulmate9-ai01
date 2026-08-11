@@ -5,7 +5,8 @@ const ORIGINAL_ENV = { ...process.env };
 afterEach(() => { process.env = { ...ORIGINAL_ENV }; });
 
 describe('model-aware image generation routing', () => {
-  it('keeps specialist models disabled until their runtime inventory is marked ready', () => {
+  it('all routes use unified FLUX pipeline regardless of environment flags', () => {
+    // Spec: 单底模策略 — all scenarios on flux1-dev-fp8
     expect(resolveImageGenerationRoute({
       surface: 'companion',
       category: 'female',
@@ -14,33 +15,48 @@ describe('model-aware image generation routing', () => {
     }).modelFamily).toBe('flux');
     expect(resolveImageGenerationRoute({
       surface: 'companion',
+      category: 'male',
+      renderStyle: 'realistic',
+      nsfwIntensity: 5,
+    }).modelFamily).toBe('flux');
+    expect(resolveImageGenerationRoute({
+      surface: 'companion',
       category: 'transgender',
       renderStyle: 'realistic',
       nsfwIntensity: 1,
     }).modelFamily).toBe('flux');
-  });
-
-  it.each(['female', 'male', 'transgender'] as const)('uses Pony specialist parameters for %s high NSFW', (category) => {
+    // Even when SDXL endpoint is configured, we stay on FLUX
     process.env.RUNPOD_SDXL_MODELS_READY = 'true';
     process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
+    expect(resolveImageGenerationRoute({
+      surface: 'companion',
+      category: 'female',
+      renderStyle: 'realistic',
+      nsfwIntensity: 5,
+    }).modelFamily).toBe('flux');
+  });
+
+  it.each(['female', 'male', 'transgender'] as const)('routes %s high NSFW to FLUX with correct parameters', (category) => {
+    // Spec: 所有场景统一 flux1-dev-fp8，不分 Pony/Illustrious
     const route = resolveImageGenerationRoute({
       surface: 'companion',
       category,
       renderStyle: 'realistic',
       nsfwIntensity: 5,
     });
-    expect(route.modelFamily).toBe('pony');
-    expect(route).not.toHaveProperty('promptPrefix');
-    expect(route.sampler).toBe('dpmpp_2m_sde');
-    expect(route.scheduler).toBe('karras');
-    expect(route.cfg).toBe(6);
-    expect(route.steps).toBeGreaterThanOrEqual(28);
-    expect(route.clipSkip).toBe(2);
-    expect(route.checkpoint).toBe('ponyRealism_V22.safetensors');
+    expect(route.modelFamily).toBe('flux');
+    expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
+    expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
+    expect(route.sampler).toBe('euler');
+    expect(route.scheduler).toBe('simple');
+    expect(route.cfg).toBe(1); // FLUX CFG
+    expect(route.steps).toBeGreaterThanOrEqual(28); // NSFW gets 28+
+    expect(route.clipSkip).toBe(1);
+    expect(route.fluxGuidance).toBe(4.0); // FLUX guidance for NSFW
   });
 
-  it('keeps 2D and 3D on FLUX while the specialist volume is unverified', () => {
-    delete process.env.RUNPOD_ENDPOINT_ID_SDXL;
+  it('keeps 2D / 3D on FLUX with higher steps for stylized anatomy', () => {
+    // Spec: 二次元和 3D 渲染都统一走 FLUX
     expect(resolveImageGenerationRoute({
       surface: 'companion',
       renderStyle: '2d',
@@ -51,39 +67,48 @@ describe('model-aware image generation routing', () => {
     }).modelFamily).toBe('flux');
   });
 
-  it('uses Pony for realistic NSFW when the specialist endpoint is configured', () => {
+  it('routes all realistic NSFW through FLUX pipeline even when SDXL flag exists', () => {
+    // Spec: pony/illustrious 分支已删除，全站统一 FLUX
     process.env.RUNPOD_SDXL_MODELS_READY = 'true';
     process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
     const route = resolveImageGenerationRoute({
       surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 5,
     });
-    expect(route.modelFamily).toBe('pony');
-    expect(route.endpointId).toBe('sdxl-endpoint');
-    expect(route.checkpoint).toBe('ponyRealism_V22.safetensors');
+    expect(route.modelFamily).toBe('flux');
+    expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
+    expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
     expect(route.steps).toBeGreaterThanOrEqual(28);
-    expect(route.cfg).toBe(6);
-    expect(route.clipSkip).toBe(2);
+    expect(route.cfg).toBe(1);
+    expect(route.fluxGuidance).toBe(4.0);
   });
 
-  it('routes NSFW level 3 to Pony when specialist inventory is ready', () => {
+  it('routes NSFW level 3 through FLUX with appropriate guidance', () => {
+    // Spec: 取消 SDXL 分支，level 3 也走 FLUX
     process.env.RUNPOD_SDXL_MODELS_READY = 'true';
     process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
     const route = resolveImageGenerationRoute({
       surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 3,
     });
-    expect(route.modelFamily).toBe('pony');
-    expect(route.checkpoint).toBe('ponyRealism_V22.safetensors');
-    expect(route.sampler).toBe('dpmpp_2m_sde');
-    expect(route.scheduler).toBe('karras');
+    expect(route.modelFamily).toBe('flux');
+    expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
+    expect(route.sampler).toBe('euler');
+    expect(route.scheduler).toBe('simple');
+    expect(route.fluxGuidance).toBe(4.0);
   });
 
-  it('uses Illustrious for 2D when the specialist endpoint is configured', () => {
+  it('routes 2D and 3D styles through FLUX with anime LoRA', () => {
+    // Spec: 2D/3D 不再使用 Illustrious，统一走 FLUX + rdanimeflux/3d render LoRA
     process.env.RUNPOD_SDXL_MODELS_READY = 'true';
     process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
-    const route = resolveImageGenerationRoute({ surface: 'companion', renderStyle: '2d', nsfwIntensity: 4 });
-    expect(route.modelFamily).toBe('illustrious');
-    expect(route.checkpoint).toBe('waiMatureIllustrious_v20.safetensors');
-    expect(route.scheduler).toBe('karras');
+    const route = resolveImageGenerationRoute({ 
+      surface: 'companion', 
+      renderStyle: '2d', 
+      nsfwIntensity: 4 
+    });
+    expect(route.modelFamily).toBe('flux');
+    expect(route.checkpoint).toBe('flux1-dev-fp8.safetensors');
+    expect(route.scheduler).toBe('simple');
+    expect(route.steps).toBeGreaterThanOrEqual(26); // 2D gets 26-28 steps
   });
 
   it.each(['outfit', 'prop', 'advert'] as const)('keeps %s assets on FLUX via unified endpoint', (surface) => {
@@ -92,7 +117,8 @@ describe('model-aware image generation routing', () => {
     expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
   });
 
-  it('uses dev-fp8 for SFW and Unchained for moderate NSFW', () => {
+  it('routes SFW NSFW3+ through FLUX dev-fp8 with full steps', () => {
+    // Spec: Unchained 只保留兼容代码，不再被路由选中
     const sfw = resolveImageGenerationRoute({
       surface: 'companion',
       renderStyle: 'realistic',
@@ -106,11 +132,13 @@ describe('model-aware image generation routing', () => {
       renderStyle: 'realistic',
       nsfwIntensity: 3,
     });
-    expect(nsfw.checkpoint).toBe('fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
-    expect(nsfw.steps).toBe(8);
+    // Unified FLUX strategy: never use Unchained
+    expect(nsfw.checkpoint).toBe('flux1-dev-fp8.safetensors');
+    expect(nsfw.steps).toBeGreaterThanOrEqual(28); // NSFW gets full steps
   });
 
-  it('keeps FLUX routes on the unified endpoint and sends specialist routes to SDXL', () => {
+  it('keeps all routes on unified FLUX endpoint', () => {
+    // Spec: 单端点策略 — ALL requests go to wozrrlcdipyl3p
     const routes = [
       resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 1 }),
       resolveImageGenerationRoute({ surface: 'outfit' }),
@@ -121,10 +149,11 @@ describe('model-aware image generation routing', () => {
       expect(route.scheduler).toBe('simple');
       expect(route.clipSkip).toBe(1);
     }
+    // Even with SDXL env vars, we stay on FLUX
     process.env.RUNPOD_SDXL_MODELS_READY = 'true';
     process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
-    expect(resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 5 }).modelFamily).toBe('pony');
-    expect(resolveImageGenerationRoute({ surface: 'companion', renderStyle: '2d' }).modelFamily).toBe('illustrious');
+    expect(resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 5 }).modelFamily).toBe('flux');
+    expect(resolveImageGenerationRoute({ surface: 'companion', renderStyle: '2d' }).modelFamily).toBe('flux');
   });
 
   it.each([
@@ -146,20 +175,20 @@ describe('model-aware image generation routing', () => {
     expect(route.loraPolicy.failClosed).toBe(true);
   });
 
-  it('describes the specialist Anime/2D model and LoRA inventory', () => {
-    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
-    process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
+  it('describes FLUX model details consistently across all scenarios', () => {
+    // Spec: 所有场景的 modelDetails 统一为 flux-dev architecture
     const route = resolveImageGenerationRoute({
       surface: 'companion',
-      category: 'anime',
-      renderStyle: '2d',
+      category: 'female',
+      renderStyle: 'realistic',
       nsfwIntensity: 5,
     });
-    expect(route.modelDetails.architecture).toBe('sdxl-illustrious');
-    expect(route.modelDetails.precision).toBe('fp16');
-    expect(route.loraPolicy.inventoryEnv).toContain('RUNPOD_INSTALLED_LORAS_ILLUSTRIOUS');
-    expect(route.loraPolicy.styleEnv).toBe('RUNPOD_ILLUSTRIOUS_2D_LORAS');
-    expect(route.loraPolicy.maxLoras).toBe(2);
+    expect(route.modelDetails.architecture).toBe('flux-dev');
+    expect(route.modelDetails.textEncoder).toBe('t5xxl+clip-l');
+    expect(route.loraPolicy.categoryEnv).toContain('FEMALE');
+    expect(route.loraPolicy.maxLoras).toBe(3);
+    expect(route.loraPolicy.failClosed).toBe(true);
+    expect(route.loraPolicy.maxCombinedStrength).toBe(1.65); // FLUX-specific budget
   });
 
   it('falls back to FLUX when the declared specialist checkpoint is absent', () => {

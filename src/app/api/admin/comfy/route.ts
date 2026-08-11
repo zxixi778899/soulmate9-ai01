@@ -26,7 +26,7 @@ import { resolveChatCall } from '@/lib/ai-modules/resolve';
 import { invokeChat } from '@/lib/ai-modules/invoke';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { COMPANION_CATEGORIES, normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
-import { resolveImageGenerationRoute, specialistModelsReadyFromEnv, type ImageSurface } from '@/lib/image-generation-routing';
+import { resolveImageGenerationRoute, specialistModelsReadyFromEnv, TASK_DENOISE_DEFAULTS, type ImageSurface } from '@/lib/image-generation-routing';
 import { classifyImageScene, normalizeLlmImageScene } from '@/lib/image-scene-semantics';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
@@ -1223,22 +1223,6 @@ if (body.action === 'verify_loras') {
     }
     const sceneSemantics = classifyImageScene(prompt, category);
     const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics, turbo: body.fast_preview === true });
-    if (
-      surface === 'companion' &&
-      !isIdentityAsset &&
-      generationIntensity >= 3 &&
-      animeStyle !== '3d' &&
-      generationRoute.modelFamily === 'flux'
-    ) {
-      // Specialist (Pony/Illustrious) endpoint not verified — proceed on the
-      // verified FLUX pipeline instead of stopping generation entirely.
-      // runpod preflight remains the final checkpoint/endpoint safety net.
-      logger.warn('[comfy] specialist endpoint not verified; NSFW 3-5 downgraded to FLUX', {
-        intensity: generationIntensity,
-        render_style: animeStyle,
-        checkpoint: generationRoute.checkpoint,
-      });
-    }
     if (adultPreset) {
       prompt = `${prompt}, ${adultModelPromptSuffix(generationRoute.modelFamily)}`;
     }
@@ -1393,6 +1377,11 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     // Explicit top-level identity references must also affect the first ID
     // portrait. Automatic avatar production remains pure txt2img; uploading a
     // reference intentionally opts this stage into IP-Adapter identity control.
+    const promptContract = body.prompt_contract && typeof body.prompt_contract === 'object'
+      ? body.prompt_contract as Record<string, unknown>
+      : {};
+    // Studio task sent by ComfyConsole (identity/portrait/outfit/pose/background/video)
+    const studioTask = String(promptContract.task || '').trim();
     const ipAdapterEnabled =
       process.env.RUNPOD_IPADAPTER_INSTALLED === '1' &&
       (assetRole !== 'avatar-closeup' || Boolean(suppliedReference));
@@ -1403,10 +1392,14 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     const effectiveInputImage = (assetRole === 'avatar-closeup' || isFinalProductAsset)
       ? undefined
       : resolvedReferenceImage;
+    // 换装/换姿势/换背景任务用路由表的任务级 denoise；客户端显式传入优先。
+    const taskDenoise = TASK_DENOISE_DEFAULTS[studioTask as keyof typeof TASK_DENOISE_DEFAULTS];
     const effectiveDenoise = effectiveInputImage
       ? characterConsistency
-        ? identityTurnaroundDenoise(assetRole, denoise)
-        : Math.min(0.95, Math.max(0.5, denoise))
+        ? identityTurnaroundDenoise(assetRole, taskDenoise ?? denoise)
+        : body.denoise != null || body.denoising_strength != null
+          ? Math.min(0.95, Math.max(0.5, denoise))
+          : taskDenoise ?? Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
     const requiresIdentityReference = assetRole !== 'avatar-closeup' && (
       assetRole.startsWith('identity-') ||
@@ -1436,12 +1429,17 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       : undefined;
     // Identity reference sheets lock hard to the avatar; final products
     // (character-art, album, scene) use a slightly looser weight so the reference
-    // guides identity without copying the portrait composition.
+    // guides identity without copying the portrait composition. Outfit swaps
+    // need face lock with wardrobe freedom; pose swaps sit in between.
     const defaultIpAdapterWeight = assetRole === 'avatar-closeup'
       ? 0.74
       : assetRole.startsWith('identity-')
         ? 0.82
-        : 0.68;
+        : studioTask === 'outfit'
+          ? 0.75
+          : studioTask === 'pose'
+            ? 0.7
+            : 0.68;
     const ipAdapterWeight = ipAdapterEnabled
       ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight ?? defaultIpAdapterWeight)))
       : undefined;
@@ -1494,7 +1492,14 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       requested: normalizedLoras,
       maxLoras: generationIntensity >= 3 ? 3 : 2,
       identityAsset: isIdentityAsset,
+      surface,
+      sceneText: prompt,
     });
+    // 换姿势任务 + NSFW≥4：追加 pose_nsfw_dynamic LoRA
+    if (studioTask === 'pose' && generationIntensity >= 4) {
+      const poseNsfwLora = { name: 'flux_pose_nsfw_dynamic_v1.safetensors', strength: 0.45 };
+      compatibleLoraPlan.selected.push(poseNsfwLora as any);
+    }
     const effectiveLoras = compatibleLoraPlan.selected;
     if (compatibleLoraPlan.triggerWords.length > 0) {
       const promptLower = prompt.toLowerCase();
@@ -1529,6 +1534,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         height,
         num_inference_steps: steps,
         guidance_scale: effectiveGuidance,
+        flux_guidance: generationRoute.modelFamily === 'flux' ? generationRoute.fluxGuidance : undefined,
         sampler_name: generationRoute.modelFamily === 'flux' && body.sampler_name ? samplerName : generationRoute.sampler,
         scheduler: generationRoute.modelFamily === 'flux' && body.scheduler ? scheduler : generationRoute.scheduler,
         clip_skip: generationRoute.clipSkip,

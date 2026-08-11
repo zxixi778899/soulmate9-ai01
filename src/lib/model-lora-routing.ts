@@ -1,6 +1,6 @@
 import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
-import type { ImageModelFamily } from '@/lib/image-generation-routing';
+import type { ImageModelFamily, ImageSurface } from '@/lib/image-generation-routing';
 
 export type RoutedLora = {
   name: string;
@@ -19,6 +19,8 @@ type ModelLoraPlan = {
 const splitList = (value: string | undefined): string[] =>
   [...new Set(String(value || '').split(/[;,\n]/).map((item) => item.trim()).filter(Boolean))];
 
+// Legacy SDXL defaults — retained for completeness; routing never hits them
+// anymore because the whole site runs on the unified FLUX pipeline.
 const DEFAULT_FAMILY_LORAS: Record<ImageModelFamily, Partial<Record<CompanionCategory | 'nsfw' | '2d', string[]>>> = {
   flux: {
     female: [],
@@ -130,8 +132,98 @@ function rankInventory(files: Set<string>, category: CompanionCategory, intensit
     .map((item) => item.name);
 }
 
+export type FluxScenarioLora = { name: string; strength: number };
+
+/**
+ * Curated FLUX LoRA plans per scenario (全站 FLUX 重构).
+ * Every filename below is on the RUNPOD_INSTALLED_LORAS_FLUX inventory;
+ * resolveModelLoraPlan still verifies against the mounted volume and drops
+ * anything missing. Explicit env overrides (RUNPOD_FLUX_*_LORAS) win when set.
+ */
+export function fluxScenarioPlan(input: {
+  category: CompanionCategory;
+  intensity: NsfwIntensity;
+  animeStyle: AnimeRenderStyle;
+  surface?: ImageSurface;
+  sceneText?: string;
+}): FluxScenarioLora[] {
+  const nsfw = input.intensity >= 3;
+
+  // ─── 换装任务：按场景意图挑服装 LoRA + 写实底 ────────────────────────────
+  if (input.surface === 'outfit') {
+    const scene = String(input.sceneText || '').toLowerCase();
+    const outfit = /latex|leather|pvc|rubber/.test(scene)
+      ? { name: 'flux_outfit_latex_v1.safetensors', strength: 0.55 }
+      : /bikini|swim|beach|pool/.test(scene)
+        ? { name: 'flux_outfit_bikini_v1.safetensors', strength: 0.55 }
+        : { name: 'flux_outfit_lingerie_v1.safetensors', strength: 0.55 };
+    return [outfit, { name: 'flux_style_photoreal_v1.safetensors', strength: 0.35 }];
+  }
+
+  // ─── 二次元 2D ────────────────────────────────────────────────────────────
+  if (input.animeStyle === '2d') {
+    const plan: FluxScenarioLora[] = [{ name: 'rdanimefluxv1rapid.safetensors', strength: 0.7 }];
+    if (nsfw) plan.push({ name: 'flux_lewd_v1.safetensors', strength: 0.45 });
+    return plan;
+  }
+
+  // ─── 3D 渲染 ──────────────────────────────────────────────────────────────
+  if (input.animeStyle === '3d') {
+    return [{ name: 'flux_3d_render_v1.safetensors', strength: 0.6 }];
+  }
+
+  // ─── 男性 ─────────────────────────────────────────────────────────────────
+  if (input.category === 'male') {
+    return nsfw
+      ? [
+          { name: 'flux_male_masc_v1.safetensors', strength: 0.55 },
+          { name: 'flux_male_muscle_v1.safetensors', strength: 0.4 },
+          { name: 'flux_lewd_v1.safetensors', strength: 0.5 },
+        ]
+      : [
+          { name: 'flux_male_masc_v1.safetensors', strength: 0.55 },
+          { name: 'flux_style_photoreal_v1.safetensors', strength: 0.4 },
+        ];
+  }
+
+  // ─── 跨性别 ───────────────────────────────────────────────────────────────
+  if (input.category === 'transgender') {
+    const plan: FluxScenarioLora[] = [{ name: 'realistic-mtf-trans.safetensors', strength: 0.65 }];
+    if (nsfw) plan.push({ name: 'flux_lewd_v1.safetensors', strength: 0.5 });
+    return plan;
+  }
+
+  // ─── 女性写实 ─────────────────────────────────────────────────────────────
+  if (!nsfw) {
+    return [
+      { name: 'flux_style_photoreal_v1.safetensors', strength: 0.5 },
+      { name: 'flux_detail_skin_v1.safetensors', strength: 0.3 },
+    ];
+  }
+  if (input.intensity === 3) {
+    return [
+      { name: 'flux_lewd_v1.safetensors', strength: 0.55 },
+      { name: 'flux_detail_skin_v1.safetensors', strength: 0.3 },
+    ];
+  }
+  return [
+    { name: 'flux_lewd_v1.safetensors', strength: 0.6 },
+    { name: 'flux_pose_nsfw_dynamic_v1.safetensors', strength: 0.45 },
+    { name: 'flux_detail_hands_v1.safetensors', strength: 0.3 },
+  ];
+}
+
 function triggersForLora(name: string): string[] {
   const lower = name.toLowerCase();
+  // Curated FLUX LoRAs: only identity-relevant ones carry trigger words;
+  // style/detail LoRAs stay trigger-free so prompts are not polluted.
+  if (lower.includes('realistic-mtf-trans') || lower.includes('mtf_trans')) return ['transgender woman', 'developed breasts'];
+  if (lower.includes('rdanimeflux')) return ['anime style', 'cel shading'];
+  if (lower.includes('flux_3d_render')) return ['3d character render'];
+  if (lower.includes('male_masc')) return ['masculine adult man'];
+  if (lower.includes('male_muscle')) return ['muscular male body'];
+  if (lower.includes('femboy')) return ['femboy'];
+  if (lower.startsWith('flux_')) return [];
   if (lower.includes('detailifier')) return ['detailerlora'];
   if (lower.includes('backgrounddetailer')) return ['detailed background'];
   if (lower.includes('addmicrodetails')) return ['micro details', 'detailed skin'];
@@ -181,6 +273,10 @@ export function resolveModelLoraPlan(input: {
   identityAsset?: boolean;
   /** Runtime inventory supplied by the browser/admin volume API. */
   installedFiles?: Iterable<string>;
+  /** Generation surface — 'outfit' activates the outfit-swap LoRA plan. */
+  surface?: ImageSurface;
+  /** Scene/prompt text used to detect outfit intent (latex/bikini/lingerie). */
+  sceneText?: string;
 }): ModelLoraPlan {
   // Identity anchors use the base checkpoint only. Style/detail LoRAs can change
   // age, facial geometry and colour before a stable identity exists.
@@ -206,15 +302,34 @@ export function resolveModelLoraPlan(input: {
     input.intensity,
     input.animeStyle || 'realistic',
   );
+  // FLUX: curated scenario plan replaces the old empty defaults. Explicit env
+  // configuration (RUNPOD_FLUX_*_LORAS) still wins when present.
+  const fluxPlan = input.modelFamily === 'flux'
+    ? fluxScenarioPlan({
+        category: input.category,
+        intensity: input.intensity,
+        animeStyle: input.animeStyle || 'realistic',
+        surface: input.surface,
+        sceneText: input.sceneText,
+      })
+    : [];
+  const planStrength = new Map(fluxPlan.map((item) => [item.name, item.strength]));
+  const effectiveConfigured = input.modelFamily === 'flux' && configured.length === 0
+    ? fluxPlan.map((item) => item.name)
+    : configured;
   const requested = input.requested || [];
   const canAutoSelectInventory = inventory.source === 'runtime-volume' || inventory.source === `RUNPOD_INSTALLED_LORAS_${input.modelFamily.toUpperCase()}`;
-  const inventoryCandidates = configured.length === 0 && canAutoSelectInventory
+  const inventoryCandidates = effectiveConfigured.length === 0 && canAutoSelectInventory
     ? rankInventory(inventory.files, input.category, input.intensity)
     : [];
   const requestedNames = requested.map((item) => item.name);
-  const prioritizedNames = input.modelFamily === 'flux' && input.intensity >= 3
-    ? [...configured, ...requestedNames]
-    : [...requestedNames, ...configured];
+  // FLUX: curated plan leads, manual picks fill remaining slots. Legacy
+  // families keep their previous priority order.
+  const prioritizedNames = input.modelFamily === 'flux'
+    ? [...effectiveConfigured, ...requestedNames]
+    : input.intensity >= 3
+      ? [...effectiveConfigured, ...requestedNames]
+      : [...requestedNames, ...effectiveConfigured];
   const names = [...new Set([...prioritizedNames, ...inventoryCandidates])].filter((name) =>
     !input.identityAsset ||
     !/(?:add[_-]?details?|detail|skin|micro|hyperreal|aidma|nsfw|uncensored|pose|body|anatomy)/i.test(name),
@@ -226,12 +341,14 @@ export function resolveModelLoraPlan(input: {
   const allowed = [...new Set([...verifiedNames, ...fallbackNames])].slice(0, maxLoras);
   const selected = allowed.map((name, index) => {
     const explicit = requested.find((item) => item.name === name);
-    const strength = input.identityAsset ? 0.3 : strengthForIntensity(input.intensity, index);
+    const baseStrength = input.identityAsset
+      ? 0.3
+      : explicit?.strength_model ?? planStrength.get(name) ?? strengthForIntensity(input.intensity, index);
     const maxStrength = input.identityAsset ? 0.32 : 0.9;
     return {
       name,
-      strength_model: Number(Math.min(maxStrength, explicit?.strength_model ?? strength).toFixed(2)),
-      strength_clip: Number(Math.min(maxStrength, explicit?.strength_clip ?? explicit?.strength_model ?? strength).toFixed(2)),
+      strength_model: Number(Math.min(maxStrength, baseStrength).toFixed(2)),
+      strength_clip: Number(Math.min(maxStrength, explicit?.strength_clip ?? baseStrength).toFixed(2)),
     };
   });
   const total = selected.reduce((sum, item) => sum + item.strength_model, 0);
@@ -248,3 +365,4 @@ export function resolveModelLoraPlan(input: {
     triggerWords: [...new Set(selected.flatMap((item) => triggersForLora(item.name)))],
   };
 }
+

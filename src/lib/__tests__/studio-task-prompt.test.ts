@@ -12,15 +12,13 @@ describe('buildStudioTaskPrompt', () => {
     expect(portrait).toContain('ID reference');
   });
 
-  it('uses model-family-specific quality language', () => {
+  it('uses FLUX-style quality language consistently', () => {
+    // Spec: 全站统一 FLUX，不再区分 Pony/Illustrious
     const flux = buildStudioTaskPrompt({ task: 'portrait', modelFamily: 'flux', scene: 'standing by a window', category: 'female', renderStyle: 'realistic' });
-    const pony = buildStudioTaskPrompt({ task: 'portrait', modelFamily: 'pony', scene: 'standing by a window', category: 'female', renderStyle: 'realistic' });
     expect(flux).toContain('real-camera photograph');
     expect(flux).not.toContain('score_9');
-    expect(pony).toContain('score_9');
-    expect(pony).not.toContain('real-camera photograph');
     expect(flux).toContain('face and full body clearly illuminated');
-    expect(pony).toContain('no crushed shadows');
+    expect(flux).toContain('no crushed shadows');
   });
 
   it('keeps strong framing and camera angle requirements in the final prompt', () => {
@@ -37,17 +35,18 @@ describe('buildStudioTaskPrompt', () => {
     expect(result).toContain('LOW-ANGLE CAMERA REQUIREMENT');
   });
 
-  it('creates an NSFW-level and model-aware portrait scene when the prompt is empty', () => {
+  it('creates an NSFW-level and FLUX-aware portrait scene when the prompt is empty', () => {
+    // Spec: 全站统一 FLUX，不再使用 Pony
     const result = buildStudioSceneDraft({
       task: 'portrait',
-      modelFamily: 'pony',
+      modelFamily: 'flux',
       currentPrompt: '',
       intensity: 4,
       renderStyle: 'realistic',
     });
     expect(result).toContain('complete editorial character portrait');
     expect(result).toContain('explicit solo scene');
-    expect(result).toContain('Pony-readable');
+    expect(result).toContain('FLUX-ready');
     expect(result).toContain('no crushed shadows');
   });
 

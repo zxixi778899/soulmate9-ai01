@@ -1,5 +1,6 @@
 import type { CompanionCategory } from '@/lib/companion-category';
 import { getCatalogLoraById } from '@/lib/comfy-console/lora-catalog';
+import { fluxScenarioPlan } from '@/lib/model-lora-routing';
 import { isLoraInstalled } from '@/lib/runpod-loras';
 
 export type AnimeRenderStyle = 'realistic' | '2d' | '3d';
@@ -200,38 +201,37 @@ export function studioNegativePrompt(category: CompanionCategory, animeStyle: An
   return shared + ', ' + anatomy + ', ' + style;
 }
 
+/** Catalog mapping for the curated FLUX scenario plans (全站 FLUX 重构). */
+const FLUX_LORA_CATALOG: Record<string, { id: string; reasonZh: string }> = {
+  'flux_style_photoreal_v1.safetensors': { id: 'flux-style-photoreal-v1', reasonZh: '写实质感主力：增强真实摄影光影与皮肤质感。' },
+  'flux_detail_skin_v1.safetensors': { id: 'flux-detail-skin-v1', reasonZh: '自然皮肤微细节，降低 AI 塑料感；不用于头像或三视图。' },
+  'flux_detail_hands_v1.safetensors': { id: 'flux-detail-hands-v1', reasonZh: '手部结构修正；高强度场景含手部可见时必挂。' },
+  'flux_lewd_v1.safetensors': { id: 'flux-lewd-v1', reasonZh: '通用 NSFW 增强；强度 ≥3 时与姿势/服装 LoRA 叠加。' },
+  'flux_pose_nsfw_dynamic_v1.safetensors': { id: 'flux-pose-nsfw-dynamic-v1', reasonZh: '成人动态姿势：增强动作与接触关系，避免高强度破坏身份。' },
+  'flux_male_masc_v1.safetensors': { id: 'flux-male-masc-v1', reasonZh: '男体写实主力：稳定男性化五官与体型。' },
+  'flux_male_muscle_v1.safetensors': { id: 'flux-male-muscle-v1', reasonZh: '肌肉线条增强：男性健身体型力量感。' },
+  'realistic-mtf-trans.safetensors': { id: 'flux-mtf-trans-v1', reasonZh: 'MTF 跨性别写实：女性化面部与男性特征稳定共存。' },
+  'rdanimefluxv1rapid.safetensors': { id: 'flux-anime-v1', reasonZh: '二次元动漫画风主力：线稿与赛璐璐上色。' },
+  'flux_3d_render_v1.safetensors': { id: 'flux-3d-render-v1', reasonZh: '3D 渲染风格：PBR 材质与电影灯光。' },
+  'flux_outfit_lingerie_v1.safetensors': { id: 'flux-outfit-lingerie-v1', reasonZh: '内衣穿搭 LoRA：仅控制服装，不改变人物身份。' },
+  'flux_outfit_bikini_v1.safetensors': { id: 'flux-outfit-bikini-v1', reasonZh: '泳装穿搭 LoRA：仅控制服装，不改变人物身份。' },
+  'flux_outfit_latex_v1.safetensors': { id: 'flux-outfit-latex-v1', reasonZh: '乳胶/胶衣穿搭 LoRA：仅控制服装，不改变人物身份。' },
+};
+
 export function recommendedStudioLoras(
   category: CompanionCategory,
   animeStyle: AnimeRenderStyle = 'realistic',
   intensity: NsfwIntensity = 1,
 ): Array<{ id: string; strength: number; reasonZh: string }> {
-  if (animeStyle === '2d') {
-    return [{
-      id: 'illustrious-micro-details-v6',
-      strength: 0.3,
-      reasonZh: '仅在 Illustrious 路线增强二维人物微细节；运行卷确认存在后才加载。',
-    }];
-  }
-  if (animeStyle === '3d') return [];
-  if (intensity === 2) {
-    return [{
-      id: 'flux-outfit-lingerie-v1',
-      strength: 0.42,
-      reasonZh: 'NSFW 2级优先使用内衣服装 LoRA，仅控制服装，不改变人物身份。',
-    }];
-  }
-  if (intensity >= 4) {
-    return [{
-      id: 'flux-pose-nsfw-dynamic-v1',
-      strength: intensity === 5 ? 0.48 : 0.42,
-      reasonZh: 'NSFW 4-5级优先使用成人动作 LoRA，增强动作与接触关系，避免高强度破坏身份。',
-    }];
-  }
-  return [{
-    id: 'flux-detail-skin-v1',
-    strength: category === 'transgender' ? 0.2 : 0.24,
-    reasonZh: 'FLUX 写实成片的低强度自然皮肤细节；不用于头像或三视图。',
-  }];
+  // 全站统一 FLUX：推荐面板直接消费精编场景计划表，
+  // 覆盖女性/男性/跨性别/2D/3D 全部 SFW/NSFW 场景。
+  return fluxScenarioPlan({ category, intensity, animeStyle })
+    .map((item) => {
+      const meta = FLUX_LORA_CATALOG[item.name];
+      return meta ? { id: meta.id, strength: item.strength, reasonZh: meta.reasonZh } : null;
+    })
+    .filter((item): item is { id: string; strength: number; reasonZh: string } => item !== null)
+    .slice(0, 3);
 }
 export type CategoryLoraControl = {
   id: string;

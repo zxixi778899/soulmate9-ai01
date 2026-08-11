@@ -39,13 +39,9 @@ export function buildStudioSceneDraft(input: {
     background: 'environment-focused image with consistent perspective, contact shadows and subject-matched lighting',
     video: 'natural five-second motion preserving the exact person, clothing, background and camera position',
   };
-  const modelNote = input.modelFamily === 'pony'
-    ? 'Pony-readable concrete anatomy and action, no ambiguous body overlap'
-    : input.modelFamily === 'illustrious'
-      ? 'Illustrious-ready clean 2D composition, readable silhouette and polished shading'
-      : input.modelFamily === 'wan22'
-        ? 'stable temporal continuity, no morphing and no scene cut'
-        : 'FLUX-ready natural-language scene with concrete camera, materials and physical relationships';
+  const modelNote = input.modelFamily === 'wan22'
+    ? 'stable temporal continuity, no morphing and no scene cut'
+    : 'FLUX-ready natural-language scene with concrete camera, materials and physical relationships';
   const lighting = 'bright soft key light, balanced frontal fill light, correct exposure, face and body clearly illuminated, visible shadow detail, no crushed shadows';
   const existingLower = existing.toLowerCase();
   return [existing, taskScene[input.task], levelScene[input.intensity], modelNote, lighting]
@@ -77,12 +73,6 @@ function qualityForModel(modelFamily: PromptInput['modelFamily'], renderStyle: A
   if (modelFamily === 'wan22') {
     return 'stable identity, coherent natural motion, consistent anatomy, stable camera, temporal continuity, no morphing or scene cuts';
   }
-  if (modelFamily === 'pony') {
-    return 'score_9, score_8_up, score_7_up, source_photo, realistic skin, detailed eyes, anatomically coherent, bright professional key light, balanced fill light, correct exposure, face and body clearly illuminated, no crushed shadows';
-  }
-  if (modelFamily === 'illustrious') {
-    return 'masterpiece, best quality, absurdres, detailed face, detailed eyes, clean linework, coherent anatomy, bright polished lighting, clear subject exposure, readable face and body detail, no crushed shadows';
-  }
   if (renderStyle === '2d') {
     return 'high quality 2D animation artwork with stable linework, coherent anatomy, controlled bright cel shading, clean color separation, clearly illuminated face and body, no underexposure';
   }
@@ -108,7 +98,6 @@ export function buildStudioTaskPrompt(input: PromptInput): string {
   const framing = text(input.framing);
   const triggers = [...new Set((input.loraTriggers || []).map(text).filter(Boolean))].slice(0, 8);
   const parts = [
-    input.modelFamily === 'pony' || input.modelFamily === 'illustrious' ? triggers.join(', ') : '',
     taskInstruction(input.task, Boolean(input.hasIdentityReference)),
     identity,
     scene,

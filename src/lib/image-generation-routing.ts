@@ -1,18 +1,23 @@
 import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { classifyImageScene, isComplexAdultScene, type ImageSceneSemantics } from '@/lib/image-scene-semantics';
-import { logger } from '@/lib/logger';
 
 export type ImageSurface = 'companion' | 'outfit' | 'prop' | 'advert';
+/**
+ * 'pony' / 'illustrious' are retained purely for type compatibility with
+ * legacy callers and the runpod preflight fallback; routing never returns
+ * them anymore — every request runs on the unified FLUX pipeline.
+ */
 export type ImageModelFamily = 'flux' | 'pony' | 'illustrious';
 
 /**
  * Single unified ComfyUI endpoint — ALL image generation goes through here.
- * 双底模策略（A/B 选定）：
- *  - SFW / 写实（intensity < 3）：flux1-dev-fp8 完整底模，24 步，皮肤自然
- *  - NSFW（intensity >= 3）：Flux Unchained by SCG（UNET-only split 加载），8 步
- * All routes use FLUX parameters; LoRAs are auto-selected downstream by
- * resolveModelLoraPlan() based on model family + category + intensity.
+ * 单底模策略（全站 FLUX 重构）：
+ *  - 所有场景统一 flux1-dev-fp8 完整底模（CheckpointLoaderSimple 加载）
+ *  - KSampler cfg 恒为 1；条件引导 flux_guidance：SFW 3.5 / NSFW 4.0
+ *  - 步数：SFW 24 / NSFW 28 / 复杂多人 30 / turbo 草稿 8
+ * LoRAs are auto-selected downstream by resolveModelLoraPlan() from the
+ * curated FLUX_SCENARIO_PLANS based on category + render style + intensity.
  */
 export const UNIFIED_COMFY_ENDPOINT = 'wozrrlcdipyl3p';
 
@@ -25,17 +30,19 @@ export type ImageGenerationRoute = {
   scheduler: string;
   steps: number;
   cfg: number;
+  /** FLUX conditioning guidance (KSampler cfg stays 1). */
+  fluxGuidance: number;
   clipSkip: 1 | 2;
   width: number;
   height: number;
   presetId: string;
   reason: string;
   modelDetails: {
-    architecture: 'flux-dev' | 'sdxl-pony' | 'sdxl-illustrious';
-    precision: 'fp8' | 'fp16';
-    textEncoder: 't5xxl+clip-l' | 'clip-l+clip-g';
-    vae: 'ae.safetensors' | 'checkpoint-baked';
-    predictionType: 'flow' | 'epsilon';
+    architecture: 'flux-dev';
+    precision: 'fp8';
+    textEncoder: 't5xxl+clip-l';
+    vae: 'ae.safetensors';
+    predictionType: 'flow';
   };
   loraPolicy: {
     inventoryEnv: string[];
@@ -48,61 +55,31 @@ export type ImageGenerationRoute = {
   };
 };
 
+/**
+ * img2img denoise defaults for studio task workflows (outfit swap / pose
+ * swap / background swap). Higher denoise = more freedom to change.
+ */
+export const TASK_DENOISE_DEFAULTS: Record<'outfit' | 'pose' | 'background' | 'portrait', number> = {
+  // 换装：服装必须能换掉，但脸与构图要留住
+  outfit: 0.72,
+  // 换姿势：身体姿态要变，身份与服装保持
+  pose: 0.62,
+  // 换背景：只松动环境
+  background: 0.5,
+  portrait: 0.55,
+};
+
 const env = (name: string, fallback: string): string => process.env[name]?.trim() || fallback;
-const optionalEnv = (name: string): string => process.env[name]?.trim() || '';
-
-type RouteCore = Omit<ImageGenerationRoute, 'modelDetails' | 'loraPolicy'>;
-
-function completeRoute(route: RouteCore, category: CompanionCategory, renderStyle: AnimeRenderStyle): ImageGenerationRoute {
-  const categoryKey = category === 'anime' ? 'FEMALE' : category.toUpperCase();
-  const prefix = route.modelFamily === 'flux'
-    ? 'RUNPOD_FLUX'
-    : route.modelFamily === 'pony'
-      ? 'RUNPOD_PONY'
-      : 'RUNPOD_ILLUSTRIOUS';
-  const isFlux = route.modelFamily === 'flux';
-  return {
-    ...route,
-    modelDetails: isFlux
-      ? {
-          architecture: 'flux-dev',
-          precision: 'fp8',
-          textEncoder: 't5xxl+clip-l',
-          vae: 'ae.safetensors',
-          predictionType: 'flow',
-        }
-      : {
-          architecture: route.modelFamily === 'pony' ? 'sdxl-pony' : 'sdxl-illustrious',
-          precision: 'fp16',
-          textEncoder: 'clip-l+clip-g',
-          vae: 'checkpoint-baked',
-          predictionType: 'epsilon',
-        },
-    loraPolicy: {
-      inventoryEnv: isFlux
-        ? ['RUNPOD_INSTALLED_LORAS_FLUX', 'RUNPOD_INSTALLED_LORAS']
-        : [`RUNPOD_INSTALLED_LORAS_${route.modelFamily.toUpperCase()}`, 'RUNPOD_INSTALLED_LORAS_SDXL'],
-      categoryEnv: `${prefix}_${categoryKey}_LORAS`,
-      styleEnv: renderStyle === '2d' ? `${prefix}_2D_LORAS` : renderStyle === '3d' ? `${prefix}_3D_LORAS` : undefined,
-      adultEnv: `${prefix}_NSFW_LORAS`,
-      maxLoras: isFlux ? 3 : 2,
-      maxCombinedStrength: 1.65,
-      failClosed: true,
-    },
-  };
-}
 
 export function specialistModelsReadyFromEnv(): boolean {
-  // Only return true if explicitly set to 'true'. Env vars existing is not sufficient —
-  // we must have a positive confirmation that the SDXL endpoint has the models installed.
-  // This prevents auto-routing to Pony/Illustrious when they're not actually available.
+  // Legacy SDXL gate — kept because admin health endpoints surface it. The
+  // routing matrix no longer consumes it: everything stays on FLUX.
   return process.env.RUNPOD_SDXL_MODELS_READY?.trim().toLowerCase() === 'true';
 }
 
 /**
- * Declared checkpoint inventory of the SDXL worker (RUNPOD_SDXL_CHECKPOINTS,
- * comma-separated filenames). Returns null when the inventory is not declared —
- * in that case routing falls back to trusting RUNPOD_SDXL_MODELS_READY only.
+ * Declared checkpoint inventory of the legacy SDXL worker. Still consumed by
+ * the runpod preflight as the final fallback safety net.
  */
 export function specialistCheckpointInventory(): Set<string> | null {
   const raw = process.env.RUNPOD_SDXL_CHECKPOINTS?.trim();
@@ -116,11 +93,54 @@ export function isSpecialistCheckpointAvailable(checkpoint: string): boolean {
   if (!inventory) return true; // no declared inventory — flag-only mode
   return inventory.has(checkpoint.trim().toLowerCase());
 }
+
+function fluxRoute(
+  route: {
+    surface: ImageSurface;
+    checkpoint: string;
+    steps: number;
+    fluxGuidance: number;
+    width: number;
+    height: number;
+    presetId: string;
+    reason: string;
+  },
+  category: CompanionCategory,
+  renderStyle: AnimeRenderStyle,
+): ImageGenerationRoute {
+  const categoryKey = category === 'anime' ? 'FEMALE' : category.toUpperCase();
+  return {
+    ...route,
+    modelFamily: 'flux',
+    endpointId: env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT),
+    sampler: 'euler',
+    scheduler: 'simple',
+    cfg: 1,
+    clipSkip: 1,
+    modelDetails: {
+      architecture: 'flux-dev',
+      precision: 'fp8',
+      textEncoder: 't5xxl+clip-l',
+      vae: 'ae.safetensors',
+      predictionType: 'flow',
+    },
+    loraPolicy: {
+      inventoryEnv: ['RUNPOD_INSTALLED_LORAS_FLUX', 'RUNPOD_INSTALLED_LORAS'],
+      categoryEnv: `RUNPOD_FLUX_${categoryKey}_LORAS`,
+      styleEnv: renderStyle === '2d' ? 'RUNPOD_FLUX_2D_LORAS' : renderStyle === '3d' ? 'RUNPOD_FLUX_3D_LORAS' : undefined,
+      adultEnv: 'RUNPOD_FLUX_NSFW_LORAS',
+      maxLoras: 3,
+      maxCombinedStrength: 1.65,
+      failClosed: true,
+    },
+  };
+}
+
 /**
  * Resolve generation parameters for the unified ComfyUI endpoint.
- * ALL requests use the FLUX checkpoint (the only one currently deployed).
- * Model family is kept as a routing hint for downstream LoRA selection,
- * but checkpoint/sampler/scheduler/cfg are always FLUX-compatible.
+ * Every scenario — female / male / transgender / 2D anime / 3D, SFW or NSFW —
+ * runs on flux1-dev-fp8; scenario differences live in steps, flux guidance,
+ * canvas size and the downstream LoRA plan.
  */
 export function resolveImageGenerationRoute(input: {
   surface: ImageSurface;
@@ -129,9 +149,9 @@ export function resolveImageGenerationRoute(input: {
   nsfwIntensity?: NsfwIntensity;
   sceneText?: string;
   sceneSemantics?: ImageSceneSemantics;
-  /** Quick preview mode: minimal steps + low cfg for fast companion drafts */
+  /** Quick preview mode: minimal steps for fast companion drafts */
   turbo?: boolean;
-  /** Runtime-verified SDXL inventory; clients receive this from the admin volume API. */
+  /** @deprecated ignored — retained for caller compatibility. Routing is FLUX-only. */
   specialistModelsReady?: boolean;
 }): ImageGenerationRoute {
   const renderStyle = input.renderStyle || 'realistic';
@@ -139,167 +159,99 @@ export function resolveImageGenerationRoute(input: {
   const category: CompanionCategory = input.category === 'anime' ? 'female' : input.category || 'female';
   const semantics = input.sceneSemantics || classifyImageScene(input.sceneText || '', category);
   const complexScene = isComplexAdultScene(semantics);
-  // Single endpoint for all model families
-  const endpointId = env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT);
-  const sfwCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
-  const nsfwCheckpoint = env('RUNPOD_FLUX_NSFW_CHECKPOINT', 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
-  // An endpoint ID only proves that a worker exists. Specialist routing is
-  // enabled only after its runtime volume has been verified to expose both
-  // checkpoints and LoRAs; otherwise Comfy returns `value_not_in_list: []`.
-  const sdxlModelsReady = input.specialistModelsReady ?? specialistModelsReadyFromEnv();
-  const sdxlEndpoint = sdxlModelsReady ? optionalEnv('RUNPOD_ENDPOINT_ID_SDXL') : '';
-  const illustriousCheckpoint = env('RUNPOD_CHECKPOINT_ILLUSTRIOUS', 'waiMatureIllustrious_v20.safetensors');
-  const ponyCheckpoint = env('RUNPOD_CHECKPOINT_PONY', 'ponyRealism_V22.safetensors');
-
-  // Runtime diagnostic logging
-  logger.debug('[image-routing] resolve', {
-    intensity,
-    renderStyle,
-    category,
-    complexScene,
-    sdxlModelsReady,
-    sdxlEndpoint: sdxlEndpoint || '(empty)',
-    env_SDXL_MODELS_READY: process.env.RUNPOD_SDXL_MODELS_READY || '(unset)',
-    env_ENDPOINT_ID_SDXL: process.env.RUNPOD_ENDPOINT_ID_SDXL || '(unset)',
-    input_specialistModelsReady: input.specialistModelsReady,
-  });
-
-  // The studio may use a dedicated SDXL worker after its mounted inventory is
-  // explicitly marked ready. Until then all requests stay on verified FLUX.
-  // An inventory mismatch (checkpoint missing on the volume) also stays on FLUX.
-  if (input.surface === 'companion' && renderStyle === '2d' && sdxlEndpoint && isSpecialistCheckpointAvailable(illustriousCheckpoint)) {
-    return completeRoute({
-      surface: input.surface,
-      modelFamily: 'illustrious',
-      endpointId: sdxlEndpoint,
-      checkpoint: illustriousCheckpoint,
-      sampler: 'dpmpp_2m_sde',
-      scheduler: 'karras',
-      steps: complexScene ? 32 : 28,
-      cfg: 6,
-      clipSkip: 2,
-      width: 832,
-      height: 1216,
-      presetId: complexScene ? 'illustrious-2d-multi-control' : 'illustrious-2d-portrait',
-      reason: 'Illustrious is configured for stable 2D anatomy and composition.',
-    }, category, renderStyle);
-  }
-
-  const ponyEligible = input.surface === 'companion' && renderStyle === 'realistic' &&
-    (intensity >= 3 || category === 'transgender' || complexScene);
-  if (ponyEligible && sdxlEndpoint && isSpecialistCheckpointAvailable(ponyCheckpoint)) {
-    const highControl = semantics.powerDynamic === 'sm' || semantics.pairing === 'group_4i';
-    return completeRoute({
-      surface: input.surface,
-      modelFamily: 'pony',
-      endpointId: sdxlEndpoint,
-      checkpoint: ponyCheckpoint,
-      sampler: 'dpmpp_2m_sde',
-      scheduler: 'karras',
-      steps: highControl || complexScene ? 32 : 28,
-      cfg: 6,
-      clipSkip: 2,
-      width: 832,
-      height: 1216,
-      presetId: highControl ? 'pony-adult-composition-control' : complexScene ? 'pony-adult-pair' : 'pony-adult-portrait',
-      reason: 'Pony is configured as the specialist adult anatomy route.',
-    }, category, renderStyle);
-  }
+  const checkpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
+  const nsfw = intensity >= 3;
 
   // ─── Turbo preview mode ───────────────────────────────────────────────────
-  // Quick draft for companion chat: 12 steps + low cfg produces a recognizable
-  // image in ~3s instead of ~8s. Used for "typing…" previews and pool warm-up.
-  if (
-    input.surface === 'companion' &&
-    input.turbo &&
-    renderStyle === 'realistic' &&
-    intensity < 3 &&
-    category !== 'transgender' &&
-    !complexScene
-  ) {
-    return completeRoute({
+  // Quick draft for companion chat: 8 steps produces a recognizable image in
+  // ~3s instead of ~8s. Used for "typing…" previews and pool warm-up only.
+  if (input.surface === 'companion' && input.turbo && !nsfw && !complexScene) {
+    return fluxRoute({
       surface: input.surface,
-      modelFamily: 'flux',
-      endpointId,
-      checkpoint: sfwCheckpoint,
-      sampler: 'euler',
-      scheduler: 'simple',
+      checkpoint,
       steps: 8,
-      cfg: 1,
-      clipSkip: 1,
+      fluxGuidance: 2.5,
       width: 832,
       height: 1216,
-      presetId: 'flux-companion-turbo',
-      reason: 'Turbo preview: minimal steps for fast companion draft.',
+      presetId: 'flux-turbo',
+      reason: 'Turbo preview: minimal steps for a fast companion draft.',
     }, category, renderStyle);
   }
 
-  // ─── 2D / Anime style (FLUX pipeline) ─────────────────────────────────────
-  // Uses FLUX with anime-oriented prompt. LoRA routing will select
-  // flux_detail_enhancer for anime category downstream.
+  // ─── 2D / Anime style ─────────────────────────────────────────────────────
+  // FLUX + anime LoRA (rdanimefluxv1rapid) downstream; higher steps keep
+  // linework and stylized anatomy coherent.
   if (input.surface === 'companion' && renderStyle === '2d') {
-    return completeRoute({
+    return fluxRoute({
       surface: input.surface,
-      modelFamily: 'flux',
-      endpointId,
-      checkpoint: intensity >= 3 ? nsfwCheckpoint : sfwCheckpoint,
-      sampler: 'euler',
-      scheduler: 'simple',
-      steps: intensity >= 3 ? 8 : 24,
-      cfg: 1,
-      clipSkip: 1,
+      checkpoint,
+      steps: nsfw ? 28 : 26,
+      fluxGuidance: nsfw ? 4.0 : 3.5,
       width: 832,
       height: 1216,
       presetId: complexScene ? 'flux-2d-multi-control' : 'flux-2d-portrait',
       reason: complexScene
-        ? 'Multi-character 2D art uses a higher-step FLUX anime preset.'
-        : 'Single-character 2D art uses the FLUX anime portrait preset.',
+        ? 'Multi-character 2D art uses the high-step FLUX anime preset.'
+        : '2D art uses the FLUX anime portrait preset with the anime LoRA.',
     }, category, renderStyle);
   }
 
-  // ─── Adult / NSFW anatomy (FLUX pipeline) ─────────────────────────────────
-  // Uses FLUX with explicit natural-language prompt. LoRA routing will select
-  // Model-family routing may add only runtime-verified LoRAs downstream.
-  const needsAdultAnatomy = input.surface === 'companion' && renderStyle !== '2d' &&
-    (intensity >= 3 || category === 'transgender' || complexScene);
-  if (needsAdultAnatomy) {
-    const highControl = semantics.powerDynamic === 'sm' || semantics.pairing === 'group_4i';
-    return completeRoute({
+  // ─── 3D render style ──────────────────────────────────────────────────────
+  if (input.surface === 'companion' && renderStyle === '3d') {
+    return fluxRoute({
       surface: input.surface,
-      modelFamily: 'flux',
-      endpointId,
-      checkpoint: nsfwCheckpoint,
-      sampler: 'euler',
-      scheduler: 'simple',
-      steps: 8,
-      cfg: 1,
-      clipSkip: 1,
-      // Native 2:3 FLUX canvas; 44% fewer latent pixels than 1024x1536.
-      width: 768,
+      checkpoint,
+      steps: nsfw ? 28 : 26,
+      fluxGuidance: nsfw ? 4.0 : 3.5,
+      width: 896,
+      height: 1152,
+      presetId: complexScene ? 'flux-3d-multi-control' : 'flux-3d-portrait',
+      reason: '3D companion rendering uses FLUX with the 3D render LoRA.',
+    }, category, renderStyle);
+  }
+
+  // ─── Transgender anatomy ──────────────────────────────────────────────────
+  // Dedicated preset: the MTF LoRA needs stable mixed anatomy, so both SFW
+  // and NSFW get the wider canvas; NSFW adds steps and guidance.
+  if (input.surface === 'companion' && category === 'transgender') {
+    return fluxRoute({
+      surface: input.surface,
+      checkpoint,
+      steps: nsfw ? 28 : 24,
+      fluxGuidance: nsfw ? 4.0 : 3.5,
+      width: 896,
+      height: 1152,
+      presetId: nsfw
+        ? complexScene ? 'flux-trans-composition' : 'flux-trans-adult'
+        : 'flux-trans-portrait',
+      reason: 'Transgender anatomy uses the FLUX pipeline with the MTF LoRA.',
+    }, category, renderStyle);
+  }
+
+  // ─── Adult / NSFW anatomy (realistic female / male) ───────────────────────
+  if (input.surface === 'companion' && nsfw) {
+    const highControl = semantics.powerDynamic === 'sm' || semantics.pairing === 'group_4i';
+    return fluxRoute({
+      surface: input.surface,
+      checkpoint,
+      steps: highControl || complexScene ? 30 : 28,
+      fluxGuidance: 4.0,
+      width: 896,
       height: 1152,
       presetId: highControl ? 'flux-adult-composition-control' : complexScene ? 'flux-adult-pair' : 'flux-adult-portrait',
-      reason: category === 'transgender'
-        ? 'Transgender anatomy uses the FLUX explicit pipeline with NSFW LoRAs.'
-        : 'Explicit adult anatomy uses the FLUX pipeline with NSFW LoRAs.',
+      reason: 'Explicit adult anatomy uses the high-step FLUX pipeline with NSFW LoRAs.',
     }, category, renderStyle);
   }
 
-  // ─── Default: FLUX companion / product ────────────────────────────────────
-  return completeRoute({
+  // ─── Default: FLUX SFW companion / product ────────────────────────────────
+  return fluxRoute({
     surface: input.surface,
-    modelFamily: 'flux',
-    endpointId,
-    checkpoint: sfwCheckpoint,
-    sampler: 'euler',
-    scheduler: 'simple',
+    checkpoint,
     steps: 24,
-    cfg: 1,
-    clipSkip: 1,
+    fluxGuidance: 3.5,
     width: input.surface === 'companion' ? 832 : 1024,
     height: input.surface === 'companion' ? 1216 : 1024,
-    presetId: input.surface === 'companion' ? 'flux-companion-natural' : `flux-${input.surface}-product`,
-    reason: renderStyle === '3d'
-      ? '3D companion rendering uses the FLUX pipeline.'
-      : `${input.surface} generation uses the FLUX product pipeline.`,
+    presetId: input.surface === 'companion' ? 'flux-portrait-sfw' : `flux-${input.surface}-product`,
+    reason: `${input.surface} generation uses the unified FLUX pipeline.`,
   }, category, renderStyle);
 }
