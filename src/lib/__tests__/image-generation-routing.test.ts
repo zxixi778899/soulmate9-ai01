@@ -126,4 +126,51 @@ describe('model-aware image generation routing', () => {
     expect(resolveImageGenerationRoute({ surface: 'companion', renderStyle: 'realistic', nsfwIntensity: 5 }).modelFamily).toBe('pony');
     expect(resolveImageGenerationRoute({ surface: 'companion', renderStyle: '2d' }).modelFamily).toBe('illustrious');
   });
+
+  it.each([
+    ['female', 'realistic'],
+    ['male', 'realistic'],
+    ['transgender', 'realistic'],
+    ['female', '3d'],
+  ] as const)('returns complete model and LoRA metadata for %s/%s', (category, renderStyle) => {
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      category,
+      renderStyle,
+      nsfwIntensity: 1,
+    });
+    expect(route.modelDetails.architecture).toBe('flux-dev');
+    expect(route.modelDetails.textEncoder).toBe('t5xxl+clip-l');
+    expect(route.loraPolicy.categoryEnv).toContain(category.toUpperCase());
+    expect(route.loraPolicy.maxLoras).toBe(3);
+    expect(route.loraPolicy.failClosed).toBe(true);
+  });
+
+  it('describes the specialist Anime/2D model and LoRA inventory', () => {
+    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
+    process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      category: 'anime',
+      renderStyle: '2d',
+      nsfwIntensity: 5,
+    });
+    expect(route.modelDetails.architecture).toBe('sdxl-illustrious');
+    expect(route.modelDetails.precision).toBe('fp16');
+    expect(route.loraPolicy.inventoryEnv).toContain('RUNPOD_INSTALLED_LORAS_ILLUSTRIOUS');
+    expect(route.loraPolicy.styleEnv).toBe('RUNPOD_ILLUSTRIOUS_2D_LORAS');
+    expect(route.loraPolicy.maxLoras).toBe(2);
+  });
+
+  it('falls back to FLUX when the declared specialist checkpoint is absent', () => {
+    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
+    process.env.RUNPOD_ENDPOINT_ID_SDXL = 'sdxl-endpoint';
+    process.env.RUNPOD_SDXL_CHECKPOINTS = 'some-other-model.safetensors';
+    expect(resolveImageGenerationRoute({
+      surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 5,
+    }).modelFamily).toBe('flux');
+    expect(resolveImageGenerationRoute({
+      surface: 'companion', category: 'anime', renderStyle: '2d', nsfwIntensity: 5,
+    }).modelFamily).toBe('flux');
+  });
 });

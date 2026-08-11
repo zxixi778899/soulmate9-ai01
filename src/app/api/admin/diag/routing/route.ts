@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     const envCheck = {
       RUNPOD_ENDPOINT_ID_SDXL: process.env.RUNPOD_ENDPOINT_ID_SDXL || '(empty)',
       RUNPOD_SDXL_MODELS_READY: process.env.RUNPOD_SDXL_MODELS_READY || '(empty)',
+      RUNPOD_SDXL_CHECKPOINTS: process.env.RUNPOD_SDXL_CHECKPOINTS || '(undeclared — flag-only mode)',
       RUNPOD_CHECKPOINT_PONY: process.env.RUNPOD_CHECKPOINT_PONY || '(empty)',
       RUNPOD_CHECKPOINT_ILLUSTRIOUS: process.env.RUNPOD_CHECKPOINT_ILLUSTRIOUS || '(empty)',
       RUNPOD_INSTALLED_LORAS_PONY: (process.env.RUNPOD_INSTALLED_LORAS_PONY || '(empty)').slice(0, 80),

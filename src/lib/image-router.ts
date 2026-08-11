@@ -210,11 +210,7 @@ let routeCache: { routes: ImageRouteConfig[]; at: number } | null = null;
 const ROUTE_CACHE_MS = 15_000;
 
 export function getImageRoutes(): ImageRouteConfig[] {
-  if (routeCache && Date.now() - routeCache.at < ROUTE_CACHE_MS) {
-    return routeCache.routes;
-  }
-  routeCache = { routes: DEFAULT_IMAGE_ROUTES, at: Date.now() };
-  return routeCache.routes;
+  return routeCache?.routes ?? DEFAULT_IMAGE_ROUTES;
 }
 
 export function setImageRoutesCache(routes: ImageRouteConfig[]): void {
@@ -223,6 +219,34 @@ export function setImageRoutesCache(routes: ImageRouteConfig[]): void {
 
 export function invalidateImageRouteCache(): void {
   routeCache = null;
+}
+
+/**
+ * Ensure admin-configured provider routes (site_settings `provider_routes`)
+ * are loaded before routing a request. Previously only admin routes called
+ * loadProviderRoutes, so user-facing traffic always used the hardcoded
+ * defaults. Dynamic imports keep this module free of a circular dependency
+ * on provider-routes-store.
+ */
+export async function syncImageRoutesWithSettings(): Promise<void> {
+  if (routeCache && Date.now() - routeCache.at < ROUTE_CACHE_MS) return;
+  try {
+    const [{ loadProviderRoutes }, { getSupabaseClient }] = await Promise.all([
+      // eslint-disable-next-line import/no-cycle -- lazy dynamic import: provider-routes-store only statically depends on this module one-way, the runtime cycle is broken by deferring resolution
+      import('@/lib/provider-routes-store'),
+      import('@/storage/database/supabase-client'),
+    ]);
+    await loadProviderRoutes(getSupabaseClient());
+    // loadProviderRoutes seeds setImageRoutesCache; stamp the refresh time so
+    // we don't hit the DB again inside the TTL window.
+    routeCache = { routes: routeCache?.routes ?? DEFAULT_IMAGE_ROUTES, at: Date.now() };
+  } catch (err) {
+    // Keep serving defaults when the settings store is unavailable.
+    routeCache = { routes: routeCache?.routes ?? DEFAULT_IMAGE_ROUTES, at: Date.now() };
+    logger.warn('[image-router] provider routes sync failed, using defaults', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 // ─── Provider Executors ──────────────────────────────────────
@@ -338,6 +362,9 @@ async function executeTogether(
 export async function routeImageGeneration(opts: ImageRouterOptions): Promise<ImageRouterResult> {
   const started = Date.now();
   const attempts: ImageRouterResult['attempts'] = [];
+
+  // Apply admin-configured routes (site_settings) before selecting providers.
+  await syncImageRoutesWithSettings();
 
   // Get sorted, enabled routes
   let routes = getImageRoutes()

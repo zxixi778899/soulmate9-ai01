@@ -170,52 +170,52 @@ export function languageLockInstruction(locale: ReplyLocale): string {
   switch (locale) {
     case 'zh':
       return (
-        '[LANGUAGE LOCK — CRITICAL — REPLY LANGUAGE = 中文]\n' +
-        '本轮回复语言已解析为中文。你必须全程只用简体中文回复。\n' +
+        '[LANGUAGE LOCK — REPLY LANGUAGE = 中文]\n' +
+        '先读懂他刚才说了什么，再回应他。本轮回复语言为中文，全程只用简体中文回复。\n' +
         '禁止英文整句、禁止中英夹杂段落、禁止双语对照。\n' +
         '动作 *可以简短*，对白必须是中文。\n' +
         '不要输出乱码、特殊标记、思考过程。'
       );
     case 'ja':
       return (
-        '[LANGUAGE LOCK — CRITICAL — PAGE UI = 日本語]\n' +
+        '[LANGUAGE LOCK — PAGE UI = 日本語]\n' +
         'Reply in natural Japanese ONLY. Do not mix Chinese or English body text.'
       );
     case 'ko':
       return (
-        '[LANGUAGE LOCK — CRITICAL — PAGE UI = 한국어]\n' +
+        '[LANGUAGE LOCK — PAGE UI = 한국어]\n' +
         'Reply in natural Korean ONLY. Do not mix Chinese or English body text.'
       );
     case 'es':
       return (
-        '[LANGUAGE LOCK — CRITICAL — PAGE UI = Español]\n' +
+        '[LANGUAGE LOCK — PAGE UI = Español]\n' +
         'Reply in natural Spanish ONLY. No Chinese. No random English blocks.'
       );
     case 'fr':
       return (
-        '[LANGUAGE LOCK — CRITICAL — PAGE UI = Français]\n' +
+        '[LANGUAGE LOCK — PAGE UI = Français]\n' +
         'Reply in natural French ONLY. No Chinese. No random English blocks.'
       );
     case 'de':
       return (
-        '[LANGUAGE LOCK — CRITICAL — PAGE UI = Deutsch]\n' +
+        '[LANGUAGE LOCK — PAGE UI = Deutsch]\n' +
         'Reply in natural German ONLY. No Chinese. No random English blocks.'
       );
     case 'pt':
       return (
-        '[LANGUAGE LOCK — CRITICAL — PAGE UI = Português]\n' +
+        '[LANGUAGE LOCK — PAGE UI = Português]\n' +
         'Reply in natural Portuguese ONLY. No Chinese. No random English blocks.'
       );
     case 'ru':
       return (
-        '[LANGUAGE LOCK — CRITICAL — PAGE UI = Русский]\n' +
+        '[LANGUAGE LOCK — PAGE UI = Русский]\n' +
         'Reply in natural Russian ONLY. No Chinese. No random English blocks.'
       );
     case 'en':
     default:
       return (
-        '[LANGUAGE LOCK — CRITICAL — REPLY LANGUAGE = English]\n' +
-        'This turn resolved to English. Reply in natural modern English ONLY.\n' +
+        '[LANGUAGE LOCK — REPLY LANGUAGE = English]\n' +
+        'Read what he just said, then reply. This turn resolved to English — reply in natural modern English ONLY.\n' +
         'Do NOT use any Chinese characters (汉字). Zero Chinese, Japanese, or Korean body text.\n' +
         'No bilingual mixing. No garble, special tokens, or chain-of-thought.'
       );

@@ -15,6 +15,7 @@ import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
 import { validateModelLoraName } from '@/lib/model-lora-routing';
 import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
 import { applyFluxNaturalLook } from '@/lib/prompt/flux-natural';
+import { specialistCheckpointInventory } from '@/lib/image-generation-routing';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from './analytics';
 
@@ -802,6 +803,7 @@ class RunPodClient {
    */
   async generate(options: RunPodGenerateOptions, pollIntervalMs = 2000): Promise<RunPodGenerateResult> {
     this.refreshConfig();
+    options = this.preflightValidateModelOptions(options);
     const endpointId = options.endpoint_id || this.endpointId;
     const baseUrl = endpointId ? `https://api.runpod.ai/v2/${endpointId}` : this.baseUrl;
     if (!this.apiKey || !endpointId) {
@@ -1258,6 +1260,67 @@ class RunPodClient {
     }
 
     const joined = errors.join(' | ') || 'Unknown error';
+    // Auto-fallback retry: if the error is value_not_in_list (missing model/LoRA),
+    // retry with FLUX-compatible settings. This handles the case where routing
+    // selected Pony/Illustrious models that aren't on the target endpoint.
+    if (isModelNotFoundError(joined) && options.model_family !== 'flux') {
+      logger.warn('[runpod] model/LoRA not found on endpoint, retrying with FLUX fallback', {
+        original_model_family: options.model_family,
+        original_checkpoint: options.ckpt_name,
+        error: joined.slice(0, 300),
+      });
+
+      // Build FLUX-safe fallback options. Use the base FLUX checkpoint with the
+      // simple CheckpointLoader (guaranteed on the primary endpoint) — the NSFW
+      // split checkpoint may also be missing from the failing worker's volume.
+      const fallbackCkpt = process.env.RUNPOD_FLUX_CHECKPOINT || 'flux1-dev-fp8.safetensors';
+      const fallbackLoras = (options.loras || [])
+        .filter((lora) => {
+          // Only keep FLUX-compatible LoRAs (flux_ prefix or known FLUX names)
+          const name = lora.name.toLowerCase();
+          return name.startsWith('flux_') ||
+            name.startsWith('rdanimeflux') ||
+            name.startsWith('realistic-mtf') ||
+            name.startsWith('anet_') ||
+            name === 'flux1-dev-fp8.safetensors';
+        })
+        .slice(0, 4);
+
+      const fallbackOptions: RunPodGenerateOptions = {
+        ...options,
+        ckpt_name: fallbackCkpt,
+        ckpt_loader: 'checkpoint',
+        model_family: 'flux',
+        loras: fallbackLoras.length > 0 ? fallbackLoras : undefined,
+        lora_name: undefined,
+        lora_strength_model: undefined,
+        lora_strength_clip: undefined,
+      };
+
+      // Retry on the primary FLUX endpoint — the SDXL endpoint that failed
+      // validation may not carry any FLUX checkpoints either.
+      const sdxlEndpoint = process.env.RUNPOD_ENDPOINT_ID_SDXL;
+      if (fallbackOptions.endpoint_id && sdxlEndpoint && fallbackOptions.endpoint_id === sdxlEndpoint) {
+        fallbackOptions.endpoint_id = process.env.RUNPOD_ENDPOINT_ID || undefined;
+      }
+
+      logger.info('[runpod] FLUX fallback retry', {
+        fallback_checkpoint: fallbackCkpt,
+        fallback_loras: fallbackLoras.map((l) => l.name),
+        fallback_endpoint: endpointId,
+      });
+
+      try {
+        return await this.generate(fallbackOptions, pollIntervalMs);
+      } catch (fallbackErr) {
+        const fbMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+        logger.error('[runpod] FLUX fallback also failed', { error: fbMsg.slice(0, 300) });
+        throw new Error(
+          'RunPod generation failed (original: ' + joined.slice(0, 200) + ' | fallback: ' + fbMsg.slice(0, 200) + ')',
+        );
+      }
+    }
+
     const hint =
       endpointId.startsWith('h0p7dpiv')
         ? ' [提示: 端点 h0p7dpiv* 在项目文档中标记为不可用，请把 Vercel RUNPOD_ENDPOINT_ID 改成可用的 Comfy 端点，例如本地 b6r5nhhrddf8dx]'
@@ -1331,6 +1394,123 @@ class RunPodClient {
     return urls;
   }
 
+  /**
+   * Validate and adjust model options before submission.
+   * Prevents submit_only jobs from failing with value_not_in_list errors
+   * when the endpoint lacks the requested checkpoint or LoRAs.
+   * Handles all model families: FLUX, Pony, Illustrious.
+   */
+  private preflightValidateModelOptions(options: RunPodGenerateOptions): RunPodGenerateOptions {
+    const adjusted = { ...options };
+    const family = options.model_family || 'flux';
+
+    // Check if SDXL specialist models (Pony/Illustrious) are actually ready.
+    // If RUNPOD_SDXL_MODELS_READY is not explicitly 'true', the SDXL endpoint
+    // may not have the required checkpoints/LoRAs installed.
+    const sdxlReady = process.env.RUNPOD_SDXL_MODELS_READY === 'true';
+    // Inventory cross-check: when RUNPOD_SDXL_CHECKPOINTS declares the mounted
+    // checkpoint list, a requested checkpoint missing from it means the worker
+    // would reject the workflow with value_not_in_list — fall back early.
+    const inventory = specialistCheckpointInventory();
+    const requestedCkptKey = (adjusted.ckpt_name || '').trim().toLowerCase();
+    const checkpointMissingFromInventory = Boolean(
+      inventory && requestedCkptKey && !inventory.has(requestedCkptKey),
+    );
+
+    // Pony / Illustrious: fall back to FLUX if SDXL models are not ready.
+    if ((family === 'pony' || family === 'illustrious') && (!sdxlReady || checkpointMissingFromInventory)) {
+      logger.warn('[runpod] SDXL models unavailable, falling back to FLUX', {
+        requested_family: family,
+        requested_checkpoint: adjusted.ckpt_name,
+        sdxl_ready: sdxlReady,
+        checkpoint_missing_from_inventory: checkpointMissingFromInventory,
+        fallback: 'flux',
+      });
+      adjusted.model_family = 'flux';
+      adjusted.ckpt_name = process.env.RUNPOD_FLUX_CHECKPOINT || 'flux1-dev-fp8.safetensors';
+      adjusted.ckpt_loader = 'checkpoint';
+      // Clear SDXL-specific LoRAs; they will be re-filtered below.
+      adjusted.loras = undefined;
+      adjusted.lora_name = null;
+      // Also route to the primary FLUX endpoint, not the SDXL one. The SDXL
+      // endpoint may or may not have FLUX checkpoints installed; the primary
+      // endpoint is guaranteed to. Without this, the request still goes to the
+      // SDXL endpoint with FLUX settings and can fail with value_not_in_list.
+      const sdxlEndpoint = process.env.RUNPOD_ENDPOINT_ID_SDXL;
+      if (adjusted.endpoint_id && sdxlEndpoint && adjusted.endpoint_id === sdxlEndpoint) {
+        adjusted.endpoint_id = process.env.RUNPOD_ENDPOINT_ID || undefined;
+        logger.warn('[runpod] remapped SDXL endpoint to primary FLUX endpoint', {
+          from: sdxlEndpoint,
+          to: adjusted.endpoint_id,
+        });
+      }
+    }
+
+    // FLUX checkpoint validation: fluxUnchained requires the NSFW volume to be ready.
+    if ((adjusted.model_family || family) === 'flux') {
+      const nsfwReady = process.env.RUNPOD_FLUX_NSFW_READY === 'true';
+      const requestedCkpt = adjusted.ckpt_name || process.env.RUNPOD_FLUX_NSFW_CHECKPOINT || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
+      const safeCkpt = process.env.RUNPOD_FLUX_CHECKPOINT || 'flux1-dev-fp8.safetensors';
+
+      if (requestedCkpt === 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors' && !nsfwReady) {
+        logger.warn('[runpod] NSFW checkpoint not ready, falling back to base FLUX checkpoint', {
+          requested: requestedCkpt,
+          fallback: safeCkpt,
+        });
+        adjusted.ckpt_name = safeCkpt;
+        adjusted.ckpt_loader = 'checkpoint';
+      }
+    }
+
+    // Filter LoRAs against the installed inventory for this model family.
+    // Use adjusted.model_family to reflect any fallback (e.g. Pony -> FLUX).
+    const effectiveFamily = adjusted.model_family || family;
+    const inventoryEnv =
+      effectiveFamily === 'flux'
+        ? 'RUNPOD_INSTALLED_LORAS_FLUX'
+        : effectiveFamily === 'pony'
+          ? 'RUNPOD_INSTALLED_LORAS_PONY'
+          : effectiveFamily === 'illustrious'
+            ? 'RUNPOD_INSTALLED_LORAS_ILLUSTRIOUS'
+            : 'RUNPOD_INSTALLED_LORAS_FLUX';
+    const installedRaw = process.env[inventoryEnv] || '';
+    const installed = new Set(
+      installedRaw
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    const filterLoras = (loras: Array<{ name: string; strength_model?: number; strength_clip?: number }> | undefined) => {
+      if (!loras || loras.length === 0) return loras;
+      const kept = loras.filter((l) => {
+        const base = l.name.split('/').pop() || l.name;
+        const key = base.trim().toLowerCase();
+        return installed.size === 0 || installed.has(key);
+      });
+      if (kept.length !== loras.length) {
+        logger.warn('[runpod] filtered LoRAs not present on endpoint', {
+          removed: loras.filter((l) => !kept.includes(l)).map((l) => l.name),
+        });
+      }
+      return kept.length > 0 ? kept : undefined;
+    };
+
+    adjusted.loras = filterLoras(options.loras);
+    if (options.lora_name) {
+      const base = options.lora_name.split('/').pop() || options.lora_name;
+      const key = base.trim().toLowerCase();
+      if (installed.size > 0 && !installed.has(key)) {
+        logger.warn('[runpod] dropping single LoRA not present on endpoint', {
+          removed: options.lora_name,
+        });
+        adjusted.lora_name = null;
+      }
+    }
+
+    return adjusted;
+  }
+
   private refreshConfig(): void {
     const config = getRunPodConfig();
     this.apiKey = config.apiKey;
@@ -1341,3 +1521,29 @@ class RunPodClient {
 
 /** Singleton RunPod client */
 export const runpodClient = new RunPodClient();
+/**
+ * Detect if a RunPod error is due to missing checkpoint or LoRA files.
+ * These errors indicate the endpoint doesn't have the requested models installed.
+ */
+export function isModelNotFoundError(errorText: string): boolean {
+  return /value_not_in_list|not in \[|available checkpoint models|no such file/i.test(errorText);
+}
+
+/**
+ * Extract checkpoint and LoRA names from a workflow validation error.
+ * Returns { ckptName, loraNamesNotFound } if detectable, null otherwise.
+ */
+export function parseModelNotFoundError(errorText: string): {
+  ckptName?: string;
+  loraNamesNotFound: string[];
+} | null {
+  const ckptMatch = errorText.match(/ckpt_name:\s*'([^']+)'/);
+  const loraMatches = Array.from(errorText.matchAll(/lora_name:\s*'([^']+)'/g));
+
+  if (!ckptMatch && loraMatches.length === 0) return null;
+
+  return {
+    ckptName: ckptMatch?.[1],
+    loraNamesNotFound: loraMatches.map(m => m[1]),
+  };
+}

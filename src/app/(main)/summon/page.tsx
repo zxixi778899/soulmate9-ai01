@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, X, Flame, Droplet, Wind, Sun, Moon } from 'lucide-react';
 import { GIRLS, type DemoGirl, RARITY_COLORS } from '@/lib/demo-data';
@@ -13,19 +13,20 @@ const ELEMENT_ICON = {
   fire: Flame, water: Droplet, wind: Wind, light: Sun, dark: Moon,
 };
 
-function rollGacha(count: number): { pulled: DemoGirl[]; newSSR: boolean } {
+// Pure function - no random, just logic
+function rollGachaLogic(count: number, randomFn: () => number): { pulled: DemoGirl[]; newSSR: boolean } {
   const pulled: DemoGirl[] = [];
   for (let i = 0; i < count; i++) {
-    const r = Math.random();
+    const r = randomFn();
     let girl: DemoGirl;
     if (r < 0.02) {
-      girl = GIRLS.filter((g) => g.rarity === 'SSR')[Math.floor(Math.random() * 3)];
+      girl = GIRLS.filter((g) => g.rarity === 'SSR')[Math.floor(randomFn() * 3)];
     } else if (r < 0.10) {
-      girl = GIRLS.filter((g) => g.rarity === 'SR')[Math.floor(Math.random() * 4)];
+      girl = GIRLS.filter((g) => g.rarity === 'SR')[Math.floor(randomFn() * 4)];
     } else if (r < 0.55) {
-      girl = GIRLS.filter((g) => g.rarity === 'R')[Math.floor(Math.random() * 3)];
+      girl = GIRLS.filter((g) => g.rarity === 'R')[Math.floor(randomFn() * 3)];
     } else {
-      girl = GIRLS.filter((g) => g.rarity === 'N')[Math.floor(Math.random() * 2)];
+      girl = GIRLS.filter((g) => g.rarity === 'N')[Math.floor(randomFn() * 2)];
     }
     pulled.push(girl);
   }
@@ -76,17 +77,40 @@ export default function SummonPage() {
   const [results, setResults] = useState<DemoGirl[]>([]);
   const [pity, setPity] = useState(0);
   const [pulling, setPulling] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // ✅ Hydration fix: only run on client
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const doPull = (count: number) => {
     setPulling(true);
     setResults([]);
     setTimeout(() => {
-      const { pulled, newSSR } = rollGacha(count);
+      // ✅ Now Math.random() is only called in client-side event handler
+      const { pulled, newSSR } = rollGachaLogic(count, Math.random);
       setResults(pulled);
       setPity((p) => (newSSR ? 0 : p + count));
       setPulling(false);
     }, 1200);
   };
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="relative min-h-screen text-white" style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}>
+        <NeonGridBackground />
+        <section className="relative z-10 pt-6 px-4 sm:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="mt-2 text-5xl sm:text-6xl font-bold tracking-tight">
+              <span className="bg-gradient-to-r from-[#ff2e88] via-[#c026d3] to-[#00e5ff] bg-clip-text text-transparent">Eternal Bloom</span>
+            </h1>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen text-white" style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}>
@@ -118,49 +142,39 @@ export default function SummonPage() {
             <div className="relative h-full flex flex-col items-center justify-center">
               <Sparkles className="h-5 w-5 text-[#ff2e88]" />
               <div className="text-xs uppercase tracking-wider text-zinc-400 mt-1">Single</div>
-              <div className="font-bold text-lg">×1</div>
             </div>
           </button>
           <button disabled={pulling} onClick={() => doPull(10)}
-            className="group relative h-20 w-44 rounded-2xl overflow-hidden border-2 border-[#ffd700]/30 hover:border-[#ffd700]/60 transition-all disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.18), rgba(255, 46, 136, 0.12))' }}>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(255,215,0,0.35),transparent)]" />
+            className="group relative h-20 w-44 rounded-2xl overflow-hidden border-2 border-white/10 hover:border-[#c026d3]/40 transition-all disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, rgba(192, 38, 211, 0.18), rgba(0, 229, 255, 0.08))' }}>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(192,38,211,0.3),transparent)]" />
             <div className="relative h-full flex flex-col items-center justify-center">
-              <Sparkles className="h-5 w-5 text-[#ffd700]" />
-              <div className="text-xs uppercase tracking-wider text-zinc-400 mt-1">10x</div>
-              <div className="font-bold text-lg">×10</div>
+              <Sparkles className="h-5 w-5 text-[#c026d3]" />
+              <div className="text-xs uppercase tracking-wider text-zinc-400 mt-1">x10</div>
             </div>
           </button>
         </div>
       </section>
 
-      <section className="relative z-10 mt-12 px-4 sm:px-8 pb-20">
-        <div className="mx-auto max-w-7xl">
-          {pulling ? (
-            <div className="flex items-center justify-center py-20">
-              <motion.div className="text-2xl font-bold tracking-[0.4em] text-[#ff2e88]"
-                animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.2, repeat: Infinity }}>
-                SUMMONING...
-              </motion.div>
-            </div>
-          ) : results.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 text-sm">Tap a summon button to begin</div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
-              <AnimatePresence>
-                {results.map((girl, i) => (
-                  <motion.div key={`${girl.id}-${i}-${pity}`}
-                    initial={{ rotateY: 180, scale: 0.4, opacity: 0 }}
-                    animate={{ rotateY: 0, scale: 1, opacity: 1 }}
-                    transition={{ delay: i * 0.08, duration: 0.6, ease: 'easeOut' }}>
-                    <PulledCard girl={girl} onClose={() => setResults((r) => r.filter((_, j) => j !== i))} />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+      <section className="relative z-10 mt-12 px-4 sm:px-8 flex justify-center">
+        <AnimatePresence mode="wait">
+          {results.length > 0 && (
+            <motion.div
+              key="results"
+              className="flex flex-wrap gap-6 justify-center"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              {results.map((girl, i) => (
+                <PulledCard key={i} girl={girl} onClose={() => setResults([])} />
+              ))}
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
       </section>
+
+      <div className="h-24" />
     </div>
   );
 }

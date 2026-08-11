@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { resolveBucketName, toPublicUrl, uploadFile } from '@/lib/storage';
 import { VOICE_EMOTIONS, isVoiceEmotion } from '@/lib/tts-emotion';
+import { assignVoiceByPersonality, getArchetypeForPersonality } from '@/lib/voice-personality';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,10 @@ export interface TTSVoiceProfile {
   pitch?: number;
   speed?: number;
   emotion_presets?: string[];
+  /** Voice promo: self-introduction + hook audio URL */
+  voice_promo_url?: string;
+  /** Voice promo: the text used for synthesis */
+  voice_promo_text?: string;
 }
 
 export interface TTSResult {
@@ -392,26 +397,43 @@ async function synthesizeViaRunPod(
 // ─── Voice cache (Supabase Storage) ─────────────────────────────────────────
 
 /** Stable storage key for a text+companion pair. */
-export function voiceCacheKey(text: string, companionId: string): string {
+export function voiceCacheKey(
+  text: string,
+  companionId: string,
+  format: TTSResult['format'] = 'opus',
+): string {
   const hash = createHash('md5').update(text.trim()).digest('hex');
-  return `voice-cache/${companionId}/${hash}.opus`;
+  const ext = format === 'mp3' ? 'mp3' : format === 'wav' ? 'wav' : 'opus';
+  return `voice-cache/${companionId}/${hash}.${ext}`;
+}
+
+/** MIME type matching a synthesis output format. */
+export function audioMime(format: TTSResult['format']): string {
+  return format === 'mp3' ? 'audio/mpeg' : format === 'wav' ? 'audio/wav' : 'audio/ogg';
 }
 
 /**
  * Return a public URL if this exact line was already synthesized and cached.
+ * Checks the format-specific key first, then the legacy `.opus` key (older
+ * entries stored Edge-TTS MP3 bytes under an .opus name).
  * Returns null on miss (or any storage error — caching is best-effort).
  */
 export async function getCachedVoiceUrl(
   text: string,
   companionId: string,
   supabase: SupabaseClient,
+  format: TTSResult['format'] = 'opus',
 ): Promise<string | null> {
   try {
-    const key = voiceCacheKey(text, companionId);
     const bucket = resolveBucketName();
-    const { data, error } = await supabase.storage.from(bucket).exists(key);
-    if (error || !data) return null;
-    return toPublicUrl(key) || null;
+    const keys = [voiceCacheKey(text, companionId, format)];
+    const legacy = voiceCacheKey(text, companionId, 'opus');
+    if (!keys.includes(legacy)) keys.push(legacy);
+    for (const key of keys) {
+      const { data, error } = await supabase.storage.from(bucket).exists(key);
+      if (!error && data) return toPublicUrl(key) || null;
+    }
+    return null;
   } catch (err) {
     logger.warn('[tts] cache lookup failed', {
       err: err instanceof Error ? err.message : String(err),
@@ -420,17 +442,21 @@ export async function getCachedVoiceUrl(
   }
 }
 
-/** Persist generated audio to the shared voice cache. Best-effort. */
+/**
+ * Persist generated audio to the shared voice cache with the correct MIME
+ * type and return its public URL. Best-effort.
+ */
 export async function cacheVoiceAudio(
   text: string,
   companionId: string,
   audioBase64: string,
+  format: TTSResult['format'] = 'opus',
 ): Promise<string | null> {
   try {
-    const key = voiceCacheKey(text, companionId);
+    const key = voiceCacheKey(text, companionId, format);
     const buffer = Buffer.from(audioBase64, 'base64');
     if (buffer.length < 32) return null;
-    const { url } = await uploadFile(buffer, key, 'audio/ogg', '');
+    const { url } = await uploadFile(buffer, key, audioMime(format), '');
     return url;
   } catch (err) {
     logger.warn('[tts] cache write failed', {
@@ -466,6 +492,10 @@ function normalizeProfile(raw: Record<string, unknown>, companionId: string): TT
     pitch,
     speed,
     emotion_presets: emotionPresets && emotionPresets.length ? emotionPresets : undefined,
+    voice_promo_url:
+      typeof raw.voice_promo_url === 'string' && raw.voice_promo_url ? raw.voice_promo_url : undefined,
+    voice_promo_text:
+      typeof raw.voice_promo_text === 'string' && raw.voice_promo_text ? raw.voice_promo_text : undefined,
   };
 }
 
@@ -601,4 +631,102 @@ export async function deleteVoiceProfile(
   delete map[companionId];
   await writeProfilesMap(supabase, map);
   logger.info('[tts] voice profile deleted', { companion_id: companionId });
+}
+
+// ─── Personality-aware voice profile (V2) ──────────────────────────────────
+
+export interface CompanionVoiceInput {
+  id: string;
+  name: string;
+  personality?: string;
+  backstory?: string;
+  language?: string;
+  occupation?: string;
+  voice?: string; // explicit voice override (e.g. from character_card)
+}
+
+/**
+ * Get a personality-aware voice profile for a companion.
+ *
+ * Precedence:
+ *   1. Explicitly saved profile (from site_settings map)
+ *   2. Explicit voice override on the companion row (voice_id)
+ *   3. Personality-aware assignment (archetype-based)
+ *   4. Hash-based Edge TTS fallback
+ *
+ * The result is persisted so all future TTS uses the same voice/timbre.
+ */
+export async function getVoiceForCompanionV2(
+  companion: CompanionVoiceInput,
+  supabase: SupabaseClient,
+): Promise<TTSVoiceProfile | null> {
+  if (!companion?.id) return null;
+
+  // 1. Check for an explicitly saved profile (read raw map — do NOT auto-assign)
+  const map = await readProfilesMap(supabase);
+  if (map[companion.id]) return map[companion.id]!;
+
+  // Determine language from companion row
+  const language: 'en' | 'zh' | 'auto' =
+    companion.language === 'zh'
+      ? 'zh'
+      : companion.language === 'en'
+        ? 'en'
+        : 'auto';
+
+  // 2. Explicit voice override (a voice_id/edge_voice set on the companion)
+  if (companion.voice) {
+    const override: TTSVoiceProfile = {
+      id: `vp_${companion.id}`,
+      companion_id: companion.id,
+      name: `${companion.name || 'Companion'} Voice`,
+      engine: 'edge-tts',
+      edge_voice: companion.voice,
+      voice_id: companion.voice,
+      language,
+    };
+    await saveVoiceProfile(override, supabase).catch((err) => {
+      logger.warn('[tts] save override failed', {
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
+    return override;
+  }
+
+  // 3. Personality-aware assignment
+  const assigned = assignVoiceByPersonality(
+    companion.id,
+    companion.personality || '',
+    language,
+    companion.backstory,
+    companion.occupation,
+  );
+
+  const profile: TTSVoiceProfile = {
+    id: `vp_${companion.id}`,
+    companion_id: companion.id,
+    name: `${assigned.archetype.label}`,
+    engine: 'edge-tts',
+    edge_voice: assigned.edge_voice,
+    voice_id: assigned.edge_voice,
+    language,
+    pitch: assigned.pitch,
+    speed: assigned.speed,
+  };
+
+  // Persist so it stays consistent
+  await saveVoiceProfile(profile, supabase).catch((err) => {
+    logger.warn('[tts] auto-save personality voice profile failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  });
+
+  logger.info('[tts] personality voice assigned', {
+    companion_id: companion.id,
+    name: companion.name,
+    archetype: assigned.archetype.id,
+    voice: assigned.edge_voice,
+  });
+
+  return profile;
 }

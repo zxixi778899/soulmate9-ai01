@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
+import { Suspense } from 'react';
 import { AuthProvider } from '@/components/AuthProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { I18nProvider } from '@/lib/i18n/context';
@@ -16,9 +17,11 @@ import { Toaster } from '@/components/ui/sonner';
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from '@/lib/constants';
 import './globals.css';
 
-// Force all routes dynamic at build time  prevents prerender from triggering Supabase client init
-// (build env doesn't have env vars, runtime does)
-export const dynamic = 'force-dynamic';
+// ISR/SSG is enabled per-page. Dynamic pages (auth, user, admin) set their own
+// force-dynamic. Marketing pages use ISR via revalidate. Static pages (privacy,
+// terms, refund-policy) are auto-generated at build time.
+// See: src/app/girlfriend/[slug]/page.tsx  (ISR 60s)
+// See: src/app/(main)/layout.tsx  (force-dynamic for user pages)
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -49,11 +52,20 @@ export const metadata: Metadata = {
     url: APP_URL,
     locale: 'en_US',
     type: 'website',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: `${APP_NAME}  Your AI Companion`,
     description: APP_DESCRIPTION,
+    images: ['/og-image.png'],
   },
   robots: {
     index: true,
@@ -75,7 +87,7 @@ export const metadata: Metadata = {
   },
   other: {
     'mobile-web-app-capable': 'yes',
-    'supabase-url': 'https://vvblrkngzuyxeeoslzkl.supabase.co',
+    // 'supabase-url' removed — project ID was exposed in HTML source
   },
 };
 
@@ -121,13 +133,19 @@ export default function RootLayout({
           <AuthProvider>
             <I18nProvider>
               <AgeVerification />
-              <GlobalTopNav />
+              {/* Suspense: GlobalTopNav/BottomNav/RetentionLoop read useSearchParams();
+                  without a boundary, static prerendering of every page bails out. */}
+              <Suspense fallback={null}>
+                <GlobalTopNav />
+              </Suspense>
               <ErrorBoundary>
                 {children}
               </ErrorBoundary>
               <Toaster position="top-center" richColors />
-              <BottomNav />
-              <RetentionLoop />
+              <Suspense fallback={null}>
+                <BottomNav />
+                <RetentionLoop />
+              </Suspense>
               <CreateV3PromoModal />
               <RewardEffectOverlay />
               <SupportAgent />

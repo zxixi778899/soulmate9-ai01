@@ -22,6 +22,16 @@ const REPEATED_JUNK_RE = /([^\s.…·•.])\1{7,}/g;
 const TEMPLATE_PLACEHOLDER_RE =
   /\b(?:tableName|characterName|userName|assistantName|undefined|null)\b/gi;
 
+/** Repeated word/phrase loop detection: same word 5+ times, or a short 3-6
+ *  char catchphrase repeated 4+ times (model degeneration). */
+const WORD_LOOP_RE = /\b([A-Za-z一-鿿]{1,6})\b(?:[\s…—~,，。！!？?*]+|\b)\1\b(?:[\s…—~,，。！!？?*]+|\b)\1\b(?:[\s…—~,，。！!？?*]+|\b)\1\b/g;
+const PHRASE_LOOP_RE = /([^\n。！？!?]{2,8})\1{3,}/g;
+
+/** Narrator / roleplay leak: replies that spin a detached third-person story
+ *  ("She smiles at you") instead of speaking as the character. Only flag
+ *  when there's no first/second-person dialogue at all. */
+const NARRATOR_LEAK_RE = /(?:^|\n)\s*(?:she|her|he|his|the girl|the boy|the woman|the man)\s+(?:smiles?|smirks?|laughs?|giggles?|blushes?|sighs?|nods?|looks?|turns?|says?|whispers?|replies?|moves?|touches?|wraps?|tilts?)\b/i;
+
 const SOFT_FALLBACK_EN =
   "Mmm… my mind blanked for a second. Say that again for me, baby? I want to answer you properly~";
 const SOFT_FALLBACK_ZH =
@@ -58,6 +68,19 @@ export function isGarbageReply(text: string): boolean {
 
   // Long runs of same junk
   if (/([^\s.…·•])\1{12,}/.test(t)) return true;
+
+  // Word/phrase loop degeneration
+  if (WORD_LOOP_RE.test(t)) return true;
+  if (PHRASE_LOOP_RE.test(t)) return true;
+
+  // Pure third-person narration with no dialogue (leaked by roleplay models)
+  const hasQuotes = /["'「」"']/.test(t);
+  const hasFirstPerson = /\b(?:我|我们|俺|咱|I'?m|I |we|my|me)\b/i.test(t);
+  const hasSecondPerson = /\b(?:你|你们|您|你|you'?re|you|your)\b/i.test(t);
+  if (!hasQuotes && !hasFirstPerson && !hasSecondPerson && t.length > 20) {
+    const narratorBeats = (t.match(NARRATOR_LEAK_RE) || []).length;
+    if (narratorBeats >= 2) return true;
+  }
 
   return false;
 }
@@ -130,6 +153,20 @@ export function sanitizeAssistantReply(
   t = t.replace(REPLACEMENT_CHAR_RE, '');
   t = t.replace(REPEATED_JUNK_RE, '$1$1$1');
   t = t.replace(TEMPLATE_PLACEHOLDER_RE, '');
+
+  // Early loop detection — catch repeated words/phrases BEFORE they bloat the output
+  if (WORD_LOOP_RE.test(t) || PHRASE_LOOP_RE.test(t)) {
+    // Find the first clean sentence before the loop and cut there
+    const beforeLoop = t.split(/([^。！？!?]*(?:[。！？!?]|$))/);
+    let cleaned = '';
+    for (const seg of beforeLoop) {
+      if (!seg.trim()) continue;
+      if (WORD_LOOP_RE.test(seg) || PHRASE_LOOP_RE.test(seg)) break;
+      cleaned += seg;
+    }
+    if (cleaned.trim().length >= 10) t = cleaned;
+    else t = t.replace(WORD_LOOP_RE, '').replace(PHRASE_LOOP_RE, '');
+  }
 
   // Strip leading assistant labels the model sometimes emits
   t = t.replace(

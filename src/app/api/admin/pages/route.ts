@@ -4,14 +4,7 @@ import { requireAdmin } from '@/lib/require-admin';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-async function rpc(sql: string, params?: Record<string, any>) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
-    body: JSON.stringify({ query: sql }),
-  });
-  return res.json();
-}
+
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);

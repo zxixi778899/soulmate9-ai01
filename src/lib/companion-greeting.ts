@@ -1,4 +1,4 @@
-import { scenarioRelationshipLabel } from '@/lib/companion-profile';
+﻿import { scenarioRelationshipLabel } from '@/lib/companion-profile';
 
 /**
  * 符合角色的开场白（语音开场白文本）。

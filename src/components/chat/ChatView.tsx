@@ -1292,7 +1292,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           duration: tier,
         }),
       });
-      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; endpoint_id?: string; error?: string; code?: string }>(vidRes);
+      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; endpoint_id?: string; cost?: number; error?: string; code?: string }>(vidRes);
       if (!vidRes.ok) {
         if (vidData.code === 'gpu_busy') {
           throw new Error(t('chat.gpuBusyTryLater'));
@@ -1301,7 +1301,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       }
 
       let videoUrl = vidData.video_url;
-      // Handle pending video
+      // Handle pending video — continue via the video-aware status route
       if (!videoUrl && vidData.pending && vidData.job_id) {
         for (let p = 0; p < 60; p++) {
           if (cancelGenRef.current || genSessionRef.current !== session) {
@@ -1321,10 +1321,10 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
               content: t('chat.videoRendering'),
             } : m));
           }
-          const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(vidData.job_id)}`);
-          const pollData = await readResponseJson<{ status?: string; images?: string[] }>(pollRes);
-          if (pollData.status === 'COMPLETED' && pollData.images?.length) { videoUrl = pollData.images[0]; break; }
-          if (pollData.status === 'FAILED') throw new Error('Video generation failed');
+          const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(vidData.job_id)}&kind=video${vidData.endpoint_id ? `&endpoint_id=${encodeURIComponent(vidData.endpoint_id)}` : ''}${id ? `&girlfriend_id=${encodeURIComponent(id)}` : ''}${vidData.cost ? `&cost=${encodeURIComponent(String(vidData.cost))}` : ''}`);
+          const pollData = await readResponseJson<{ status?: string; video_url?: string; error?: string }>(pollRes);
+          if (pollData.status === 'COMPLETED' && pollData.video_url) { videoUrl = pollData.video_url; break; }
+          if (pollData.status === 'FAILED') throw new Error(pollData.error || 'Video generation failed');
         }
       }
       if (!videoUrl) throw new Error(t('chat.videoGenTimeout'));

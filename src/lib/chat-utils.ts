@@ -35,7 +35,7 @@ export function dateGroupLabel(dateStr: string, now?: Date, locale: Locale = 'en
     const ref = now || new Date();
     const startToday = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
     const startYesterday = startToday - 86400000;
-    const relativeLabels: Record<Locale, { today: string; yesterday: string }> = {
+    const relativeLabels: Record<string, { today: string; yesterday: string }> = {
       en: { today: 'Today', yesterday: 'Yesterday' },
       zh: { today: '今天', yesterday: '昨天' },
       ja: { today: '今日', yesterday: '昨日' },
@@ -44,15 +44,16 @@ export function dateGroupLabel(dateStr: string, now?: Date, locale: Locale = 'en
       fr: { today: "Aujourd’hui", yesterday: 'Hier' },
       de: { today: 'Heute', yesterday: 'Gestern' },
     };
-    const intlLocale: Record<Locale, string> = {
+    const intlLocale: Record<string, string> = {
       en: 'en-US', zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR', es: 'es-ES', fr: 'fr-FR', de: 'de-DE',
     };
-    if (ts >= startToday) return relativeLabels[locale].today;
-    if (ts >= startYesterday) return relativeLabels[locale].yesterday;
+    const intl = intlLocale[locale] ?? 'en-US';
+    if (ts >= startToday) return relativeLabels[locale]?.today ?? 'Today';
+    if (ts >= startYesterday) return relativeLabels[locale]?.yesterday ?? 'Yesterday';
     if (ref.getTime() - ts < 7 * 86400000) {
-      return date.toLocaleDateString(intlLocale[locale], { weekday: 'long' });
+      return date.toLocaleDateString(intl, { weekday: 'long' });
     }
-    return date.toLocaleDateString(intlLocale[locale], { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString(intl, { month: 'short', day: 'numeric', year: 'numeric' });
   } catch {
     return '';
   }

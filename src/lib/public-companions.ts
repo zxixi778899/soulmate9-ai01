@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 
 /** Columns that always exist on production girlfriends table */
 const CORE_SELECT =
-  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, card_url, personality, appearance_style, created_at, is_public, review_status, avatar_video_url, portrait_video_url';
+  'id, name, age, slug, tags, short_description, portrait_url, avatar_url, card_url, personality, appearance_style, created_at, is_public, review_status, avatar_video_url, portrait_video_url, voice_promo_url';
 
 /** Optional catalog columns (migration 0007) — probed once */
 let _optionalCols: string | null | undefined;
@@ -120,6 +120,8 @@ export interface PublicCompanionRow {
   hot_score?: number | null;
   is_featured?: boolean;
   is_hot?: boolean;
+  /** Voice self-introduction + hook promo audio (TTS) */
+  voice_promo_url?: string | null;
 }
 
 /**
@@ -203,6 +205,7 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
       base_development: (g.base_development as number) ?? null,
       base_kink: (g.base_kink as number) ?? null,
       created_at: (g.created_at as string) ?? null,
+      voice_promo_url: (g.voice_promo_url as string | null) ?? null,
       is_demo: false,
     });
   }
@@ -315,6 +318,7 @@ export async function loadFeaturedTable(limit = 24): Promise<PublicCompanionRow[
         is_featured: true,
         sort_order: Number(f.sort_order ?? 0) || 0,
         hot_score: 1000 - (Number(f.sort_order ?? 0) || 0) + Number(f.click_count ?? 0),
+        voice_promo_url: (base.voice_promo_url as string | null) ?? null,
       });
     }
     return out;

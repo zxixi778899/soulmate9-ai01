@@ -105,6 +105,17 @@ export async function POST(request: NextRequest) {
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
     const negativePrompt = typeof body.negative_prompt === 'string' ? body.negative_prompt.trim() : '';
 
+    // Verify the endpoint is configured BEFORE charging — users must never
+    // lose credits to a 503 not_configured response.
+    const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
+    const videoEndpointId = videoRoute.endpointId;
+    if (!apiKey || !videoEndpointId) {
+      return NextResponse.json(
+        { error: `Video generation model ${videoRoute.model} is not configured.`, code: 'not_configured' },
+        { status: 503 },
+      );
+    }
+
     // Site-wide credit rule: videos cost credits (5s default / 10s premium).
     const durationSec = requestedDuration;
     const videoCost = durationSec === 10 ? CREDIT_COSTS.video_10s : durationSec === 3 ? CREDIT_COSTS.video_3s : CREDIT_COSTS.video_5s;
@@ -123,16 +134,6 @@ export async function POST(request: NextRequest) {
           balance: balProfile?.credits_remaining ?? 0,
         },
         { status: 403 },
-      );
-    }
-
-    const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
-    const videoEndpointId = videoRoute.endpointId;
-
-    if (!apiKey || !videoEndpointId) {
-      return NextResponse.json(
-        { error: `Video generation model ${videoRoute.model} is not configured.`, code: 'not_configured' },
-        { status: 503 },
       );
     }
 
@@ -217,9 +218,15 @@ export async function POST(request: NextRequest) {
 
     logger.info('[generate-video] job submitted', { jobId, girlfriendId, model: videoRoute.model });
 
-    // Poll for completion (max 150s under Vercel timeout)
+    // Poll for completion. The budget is caller-tunable: chat clients pass a
+    // short budget and continue via /api/ai/status?kind=video, while the admin
+    // studio passes 150000 to keep its synchronous pipeline behavior.
     const pollIntervalMs = 3000;
-    const maxAttempts = Math.floor(150_000 / pollIntervalMs);
+    const requestedPollMs = Number(body.sync_poll_ms);
+    const syncPollMs = Number.isFinite(requestedPollMs)
+      ? Math.min(150_000, Math.max(10_000, requestedPollMs))
+      : 25_000;
+    const maxAttempts = Math.floor(syncPollMs / pollIntervalMs);
     let videoRetried = false;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -339,12 +346,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Timeout — return pending
+    // Timeout — return pending with full context so the client can continue
+    // polling /api/ai/status?kind=video (video-aware status route).
     return NextResponse.json({
       pending: true,
       job_id: jobId,
+      endpoint_id: videoEndpointId,
+      kind: 'video',
+      girlfriend_id: girlfriendId || undefined,
+      cost: videoCost,
       status: 'IN_PROGRESS',
-      message: 'Video is still generating. Poll /api/ai/status?job_id=' + jobId,
+      message: 'Video is still generating. Poll /api/ai/status?job_id=' + jobId + '&kind=video&endpoint_id=' + videoEndpointId,
     });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';

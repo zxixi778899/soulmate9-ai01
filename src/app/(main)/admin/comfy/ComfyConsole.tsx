@@ -1326,6 +1326,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               negative_prompt: negative,
               duration: stage.video?.durationSeconds === 10 ? 10 : 5,
               fps: stage.video?.fps ?? 16,
+              // Pipeline expects a synchronous result — keep the long server poll.
+              sync_poll_ms: 150000,
             }),
           });
           const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
@@ -1450,7 +1452,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       if (genMode === 'img2video') {
         const videoRes = await authedFetch('/api/generate-video', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'wan22', girlfriend_id: companionId, input_image: inputImage.trim(), prompt: effectivePrompt, negative_prompt: effectiveNegative, duration: recommendedPreset.durationSeconds === 10 ? 10 : 5, fps: recommendedPreset.fps || 16, nsfw_intensity: nsfwIntensity }),
+          body: JSON.stringify({ model: 'wan22', girlfriend_id: companionId, input_image: inputImage.trim(), prompt: effectivePrompt, negative_prompt: effectiveNegative, duration: recommendedPreset.durationSeconds === 10 ? 10 : 5, fps: recommendedPreset.fps || 16, nsfw_intensity: nsfwIntensity, sync_poll_ms: 150000 }),
         });
         const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
         if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');

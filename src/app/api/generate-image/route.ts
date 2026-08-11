@@ -7,7 +7,6 @@ import { logger } from '@/lib/logger';
 import {
   loadAiModules,
   resolveImageCall,
-  type MembershipTier,
   type ImageModuleConfig,
 } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
@@ -16,19 +15,18 @@ import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-gene
 import { classifyImageScene } from '@/lib/image-scene-semantics';
 import type { CompanionCategory } from '@/lib/companion-category';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
+import {
+  IMAGE_GEN_RATE_KEY,
+  countTodayImageUsage,
+  loadQuotaProfile,
+  membershipFromProfile,
+  timezoneOffsetFromProfile,
+} from '@/lib/ai-quota';
+import { computeCacheKey, lookupCache, writeCache } from '@/lib/generation-cache';
 
 const HOURLY_HARD_CAP = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
 
 type ImageScene = keyof ImageModuleConfig['scenes'];
-
-function membershipFromProfile(profile: Record<string, unknown> | null): MembershipTier {
-  const raw = String(
-    profile?.membership_tier || profile?.subscription_tier || profile?.plan || 'free',
-  ).toLowerCase();
-  if (raw.includes('unlimit') || raw === 'admin') return 'unlimited';
-  if (raw.includes('pro') || raw.includes('plus') || raw.includes('premium')) return 'pro';
-  return 'free';
-}
 
 function parseScene(raw: unknown): ImageScene {
   const s = String(raw || 'chat_selfie');
@@ -54,7 +52,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
   }
 
-  const rl = await checkRateLimitAsync(`gen-img:${user.id}`, HOURLY_HARD_CAP);
+  // Shared counter across all image entries — limits cannot be stacked.
+  const rl = await checkRateLimitAsync(`${IMAGE_GEN_RATE_KEY}:${user.id}`, HOURLY_HARD_CAP);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: 'Too many image generation requests. Please try again later.' },
@@ -73,13 +72,8 @@ export async function POST(request: NextRequest) {
     const scene = parseScene(body.scene);
     const aiModules = await loadAiModules(client);
 
-    const { data: profile } = await client
-      .from('profiles')
-      .select('membership_tier, subscription_tier, plan')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    const tier = membershipFromProfile((profile as Record<string, unknown>) || null);
+    const profile = await loadQuotaProfile(client, user.id);
+    const tier = membershipFromProfile(profile);
     const resolved = resolveImageCall(aiModules, { scene, tier });
 
     if (!resolved.enabled) {
@@ -94,24 +88,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (resolved.dailyLimit != null) {
-      const dayStart = new Date();
-      dayStart.setUTCHours(0, 0, 0, 0);
-      const { count } = await client
-        .from('ai_model_usage_logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('task_type', 'image_generation')
-        .eq('success', true)
-        .gte('created_at', dayStart.toISOString());
-      if ((count || 0) >= resolved.dailyLimit) {
+      // Timezone-aware local day boundary (profiles.timezone_offset).
+      const usage = await countTodayImageUsage(
+        client,
+        user.id,
+        timezoneOffsetFromProfile(profile),
+      );
+      if (usage.used >= resolved.dailyLimit) {
         // Over daily limit -> deduct credits instead of blocking
         const cost = CREDIT_COSTS.image_gen;
-        const { data: balProfile } = await client
-          .from('profiles')
-          .select('credits_remaining')
-          .eq('user_id', user.id)
-          .single();
-        const balance = balProfile?.credits_remaining ?? 0;
+        const balance = Number(profile?.credits_remaining) || 0;
         if (balance < cost) {
           return NextResponse.json(
             {
@@ -196,6 +182,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generation cache: identical prompt+params skip the GPU entirely.
+    // Only for single-image, reference-free requests (deterministic scenes).
+    const cacheable = count === 1 && typeof body.input_image !== 'string';
+    const cacheKey = cacheable
+      ? computeCacheKey({
+          prompt,
+          negativePrompt: negative,
+          width,
+          height,
+          steps,
+          guidance,
+          model: generationRoute.checkpoint || generationRoute.modelFamily,
+          kind: 'image',
+        })
+      : null;
+    if (cacheKey) {
+      const cachedOssKey = await lookupCache(cacheKey, 'image');
+      if (cachedOssKey) {
+        const cachedUrl = await resolveImageUrl(cachedOssKey).catch(() => null);
+        if (cachedUrl) {
+          logger.info('[generate-image] cache hit', { cacheKey });
+          return NextResponse.json({
+            images: [{ url: cachedUrl, key: cachedOssKey, prompt }],
+            scene,
+            cached: true,
+            token_cost: resolved.tokenCost,
+            settings: { width, height, steps, cfg: guidance, count, endpoint_env: resolved.runpodEndpointEnv },
+          });
+        }
+      }
+    }
+
     const result = await runpodClient.generate({
       prompt,
       negative_prompt: negative,
@@ -230,12 +248,16 @@ export async function POST(request: NextRequest) {
     }
 
     const images = await Promise.all(
-      result.images.map(async (base64Data) => {
+      result.images.map(async (base64Data, index) => {
         if (!base64Data) return { url: '', prompt };
         try {
           const dataUrl = `data:image/png;base64,${base64Data}`;
           const key = await uploadDataUrl(dataUrl, 'chat-images');
           const signed = await resolveImageUrl(key);
+          // Warm the generation cache with the first successful output.
+          if (index === 0 && cacheKey && signed) {
+            await writeCache(cacheKey, 'image', key);
+          }
           return { url: signed, key, prompt };
         } catch (e) {
           logger.error('Upload failed for generated image:', { data: e });

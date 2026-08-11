@@ -1,6 +1,9 @@
 import { Suspense } from 'react';
 import PageRenderer from '@/components/page-builder/PageRenderer';
 
+// CMS builder pages — dynamic content fetched by client component. Must be dynamic.
+export const dynamic = 'force-dynamic';
+
 export default async function DynamicPage({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
   const pageSlug = slug ? slug.join('/') : '';
