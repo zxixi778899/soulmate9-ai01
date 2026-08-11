@@ -1,8 +1,5 @@
 'use client';
 
-// Home lobby is user-facing — fetches companion catalog + live user data.
-export const dynamic = 'force-dynamic';
-
 /**
  * Home lobby
  * - Tall full-body portrait (main visual) + VFX

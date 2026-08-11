@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
+import { Suspense } from 'react';
 import { AuthProvider } from '@/components/AuthProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { I18nProvider } from '@/lib/i18n/context';
@@ -132,13 +133,19 @@ export default function RootLayout({
           <AuthProvider>
             <I18nProvider>
               <AgeVerification />
-              <GlobalTopNav />
+              {/* Suspense: GlobalTopNav/BottomNav/RetentionLoop read useSearchParams();
+                  without a boundary, static prerendering of every page bails out. */}
+              <Suspense fallback={null}>
+                <GlobalTopNav />
+              </Suspense>
               <ErrorBoundary>
                 {children}
               </ErrorBoundary>
               <Toaster position="top-center" richColors />
-              <BottomNav />
-              <RetentionLoop />
+              <Suspense fallback={null}>
+                <BottomNav />
+                <RetentionLoop />
+              </Suspense>
               <CreateV3PromoModal />
               <RewardEffectOverlay />
               <SupportAgent />

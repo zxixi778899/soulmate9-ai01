@@ -6,9 +6,6 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 
-// Auth callback page — handles Supabase auth redirect. Must be dynamic.
-export const dynamic = 'force-dynamic';
-
 const SUPABASE_AUTH_KEY = 'sb-ywktqpaycmuoxnzxxlbr-auth-token';
 
 function AuthConfirmContent() {

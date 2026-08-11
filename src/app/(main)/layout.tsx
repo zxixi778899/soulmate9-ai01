@@ -1,14 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import { Loader2 } from 'lucide-react';
-
-// All pages in the (main) route group are user-facing and depend on auth state.
-// Force dynamic rendering so the auth-redirect logic below runs per-request.
-export const dynamic = 'force-dynamic';
 
 /**
  * Route prefixes that require authentication.
@@ -54,7 +50,7 @@ function isAuthRequired(pathname: string | null): boolean {
  *  - User (authenticated): full access gated by membership tier.
  *  - Admin: /admin guarded separately by admin layout + requireAdmin().
  */
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+function MainLayoutShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -172,5 +168,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         {children}
       </main>
     </div>
+  );
+}
+
+/**
+ * Suspense boundary required because the shell reads useSearchParams();
+ * without it, static prerendering of (main) pages bails out with
+ * missing-suspense-with-csr-bailout.
+ */
+export default function MainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <MainLayoutShell>{children}</MainLayoutShell>
+    </Suspense>
   );
 }
