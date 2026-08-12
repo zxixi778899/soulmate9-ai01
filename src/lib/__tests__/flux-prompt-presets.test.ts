@@ -10,7 +10,7 @@ describe('FLUX short prompt presets', () => {
   });
   it('includes the selected framing as an explicit camera clause', () => {
     const prompt = randomFluxPrompt({ category: 'female', style: 'realistic', intensity: 1, framing: 'full-body shot from head to toe', random: () => 0 });
-    expect(prompt).toContain('Camera framing: full-body shot from head to toe.');
+    expect(prompt.startsWith('Camera framing: full-body shot from head to toe.')).toBe(true);
     expect(prompt).toContain('consenting adult woman');
   });
 });

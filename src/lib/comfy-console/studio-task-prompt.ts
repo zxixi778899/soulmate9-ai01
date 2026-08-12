@@ -75,15 +75,15 @@ function companionIdentity(companion?: Record<string, unknown> | null): string {
 
 function qualityForModel(modelFamily: PromptInput['modelFamily'], renderStyle: AnimeRenderStyle): string {
   if (modelFamily === 'wan22') {
-    return 'stable identity, coherent natural motion, consistent anatomy, stable camera, temporal continuity, no morphing or scene cuts';
+    return 'stable camera, natural motion';
   }
   if (renderStyle === '2d') {
-    return 'high quality 2D animation artwork with stable linework, coherent anatomy, controlled bright cel shading, clean color separation, clearly illuminated face and body, no underexposure';
+    return '2D anime illustration, clean linework';
   }
   if (renderStyle === '3d') {
-    return 'high quality 3D character render with physically coherent materials, natural skin shading, detailed eyes, bright controlled cinematic key light, balanced fill light, correct exposure, no crushed shadows';
+    return '3D character render, natural materials';
   }
-  return 'professional real-camera photograph with natural skin texture, accurate anatomy, neutral white balance, realistic fabric detail, bright soft key light, balanced frontal fill light, correct exposure, face and full body clearly illuminated, visible shadow detail, no underexposure, no crushed shadows, sharp subject detail';
+  return 'natural photograph, soft practical light';
 }
 
 function taskInstruction(task: StudioPromptTask, hasIdentityReference: boolean): string {
@@ -102,12 +102,12 @@ export function buildStudioTaskPrompt(input: PromptInput): string {
   const framing = text(input.framing);
   const triggers = [...new Set((input.loraTriggers || []).map(text).filter(Boolean))].slice(0, 8);
   const parts = [
-    taskInstruction(input.task, Boolean(input.hasIdentityReference)),
-    identity,
+    framing || 'medium shot',
     scene,
-    framing,
+    input.hasIdentityReference ? 'use the ID reference for identity only' : '',
+    identity,
     qualityForModel(input.modelFamily, input.renderStyle),
     input.modelFamily === 'flux' ? triggers.join(', ') : '',
   ].filter(Boolean);
-  return parts.join(', ').replace(/\s+/g, ' ').replace(/,\s*,/g, ',').trim();
+  return parts.join(', ').replace(/\s+/g, ' ').replace(/,\s*,/g, ',').trim().slice(0, 520);
 }

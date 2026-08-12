@@ -16,5 +16,5 @@ export function randomFluxPrompt(input: { category: CompanionCategory; style: An
   const presets = getFluxPromptPresets(input);
   const index = Math.min(presets.length - 1, Math.max(0, Math.floor((input.random || Math.random)() * presets.length)));
   const framing = String(input.framing || '').trim();
-  return framing ? `${presets[index].prompt} Camera framing: ${framing}.` : presets[index].prompt;
+  return framing ? `Camera framing: ${framing}. ${presets[index].prompt}` : presets[index].prompt;
 }

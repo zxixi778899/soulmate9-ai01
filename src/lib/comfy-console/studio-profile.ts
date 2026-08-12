@@ -47,9 +47,9 @@ const CATEGORY_SUBJECTS: Record<CompanionCategory, string> = {
 };
 
 const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
-  'realistic': 'Natural candid photograph, practical soft light, neutral skin tone, real texture, relaxed posture, natural hands.',
-  '2d': 'Render it as a high-resolution 2D anime frame with clean line art, consistent cel shading, expressive eyes, and no photographic or 3D elements.',
-  '3d': 'Render it as a high-resolution 3D animated film frame with a coherent modeled character, PBR materials, detailed hair, and cinematic lighting, with no flat line art.',
+  'realistic': 'real-camera photograph, natural skin, soft practical light',
+  '2d': '2D anime illustration, clean line art, cel shading',
+  '3d': '3D character render, PBR materials',
 };
 
 function compactIdentity(identity?: string): string {
@@ -134,13 +134,7 @@ export function buildStudioPromptSections(input: {
   identity?: string;
   framing?: string;
 }): StudioPromptSections {
-const composition = input.framing ?? (input.intensity >= 4
-    ? 'Vertical head-to-knee or full-body framing; faces, hands, pelvis and contact points visible; physically stable pose.'
-    : input.intensity === 3
-      ? 'Vertical head-to-knee or full-body framing; head, hands, torso and pelvis visible; natural weight.'
-      : input.category === 'transgender'
-        ? 'Relaxed three-quarter full-body view with feminine face, chest, waist and hips clearly readable.'
-        : 'Relaxed three-quarter full-body view, natural weight and candid eye contact.');
+  const composition = input.framing || (input.intensity >= 3 ? 'medium full-body shot, head to knees visible' : 'medium shot, chest and face visible');
   return {
     identity: input.identity
       ? `${CATEGORY_SUBJECTS[input.category]}${compactIdentity(input.identity)}`
@@ -161,13 +155,13 @@ export function buildStudioPromptEnhancement(input: {
   framing?: string;
 }): string {
   const sections = buildStudioPromptSections(input);
-  return [
+  return compactFluxPrompt([
+    sections.composition,
     sections.identity,
     sections.exposureAndAction,
     sections.scene,
-    sections.composition,
     sections.quality,
-  ].join(' ');
+  ].join(', '), 420);
 }
 
 export function studioLoraStrengthScale(intensity: NsfwIntensity): number {
