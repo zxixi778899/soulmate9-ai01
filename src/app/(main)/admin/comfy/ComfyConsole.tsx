@@ -938,6 +938,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   );
   const allLoras: Any[] = useMemo(() => config?.loras || [], [config?.loras]);
   const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity, turbo: fastPreview && genMode !== 'img2video', specialistModelsReady: volumeInfo?.sdxl_models_ready === true });
+  // FLUX responds better to concise natural-language composition; omit hard
+  // directional camera clauses (LOW/HIGH-ANGLE REQUIREMENT) from its payload.
+  const promptFraming = generationRoute.modelFamily === 'flux'
+    ? CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt || ''
+    : [CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt, CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt].filter(Boolean).join(', ');
   const recommendedPreset = resolveCreativeGenerationPreset({
     mode: genMode,
     surface: generationSurface,
@@ -1092,15 +1097,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     modelFamily: genMode === 'img2video' ? 'wan22' : generationRoute.modelFamily,
     companion: scopedGirlfriend as Record<string, unknown> | null,
     scene: prompt,
-    framing: [
-      CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt,
-      CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt,
-    ].filter(Boolean).join(', '),
+    framing: promptFraming,
     loraTriggers: activeLoraTriggers,
     category: companionCategory,
     renderStyle: animeRenderStyle,
     hasIdentityReference: identityConsistencyActive,
-  }), [activeLoraTriggers, animeRenderStyle, cameraAngle, cameraFraming, companionCategory, genMode, generationRoute.modelFamily, identityConsistencyActive, prompt, scopedGirlfriend, studioTask]);
+  }), [activeLoraTriggers, animeRenderStyle, cameraAngle, cameraFraming, companionCategory, genMode, generationRoute.modelFamily, identityConsistencyActive, prompt, promptFraming, scopedGirlfriend, studioTask]);
   const recipes: Any[] = config?.lora_recipes || [];
   const stackingTips: string[] = config?.lora_stacking_tips || [];
 
