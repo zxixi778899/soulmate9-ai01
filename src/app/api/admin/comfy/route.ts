@@ -1484,7 +1484,8 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       strength_model: Number((item.strength_model * loraScale).toFixed(3)),
       strength_clip: Number((item.strength_clip * loraScale).toFixed(3)),
     }));
-    const compatibleLoraPlan = resolveModelLoraPlan({
+    const shouldAutoPlanLoras = body.apply_recommended_loras === true;
+    const compatibleLoraPlan = shouldAutoPlanLoras ? resolveModelLoraPlan({
       modelFamily: generationRoute.modelFamily,
       category,
       intensity: generationIntensity,
@@ -1494,9 +1495,15 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       identityAsset: isIdentityAsset,
       surface,
       sceneText: prompt,
-    });
+    }) : {
+      selected: normalizedLoras.map((item) => ({
+        name: item.name,
+        strength: item.strength_model,
+      })),
+      triggerWords: [] as string[],
+    };
     // 换姿势任务 + NSFW≥4：追加 pose_nsfw_dynamic LoRA
-    if (studioTask === 'pose' && generationIntensity >= 4) {
+    if (shouldAutoPlanLoras && studioTask === 'pose' && generationIntensity >= 4) {
       const poseNsfwLora = { name: 'flux_pose_nsfw_dynamic_v1.safetensors', strength: 0.45 };
       compatibleLoraPlan.selected.push(poseNsfwLora as any);
     }
@@ -1522,7 +1529,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         });
       }
       const effectiveGuidance = generationRoute.modelFamily === 'flux'
-        ? 1
+        ? Math.min(30, Math.max(0, Number(body.cfg ?? body.flux_guidance ?? generationRoute.fluxGuidance)))
         : Math.min(9, Math.max(3, Number(body.cfg || body.guidance_scale || generationRoute.cfg)));
       // Manual workflow controls may tune dimensions/steps, but NSFW 3–5 must
       // never override the specialist endpoint/checkpoint selected by routing.
@@ -1534,7 +1541,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         height,
         num_inference_steps: steps,
         guidance_scale: effectiveGuidance,
-        flux_guidance: generationRoute.modelFamily === 'flux' ? generationRoute.fluxGuidance : undefined,
+        flux_guidance: generationRoute.modelFamily === 'flux' ? effectiveGuidance : undefined,
         sampler_name: generationRoute.modelFamily === 'flux' && body.sampler_name ? samplerName : generationRoute.sampler,
         scheduler: generationRoute.modelFamily === 'flux' && body.scheduler ? scheduler : generationRoute.scheduler,
         clip_skip: generationRoute.clipSkip,
