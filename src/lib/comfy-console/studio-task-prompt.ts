@@ -1,6 +1,7 @@
 import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import type { ImageModelFamily } from '@/lib/image-generation-routing';
+import { randomFluxPrompt } from '@/lib/comfy-console/flux-prompt-presets';
 
 export type StudioPromptTask = 'identity' | 'portrait' | 'outfit' | 'pose' | 'background' | 'video';
 
@@ -44,7 +45,10 @@ export function buildStudioSceneDraft(input: {
     : 'FLUX-ready natural-language scene with concrete camera, materials and physical relationships';
   const lighting = 'bright soft key light, balanced frontal fill light, correct exposure, face and body clearly illuminated, visible shadow detail, no crushed shadows';
   const existingLower = existing.toLowerCase();
-  return [existing, taskScene[input.task], levelScene[input.intensity], modelNote, lighting]
+  const randomScene = input.modelFamily === 'flux' && !existing
+    ? randomFluxPrompt({ category: 'female', style: input.renderStyle, intensity: input.intensity })
+    : '';
+  return [existing || randomScene, taskScene[input.task], levelScene[input.intensity], modelNote, lighting]
     .filter((part, index) => Boolean(part) && (index === 0 || !existingLower.includes(part.toLowerCase())))
     .join(', ')
     .replace(/\s+/g, ' ')

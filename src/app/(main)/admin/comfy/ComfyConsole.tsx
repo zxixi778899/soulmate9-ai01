@@ -30,6 +30,7 @@ import {
   type CompanionCategory,
 } from '@/lib/companion-category';
 import { getPresetsForCategory, type GenPreset } from './presets';
+import { randomFluxPrompt } from '@/lib/comfy-console/flux-prompt-presets';
 import { buildCompanionGenerationPrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
 import {
@@ -308,7 +309,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       category: companionCategory,
       intensity: nsfwIntensity,
       animeStyle: animeRenderStyle,
-      scene: p.prompt,
+      scene: `${p.prompt}. ${randomFluxPrompt({ category: companionCategory, style: animeRenderStyle, intensity: nsfwIntensity, framing })}`,
       framing: framing || undefined,
     })));
     setPromptProfileApplied(true);
@@ -408,7 +409,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       category,
       intensity: nsfwIntensity,
       animeStyle: animeRenderStyle,
-      scene: preset.prompt,
+      scene: `${preset.prompt}. ${randomFluxPrompt({ category, style: animeRenderStyle, intensity: nsfwIntensity, framing })}`,
       framing: framing || undefined,
     })));
     setPromptProfileApplied(true);
