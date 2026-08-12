@@ -195,7 +195,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   // Generate form
   const [workflowId, setWorkflowId] = useState('auto');
   const [endpointKey, setEndpointKey] = useState('portrait-v9');
-  const [ckptId, setCkptId] = useState('flux-unchained');
+  const [ckptId, setCkptId] = useState('flux-fp8');
   const [loraId, setLoraId] = useState('none');
   const [loraStrength, setLoraStrength] = useState(0.8);
   const [selectedLoras, setSelectedLoras] = useState<Array<{ id: string; strength: number }>>([]);
@@ -740,7 +740,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setKind(wf.kind || 'custom');
     setGenerationSurface(wf.kind === 'outfit' ? 'outfit' : wf.kind === 'prop' ? 'prop' : wf.kind === 'advert' ? 'advert' : 'companion');
     setEndpointKey(wf.defaults?.endpoint_key || 'comfy-default');
-    setCkptId(wf.defaults?.ckpt_id || 'flux-unchained');
+    setCkptId(wf.defaults?.ckpt_id || 'flux-fp8');
     setLoraId(wf.defaults?.lora_id || 'none');
     setLoraStrength(wf.defaults?.lora_strength ?? 0.8);
     setSelectedLoras(wf.defaults?.lora_id

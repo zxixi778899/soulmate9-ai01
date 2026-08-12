@@ -159,7 +159,13 @@ export function resolveImageGenerationRoute(input: {
   const category: CompanionCategory = input.category === 'anime' ? 'female' : input.category || 'female';
   const semantics = input.sceneSemantics || classifyImageScene(input.sceneText || '', category);
   const complexScene = isComplexAdultScene(semantics);
-  const checkpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
+  // Keep the admin companion route on one canonical FLUX checkpoint. Mixing
+  // flux1-dev and flux1-dev-fp8 causes different conditioning behavior and
+  // makes prompt/parameter comparisons unreliable.
+  const configuredCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
+  const checkpoint = /flux1-dev\.safetensors$/i.test(configuredCheckpoint) && !/fp8/i.test(configuredCheckpoint)
+    ? 'flux1-dev-fp8.safetensors'
+    : configuredCheckpoint;
   const nsfw = intensity >= 3;
 
   // ─── Turbo preview mode ───────────────────────────────────────────────────

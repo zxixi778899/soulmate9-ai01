@@ -101,6 +101,12 @@ export function buildStudioTaskPrompt(input: PromptInput): string {
   const scene = text(input.scene);
   const framing = text(input.framing);
   const triggers = [...new Set((input.loraTriggers || []).map(text).filter(Boolean))].slice(0, 8);
+  // An authored prompt is the source of truth. Do not append task templates,
+  // lighting, or random scene language that can override its composition.
+  if (scene) {
+    return [framing, scene, input.hasIdentityReference ? 'use the ID reference for identity only' : '', input.modelFamily === 'flux' ? triggers.join(', ') : '']
+      .filter(Boolean).join(', ').replace(/\s+/g, ' ').replace(/,\s*,/g, ',').trim().slice(0, 520);
+  }
   const parts = [
     framing || 'medium shot',
     scene,
