@@ -30,7 +30,6 @@ import {
   type CompanionCategory,
 } from '@/lib/companion-category';
 import { getPresetsForCategory, type GenPreset } from './presets';
-import { getFluxPromptPresets, randomFluxPrompt } from '@/lib/comfy-console/flux-prompt-presets';
 import { buildCompanionGenerationPrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
 import {
@@ -44,6 +43,7 @@ import {
   type AnimeRenderStyle,
   type NsfwIntensity,
 } from '@/lib/comfy-console/studio-profile';
+import { getFluxPromptPresets, randomFluxPrompt } from '@/lib/comfy-console/flux-prompt-presets';
 import {
   GIRLFRIEND_NEGATIVE_FLUX,
   resolveGirlfriendLoraPlan,
@@ -205,7 +205,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
   const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('realistic');
   const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(1);
-  const [selectedPromptPreset, setSelectedPromptPreset] = useState('random');
+  const [savedPrompts, setSavedPrompts] = useState<Array<{ id: string; title: string; content: string }>>([]);
+  const [promptTitle, setPromptTitle] = useState('');
+  const [selectedSavedPrompt, setSelectedSavedPrompt] = useState('');
+  const [selectedPromptPreset, setSelectedPromptPreset] = useState('manual');
   const [activeAdultPreset, setActiveAdultPreset] = useState<{ id: string; label: string } | null>(null);
   const [cameraFraming, setCameraFraming] = useState<CameraFraming>('medium');
   const [cameraAngle, setCameraAngle] = useState<CameraAngle>('eye-level');
@@ -441,7 +444,35 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       const saved = localStorage.getItem('soulmate-comfy-presets');
       if (saved) setCustomPresets(JSON.parse(saved));
     } catch { /* ignore invalid local preset data */ }
+    try {
+      const saved = localStorage.getItem('soulmate-comfy-saved-prompts');
+      if (saved) setSavedPrompts(JSON.parse(saved));
+    } catch { /* ignore invalid saved prompt data */ }
   }, []);
+
+  const persistSavedPrompts = (items: Array<{ id: string; title: string; content: string }>) => {
+    setSavedPrompts(items);
+    localStorage.setItem('soulmate-comfy-saved-prompts', JSON.stringify(items));
+  };
+
+  const savePrompt = () => {
+    const title = promptTitle.trim();
+    const content = prompt.trim();
+    if (!title || !content) return toast.error('请输入提示词标题和内容');
+    const item = { id: `prompt-${Date.now()}`, title, content };
+    persistSavedPrompts([item, ...savedPrompts]);
+    setSelectedSavedPrompt(item.id);
+    toast.success('提示词已保存');
+  };
+
+  const loadSavedPrompt = (id: string) => {
+    const item = savedPrompts.find((entry) => entry.id === id);
+    if (!item) return;
+    setSelectedSavedPrompt(id);
+    setPromptTitle(item.title);
+    setPrompt(item.content);
+    setPromptProfileApplied(true);
+  };
 
   const persistCustomPresets = (items: Array<GenPreset>) => {
     setCustomPresets(items);
@@ -2361,6 +2392,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
               <p className="mt-2 text-[10px] text-cyan-300/80">当前最终控制：{CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.label} · {CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.label}</p>
             </div>
+            <div className="mb-2 flex items-center gap-2">
+              <Button type="button" size="sm" variant="outline" className="h-7 border-cyan-500/40 text-cyan-200" onClick={() => appendPromptControl(`${CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt || ''}, ${CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt || ''}`, '当前取景')}>+ 添加当前取景到提示词</Button>
+            </div>
             <div className="mb-3 rounded-lg border border-violet-500/25 bg-violet-950/10 p-3">
               <div className="mb-2 flex items-center justify-between">
                 <Label className="text-[11px] text-violet-100">提示词追加控制</Label>
@@ -2392,7 +2426,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <Badge className="border-violet-400/40 bg-violet-500/15 text-violet-100">{prompt.length} 字符</Badge>
               </div>
             </div>
-            <div className="mb-2 flex items-center gap-2 rounded-md border border-cyan-500/20 bg-cyan-950/10 p-2">
+            <div className="hidden mb-2 flex items-center gap-2 rounded-md border border-cyan-500/20 bg-cyan-950/10 p-2">
               <Label htmlFor="flux-prompt-preset" className="shrink-0 text-[11px] text-cyan-100">提示词方案 · NSFW {nsfwIntensity}/5</Label>
               <select
                 id="flux-prompt-preset"
@@ -2404,6 +2438,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 {getFluxPromptPresets({ category: companionCategory, style: animeRenderStyle, intensity: nsfwIntensity }).map((item, index) => (
                   <option key={item.id} value={item.id}>方案 {index + 1}</option>
                 ))}
+              </select>
+            </div>
+            <div className="mb-2 grid gap-2 rounded-md border border-cyan-500/20 bg-cyan-950/10 p-2 md:grid-cols-[1fr_auto]">
+              <Input value={promptTitle} onChange={(event) => setPromptTitle(event.target.value)} placeholder="保存标题" className="h-8 border-slate-600 bg-slate-950 text-xs text-white" />
+              <Button type="button" size="sm" className="h-8 bg-cyan-600 text-white hover:bg-cyan-500" onClick={savePrompt}>保存当前提示词</Button>
+              <select value={selectedSavedPrompt} onChange={(event) => loadSavedPrompt(event.target.value)} className="h-8 rounded-md border border-slate-600 bg-slate-950 px-2 text-xs text-white md:col-span-2">
+                <option value="">选择已保存提示词（可选）</option>
+                {savedPrompts.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
               </select>
             </div>
             <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px]">
