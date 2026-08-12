@@ -824,8 +824,24 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
 
   /** Parameter-first prompt optimization: instant, deterministic and model-aware. */
   const optimizePromptWithLlm = async () => {
+    const sourcePrompt = prompt.trim();
+    if (!sourcePrompt) { toast.error('请先在提示词框输入内容'); return; }
     setOptimizingPrompt(true);
     try {
+      const res = await authedFetch('/api/admin/comfy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'optimize_prompt', prompt: sourcePrompt, companion_category: companionCategory, anime_render_style: animeRenderStyle, nsfw_intensity: nsfwIntensity, gen_mode: genMode, asset_role: assetRole, companion: scopedGirlfriend || {}, previous_prompts: llmPromptHistoryRef.current }),
+      });
+      const data = await readResponseJson<{ prompt?: string; negative?: string; error?: string }>(res);
+      if (!res.ok || !data.prompt) throw new Error(data.error || 'Qwen3 提示词优化失败');
+      setPrompt(data.prompt);
+      llmPromptHistoryRef.current = [...llmPromptHistoryRef.current, data.prompt].slice(-5);
+      setPromptProfileApplied(true);
+      if (data.negative) setNegative(data.negative);
+      toast.success('已使用 Qwen3-8B-Pro-NSFW 优化当前提示词');
+      return;
+      if (false) { /* legacy deterministic composer retained below for reference */
       const route = resolveImageGenerationRoute({
         surface: generationSurface,
         category: companionCategory,
@@ -848,6 +864,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       applyRecommendedLoras(companionCategory, animeRenderStyle, nsfwIntensity);
       applyRecommendedParameters(genMode, nsfwIntensity);
       toast.success(`已按${modelFamily.toUpperCase()} · NSFW ${nsfwIntensity}/5 · ${studioTask}完成提示词与反向词优化`);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '提示词优化失败');
     } finally {
