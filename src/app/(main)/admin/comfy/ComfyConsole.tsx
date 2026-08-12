@@ -30,7 +30,7 @@ import {
   type CompanionCategory,
 } from '@/lib/companion-category';
 import { getPresetsForCategory, type GenPreset } from './presets';
-import { randomFluxPrompt } from '@/lib/comfy-console/flux-prompt-presets';
+import { getFluxPromptPresets, randomFluxPrompt } from '@/lib/comfy-console/flux-prompt-presets';
 import { buildCompanionGenerationPrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
 import {
@@ -205,6 +205,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
   const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('realistic');
   const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(1);
+  const [selectedPromptPreset, setSelectedPromptPreset] = useState('random');
   const [activeAdultPreset, setActiveAdultPreset] = useState<{ id: string; label: string } | null>(null);
   const [cameraFraming, setCameraFraming] = useState<CameraFraming>('medium');
   const [cameraAngle, setCameraAngle] = useState<CameraAngle>('eye-level');
@@ -416,6 +417,22 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setNegative(`${studioNegativePrompt(category, animeRenderStyle)}, ${preset.negative}`);
     applyRecommendedLoras(category);
     toast.success(`已切换为${COMPANION_CATEGORY_LABELS[category].zh}成人提示词`);
+  };
+
+  const applyFluxPromptPreset = (presetId: string) => {
+    const framing = [
+      CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt,
+      CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt,
+    ].filter(Boolean).join(', ');
+    const presets = getFluxPromptPresets({ category: companionCategory, style: animeRenderStyle, intensity: nsfwIntensity });
+    const selected = presetId === 'random'
+      ? randomFluxPrompt({ category: companionCategory, style: animeRenderStyle, intensity: nsfwIntensity, framing })
+      : `${framing ? `Camera framing: ${framing}. ` : ''}${presets.find((item) => item.id === presetId)?.prompt || presets[0]?.prompt || ''}`;
+    setSelectedPromptPreset(presetId);
+    setPrompt(compactFluxPrompt(selected, 520));
+    setPromptProfileApplied(true);
+    setNegative(studioNegativePrompt(companionCategory, animeRenderStyle));
+    toast.success(`已载入 NSFW ${nsfwIntensity}/5 提示词方案`);
   };
 
 
@@ -948,7 +965,16 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     });
     setNsfwIntensity(next);
     setFastPreview(false);
-    setPrompt(compactFluxPrompt(nextPrompt));
+    setSelectedPromptPreset('random');
+    setPrompt(compactFluxPrompt(randomFluxPrompt({
+      category: companionCategory,
+      style: animeRenderStyle,
+      intensity: next,
+      framing: [
+        CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt,
+        CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt,
+      ].filter(Boolean).join(', '),
+    }), 520));
     setNegative(studioNegativePrompt(companionCategory, animeRenderStyle));
     setPromptProfileApplied(true);
     setActiveAdultPreset(adultPreset ? { id: adultPreset.id, label: adultPreset.label } : null);
@@ -2366,8 +2392,22 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <Badge className="border-violet-400/40 bg-violet-500/15 text-violet-100">{prompt.length} 字符</Badge>
               </div>
             </div>
+            <div className="mb-2 flex items-center gap-2 rounded-md border border-cyan-500/20 bg-cyan-950/10 p-2">
+              <Label htmlFor="flux-prompt-preset" className="shrink-0 text-[11px] text-cyan-100">提示词方案 · NSFW {nsfwIntensity}/5</Label>
+              <select
+                id="flux-prompt-preset"
+                value={selectedPromptPreset}
+                onChange={(event) => applyFluxPromptPreset(event.target.value)}
+                className="h-8 min-w-0 flex-1 rounded-md border border-slate-600 bg-slate-950 px-2 text-xs text-white"
+              >
+                <option value="random">随机调用当前等级方案</option>
+                {getFluxPromptPresets({ category: companionCategory, style: animeRenderStyle, intensity: nsfwIntensity }).map((item, index) => (
+                  <option key={item.id} value={item.id}>方案 {index + 1}</option>
+                ))}
+              </select>
+            </div>
             <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px]">
-              <Textarea value={prompt} onChange={(e) => { setPrompt(e.target.value); setPromptProfileApplied(false); }} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-400 focus-visible:ring-violet-500" placeholder="例如：Daisy 是一位曲线优美的成年伴侣。她正倚在床边，用妩媚的眼神邀请观众靠近。" />
+              <Textarea value={prompt} onChange={(e) => { setPrompt(e.target.value); setPromptProfileApplied(true); setSelectedPromptPreset('manual'); }} rows={4} className="min-h-28 resize-y border-slate-600 bg-[#0b0c0e] text-sm leading-6 text-white placeholder:text-slate-400 focus-visible:ring-violet-500" placeholder="例如：一位成年女性穿着红色连衣裙，站在窗边，侧身看向镜头。" />
               <Button className="min-h-28 bg-slate-100 text-base font-bold !text-slate-950 hover:bg-white" disabled={generating} onClick={generate}>
                 {generating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
                 {generationStage === 'submitting'
