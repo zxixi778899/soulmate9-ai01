@@ -209,6 +209,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [promptTitle, setPromptTitle] = useState('');
   const [selectedSavedPrompt, setSelectedSavedPrompt] = useState('');
   const [selectedPromptPreset, setSelectedPromptPreset] = useState('manual');
+  const [customPromptAdds, setCustomPromptAdds] = useState<Array<{ id: string; title: string; content: string }>>([]);
+  const [promptAddTitle, setPromptAddTitle] = useState('');
+  const [promptAddContent, setPromptAddContent] = useState('');
   const [activeAdultPreset, setActiveAdultPreset] = useState<{ id: string; label: string } | null>(null);
   const [cameraFraming, setCameraFraming] = useState<CameraFraming>('medium');
   const [cameraAngle, setCameraAngle] = useState<CameraAngle>('eye-level');
@@ -447,6 +450,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     try {
       const saved = localStorage.getItem('soulmate-comfy-saved-prompts');
       if (saved) setSavedPrompts(JSON.parse(saved));
+      const additions = localStorage.getItem('soulmate-comfy-prompt-adds');
+      if (additions) setCustomPromptAdds(JSON.parse(additions));
     } catch { /* ignore invalid saved prompt data */ }
   }, []);
 
@@ -472,6 +477,23 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setPromptTitle(item.title);
     setPrompt(item.content);
     setPromptProfileApplied(true);
+  };
+
+  const savePromptAdd = () => {
+    const title = promptAddTitle.trim();
+    const content = promptAddContent.trim();
+    if (!title || !content) return toast.error('请输入追加项标题和内容');
+    const next = [...customPromptAdds, { id: `add-${Date.now()}`, title, content }];
+    setCustomPromptAdds(next);
+    localStorage.setItem('soulmate-comfy-prompt-adds', JSON.stringify(next));
+    setPromptAddTitle('');
+    setPromptAddContent('');
+  };
+
+  const removePromptAdd = (id: string) => {
+    const next = customPromptAdds.filter((item) => item.id !== id);
+    setCustomPromptAdds(next);
+    localStorage.setItem('soulmate-comfy-prompt-adds', JSON.stringify(next));
   };
 
   const persistCustomPresets = (items: Array<GenPreset>) => {
@@ -1093,10 +1115,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         : 'wai-mature-illustrious-v20');
     setEndpointKey(endpoint);
     setCkptId(checkpoint);
-    setSteps(generationRoute.steps);
-    setCfg(generationRoute.cfg);
-    setSampler(generationRoute.sampler);
-    setScheduler(generationRoute.scheduler);
     setSelectedLoras((current) => current.filter((selection) => selection.id !== 'none' && loras.some((lora) => lora.id === selection.id)));
     setLoraId((current) => current === 'none' || loras.some((lora) => lora.id === current) ? current : 'none');
   }, [checkpoints, generationRoute.cfg, generationRoute.checkpoint, generationRoute.modelFamily, generationRoute.sampler, generationRoute.scheduler, generationRoute.steps, loras]);
@@ -2411,6 +2429,17 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     ))}
                   </div>
                 ))}
+                <div className="mt-2 grid gap-2 border-t border-violet-500/20 pt-2 md:grid-cols-[180px_1fr_auto]">
+                  <Input value={promptAddTitle} onChange={(event) => setPromptAddTitle(event.target.value)} placeholder="追加项标题" className="h-8 border-violet-500/30 bg-slate-950 text-xs" />
+                  <Input value={promptAddContent} onChange={(event) => setPromptAddContent(event.target.value)} placeholder="追加项内容" className="h-8 border-violet-500/30 bg-slate-950 text-xs" />
+                  <Button type="button" size="sm" className="h-8 bg-violet-600 hover:bg-violet-500" onClick={savePromptAdd}>添加</Button>
+                </div>
+                {customPromptAdds.length > 0 && <div className="flex flex-wrap gap-2">
+                  {customPromptAdds.map((item) => <div key={item.id} className="flex items-center gap-1 rounded-md border border-violet-500/30 bg-violet-950/20">
+                    <Button type="button" size="sm" variant="ghost" className="h-7 text-violet-100" onClick={() => appendPromptControl(item.content, item.title)}>+ {item.title}</Button>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 px-1 text-rose-300" onClick={() => removePromptAdd(item.id)} aria-label={`删除追加项 ${item.title}`}>×</Button>
+                  </div>)}
+                </div>}
               </div>
             </div>
             <div className="mb-2 flex items-center justify-between gap-3">
