@@ -159,14 +159,13 @@ export function resolveImageGenerationRoute(input: {
   const category: CompanionCategory = input.category === 'anime' ? 'female' : input.category || 'female';
   const semantics = input.sceneSemantics || classifyImageScene(input.sceneText || '', category);
   const complexScene = isComplexAdultScene(semantics);
-  // Keep the admin companion route on one canonical FLUX checkpoint. Mixing
-  // flux1-dev and flux1-dev-fp8 causes different conditioning behavior and
-  // makes prompt/parameter comparisons unreliable.
-  const configuredCheckpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
-  const checkpoint = /flux1-dev\.safetensors$/i.test(configuredCheckpoint) && !/fp8/i.test(configuredCheckpoint)
-    ? 'flux1-dev-fp8.safetensors'
-    : configuredCheckpoint;
   const nsfw = intensity >= 3;
+  // Two explicit FLUX profiles: dev-fp8 for SFW, Unchained for adult-only
+  // scenes. Each profile gets its own step/guidance budget and compatible
+  // LoRA plan; never silently mix the two checkpoints.
+  const sfwCheckpoint = env('RUNPOD_PHOTOREAL_CHECKPOINT', 'flux1-dev-fp8.safetensors');
+  const nsfwCheckpoint = env('RUNPOD_FLUX_NSFW_CHECKPOINT', 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
+  const checkpoint = nsfw ? nsfwCheckpoint : sfwCheckpoint;
 
   // ─── Turbo preview mode ───────────────────────────────────────────────────
   // Quick draft for companion chat: 8 steps produces a recognizable image in
@@ -191,8 +190,8 @@ export function resolveImageGenerationRoute(input: {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: nsfw ? 28 : 26,
-      fluxGuidance: nsfw ? 4.0 : 3.5,
+      steps: nsfw ? 8 : 26,
+      fluxGuidance: nsfw ? 1.5 : 3.5,
       width: 832,
       height: 1216,
       presetId: complexScene ? 'flux-2d-multi-control' : 'flux-2d-portrait',
@@ -207,8 +206,8 @@ export function resolveImageGenerationRoute(input: {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: nsfw ? 28 : 26,
-      fluxGuidance: nsfw ? 4.0 : 3.5,
+      steps: nsfw ? 8 : 26,
+      fluxGuidance: nsfw ? 1.5 : 3.5,
       width: 896,
       height: 1152,
       presetId: complexScene ? 'flux-3d-multi-control' : 'flux-3d-portrait',
@@ -223,8 +222,8 @@ export function resolveImageGenerationRoute(input: {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: nsfw ? 28 : 24,
-      fluxGuidance: nsfw ? 4.0 : 3.5,
+      steps: nsfw ? 8 : 24,
+      fluxGuidance: nsfw ? 1.5 : 3.5,
       width: 896,
       height: 1152,
       presetId: nsfw
@@ -240,8 +239,8 @@ export function resolveImageGenerationRoute(input: {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: highControl || complexScene ? 30 : 28,
-      fluxGuidance: 4.0,
+      steps: 8,
+      fluxGuidance: 1.5,
       width: 896,
       height: 1152,
       presetId: highControl ? 'flux-adult-composition-control' : complexScene ? 'flux-adult-pair' : 'flux-adult-portrait',
