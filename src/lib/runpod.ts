@@ -158,11 +158,10 @@ export function buildFluxWorkflow(opts: {
   const width = opts.width ?? 832;
   const height = opts.height ?? 1216;
   const steps = Math.max(opts.steps ?? 8, 8);
-  // The Comfy single-file FLUX.1-dev FP8 checkpoint is distilled for CFG 1.
-  // Higher values amplify colour casts and destroy low-frequency structure.
-  // Enforce this at the final workflow boundary so stale callers cannot regress it.
+  // Keep the final caller-supplied Flux guidance. The two FLUX profiles use
+  // different values; hard-coding 1 here silently discards the admin setting.
   const guidance = isFlux
-    ? 1.0
+    ? Math.min(5, Math.max(1, Number(opts.guidance ?? opts.flux_guidance ?? 3.5)))
     : Math.min(Math.max(opts.guidance ?? 6.0, 3.0), 9.0);
   const ckpt = opts.ckpt_name || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
   // Flux Unchained by SCG ships UNET-only (fp8, no CLIP/VAE inside). It must be
@@ -331,7 +330,9 @@ export function buildFluxWorkflow(opts: {
         // 实测工作机节点会忽略 weight_type（三种模式输出一致），身份强度由 weight + 作用区间控制
         weight_type: 'style transfer',
         start_percent: 0.0,
-        end_percent: 0.95,
+        // Keep the identity anchor early and weak enough that prompt controls
+        // the scene, crop, pose and lighting.
+        end_percent: 0.7,
       },
     };
     ipAdapterNodes['31'] = {
