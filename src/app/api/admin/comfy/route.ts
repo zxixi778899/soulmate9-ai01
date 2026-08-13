@@ -35,6 +35,7 @@ import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAs
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
 import { resolveGenerationProfile } from '@/lib/comfy-console/generation-profiles';
+import { assertEnhancersReady, getEnhancerStatuses, type EnhancerId } from '@/lib/comfy-console/enhancer-config';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -85,7 +86,7 @@ function mergeInstalledLoras(config: ComfyConsoleConfig): ComfyConsoleConfig {
 }
 /**
  * GET /api/admin/comfy
- *   ?view=config | assets | help | loras
+ *   ?view=config | assets | help | loras | enhancers
  */
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
@@ -94,6 +95,10 @@ export async function GET(req: NextRequest) {
   const view = new URL(req.url).searchParams.get('view') || 'config';
   const storedCfg = await loadComfyConfig(admin.supabase);
   const cfg = mergeInstalledLoras(storedCfg);
+
+  if (view === 'enhancers') {
+    return NextResponse.json({ enhancers: getEnhancerStatuses() });
+  }
 
   if (view === 'volume' || view === 'installed') {
     const { getVerifiedInstalledLoraSet } = await import('@/lib/runpod-loras');
@@ -1521,6 +1526,17 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     prompt = compactFluxPrompt(prompt);
 
     try {
+      const requestedEnhancers = (body.enhancers && typeof body.enhancers === 'object'
+        ? body.enhancers
+        : {}) as Partial<Record<EnhancerId, boolean>>;
+      try {
+        assertEnhancersReady(requestedEnhancers);
+      } catch (enhancerError) {
+        return NextResponse.json({
+          error: enhancerError instanceof Error ? enhancerError.message : '图像增强节点未就绪',
+          enhancers: getEnhancerStatuses(),
+        }, { status: 503 });
+      }
       const singleLoraAllowed = lora ? isLoraAllowedForContext(lora, { surface, category, modelFamily: generationRoute.modelFamily }) : false;
       const requestedLora = singleLoraAllowed ? lora?.filename || null : null;
       const loraSan = sanitizeLoraForVolume(requestedLora, {
@@ -1565,6 +1581,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         loras: effectiveLoras,
         ip_adapter_image: ipAdapterImage,
         ip_adapter_weight: ipAdapterWeight,
+        enhancers: requestedEnhancers,
         endpoint_id: body.endpoint_id || endpointId || generationRoute.endpointId,
         submit_only: true,
       };
@@ -1621,6 +1638,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
             guidance: generationOptions.flux_guidance ?? generationOptions.guidance_scale,
             loraStrength: generationOptions.lora_strength_model,
             ipAdapterWeight: generationOptions.ip_adapter_weight ?? null,
+            enhancers: generationOptions.enhancers,
             referenceDenoise: effectiveDenoise ?? null,
             referencePlan: referencePlan.trace,
             referenceRoles: referencePlan.selected.map((asset) => asset.role),

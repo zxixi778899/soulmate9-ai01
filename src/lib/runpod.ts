@@ -489,6 +489,12 @@ export interface RunPodGenerateOptions {
   ip_adapter_image?: string;
   /** IP-Adapter weight 0–1 (default 0.75). Higher = stronger face similarity. */
   ip_adapter_weight?: number;
+  /** Optional installed enhancement passes; validated by the admin API. */
+  enhancers?: {
+    controlnet?: boolean;
+    adetailer?: boolean;
+    upscale?: boolean;
+  };
   /** Override default RUNPOD_ENDPOINT_ID for this call */
   endpoint_id?: string;
   /** Resume an existing RunPod job (skip /run submit). */

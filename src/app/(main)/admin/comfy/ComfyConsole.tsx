@@ -1423,6 +1423,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             body: JSON.stringify({
               ...generationBody({ girlfriendId: companionId, prompt, negative, assetRole: stage.assetRole as CharacterAssetRole }),
               ...params,
+              enhancers,
               character_consistency: stage.id !== 'avatar',
               width: stage.width,
               height: stage.height,
