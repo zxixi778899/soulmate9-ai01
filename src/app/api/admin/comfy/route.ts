@@ -1138,7 +1138,7 @@ if (body.action === 'verify_loras') {
     let height = Number(body.height || wf?.defaults.height || 1216);
     // Flux Unchained 8 步规范：不再强制 28/32 步
     const minimumSteps = 8;
-    const steps = Math.max(minimumSteps, Number(body.steps || body.num_inference_steps || wf?.defaults.steps || minimumSteps));
+    const steps = Math.max(minimumSteps, Number(body.steps ?? body.num_inference_steps ?? wf?.defaults.steps ?? minimumSteps));
     const allowedSamplers = new Set(['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_sde']);
     const allowedSchedulers = new Set(['simple', 'normal', 'karras', 'sgm_uniform']);
     const requestedSampler = String(body.sampler_name || 'euler');
@@ -1510,7 +1510,10 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       const poseNsfwLora = { name: 'flux_pose_nsfw_dynamic_v1.safetensors', strength: 0.45 };
       compatibleLoraPlan.selected.push(poseNsfwLora as any);
     }
-    const effectiveLoras = compatibleLoraPlan.selected;
+    const effectiveLoras = compatibleLoraPlan.selected.map((item) => ({
+      ...item,
+      strength: Number(('strength' in item ? item.strength : item.strength_model) || loraStrength || 0.7),
+    }));
     if (compatibleLoraPlan.triggerWords.length > 0) {
       const promptLower = prompt.toLowerCase();
       const missingTriggers = compatibleLoraPlan.triggerWords.filter((word) => !promptLower.includes(word.toLowerCase()));
@@ -1555,8 +1558,8 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         ckpt_name: body.ckpt_name || ckpt?.filename || generationRoute.checkpoint,
         model_family: generationRoute.modelFamily,
         lora_name: effectiveLoras.length ? null : loraSan.lora_name,
-        lora_strength_model: loraStrength,
-        lora_strength_clip: loraStrength,
+        lora_strength_model: effectiveLoras[0]?.strength || loraStrength,
+        lora_strength_clip: effectiveLoras[0]?.strength || loraStrength,
         loras: effectiveLoras,
         ip_adapter_image: ipAdapterImage,
         ip_adapter_weight: ipAdapterWeight,
@@ -1600,11 +1603,14 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
               : loraSan.lora_name
                 ? [{ name: loraSan.lora_name, strength_model: loraStrength, strength_clip: loraStrength }]
                 : [],
-            checkpoint: allowManualRouting ? body.ckpt_name || ckpt?.filename : generationRoute.checkpoint,
+            checkpoint: generationOptions.ckpt_name,
             steps,
             cfg: effectiveGuidance,
-            sampler: samplerName,
-            scheduler: body.scheduler ? scheduler : generationRoute.scheduler,
+            sampler: generationOptions.sampler_name,
+            scheduler: generationOptions.scheduler,
+            guidance: generationOptions.flux_guidance ?? generationOptions.guidance_scale,
+            loraStrength: generationOptions.lora_strength_model,
+            ipAdapterWeight: generationOptions.ip_adapter_weight ?? null,
             referenceDenoise: effectiveDenoise ?? null,
             referencePlan: referencePlan.trace,
             referenceRoles: referencePlan.selected.map((asset) => asset.role),

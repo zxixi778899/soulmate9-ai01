@@ -934,7 +934,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const endpoints: Any[] = useMemo(() => config?.endpoints || [], [config?.endpoints]);
   const checkpoints: Any[] = useMemo(() => config?.checkpoints || [], [config?.checkpoints]);
   const studioCheckpoints = checkpoints.filter((item) =>
-    ['flux-fp8', 'flux-unchained', 'pony-realism-v22', 'wai-mature-illustrious-v20'].includes(String(item.id)),
+    ['flux-fp8', 'flux-unchained'].includes(String(item.id)),
   );
   const allLoras: Any[] = useMemo(() => config?.loras || [], [config?.loras]);
   const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity, turbo: fastPreview && genMode !== 'img2video', specialistModelsReady: volumeInfo?.sdxl_models_ready === true });
@@ -1129,9 +1129,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     );
     const checkpoint = routedCheckpoint?.id || (generationRoute.modelFamily === 'flux'
       ? (generationRoute.checkpoint.toLowerCase().includes('unchained') ? 'flux-unchained' : 'flux-fp8')
-      : generationRoute.modelFamily === 'pony'
-        ? 'pony-realism-v22'
-        : 'wai-mature-illustrious-v20');
+        : 'flux-fp8');
     setEndpointKey(endpoint);
     setCkptId(checkpoint);
     setSelectedLoras((current) => current.filter((selection) => selection.id !== 'none' && loras.some((lora) => lora.id === selection.id)));
