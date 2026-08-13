@@ -47,7 +47,7 @@ function assetKey(a: Asset): string {
   return String(a.id || a.storage_key || a.url || '');
 }
 
-export default function AdminAssetsPage({ embedded = false }: { embedded?: boolean }) {
+export function AdminAssetsContent({ embedded = false }: { embedded?: boolean }) {
   const [items, setItems] = useState<Asset[]>([]);
   const [girlfriends, setGirlfriends] = useState<Gf[]>([]);
   const [loading, setLoading] = useState(true);
@@ -600,4 +600,8 @@ export default function AdminAssetsPage({ embedded = false }: { embedded?: boole
       )}
     </div>
   );
+}
+
+export default function AdminAssetsPage(): React.JSX.Element {
+  return <AdminAssetsContent embedded={false} />;
 }

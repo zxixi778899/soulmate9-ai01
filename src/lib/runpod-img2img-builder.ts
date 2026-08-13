@@ -4,6 +4,11 @@
  * Enables character consistency via IP-Adapter or denoising-controlled img2img
  */
 
+/** UNET-only FLUX checkpoints: need DualCLIPLoader (clip_l + t5xxl) + VAELoader (ae). */
+const SPLIT_FLUX_CHECKPOINTS = new Set([
+  'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors',
+]);
+
 export function buildImg2ImgWorkflow(
   positivePrompt: string,
   negativePrompt: string,
@@ -168,10 +173,32 @@ export function buildCompleteImg2ImgWorkflow(opts: {
     };
   }
 
+  // ─── LoRA Stack ────────────────────────────────────────────────
+  const loraNodes: Record<string, unknown> = {};
+  let lastLoraNodeId: string = '1';
+
+  for (const [idx, lora] of loras.entries()) {
+    const nodeId = String(14 + idx);
+    const prevNodeId = idx === 0 ? '1' : String(14 + idx - 1);
+
+    loraNodes[nodeId] = {
+      class_type: 'LoraLoader',
+      inputs: {
+        lora_name: lora.name,
+        strength_model: lora.strength_model ?? 0.7,
+        strength_clip: lora.strength_clip ?? lora.strength_model ?? 0.7,
+        model: [prevNodeId, 0],
+        clip: useSplitLoader ? ['22', 0] : [prevNodeId, 1],
+      },
+    };
+    lastLoraNodeId = nodeId;
+  }
+  Object.assign(baseGraph, loraNodes);
+
   // ─── IP-Adapter Nodes (optional face lock) ─────────────────────
-  let modelRef: [string, number] = ['14', 0];  // default after LoRA
-  let clipRef: [string, number] = useSplitLoader ? ['22', 0] : [lastLoraNodeId ?? '1', 1];
-  
+  let modelRef: [string, number] = [lastLoraNodeId, 0];
+  const clipRef: [string, number] = useSplitLoader ? ['22', 0] : [lastLoraNodeId, 1];
+
   if (ipAdapterImage && ipAdapterWeight) {
     const ipWeight = Math.min(0.5, Math.max(0.15, ipAdapterWeight));
     const ipModel = 'ip-adapter.bin';
@@ -211,41 +238,13 @@ export function buildCompleteImg2ImgWorkflow(opts: {
     modelRef = ['30', 0];
   }
 
-  // ─── LoRA Stack ────────────────────────────────────────────────
-  const loraNodes: Record<string, unknown> = {};
-  let lastLoraNodeId: string = '1';
-  
-  for (const [idx, lora] of loras.entries()) {
-    const nodeId = String(14 + idx);
-    const prevNodeId = idx === 0 
-      ? (useSplitLoader ? '1' : '1') 
-      : String(14 + idx - 1);
-    
-    loraNodes[nodeId] = {
-      class_type: 'LoraLoader',
-      inputs: {
-        lora_name: lora.name,
-        strength_model: lora.strength_model ?? 0.7,
-        strength_clip: lora.strength_clip ?? lora.strength_model ?? 0.7,
-        model: [prevNodeId, 0],
-        clip: useSplitLoader ? ['22', 0] : [prevNodeId, 1],
-      },
-    };
-    lastLoraNodeId = nodeId;
-  }
-
-  // Update modelRef if no IP-Adapter
-  if (!ipAdapterImage) {
-    modelRef = [lastLoraNodeId, 0];
-  }
-
   // ─── Flux Guidance ─────────────────────────────────────────────
   const fluxGuidanceNode = {
     '21': {
       class_type: 'FluxGuidance',
-      inputs: { 
+      inputs: {
         conditioning: [['22', 0]],  // simplified; adjust if needed
-        guidance: fluxGuidance 
+        guidance: fluxGuidance,
       },
     },
   };
@@ -263,10 +262,10 @@ export function buildCompleteImg2ImgWorkflow(opts: {
     fluxGuidance,
     seed,
     modelRef,
-    useSplitLoader ? ['22', 0] : undefined,
-    useSplitLoader ? ['23', 0] : undefined
+    clipRef,
+    useSplitLoader ? ['23', 0] : undefined,
   );
 
   // Merge all graphs
-  return { ...baseGraph, ...loraNodes, ...fluxGuidanceNode, ...img2imgNodes };
+  return { ...baseGraph, ...fluxGuidanceNode, ...img2imgNodes };
 }

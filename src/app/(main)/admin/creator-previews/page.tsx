@@ -37,7 +37,7 @@ interface Preview {
 
 const cellKey = (gender: string, style: string) => `${gender}|${style}`;
 
-export default function CreatorPreviewsAdminPage({ embedded = false }: { embedded?: boolean }) {
+export function CreatorPreviewsAdminContent() {
   const [previews, setPreviews] = useState<Preview[]>([]);
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -227,4 +227,8 @@ export default function CreatorPreviewsAdminPage({ embedded = false }: { embedde
       ))}
     </div>
   );
+}
+
+export default function CreatorPreviewsAdminPage(): React.JSX.Element {
+  return <CreatorPreviewsAdminContent />;
 }

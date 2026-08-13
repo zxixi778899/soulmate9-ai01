@@ -16,10 +16,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import ComfyConsole from '../comfy/ComfyConsole';
-import AdminPresetsPage from '../presets/page';
-import CreatorPreviewsAdminPage from '../creator-previews/page';
-import AdminAssetsPage from '../assets/page';
-import AdminPresetLibraryPage from '../preset-library/page';
+import { AdminPresetsContent } from '../presets/page';
+import { CreatorPreviewsAdminContent } from '../creator-previews/page';
+import { AdminAssetsContent } from '../assets/page';
+import { AdminPresetLibraryContent } from '../preset-library/page';
 import { cn } from '@/lib/utils';
 
 type Section = 'studio' | 'assets' | 'presets' | 'previews' | 'character-presets';
@@ -146,10 +146,10 @@ function StudioInner(): React.JSX.Element {
       {/* ─── Content ────────────────────────────────────────────── */}
       <div className="mx-auto max-w-[1600px] px-3 py-4 md:px-4">
         {section === 'studio' && <ComfyConsole girlfriendId={girlfriendId || undefined} embedded />}
-        {section === 'character-presets' && <AdminPresetLibraryPage embedded />}
-        {section === 'assets' && <AdminAssetsPage embedded />}
-        {section === 'presets' && <AdminPresetsPage embedded />}
-        {section === 'previews' && <CreatorPreviewsAdminPage embedded />}
+        {section === 'character-presets' && <AdminPresetLibraryContent embedded />}
+        {section === 'assets' && <AdminAssetsContent embedded />}
+        {section === 'presets' && <AdminPresetsContent embedded />}
+        {section === 'previews' && <CreatorPreviewsAdminContent />}
       </div>
     </div>
   );

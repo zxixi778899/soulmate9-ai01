@@ -38,7 +38,7 @@ interface GenPreset {
 
 // --- Main Page ---
 
-export default function AdminPresetsPage({ embedded = false }: { embedded?: boolean }) {
+export function AdminPresetsContent({ embedded = false }: { embedded?: boolean }) {
   const [templates, setTemplates] = useState<SceneTemplate[]>([]);
   const [references, setReferences] = useState<CharacterReference[]>([]);
   const [genPresets, setGenPresets] = useState<GenPreset[]>([]);
@@ -574,4 +574,8 @@ function GenPresetDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (
       </DialogContent>
     </Dialog>
   );
+}
+
+export default function AdminPresetsPage(): React.JSX.Element {
+  return <AdminPresetsContent embedded={false} />;
 }

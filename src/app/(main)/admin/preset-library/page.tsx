@@ -102,7 +102,7 @@ function csv(text: string | string[] | null | undefined): string {
 
 // --- Main Page ---
 
-export default function AdminPresetLibraryPage({ embedded }: { embedded?: boolean }) {
+export function AdminPresetLibraryContent({ embedded }: { embedded?: boolean }) {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -529,6 +529,10 @@ export default function AdminPresetLibraryPage({ embedded }: { embedded?: boolea
       )}
     </div>
   );
+}
+
+export default function AdminPresetLibraryPage(): React.JSX.Element {
+  return <AdminPresetLibraryContent embedded={false} />;
 }
 
 // --- Preset Create/Edit Dialog ---
