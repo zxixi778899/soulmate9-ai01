@@ -39,15 +39,15 @@ describe('image scene semantics', () => {
       surface: 'companion',
       category: 'male',
       renderStyle: 'realistic',
-      nsfwIntensity: 2,
+      nsfwIntensity: 4, // NSFW scene with SM and group dynamics requires high control
       sceneText: '4i SM with four consenting adults',
     });
     expect(route).toMatchObject({
       modelFamily: 'flux',
       presetId: 'flux-adult-composition-control',
       sampler: 'euler',
-      steps: 8,
-      width: 768,
+      steps: 30,
+      width: 896,
       height: 1152,
     });
   });
