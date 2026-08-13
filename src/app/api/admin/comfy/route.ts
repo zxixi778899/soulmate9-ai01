@@ -1465,6 +1465,9 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
             : {};
           const asset = cfg.loras.find((candidate) => candidate.id === String(value.id || ''));
           if (asset && !isLoraAllowedForContext(asset, { surface, category, modelFamily: generationRoute.modelFamily })) return null;
+          const loraName = String(asset?.filename || value.id || '').toLowerCase();
+          const adultOnlyLora = /(nsfw|adult|lewd|erotic|explicit|uncensored|sex|pose_nsfw)/i.test(loraName);
+          if (adultOnlyLora && generationIntensity < 3) return null;
           const baseStrength = Number(value.strength ?? asset?.default_strength ?? 0.7);
           const strength = baseStrength * studioLoraStrengthScale(generationIntensity);
           return asset?.filename
