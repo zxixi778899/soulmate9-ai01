@@ -1569,6 +1569,14 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         endpoint_id: body.endpoint_id || endpointId || generationRoute.endpointId,
         submit_only: true,
       };
+      if (generationIntensity >= 3 && generationOptions.ckpt_name === 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors' && process.env.RUNPOD_FLUX_NSFW_READY !== 'true') {
+        return NextResponse.json({
+          error: 'NSFW FLUX 模型尚未就绪：已阻止回退到 SFW 模型，避免实际参数与界面设置不一致。请准备 RUNPOD_FLUX_NSFW_CHECKPOINT 并设置 RUNPOD_FLUX_NSFW_READY=true。',
+          requested_checkpoint: generationOptions.ckpt_name,
+          requested_steps: generationOptions.num_inference_steps,
+          requested_guidance: generationOptions.flux_guidance,
+        }, { status: 503 });
+      }
       const result = await runpodClient.generate(generationOptions);
 
       // If still pending, return job_id for client-side polling
