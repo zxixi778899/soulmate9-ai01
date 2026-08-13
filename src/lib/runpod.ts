@@ -14,7 +14,6 @@
 import { computeCacheKey, lookupCache, writeCache } from './generation-cache';
 import { validateModelLoraName } from '@/lib/model-lora-routing';
 import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
-import { applyFluxNaturalLook } from '@/lib/prompt/flux-natural';
 import { specialistCheckpointInventory } from '@/lib/image-generation-routing';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from './analytics';
@@ -222,9 +221,7 @@ export function buildFluxWorkflow(opts: {
   // FLUX: empty negative is safest. Long SD negatives → black / muddy images.
   // 统一注入 "自然写实" 提示词（皮肤纹理/瑕疵/胶片颗粒），降低 AI 感 / 蜡像感；
   // 非人物类提示词（服装/道具/广告）原样放行。
-  const naturalized = applyFluxNaturalLook(promptText, String(opts.negativePrompt ?? '').trim());
-  promptText = naturalized.positive;
-  const rawNeg = naturalized.negative;
+  const rawNeg = String(opts.negativePrompt ?? '').trim();
   const negativeParts = [...new Set(rawNeg.split(',').map((part) => part.trim()).filter(Boolean))];
   let negText = '';
   for (const part of negativeParts) {
@@ -317,7 +314,7 @@ export function buildFluxWorkflow(opts: {
   const effectiveInputImage = opts.input_image || sdxlReferenceImage;
   const ipAdapterNodes: Record<string, unknown> = {};
   if (useIpAdapter) {
-    const ipWeight = Math.min(1.0, Math.max(0.25, opts.ip_adapter_weight ?? 0.7));
+    const ipWeight = Math.min(0.5, Math.max(0.15, opts.ip_adapter_weight ?? 0.3));
     const ipModel = opts.ip_adapter_model || 'ip-adapter.bin';
     const clipVision = opts.clip_vision_model || 'google/siglip-so400m-patch14-384';
     ipAdapterNodes['30'] = {
