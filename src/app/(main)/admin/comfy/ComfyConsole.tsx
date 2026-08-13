@@ -44,6 +44,7 @@ import {
   type NsfwIntensity,
 } from '@/lib/comfy-console/studio-profile';
 import { getFluxPromptPresets, randomFluxPrompt } from '@/lib/comfy-console/flux-prompt-presets';
+import { DEFAULT_ENHANCERS, STUDIO_WORKBENCH_STAGES, type StudioEnhancers } from '@/lib/comfy-console/studio-workbench';
 import {
   GIRLFRIEND_NEGATIVE_FLUX,
   resolveGirlfriendLoraPlan,
@@ -171,7 +172,7 @@ function getPromptAppendPresets(nsfwLevel: NsfwIntensity) {
 }
 
 export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyConsoleProps) {
-  const [tab, setTab] = useState<'generate' | 'loras' | 'library' | 'workflows' | 'infra'>('generate');
+  const [tab, setTab] = useState<'generate' | 'loras' | 'library'>('generate');
   const [config, setConfig] = useState<Any | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -205,6 +206,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
   const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('realistic');
   const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(1);
+  const [enhancers, setEnhancers] = useState<StudioEnhancers>(DEFAULT_ENHANCERS);
   const [nsfwDescriptions, setNsfwDescriptions] = useState<Record<string, string>>({});
   const [savedPrompts, setSavedPrompts] = useState<Array<{ id: string; title: string; content: string }>>([]);
   const [promptTitle, setPromptTitle] = useState('');
@@ -1907,9 +1909,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         {[
           { id: 'generate', label: '创作台', icon: Play },
           { id: 'library', label: '角色资源库', icon: ImageIcon },
-          { id: 'workflows', label: '工作流预设', icon: Workflow },
           { id: 'loras', label: '模型与 LoRA', icon: Layers },
-          { id: 'infra', label: '运行配置', icon: HardDrive },
         ].map((tabItem) => (
           <button
             key={tabItem.id}
@@ -3376,7 +3376,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       {/* WORKFLOWS */}
 
       
-      {tab === 'workflows' && (
+      {false && tab === 'generate' && (
         <div className="grid md:grid-cols-2 gap-3">
           {workflows.map((w) => (
             <div key={w.id} className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
@@ -3406,7 +3406,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       )}
 
       {/* INFRA */}
-      {tab === 'infra' && (
+      {false && tab === 'generate' && (
         <div className="space-y-4 max-w-3xl">
           <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
             <h3 className="font-semibold flex items-center gap-2 text-violet-300">
