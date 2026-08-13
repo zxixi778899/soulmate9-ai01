@@ -1,1 +1,5 @@
-export { default } from '@/components/admin/AdminPresetLibraryContent';
+import AdminPresetLibraryContent from '@/components/admin/AdminPresetLibraryContent';
+
+export default function AdminPresetLibraryPage(): React.JSX.Element {
+  return <AdminPresetLibraryContent embedded={false} />;
+}

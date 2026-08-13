@@ -1,1 +1,5 @@
-export { default } from '@/components/admin/CreatorPreviewsAdminContent';
+import CreatorPreviewsAdminContent from '@/components/admin/CreatorPreviewsAdminContent';
+
+export default function CreatorPreviewsAdminPage(): React.JSX.Element {
+  return <CreatorPreviewsAdminContent />;
+}
