@@ -207,6 +207,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('realistic');
   const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(1);
   const [enhancers, setEnhancers] = useState<StudioEnhancers>(DEFAULT_ENHANCERS);
+  const [controlnetStrength, setControlnetStrength] = useState(0.55);
+  const [adetailerStrength, setAdetailerStrength] = useState(0.35);
+  const [upscaleScale, setUpscaleScale] = useState(1.5);
   const [enhancerStatus, setEnhancerStatus] = useState<Record<string, boolean>>({});
   const [nsfwDescriptions, setNsfwDescriptions] = useState<Record<string, string>>({});
   const [savedPrompts, setSavedPrompts] = useState<Array<{ id: string; title: string; content: string }>>([]);
@@ -1218,6 +1221,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     companion_category: companionCategory,
     anime_render_style: animeRenderStyle,
     nsfw_intensity: nsfwIntensity,
+    enhancers: {
+      ...enhancers,
+      controlnet_strength: controlnetStrength,
+      adetailer_strength: adetailerStrength,
+      upscale_scale: upscaleScale,
+    },
     nsfw_descriptions: nsfwDescriptions,
     prompt_profile_applied: overrides?.promptSource === 'llm' || (overrides?.prompt ? false : promptProfileApplied),
     prompt_source: overrides?.promptSource,
@@ -2009,14 +2018,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               className="hidden"
               onChange={(event) => void uploadReferenceImage(event.target.files?.[0] || null)}
             />
-          </section>
-          <section className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div><h3 className="text-xs font-semibold text-cyan-100">可选增强</h3><p className="text-[10px] text-slate-400">仅在对应 RunPod workflow 已安装节点时启用</p></div>
-              <div className="flex flex-wrap gap-2 text-[11px]">
-                {([['controlnet', 'ControlNet'], ['adetailer', 'ADetailer'], ['upscale', '高清修复']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-1 rounded border border-slate-700 px-2 py-1 text-slate-200"><input type="checkbox" checked={enhancers[key]} disabled={enhancerStatus[key] === false} onChange={(event) => setEnhancers((current) => ({ ...current, [key]: event.target.checked }))} />{label}<span className={enhancerStatus[key] ? 'text-emerald-300' : 'text-slate-500'}>{enhancerStatus[key] ? '已就绪' : enhancerStatus[key] === false ? '未安装' : '检查中'}</span></label>)}
-              </div>
-            </div>
           </section>
           <section className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2888,6 +2889,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                   </button>
                 </div>
               )}
+              <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
+                <div className="mb-2 flex items-center justify-between"><div><h3 className="text-xs font-semibold text-cyan-100">增强参数</h3><p className="text-[10px] text-slate-400">位于 LoRA 下方；只提交已安装且已勾选的节点</p></div><span className="text-[10px] text-slate-500">最终值随本次生成提交</span></div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {([['controlnet', 'ControlNet', controlnetStrength, setControlnetStrength, 0, 1, 0.05], ['adetailer', 'ADetailer', adetailerStrength, setAdetailerStrength, 0, 1, 0.05], ['upscale', '高清修复倍率', upscaleScale, setUpscaleScale, 1, 2, 0.1]] as const).map(([key, label, value, setter, min, max, step]) => <label key={key} className="rounded border border-slate-700 bg-slate-950/60 p-2 text-[11px] text-slate-200"><span className="flex items-center justify-between"><span><input type="checkbox" className="mr-1" checked={enhancers[key]} disabled={enhancerStatus[key] === false} onChange={(event) => setEnhancers((current) => ({ ...current, [key]: event.target.checked }))} />{label}</span><span className={enhancerStatus[key] ? 'text-emerald-300' : 'text-slate-500'}>{enhancerStatus[key] ? '就绪' : enhancerStatus[key] === false ? '未安装' : '检查中'}</span></span><input className="mt-2 w-full accent-cyan-500" type="range" min={min} max={max} step={step} value={value} onChange={(event) => setter(Number(event.target.value))} disabled={!enhancers[key] || enhancerStatus[key] === false} /><span className="block text-right text-cyan-200">{Number(value).toFixed(2)}</span></label>)}
+                </div>
+              </div>
               {(genMode === 'img2img' || genMode === 'img2video') && (
                 <div className="space-y-2 rounded-lg border border-amber-900/40 bg-amber-950/20 p-2">
                   <div className="flex items-center justify-between gap-2">

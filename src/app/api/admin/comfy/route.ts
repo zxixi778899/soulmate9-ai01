@@ -1607,6 +1607,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
           generation_trace: {
             category,
             intensity: generationIntensity,
+            requestedIntensity: nsfwIntensity,
             identitySource: isIdentityAsset ? 'girlfriends_database_live' : girlfriendId ? 'companion_record' : 'manual_prompt',
             identitySnapshot: isIdentityAsset && databaseCompanion ? {
               id: databaseCompanion.id,
