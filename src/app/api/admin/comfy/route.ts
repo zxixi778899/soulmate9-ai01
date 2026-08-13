@@ -1543,12 +1543,16 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       // Manual workflow controls may tune dimensions/steps, but NSFW 3–5 must
       // never override the specialist endpoint/checkpoint selected by routing.
       const allowManualRouting = Boolean(body.workflow_id && wf) && generationIntensity < 3;
+      const profileCheckpoint = generationIntensity >= 3
+        ? (process.env.RUNPOD_FLUX_NSFW_CHECKPOINT?.trim() || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors')
+        : (process.env.RUNPOD_PHOTOREAL_CHECKPOINT?.trim() || 'flux1-dev-fp8.safetensors');
+      const profileSteps = generationIntensity >= 3 ? 8 : Math.max(24, steps);
       const generationOptions = {
         prompt,
         negative_prompt: negative,
         width,
         height,
-        num_inference_steps: steps,
+        num_inference_steps: profileSteps,
         guidance_scale: effectiveGuidance,
         flux_guidance: generationRoute.modelFamily === 'flux' ? effectiveGuidance : undefined,
         sampler_name: body.sampler_name ? samplerName : generationRoute.sampler,
@@ -1558,7 +1562,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         seed: seed >= 0 ? seed : undefined,
         input_image: effectiveInputImage,
         denoising_strength: effectiveDenoise,
-        ckpt_name: body.ckpt_name || ckpt?.filename || generationRoute.checkpoint,
+        ckpt_name: profileCheckpoint,
         model_family: generationRoute.modelFamily,
         lora_name: effectiveLoras.length ? null : loraSan.lora_name,
         lora_strength_model: effectiveLoras[0]?.strength_model || loraStrength,
@@ -1569,13 +1573,6 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         endpoint_id: body.endpoint_id || endpointId || generationRoute.endpointId,
         submit_only: true,
       };
-      const nsfwCheckpoint = process.env.RUNPOD_FLUX_NSFW_CHECKPOINT?.trim() || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
-      if (generationIntensity >= 3 && (generationOptions.ckpt_name !== nsfwCheckpoint || generationOptions.num_inference_steps !== 8)) {
-        return NextResponse.json({ error: '成人 FLUX 参数不匹配：必须使用 Unchained checkpoint + 8 steps，已阻止生成。', checkpoint: generationOptions.ckpt_name, steps: generationOptions.num_inference_steps }, { status: 422 });
-      }
-      if (generationIntensity < 3 && generationOptions.ckpt_name === nsfwCheckpoint && generationOptions.num_inference_steps < 20) {
-        return NextResponse.json({ error: 'SFW FLUX 参数不匹配：FP8 dev 不支持成人 8-step 配置，已阻止生成。', checkpoint: generationOptions.ckpt_name, steps: generationOptions.num_inference_steps }, { status: 422 });
-      }
       if (generationIntensity >= 3 && generationOptions.ckpt_name === 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors' && process.env.RUNPOD_FLUX_NSFW_READY !== 'true') {
         return NextResponse.json({
           error: 'NSFW FLUX 模型尚未就绪：已阻止回退到 SFW 模型，避免实际参数与界面设置不一致。请准备 RUNPOD_FLUX_NSFW_CHECKPOINT 并设置 RUNPOD_FLUX_NSFW_READY=true。',
@@ -1622,7 +1619,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
                 ? [{ name: loraSan.lora_name, strength_model: loraStrength, strength_clip: loraStrength }]
                 : [],
             checkpoint: generationOptions.ckpt_name,
-            steps,
+            steps: generationOptions.num_inference_steps,
             cfg: effectiveGuidance,
             sampler: generationOptions.sampler_name,
             scheduler: generationOptions.scheduler,
@@ -1661,7 +1658,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
             : loraSan.lora_name,
           width,
           height,
-          steps,
+          steps: generationOptions.num_inference_steps,
           cfg: effectiveGuidance,
           seed: seed >= 0 ? seed : null,
           meta: {
