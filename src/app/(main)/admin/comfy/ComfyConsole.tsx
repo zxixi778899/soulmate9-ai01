@@ -1996,6 +1996,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               onChange={(event) => void uploadReferenceImage(event.target.files?.[0] || null)}
             />
           </section>
+          <section className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><h3 className="text-xs font-semibold text-cyan-100">可选增强</h3><p className="text-[10px] text-slate-400">仅在对应 RunPod workflow 已安装节点时启用</p></div>
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                {([['controlnet', 'ControlNet'], ['adetailer', 'ADetailer'], ['upscale', '高清修复']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-1 rounded border border-slate-700 px-2 py-1 text-slate-200"><input type="checkbox" checked={enhancers[key]} onChange={(event) => setEnhancers((current) => ({ ...current, [key]: event.target.checked }))} />{label}</label>)}
+              </div>
+            </div>
+          </section>
           <section className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
