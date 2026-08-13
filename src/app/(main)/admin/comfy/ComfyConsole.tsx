@@ -999,38 +999,25 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       turbo: false,
       specialistModelsReady: specialistReady,
     });
-    const adultPreset = selectAdultScenePreset(next);
     const promptTask = next >= 3 || assetRole === 'character-art' || assetRole === 'scene'
       ? 'portrait'
       : studioTask;
-    const scene = adultPreset?.scene || buildStudioSceneDraft({
+    const scene = prompt.trim() || buildStudioSceneDraft({
       task: promptTask,
       modelFamily: route.modelFamily,
       intensity: next,
       renderStyle: animeRenderStyle,
     });
-    const loraPlan = resolveModelLoraPlan({
-      modelFamily: route.modelFamily,
-      category: companionCategory,
-      intensity: next,
-      animeStyle: animeRenderStyle,
-      installedFiles: installedLoras,
-      maxLoras: next >= 3 ? 3 : 2,
-    });
-    const routedSelections = loraPlan.selected.flatMap((selected) => {
-      const asset = (config?.loras || []).find((item: Any) => String(item.filename || '') === selected.name);
-      return asset ? [{ id: String(asset.id), strength: selected.strength_model }] : [];
-    });
     const nextPrompt = buildStudioTaskPrompt({
       task: promptTask,
       modelFamily: route.modelFamily,
       companion: scopedGirlfriend as Record<string, unknown> | null,
-      scene: [scene, adultPreset ? adultModelPromptSuffix(route.modelFamily) : ''].filter(Boolean).join(', '),
+      scene,
       framing: [
         CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt,
         CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt,
       ].filter(Boolean).join(', '),
-      loraTriggers: loraPlan.triggerWords,
+      loraTriggers: activeLoraTriggers,
       category: companionCategory,
       renderStyle: animeRenderStyle,
       hasIdentityReference: identityConsistencyActive,
@@ -1049,22 +1036,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     });
     setNsfwIntensity(next);
     setFastPreview(false);
-    setSelectedPromptPreset('random');
-    setPrompt(compactFluxPrompt(randomFluxPrompt({
-      category: companionCategory,
-      style: animeRenderStyle,
-      intensity: next,
-      framing: [
-        CAMERA_FRAMINGS.find((item) => item.id === cameraFraming)?.prompt,
-        CAMERA_ANGLES.find((item) => item.id === cameraAngle)?.prompt,
-      ].filter(Boolean).join(', '),
-    }), 520));
-    setNegative(studioNegativePrompt(companionCategory, animeRenderStyle));
-    setPromptProfileApplied(true);
-    setActiveAdultPreset(adultPreset ? { id: adultPreset.id, label: adultPreset.label } : null);
-    setSelectedLoras(routedSelections);
-    setLoraId(routedSelections[0]?.id || 'none');
-    if (routedSelections[0]) setLoraStrength(routedSelections[0].strength);
+    // Changing the level changes only the model profile and parameters; the
+    // authored prompt remains untouched until the user edits it explicitly.
+    setActiveAdultPreset(null);
     setWidth(parameterPreset.width);
     setHeight(parameterPreset.height);
     setSteps(parameterPreset.steps);
@@ -1084,7 +1058,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       // branches require a verified SDXL endpoint) — inform, don't block.
       toast.warning('Pony/Illustrious 专用端点尚未验证，已降级到 FLUX 生成');
     }
-    toast.success(`NSFW ${next}/5：${adultPreset?.label || studioIntensityLabel(next)} · ${route.modelFamily.toUpperCase()} · ${routedSelections.length} 个 LoRA`);
+    toast.success(`NSFW ${next}/5：已切换模型参数 profile，保留当前提示词和 LoRA`);
   };
   const installedSet = useMemo(() => new Set(installedLoras), [installedLoras]);
   const loras: Any[] = useMemo(
