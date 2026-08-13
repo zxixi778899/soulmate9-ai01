@@ -207,6 +207,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('realistic');
   const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(1);
   const [enhancers, setEnhancers] = useState<StudioEnhancers>(DEFAULT_ENHANCERS);
+  const [enhancerStatus, setEnhancerStatus] = useState<Record<string, boolean>>({});
   const [nsfwDescriptions, setNsfwDescriptions] = useState<Record<string, string>>({});
   const [savedPrompts, setSavedPrompts] = useState<Array<{ id: string; title: string; content: string }>>([]);
   const [promptTitle, setPromptTitle] = useState('');
@@ -258,6 +259,18 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [pipelineResults, setPipelineResults] = useState<PipelineStageResult[]>([]);
   const [pipelineAssets, setPipelineAssets] = useState<Record<string, string>>({});
   const pipelineCancelRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    void authedFetch('/api/admin/comfy?view=enhancers')
+      .then((response) => response.ok ? response.json() as Promise<{ enhancers?: Array<{ id: string; enabled: boolean }> }> : null)
+      .then((data) => {
+        if (!active || !data?.enhancers) return;
+        setEnhancerStatus(Object.fromEntries(data.enhancers.map((item) => [item.id, item.enabled])));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
   const llmPromptHistoryRef = useRef<string[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   // ─── Resource library (companion folder browser) ─────────────────────────
@@ -2001,7 +2014,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div><h3 className="text-xs font-semibold text-cyan-100">可选增强</h3><p className="text-[10px] text-slate-400">仅在对应 RunPod workflow 已安装节点时启用</p></div>
               <div className="flex flex-wrap gap-2 text-[11px]">
-                {([['controlnet', 'ControlNet'], ['adetailer', 'ADetailer'], ['upscale', '高清修复']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-1 rounded border border-slate-700 px-2 py-1 text-slate-200"><input type="checkbox" checked={enhancers[key]} onChange={(event) => setEnhancers((current) => ({ ...current, [key]: event.target.checked }))} />{label}</label>)}
+                {([['controlnet', 'ControlNet'], ['adetailer', 'ADetailer'], ['upscale', '高清修复']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-1 rounded border border-slate-700 px-2 py-1 text-slate-200"><input type="checkbox" checked={enhancers[key]} disabled={enhancerStatus[key] === false} onChange={(event) => setEnhancers((current) => ({ ...current, [key]: event.target.checked }))} />{label}<span className={enhancerStatus[key] ? 'text-emerald-300' : 'text-slate-500'}>{enhancerStatus[key] ? '已就绪' : enhancerStatus[key] === false ? '未安装' : '检查中'}</span></label>)}
               </div>
             </div>
           </section>
