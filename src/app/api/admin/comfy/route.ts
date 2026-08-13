@@ -34,7 +34,7 @@ import { buildStudioPromptEnhancement, compactFluxPrompt, ensureStudioFluxPrompt
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
-import { adultModelPromptSuffix, selectAdultScenePreset } from '@/lib/comfy-console/adult-scene-presets';
+import { resolveGenerationProfile } from '@/lib/comfy-console/generation-profiles';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -1539,10 +1539,9 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       // Manual workflow controls may tune dimensions/steps, but NSFW 3–5 must
       // never override the specialist endpoint/checkpoint selected by routing.
       const allowManualRouting = Boolean(body.workflow_id && wf) && generationIntensity < 3;
-      const profileCheckpoint = generationIntensity >= 3
-        ? (process.env.RUNPOD_FLUX_NSFW_CHECKPOINT?.trim() || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors')
-        : (process.env.RUNPOD_PHOTOREAL_CHECKPOINT?.trim() || 'flux1-dev-fp8.safetensors');
-      const profileSteps = generationIntensity >= 3 ? 8 : Math.max(24, steps);
+      const profile = resolveGenerationProfile({ intensity: generationIntensity, renderStyle: animeStyle });
+      const profileCheckpoint = process.env[profile.checkpointEnv]?.trim() || profile.fallbackCheckpoint;
+      const profileSteps = Math.max(profile.minSteps, generationIntensity >= 3 ? profile.defaultSteps : steps);
       const generationOptions = {
         prompt,
         negative_prompt: negative,
