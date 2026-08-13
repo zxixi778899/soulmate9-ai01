@@ -1513,10 +1513,10 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       const poseNsfwLora = { name: 'flux_pose_nsfw_dynamic_v1.safetensors', strength: 0.45 };
       compatibleLoraPlan.selected.push(poseNsfwLora as any);
     }
-    const effectiveLoras = compatibleLoraPlan.selected.map((item) => ({
-      ...item,
-      strength: Number(('strength' in item ? item.strength : item.strength_model) || loraStrength || 0.7),
-    }));
+    const effectiveLoras = compatibleLoraPlan.selected.map((item) => {
+      const strength = Number(('strength' in item ? item.strength : item.strength_model) || loraStrength || 0.7);
+      return { name: item.name, strength_model: strength, strength_clip: strength };
+    });
     if (compatibleLoraPlan.triggerWords.length > 0) {
       const promptLower = prompt.toLowerCase();
       const missingTriggers = compatibleLoraPlan.triggerWords.filter((word) => !promptLower.includes(word.toLowerCase()));
@@ -1561,14 +1561,21 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         ckpt_name: body.ckpt_name || ckpt?.filename || generationRoute.checkpoint,
         model_family: generationRoute.modelFamily,
         lora_name: effectiveLoras.length ? null : loraSan.lora_name,
-        lora_strength_model: effectiveLoras[0]?.strength || loraStrength,
-        lora_strength_clip: effectiveLoras[0]?.strength || loraStrength,
+        lora_strength_model: effectiveLoras[0]?.strength_model || loraStrength,
+        lora_strength_clip: effectiveLoras[0]?.strength_clip || loraStrength,
         loras: effectiveLoras,
         ip_adapter_image: ipAdapterImage,
         ip_adapter_weight: ipAdapterWeight,
         endpoint_id: body.endpoint_id || endpointId || generationRoute.endpointId,
         submit_only: true,
       };
+      const nsfwCheckpoint = process.env.RUNPOD_FLUX_NSFW_CHECKPOINT?.trim() || 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors';
+      if (generationIntensity >= 3 && (generationOptions.ckpt_name !== nsfwCheckpoint || generationOptions.num_inference_steps !== 8)) {
+        return NextResponse.json({ error: '成人 FLUX 参数不匹配：必须使用 Unchained checkpoint + 8 steps，已阻止生成。', checkpoint: generationOptions.ckpt_name, steps: generationOptions.num_inference_steps }, { status: 422 });
+      }
+      if (generationIntensity < 3 && generationOptions.ckpt_name === nsfwCheckpoint && generationOptions.num_inference_steps < 20) {
+        return NextResponse.json({ error: 'SFW FLUX 参数不匹配：FP8 dev 不支持成人 8-step 配置，已阻止生成。', checkpoint: generationOptions.ckpt_name, steps: generationOptions.num_inference_steps }, { status: 422 });
+      }
       if (generationIntensity >= 3 && generationOptions.ckpt_name === 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors' && process.env.RUNPOD_FLUX_NSFW_READY !== 'true') {
         return NextResponse.json({
           error: 'NSFW FLUX 模型尚未就绪：已阻止回退到 SFW 模型，避免实际参数与界面设置不一致。请准备 RUNPOD_FLUX_NSFW_CHECKPOINT 并设置 RUNPOD_FLUX_NSFW_READY=true。',
