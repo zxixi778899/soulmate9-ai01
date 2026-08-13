@@ -16,10 +16,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import ComfyConsole from '../comfy/ComfyConsole';
-import { AdminPresetsContent } from '../presets/page';
-import { CreatorPreviewsAdminContent } from '../creator-previews/page';
-import { AdminAssetsContent } from '../assets/page';
-import { AdminPresetLibraryContent } from '../preset-library/page';
+import AdminPresetsContent from '@/components/admin/AdminPresetsContent';
+import CreatorPreviewsAdminContent from '@/components/admin/CreatorPreviewsAdminContent';
+import AdminAssetsContent from '@/components/admin/AdminAssetsContent';
+import AdminPresetLibraryContent from '@/components/admin/AdminPresetLibraryContent';
 import { cn } from '@/lib/utils';
 
 type Section = 'studio' | 'assets' | 'presets' | 'previews' | 'character-presets';
