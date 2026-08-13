@@ -104,11 +104,11 @@ export function buildStudioTaskPrompt(input: PromptInput): string {
   // An authored prompt is the source of truth. Do not append task templates,
   // lighting, or random scene language that can override its composition.
   if (scene) {
-    return [framing, scene, input.hasIdentityReference ? 'use the ID reference for identity only' : '', input.modelFamily === 'flux' ? triggers.join(', ') : '']
+    return [framing, scene, input.hasIdentityReference ? 'use the ID reference for identity only, do not copy its framing or crop' : '', input.modelFamily === 'flux' ? triggers.join(', ') : '']
       .filter(Boolean).join(', ').replace(/\s+/g, ' ').replace(/,\s*,/g, ',').trim().slice(0, 520);
   }
   const parts = [
-    framing || 'medium shot',
+    framing || (scene ? '' : 'medium shot'),
     scene,
     input.hasIdentityReference ? 'use the ID reference for identity only' : '',
     identity,

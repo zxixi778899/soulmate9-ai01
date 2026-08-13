@@ -1365,7 +1365,8 @@ if (body.action === 'verify_loras') {
     if (referencePlan.promptHints.length > 0) {
 prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
-    prompt = surface === 'companion' && !isIdentityAsset && generationRoute.modelFamily === 'flux'
+    const authoredPrompt = body.prompt_profile_applied === true || body.prompt_source === 'llm';
+    prompt = surface === 'companion' && !isIdentityAsset && generationRoute.modelFamily === 'flux' && !authoredPrompt
       ? ensureStudioFluxPrompt({ prompt, category, intensity: generationIntensity, animeStyle })
       : compactFluxPrompt(prompt);
     const resolvedReferenceImage =
@@ -1431,7 +1432,9 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     // (character-art, album, scene) use a slightly looser weight so the reference
     // guides identity without copying the portrait composition. Outfit swaps
     // need face lock with wardrobe freedom; pose swaps sit in between.
-    const defaultIpAdapterWeight = assetRole === 'avatar-closeup'
+    const defaultIpAdapterWeight = generationRoute.modelFamily === 'flux' && isFinalProductAsset
+      ? 0.35
+      : assetRole === 'avatar-closeup'
       ? 0.74
       : assetRole.startsWith('identity-')
         ? 0.82
@@ -1542,14 +1545,14 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         num_inference_steps: steps,
         guidance_scale: effectiveGuidance,
         flux_guidance: generationRoute.modelFamily === 'flux' ? effectiveGuidance : undefined,
-        sampler_name: generationRoute.modelFamily === 'flux' && body.sampler_name ? samplerName : generationRoute.sampler,
-        scheduler: generationRoute.modelFamily === 'flux' && body.scheduler ? scheduler : generationRoute.scheduler,
+        sampler_name: body.sampler_name ? samplerName : generationRoute.sampler,
+        scheduler: body.scheduler ? scheduler : generationRoute.scheduler,
         clip_skip: generationRoute.clipSkip,
         num_images: effectiveInputImage ? 1 : imageCount,
         seed: seed >= 0 ? seed : undefined,
         input_image: effectiveInputImage,
         denoising_strength: effectiveDenoise,
-        ckpt_name: allowManualRouting ? body.ckpt_name || ckpt?.filename || generationRoute.checkpoint : generationRoute.checkpoint,
+        ckpt_name: body.ckpt_name || ckpt?.filename || generationRoute.checkpoint,
         model_family: generationRoute.modelFamily,
         lora_name: effectiveLoras.length ? null : loraSan.lora_name,
         lora_strength_model: loraStrength,
@@ -1557,7 +1560,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         loras: effectiveLoras,
         ip_adapter_image: ipAdapterImage,
         ip_adapter_weight: ipAdapterWeight,
-        endpoint_id: allowManualRouting ? body.endpoint_id || endpointId || generationRoute.endpointId : generationRoute.endpointId,
+        endpoint_id: body.endpoint_id || endpointId || generationRoute.endpointId,
         submit_only: true,
       };
       const result = await runpodClient.generate(generationOptions);
@@ -1627,8 +1630,8 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
           prompt,
           negative_prompt: negative,
           workflow_id: workflowId || null,
-          endpoint_id: allowManualRouting ? body.endpoint_id || endpointId || generationRoute.endpointId : generationRoute.endpointId,
-          ckpt_name: allowManualRouting ? body.ckpt_name || ckpt?.filename || null : generationRoute.checkpoint,
+        endpoint_id: body.endpoint_id || endpointId || generationRoute.endpointId,
+        ckpt_name: body.ckpt_name || ckpt?.filename || null,
           lora_name: effectiveLoras.length
             ? effectiveLoras.map((item) => item.name).join(',')
             : loraSan.lora_name,
