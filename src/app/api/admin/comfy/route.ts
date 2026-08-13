@@ -1215,17 +1215,13 @@ if (body.action === 'verify_loras') {
       });
     }
     const surface = (body.generation_surface || (kind === 'girlfriend' ? 'companion' : kind) || 'companion') as ImageSurface;
-    const adultPreset = surface === 'companion' && !isIdentityAsset
-      ? selectAdultScenePreset(generationIntensity)
-      : null;
-    if (adultPreset) {
-      prompt = [prompt.trim(), adultPreset.scene].filter(Boolean).join(', ');
-    }
+    const nsfwDescriptions = body.nsfw_descriptions && typeof body.nsfw_descriptions === 'object'
+      ? body.nsfw_descriptions as Record<string, unknown>
+      : {};
+    const configuredLevelDescription = String(nsfwDescriptions[String(generationIntensity)] || '').trim();
+    if (configuredLevelDescription) prompt = [prompt.trim(), configuredLevelDescription].filter(Boolean).join(', ');
     const sceneSemantics = classifyImageScene(prompt, category);
     const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics, turbo: body.fast_preview === true });
-    if (adultPreset) {
-      prompt = `${prompt}, ${adultModelPromptSuffix(generationRoute.modelFamily)}`;
-    }
     if (body.width == null) width = generationRoute.width;
     if (body.height == null) height = generationRoute.height;
     // Identity assets have fixed production dimensions — the avatar is a portrait
@@ -1610,7 +1606,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
             } : undefined,
             prompt,
             negative,
-            adultPreset: adultPreset ? { id: adultPreset.id, label: adultPreset.label } : null,
+            levelDescriptionApplied: Boolean(configuredLevelDescription),
             modelFamily: generationRoute.modelFamily,
             routePreset: generationRoute.presetId,
             loras: effectiveLoras.length
@@ -1670,8 +1666,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
             loras: effectiveLoras,
             requested_lora_total_strength: totalLoraStrength,
             denoise: effectiveDenoise ?? 1,
-            adult_preset_id: adultPreset?.id || null,
-            adult_preset_label: adultPreset?.label || null,
+            level_description_applied: Boolean(configuredLevelDescription),
             nsfw_intensity: generationIntensity,
             routed_model_family: generationRoute.modelFamily,
             routed_preset_id: generationRoute.presetId,

@@ -205,6 +205,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [companionCategory, setCompanionCategory] = useState<CompanionCategory>('female');
   const [animeRenderStyle, setAnimeRenderStyle] = useState<AnimeRenderStyle>('realistic');
   const [nsfwIntensity, setNsfwIntensity] = useState<NsfwIntensity>(1);
+  const [nsfwDescriptions, setNsfwDescriptions] = useState<Record<string, string>>({});
   const [savedPrompts, setSavedPrompts] = useState<Array<{ id: string; title: string; content: string }>>([]);
   const [promptTitle, setPromptTitle] = useState('');
   const [selectedSavedPrompt, setSelectedSavedPrompt] = useState('');
@@ -452,6 +453,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       if (saved) setSavedPrompts(JSON.parse(saved));
       const additions = localStorage.getItem('soulmate-comfy-prompt-adds');
       if (additions) setCustomPromptAdds(JSON.parse(additions));
+      const descriptions = localStorage.getItem('soulmate-comfy-nsfw-descriptions');
+      if (descriptions) setNsfwDescriptions(JSON.parse(descriptions));
     } catch { /* ignore invalid saved prompt data */ }
   }, []);
 
@@ -494,6 +497,12 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     const next = customPromptAdds.filter((item) => item.id !== id);
     setCustomPromptAdds(next);
     localStorage.setItem('soulmate-comfy-prompt-adds', JSON.stringify(next));
+  };
+
+  const updateNsfwDescription = (level: number, value: string) => {
+    const next = { ...nsfwDescriptions, [String(level)]: value };
+    setNsfwDescriptions(next);
+    localStorage.setItem('soulmate-comfy-nsfw-descriptions', JSON.stringify(next));
   };
 
   const persistCustomPresets = (items: Array<GenPreset>) => {
@@ -1220,6 +1229,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     companion_category: companionCategory,
     anime_render_style: animeRenderStyle,
     nsfw_intensity: nsfwIntensity,
+    nsfw_descriptions: nsfwDescriptions,
     prompt_profile_applied: overrides?.promptSource === 'llm' || (overrides?.prompt ? false : promptProfileApplied),
     prompt_source: overrides?.promptSource,
     asset_role: overrides?.assetRole || assetRole,
@@ -2368,6 +2378,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                 <input type="range" min={1} max={5} step={1} value={nsfwIntensity} onChange={(event) => applyNsfwIntensity(Number(event.target.value) as NsfwIntensity)} className="w-full accent-rose-500" />
                 <p className="mt-1 text-[10px] text-cyan-300">{activeAdultPreset ? `随机预设：${activeAdultPreset.label}` : '滑块会同步刷新提示词、模型、参数与 LoRA'}</p>
                 <p className="mt-1 text-[10px] font-medium text-rose-200">当前：{studioIntensityLabel(nsfwIntensity)}</p>
+                <details className="mt-2 rounded border border-rose-500/25 bg-rose-950/10 p-2">
+                  <summary className="cursor-pointer text-[10px] font-semibold text-rose-100">NSFW 1–5 自定义等级描述（留空则不追加）</summary>
+                  <div className="mt-2 space-y-1.5">
+                    {[1, 2, 3, 4, 5].map((level) => <label key={level} className="block text-[10px] text-slate-300">等级 {level}
+                      <Textarea value={nsfwDescriptions[String(level)] || ''} onChange={(event) => updateNsfwDescription(level, event.target.value)} rows={2} className="mt-1 min-h-12 border-slate-700 bg-slate-950 text-xs" placeholder="仅填写你希望该等级追加的成年、合规画面描述" />
+                    </label>)}
+                  </div>
+                </details>
                 <p className="mt-1 text-[10px] text-slate-400">滑块只更新等级、参数和 LoRA；生成时由 AI 按当前场景意图重写一次，避免重复堆叠提示词。</p>
               </div>
               <div>
