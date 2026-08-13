@@ -172,7 +172,7 @@ function getPromptAppendPresets(nsfwLevel: NsfwIntensity) {
 }
 
 export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyConsoleProps) {
-  const [tab, setTab] = useState<'generate' | 'loras' | 'library'>('generate');
+  const [tab, setTab] = useState<'generate' | 'loras' | 'library' | 'workflows' | 'infra'>('generate');
   const [config, setConfig] = useState<Any | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -3413,21 +3413,21 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <BookOpen className="h-4 w-4" /> LoRA / 模型挂网络卷
             </h3>
             <ol className="mt-3 list-decimal pl-5 space-y-2 text-sm text-slate-300">
-              {(config.network_volume?.setup_notes || []).map((n: string, i: number) => (
+              {(config?.network_volume?.setup_notes || []).map((n: string, i: number) => (
                 <li key={i}>{n}</li>
               ))}
             </ol>
             <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-lg bg-black/40 p-3">
                 <div className="text-slate-400">网络卷</div>
-                <div className="font-mono text-emerald-300">{config.network_volume?.name}</div>
-                <div className="text-slate-400">{config.network_volume?.region}</div>
+                <div className="font-mono text-emerald-300">{config?.network_volume?.name}</div>
+                <div className="text-slate-400">{config?.network_volume?.region}</div>
               </div>
               <div className="rounded-lg bg-black/40 p-3">
                 <div className="text-slate-400">LoRA 目录</div>
-                <div className="font-mono text-cyan-300">{config.network_volume?.loras_dir}</div>
+                <div className="font-mono text-cyan-300">{config?.network_volume?.loras_dir}</div>
                 <div className="text-slate-400">Checkpoint</div>
-                <div className="font-mono text-cyan-300">{config.network_volume?.checkpoints_dir}</div>
+                <div className="font-mono text-cyan-300">{config?.network_volume?.checkpoints_dir}</div>
               </div>
             </div>
             <div className="mt-4 rounded-lg bg-black/40 p-3 text-xs text-slate-300 space-y-1">
