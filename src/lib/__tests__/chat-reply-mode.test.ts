@@ -30,20 +30,17 @@ describe('resolveImagePromptChannel', () => {
     expect(r.channel).toBe('sfw');
   });
 
-  it('upgrades to NSFW only when intimacy unlocks AND the turn asks for it', () => {
-    const policy = getIntimacyGenerationPolicy(500); // intimacy level 3
-    const nsfw = resolveImagePromptChannel({
-      intimacyPolicy: policy,
-      userRequest: 'send me a nude photo',
-    });
-    expect(nsfw.channel).toBe('nsfw');
+  it('maps intimacy level directly to NSFW intensity', () => {
+    const low = getIntimacyGenerationPolicy(50); // intimacy level 1
+    expect(resolveImagePromptChannel({ intimacyPolicy: low, userRequest: 'send me a photo' }).channel).toBe('sfw');
 
-    const sfw = resolveImagePromptChannel({
-      intimacyPolicy: policy,
-      userRequest: 'send me a beach photo',
-    });
-    expect(sfw.channel).toBe('sfw');
-    expect(sfw.nsfwIntensity).toBeLessThanOrEqual(2);
+    const unlocked = getIntimacyGenerationPolicy(500); // intimacy level 3
+    expect(resolveImagePromptChannel({ intimacyPolicy: unlocked, userRequest: 'send me a beach photo' }).channel).toBe('nsfw');
+    expect(resolveImagePromptChannel({ intimacyPolicy: unlocked, userRequest: 'send me a beach photo' }).nsfwIntensity).toBe(3);
+
+    const max = getIntimacyGenerationPolicy(1200); // intimacy level 5
+    expect(resolveImagePromptChannel({ intimacyPolicy: max, userRequest: 'send me a photo' }).channel).toBe('nsfw');
+    expect(resolveImagePromptChannel({ intimacyPolicy: max, userRequest: 'send me a photo' }).nsfwIntensity).toBe(5);
   });
 });
 

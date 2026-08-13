@@ -1,10 +1,8 @@
-﻿'use client';
+'use client';
 
 /**
- * 公共资产库（文件夹模式）
- * - 已分类：每个伴侣一个文件夹
- * - 未分类：未绑定伴侣的生成/上传结果
- * - 支持多选、上传到当前文件夹、移动/复制到其它文件夹、删除
+ * 公共资产库（文件夹模式）- 嵌入 Studio 时使用精简布局
+ * 独立访问时保持完整页面
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -49,7 +47,7 @@ function assetKey(a: Asset): string {
   return String(a.id || a.storage_key || a.url || '');
 }
 
-export default function AdminAssetsPage() {
+export default function AdminAssetsPage({ embedded = false }: { embedded?: boolean }) {
   const [items, setItems] = useState<Asset[]>([]);
   const [girlfriends, setGirlfriends] = useState<Gf[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,12 +84,15 @@ export default function AdminAssetsPage() {
 
   useEffect(() => {
     void load();
-    const requestedGirlfriendId = new URLSearchParams(window.location.search).get('girlfriendId');
-    if (requestedGirlfriendId) {
-      setActiveFolderId(requestedGirlfriendId);
-      setView('folder');
+    // Don't auto-read URL params when embedded — handled by parent
+    if (!embedded) {
+      const requestedGirlfriendId = new URLSearchParams(window.location.search).get('girlfriendId');
+      if (requestedGirlfriendId) {
+        setActiveFolderId(requestedGirlfriendId);
+        setView('folder');
+      }
     }
-  }, [load]);
+  }, [load, embedded]);
 
   const gfMap = useMemo(() => {
     const m = new Map<string, Gf>();
@@ -107,7 +108,6 @@ export default function AdminAssetsPage() {
       if (!gid) uncategorized += 1;
       else counts.set(gid, (counts.get(gid) || 0) + 1);
     }
-    // include girlfriends even if empty so you can open and upload
     const rows = girlfriends.map((g) => ({
       id: g.id,
       name: g.name || g.slug || g.id.slice(0, 8),
@@ -115,7 +115,6 @@ export default function AdminAssetsPage() {
       cover: g.avatar_url || g.image_url || '',
       classified: true as const,
     }));
-    // orphan folders (assets point to missing gf)
     for (const [gid, count] of counts) {
       if (!gfMap.has(gid)) {
         rows.push({
@@ -336,7 +335,12 @@ export default function AdminAssetsPage() {
       : gfMap.get(activeFolderId)?.name || `伴侣 ${activeFolderId.slice(0, 8)}`;
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] p-4 md:p-6" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div
+      className={`${embedded ? '' : 'min-h-screen'} ${
+        embedded ? '' : 'bg-[#F5F7FA] p-4 md:p-6'
+      } ${embedded ? 'rounded-xl bg-white p-4 md:p-6' : ''} shadow-sm`}
+      style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+    >
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-600">创作中心</p>
@@ -350,19 +354,26 @@ export default function AdminAssetsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/admin/studio">
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Sparkles className="h-4 w-4" /> 去生成
-            </Button>
+          <Link
+            href={activeFolderId ? `/admin/studio?girlfriendId=${encodeURIComponent(activeFolderId)}` : '/admin/studio'}
+            className="inline-flex items-center gap-1.5 rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700"
+          >
+            <Sparkles className="h-4 w-4" /> 去生成
           </Link>
-          <Link href="/admin/girlfriends">
-            <Button size="sm" className="gap-1.5 bg-[#2563EB]">
-              <Heart className="h-4 w-4" /> 绑定伴侣
-            </Button>
+          <Link
+            href="/admin/girlfriends"
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-[#334155] hover:bg-gray-50"
+          >
+            <Heart className="h-4 w-4" /> 绑定伴侣
           </Link>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-[#334155] hover:bg-gray-50"
+          >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
+          </button>
         </div>
       </div>
 

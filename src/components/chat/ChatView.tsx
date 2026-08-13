@@ -431,16 +431,29 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
             ? [{ content: data.message }]
             : [];
         if (!list.length) return;
-        setMessages((prev) => [
-          ...prev,
-          ...list.map((m, i) => ({
+        setMessages((prev) => {
+          const proactiveMsgs: Message[] = list.map((m, i) => ({
             id: `proactive-${Date.now()}-${i}`,
-            role: 'assistant' as const,
+            role: 'assistant',
             content: String(m.content || ''),
             created_at: new Date().toISOString(),
             is_proactive: true,
-          })),
-        ]);
+          }));
+          const next = [...prev, ...proactiveMsgs];
+          saveChatCache(id, {
+            messages: next.slice(-200).map((m) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              created_at: m.created_at,
+              media_url: m.media_url,
+              media_type: m.media_type,
+              is_proactive: m.is_proactive,
+              status: m.status,
+            })),
+          });
+          return next;
+        });
         // Refresh smart replies for the latest proactive line
         const last = list[list.length - 1]?.content;
         if (last) void fetchSmartSuggestions(String(last));
@@ -845,12 +858,20 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           content: String(m.content || '').slice(0, 400),
         }));
       const chat_context = [...fromState, ...(extraContext || [])].slice(-10);
+      // Build conversation-aware request for candidate generation too
+      const recentSummary = fromState
+        .slice(-4)
+        .map((m) => `${m.role === 'user' ? 'User' : girlfriend?.name || 'She'}: ${m.content.slice(0, 120)}`)
+        .join(' | ');
+      const enrichedReq = recentSummary
+        ? `${req}\n\nRecent chat: ${recentSummary}`
+        : req;
       const res = await authedFetch('/api/chat/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           girlfriend_id: id,
-          user_request: req,
+          user_request: enrichedReq,
           message: req,
           chat_context,
           mood: selectedMood,
@@ -989,12 +1010,22 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         }));
       const chat_context = [...fromState, ...(extraContext || [])].slice(-10);
 
+      // Build a conversation-aware user_request so even the deterministic
+      // fallback path knows what was recently discussed.
+      const recentSummary = fromState
+        .slice(-4)
+        .map((m) => `${m.role === 'user' ? 'User' : girlfriend?.name || 'She'}: ${m.content.slice(0, 120)}`)
+        .join(' | ');
+      const enrichedReq = recentSummary
+        ? `${req}\n\nRecent chat: ${recentSummary}`
+        : req;
+
       const res = await authedFetch('/api/chat/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           girlfriend_id: id,
-          user_request: req,
+          user_request: enrichedReq,
           message: req,
           chat_context,
           mood: selectedMood,
@@ -1016,7 +1047,12 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         status?: string;
         downgrade_reply?: string;
         downgradeReply?: string;
+        _trace?: Record<string, unknown>;
       }>(res);
+      // Debug: log generation trace for diagnostics
+      if (data?._trace) {
+        console.log('[generate-image trace]', data._trace);
+      }
       if (!res.ok) {
         if (data?.code === 'daily_limit') {
           setUpgradeReason('image_limit');
@@ -1031,7 +1067,9 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
 
       // Handle async pending — poll until GPU finishes
       let imageUrl = data.image_url || data.imageUrl;
-      let caption = data.message;
+      // Pending responses carry a technical "Poll /api/ai/status" message;
+      // never show that to the user. Use friendly fallback until polling succeeds.
+      let caption = data.pending ? t('chat.newPhotoReady') : (data.message || t('chat.newPhotoReady'));
       const downgradeReply = data.downgrade_reply || data.downgradeReply || '';
       if (data.pending && data.job_id) {
         let jobId = data.job_id;
@@ -1068,7 +1106,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      girlfriend_id: id, user_request: req, message: req,
+                      girlfriend_id: id, user_request: enrichedReq, message: req,
                       chat_context, mood: selectedMood, pose: selectedPose,
                       environment: selectedEnvironment, locale, provider: 'fal',
                     }),
@@ -1142,7 +1180,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 girlfriend_id: id,
-                user_request: req,
+                user_request: enrichedReq,
                 message: req,
                 chat_context,
                 mood: selectedMood,
@@ -1191,18 +1229,21 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           media_url: imageUrl,
           media_type: 'image',
         };
-        setMessages((prev) => [...prev, newMsg]);
-        saveChatCache(id, {
-          messages: [...messages, newMsg].slice(-200).map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            created_at: m.created_at,
-            media_url: m.media_url,
-            media_type: m.media_type,
-            is_proactive: m.is_proactive,
-            status: m.status,
-          })),
+        setMessages((prev) => {
+          const next = [...prev.filter((m) => m.id !== waitId), newMsg];
+          saveChatCache(id, {
+            messages: next.slice(-200).map((m) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              created_at: m.created_at,
+              media_url: m.media_url,
+              media_type: m.media_type,
+              is_proactive: m.is_proactive,
+              status: m.status,
+            })),
+          });
+          return next;
         });
         // A new AI photo just arrived — evaluate photo quests and celebrate.
         void syncRewards();

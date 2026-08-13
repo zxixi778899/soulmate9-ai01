@@ -404,21 +404,77 @@ export default function ChatsPage() {
 
   useEffect(() => {
     loadList().catch(() => setListLoading(false));
-    void authedFetch('/api/proactive/check', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
-    })
-      .then((r) => r.json().catch(() => ({})))
-      .then((data: { messages?: Array<{ girlfriend_id: string; content: string }> }) => {
-        const list = data.messages || [];
+  }, [loadList]);
+
+  // Periodic proactive messages: run while a chat is open, inject any new
+  // lines for the selected companion into the live chat and update previews.
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    const tick = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        const res = await authedFetch('/api/proactive/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ girlfriend_id: selectedId, locale }),
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await readResponseJson(res).catch(() => ({}))) as {
+          messages?: Array<{ girlfriend_id: string; content: string; girlfriend_name?: string }>;
+        };
+        const list = Array.isArray(data.messages) ? data.messages : [];
         if (!list.length) return;
         setLastMessages((prev) => {
           const next = { ...prev };
-          for (const m of list) next[m.girlfriend_id] = { girlfriend_id: m.girlfriend_id, content: m.content, created_at: new Date().toISOString(), role: 'assistant' };
+          for (const m of list) {
+            next[m.girlfriend_id] = {
+              girlfriend_id: m.girlfriend_id,
+              content: m.content,
+              created_at: new Date().toISOString(),
+              role: 'assistant',
+            };
+          }
           return next;
         });
-      })
-      .catch(() => {});
-  }, [loadList]);
+        // If the proactive message belongs to the currently open chat, show it inline.
+        const forSelected = list.filter((m) => m.girlfriend_id === selectedId);
+        if (forSelected.length) {
+          setMessages((prev) => {
+            const proactiveMsgs: ChatMessage[] = forSelected.map((m, i) => ({
+              id: `proactive-${Date.now()}-${i}`,
+              role: 'assistant',
+              content: String(m.content || ''),
+              created_at: new Date().toISOString(),
+              is_proactive: true,
+            }));
+            const next = [...prev, ...proactiveMsgs];
+            const last = next[next.length - 1];
+            const mood = deriveMood(last?.content, intimacy?.score || 0);
+            saveChatCache(selectedId, {
+              messages: next.map((m) => ({ id: m.id, role: m.role, content: m.content, created_at: m.created_at, is_proactive: m.is_proactive, media_url: m.media_url, media_type: m.media_type, status: m.status })),
+              intimacy: intimacy || undefined,
+              mood: mood.label,
+            });
+            return next;
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    const first = setTimeout(() => void tick(), 2500);
+    const interval = setInterval(tick, 180_000);
+    const onVis = () => { if (document.visibilityState === 'visible') void tick(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      cancelled = true;
+      clearTimeout(first);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, locale]);
 
   // Gifts (admin-managed)
   useEffect(() => {
@@ -718,19 +774,33 @@ export default function ChatsPage() {
     toast.message(t('chat.sheTakingNewPhoto'));
     try {
       const chatCtx = messages.filter((m) => m.role === 'user' || m.role === 'assistant').slice(-8).map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 400) }));
+      // Enrich request with recent conversation so deterministic fallback can
+      // still extract scene/mood keywords from the actual chat.
+      const recentSummary = chatCtx.slice(-4).map((m) => `${m.role === 'user' ? 'User' : girlfriend?.name || 'She'}: ${m.content.slice(0, 120)}`).join(' | ');
+      const enrichedReq = recentSummary ? `${req}\n\nRecent chat: ${recentSummary}` : req;
       const res = await authedFetch('/api/chat/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ girlfriend_id: selectedId, user_request: req, message: req, chat_context: chatCtx, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale }),
+        body: JSON.stringify({ girlfriend_id: selectedId, user_request: enrichedReq, message: req, chat_context: chatCtx, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale }),
       });
-      const data = await readResponseJson<{ error?: string; localized_error?: string; code?: string; image_url?: string; imageUrl?: string; message?: string; pending?: boolean; job_id?: string; endpoint_id?: string }>(res);
+      const data = await readResponseJson<{ error?: string; localized_error?: string; code?: string; image_url?: string; imageUrl?: string; message?: string; pending?: boolean; job_id?: string; endpoint_id?: string; _trace?: Record<string, unknown> }>(res);
+      // Debug: log generation trace for diagnostics
+      if (data?._trace) {
+        console.log('[generate-image trace]', data._trace);
+      }
       if (!res.ok) throw new Error(data?.code === 'daily_limit' ? (data.localized_error || t('chat.imageDailyLimit')) : (data?.localized_error || data?.error || t('chat.imageFailed')));
       let imgUrl = data.image_url || data.imageUrl;
+      const jobId = data.job_id;
+      const wasPending = !imgUrl && data.pending && jobId;
       // Handle async RunPod job — poll until complete
-      if (!imgUrl && data.pending && data.job_id) {
+      if (wasPending && jobId) {
         for (let p = 0; p < 80; p++) {
           await new Promise((r) => setTimeout(r, 3000));
           try {
-            const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(data.job_id)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(data.endpoint_id)}` : ''}&scene=chat_selfie`);
+            let epParam = '';
+            if (data.endpoint_id) {
+              epParam = `&endpoint_id=${encodeURIComponent(data.endpoint_id)}`;
+            }
+            const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(jobId)}${epParam}&scene=chat_selfie`);
             const pollData = await readResponseJson<{ status?: string; images?: string[]; image_url?: string; error?: string }>(pollRes);
             if (pollData.status === 'COMPLETED') {
               imgUrl = pollData.images?.[0] || pollData.image_url;
@@ -745,8 +815,28 @@ export default function ChatsPage() {
       }
       setIsTyping(false);
       if (imgUrl) {
-        const readyText = data.message || t('chat.newPhotoReady');
-        setMessages((prev) => [...prev, { id: `selfie-${Date.now()}`, role: 'assistant', content: readyText, created_at: new Date().toISOString(), media_url: imgUrl, media_type: 'image' }]);
+        // Pending responses carry a technical "Poll /api/ai/status" message;
+        // never show that to the user. Use the friendly caption instead.
+        const readyText = wasPending ? t('chat.newPhotoReady') : (data.message || t('chat.newPhotoReady'));
+        setMessages((prev) => {
+          const newMsg: ChatMessage = {
+            id: `selfie-${Date.now()}`,
+            role: 'assistant',
+            content: readyText,
+            created_at: new Date().toISOString(),
+            media_url: imgUrl,
+            media_type: 'image',
+          };
+          const next = [...prev.filter((m) => m.id !== waitId), newMsg];
+          const last = next[next.length - 1];
+          const mood = deriveMood(last?.content, intimacy?.score || 0);
+          saveChatCache(selectedId, {
+            messages: next.map((m) => ({ id: m.id, role: m.role, content: m.content, created_at: m.created_at, is_proactive: m.is_proactive, media_url: m.media_url, media_type: m.media_type, status: m.status })),
+            intimacy: intimacy || undefined,
+            mood: mood.label,
+          });
+          return next;
+        });
       } else {
         throw new Error(t('chat.photoGenTimeout'));
       }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { authedFetch } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
 
 type UnreadData = {
   counts: Record<string, number>;
@@ -13,6 +14,7 @@ type UnreadData = {
  * Polls every 60s and refreshes on data change events.
  */
 export function useUnreadMessages() {
+  const { user } = useAuth();
   const [data, setData] = useState<UnreadData>({ counts: {}, total: 0 });
   const [loading, setLoading] = useState(false);
 
@@ -32,6 +34,7 @@ export function useUnreadMessages() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
     void refresh();
     const interval = setInterval(refresh, 60_000);
     // Instant cross-component sync: any mark-read dispatches this event.
@@ -41,7 +44,7 @@ export function useUnreadMessages() {
       clearInterval(interval);
       window.removeEventListener('soulmate:unread-changed', onChanged);
     };
-  }, [refresh]);
+  }, [refresh, user]);
 
   return { unreadCounts: data.counts, unreadTotal: data.total, refreshUnread: refresh, loading };
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { createBrowserClient } from '@/lib/supabase';
+import { createBrowserClient, authedFetch } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const offset = new Date().getTimezoneOffset(); // minutes from UTC (e.g. UTC+8 → -480)
     const cached = localStorage.getItem('soulmate_tz_offset');
     if (cached === String(offset)) return; // already synced
-    fetch('/api/profile/timezone', {
+    authedFetch('/api/profile/timezone', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ timezone_offset: offset }),

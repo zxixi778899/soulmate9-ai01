@@ -1070,7 +1070,7 @@ export const en = {
 
   // ── Chat (single) page ──
   'chat.photoStillGenerating': 'Your photo is still developing — picking up where we left off… 💕',
-  'chat.newPhotoReady': 'Here\'s a brand-new photo just for you 💕',
+  'chat.newPhotoReady': 'Hehe, just took this for you~ do you like it? 💕',
   'chat.photoGenTimeout': 'Photo generation timed out… want me to try again?',
   'chat.recordingTooShort': 'Recording too short',
   'chat.micPermissionNeeded': 'Microphone permission needed for voice notes',
@@ -2363,7 +2363,7 @@ const zh: Record<string, string> = {
 
   // ── Chat (single) ──
   'chat.photoStillGenerating': '刚刚的照片还在生成中，我帮你接着等… 💕',
-  'chat.newPhotoReady': '拍好啦～这是专门为你拍的新照片 💕',
+  'chat.newPhotoReady': '拍好啦～专门给哥哥拍的照片哦 💕',
   'chat.photoGenTimeout': '照片生成超时了…稍后再让我试一次好不好？',
   'chat.recordingTooShort': '录音太短',
   'chat.micPermissionNeeded': '需要麦克风权限才能发送语音',

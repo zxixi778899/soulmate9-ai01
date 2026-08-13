@@ -37,7 +37,7 @@ interface Preview {
 
 const cellKey = (gender: string, style: string) => `${gender}|${style}`;
 
-export default function CreatorPreviewsAdminPage() {
+export default function CreatorPreviewsAdminPage({ embedded = false }: { embedded?: boolean }) {
   const [previews, setPreviews] = useState<Preview[]>([]);
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});

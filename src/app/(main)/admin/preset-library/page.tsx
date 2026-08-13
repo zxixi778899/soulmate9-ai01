@@ -102,7 +102,7 @@ function csv(text: string | string[] | null | undefined): string {
 
 // --- Main Page ---
 
-export default function AdminPresetLibraryPage() {
+export default function AdminPresetLibraryPage({ embedded }: { embedded?: boolean }) {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -323,35 +323,38 @@ export default function AdminPresetLibraryPage() {
             {presets.length} 个预设 · 立绘已缓存 {cachedCount}/{presets.length} · 文件夹可收纳角色/场景/姿势/特写预设
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {batch.running ? (
-            <>
-              <span className="text-xs text-gray-400 flex items-center gap-1.5">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                {batch.done + 1}/{batch.total} {batch.label}
-              </span>
-              <Button variant="outline" size="sm" onClick={() => { batchStopRef.current = true; }}>
-                <Square className="w-3.5 h-3.5 mr-1" /> 停止
+        {!embedded && (
+          <div className="flex flex-wrap items-center gap-2">
+            {batch.running ? (
+              <>
+                <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {batch.done + 1}/{batch.total} {batch.label}
+                </span>
+                <Button variant="outline" size="sm" onClick={() => { batchStopRef.current = true; }}>
+                  <Square className="w-3.5 h-3.5 mr-1" /> 停止
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={batchFillMissing} disabled={cachedCount >= presets.length}>
+                <Zap className="w-4 h-4 mr-1" /> 补齐缺失立绘（{presets.length - cachedCount}）
               </Button>
-            </>
-          ) : (
-            <Button variant="outline" size="sm" onClick={batchFillMissing} disabled={cachedCount >= presets.length}>
-              <Zap className="w-4 h-4 mr-1" /> 补齐缺失立绘（{presets.length - cachedCount}）
+            )}
+            <Button variant="outline" size="sm" onClick={load}>
+              <RefreshCw className="w-4 h-4 mr-1" /> 刷新
             </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={load}>
-            <RefreshCw className="w-4 h-4 mr-1" /> 刷新
-          </Button>
-          <Button size="sm" onClick={() => setPresetDialog({ mode: 'create' })} className="bg-purple-600 hover:bg-purple-700">
-            <Plus className="w-4 h-4 mr-1" /> 新建预设
-          </Button>
-        </div>
+            <Button size="sm" onClick={() => setPresetDialog({ mode: 'create' })} className="bg-purple-600 hover:bg-purple-700">
+              <Plus className="w-4 h-4 mr-1" /> 新建预设
+            </Button>
+          </div>
+        )}
       </div>
 
-      <StylePreviewsCard />
+      {!embedded && <StylePreviewsCard />}
 
       <div className="flex gap-4 items-start">
         {/* Folder sidebar */}
+        {!embedded && (
         <aside className="w-60 shrink-0 space-y-1">
           <div className="flex items-center justify-between px-2 mb-2">
             <span className="text-[11px] font-bold tracking-wider text-gray-400 uppercase">文件夹</span>
@@ -419,6 +422,7 @@ export default function AdminPresetLibraryPage() {
             场景 / 姿势 / 特写文件夹为后期预设类型预留；角色预设会展示在创建页预设墙。
           </p>
         </aside>
+        )}
 
         {/* Preset grid */}
         <div className="flex-1 min-w-0">
@@ -429,7 +433,7 @@ export default function AdminPresetLibraryPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+            <div className={cn('grid gap-3', embedded ? 'grid-cols-2 md:grid-cols-3 2xl:grid-cols-5' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4')}>
               {filtered.map((preset) => {
                 const job = preset.slug ? portraitJobs[preset.slug] : undefined;
                 return (
@@ -461,18 +465,19 @@ export default function AdminPresetLibraryPage() {
                     </div>
 
                     <CardContent className="p-2.5 space-y-1.5">
-                      <div className="flex items-start justify-between gap-1">
+                      <div className={cn('flex items-start justify-between gap-1', embedded && 'pr-0')}>
                         <div className="min-w-0">
                           <div className="text-sm font-medium text-white truncate">{preset.name}</div>
                           {preset.name_zh && <div className="text-[11px] text-gray-400 truncate">{preset.name_zh}</div>}
                         </div>
-                        <Switch checked={preset.is_active} onCheckedChange={(v) => toggleActive(preset, v)} />
+                        {!embedded && <Switch checked={preset.is_active} onCheckedChange={(v) => toggleActive(preset, v)} />}
                       </div>
                       <div className="flex flex-wrap gap-1 text-[10px]">
                         <Badge variant="outline" className="text-[9px] px-1 py-0 border-gray-700 text-gray-400">{preset.gender} · {preset.visual_style}</Badge>
                         {preset.occupation && <Badge variant="outline" className="text-[9px] px-1 py-0 border-gray-700 text-gray-400">{preset.occupation}</Badge>}
                         <Badge variant="outline" className="text-[9px] px-1 py-0 border-gray-700 text-gray-400">用 {preset.usage_count}</Badge>
                       </div>
+                      {!embedded && (
                       <div className="flex items-center gap-1 pt-0.5">
                         <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]"
                           disabled={job?.status === 'generating' || !preset.slug}
@@ -494,6 +499,7 @@ export default function AdminPresetLibraryPage() {
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
+                    )}
                     </CardContent>
                   </Card>
                 );

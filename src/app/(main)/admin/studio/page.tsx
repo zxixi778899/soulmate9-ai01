@@ -3,8 +3,64 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ArrowRight, FolderOpen, Library, Loader2, UserRound } from 'lucide-react';
+import {
+  ArrowRight,
+  FolderOpen,
+  Layers,
+  Loader2,
+  Palette,
+  SlidersHorizontal,
+  UserRound,
+  Users,
+  Workflow,
+  type LucideIcon,
+} from 'lucide-react';
 import ComfyConsole from '../comfy/ComfyConsole';
+import AdminPresetsPage from '../presets/page';
+import CreatorPreviewsAdminPage from '../creator-previews/page';
+import AdminAssetsPage from '../assets/page';
+import AdminPresetLibraryPage from '../preset-library/page';
+import { cn } from '@/lib/utils';
+
+type Section = 'studio' | 'assets' | 'presets' | 'previews' | 'character-presets';
+
+const SECTIONS: Array<{
+  id: Section;
+  label: string;
+  icon: LucideIcon;
+  hint: string;
+}> = [
+  {
+    id: 'studio',
+    label: '创作工作台',
+    icon: Workflow,
+    hint: 'Comfy 出图 · LoRA · 角色生产管线',
+  },
+  {
+    id: 'character-presets',
+    label: '角色预设库',
+    icon: Users,
+    hint: '立绘 · 稀有度 · 文件夹管理',
+  },
+  {
+    id: 'assets',
+    label: '公共资产库',
+    icon: FolderOpen,
+    hint: '按伴侣分类 · 多选上传 · 批量处理',
+  },
+  {
+    id: 'presets',
+    label: '预设管理',
+    icon: SlidersHorizontal,
+    hint: '场景模板 · 角色参考 · 生成预设',
+  },
+  {
+    id: 'previews',
+    label: '预览图配置',
+    icon: Palette,
+    hint: '捏脸创建 3 性别 × 3 画风预览位',
+  },
+];
 
 function StudioInner(): React.JSX.Element {
   const searchParams = useSearchParams();
@@ -13,9 +69,13 @@ function StudioInner(): React.JSX.Element {
     || searchParams.get('girlfriend_id')
     || ''
   ).trim();
+  const sectionParam = searchParams.get('section');
+  const section: Section =
+    sectionParam === 'character-presets' || sectionParam === 'assets' || sectionParam === 'presets' || sectionParam === 'previews' ? sectionParam : 'studio';
 
   return (
     <div className="min-h-screen bg-[#0b0b12] text-slate-100">
+      {/* ─── Header ─────────────────────────────────────────────── */}
       <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0b0b12]/95 px-3 py-2.5 backdrop-blur md:px-4">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
@@ -37,22 +97,16 @@ function StudioInner(): React.JSX.Element {
 
           <div className="flex flex-wrap gap-1.5">
             <Link
-              href="/admin/preset-library"
+              href="/admin/studio?section=presets"
               className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-white/10"
             >
-              <Library className="h-3.5 w-3.5" /> 预设库
+              <SlidersHorizontal className="h-3.5 w-3.5" /> 预设管理
             </Link>
             <Link
               href="/admin/model-library"
               className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-white/10"
             >
-              <Library className="h-3.5 w-3.5" /> 模型与 LoRA
-            </Link>
-            <Link
-              href="/admin/assets"
-              className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-white/10"
-            >
-              <FolderOpen className="h-3.5 w-3.5" /> 公共资产
+              <Layers className="h-3.5 w-3.5" /> 模型与 LoRA
             </Link>
             <Link
               href="/admin/girlfriends"
@@ -62,10 +116,40 @@ function StudioInner(): React.JSX.Element {
             </Link>
           </div>
         </div>
+
+        {/* ─── Section tabs ─────────────────────────────────────── */}
+        <div className="mx-auto mt-2.5 max-w-[1600px]">
+          <div className="flex flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1">
+            {SECTIONS.map((item) => {
+              const active = section === item.id;
+              return (
+                <Link
+                  key={item.id}
+                  href={`/admin/studio${girlfriendId ? `?girlfriendId=${encodeURIComponent(girlfriendId)}` : ''}${
+                    item.id === 'studio' ? '' : `${girlfriendId ? '&' : '?'}section=${item.id}`
+                  }`}
+                  className={cn(
+                    'flex flex-1 items-center gap-2 rounded-md px-3 py-2 text-sm transition sm:flex-none sm:px-4',
+                    active ? 'bg-violet-600 text-white shadow' : 'text-slate-400 hover:bg-white/5 hover:text-white',
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                  <span className="hidden text-[10px] font-normal opacity-70 lg:inline">{item.hint}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </header>
 
-      <div className="mx-auto max-w-[1600px]">
-        <ComfyConsole girlfriendId={girlfriendId || undefined} embedded />
+      {/* ─── Content ────────────────────────────────────────────── */}
+      <div className="mx-auto max-w-[1600px] px-3 py-4 md:px-4">
+        {section === 'studio' && <ComfyConsole girlfriendId={girlfriendId || undefined} embedded />}
+        {section === 'character-presets' && <AdminPresetLibraryPage embedded />}
+        {section === 'assets' && <AdminAssetsPage embedded />}
+        {section === 'presets' && <AdminPresetsPage embedded />}
+        {section === 'previews' && <CreatorPreviewsAdminPage embedded />}
       </div>
     </div>
   );

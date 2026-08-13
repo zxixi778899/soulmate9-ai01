@@ -38,7 +38,7 @@ interface GenPreset {
 
 // --- Main Page ---
 
-export default function AdminPresetsPage() {
+export default function AdminPresetsPage({ embedded = false }: { embedded?: boolean }) {
   const [templates, setTemplates] = useState<SceneTemplate[]>([]);
   const [references, setReferences] = useState<CharacterReference[]>([]);
   const [genPresets, setGenPresets] = useState<GenPreset[]>([]);
@@ -101,33 +101,32 @@ export default function AdminPresetsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className={`space-y-4 ${embedded ? 'mt-0' : ''}`}>
+      {/* Header — slim when embedded */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <Settings className="w-5 h-5 text-purple-400" /> Preset Management
-          </h1>
-          <p className="text-sm text-gray-400 mt-1">Scene templates, character references, and generation presets</p>
+        <div className="flex items-center gap-2">
+          <Settings className="w-5 h-5 text-purple-400" />
+          <h1 className="text-lg font-bold text-white">预设管理</h1>
+          {!embedded && <p className="text-sm text-gray-400 ml-2 hidden sm:inline">场景模板 / 角色参考 / 生成预设</p>}
         </div>
         <Button variant="outline" size="sm" onClick={load}>
-          <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+          <RefreshCw className="w-4 h-4 mr-1" /> 刷新
         </Button>
       </div>
 
       <Tabs defaultValue="templates" className="space-y-4">
         <TabsList className="bg-[#16161f] border border-gray-800">
-          <TabsTrigger value="templates">Scene Templates</TabsTrigger>
-          <TabsTrigger value="references">References</TabsTrigger>
-          <TabsTrigger value="gen_presets">Gen Presets</TabsTrigger>
+          <TabsTrigger value="templates">场景模板</TabsTrigger>
+          <TabsTrigger value="references">角色参考</TabsTrigger>
+          <TabsTrigger value="gen_presets">生成预设</TabsTrigger>
         </TabsList>
 
         {/* === Scene Templates Tab === */}
         <TabsContent value="templates" className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-400">{templates.length} templates</p>
+            <p className="text-sm text-gray-400">{templates.length} 个模板</p>
             <Button size="sm" onClick={() => setDialog({ type: 'template' })}>
-              <Plus className="w-4 h-4 mr-1" /> Add Template
+              <Plus className="w-4 h-4 mr-1" /> 添加模板
             </Button>
           </div>
 

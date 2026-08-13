@@ -152,6 +152,15 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     const intimacyScore = Number(intimacyRow?.score || 0);
     const intimacyPolicy = getIntimacyGenerationPolicy(intimacyScore);
+    logger.info('[Chat Generate Image] intimacy context', {
+      userId: user.id,
+      girlfriendId: girlfriend_id,
+      intimacyScore,
+      intimacyLevel: intimacyPolicy.level,
+      adultAllowed: intimacyPolicy.adultAllowed,
+      nsfwIntensity: intimacyPolicy.nsfwIntensity,
+      hasIntimacyRow: !!intimacyRow,
+    });
 
     // 亲密值不足时不再报错：自动降级为 SFW 生成，并由伴侣回复解锁提示。
     const intimacyDowngraded = adultRequested && !intimacyPolicy.adultAllowed;
@@ -242,6 +251,12 @@ export async function POST(request: NextRequest) {
           })
           .filter((r) => r.content.trim())
       : [];
+    logger.info('[Chat Generate Image] chat context', {
+      source: chatContext.length ? 'client' : 'fallback',
+      messageCount: chatContext.length,
+      allowLlmPolish: resolved.config.allow_llm_prompt_polish !== false,
+      userRequest: userRequest.slice(0, 120),
+    });
 
     // If client did not send context, pull last turns from DB
     if (!chatContext.length) {
@@ -270,10 +285,9 @@ export async function POST(request: NextRequest) {
       userRequest,
       chatContext,
     });
-    const promptPolicy =
-      promptChannel.channel === 'sfw'
-        ? getIntimacyGenerationPolicy(promptChannel.nsfwIntensity === 2 ? 200 : 0)
-        : intimacyPolicy;
+    // Intimacy level directly drives the NSFW intensity (1–5). The channel only
+    // selects the LLM endpoint / LoRA plan; it no longer downgrades the policy.
+    const promptPolicy = intimacyPolicy;
     const framing = promptPolicy.level >= 3
       ? 'candid three-quarter full-body framing, torso and pelvis visible, shifted weight, relaxed shoulders, asymmetrical natural gesture'
       : intent.kind === 'selfie'
@@ -331,12 +345,17 @@ export async function POST(request: NextRequest) {
       gfRecord.appearance,
       gfRecord.distinguishing_features,
     ].filter(Boolean).map(String).join(', ');
+    // Build a short conversation context clause for the deterministic fallback
+    // so the image still reflects what was just discussed even without LLM polish.
+    const conversationClause = chatContext.length
+      ? `reflecting the chat: ${chatContext.slice(-3).map((line) => `${line.role === 'assistant' ? 'she' : 'he'} said "${line.content.slice(0, 80)}"`).join(', ')}`
+      : '';
     let prompt = buildStudioPromptEnhancement({
       category,
       intensity: promptPolicy.nsfwIntensity,
       animeStyle,
       scene: buildContentOnlyPrompt(
-        `${sceneBits}. ${buildSceneCastPrompt(sceneSemantics)}`,
+        `${sceneBits}. ${buildSceneCastPrompt(sceneSemantics)}${conversationClause ? `. ${conversationClause}` : ''}`,
         { style: animeStyle === '2d' ? '2d' : animeStyle === '3d' ? '3d' : 'realistic' },
       ),
       identity,
@@ -364,6 +383,13 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         girlfriendId: girlfriend_id,
         timeoutMs: 15_000,
+      });
+      logger.info('[Chat Generate Image] LLM prompt engine result', {
+        usedLlm: llmResult.usedLlm,
+        reason: llmResult.reason,
+        channel: llmResult.channel,
+        promptLength: llmResult.prompt?.length || 0,
+        promptSummary: prompt.slice(0, 200),
       });
       if (llmResult.usedLlm && llmResult.prompt) {
         prompt = buildStudioPromptEnhancement({
@@ -486,13 +512,12 @@ export async function POST(request: NextRequest) {
     const referenceImage = referencePlan.primaryIdentity?.url;
 
     // Preserve identity from the saved portrait without copying its composition.
+    // IP-Adapter only locks facial features — outfit, pose and scene come from the prompt.
     const useConsistency =
       resolved.config.use_consistency_default !== false && Boolean(referenceImage);
-    // The avatar is an identity cue, not a composition template. Explicit and
-    // multi-person scenes need more prompt freedom than a simple portrait.
     const ipAdapterWeight = ({ 1: 0.72, 2: 0.68, 3: 0.64, 4: 0.58, 5: 0.54 } as const)[intimacyPolicy.level];
     if (useConsistency) {
-      prompt = `${prompt} Identical woman to the reference photo: same face, hair color, body type and outfit; never change her identity.`;
+      prompt = `${prompt} Same woman as the reference: keep her face and hair color consistent.`;
     }
 
     const sceneCfg = resolved.config;
@@ -552,6 +577,29 @@ export async function POST(request: NextRequest) {
 
     const routerResult = await routeImageGenerationWithRetry(genOpts);
 
+    // Shared diagnostic payload for both pending and success responses
+    const diagnosticTrace = {
+      intimacy_score: intimacyScore,
+      intimacy_level: intimacyPolicy.level,
+      adult_allowed: intimacyPolicy.adultAllowed,
+      nsfw_intensity: intimacyPolicy.nsfwIntensity,
+      intimacy_row_found: !!intimacyRow,
+      chat_context_count: chatContext.length,
+      chat_context_source: chatContext.length > 0 ? (rawCtx && Array.isArray(rawCtx) && (rawCtx as unknown[]).length > 0 ? 'client' : 'db_fallback') : 'empty',
+      user_request: userRequest.slice(0, 120),
+      prompt_engine: promptEngine,
+      prompt_channel: promptChannel.channel,
+      adult_mentioned: promptChannel.adultMention,
+      prompt_intensity: promptPolicy.nsfwIntensity,
+      allow_llm_polish: resolved.config.allow_llm_prompt_polish !== false,
+      prompt_summary: prompt.slice(0, 200),
+      has_conversation_clause: Boolean(conversationClause),
+      lora_count: intelligentLoras.length,
+      ip_adapter: useConsistency,
+      ip_adapter_weight: useConsistency ? ipAdapterWeight : null,
+      latency_ms: Date.now() - started,
+    };
+
     // If RunPod queued (pending), return job_id for client-side polling
     if (routerResult.pending) {
       return NextResponse.json({
@@ -575,7 +623,10 @@ export async function POST(request: NextRequest) {
         },
         downgraded: intimacyDowngraded || undefined,
         downgrade_reply: downgradeReply,
-        message: 'Image is being generated. Poll /api/ai/status?job_id=' + routerResult.job_id,
+        // Friendly placeholder — the real撒娇 caption is returned after polling succeeds.
+        message: zh ? '拍好啦～正在冲印出来，稍等几秒哦 💕' : 'Just took it~ developing now, one sec 💕',
+        // ── Diagnostic trace (debug) ──
+        _trace: diagnosticTrace,
       });
     }
 
@@ -608,20 +659,29 @@ export async function POST(request: NextRequest) {
     });
     if (auditError) logger.warn('[Chat Generate Image] audit insert failed', { error: auditError.message });
 
-    const gfName = String((gf as { name?: string }).name || 'She');
-    const caption = zh
-      ? intent.kind === 'selfie'
-        ? `${gfName} 给你发来一张全新自拍 💕`
-        : intent.kind === 'body'
-          ? `${gfName} 给你发来一张只给你看的新照片 🔥`
-          : `${gfName} 给你发来一张全新照片 📸`
-      : intent.kind === 'selfie'
-        ? `${gfName} sends you a brand-new selfie 💕`
-        : intent.kind === 'body'
-          ? `${gfName} sends you a new teasing photo—just for you 🔥`
-          : `${gfName} sends you a brand-new photo 📸`;
-
-    const finalCaption = downgradeReply || caption;
+    const gfName = String((gf as { name?: string }).name || '');
+    // Cute, flirty captions — randomised to feel fresh each time
+    const zhCaptions = [
+      `拍好啦～专门给哥哥拍的照片哦 💕`,
+      `嘿嘿，只给你一个人看的哦～ 🥰`,
+      `拍了好久呢，哥哥喜欢吗？💗`,
+      `专门为了你拍的新照片～不许给别人看哦 💕`,
+      `哥哥快看～这是人家刚拍的 📸`,
+    ];
+    const enCaptions = [
+      `Just took this for you~ do you like it? 💕`,
+      `Hehe, this one's only for your eyes~ 🥰`,
+      `Brand new photo~ I hope you love it 💗`,
+      `Made this just for you, babe~ don't share it with anyone 💕`,
+      `Look look~ I just took this 📸`,
+    ];
+    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+    // Optionally prepend girlfriend name for a personal touch (~30% chance)
+    const nameTag = gfName && Math.random() < 0.3 ? `${gfName}：` : '';
+    const caption = downgradeReply
+      ? downgradeReply
+      : `${nameTag}${zh ? pick(zhCaptions) : pick(enCaptions)}`;
+    const finalCaption = caption;
 
     const { data: savedMessage, error: messageError } = await client.from('chat_messages').insert({
       user_id: user.id,
@@ -680,6 +740,8 @@ export async function POST(request: NextRequest) {
       token_cost: resolved.tokenCost,
       intimacy_level: intimacyPolicy.level,
       nsfw_intensity: promptPolicy.nsfwIntensity,
+      // ── Diagnostic trace (debug) ──
+      _trace: diagnosticTrace,
       lora_plan: {
         primary: loraPlan.primary.note,
         secondary: loraPlan.secondary?.note || null,

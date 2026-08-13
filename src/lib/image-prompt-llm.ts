@@ -51,23 +51,26 @@ const INTENT_ADULT_RE =
 
 /**
  * Decide the prompt channel from intimacy + the actual request/context.
- * Adult content only counts when the intimacy unlock exists AND the turn
- * actually asks for it; otherwise the prompt stays SFW (capped at lingerie).
+ * Intimacy level directly drives the NSFW intensity: levels 1-2 stay SFW,
+ * levels 3-5 unlock NSFW. adultMention is returned for diagnostics/safety.
  */
 export function resolveImagePromptChannel(input: {
   intimacyPolicy: IntimacyGenerationPolicy;
   userRequest: string;
   chatContext?: ChatContextLine[];
-}): { channel: ImagePromptChannel; nsfwIntensity: NsfwIntensity } {
+}): { channel: ImagePromptChannel; nsfwIntensity: NsfwIntensity; adultMention: boolean } {
   const { adultAllowed, nsfwIntensity } = input.intimacyPolicy;
+  // Intimacy level directly determines the NSFW channel: levels 1–2 stay SFW,
+  // levels 3–5 unlock the NSFW channel so the image matches the relationship.
+  // Explicit adult language is returned for diagnostics / safety.
   const blob = `${input.userRequest || ''} ${(input.chatContext || [])
     .map((line) => line.content)
     .join(' ')}`.slice(0, 2000);
   const adultMention = INTENT_ADULT_RE.test(blob);
-  const nsfwRequested = adultAllowed && adultMention;
   return {
-    channel: nsfwRequested ? 'nsfw' : 'sfw',
-    nsfwIntensity: (nsfwRequested ? nsfwIntensity : Math.min(nsfwIntensity, 2)) as NsfwIntensity,
+    channel: adultAllowed ? 'nsfw' : 'sfw',
+    nsfwIntensity: nsfwIntensity as NsfwIntensity,
+    adultMention,
   };
 }
 

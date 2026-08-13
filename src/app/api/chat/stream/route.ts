@@ -31,7 +31,73 @@ import {
 } from '@/lib/chat-reply-sanitize';
 import { moderateText, type ContentMode } from '@/lib/content-moderation';
 import { checkCompanionAccess } from '@/lib/companion-access';
-import { getIntimacyLevel } from '@/lib/constants';
+import { getIntimacyLevel, DAILY_INTIMACY_CAP, INTIMACY_MAX_SCORE } from '@/lib/constants';
+
+/** Increment intimacy score for this user/girlfriend pair (fire-and-forget). */
+async function incrementIntimacy(
+  client: SupabaseClient,
+  userId: string,
+  girlfriendId: string,
+): Promise<void> {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: current } = await client
+      .from('intimacy_scores')
+      .select('id, score, daily_score_gained, daily_message_count, last_daily_reset')
+      .eq('user_id', userId)
+      .eq('girlfriend_id', girlfriendId)
+      .maybeSingle();
+
+    const baseScore = current ? Number(current.score || 0) : 0;
+    const isNewDay = !current || current.last_daily_reset !== today;
+    const todayGain = isNewDay ? 0 : (Number(current?.daily_score_gained) || 0);
+
+    // Normal chat gain = 2 points, capped at DAILY_INTIMACY_CAP per day
+    let gain = 2;
+    if (todayGain + gain > DAILY_INTIMACY_CAP) {
+      gain = Math.max(0, DAILY_INTIMACY_CAP - todayGain);
+    }
+    if (gain <= 0 && current) {
+      logger.info('[chat-stream] intimacy capped for today', { userId, girlfriendId, todayGain });
+      return;
+    }
+
+    const newScore = Math.min(baseScore + gain, INTIMACY_MAX_SCORE);
+    const newLevel = getIntimacyLevel(newScore);
+
+    const { error } = await client
+      .from('intimacy_scores')
+      .upsert({
+        ...(current ? { id: current.id } : {}),
+        user_id: userId,
+        girlfriend_id: girlfriendId,
+        score: newScore,
+        level: newLevel,
+        daily_score_gained: todayGain + gain,
+        daily_message_count: current
+          ? (Number(current.daily_message_count) || 0) + 1
+          : 1,
+        last_daily_reset: today,
+        last_interacted_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,girlfriend_id' });
+
+    if (error) {
+      logger.warn('[chat-stream] intimacy upsert failed', {
+        userId, girlfriendId, error: error.message,
+      });
+      return;
+    }
+
+    logger.info('[chat-stream] intimacy incremented', {
+      userId, girlfriendId, gain, newScore, newLevel, wasNew: !current,
+    });
+  } catch (err) {
+    // Fire-and-forget: never block the stream
+    logger.warn('[chat-stream] intimacy increment failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -835,6 +901,15 @@ export async function POST(request: NextRequest) {
             ]).catch((milestoneError: unknown) => {
               logger.warn('chat/stream: milestone extraction failed', {
                 err: milestoneError instanceof Error ? milestoneError.message : String(milestoneError),
+              });
+            }),
+            // 亲密值自增：每条用户消息 +2 分，每日上限 50
+            Promise.race([
+              incrementIntimacy(client, user.id, girlfriend_id),
+              new Promise((r) => setTimeout(r, 5_000)),
+            ]).catch((intimacyError: unknown) => {
+              logger.warn('chat/stream: intimacy increment failed', {
+                err: intimacyError instanceof Error ? intimacyError.message : String(intimacyError),
               });
             }),
           ]);
