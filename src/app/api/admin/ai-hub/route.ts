@@ -25,11 +25,8 @@ export async function GET(request: NextRequest) {
   const admin = await requireAdmin(request);
   if ('error' in admin) return admin.error;
 
-  // Cast via unknown: full SupabaseClient generics are too deep for direct
-  // structural matching against the duck-typed SiteSettingsClient (TS2589).
-  const settingsDb = admin.supabase as unknown as SiteSettingsClient;
-
-  const config = await loadProviderRoutes(settingsDb);
+  // Use default cache/file path to avoid SiteSettingsClient type instantiation depth
+  const config = await loadProviderRoutes();
   const imageHealth = getImageProviderHealth();
 
   // Chat status
@@ -145,7 +142,7 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'test_chat': {
         const { route_id } = body as { route_id: string };
-        const config = await loadProviderRoutes(settingsDb);
+        const config = await loadProviderRoutes();
         const route = config.llm_routes.find((r) => r.id === route_id);
         if (!route) return NextResponse.json({ error: 'Route not found' }, { status: 404 });
 
@@ -198,7 +195,7 @@ export async function POST(request: NextRequest) {
 
       case 'toggle_endpoint': {
         const { route_id, type, enabled } = body as { route_id: string; type: 'llm' | 'image'; enabled: boolean };
-        const config = await loadProviderRoutes(settingsDb);
+        const config = await loadProviderRoutes();
         if (type === 'llm') {
           const route = config.llm_routes.find((r) => r.id === route_id);
           if (!route) return NextResponse.json({ error: `Route '${route_id}' not found` }, { status: 404 });
@@ -215,7 +212,7 @@ export async function POST(request: NextRequest) {
       case 'reorder_llm': {
         const { ordered_ids } = body as { ordered_ids: string[] };
         if (!Array.isArray(ordered_ids)) return NextResponse.json({ error: 'ordered_ids array required' }, { status: 400 });
-        const config = await loadProviderRoutes(settingsDb);
+        const config = await loadProviderRoutes();
         config.llm_routes.sort((a, b) => ordered_ids.indexOf(a.id) - ordered_ids.indexOf(b.id));
         config.llm_routes.forEach((r, i) => { r.priority = (i + 1) * 10; });
         await saveProviderRoutes(config, settingsDb);
@@ -227,7 +224,7 @@ export async function POST(request: NextRequest) {
         if (!route?.id || !route?.label) {
           return NextResponse.json({ error: 'route with id and label required' }, { status: 400 });
         }
-        const config = await loadProviderRoutes(settingsDb);
+        const config = await loadProviderRoutes();
         if (config.llm_routes.some((r) => r.id === route.id)) {
           return NextResponse.json({ error: `Route '${route.id}' already exists` }, { status: 409 });
         }
@@ -261,3 +258,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
+

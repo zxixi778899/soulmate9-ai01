@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   const admin = await requireAdmin(request);
   if ('error' in admin) return admin.error;
 
-  const config = await loadProviderRoutes(admin.supabase);
+  const config = await loadProviderRoutes();
   const imageHealth = getImageProviderHealth();
 
   return NextResponse.json({
@@ -71,14 +71,14 @@ export async function POST(request: NextRequest) {
   }
 
   const action = String((body as { action?: string }).action || 'save_config');
-  const config = await loadProviderRoutes(admin.supabase);
+  const config = await loadProviderRoutes();
 
   try {
     switch (action) {
       case 'save_config': {
         const newConfig = (body as { config?: ProviderRoutesConfig }).config;
         if (!newConfig) return NextResponse.json({ error: 'config required' }, { status: 400 });
-        const { source } = await saveProviderRoutes(newConfig, admin.supabase);
+        const { source } = await saveProviderRoutes(newConfig);
         return NextResponse.json({ success: true, source });
       }
 
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         const route = config.image_routes.find((r) => r.id === route_id);
         if (!route) return NextResponse.json({ error: `Route '${route_id}' not found` }, { status: 404 });
         route.enabled = Boolean(enabled);
-        const { source } = await saveProviderRoutes(config, admin.supabase);
+        const { source } = await saveProviderRoutes(config);
         return NextResponse.json({ success: true, source, route });
       }
 
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         const route = config.llm_routes.find((r) => r.id === route_id);
         if (!route) return NextResponse.json({ error: `Route '${route_id}' not found` }, { status: 404 });
         route.enabled = Boolean(enabled);
-        const { source } = await saveProviderRoutes(config, admin.supabase);
+        const { source } = await saveProviderRoutes(config);
         return NextResponse.json({ success: true, source, route });
       }
 
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
         const idx = config.image_routes.findIndex((r) => r.id === route_id);
         if (idx === -1) return NextResponse.json({ error: `Route '${route_id}' not found` }, { status: 404 });
         config.image_routes[idx] = { ...config.image_routes[idx], ...patch, id: route_id };
-        const { source } = await saveProviderRoutes(config, admin.supabase);
+        const { source } = await saveProviderRoutes(config);
         return NextResponse.json({ success: true, source, route: config.image_routes[idx] });
       }
 
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
         const idx = config.llm_routes.findIndex((r) => r.id === route_id);
         if (idx === -1) return NextResponse.json({ error: `Route '${route_id}' not found` }, { status: 404 });
         config.llm_routes[idx] = { ...config.llm_routes[idx], ...patch, id: route_id };
-        const { source } = await saveProviderRoutes(config, admin.supabase);
+        const { source } = await saveProviderRoutes(config);
         return NextResponse.json({ success: true, source, route: config.llm_routes[idx] });
       }
 
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: `Route '${route.id}' already exists` }, { status: 409 });
         }
         config.image_routes.push(route);
-        const { source } = await saveProviderRoutes(config, admin.supabase);
+        const { source } = await saveProviderRoutes(config);
         return NextResponse.json({ success: true, source, route });
       }
 
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: `Route '${route.id}' already exists` }, { status: 409 });
         }
         config.llm_routes.push(route);
-        const { source } = await saveProviderRoutes(config, admin.supabase);
+        const { source } = await saveProviderRoutes(config);
         return NextResponse.json({ success: true, source, route });
       }
 
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         const idx = config.image_routes.findIndex((r) => r.id === route_id);
         if (idx === -1) return NextResponse.json({ error: `Route '${route_id}' not found` }, { status: 404 });
         const [removed] = config.image_routes.splice(idx, 1);
-        const { source } = await saveProviderRoutes(config, admin.supabase);
+        const { source } = await saveProviderRoutes(config);
         return NextResponse.json({ success: true, source, removed });
       }
 
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
         const idx = config.llm_routes.findIndex((r) => r.id === route_id);
         if (idx === -1) return NextResponse.json({ error: `Route '${route_id}' not found` }, { status: 404 });
         const [removed] = config.llm_routes.splice(idx, 1);
-        const { source } = await saveProviderRoutes(config, admin.supabase);
+        const { source } = await saveProviderRoutes(config);
         return NextResponse.json({ success: true, source, removed });
       }
 
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
           config.llm_routes.sort((a, b) => ordered_ids.indexOf(a.id) - ordered_ids.indexOf(b.id));
           config.llm_routes.forEach((r, i) => { r.priority = (i + 1) * 10; });
         }
-        const { source } = await saveProviderRoutes(config, admin.supabase);
+        const { source } = await saveProviderRoutes(config);
         return NextResponse.json({ success: true, source });
       }
 

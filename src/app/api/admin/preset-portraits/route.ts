@@ -223,9 +223,8 @@ export async function POST(request: NextRequest) {
     const identityPrompt = buildPresetPortraitPrompt(preset);
     const category = normalizeCompanionCategory({ gender: preset.gender });
     const renderStyle = normalizeCompanionRenderStyle({ visualStyle: preset.visual_style });
-    // Cast via unknown: full SupabaseClient generics are too deep for direct
-    // structural matching against the duck-typed SiteSettingsClient (TS2589).
-    const config = await loadComfyConfig(admin.supabase as unknown as import('@/lib/site-settings-client').SiteSettingsClient);
+    // Use default cache/file path to avoid SiteSettingsClient type instantiation depth
+    const config = await loadComfyConfig();
     const route = resolveImageGenerationRoute({
       surface: 'companion',
       category,

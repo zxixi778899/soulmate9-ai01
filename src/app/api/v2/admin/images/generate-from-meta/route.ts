@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
   };
   try {
     const { loadAiModules, resolveImageCall } = await import('@/lib/ai-modules');
-    const modules = await loadAiModules(guard.supabase);
+    const modules = await loadAiModules();
     const sceneKey =
       type === 'outfit'
         ? 'outfit_prop'

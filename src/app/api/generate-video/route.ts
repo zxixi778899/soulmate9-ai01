@@ -5,7 +5,7 @@ import { logger } from '@/lib/logger';
 import { isGpuCapacityError } from '@/lib/runpod';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
 import { CREDIT_COSTS, deductCredits, grantCredits } from '@/lib/credit-system';
-import { checkAchievements } from '@/lib/achievement-checker';
+import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -292,7 +292,7 @@ export async function POST(request: NextRequest) {
             if (insErr) logger.warn('[generate-video] chat_media insert failed', { err: insErr.message });
           });
           // Re-evaluate achievements (video milestones) — fire and forget
-          void checkAchievements(client, user.id);
+          void checkAchievements(client as unknown as SupabaseLike, user.id);
         }
 
         return NextResponse.json({ video_url: finalUrl, job_id: jobId, latency_ms: Date.now() - started });

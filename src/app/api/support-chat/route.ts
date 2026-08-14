@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       content: String(m.content || '').slice(0, 1000),
     }));
 
-    const aiModules = await loadAiModules(client!);
+    const aiModules = await loadAiModules();
 
     // Resolve membership tier for the user
     let tier: MembershipTier = 'free';

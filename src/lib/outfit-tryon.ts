@@ -158,7 +158,7 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
   let endpointId: string | undefined;
   try {
     const { loadAiModules, resolveImageCall } = await import('@/lib/ai-modules');
-    const modules = await loadAiModules(client);
+    const modules = await loadAiModules();
     const img = resolveImageCall(modules, { scene: 'outfit_prop', tier: 'pro' });
     if (!img.enabled) {
       return {

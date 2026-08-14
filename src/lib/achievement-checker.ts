@@ -78,6 +78,8 @@ type SupabaseLike = {
   };
 };
 
+export type { SupabaseLike };
+
 type AchievementDefRow = {
   id: string;
   code: string;

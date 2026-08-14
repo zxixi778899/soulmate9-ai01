@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
 import { heatAchievementsAsCatalogRows } from '@/lib/heat-achievements';
-import { checkAchievements } from '@/lib/achievement-checker';
+import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 import { takeAchievementNotifications } from '@/lib/daily-quests';
 
 /**
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     // pending unlock notifications for the client to celebrate. Both are
     // best-effort — the catalog/list below must still load if they fail.
     try {
-      await checkAchievements(supabase, auth.user.id);
+      await checkAchievements(supabase as unknown as SupabaseLike, auth.user.id);
     } catch {
       /* ignore */
     }

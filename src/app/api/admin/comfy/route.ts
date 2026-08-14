@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
   if (admin.error) return admin.error;
 
   const view = new URL(req.url).searchParams.get('view') || 'config';
-  const storedCfg = await loadComfyConfig(admin.supabase);
+  const storedCfg = await loadComfyConfig(); // Use default file path
   const cfg = mergeInstalledLoras(storedCfg);
 
   if (view === 'enhancers') {
@@ -317,12 +317,12 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
-  const current = await loadComfyConfig(admin.supabase);
+  const current = await loadComfyConfig(); // Use default file path
   const next = body.replace
     ? (body.config as ComfyConsoleConfig)
     : { ...current, ...(body.config || body) };
 
-  const { source } = await saveComfyConfig(next as ComfyConsoleConfig, admin.supabase);
+  const { source } = await saveComfyConfig(next as ComfyConsoleConfig);
   invalidateComfyCache();
   return NextResponse.json({ success: true, source, config: next });
 }
@@ -503,7 +503,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
         : 'Write a new variable scene field in 20-35 words for the selected function. Use concrete nouns and verbs without headings.',
     ].join('\n');
     try {
-      const aiConfig = await loadAiModules(admin.supabase);
+      const aiConfig = await loadAiModules(); // Use default cache/file path
       const resolved = resolveChatCall(aiConfig, {
         tier: 'admin',
         userId: admin.user!.id,
@@ -567,7 +567,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const generationRoute = resolveImageGenerationRoute({
         surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intensity, sceneSemantics,
       });
-      const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
+      const cfg = mergeInstalledLoras(await loadComfyConfig());
       const installed = getInstalledLoraSet();
       const scale = studioLoraStrengthScale(intensity);
       const recommendations = recommendedStudioLoras(category, animeStyle, intensity);
@@ -610,7 +610,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const generationRoute = resolveImageGenerationRoute({
         surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intensity, sceneSemantics: fallbackSemantics,
       });
-      const cfg = mergeInstalledLoras(await loadComfyConfig(admin.supabase));
+      const cfg = mergeInstalledLoras(await loadComfyConfig());
       const installed = getInstalledLoraSet();
       const scale = studioLoraStrengthScale(intensity);
       const recommendations = recommendedStudioLoras(category, animeStyle, intensity);
@@ -646,7 +646,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
   }
   if (body.action === 'reset_config') {
     const cfg = createDefaultComfyConfig();
-    const { source } = await saveComfyConfig(cfg, admin.supabase);
+    const { source } = await saveComfyConfig(cfg);
     invalidateComfyCache();
     return NextResponse.json({ success: true, source, config: cfg });
   }
@@ -978,7 +978,7 @@ if (body.action === 'finalize') {
     const folder = assetFolder(girlfriendId, assetRole);
     const kind = String(body.kind || 'custom');
 
-    const cfg = await loadComfyConfig(admin.supabase);
+    const cfg = await loadComfyConfig();
     const ckpt = cfg.checkpoints.find((c) => c.id === String(body.ckpt_id || '')) || null;
     const loraNames: string[] = Array.isArray(body.loras)
       ? (body.loras as Array<Record<string, unknown>>)
@@ -1080,7 +1080,7 @@ if (body.action === 'verify_loras') {
       file: f,
       issue: checkLoraAuthenticity(f, fileSizes?.[f], fileHashes?.[f]),
     }));
-    const verifyConfig = await loadComfyConfig(admin.supabase);
+    const verifyConfig = await loadComfyConfig();
     const installed = new Set(report.entries.filter((entry) => entry.status === 'ok').map((entry) => entry.file));
     const catalogChecks = verifyConfig.loras
       .filter((lora) => Boolean(lora.filename))
@@ -1120,7 +1120,7 @@ if (body.action === 'verify_loras') {
       );
     }
 
-    const cfg = await loadComfyConfig(admin.supabase);
+    const cfg = await loadComfyConfig();
     let prompt = String(body.prompt || '').trim();
     if (!prompt) return NextResponse.json({ error: 'prompt required' }, { status: 400 });
 

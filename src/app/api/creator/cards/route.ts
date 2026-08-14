@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const status = await getCreationCardStatus(client, user.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const status = await getCreationCardStatus(client as any, user.id);
     return NextResponse.json(status);
   } catch (err) {
     logger.error('[creator/cards] error', { err: String(err) });

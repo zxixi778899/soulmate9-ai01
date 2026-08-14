@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { getSeatStatus } from '@/lib/companion-seats';
+import { getSeatStatus, type SeatClient } from '@/lib/companion-seats';
 
 export async function GET(req: NextRequest) {
   const { user, client } = await getAuthUser(req);
@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
   };
 
   const currentPlan = plans[tier as keyof typeof plans] || plans.free;
-  const seats = await getSeatStatus(client, user.id);
+  const seats = await getSeatStatus(client as unknown as SeatClient, user.id);
 
   return NextResponse.json({
     tier,

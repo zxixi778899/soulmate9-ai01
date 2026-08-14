@@ -3,7 +3,7 @@ import { verifyNexaPayWebhook } from '@/lib/nexapay-server';
 import { grantTopUpCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { createClient } from '@supabase/supabase-js';
-import { checkAchievements } from '@/lib/achievement-checker';
+import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 
 /**
  * POST /api/nexapay/webhook
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
 
       logger.info('[nexapay/webhook] Credits granted', { payment_id, userId, totalTokens, balance: grant.balance_after });
       // Fire-and-forget: credits_purchased achievements unlock here.
-      checkAchievements(supabase, userId).catch(() => {});
+      checkAchievements(supabase as unknown as SupabaseLike, userId).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
 
     logger.info('[nexapay/webhook] Payment processed', { payment_id, userId, plan, billing });
     // Fire-and-forget: subscription_tier achievements unlock here.
-    checkAchievements(supabase, userId).catch(() => {});
+    checkAchievements(supabase as unknown as SupabaseLike, userId).catch(() => {});
     return NextResponse.json({ success: true });
   } catch (err) {
     logger.error('[nexapay/webhook] Webhook processing failed', { err });

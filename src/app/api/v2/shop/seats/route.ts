@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getStripe } from '@/lib/stripe-server';
 import { logger } from '@/lib/logger';
-import { COMPANION_SEAT_PACKAGES, getSeatStatus, packageById } from '@/lib/companion-seats';
+import { COMPANION_SEAT_PACKAGES, getSeatStatus, packageById, type SeatClient } from '@/lib/companion-seats';
 
 /**
  * GET  /api/v2/shop/seats — packages + current seat status
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     if (!auth.user || !auth.client) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const seats = await getSeatStatus(auth.client, auth.user.id);
+    const seats = await getSeatStatus(auth.client as unknown as SeatClient, auth.user.id);
     return NextResponse.json({
       packages: COMPANION_SEAT_PACKAGES,
       seats,

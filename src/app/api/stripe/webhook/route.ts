@@ -6,7 +6,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { grantTopUpCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from '@/lib/analytics';
-import { checkAchievements } from '@/lib/achievement-checker';
+import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 import { captureException } from '@/lib/sentry';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 
@@ -162,7 +162,7 @@ async function handleCheckoutCompleted(
       route: 'stripe-webhook',
     });
     // Fire-and-forget: credits_purchased achievements unlock here.
-    checkAchievements(admin, userId).catch(() => {});
+    checkAchievements(admin as unknown as SupabaseLike, userId).catch(() => {});
     return;
   }
 
@@ -238,7 +238,7 @@ async function handleCheckoutCompleted(
     eventId: event.id,
   });
   // Fire-and-forget: subscription_tier achievements (upgrade_pro/unlimited) unlock here.
-  checkAchievements(admin, userId).catch(() => {});
+  checkAchievements(admin as unknown as SupabaseLike, userId).catch(() => {});
 }
 
 async function resolveSubscriptionUser(

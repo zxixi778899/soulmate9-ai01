@@ -10,7 +10,7 @@ import { resolveCompanionProfile } from '@/lib/companion-profile';
 import { buildCompanionCharacterCard, normalizeCreatorPreset, type CreatorPreset } from '@/lib/creator-presets';
 import { soulForPreset } from '@/lib/preset-souls';
 import { findCachedPresetPortrait, recordPresetPortraitStat } from '@/lib/preset-portrait-cache';
-import { checkAchievements } from '@/lib/achievement-checker';
+import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 import { rollCompanionStats, rarityFromTraits, companionScore, type Rarity } from '@/lib/rarity';
 
 const CREATE_GF_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
     : undefined;
 
   // Consume a creation card
-  const cardResult = await consumeCreationCard(client, user.id);
+  const cardResult = await consumeCreationCard(client as any, user.id);
   if (!cardResult.ok) {
     return NextResponse.json(
       {
@@ -528,7 +528,7 @@ export async function POST(request: NextRequest) {
   invalidateGirlfriends();
 
   // Fire-and-forget: creation achievements (first_creation, collector_*) unlock here.
-  checkAchievements(client, user.id).catch(() => {});
+  checkAchievements(client as unknown as SupabaseLike, user.id).catch(() => {});
 
   return NextResponse.json({
     girlfriend,

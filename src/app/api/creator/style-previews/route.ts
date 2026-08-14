@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const client = getSupabaseClient();
-    const config = await loadStylePreviews(client);
+    const config = await loadStylePreviews(client as any);
     return NextResponse.json(
       {
         previews: {

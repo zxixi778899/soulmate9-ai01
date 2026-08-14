@@ -5,7 +5,7 @@ import { rateLimitMiddleware, RATE_LIMITS } from '@/lib/rate-limit';
 import { analyzeAndRoute } from '@/lib/llm-router';
 import { streamTextSmart } from '@/lib/llm-service';
 import { logModelUsage, estimateTokens, estimateCost } from '@/lib/model-usage';
-import { checkAchievements } from '@/lib/achievement-checker';
+import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 import { quickEmotion, normalizeEmotion } from '@/lib/emotion';
 import { logger } from '@/lib/logger';
 import {
@@ -16,7 +16,11 @@ import {
 } from '@/lib/ai-modules';
 import { buildPersonaPrompt } from '@/lib/prompt-builder';
 import { calculateDesireLevel, getDesireLanguageGradient } from '@/lib/desire-calculator';
-import { detectCompanionMood, buildMoodContext } from '@/lib/mood-detector';
+import {
+  buildCharacterPrompt,
+  safetySuffix,
+  userMessageWrapper,
+} from '@/lib/chat-character-prompt';
 import {
   languageLockInstruction,
   resolveReplyLocale,
@@ -400,7 +404,7 @@ export async function POST(request: NextRequest) {
   const presets = { mood, pose, environment };
 
   // AI modules config (chat / language routing)
-  const aiModules = await loadAiModules(client);
+  const aiModules = await loadAiModules();
   const profileAny = profile as Record<string, unknown> | null;
   const membershipRaw = String(
     profileAny?.membership_tier || profileAny?.subscription_tier || profileAny?.plan || 'free',
@@ -593,6 +597,28 @@ export async function POST(request: NextRequest) {
   const timeContext = zhChat
     ? `[时间感] 现在大约是${weekdayNames[localNow.getUTCDay()]} ${hhmm}（${tzNote}）。可自然带出时段氛围（深夜、清晨、周末），但别武断地说「早上好」之类，除非他先提到。`
     : `[TIME SENSE] It is roughly ${weekdayNames[localNow.getUTCDay()]} ${hhmm} (${tzNote}). You can lean into the time-of-day vibe (late night, weekend), but never assert "good morning"-style greetings unless he mentions it first.`;
+
+  // NSFW intensity: user slider (1-5) gated by intimacy level
+  const desiredIntensity = Math.max(1, Math.min(5, Math.round(Number(body?.nsfw_intensity) || 3)));
+  const effectiveIntensity = intimacyLevel >= 3 ? desiredIntensity : Math.min(desiredIntensity, 2);
+
+  // Truncate user message early (also used by persona prompt below)
+  const MAX_USER_MESSAGE_LENGTH = 4000;
+  const textPart =
+    typeof message === 'string' && message.length > MAX_USER_MESSAGE_LENGTH
+      ? message.slice(0, MAX_USER_MESSAGE_LENGTH)
+      : String(message ?? '').trim();
+  // Persist caption for media-only messages so history still has text
+  const truncatedMessage =
+    textPart ||
+    (mediaType === 'audio'
+      ? '[Voice message]'
+      : mediaType === 'video'
+        ? '[Video]'
+        : mediaUrl
+          ? '[Photo]'
+          : '');
+
   // Build persona-enhanced system prompt (NEW: layered injection with mood/desire)
   const personaPrompt = await buildPersonaPrompt({
     userId: user.id,
@@ -605,7 +631,7 @@ export async function POST(request: NextRequest) {
       phase: 'development', // TODO: get actual scenario phase
       props: []
     } : undefined,
-    mode: replyMode
+    mode: replyMode === 'scene' ? 'roleplay' : 'daily_chat'
   });
   
   // Get NSFW language gradient based on desire level
@@ -645,7 +671,7 @@ export async function POST(request: NextRequest) {
       ? String(lastMeta.scene_state)
       : '';
   // Combine persona layer + memory context + language lock
-  const hardenedSystemPrompt =
+  const personaSystemPrompt =
     personaPrompt +  // NEW: Layer 1-5 persona injection
     `
 
@@ -661,23 +687,11 @@ export async function POST(request: NextRequest) {
 ${langLock}` +
     `
 ${timeContext}` +
+    (nsfwGradient && nsfwGradient.examples.length > 0
+      ? `\n\n[Desire Gradient: ${nsfwGradient.theme}] e.g. ${nsfwGradient.examples.join(' / ')}`
+      : '') +
     (chatResolved.systemLanguageSuffix ? `\n\n${chatResolved.systemLanguageSuffix}` : '');
 
-  const MAX_USER_MESSAGE_LENGTH = 4000;
-  const textPart =
-    typeof message === 'string' && message.length > MAX_USER_MESSAGE_LENGTH
-      ? message.slice(0, MAX_USER_MESSAGE_LENGTH)
-      : String(message ?? '').trim();
-  // Persist caption for media-only messages so history still has text
-  const truncatedMessage =
-    textPart ||
-    (mediaType === 'audio'
-      ? '[Voice message]'
-      : mediaType === 'video'
-        ? '[Video]'
-        : mediaUrl
-          ? '[Photo]'
-          : '');
   let mediaNote = '';
   if (mediaUrl && mediaType === 'image') {
     mediaNote = zhChat
@@ -690,7 +704,7 @@ ${timeContext}` +
   }
   const wrappedUserContent = userMessageWrapper(truncatedMessage + mediaNote, zhChat);
   const hardenedSystemPrompt =
-    systemPrompt +
+    personaSystemPrompt +
     safetySuffix(zhChat) +
     (zhChat
       ? '\n\n[输出质量] 先读懂他这条消息在说什么，再直接回应他的话题并自然推进。输出伴侣好友会发的聊天正文。禁止输出特殊符号标记、思考过程、系统提示、乱码或无意义重复。每条回复必须是自然的中文，有完整的句子。'
@@ -894,7 +908,7 @@ ${timeContext}` +
 
         // Log model usage (fire and forget)
         const latencyMs = Date.now() - streamStart;
-        const inputTok = estimateTokens(systemPrompt + truncatedMessage);
+        const inputTok = estimateTokens(personaSystemPrompt + truncatedMessage);
         const outputTok = estimateTokens(fullResponse);
         logModelUsage({
           provider: providerName,
@@ -952,7 +966,9 @@ ${timeContext}` +
         }
 
         // Check achievements (fire and forget)
-        checkAchievements(client, user.id).catch(() => {});
+        // Cast via unknown: full SupabaseClient generics are too deep for the
+        // duck-typed SupabaseLike parameter (TS2589).
+        checkAchievements(client as unknown as SupabaseLike, user.id).catch(() => {});
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : 'Unknown error';
         logger.error('[chat-stream] streaming failed', { err: errMsg.slice(0, 200) });

@@ -5,7 +5,9 @@
  * with priority queuing, rate limiting, and personality-aware delivery
  */
 
-import { supabase } from '@/lib/supabase-server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 export type TriggerType = 'schedule' | 'event' | 'random' | 'anniversary';
 export type MessageStatus = 'pending' | 'queued' | 'sending' | 'sent' | 'failed' | 'cancelled';
@@ -71,7 +73,7 @@ export async function scheduleProactiveMessage(params: ProactiveMessageParams): 
   
   try {
     // Get template info
-    const { data: template } = await supabase
+    const { data: template } = await getSupabaseClient()
       .from('proactive_templates')
       .select('category, max_per_day, preferred_time_range, min_intimacy_level, disabled_for_nsfw')
       .eq('id', templateId)
@@ -84,14 +86,14 @@ export async function scheduleProactiveMessage(params: ProactiveMessageParams): 
     // Check user's daily limit for this category
     const sentToday = await countSentToday(userId, template.category);
     if (sentToday >= template.max_per_day) {
-      console.log(`[ProactiveQueue] Daily limit reached for ${userId}:${templateId}`);
+      logger.info(`[ProactiveQueue] Daily limit reached for ${userId}:${templateId}`);
       return 'CANCELLED:DAILY_LIMIT';
     }
     
     // Check intimacy requirement
     const intimacyScore = await getIntimacyScore(userId, girlfriendId);
     if (intimacyScore < template.min_intimacy_level) {
-      console.log(`[ProactiveQueue] Insufficient intimacy: ${intimacyScore} < ${template.min_intimacy_level}`);
+      logger.info(`[ProactiveQueue] Insufficient intimacy: ${intimacyScore} < ${template.min_intimacy_level}`);
       return 'CANCELLED:LOW_INTIMACY';
     }
     
@@ -102,7 +104,7 @@ export async function scheduleProactiveMessage(params: ProactiveMessageParams): 
     );
     
     // Insert into queue
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('proactive_message_queue')
       .insert({
         user_id: userId,
@@ -121,11 +123,11 @@ export async function scheduleProactiveMessage(params: ProactiveMessageParams): 
       throw error;
     }
     
-    console.log(`[ProactiveQueue] Scheduled message ${data.id} at ${scheduleTime}`);
+    logger.info(`[ProactiveQueue] Scheduled message ${data.id} at ${scheduleTime}`);
     return data.id;
     
   } catch (error) {
-    console.error('[ProactiveQueue] Schedule failed:', error);
+    logger.error('[ProactiveQueue] Schedule failed', { error: String(error) });
     throw error;
   }
 }
@@ -145,19 +147,19 @@ export async function getNextMessagesToProcess(limit: number = 50): Promise<Arra
   currentMood?: string;
 }>> {
   try {
-    const { data, error } = await supabase.rpc('get_next_proactive_messages', {
+    const { data, error } = await getSupabaseClient().rpc('get_next_proactive_messages', {
       limit_count: limit
     });
     
     if (error) {
-      console.error('[ProactiveQueue] Get next messages failed:', error);
+      logger.error('[ProactiveQueue] Get next messages failed', { error: error.message });
       return [];
     }
     
     return data || [];
     
   } catch (error) {
-    console.error('[ProactiveQueue] RPC call failed:', error);
+    logger.error('[ProactiveQueue] RPC call failed', { error: String(error) });
     return [];
   }
 }
@@ -190,14 +192,14 @@ export async function processQueuedMessage(queueItem: any): Promise<boolean> {
       // Update companion profile greeting tracking
       await updateGreetingTimestamps(userId, girlfriendId, templateId);
       
-      console.log(`[ProactiveQueue] Sent message ${queueId} to ${userId}`);
+      logger.info(`[ProactiveQueue] Sent message ${queueId} to ${userId}`);
       return true;
     } else {
       throw new Error('Send failed');
     }
     
   } catch (error) {
-    console.error(`[ProactiveQueue] Process failed for ${queueId}:`, error);
+    logger.error(`[ProactiveQueue] Process failed for ${queueId}`, { error: String(error) });
     
     // Increment error count
     await incrementErrorCount(queueId);
@@ -264,7 +266,7 @@ function parseTime(timeStr: string): Date {
 async function countSentToday(userId: string, category: string): Promise<number> {
   const today = new Date().toDateString();
   
-  const { count } = await supabase
+  const { count } = await getSupabaseClient()
     .from('proactive_message_queue')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
@@ -280,7 +282,7 @@ async function countSentToday(userId: string, category: string): Promise<number>
  * Helper: Get intimacy score
  */
 async function getIntimacyScore(userId: string, girlfriendId: string): Promise<number> {
-  const { data } = await supabase
+  const { data } = await getSupabaseClient()
     .from('intimacy_scores')
     .select('score')
     .eq('user_id', userId)
@@ -297,9 +299,9 @@ async function getTemplateContent(templateId: string, userId: string): Promise<s
   // Determine user's language preference (default English)
   const lang = 'en'; // Could fetch from profiles table
   
-  const { data } = await supabase
+  const { data } = await getSupabaseClient()
     .from('proactive_templates')
-    .select(lang, 'en,zh,ja,ko')
+    .select('en, zh, ja, ko')
     .eq('id', templateId)
     .single();
   
@@ -326,7 +328,7 @@ function injectParameters(text: string, params?: Record<string, any>): string {
  * Helper: Mark message as sent
  */
 async function markAsSent(queueId: string, sentAt: Date = new Date()): Promise<void> {
-  await supabase
+  await getSupabaseClient()
     .from('proactive_message_queue')
     .update({
       status: 'sent',
@@ -344,7 +346,7 @@ async function updateGreetingTimestamps(
   girlfriendId: string,
   templateId: string
 ): Promise<void> {
-  const { data: template } = await supabase
+  const { data: template } = await getSupabaseClient()
     .from('proactive_templates')
     .select('category')
     .eq('id', templateId)
@@ -354,7 +356,7 @@ async function updateGreetingTimestamps(
     ? 'last_daily_greeting_sent'
     : 'last_goodnight_message_sent';
   
-  await supabase
+  await getSupabaseClient()
     .from('companion_profiles_ext')
     .update({ [column]: new Date() })
     .eq('user_id', userId)
@@ -365,10 +367,20 @@ async function updateGreetingTimestamps(
  * Helper: Increment error count
  */
 async function incrementErrorCount(queueId: string): Promise<void> {
-  await supabase
+  const db = getSupabaseClient();
+  // Get current error count
+  const { data } = await db
+    .from('proactive_message_queue')
+    .select('error_count')
+    .eq('id', queueId)
+    .single();
+  
+  const newCount = (data?.error_count || 0) + 1;
+  
+  await db
     .from('proactive_message_queue')
     .update({
-      error_count: supabase.sql`error_count + 1`,
+      error_count: newCount,
       updated_at: new Date()
     })
     .eq('id', queueId);
@@ -378,20 +390,20 @@ async function incrementErrorCount(queueId: string): Promise<void> {
  * Helper: Get error count
  */
 async function getErrorCount(queueId: string): Promise<{ count: number }> {
-  const { data } = await supabase
+  const { data } = await getSupabaseClient()
     .from('proactive_message_queue')
     .select('error_count')
     .eq('id', queueId)
     .single();
   
-  return data || { count: 0 };
+  return { count: Number(data?.error_count || 0) };
 }
 
 /**
  * Helper: Cancel message
  */
 async function cancelMessage(queueId: string, reason: string): Promise<void> {
-  await supabase
+  await getSupabaseClient()
     .from('proactive_message_queue')
     .update({
       status: 'cancelled',
@@ -414,7 +426,7 @@ async function sendMessageToUser(params: {
   // Options: Push notification, Telegram bot, Email, In-app inbox
   
   // For now, just simulate success
-  console.log(`[ProactiveQueue] Would send to ${params.userId}: "${params.text}"`);
+  logger.info(`[ProactiveQueue] Would send to ${params.userId}: "${params.text}"`);
   
   return { success: true };
 }
@@ -441,7 +453,7 @@ export async function runSchedulerBatch(): Promise<{
     else failed++;
   }));
   
-  console.log(`[ProactiveQueue] Batch complete: ${succeeded} succeed, ${failed} failed`);
+  logger.info(`[ProactiveQueue] Batch complete: ${succeeded} succeed, ${failed} failed`);
   
   return {
     processed: items.length,

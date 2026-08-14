@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (view === 'export') {
-    const lib = await loadModelLibrary(admin.supabase);
+    const lib = await loadModelLibrary();
     const status = sp.get('status'); // queued|wishlist|all
     let items = lib.items;
     if (status && status !== 'all') {
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
   }
 
   // default library
-  const lib = await loadModelLibrary(admin.supabase);
+  const lib = await loadModelLibrary();
   return NextResponse.json({
     library: lib,
     civitai_configured: isCivitaiConfigured(),
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const lib = await loadModelLibrary(admin.supabase);
+    const lib = await loadModelLibrary();
     const action = String(body.action);
 
   if (action === 'add_civitai') {
@@ -243,7 +243,7 @@ export async function POST(req: NextRequest) {
       lib.items.unshift(entry);
     }
 
-    const { source } = await saveModelLibrary(lib, admin.supabase);
+    const { source } = await saveModelLibrary(lib);
     return NextResponse.json({ success: true, source, item: entry, library: lib });
   }
 
@@ -277,7 +277,7 @@ export async function POST(req: NextRequest) {
       updated_at: now,
     };
     lib.items.unshift(entry);
-    const { source } = await saveModelLibrary(lib, admin.supabase);
+    const { source } = await saveModelLibrary(lib);
     return NextResponse.json({ success: true, source, item: entry, library: lib });
   }
 
@@ -308,7 +308,7 @@ export async function POST(req: NextRequest) {
     }
     next.updated_at = new Date().toISOString();
     lib.items[idx] = next;
-    const { source } = await saveModelLibrary(lib, admin.supabase);
+    const { source } = await saveModelLibrary(lib);
     return NextResponse.json({ success: true, source, item: next, library: lib });
   }
 
@@ -316,7 +316,7 @@ export async function POST(req: NextRequest) {
     const id = String(body.id || '');
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     lib.items = lib.items.filter((i) => i.id !== id);
-    const { source } = await saveModelLibrary(lib, admin.supabase);
+    const { source } = await saveModelLibrary(lib);
     return NextResponse.json({ success: true, source, library: lib });
   }
 
@@ -330,12 +330,12 @@ export async function POST(req: NextRequest) {
     lib.items = lib.items.map((i) =>
       set.has(i.id) ? { ...i, status, updated_at: new Date().toISOString() } : i,
     );
-    const { source } = await saveModelLibrary(lib, admin.supabase);
+    const { source } = await saveModelLibrary(lib);
     return NextResponse.json({ success: true, source, library: lib });
   }
 
   if (action === 'sync_installed') {
-    const lib = await loadModelLibrary(admin.supabase);
+    const lib = await loadModelLibrary();
     const installed = getVerifiedInstalledLoraSet();
     if (!installed.size) {
       return NextResponse.json(
@@ -359,7 +359,7 @@ export async function POST(req: NextRequest) {
       }
     }
     lib.updated_at = now;
-    await saveModelLibrary(lib, admin.supabase);
+    await saveModelLibrary(lib);
     return NextResponse.json({
       ok: true,
       updated,
@@ -370,7 +370,7 @@ export async function POST(req: NextRequest) {
 
   if (action === 'import_catalog') {
     // re-seed missing catalog entries
-    const { source } = await saveModelLibrary(lib, admin.supabase);
+    const { source } = await saveModelLibrary(lib);
     return NextResponse.json({ success: true, source, library: lib });
   }
 

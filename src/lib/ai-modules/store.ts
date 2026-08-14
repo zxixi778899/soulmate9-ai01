@@ -5,12 +5,11 @@ import type { AiModulesConfig } from './types';
 import { logger } from '@/lib/logger';
 import type { SiteSettingsClient } from '@/lib/site-settings-client';
 
+let memoryCache: { config: AiModulesConfig; at: number } | null = null;
+const CACHE_MS = 15_000;
 function filePath() {
   return path.join(process.cwd(), 'data', 'ai-modules.json');
 }
-
-let memoryCache: { config: AiModulesConfig; at: number } | null = null;
-const CACHE_MS = 15_000;
 /** Read v1 safely while activating the production-safe v2 routes. */
 function normalizeAiModules(raw: Partial<AiModulesConfig>): AiModulesConfig {
   const defaults = createDefaultAiModules();

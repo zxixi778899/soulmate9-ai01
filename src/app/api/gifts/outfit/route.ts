@@ -5,7 +5,7 @@ import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { getOutfitById, type OutfitCatalogItem } from '@/lib/outfit-catalog';
 import { equipOutfitOnGirlfriend } from '@/lib/wardrobe-equip';
 import { invalidateShop, invalidateGirlfriends } from '@/lib/revalidate';
-import { checkAchievements } from '@/lib/achievement-checker';
+import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -278,7 +278,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     invalidateGirlfriends();
 
     // Re-evaluate achievements (gift / outfit / spend milestones) — fire and forget
-    void checkAchievements(client, user.id);
+    void checkAchievements(client as unknown as SupabaseLike, user.id);
 
     // 10. Return success
     return NextResponse.json({

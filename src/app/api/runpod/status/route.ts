@@ -6,7 +6,7 @@ import { runpodClient } from '@/lib/runpod';
 import { uploadDataUrl, uploadImageBase64, resolveImageUrl } from '@/lib/storage';
 import { normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { logger } from '@/lib/logger';
-import { checkAchievements } from '@/lib/achievement-checker';
+import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 import { CREDIT_COSTS, grantCredits } from '@/lib/credit-system';
 
 /**
@@ -109,7 +109,7 @@ async function handleVideoStatus(
         });
         if (mediaError) logger.warn('[runpod/status] video chat_media insert failed', { err: mediaError.message });
       }
-      void checkAchievements(params.client, params.userId);
+      void checkAchievements(params.client as unknown as SupabaseLike, params.userId);
     }
     return NextResponse.json({ status: 'COMPLETED', video_url: videoUrl, job_id: params.jobId });
   }
@@ -350,7 +350,7 @@ export async function GET(req: NextRequest) {
           logger.warn('[runpod/status] chat persist failed', { error: e });
         }
         // Re-evaluate achievements (image milestones) — fire and forget
-        void checkAchievements(client, user.id);
+        void checkAchievements(client as unknown as SupabaseLike, user.id);
       }
 
       return NextResponse.json({

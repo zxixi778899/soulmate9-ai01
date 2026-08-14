@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
   if (admin.error) return admin.error;
 
   try {
-    const config = await loadAiModules(admin.supabase);
+    const config = await loadAiModules(); // Use default cache/file path, ignore unused param
     const { searchParams } = new URL(request.url);
 
         const payload: Record<string, unknown> = {
@@ -128,7 +128,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const current = await loadAiModules(admin.supabase);
+    const current = await loadAiModules(); // Use default cache/file path
 
     let next: AiModulesConfig;
     if (body.replace && body.config) {
@@ -215,7 +215,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const { source } = await saveAiModules(next, admin.supabase);
+    const { source } = await saveAiModules(next); // Use default file path
     invalidateAiModulesCache();
 
     return NextResponse.json({ success: true, source, config: next, env: buildEnvStatus(next) });
@@ -244,13 +244,13 @@ export async function POST(request: NextRequest) {
 
     if (action === 'reset') {
       const defaults = createDefaultAiModules();
-      const { source } = await saveAiModules(defaults, admin.supabase);
+      const { source } = await saveAiModules(defaults); // Use default file path
       invalidateAiModulesCache();
       return NextResponse.json({ success: true, action: 'reset', source, config: defaults });
     }
 
     if (action === 'seed_models') {
-      const config = await loadAiModules(admin.supabase);
+      const config = await loadAiModules(); // Use default cache/file path
       const rows = config.endpoints
         .filter((e) => e.provider !== 'runpod' || e.model_id.includes('llama') || e.max_tokens > 0)
         .map((e, i) => ({

@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
   if (admin.error) return admin.error;
 
   try {
-    const client = getSupabaseClient();
-    const config = await loadStylePreviews(client);
+    // Use admin.supabase but cast to avoid SiteSettingsClient type depth
+    const config = await loadStylePreviews(admin.supabase as any);
     return NextResponse.json({ previews: config });
   } catch (e) {
     return NextResponse.json(
@@ -50,7 +50,6 @@ export async function POST(request: NextRequest) {
 
   try {
     const contentType = request.headers.get('content-type') || '';
-    const client = getSupabaseClient();
     let style = '';
     let url = '';
 
@@ -97,6 +96,8 @@ export async function POST(request: NextRequest) {
       url = result.url;
     }
 
+    // Use admin.supabase but cast to avoid SiteSettingsClient type depth
+    const client = admin.supabase as any;
     const previews = await saveStylePreviews({ [style]: url }, client);
     invalidateStylePreviewsCache();
 

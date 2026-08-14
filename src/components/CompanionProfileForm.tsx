@@ -27,7 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { X, Save, RefreshCw, Eye, EyeOff, Heart, Flame, Sparkles, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase-server';
+import { createBrowserClient } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 
 interface Girlfriend {
   id: string;
@@ -40,6 +41,7 @@ interface Girlfriend {
 }
 
 interface CompanionProfileExt {
+  id: string;
   current_mood: string;
   desire_level: number;
   user_profile?: Record<string, any>;
@@ -155,6 +157,8 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
   }, [girlfriendId]);
 
   async function loadData() {
+    const supabase = createBrowserClient();
+    if (!supabase) return;
     setLoading(true);
     try {
       // Load girlfriend basic data
@@ -188,7 +192,7 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
       }
       
     } catch (error) {
-      console.error('[CompanionProfileForm] Load failed:', error);
+      logger.warn('[CompanionProfileForm] Load failed', { error: String(error) });
       toast.error('加载数据失败，请重试');
     } finally {
       setLoading(false);
@@ -196,6 +200,8 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
   }
 
   async function handleSave() {
+    const supabase = createBrowserClient();
+    if (!supabase) return;
     setSaving(true);
     try {
       // Update girlfriend table
@@ -230,7 +236,7 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
       await loadData();
       
     } catch (error) {
-      console.error('[CompanionProfileForm] Save failed:', error);
+      logger.warn('[CompanionProfileForm] Save failed', { error: String(error) });
       toast.error('保存失败，请重试');
     } finally {
       setSaving(false);

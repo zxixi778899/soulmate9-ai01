@@ -467,7 +467,7 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(12);
 
-  const cfg = await loadComfyConfig(admin.supabase);
+  const cfg = await loadComfyConfig();
   let installed: string[] = [];
   try {
     installed = [...getVerifiedInstalledLoraSet()].sort();
@@ -578,7 +578,7 @@ export async function POST(req: NextRequest) {
     if (!cjkMatches || cjkMatches.length < 2) return null;
     const channel: 'sfw' | 'nsfw' = intensity >= 3 ? 'nsfw' : 'sfw';
     try {
-      const aiModules = await loadAiModules(admin.supabase);
+      const aiModules = await loadAiModules();
       const picked = pickImagePromptEndpoint(aiModules, channel);
       if (!picked.primary) return null;
       const boundary =
@@ -680,7 +680,7 @@ export async function POST(req: NextRequest) {
     const intensity = Math.max(1, Math.min(5, Math.round(Number(body.intensity) || 1)));
     const channel: 'sfw' | 'nsfw' = intensity >= 3 ? 'nsfw' : 'sfw';
     try {
-      const aiModules = await loadAiModules(admin.supabase);
+      const aiModules = await loadAiModules();
       const picked = pickImagePromptEndpoint(aiModules, channel);
       if (!picked.primary) {
         return NextResponse.json({ error: '未配置提示词优化 LLM 端点' }, { status: 503 });
@@ -811,7 +811,7 @@ export async function POST(req: NextRequest) {
       } else {
         // flux 引擎
         endpointId = String(body.endpoint_id || comfyEndpoint());
-        const cfg = await loadComfyConfig(admin.supabase);
+        const cfg = await loadComfyConfig();
         let prompt = String(merged.prompt || '').trim();
         if (!prompt) {
           return NextResponse.json({ error: '提示词不能为空' }, { status: 400 });

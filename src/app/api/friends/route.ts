@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { assertCanAddCompanion } from '@/lib/companion-seats';
+import { assertCanAddCompanion, type SeatClient } from '@/lib/companion-seats';
 import { logger } from '@/lib/logger';
-import { checkAchievements } from '@/lib/achievement-checker';
+import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 
 /**
  * GET /api/friends — 获取好友列表（JOIN girlfriends 取详情）
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 席位检查
-  const seatCheck = await assertCanAddCompanion(client, user.id);
+  const seatCheck = await assertCanAddCompanion(client as unknown as SeatClient, user.id);
   if (!seatCheck.ok) {
     return NextResponse.json(
       { error: seatCheck.error, code: seatCheck.code, seats: seatCheck.seats },
@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Fire-and-forget: collection achievements (collector_3/5/10/20) unlock here.
-  checkAchievements(client, user.id).catch(() => {});
+  checkAchievements(client as unknown as SupabaseLike, user.id).catch(() => {});
 
   return NextResponse.json({ friend: { ...publicGf, friend_source: 'public' }, alreadyFriend: false });
 }

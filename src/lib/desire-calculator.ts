@@ -10,7 +10,8 @@
  * This creates a fluctuating "desire meter" that influences NSFW language gradients
  */
 
-import { supabase } from '@/lib/supabase-server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface DesireLevelResult {
   level: number;           // Current desire level (0-100)
@@ -34,6 +35,7 @@ interface CalculateInput {
     isNewChat?: boolean;
     hoursSinceLastInteraction?: number;
   };
+  client?: SupabaseClient; // Optional injected client for testing
 }
 
 // Openness multipliers for desire changes
@@ -57,10 +59,12 @@ const SENTIMENT_IMPACTS = {
  * Main calculation function
  */
 export async function calculateDesireLevel(input: CalculateInput): Promise<DesireLevelResult> {
-  const { userId, girlfriendId, topicSentiment, messageType = 'chat', context } = input;
+  const { userId, girlfriendId, topicSentiment, messageType = 'chat', context, client } = input;
+  
+  const db = client || getSupabaseClient();
   
   // Get current state from database
-  const currentState = await getCurrentCompanionState(userId, girlfriendId);
+  const currentState = await getCurrentCompanionState(userId, girlfriendId, db);
   
   // Calculate base delta from topic sentiment
   let delta = calculateSentimentImpact(topicSentiment);
@@ -92,7 +96,8 @@ export async function calculateDesireLevel(input: CalculateInput): Promise<Desir
     newLevel,
     trend,
     delta,
-    timestamp: new Date()
+    timestamp: new Date(),
+    db
   }).catch(err => {
     console.warn('[DesireCalculator] Persist failed:', err);
   });
@@ -113,10 +118,10 @@ export async function calculateDesireLevel(input: CalculateInput): Promise<Desir
 /**
  * Helper: Get current state from database
  */
-async function getCurrentCompanionState(userId: string, girlfriendId: string) {
+async function getCurrentCompanionState(userId: string, girlfriendId: string, db: SupabaseClient) {
   try {
     // First query companion profile extension
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await db
       .from('companion_profiles_ext')
       .select('desire_level, current_mood, mood_updated_at, girlfriend_id')
       .eq('user_id', userId)
@@ -128,7 +133,7 @@ async function getCurrentCompanionState(userId: string, girlfriendId: string) {
     }
     
     // Get girlfriend basic data for openness field
-    const { data: gfData } = await supabase
+    const { data: gfData } = await db
       .from('girlfriends')
       .select('id, openness')
       .eq('id', girlfriendId)
@@ -246,11 +251,12 @@ async function persistDesireState(params: {
   trend: 'up' | 'down' | 'stable';
   delta: number;
   timestamp: Date;
+  db: SupabaseClient;
 }): Promise<void> {
-  const { userId, girlfriendId, newLevel, trend, timestamp } = params;
+  const { userId, girlfriendId, newLevel, trend, timestamp, db } = params;
   
   try {
-    await supabase
+    await db
       .from('companion_profiles_ext')
       .update({
         desire_level: Math.round(newLevel),

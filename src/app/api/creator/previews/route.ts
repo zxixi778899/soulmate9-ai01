@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const client = getSupabaseClient();
-    const config = await loadCreatorPreviews(client);
+    const config = await loadCreatorPreviews(client as any);
 
     const previews = config.previews
       .filter((p) => p.is_active)

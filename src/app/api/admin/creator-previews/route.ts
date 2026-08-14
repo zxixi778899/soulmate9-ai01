@@ -16,12 +16,12 @@ export const dynamic = 'force-dynamic';
 
 // GET /api/admin/creator-previews — list all 9 preview slots (resolved URLs)
 export async function GET(request: NextRequest) {
-  const adminCheck = await requireAdmin(request, 'admin');
-  if (adminCheck.error) return adminCheck.error;
+  const admin = await requireAdmin(request, 'admin');
+  if (admin.error) return admin.error;
 
   try {
-    const client = getSupabaseClient();
-    const config = await loadCreatorPreviews(client);
+    // Use admin.supabase but cast to avoid SiteSettingsClient type depth
+    const config = await loadCreatorPreviews(admin.supabase as any);
 
     const previews = await Promise.all(
       config.previews
@@ -44,8 +44,8 @@ export async function GET(request: NextRequest) {
 
 // PUT /api/admin/creator-previews — update one slot { gender, visual_style, thumbnail_url?, is_active? }
 export async function PUT(request: NextRequest) {
-  const adminCheck = await requireAdmin(request, 'admin');
-  if (adminCheck.error) return adminCheck.error;
+  const admin = await requireAdmin(request, 'admin');
+  if (admin.error) return admin.error;
 
   try {
     const body = await request.json();
@@ -70,8 +70,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const client = getSupabaseClient();
-    const config = await loadCreatorPreviews(client);
+    // Use admin.supabase but cast to avoid SiteSettingsClient type depth
+    const config = await loadCreatorPreviews(admin.supabase as any);
 
     const idx = config.previews.findIndex(
       (p) => p.gender === gender && p.visual_style === visual_style,
@@ -87,7 +87,7 @@ export async function PUT(request: NextRequest) {
       config.previews[idx].is_active = Boolean(is_active);
     }
 
-    await saveCreatorPreviews(config, client);
+    await saveCreatorPreviews(config, admin.supabase as any);
     invalidateCreatorPreviewsCache();
 
     return NextResponse.json({ preview: config.previews[idx] });

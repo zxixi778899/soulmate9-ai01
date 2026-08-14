@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     const scene = parseScene(body.scene);
-    const aiModules = await loadAiModules(client);
+    const aiModules = await loadAiModules();
 
     const profile = await loadQuotaProfile(client, user.id);
     const tier = membershipFromProfile(profile);

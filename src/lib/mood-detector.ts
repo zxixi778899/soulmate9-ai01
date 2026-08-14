@@ -10,7 +10,9 @@
  * Returns mood for system prompt injection and proactive message timing
  */
 
-import { supabase } from '@/lib/supabase-server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 export type CompanionMood = 'neutral' | 'happy' | 'sad' | 'jealous' | 'flirty' | 'nostalgic' | 'angry' | 'thinking';
 
@@ -18,11 +20,12 @@ interface MoodDetectionResult {
   currentMood: CompanionMood;
   confidence: number;         // 0-1, how confident we are
   reason: string;             // Why this mood?
-  suggestedResponseStyle?: string;
+  suggestedResponseStyle?: string[];
 }
 
-// Personality × Desire level → likely mood matrix
-const MOOD_PREDICTION_MATRIX: Record<string, Record<number, CompanionMood>> = {
+// Personality × Desire level → likely mood matrix (custom moods, mapped to
+// the standard CompanionMood set via mapToStandardMood below)
+const MOOD_PREDICTION_MATRIX: Record<string, Record<number, string>> = {
   // Tsundere: High desire = denial + hints, Low desire = distant
   tsundere: {
     0: 'distant',
@@ -77,32 +80,32 @@ const MOOD_RESPONSE_STYLES: Record<CompanionMood, string[]> = {
   neutral: [
     'What do you think about this?',
     'Tell me more about that',
-    'I''m listening...'
+    "I'm listening..."
   ],
   happy: [
     'That made my day! 😊',
-    'So glad we''re talking!',
+    "So glad we're talking!",
     'This is perfect~'
   ],
   sad: [
     '...',
     '(quietly nods)',
-    'It''s okay to not be okay...'
+    "It's okay to not be okay..."
   ],
   jealous: [
     'Who was that with you?',
-    '...you''re smiling at someone else again?',
+    "...you're smiling at someone else again?",
     'Do I need to worry about them?'
   ],
   flirty: [
     'Mmm... interesting...',
     'Keep going...',
-    'You''re making me blush~'
+    "You're making me blush~"
   ],
   nostalgic: [
     'Remember when we...?',
     'That moment meant a lot to me',
-    'Time flies when I''m with you'
+    "Time flies when I'm with you"
   ],
   angry: [
     'Why would you say that?',
@@ -112,7 +115,7 @@ const MOOD_RESPONSE_STYLES: Record<CompanionMood, string[]> = {
   thinking: [
     'Hmm...',
     'Let me think...',
-    'That''s an interesting question'
+    "That's an interesting question"
   ]
 };
 
@@ -125,20 +128,23 @@ export async function detectCompanionMood(params: {
   desireLevel: number;
   recentMessages?: Array<{ role: 'user' | 'assistant'; content: string }>;
   recentMemories?: Array<{ event_type: string; summary: string; importance: number }>;
+  client?: SupabaseClient;
 }): Promise<MoodDetectionResult> {
-  const { userId, girlfriendId, desireLevel, recentMessages, recentMemories } = params;
+  const { userId, girlfriendId, desireLevel, recentMessages, recentMemories, client } = params;
+  
+  const db = client || getSupabaseClient();
   
   // Get companion personality data
-  const personalityData = await getPersonalityData(girlfriendId);
+  const personalityData = await getPersonalityData(girlfriendId, db);
   
   // 1. Check for strong mood triggers in recent messages
   const messageTrigger = analyzeMessageTriggers(recentMessages || []);
   if (messageTrigger) {
     return {
-      currentMood: messageTrigger.mood,
+      currentMood: messageTrigger.currentMood,
       confidence: messageTrigger.confidence,
       reason: messageTrigger.reason,
-      suggestedResponseStyle: getSuggestedResponse(messageTrigger.mood, personalityData.relationshipStyle)
+      suggestedResponseStyle: getSuggestedResponse(messageTrigger.currentMood, personalityData.relationshipStyle)
     };
   }
   
@@ -146,10 +152,10 @@ export async function detectCompanionMood(params: {
   const memoryTrigger = analyzeMemoryTriggers(recentMemories || [], desireLevel);
   if (memoryTrigger) {
     return {
-      currentMood: memoryTrigger.mood,
+      currentMood: memoryTrigger.currentMood,
       confidence: memoryTrigger.confidence,
       reason: memoryTrigger.reason,
-      suggestedResponseStyle: getSuggestedResponse(memoryTrigger.mood, personalityData.relationshipStyle)
+      suggestedResponseStyle: getSuggestedResponse(memoryTrigger.currentMood, personalityData.relationshipStyle)
     };
   }
   
@@ -167,9 +173,9 @@ export async function detectCompanionMood(params: {
 /**
  * Helper: Get personality data from database
  */
-async function getPersonalityData(girlfriendId: string) {
+async function getPersonalityData(girlfriendId: string, db: SupabaseClient) {
   try {
-    const { data } = await supabase
+    const { data } = await db
       .from('girlfriends')
       .select('personality_traits, relationship_style, openness')
       .eq('id', girlfriendId)
@@ -181,7 +187,7 @@ async function getPersonalityData(girlfriendId: string) {
       openness: data?.openness || 'moderate'
     };
   } catch (error) {
-    console.error('[MoodDetector] Load personality failed:', error);
+    logger.warn('[MoodDetector] Load personality failed', { error: String(error) });
     return {
       personalityTypes: ['friendly'],
       relationshipStyle: 'direct',
@@ -360,7 +366,7 @@ function mapToStandardMood(customMood: string): CompanionMood {
 /**
  * Helper: Get suggested response style for mood + personality
  */
-function getSuggestedResponse(mood: CompanionMood, relationshipStyle?: string): string {
+function getSuggestedResponse(mood: CompanionMood, relationshipStyle?: string): string[] {
   const baseStyles = MOOD_RESPONSE_STYLES[mood] || MOOD_RESPONSE_STYLES.neutral;
   
   // Customize based on personality

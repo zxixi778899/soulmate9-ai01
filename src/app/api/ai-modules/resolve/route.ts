@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   const auth = await getAuthUser(request).catch(() => null);
-  const config = await loadAiModules(auth?.client || undefined);
+  const config = await loadAiModules();
 
   try {
     const body = await request.json();

@@ -11,10 +11,12 @@
  * This is the core engine for "千人千面" companion experience
  */
 
-import { supabase } from '@/lib/supabase-server';
-import { recallRecentMemories } from '@/lib/milestone-retriever';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { retrieveMilestones } from '@/lib/milestone-retriever';
 import { detectCompanionMood, buildMoodContext } from '@/lib/mood-detector';
 import { calculateDesireLevel } from '@/lib/desire-calculator';
+import { logger } from '@/lib/logger';
 
 interface BuildPromptInput {
   userId: string;
@@ -26,6 +28,7 @@ interface BuildPromptInput {
     props?: string[];
   };
   mode?: 'daily_chat' | 'roleplay' | 'voice_call' | 'fantasy';
+  client?: SupabaseClient;
 }
 
 interface PersonaPromptLayers {
@@ -193,14 +196,16 @@ const PERSONA_TEMPLATES = {
  * Main build function
  */
 export async function buildPersonaPrompt(input: BuildPromptInput): Promise<string> {
-  const { userId, girlfriendId, currentMessage, scenarioState, mode = 'daily_chat' } = input;
+  const { userId, girlfriendId, currentMessage, scenarioState, mode = 'daily_chat', client } = input;
+  
+  const db = client || getSupabaseClient();
   
   // Step 1: Load all data in parallel
   const [girlfriendData, intimacyScore, moodResult, memories] = await Promise.all([
-    getGirlfriendDetail(girlfriendId),
-    getIntimacyStatus(userId, girlfriendId),
-    detectMoodAndDesire(userId, girlfriendId),
-    recallTopMemories(userId, girlfriendId)
+    getGirlfriendDetail(girlfriendId, db),
+    getIntimacyStatus(userId, girlfriendId, db),
+    detectMoodAndDesire(userId, girlfriendId, db),
+    recallTopMemories(userId, girlfriendId, db)
   ]);
   
   // Step 2: Build each layer
@@ -245,7 +250,7 @@ function buildBasePersona(girlfriendData: any): string {
 function buildRelationshipContext(intimacyData: {
   score: number;
   level: number;
-  stageTitle: string;
+  stageTitle?: string;
 }): string {
   const { score, level, stageTitle } = intimacyData;
   
@@ -265,12 +270,47 @@ Lv.4-5: 深度情感交流，完全坦诚`;
 }
 
 /**
+ * Helper: Get girlfriend detail from database
+ */
+async function getGirlfriendDetail(girlfriendId: string, db: SupabaseClient): Promise<any> {
+  try {
+    const { data } = await db
+      .from('girlfriends')
+      .select('*')
+      .eq('id', girlfriendId)
+      .single();
+    return data;
+  } catch (error) {
+    logger.warn('[PromptBuilder] Get girlfriend detail failed', { error: String(error) });
+    return null;
+  }
+}
+
+/**
+ * Helper: Get intimacy status
+ */
+async function getIntimacyStatus(userId: string, girlfriendId: string, db: SupabaseClient) {
+  try {
+    const { data } = await db
+      .from('intimacy_scores')
+      .select('score, level')
+      .eq('user_id', userId)
+      .eq('girlfriend_id', girlfriendId)
+      .single();
+    return data || { score: 0, level: 1 };
+  } catch (error) {
+    logger.warn('[PromptBuilder] Get intimacy failed', { error: String(error) });
+    return { score: 0, level: 1 };
+  }
+}
+
+/**
  * Layer 3: Build dynamic emotional state
  */
-async function detectMoodAndDesire(userId: string, girlfriendId: string) {
+async function detectMoodAndDesire(userId: string, girlfriendId: string, db: SupabaseClient) {
   try {
     // Get current desire level
-    const { data: profileData } = await supabase
+    const { data: profileData } = await db
       .from('companion_profiles_ext')
       .select('desire_level, current_mood')
       .eq('user_id', userId)
@@ -296,13 +336,13 @@ async function detectMoodAndDesire(userId: string, girlfriendId: string) {
       suggestedStyle: moodResult.suggestedResponseStyle
     };
   } catch (error) {
-    console.warn('[PromptBuilder] Mood detection failed:', error);
+    logger.warn('[PromptBuilder] Mood detection failed', { error: String(error) });
     return {
       desireLevel: 50,
       currentMood: 'neutral',
       moodConfidence: 0.5,
       moodReason: 'default_fallback',
-      suggestedStyle: null
+      suggestedStyle: undefined
     };
   }
 }
@@ -321,7 +361,7 @@ function buildDynamicState(
   scenarioState?: BuildPromptInput['scenarioState'],
   girlfriendData?: any
 ): string {
-  const { desireLevel, currentMood, moodReason, suggestedStyle } = moodAndDesire;
+  const { desireLevel, currentMood, moodConfidence, moodReason, suggestedStyle } = moodAndDesire;
   
   let state = `【实时情感状态】
 - 当前心情：${currentMood} (置信度：${Math.round(moodConfidence * 100)}%)
@@ -365,10 +405,16 @@ function buildDynamicState(
 /**
  * Layer 4: Build memory flashbacks
  */
-async function recallTopMemories(userId: string, girlfriendId: string) {
+async function recallTopMemories(userId: string, girlfriendId: string, db: SupabaseClient) {
   try {
-    const result = await recallRecentMemories(userId, girlfriendId, { limit: 3 });
-    return result.memories || [];
+    // Use retrieveMilestones to get recent memory flashbacks
+    const memories = await retrieveMilestones(db, userId, girlfriendId, '', 3);
+    return memories.map(m => ({
+      event_type: 'milestone',
+      summary: m.recall_text,
+      date: '',
+      importance: m.relevance_score
+    }));
   } catch (error) {
     console.warn('[PromptBuilder] Memory recall failed:', error);
     return [];
@@ -479,7 +525,7 @@ export function getPartnerTitle(intimacyLevel: number, relationshipStyle?: strin
     tsundere: ['那个家伙', '某人', '笨蛋', '特别的你']
   };
   
-  const options = styles[relationshipStyle] || styles.direct;
+  const options = styles[relationshipStyle ?? 'direct'] || styles.direct;
   const titlesByLevel = [
     ['初次见面', '嗨'],  // Lv.1
     ['有趣的你', '嘿'],  // Lv.2

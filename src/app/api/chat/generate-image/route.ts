@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
       : 'en';
     const zh = locale === 'zh';
 
-    const aiModules = await loadAiModules(client);
+    const aiModules = await loadAiModules();
     const { data: profile } = await client
       .from('profiles')
       .select('membership_tier, subscription_tier, plan, timezone_offset')
@@ -488,7 +488,7 @@ export async function POST(request: NextRequest) {
         if (String(raw).startsWith('http') && !referenceImages.includes(String(raw))) referenceImages.push(String(raw));
       }
     }
-    const referenceConfig = await loadComfyConfig(client);
+    const referenceConfig = await loadComfyConfig();
     const referencePlan = buildReferenceGenerationPlan({
       surface: 'companion',
       category,
