@@ -1,0 +1,23 @@
+{
+  "name": "persona-engine-test-runner",
+  "version": "1.0.0",
+  "description": "Automated testing suite for Persona Engine v2.0 (mood/desire/personality system)",
+  "type": "module",
+  "scripts": {
+    "test:persona": "tsx scripts/test-persona-engine.mjs",
+    "test:persona:verbose": "tsx scripts/test-persona-engine.mjs --verbose",
+    "test:persona:filter=<name>": "tsx scripts/test-persona-engine.mjs --filter '<name>'"
+  },
+  "dependencies": {
+    "@types/node": "^20.x",
+    "vitest": "^1.0.0",
+    "tsx": "^4.0.0"
+  },
+  "keywords": [
+    "ai",
+    "persona",
+    "testing",
+    "automated-tests"
+  ],
+  "license": "MIT"
+}

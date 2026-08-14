@@ -1,0 +1,31 @@
+# ============================================================================
+# SoulMate AI - Development Docker Image
+# ============================================================================
+# Optimized for hot-reload development with Turbopack
+# 
+# Usage:
+#   docker build -t sm9-dev -f Dockerfile.dev .
+#   docker run -p 3000:3000 --env-file .env.local sm9-dev
+# ============================================================================
+
+FROM node:20-alpine
+
+# Install pnpm and necessary tools
+RUN corepack enable && \
+    corepack prepare pnpm@latest --activate
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files first (for layer caching)
+COPY pnpm-lock.yaml package.json ./
+RUN pnpm install --frozen-lockfile || pnpm install
+
+# Copy source code (with volume mount in compose, this is fallback)
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Default command for development
+CMD ["pnpm", "dev"]

@@ -1,0 +1,602 @@
+﻿
+> projects@0.1.0 lint C:\Users\71489\soulmate9
+> eslint
+
+
+C:\Users\71489\soulmate9\public\sw.js
+   2:35  warning  'event' is defined but never used  @typescript-eslint/no-unused-vars
+  13:33  warning  'event' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\scripts\debug-gen.mjs
+  2:10  warning  'createRequire' is defined but never used  @typescript-eslint/no-unused-vars
+  3:10  warning  'pathToFileURL' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\scripts\generate-cards-standalone.ts
+  170:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\scripts\synth-greetings.ts
+  9:10  warning  'buildCompanionGreeting' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\ads\page.tsx
+   54:11  warning  'user' is assigned a value but never used                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+  220:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\ai-hub\page.tsx
+   16:29  warning  'Trash2' is defined but never used        @typescript-eslint/no-unused-vars
+   18:3   warning  'XCircle' is defined but never used       @typescript-eslint/no-unused-vars
+   18:27  warning  'Layers' is defined but never used        @typescript-eslint/no-unused-vars
+  427:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\ai-modules\page.tsx
+   17:50  warning  'CheckCircle2' is defined but never used  @typescript-eslint/no-unused-vars
+   17:70  warning  'Trash2' is defined but never used        @typescript-eslint/no-unused-vars
+   17:78  warning  'Copy' is defined but never used          @typescript-eslint/no-unused-vars
+   21:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  263:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  592:81  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\character-cards\page.tsx
+  16:11  warning  'user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\comfy\ComfyConsole.tsx
+    47:29  warning  'STUDIO_WORKBENCH_STAGES' is defined but never used                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+    59:10  warning  'resolveModelLoraPlan' is defined but never used                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+    74:8   warning  'PipelineStageConfig' is defined but never used                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+    79:27  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   547:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   561:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   580:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   750:6   warning  React Hook useEffect has a missing dependency: 'fillPromptFromGirlfriend'. Either include it or remove the dependency array                                                                                                                                                              react-hooks/exhaustive-deps
+   757:6   warning  React Hook useEffect has missing dependencies: 'batchGirlfriends.length' and 'batchLoading'. Either include them or remove the dependency array                                                                                                                                          react-hooks/exhaustive-deps
+  1105:7   warning  React Hook useMemo has unnecessary dependencies: 'cameraAngle' and 'cameraFraming'. Either exclude them or remove the dependency array                                                                                                                                                   react-hooks/exhaustive-deps
+  1518:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1591:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1606:81  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1690:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1741:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1791:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1846:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1862:65  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2239:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  2308:36  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  3536:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\crypto\page.tsx
+  5:69   warning  'ExternalLink' is defined but never used  @typescript-eslint/no-unused-vars
+  5:106  warning  'Users' is defined but never used         @typescript-eslint/no-unused-vars
+  7:10   warning  'Input' is defined but never used         @typescript-eslint/no-unused-vars
+  9:29   warning  'CardHeader' is defined but never used    @typescript-eslint/no-unused-vars
+  9:41   warning  'CardTitle' is defined but never used     @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\girlfriends\page.tsx
+  14:10  warning  'Badge' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\layout.tsx
+  51:16  warning  'ok' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\lore\page.tsx
+   6:29  warning  'CardHeader' is defined but never used     @typescript-eslint/no-unused-vars
+   6:41  warning  'CardTitle' is defined but never used      @typescript-eslint/no-unused-vars
+  30:11  warning  'user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\model-library\page.tsx
+  26:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\navigation\page.tsx
+  42:14  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+  67:14  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\pages\[id]\page.tsx
+   12:53  warning  'SelectValue' is defined but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+   16:37  warning  'GripVertical' is defined but never used                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+   16:69  warning  'ImageIcon' is defined but never used                                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+   55:14  warning  'e' is defined but never used                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   62:37  warning  React Hook useEffect has a missing dependency: 'fetchPage'. Either include it or remove the dependency array                                                                                                                                                                             react-hooks/exhaustive-deps
+  215:27  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\pages\page.tsx
+   6:29  warning  'CardHeader' is defined but never used  @typescript-eslint/no-unused-vars
+   6:41  warning  'CardTitle' is defined but never used   @typescript-eslint/no-unused-vars
+  42:14  warning  'e' is defined but never used           @typescript-eslint/no-unused-vars
+  65:14  warning  'e' is defined but never used           @typescript-eslint/no-unused-vars
+  79:14  warning  'e' is defined but never used           @typescript-eslint/no-unused-vars
+  92:14  warning  'e' is defined but never used           @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\review\page.tsx
+   51:11  warning  'user' is assigned a value but never used                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+  171:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  283:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\shop\page.tsx
+  22:3  warning  'Flame' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\admin\users\page.tsx
+   64:11  warning  'user' is assigned a value but never used                                                                      @typescript-eslint/no-unused-vars
+  138:6   warning  React Hook useEffect has a missing dependency: 'fetchUsers'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\71489\soulmate9\src\app\(main)\chats\page.tsx
+   146:97  warning  'zh' is defined but never used                                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+   149:12  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   149:41  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   520:11  warning  'zh' is assigned a value but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+   565:11  warning  'zh' is assigned a value but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+   686:60  warning  React Hook useEffect has a missing dependency: 'loadMemories'. Either include it or remove the dependency array                                                                                                                                                                          react-hooks/exhaustive-deps
+   769:11  warning  'waitZh' is assigned a value but never used                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  1436:27  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\(main)\companion\[id]\page.tsx
+  26:15  warning  'AssetCategory' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\create\page.tsx
+   45:25  warning  'getVoiceTimbre' is defined but never used                                                                          @typescript-eslint/no-unused-vars
+  415:6   warning  React Hook useCallback has a missing dependency: 't'. Either include it or remove the dependency array              react-hooks/exhaustive-deps
+  431:6   warning  React Hook useCallback has a missing dependency: 't'. Either include it or remove the dependency array              react-hooks/exhaustive-deps
+  528:6   warning  React Hook useCallback has a missing dependency: 'selectedVoice'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\71489\soulmate9\src\app\(main)\explore\page.tsx
+  11:30  warning  'Sparkles' is defined but never used  @typescript-eslint/no-unused-vars
+  11:53  warning  'Loader2' is defined but never used   @typescript-eslint/no-unused-vars
+  14:10  warning  'GIRLS' is defined but never used     @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\onboarding\page.tsx
+  7:27  warning  'MessageCircle' is defined but never used  @typescript-eslint/no-unused-vars
+  9:10  warning  'APP_NAME' is defined but never used       @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\payment\success\page.tsx
+  4:21  warning  'useSearchParams' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\(main)\purchases\page.tsx
+  42:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\(main)\shop\page.tsx
+  154:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  757:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\(main)\studio\page.tsx
+   4:18  warning  'AnimatePresence' is defined but never used                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+   5:20  warning  'X' is defined but never used                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   5:30  warning  'Droplet' is defined but never used                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   5:50  warning  'Moon' is defined but never used                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+   5:56  warning  'Star' is defined but never used                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+   6:32  warning  'RARITY_COLORS' is defined but never used                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+  12:62  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  80:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  98:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\(main)\summon\page.tsx
+   8:10  warning  'cn' is defined but never used                                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+  50:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\(main)\voice\page.tsx
+   30:58  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  111:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\(main)\wallet\page.tsx
+  102:6  warning  React Hook useCallback has a missing dependency: 't'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\71489\soulmate9\src\app\(main)\wardrobe\page.tsx
+  118:413  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  120:695  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  122:371  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\api\admin\ai-hub\route.ts
+  161:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  215:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\admin\character-cards\route.ts
+  16:27  warning  'profile' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\admin\comfy\route.ts
+  1515:56  warning  Unexpected any. Specify a different type                 @typescript-eslint/no-explicit-any
+  1557:13  warning  'allowManualRouting' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\admin\db-debug\route.ts
+   24:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   67:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   70:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   87:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   99:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  107:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\admin\diag\routing\route.ts
+  14:11  warning  'intensity' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  15:58  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  16:61  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  36:32  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\admin\girlfriends\route.ts
+  865:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\admin\key-debug\route.ts
+  38:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\admin\lore\[id]\route.ts
+  25:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\admin\model-library\route.ts
+  18:8  warning  'ModelLibrary' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\admin\pages\route.ts
+  23:12  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+  41:12  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+  63:12  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+  86:12  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\admin\pregen\route.ts
+  19:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\admin\presets\route.ts
+   61:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   62:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   63:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  111:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  287:72  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\admin\provider-routes\route.ts
+  26:3  warning  'invalidateProviderRoutesCache' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\admin\upload-scenes\route.ts
+   80:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  118:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\admin\voice\generate-greetings\route.ts
+  8:8  warning  'TTSVoiceProfile' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\auth\callback\route.ts
+  42:12  warning  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\auth\google\route.ts
+  18:46  warning  'options' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\chat\[id]\media\route.ts
+  145:11  warning  'id' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\chat\last-messages\route.ts
+  5:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\chat\stream\route.ts
+  216:3   warning  'gfName' is defined but never used          @typescript-eslint/no-unused-vars
+  219:11  warning  'embed' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\chat\unread-count\route.ts
+  16:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\creator\cards\route.ts
+  12:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\cron\re-engagement\route.ts
+  62:11  warning  'DAY14' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\friends\route.ts
+  173:17  warning  'friendRow' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\gifts\outfit\route.ts
+  42:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\girlfriends\[id]\export\route.ts
+  16:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\girlfriends\generate-portrait\route.ts
+  387:40  warning  '_' is defined but never used    @typescript-eslint/no-unused-vars
+  387:43  warning  'idx' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\girlfriends\route.ts
+   19:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  169:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  545:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  551:36  warning  'reqName' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  631:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\intimacy\route.ts
+  1:10  warning  'NextRequest' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\lore\route.ts
+  14:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\membership\route.ts
+    6:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  154:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  179:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\memories\create\route.ts
+  7:34  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\memories\route.ts
+   5:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  41:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\navigation\route.ts
+   1:10  warning  'NextRequest' is defined but never used   @typescript-eslint/no-unused-vars
+  13:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\nexapay\route.ts
+  13:34  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\nexapay\webhook\route.ts
+  3:10  warning  'grantCredits' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\notifications\route.ts
+   9:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  26:40  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  36:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\nowpayments\ipn\route.ts
+  3:10  warning  'grantCredits' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\nowpayments\route.ts
+  19:34  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\onboarding\route.ts
+  14:26  warning  '_req' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\pages\route.ts
+  25:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\proactive\check\route.ts
+  26:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\profile\timezone\route.ts
+  12:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  43:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\purchases\route.ts
+  44:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  54:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\push\subscribe\route.ts
+  16:26  warning  'req' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\scenarios\route.ts
+  153:95  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\shop\v2\credits\route.ts
+  13:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\shop\v2\inventory\route.ts
+  14:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\stripe\webhook\route.ts
+  6:10  warning  'grantCredits' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\v2\admin\girlfriends\batch\route.ts
+  12:7  warning  'SUPABASE_URL' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  15:7  warning  'SUPABASE_ANON_KEY' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\v2\admin\images\generate-from-meta\route.ts
+  159:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\v2\admin\images\generate-meta\route.ts
+   52:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  135:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  136:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  137:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\v2\user\intimacy-unlocks\route.ts
+  91:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\api\wardrobe\equip\route.ts
+   28:25  warning  'error' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  102:25  warning  'error' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\wardrobe\route.ts
+    3:10  warning  'getOutfitById' is defined but never used       @typescript-eslint/no-unused-vars
+   15:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  100:32  warning  'authError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\api\wardrobe\try-on\route.ts
+  26:25  warning  'error' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\forgot-password\page.tsx
+   2:10  warning  'useTranslation' is defined but never used  @typescript-eslint/no-unused-vars
+  39:14  warning  'err' is defined but never used             @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\app\girlfriend\[slug]\page.tsx
+  49:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\app\page.tsx
+   22:10  warning  'GIRLS' is defined but never used                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  199:9   warning  'cancelled' is assigned a value but never used                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+  422:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\app\update-password\page.tsx
+  2:10  warning  'useTranslation' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\components\ShareCard.tsx
+  217:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\components\SupportAgent.tsx
+  30:11  warning  'user' is assigned a value but never used                                                                      @typescript-eslint/no-unused-vars
+  62:6   warning  React Hook useEffect has a missing dependency: 'welcomeMsg'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\71489\soulmate9\src\components\admin\AdminPresetsContent.tsx
+   16:37  warning  'Play' is defined but never used                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+   16:43  warning  'Zap' is defined but never used                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+   17:3   warning  'Mic' is defined but never used                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+   17:18  warning  'CheckCircle2' is defined but never used                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+   17:32  warning  'XCircle' is defined but never used                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   34:61  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   46:96  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  188:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  248:47  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  436:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\components\chat\ChatAppBar.tsx
+  7:10  warning  'HEAT_UNLOCK_HINTS' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\components\chat\ChatView.tsx
+   384:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   400:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   603:11  warning  'zh' is assigned a value but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+   676:15  warning  'zh' is assigned a value but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+   693:6   warning  React Hook useEffect has missing dependencies: 'id' and 't'. Either include them or remove the dependency array                                                                                                                                                                          react-hooks/exhaustive-deps
+   823:11  warning  'zh' is assigned a value but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+   969:13  warning  'busyZh' is assigned a value but never used                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+   982:11  warning  'waitZh' is assigned a value but never used                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  1275:13  warning  'busyZh' is assigned a value but never used                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  1284:11  warning  'waitZh' is assigned a value but never used                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  1935:11  warning  'zh' is assigned a value but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+  2130:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  2382:27  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\components\community\LeaderboardRail.tsx
+  44:14  warning  'locale' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\components\girlfriend-public\GirlfriendView.tsx
+  42:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\components\page-builder\DynamicNav.tsx
+  26:16  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\components\page-builder\PageRenderer.tsx
+    4:10  warning  'useParams' is defined but never used                                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+    7:10  warning  'Badge' is defined but never used                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+   26:36  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   38:16  warning  'e' is defined but never used                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   70:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  140:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  158:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\71489\soulmate9\src\components\wardrobe-dialog.tsx
+   62:6   warning  React Hook useEffect has a missing dependency: 'loadWardrobe'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  154:77  warning  Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\hooks\useTtsPlayer.ts
+  64:17  warning  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+  67:6   warning  React Hook useCallback has a missing dependency: 'stop'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\71489\soulmate9\src\lib\__tests__\ai-model-gateway.test.ts
+  3:10  warning  'isGatewayV2Enrolled' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\__tests__\studio-profile.test.ts
+  152:75  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\achievement-checker.ts
+  44:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  45:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  51:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  51:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\ai-modules\store.ts
+   42:76  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   43:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   43:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   43:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   45:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   72:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  103:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\comfy-console\store.ts
+  43:73  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  81:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\comfy-console\studio-task-prompt.ts
+  89:10  warning  'taskInstruction' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\companion-generation.ts
+  148:7  warning  'REAL_SCENE_DIRECTIONS' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  159:7  warning  'INTENSITY_BODY_LANGUAGE' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\companion-greeting.ts
+  1:10  warning  'scenarioRelationshipLabel' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\companion-seats.ts
+  12:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\creation-cards.ts
+   15:28  warning  Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+   56:23  warning  Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+   57:24  warning  Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+   58:29  warning  Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+   59:7   warning  'freeClaimed' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   59:30  warning  Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+  158:30  warning  Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\creator-previews-store.ts
+  93:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\ensure-companion.ts
+  27:71  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\gifts\store.ts
+  202:9  warning  'row' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\intimacy-milestones.ts
+  45:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\llm-router.ts
+  50:7  warning  'MODEL_MAP' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\llm-service.ts
+   18:22  warning  'loraExtraBody' is defined but never used  @typescript-eslint/no-unused-vars
+   37:34  warning  Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+   90:89  warning  Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  102:13  warning  Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  436:35  warning  Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\memory-extract.ts
+  47:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  48:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\memory-rag.ts
+   73:11  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   89:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  109:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  118:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\milestone-extractor.ts
+   9:36  warning  'MilestoneEventType' is defined but never used  @typescript-eslint/no-unused-vars
+   9:56  warning  'EmotionalContext' is defined but never used    @typescript-eslint/no-unused-vars
+  77:19  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  78:16  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\model-library.ts
+   75:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  132:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\prompt-presets-store.ts
+  82:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\prompt-translate.ts
+  28:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\prompt\index.ts
+  10:3  warning  'subjectFromGirlfriendRow' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\provider-routes-store.ts
+  208:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  251:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\runpod-img2img-builder.ts
+   21:3  warning  'fluxGuidance' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   27:9  warning  'seedStr' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  146:9  warning  'isFlux' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\style-previews-store.ts
+  36:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\telegram-bot\handlers.ts
+   14:15  warning  'Binding' is defined but never used       @typescript-eslint/no-unused-vars
+   42:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   55:73  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  194:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  214:72  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\71489\soulmate9\src\lib\tokens.ts
+  167:11  warning  'data' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\tts-service.ts
+   20:36  warning  'getArchetypeForPersonality' is defined but never used  @typescript-eslint/no-unused-vars
+  195:3   warning  'opts' is defined but never used                        @typescript-eslint/no-unused-vars
+  200:9   warning  'speed' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  277:19  warning  'endpointId' is assigned a value but never used         @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\video-workflow.ts
+  31:5  warning  'denoise' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\71489\soulmate9\src\lib\visual-memory.ts
+  196:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  263:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  278:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+鉁?325 problems (0 errors, 325 warnings)
+

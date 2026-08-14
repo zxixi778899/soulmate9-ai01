@@ -14,11 +14,9 @@ import {
   invokeChatAsSseStream,
   type MembershipTier,
 } from '@/lib/ai-modules';
-import {
-  buildCharacterPrompt,
-  safetySuffix,
-  userMessageWrapper,
-} from '@/lib/chat-character-prompt';
+import { buildPersonaPrompt } from '@/lib/prompt-builder';
+import { calculateDesireLevel, getDesireLanguageGradient } from '@/lib/desire-calculator';
+import { detectCompanionMood, buildMoodContext } from '@/lib/mood-detector';
 import {
   languageLockInstruction,
   resolveReplyLocale,
@@ -213,10 +211,9 @@ async function extractMilestonesFromChat(
   client: SupabaseClient,
   userId: string,
   girlfriendId: string,
-  gfName: string,
 ) {
   const { extractMilestones } = await import('@/lib/milestone-extractor');
-  const { embed } = await import('@/lib/memory-rag');
+  await import('@/lib/memory-rag');
 
   // Get recent messages (including the one we just saved)
   const recent = (await client
@@ -596,8 +593,48 @@ export async function POST(request: NextRequest) {
   const timeContext = zhChat
     ? `[时间感] 现在大约是${weekdayNames[localNow.getUTCDay()]} ${hhmm}（${tzNote}）。可自然带出时段氛围（深夜、清晨、周末），但别武断地说「早上好」之类，除非他先提到。`
     : `[TIME SENSE] It is roughly ${weekdayNames[localNow.getUTCDay()]} ${hhmm} (${tzNote}). You can lean into the time-of-day vibe (late night, weekend), but never assert "good morning"-style greetings unless he mentions it first.`;
-  const desiredIntensity = Math.max(1, Math.min(5, Math.round(Number(body.nsfw_intensity) || 3)));
-  const effectiveIntensity = intimacyLevel >= 3 ? desiredIntensity : Math.min(desiredIntensity, 2);
+  // Build persona-enhanced system prompt (NEW: layered injection with mood/desire)
+  const personaPrompt = await buildPersonaPrompt({
+    userId: user.id,
+    girlfriendId: girlfriend_id,
+    currentMessage: {
+      role: 'user',
+      content: truncatedMessage
+    },
+    scenarioState: scenarioRecap ? {
+      phase: 'development', // TODO: get actual scenario phase
+      props: []
+    } : undefined,
+    mode: replyMode
+  });
+  
+  // Get NSFW language gradient based on desire level
+  const desireData = await calculateDesireLevel({
+    userId: user.id,
+    girlfriendId: girlfriend_id,
+    topicSentiment: messageText.includes('sex') || messageText.includes('love') ? 0.6 : 0.1
+  });
+  
+  const nsfwGradient = getDesireLanguageGradient(desireData.level, gf.openness);
+  
+  // Fallback prompts (backward compatibility)
+  const fallbackSystemPrompt = buildCharacterPrompt({
+    gf,
+    intimacyLevel,
+    detectedEmotion,
+    memories: memories || [],
+    milestones: milestoneRecalls.length > 0
+      ? milestoneRecalls.map((r) => ({ milestone_text: r.recall_text, relevance_score: r.relevance_score }))
+      : undefined,
+    loreContext,
+    presets,
+    locale: chatLocale,
+    allowNsfw: intimacyLevel >= 3 && chatResolved.allowNsfw,
+    nsfwChannel: intimacyLevel >= 3 && chatResolved.channel === 'nsfw' && effectiveIntensity >= 3,
+    replyMode,
+    nsfwIntensity: effectiveIntensity,
+    scenarioRecap: scenarioRecap || undefined,
+  });
   const lastMeta =
     recentMessages && recentMessages[0] && recentMessages[0].metadata &&
     typeof recentMessages[0].metadata === 'object'
@@ -607,29 +644,23 @@ export async function POST(request: NextRequest) {
     lastMeta && typeof lastMeta.scene_state === 'string' && lastMeta.scene_state
       ? String(lastMeta.scene_state)
       : '';
-  const systemPrompt =
-    buildCharacterPrompt({
-      gf,
-      intimacyLevel,
-      detectedEmotion,
-      memories: memories || [],
-      milestones: milestoneRecalls.length > 0
-        ? milestoneRecalls.map((r) => ({ milestone_text: r.recall_text, relevance_score: r.relevance_score }))
-        : undefined,
-      loreContext,
-      presets,
-      locale: chatLocale,
-      allowNsfw: intimacyLevel >= 3 && chatResolved.allowNsfw,
-      nsfwChannel: intimacyLevel >= 3 && chatResolved.channel === 'nsfw' && effectiveIntensity >= 3,
-      replyMode,
-      nsfwIntensity: effectiveIntensity,
-      scenarioRecap: scenarioRecap || undefined,
-    }) +
-    (sceneRecap
-      ? `\n\n${zhChat ? `[SCENE RECAP] 上一幕：${sceneRecap}` : `[SCENE RECAP] Previous scene: ${sceneRecap}`}`
+  // Combine persona layer + memory context + language lock
+  const hardenedSystemPrompt =
+    personaPrompt +  // NEW: Layer 1-5 persona injection
+    `
+
+=== BACKWARD COMPATIBILITY LAYER ===`
+    + fallbackSystemPrompt +
+    `
+
+=== LANGUAGE & SAFETY ===`
+    + (sceneRecap
+      ? `${zhChat ? `[SCENE RECAP] 上一幕：${sceneRecap}` : `[SCENE RECAP] Previous scene: ${sceneRecap}`}`
       : '') +
-    `\n\n${langLock}` +
-    `\n\n${timeContext}` +
+    `
+${langLock}` +
+    `
+${timeContext}` +
     (chatResolved.systemLanguageSuffix ? `\n\n${chatResolved.systemLanguageSuffix}` : '');
 
   const MAX_USER_MESSAGE_LENGTH = 4000;
@@ -896,7 +927,7 @@ export async function POST(request: NextRequest) {
             }),
             // 千人千面：最佳努力提取关键节点
             Promise.race([
-              extractMilestonesFromChat(client, user.id, girlfriend_id, gf.name),
+              extractMilestonesFromChat(client, user.id, girlfriend_id),
               new Promise((r) => setTimeout(r, 8_000)),
             ]).catch((milestoneError: unknown) => {
               logger.warn('chat/stream: milestone extraction failed', {
