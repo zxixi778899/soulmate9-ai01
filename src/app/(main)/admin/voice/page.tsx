@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { authedFetch } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,7 +84,7 @@ export default function AdminVoicePage() {
         setTtsConfigured(data.tts?.configured ?? false);
       }
     } catch (e) {
-      console.error('Failed to fetch voice profiles', e);
+      logger.error('Failed to fetch voice profiles', { err: e instanceof Error ? e.message : String(e) });
     } finally {
       setLoading(false);
     }

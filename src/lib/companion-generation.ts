@@ -1,6 +1,6 @@
 import { normalizeCompanionCategory, type CompanionCategory } from '@/lib/companion-category';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
-import { buildStudioPromptEnhancement, studioNegativePrompt } from '@/lib/comfy-console/studio-profile';
+import { buildStudioPromptEnhancement, compactFluxPrompt, studioNegativePrompt } from '@/lib/comfy-console/studio-profile';
 
 const ACTIONS: Record<CompanionCategory, string[]> = {
   female: [
@@ -233,15 +233,16 @@ export function buildCompanionGenerationPrompt(
     String(row.appearance_style || profile.style),
     String(row.appearance_face || row.distinguishing_features || ''),
   ].filter(Boolean).join(', ');
-  const quality = isIllustrated ? '2D anime' : 'realistic photograph';
+  const quality = isIllustrated ? 'high-resolution 2D anime frame' : 'Natural candid photograph';
   const negative = `${studioNegativePrompt(category, isIllustrated ? '2d' : 'realistic')}, different person, face swap`;
-  const positive = buildStudioPromptEnhancement({
+  const enhanced = buildStudioPromptEnhancement({
     category,
     intensity,
     animeStyle: isIllustrated ? '2d' : 'realistic',
     identity: options?.sceneOnly ? undefined : identityBrief,
     scene: [action, sceneRealism].filter(Boolean).join(', '),
   });
+  const positive = compactFluxPrompt(`${quality}, ${enhanced}`, 990);
 
   if (options?.sceneOnly) {
     return {

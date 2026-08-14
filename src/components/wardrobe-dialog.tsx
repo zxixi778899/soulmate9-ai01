@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { logger } from '@/lib/logger';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -71,7 +72,7 @@ export function WardrobeDialog({
         setOutfits(data.outfits || []);
       }
     } catch (err) {
-      console.error('[Wardrobe] Load failed:', err);
+      logger.error('[Wardrobe] Load failed', { err: err instanceof Error ? err.message : String(err) });
     } finally {
       setLoading(false);
     }
@@ -102,7 +103,7 @@ export function WardrobeDialog({
         }
       }
     } catch (err) {
-      console.error('[Wardrobe] Equip failed:', err);
+      logger.error('[Wardrobe] Equip failed', { err: err instanceof Error ? err.message : String(err) });
     } finally {
       setEquipping(null);
     }
@@ -133,7 +134,7 @@ export function WardrobeDialog({
         }
       }
     } catch (err) {
-      console.error('[Wardrobe] Regenerate failed:', err);
+      logger.error('[Wardrobe] Regenerate failed', { err: err instanceof Error ? err.message : String(err) });
     }
   };
 
@@ -195,7 +196,7 @@ export function WardrobeDialog({
               <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-20" />
               <p className="text-lg font-semibold">Custom Outfit Creator</p>
               <p className="text-sm mt-2">
-                Describe any outfit and we'll generate it for you.
+                Describe any outfit and we&apos;ll generate it for you.
                 <br />
                 Coming soon in a future update!
               </p>

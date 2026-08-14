@@ -144,7 +144,7 @@ export function buildFluxWorkflow(opts: {
    * without reusing the reference composition.
    */
   ip_adapter_image?: string;
-  /** IP-Adapter weight 0–1. Default 0.75. Higher = stronger face similarity. */
+  /** IP-Adapter weight 0–1. Default 0.7. Higher = stronger face similarity. */
   ip_adapter_weight?: number;
   /** FLUX IP-Adapter filename in models/ipadapter-flux/. Default: ip-adapter.bin */
   ip_adapter_model?: string;
@@ -172,6 +172,9 @@ export function buildFluxWorkflow(opts: {
   // 双底模默认：完整版 flux1-dev-fp8（非蒸馏）用 guidance 3.5；
   // Unchained（split 加载，8 步蒸馏）用 guidance 3.0（A/B 选定）。
   const fluxGuidance = Math.min(5, Math.max(2, opts.flux_guidance ?? (useSplitLoader ? 3.0 : 3.5)));
+  // FLUX 采样器 CFG 恒为 1：构图引导完全交给 FluxGuidance 节点，
+  // 旧调用方传入的 guidance 只影响 FluxGuidance，不得回灌 KSampler。
+  const samplerCfg = isFlux ? 1 : guidance;
   const sampler_name = opts.sampler_name || (isFlux ? 'euler' : 'dpmpp_2m_sde');
   const scheduler = opts.scheduler || (isFlux ? 'simple' : 'karras');
   const batchSize = Math.min(4, Math.max(1, Math.floor(opts.batch_size ?? 1)));
@@ -314,7 +317,7 @@ export function buildFluxWorkflow(opts: {
   const effectiveInputImage = opts.input_image || sdxlReferenceImage;
   const ipAdapterNodes: Record<string, unknown> = {};
   if (useIpAdapter) {
-    const ipWeight = Math.min(0.5, Math.max(0.15, opts.ip_adapter_weight ?? 0.3));
+    const ipWeight = Math.min(0.95, Math.max(0.15, opts.ip_adapter_weight ?? 0.7));
     const ipModel = opts.ip_adapter_model || 'ip-adapter.bin';
     const clipVision = opts.clip_vision_model || 'google/siglip-so400m-patch14-384';
     ipAdapterNodes['30'] = {
@@ -365,7 +368,7 @@ export function buildFluxWorkflow(opts: {
         inputs: {
           seed,
           steps,
-          cfg: guidance,
+          cfg: samplerCfg,
           sampler_name,
           scheduler,
           denoise,
@@ -425,7 +428,7 @@ export function buildFluxWorkflow(opts: {
       inputs: {
         seed,
         steps,
-        cfg: guidance,
+        cfg: samplerCfg,
         sampler_name,
         scheduler,
         denoise: 1.0,

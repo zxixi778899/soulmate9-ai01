@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Coins, TrendingUp, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 interface TokenBalanceDisplayProps {
   userId: string;
@@ -35,7 +36,7 @@ export function TokenBalanceDisplay({ userId, showUpgradeCTA = true }: TokenBala
         setBalance(data);
       }
     } catch (err) {
-      console.error('[TokenBalance] Load failed:', err);
+      logger.error('[TokenBalance] Load failed', { err: err instanceof Error ? err.message : String(err) });
     } finally {
       setLoading(false);
     }

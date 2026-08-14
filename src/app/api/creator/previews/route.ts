@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { loadCreatorPreviews } from '@/lib/creator-previews-store';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,7 @@ export async function GET() {
       { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' } },
     );
   } catch (err) {
-    console.error('[creator/previews] unexpected error', String(err));
+    logger.error('[creator/previews] unexpected error', { err: String(err) });
     return NextResponse.json({ previews: [] }, { status: 500 });
   }
 }

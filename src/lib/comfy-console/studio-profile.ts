@@ -28,7 +28,7 @@ const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>
   4: {
     female: 'Solo masturbation scene, she spreads her clearly visible bare vulva with her fingers, fully nude, legs wide open, before climax and without visible sexual fluids.',
     male: 'He masturbates his clearly visible large penis, before climax and without visible semen.',
-    transgender: 'She masturbates her clearly visible large penis while her developed breasts and feminine curves remain in frame, before climax and without visible semen.',
+    transgender: 'She masturbates her clearly visible large penis while her developed breasts and feminine curves remain in frame, pelvis and contact points visible in a physically stable pose, before climax and without visible semen.',
     anime: 'The adult character performs clearly visible solo masturbation, bare vulva spread by fingers, completely nude, before climax and without visible sexual fluids.',
   },
   5: {
@@ -47,7 +47,7 @@ const CATEGORY_SUBJECTS: Record<CompanionCategory, string> = {
 };
 
 const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
-  'realistic': 'real-camera photograph, natural skin, soft practical light',
+  'realistic': 'real camera photograph, neutral skin tone, natural skin, practical soft light, relaxed posture, natural hands',
   '2d': '2D anime illustration, clean line art, cel shading',
   '3d': '3D character render, PBR materials',
 };
@@ -69,15 +69,17 @@ export function compactFluxPrompt(value: string, maxCharacters = 650): string {
   const normalized = String(value || '').replace(/\s+/g, ' ').trim();
   if (!normalized) return '';
 
-  const clauses = normalized.split(/[.!?]\s+|,\s+/);
+  // Deduplicate whole sentences only, preserving deliberate repetition inside
+  // a sentence (e.g. "large penis" appearing in both identity and action).
+  const sentences = normalized.split(/(?<=[.!?])\s+/).filter(Boolean);
   const seen = new Set<string>();
-  const unique = clauses.filter((clause) => {
-    const key = clause.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const unique = sentences.filter((sentence) => {
+    const key = sentence.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
   });
-  const rebuilt = unique.join(', ');
+  const rebuilt = unique.join(' ');
   if (rebuilt.length <= maxCharacters) return rebuilt;
   const clipped = rebuilt.slice(0, maxCharacters + 1);
   const boundary = Math.max(clipped.lastIndexOf('. '), clipped.lastIndexOf(', '), clipped.lastIndexOf(' '));
@@ -134,7 +136,7 @@ export function buildStudioPromptSections(input: {
   identity?: string;
   framing?: string;
 }): StudioPromptSections {
-  const composition = input.framing || (input.intensity >= 3 ? 'medium full-body shot, head to knees visible' : 'medium shot, chest and face visible');
+  const composition = input.framing || (input.intensity >= 3 ? 'medium full-body shot, head to knees visible' : 'medium shot, chest and face clearly visible in a relaxed natural framing');
   return {
     identity: input.identity
       ? `${CATEGORY_SUBJECTS[input.category]}${compactIdentity(input.identity)}`
@@ -161,7 +163,7 @@ export function buildStudioPromptEnhancement(input: {
     sections.exposureAndAction,
     sections.scene,
     sections.quality,
-  ].join(', '), 420);
+  ].join(', '), 950);
 }
 
 export function studioLoraStrengthScale(intensity: NsfwIntensity): number {

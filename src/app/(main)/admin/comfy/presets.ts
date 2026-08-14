@@ -44,10 +44,10 @@ type Scene = {
 };
 
 /* Base 30 steps; NSFW scenes get 32 for finer skin/anatomy detail. */
-const P = { width: 832, height: 1216, steps: 8, cfg: 1 };
-const TALL = { width: 768, height: 1344, steps: 8, cfg: 1 };
-const P_NSFW = { width: 832, height: 1216, steps: 8, cfg: 1 };
-const TALL_NSFW = { width: 768, height: 1344, steps: 8, cfg: 1 };
+const P = { width: 832, height: 1216, steps: 20, cfg: 1 };
+const TALL = { width: 768, height: 1344, steps: 20, cfg: 1 };
+const P_NSFW = { width: 832, height: 1216, steps: 32, cfg: 1 };
+const TALL_NSFW = { width: 768, height: 1344, steps: 32, cfg: 1 };
 
 /** 30 distinct scene archetypes (10 sensual-lifestyle + 20 explicit adult). */
 const SCENES: Scene[] = [
@@ -223,6 +223,17 @@ const CATEGORY_PRESET_NAMES: Record<CompanionCategory, string[]> = {
   anime: '2D魔法塔窗边|3D幻想卧室|樱花温泉|月光城堡|赛博镜面自拍|精灵浴场|魔法泳池|酒馆舞台|王座厅私会|星空阳台|丝绸寝宫|水晶梳妆台|霓虹雨巷|魅魔舞池|学院办公室成人版|壁炉兽毯|花瓣魔法浴|空艇甲板|战斗后拉伸|海神殿日落|魔法试衣间|床边长靴|赛博走廊|雪山温泉|王室晚宴|暗夜坐骑|猫耳咖啡馆成人版|塔楼阅读|魔导镜自拍|月神露台'.split('|'),
 };
 
+const MAX_PRESET_PROMPT_LENGTH = 320;
+
+function truncatePrompt(value: string, maxChars: number): string {
+  const clean = value.trim();
+  if (clean.length <= maxChars) return clean;
+  const clipped = clean.slice(0, maxChars + 1);
+  const boundary = Math.max(clipped.lastIndexOf('. '), clipped.lastIndexOf(', '), clipped.lastIndexOf(' '));
+  const end = boundary > Math.floor(maxChars * 0.7) ? boundary : maxChars;
+  return clipped.slice(0, end).replace(/[,. ]+$/, '').trim();
+}
+
 function buildCategoryPresets(category: CompanionCategory): GenPreset[] {
   const base = CATEGORY_BASE[category];
   return SCENES.map((sc, index) => {
@@ -231,7 +242,7 @@ function buildCategoryPresets(category: CompanionCategory): GenPreset[] {
       id: `${category}-${sc.id}`,
       name: `${COMPANION_CATEGORY_LABELS[category].zh} · ${CATEGORY_PRESET_NAMES[category][index] || sc.name}`,
       desc: `高 NSFW · ${COMPANION_CATEGORY_LABELS[category]?.zh || category}专属 · ${sc.desc}`,
-      prompt: sceneText,
+      prompt: truncatePrompt(sceneText, MAX_PRESET_PROMPT_LENGTH),
       negative: base.negative,
       width: sc.width,
       height: sc.height,

@@ -16,7 +16,7 @@ import {
   setImageRoutesCache,
   invalidateImageRouteCache,
   type ImageRouteConfig,
-} from '@/lib/image-router';
+} from '@/lib/image-router-config';
 
 export const PROVIDER_ROUTES_KEY = 'provider_routes';
 

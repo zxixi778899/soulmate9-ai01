@@ -16,34 +16,23 @@ import { logger } from '@/lib/logger';
 import { isGpuCapacityError, runpodClient } from '@/lib/runpod';
 import { falGenerate, isFalConfigured } from '@/lib/fal-client';
 import type { ImageModelFamily } from '@/lib/image-generation-routing';
+import {
+  getImageRoutes,
+  stampImageRouteCache,
+  getImageRouteCacheTtlMs,
+  getImageRouteCacheAt,
+  type ImageProvider,
+  type ImageRouteConfig,
+} from '@/lib/image-router-config';
 
-// ─── Types ───────────────────────────────────────────────────
-
-export type ImageProvider = 'runpod' | 'fal' | 'runpod_dc2' | 'together';
-
-export interface ImageRouteConfig {
-  id: string;
-  provider: ImageProvider;
-  label: string;
-  enabled: boolean;
-  priority: number; // lower = tried first
-  timeout_ms: number; // max wait before switching
-  /** If RunPod returns IN_QUEUE and this is true, immediately try next provider */
-  switch_on_queue: boolean;
-  /** Circuit breaker: open after this many consecutive failures */
-  failure_threshold: number;
-  /** Circuit breaker: reset after this many ms */
-  reset_ms: number;
-  /** Supports LoRA (only RunPod self-hosted) */
-  supports_lora: boolean;
-  /** Supports img2img reference */
-  supports_reference: boolean;
-  /** NSFW capable */
-  nsfw_capable: boolean;
-  /** Optional endpoint override env var */
-  endpoint_env?: string;
-  notes?: string;
-}
+// Re-export types/config so existing consumers keep working.
+export type { ImageProvider, ImageRouteConfig } from '@/lib/image-router-config';
+export {
+  DEFAULT_IMAGE_ROUTES,
+  getImageRoutes,
+  setImageRoutesCache,
+  invalidateImageRouteCache,
+} from '@/lib/image-router-config';
 
 export interface ImageRouterOptions {
   prompt: string;
@@ -138,88 +127,7 @@ function openCircuit(config: ImageRouteConfig): void {
   logger.warn('[image-router] circuit opened (gpu capacity)', { provider: config.id });
 }
 
-// ─── Default Route Configuration ─────────────────────────────
-
-export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
-  {
-    id: 'together-flux-primary',
-    provider: 'together',
-    label: 'Together FLUX Schnell (Free, SFW)',
-    enabled: true,
-    priority: 1,
-    timeout_ms: 45_000,
-    switch_on_queue: false,
-    failure_threshold: 5,
-    reset_ms: 30_000,
-    supports_lora: false,
-    supports_reference: false,
-    nsfw_capable: false,
-    notes: 'FREE FLUX.1-schnell. 3-5s inference. SFW primary — no GPU cost.',
-  },
-  {
-    id: 'fal-fast',
-    provider: 'fal',
-    label: 'fal.ai FLUX (SFW emergency fallback)',
-    enabled: true,
-    priority: 5,
-    timeout_ms: 60_000,
-    switch_on_queue: false,
-    failure_threshold: 5,
-    reset_ms: 30_000,
-    supports_lora: false,
-    supports_reference: true,
-    nsfw_capable: false,
-    notes: 'Fast SFW fallback only. It cannot preserve the local character LoRA stack.',
-  },
-  {
-    id: 'runpod-lora',
-    provider: 'runpod',
-    label: 'RunPod FLUX (SFW + product LoRAs)',
-    enabled: true,
-    priority: 10,
-    timeout_ms: 30_000,
-    switch_on_queue: true,
-    failure_threshold: 3,
-    reset_ms: 60_000,
-    supports_lora: true,
-    supports_reference: true,
-    nsfw_capable: true,
-    notes: 'Self-hosted FLUX for SFW companions, identity assets, 3D and product generation.',
-  },
-  {
-    id: 'runpod-dc2',
-    provider: 'runpod_dc2',
-    label: 'RunPod Pony / Illustrious',
-    enabled: true,
-    priority: 15,
-    timeout_ms: 30_000,
-    switch_on_queue: true,
-    failure_threshold: 3,
-    reset_ms: 60_000,
-    supports_lora: true,
-    supports_reference: true,
-    nsfw_capable: true,
-    endpoint_env: 'RUNPOD_ENDPOINT_ID_SDXL',
-    notes: 'Dedicated SDXL endpoint: Pony for adult realism/transgender; Illustrious for 2D.',
-  },
-];
-
 // ─── Route Loading (from site_settings or defaults) ──────────
-
-let routeCache: { routes: ImageRouteConfig[]; at: number } | null = null;
-const ROUTE_CACHE_MS = 15_000;
-
-export function getImageRoutes(): ImageRouteConfig[] {
-  return routeCache?.routes ?? DEFAULT_IMAGE_ROUTES;
-}
-
-export function setImageRoutesCache(routes: ImageRouteConfig[]): void {
-  routeCache = { routes, at: Date.now() };
-}
-
-export function invalidateImageRouteCache(): void {
-  routeCache = null;
-}
 
 /**
  * Ensure admin-configured provider routes (site_settings `provider_routes`)
@@ -229,20 +137,20 @@ export function invalidateImageRouteCache(): void {
  * on provider-routes-store.
  */
 export async function syncImageRoutesWithSettings(): Promise<void> {
-  if (routeCache && Date.now() - routeCache.at < ROUTE_CACHE_MS) return;
+  const routeCacheAt = getImageRouteCacheAt();
+  if (routeCacheAt && Date.now() - routeCacheAt < getImageRouteCacheTtlMs()) return;
   try {
     const [{ loadProviderRoutes }, { getSupabaseClient }] = await Promise.all([
-      // eslint-disable-next-line import/no-cycle -- lazy dynamic import: provider-routes-store only statically depends on this module one-way, the runtime cycle is broken by deferring resolution
       import('@/lib/provider-routes-store'),
       import('@/storage/database/supabase-client'),
     ]);
     await loadProviderRoutes(getSupabaseClient());
     // loadProviderRoutes seeds setImageRoutesCache; stamp the refresh time so
     // we don't hit the DB again inside the TTL window.
-    routeCache = { routes: routeCache?.routes ?? DEFAULT_IMAGE_ROUTES, at: Date.now() };
+    stampImageRouteCache();
   } catch (err) {
     // Keep serving defaults when the settings store is unavailable.
-    routeCache = { routes: routeCache?.routes ?? DEFAULT_IMAGE_ROUTES, at: Date.now() };
+    stampImageRouteCache();
     logger.warn('[image-router] provider routes sync failed, using defaults', {
       err: err instanceof Error ? err.message : String(err),
     });

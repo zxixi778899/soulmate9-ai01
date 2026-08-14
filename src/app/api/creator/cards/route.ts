@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getCreationCardStatus } from '@/lib/creation-cards';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/creator/cards
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
     const status = await getCreationCardStatus(client, user.id);
     return NextResponse.json(status);
   } catch (err) {
-    console.error('[creator/cards] error', String(err));
+    logger.error('[creator/cards] error', { err: String(err) });
     return NextResponse.json(
       { error: 'Failed to fetch card status' },
       { status: 500 },

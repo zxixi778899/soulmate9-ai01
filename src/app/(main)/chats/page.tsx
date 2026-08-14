@@ -783,10 +783,7 @@ export default function ChatsPage() {
         body: JSON.stringify({ girlfriend_id: selectedId, user_request: enrichedReq, message: req, chat_context: chatCtx, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale }),
       });
       const data = await readResponseJson<{ error?: string; localized_error?: string; code?: string; image_url?: string; imageUrl?: string; message?: string; pending?: boolean; job_id?: string; endpoint_id?: string; _trace?: Record<string, unknown> }>(res);
-      // Debug: log generation trace for diagnostics
-      if (data?._trace) {
-        console.log('[generate-image trace]', data._trace);
-      }
+      // Debug trace data stays server-side only; never log or render it in the chat UI.
       if (!res.ok) throw new Error(data?.code === 'daily_limit' ? (data.localized_error || t('chat.imageDailyLimit')) : (data?.localized_error || data?.error || t('chat.imageFailed')));
       let imgUrl = data.image_url || data.imageUrl;
       const jobId = data.job_id;

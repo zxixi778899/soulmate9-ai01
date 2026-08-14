@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
+import { rateLimitMiddleware, RATE_LIMITS } from '@/lib/rate-limit';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.COZE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY;
@@ -7,6 +8,15 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.oxmate-ai.com'
 
 export async function POST(request: Request) {
   try {
+    // Rate limiting by IP — prevents reset-email spam / account enumeration abuse
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const rl = rateLimitMiddleware(`forgot-password:${ip}`, RATE_LIMITS.forgotPassword);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many reset requests. Try again later.' },
+        { status: 429, headers: rl.headers }
+      );
+    }
     const { email } = await request.json();
 
     if (!email) {

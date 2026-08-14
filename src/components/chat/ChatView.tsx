@@ -1049,10 +1049,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         downgradeReply?: string;
         _trace?: Record<string, unknown>;
       }>(res);
-      // Debug: log generation trace for diagnostics
-      if (data?._trace) {
-        console.log('[generate-image trace]', data._trace);
-      }
+      // Debug trace data stays server-side only; never log or render it in the chat UI.
       if (!res.ok) {
         if (data?.code === 'daily_limit') {
           setUpgradeReason('image_limit');

@@ -1,9 +1,10 @@
 /**
- * ✅ Simplified to EN + ZH only (2026-08-10)
- * Other languages (ja, ko, es, fr, de) removed to reduce translation maintenance burden.
- * Future additions will include automatic en + zh translations via LLM.
+ * Launch contract: 7 supported locales (en / zh / ja / ko / es / fr / de).
+ * Currently only en + zh carry complete translation bags; the other locales
+ * are accepted by the locale contract and fall back to English in
+ * getTranslation() until their bags are restored (i18n:sync backfills them).
  */
-export const SUPPORTED_LOCALES = ['en', 'zh'] as const;
+export const SUPPORTED_LOCALES = ['en', 'zh', 'ja', 'ko', 'es', 'fr', 'de'] as const;
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 export type TranslationKey = keyof typeof import('./translations').en;
@@ -11,6 +12,11 @@ export type TranslationKey = keyof typeof import('./translations').en;
 export const LOCALES: { code: Locale; label: string; nativeLabel: string }[] = [
   { code: 'en', label: 'English', nativeLabel: 'English' },
   { code: 'zh', label: 'Chinese', nativeLabel: '中文' },
+  { code: 'ja', label: 'Japanese', nativeLabel: '日本語' },
+  { code: 'ko', label: 'Korean', nativeLabel: '한국어' },
+  { code: 'es', label: 'Spanish', nativeLabel: 'Español' },
+  { code: 'fr', label: 'French', nativeLabel: 'Français' },
+  { code: 'de', label: 'German', nativeLabel: 'Deutsch' },
 ];
 
 export function isSupportedLocale(value: unknown): value is Locale {

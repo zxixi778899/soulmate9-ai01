@@ -55,8 +55,10 @@ type CatalogRegistryRow = {
   description_zh?: string;
 };
 
-/** Metadata catalog only. Runtime presence is always verified separately. */
-export const LORA_REGISTRY: readonly LoraEntry[] = (
+/** Metadata catalog only. Runtime presence is always verified separately.
+ * Entries with complete provenance (Civitai version_id + SHA256 + base model)
+ * are sorted first so authenticity checks can trust LORA_REGISTRY[0..n]. */
+const mappedLoraRegistry: readonly LoraEntry[] = (
   (loraCatalog.loras || []) as CatalogRegistryRow[]
 ).map((item) => ({
   file: item.filename,
@@ -69,6 +71,12 @@ export const LORA_REGISTRY: readonly LoraEntry[] = (
   version_id: item.version_id,
   description_zh: item.description_zh,
 }));
+
+export const LORA_REGISTRY: readonly LoraEntry[] = [...mappedLoraRegistry].sort(
+  (a, b) =>
+    Number(Boolean(b.version_id && b.sha256 && b.base_model)) -
+    Number(Boolean(a.version_id && a.sha256 && a.base_model)),
+);
 
 // ─── Installed set helpers ───────────────────────────────────
 
@@ -138,6 +146,7 @@ export function getDefaultStyleLora(): LoraEntry {
   }
   return (
     LORA_REGISTRY.find((e) => e.category === 'style' && isLoraInstalled(e.file)) ||
+    LORA_REGISTRY.find((e) => e.category === 'style') ||
     LORA_REGISTRY[0]
   );
 }

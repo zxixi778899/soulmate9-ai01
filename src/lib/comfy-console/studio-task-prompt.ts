@@ -78,12 +78,12 @@ function qualityForModel(modelFamily: PromptInput['modelFamily'], renderStyle: A
     return 'stable camera, natural motion';
   }
   if (renderStyle === '2d') {
-    return '2D anime illustration, clean linework';
+    return '2D anime illustration, clean line art, cel shading';
   }
   if (renderStyle === '3d') {
-    return '3D character render, natural materials';
+    return '3D character render, PBR materials, natural materials';
   }
-  return 'natural photograph, soft practical light';
+  return 'real-camera photograph, face and full body clearly illuminated, no crushed shadows, natural skin, soft practical light';
 }
 
 function taskInstruction(task: StudioPromptTask, hasIdentityReference: boolean): string {
@@ -101,10 +101,11 @@ export function buildStudioTaskPrompt(input: PromptInput): string {
   const scene = text(input.scene);
   const framing = text(input.framing);
   const triggers = [...new Set((input.loraTriggers || []).map(text).filter(Boolean))].slice(0, 8);
-  // An authored prompt is the source of truth. Do not append task templates,
-  // lighting, or random scene language that can override its composition.
+  // An authored prompt is the source of truth for composition. Do not append
+  // task templates or random scene language; only append model quality cues
+  // that never fight the authored scene.
   if (scene) {
-    return [framing, scene, input.hasIdentityReference ? 'use the ID reference for identity only, do not copy its framing or crop' : '', input.modelFamily === 'flux' ? triggers.join(', ') : '']
+    return [framing, scene, input.hasIdentityReference ? 'use the ID reference for identity only, do not copy its framing or crop' : '', qualityForModel(input.modelFamily, input.renderStyle), input.modelFamily === 'flux' ? triggers.join(', ') : '']
       .filter(Boolean).join(', ').replace(/\s+/g, ' ').replace(/,\s*,/g, ',').trim().slice(0, 520);
   }
   const parts = [

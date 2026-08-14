@@ -214,9 +214,9 @@ export function createDefaultAiModules(): AiModulesConfig {
         'Stay in character as the girlfriend. Never break role. Never claim to be an AI assistant. When the intimate/NSFW channel is active, lean into consensual adult desire with sensory detail and end replies with a hook that invites the next message. Refuse underage content. Match language rules (English sessions: English only, no Chinese).',
       tiers: {
         free: {
-          sfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw', nsfw_endpoint_id: null,
-          default_endpoint_id: 'runpod-qwen3-8b-pro-nsfw', complex_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
-          fallback_endpoint_ids: ['together-qwen35-9b', 'together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.08,
+          sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: null,
+          default_endpoint_id: 'together-qwen35-9b', complex_endpoint_id: 'together-qwen35-9b',
+          fallback_endpoint_ids: ['together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.08,
           max_tokens: 512, context_messages: 10, daily_message_limit: 40, allow_nsfw: false,
         },
         basic: {
@@ -239,7 +239,7 @@ export function createDefaultAiModules(): AiModulesConfig {
         unlimited: {
           sfw_endpoint_id: 'runpod-qwen3-30b-roleplay',
           nsfw_endpoint_id: 'runpod-qwen3-30b-roleplay',
-          default_endpoint_id: 'runpod-qwen3-30b-roleplay', complex_endpoint_id: 'runpod-qwen3-30b-roleplay',
+          default_endpoint_id: 'runpod-qwen3-30b-roleplay', complex_endpoint_id: 'together-kimi-k26',
           fallback_endpoint_ids: ['runpod-qwen3-30b-roleplay', 'runpod-qwen3-8b-pro-nsfw', 'openrouter-noromaid-20b', 'together-qwen3-235b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
           max_tokens: 1536,
           context_messages: 40,

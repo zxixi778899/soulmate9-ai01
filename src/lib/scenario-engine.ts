@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Scenario, ScenarioState, ScenarioPhase } from '@/lib/milestone-types';
+import { logger } from '@/lib/logger';
 
 /**
  * Get or create the active scenario for a girlfriend.
@@ -58,7 +59,7 @@ export async function getOrCreateScenario(
 
     return null;
   } catch (err) {
-    console.error('[scenario-engine] getOrCreateScenario failed:', err);
+    logger.warn('[scenario-engine] getOrCreateScenario failed', { err: String(err) });
     return null;
   }
 }
@@ -95,7 +96,7 @@ export async function updateScenarioState(
 
     return updated ? mapToScenario(updated) : null;
   } catch (err) {
-    console.error('[scenario-engine] updateScenarioState failed:', err);
+    logger.warn('[scenario-engine] updateScenarioState failed', { err: String(err) });
     return null;
   }
 }

@@ -190,6 +190,7 @@ export const RATE_LIMITS = {
   chat: { maxRequests: 60, windowMs: 60_000 }, // 60/min
   login: { maxRequests: 10, windowMs: 60_000 },
   signup: { maxRequests: 5, windowMs: 60_000 },
+  forgotPassword: { maxRequests: 5, windowMs: 60_000 },
   api: { maxRequests: 120, windowMs: 60_000 },
   imageGen: { maxRequests: 20, windowMs: 60 * 60 * 1000 }, // 20/hour
 } as const;

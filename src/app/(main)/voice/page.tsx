@@ -5,6 +5,7 @@ import { useTranslation } from '@/lib/i18n/context';
 import { Volume2, Square, Loader2, Mic } from 'lucide-react';
 import { VOICE_EMOTIONS, emotionLabel } from '@/lib/tts-emotion';
 import { authedFetch } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 
 interface CompanionVoice {
   id: string;
@@ -74,7 +75,7 @@ export default function VoicePage() {
         setSpeakingId(companionId);
       }
     } catch (e) {
-      console.error('TTS error:', e);
+      logger.error('TTS error', { err: e instanceof Error ? e.message : String(e) });
     } finally {
       setGenerating(null);
     }
