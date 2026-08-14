@@ -8,6 +8,7 @@ import {
   isValidImageBuffer,
 } from '@/lib/storage';
 import { requireAdmin } from '@/lib/require-admin';
+import type { ResolveImageContext } from '@/lib/ai-modules/types';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { runpodClient, RunPodPendingError } from '@/lib/runpod';
@@ -156,7 +157,7 @@ export async function POST(req: NextRequest) {
         : type === 'shop_item'
           ? 'shop_item'
           : 'girlfriend_portrait';
-    const img = resolveImageCall(modules, { scene: sceneKey as any, tier: 'admin' });
+    const img = resolveImageCall(modules, { scene: sceneKey as ResolveImageContext['scene'], tier: 'admin' });
     sceneDefaults = {
       steps: img.config.steps,
       // Clamp module cfg to FLUX-safe range

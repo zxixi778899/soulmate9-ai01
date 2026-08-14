@@ -27,7 +27,7 @@ export default function VoicePage() {
     authedFetch('/api/girlfriends')
       .then(r => r.json())
       .then(data => {
-        const items = (data.items || data || []).map((g: any) => ({
+        const items: CompanionVoice[] = (data.items || data || []).map((g: { id: string; name: string; avatar_url?: string; voice?: unknown }) => ({
           id: g.id,
           name: g.name,
           avatar_url: g.avatar_url,
@@ -108,6 +108,7 @@ export default function VoicePage() {
               {companions.map(c => (
                 <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-4">
                   {c.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
                     <img src={c.avatar_url} alt={c.name} className="h-12 w-12 rounded-full object-cover" />
                   ) : (
                     <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center">

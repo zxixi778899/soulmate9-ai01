@@ -42,7 +42,7 @@ export const INTIMACY_MILESTONES: Record<number, { credits: number; label: strin
   },
 };
 
-type SupabaseLike = { from: (t: string) => any };
+type SupabaseLike = SupabaseClient;
 
 /** 检查并发放该伴侣当前亲密等级对应的里程碑奖励（幂等）。返回新解锁的里程碑等级。 */
 export async function maybeUnlockIntimacyMilestone(
@@ -69,7 +69,7 @@ export async function maybeUnlockIntimacyMilestone(
 
       // 积分奖励
       await grantCredits(
-        client as unknown as SupabaseClient,
+        client,
         userId,
         cfg.credits,
         'intimacy_milestone',

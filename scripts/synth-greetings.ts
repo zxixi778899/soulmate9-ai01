@@ -6,7 +6,6 @@
  * Usage: node node_modules/tsx/dist/cli.mjs scripts/synth-greetings.ts [--limit 20] [--dry]
  */
 import fs from 'node:fs';
-import { buildCompanionGreeting } from '@/lib/companion-greeting';
 import { synthesizeSpeech } from '@/lib/tts-service';
 import { uploadFile } from '@/lib/storage';
 

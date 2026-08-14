@@ -15,7 +15,7 @@
  */
 
 import { logger } from '@/lib/logger';
-import { injectLore, loraExtraBody, pickLore, type LoreMode } from '@/lib/lora-prompt';
+import { injectLore, pickLore, type LoreMode } from '@/lib/lora-prompt';
 
 const RP_BASE  = process.env.RUNPOD_VLLM_URL || '';
 const RP_KEY   = process.env.RUNPOD_VLLM_API_KEY || process.env.RUNPOD_API_KEY || '';
@@ -34,7 +34,16 @@ function headers() {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${RP_KEY}` };
 }
 
-function parseRunPodOutput(data: any): string {
+/** Shape of the JSON payloads returned by RunPod /run and /status/{id}. */
+interface RunPodJobResult {
+  id?: string;
+  status?: string;
+  error?: string;
+  output?: Array<{ choices?: Array<{ tokens?: string[] }> }>;
+  choices?: Array<{ message?: { content?: string } }>;
+}
+
+function parseRunPodOutput(data: RunPodJobResult | null | undefined): string {
   const tokens = data?.output?.[0]?.choices?.[0]?.tokens;
   if (Array.isArray(tokens) && tokens.length > 0) return tokens.join('');
   const openai = data?.choices?.[0]?.message?.content;
@@ -87,7 +96,7 @@ function buildInput(opts: GenOptions) {
 const POLL_INTERVAL_MS = 2000;
 const POLL_BUDGET_MS = Math.max(30_000, Number(process.env.RUNPOD_LLM_POLL_MS) || 250_000);
 
-async function postRunPod(input: Record<string, unknown>, signal: AbortSignal): Promise<any> {
+async function postRunPod(input: Record<string, unknown>, signal: AbortSignal): Promise<RunPodJobResult> {
   const submit = await fetch(`${RP_BASE}/run`, {
     method: 'POST',
     headers: headers(),
@@ -95,11 +104,11 @@ async function postRunPod(input: Record<string, unknown>, signal: AbortSignal): 
     signal,
   });
   if (!submit.ok) throw new Error(`LLM error (${submit.status})`);
-  const submitted = await submit.json();
+  const submitted = (await submit.json()) as RunPodJobResult;
   const jobId = submitted?.id;
   if (!jobId) throw new Error('LLM submit returned no job id');
 
-  let last: any = submitted;
+  let last: RunPodJobResult = submitted;
   const deadline = Date.now() + POLL_BUDGET_MS;
   while (Date.now() < deadline) {
     if (last.status === 'COMPLETED') return last;
@@ -112,7 +121,7 @@ async function postRunPod(input: Record<string, unknown>, signal: AbortSignal): 
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) throw new Error(`LLM status error (${res.status})`);
-    last = await res.json();
+    last = (await res.json()) as RunPodJobResult;
   }
   if (last.status === 'COMPLETED') return last;
   throw new Error(`LLM timed out after ${POLL_BUDGET_MS}ms (status=${last.status})`);
@@ -433,7 +442,8 @@ export async function streamTextSmart(options: {
     pickLore(options.intimacyLevel ?? 1, options.nsfwOptIn ?? false);
 
   const response = await streamText({
-    messages: options.messages as any,
+    // Runtime payload is identical; the cast only narrows the role union for GenOptions.
+    messages: options.messages as GenOptions['messages'],
     temperature: options.temperature,
     maxTokens: options.maxTokens,
     loraMode: mode,

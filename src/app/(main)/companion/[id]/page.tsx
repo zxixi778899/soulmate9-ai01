@@ -23,7 +23,6 @@ import {
   CompanionAssetLibrary,
   type GroupedAssets,
 } from '@/components/companion/CompanionAssetLibrary';
-import type { AssetCategory } from '@/lib/companion-assets';
 import ChatView from '@/components/chat/ChatView';
 
 interface ProfileData {

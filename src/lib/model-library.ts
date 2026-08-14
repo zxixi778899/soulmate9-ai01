@@ -7,6 +7,7 @@ import path from 'path';
 import { logger } from '@/lib/logger';
 import type { NormalizedCivitaiItem } from '@/lib/civitai';
 import { getCatalogLoras } from '@/lib/comfy-console/lora-catalog';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 
 export const MODEL_LIBRARY_KEY = 'model_library';
 
@@ -71,9 +72,7 @@ function fromCatalog(): LibraryItem[] {
   }));
 }
 
-export async function loadModelLibrary(supabase?: {
-  from: (t: string) => any;
-}): Promise<ModelLibrary> {
+export async function loadModelLibrary(supabase?: SiteSettingsClient): Promise<ModelLibrary> {
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -83,7 +82,7 @@ export async function loadModelLibrary(supabase?: {
         .maybeSingle();
       if (!error && data?.value) {
         const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        return normalizeLibrary(val);
+        return normalizeLibrary(val as Partial<ModelLibrary> | null);
       }
     } catch (e) {
       logger.warn('[model-library] db load failed', { err: String(e) });
@@ -129,7 +128,7 @@ function fallbackPath(): string {
 
 export async function saveModelLibrary(
   lib: ModelLibrary,
-  supabase?: { from: (t: string) => any },
+  supabase?: SiteSettingsClient,
 ): Promise<{ source: 'db' | 'file' }> {
   const next: ModelLibrary = {
     ...lib,

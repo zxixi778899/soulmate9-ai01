@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { authedFetch } from '@/lib/supabase';
-import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +12,6 @@ interface ImportResult {
 }
 
 export default function CharacterCardsPage() {
-  const { user } = useAuth();
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);

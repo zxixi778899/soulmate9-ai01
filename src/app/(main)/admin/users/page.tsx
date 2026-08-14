@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { authedFetch } from '@/lib/supabase';
-import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -61,7 +60,6 @@ const emptyTokenForm = {
 };
 
 export default function AdminUsersPage() {
-  const { user } = useAuth();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<'users' | 'tokens'>(
     searchParams?.get('tab') === 'tokens' ? 'tokens' : 'users',
@@ -135,6 +133,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (tab === 'users') fetchUsers();
     else fetchTokens();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchUsers/fetchTokens 每次渲染重建，仅按 tab 与筛选条件变化重新拉取
   }, [tab, page, tierFilter, statusFilter]);
 
   const handleSearch = (e: React.FormEvent) => {

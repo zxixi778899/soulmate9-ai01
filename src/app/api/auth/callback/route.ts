@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       expires_at: data.expires_at,
       user: data.user,
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

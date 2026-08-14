@@ -11,7 +11,7 @@ import { resolveImageUrl } from '@/lib/storage';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

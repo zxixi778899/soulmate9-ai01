@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(request);
+  const { user, client } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(request);
+  const { user, client } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

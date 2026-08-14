@@ -30,6 +30,13 @@ Messages:
 
 const BATCH_SIZE = 6; // last N messages
 
+/** Raw item shape parsed from the LLM's JSON output (fields untrusted). */
+interface RawMemoryItem {
+  content?: unknown;
+  type?: unknown;
+  category?: unknown;
+}
+
 export async function extractMemoriesLLM(
   messages: { role: string; content: string }[],
 ): Promise<ExtractedMemory[]> {
@@ -41,15 +48,15 @@ export async function extractMemoriesLLM(
     const text = await generateText({ prompt, temperature: 0.3, maxTokens: 512 });
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) return extractMemoriesFallback(last.find((m) => m.role === 'user')?.content || '');
-    const arr = JSON.parse(match[0]);
+    const arr = JSON.parse(match[0]) as unknown;
     if (!Array.isArray(arr)) return extractMemoriesFallback(last.find((m) => m.role === 'user')?.content || '');
-    const extracted = arr
-      .filter((m: any) => m && typeof m.content === 'string' && m.content.length > 4)
-      .map((m: any) => ({
+    const extracted = (arr as RawMemoryItem[])
+      .filter((m): m is RawMemoryItem & { content: string } => m != null && typeof m.content === 'string' && m.content.length > 4)
+      .map((m): ExtractedMemory => ({
         content: String(m.content).slice(0, 500),
-        type: VALID_TYPES.has(m.type) ? m.type : 'fact',
-        category: VALID_CATEGORIES.has(m.category) ? m.category : 'daily',
-      })) as ExtractedMemory[];
+        type: typeof m.type === 'string' && (VALID_TYPES as Set<string>).has(m.type) ? (m.type as ExtractedMemory['type']) : 'fact',
+        category: typeof m.category === 'string' && (VALID_CATEGORIES as Set<string>).has(m.category) ? (m.category as ExtractedMemory['category']) : 'daily',
+      }));
     return extracted.length
       ? extracted
       : extractMemoriesFallback(last.find((m) => m.role === 'user')?.content || '');

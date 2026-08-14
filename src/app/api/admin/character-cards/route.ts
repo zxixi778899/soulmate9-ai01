@@ -13,7 +13,7 @@ export const runtime = 'nodejs';
 export async function POST(request: NextRequest) {
   const adminCheck = await requireAdmin(request);
   if (adminCheck.error) return adminCheck.error;
-  const { supabase, user, profile } = adminCheck;
+  const { supabase, user } = adminCheck;
 
   try {
     const formData = await request.formData();

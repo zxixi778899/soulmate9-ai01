@@ -19,7 +19,7 @@ import {
   Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink, Megaphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { GIRLS, RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
+import { RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
 import { fetchCompanionCatalog } from '@/lib/companions';
 import { ensureCompanionChatId } from '@/lib/ensure-companion';
 import { useFriendStatus } from '@/lib/use-friend-status';
@@ -196,11 +196,7 @@ export default function HomePage() {
   useDataSync(loadData, ['girlfriends']);
 
   useEffect(() => {
-    let cancelled = false;
     loadData().catch(() => {});
-    return () => {
-      cancelled = true;
-    };
   }, [loadData]);
 
   // 主视觉轮播：后台推荐(featured)优先，不足再用热门/公开补齐
@@ -419,6 +415,7 @@ export default function HomePage() {
                 rel={ad.link_url ? 'noopener noreferrer' : undefined}
                 className="block relative overflow-hidden rounded-2xl ring-1 ring-white/10 hover:ring-[#ff2e88]/40 transition-all group"
               >
+                {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                 <img
                   src={ad.image_url}
                   alt={ad.title}

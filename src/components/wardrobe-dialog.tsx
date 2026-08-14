@@ -59,6 +59,7 @@ export function WardrobeDialog({
     if (open) {
       loadWardrobe();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadWardrobe is redefined each render; reload keyed by open/girlfriendId
   }, [open, girlfriendId]);
 
   const loadWardrobe = async () => {
@@ -151,7 +152,7 @@ export function WardrobeDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={selectedTab} onValueChange={(v) => setSelectedTab(v as any)}>
+        <Tabs value={selectedTab} onValueChange={(v) => setSelectedTab(v as 'outfits' | 'custom')}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="outfits">
               <Shirt className="h-4 w-4 mr-2" />

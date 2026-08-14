@@ -46,7 +46,7 @@ interface PublicGirlfriend {
   portrait_url: string | null;
   avatar_url?: string | null;
   image_url: string | null;
-  character_card: any;
+  character_card: Record<string, unknown> | null;
 }
 
 async function getPublicGirlfriend(slug: string): Promise<PublicGirlfriend | null> {

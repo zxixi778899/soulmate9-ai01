@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { authedFetch } from '@/lib/supabase';
-import { useAuth } from '@/components/AuthProvider';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,7 +26,6 @@ interface Girlfriend {
 }
 
 export default function LorePage() {
-  const { user } = useAuth();
   const [entries, setEntries] = useState<LoreEntry[]>([]);
   const [gfs, setGfs] = useState<Girlfriend[]>([]);
   const [selectedGf, setSelectedGf] = useState('');

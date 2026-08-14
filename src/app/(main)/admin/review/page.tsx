@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
-import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,7 +47,6 @@ type ReviewItem = {
 };
 
 export default function AdminReviewPage() {
-  const { user } = useAuth();
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<ReviewItem | null>(null);
@@ -168,6 +166,7 @@ export default function AdminReviewPage() {
                   {/* Portrait */}
                   <div className="shrink-0">
                     {item.portrait_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
                       <img
                         src={item.portrait_url}
                         alt={item.name}
@@ -280,6 +279,7 @@ export default function AdminReviewPage() {
               {/* Portrait & Basic Info */}
               <div className="flex items-start gap-4">
                 {selectedItem.portrait_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
                   <img
                     src={selectedItem.portrait_url}
                     alt={selectedItem.name}

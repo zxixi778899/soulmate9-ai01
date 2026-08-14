@@ -144,7 +144,9 @@ export async function syncImageRoutesWithSettings(): Promise<void> {
       import('@/lib/provider-routes-store'),
       import('@/storage/database/supabase-client'),
     ]);
-    await loadProviderRoutes(getSupabaseClient());
+    // Cast via unknown: full SupabaseClient generics are too deep for direct
+    // structural matching against the duck-typed SiteSettingsClient (TS2589).
+    await loadProviderRoutes(getSupabaseClient() as unknown as import('@/lib/site-settings-client').SiteSettingsClient);
     // loadProviderRoutes seeds setImageRoutesCache; stamp the refresh time so
     // we don't hit the DB again inside the TTL window.
     stampImageRouteCache();

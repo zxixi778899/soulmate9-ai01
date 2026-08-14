@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
  * Example: UTC+8 → offset = -480, UTC-5 → offset = 300
  */
 export async function POST(request: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(request);
+  const { user, client } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
  * Get user's stored timezone offset.
  */
 export async function GET(request: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(request);
+  const { user, client } = await getAuthUser(request);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

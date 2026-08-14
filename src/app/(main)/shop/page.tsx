@@ -151,6 +151,7 @@ function ShelfCard({
       <div className={cn('aspect-[3/4] bg-gradient-to-br relative', gradient)}>
         {image ? (
           <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
             <img
               src={image}
               alt={title}
@@ -754,6 +755,7 @@ export default function ShopPage() {
             <>
               {detail.preview_url ? (
                 <div className="relative aspect-[4/3] bg-black/40 group">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                   <img
                     src={detail.preview_url}
                     alt={detail.name}

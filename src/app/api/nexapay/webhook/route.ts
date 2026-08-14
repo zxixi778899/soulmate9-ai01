@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyNexaPayWebhook } from '@/lib/nexapay-server';
-import { grantCredits, grantTopUpCredits } from '@/lib/credit-system';
+import { grantTopUpCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { createClient } from '@supabase/supabase-js';
 import { checkAchievements } from '@/lib/achievement-checker';

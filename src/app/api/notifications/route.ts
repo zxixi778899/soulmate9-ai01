@@ -6,7 +6,7 @@ import { getAuthUser } from '@/lib/supabase-server';
  * Returns the current user's notifications (unread first, then recent)
  */
 export async function GET(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const unreadCount = data?.filter((n: any) => !n.is_read).length || 0;
+  const unreadCount = data?.filter((n: { is_read?: boolean }) => !n.is_read).length || 0;
 
   return NextResponse.json({ notifications: data || [], unreadCount });
 }
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
  * Mark notification(s) as read
  */
 export async function PATCH(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

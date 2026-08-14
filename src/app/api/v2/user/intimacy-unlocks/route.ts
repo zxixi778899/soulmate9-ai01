@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
         is_unlocked: l.level <= currentLevel,
       })),
     });
-  } catch (err: any) {
+  } catch (err) {
     logger.error('[intimacy-unlocks] error', { err: String(err).slice(0, 200) });
     return NextResponse.json({ error: 'Failed to fetch intimacy data' }, { status: 500 });
   }

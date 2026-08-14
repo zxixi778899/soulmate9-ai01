@@ -11,6 +11,7 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { logger } from '@/lib/logger';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 import {
   DEFAULT_IMAGE_ROUTES,
   setImageRoutesCache,
@@ -204,9 +205,7 @@ function filePath(): string {
 let memoryCache: { config: ProviderRoutesConfig; at: number } | null = null;
 const CACHE_MS = 15_000;
 
-export async function loadProviderRoutes(supabase?: {
-  from: (t: string) => any;
-}): Promise<ProviderRoutesConfig> {
+export async function loadProviderRoutes(supabase?: SiteSettingsClient): Promise<ProviderRoutesConfig> {
   if (memoryCache && Date.now() - memoryCache.at < CACHE_MS) {
     return memoryCache.config;
   }
@@ -248,7 +247,7 @@ export async function loadProviderRoutes(supabase?: {
 
 export async function saveProviderRoutes(
   config: ProviderRoutesConfig,
-  supabase?: { from: (t: string) => any },
+  supabase?: SiteSettingsClient,
 ): Promise<{ source: 'db' | 'file' }> {
   const next: ProviderRoutesConfig = {
     ...config,

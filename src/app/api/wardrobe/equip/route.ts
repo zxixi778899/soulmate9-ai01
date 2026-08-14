@@ -25,7 +25,7 @@ const EQUIP_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
  * }
  */
 export async function POST(req: NextRequest) {
-  const { user, client, error } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
  * Returns catalog + equipped state for a girlfriend.
  */
 export async function GET(req: NextRequest) {
-  const { user, client, error } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

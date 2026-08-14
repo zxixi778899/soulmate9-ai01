@@ -17,7 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { resolveBucketName, toPublicUrl, uploadFile } from '@/lib/storage';
 import { VOICE_EMOTIONS, isVoiceEmotion } from '@/lib/tts-emotion';
-import { assignVoiceByPersonality, getArchetypeForPersonality } from '@/lib/voice-personality';
+import { assignVoiceByPersonality } from '@/lib/voice-personality';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -192,12 +192,13 @@ function assignEdgeVoice(companionId: string, language: 'en' | 'zh' | 'auto' = '
 async function edgeTtsSynthesize(
   text: string,
   voice: TTSVoiceProfile,
+  // Kept for signature parity with the RunPod path; Edge TTS has no emotion/max_length knobs.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 保留参数以保持与 RunPod 合成签名一致
   opts?: TTSSynthesizeOptions,
 ): Promise<TTSResult> {
   const { MsEdgeTTS, OUTPUT_FORMAT } = await import('msedge-tts');
 
   const voiceName = voice.edge_voice || assignEdgeVoice(voice.companion_id, voice.language);
-  const speed = voice.speed ?? 1.0;
 
   const tts = new MsEdgeTTS();
   await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
@@ -274,7 +275,7 @@ async function synthesizeViaRunPod(
   opts: TTSSynthesizeOptions | undefined,
   config: { apiKey: string; endpointId: string; baseUrl: string },
 ): Promise<TTSResult> {
-  const { apiKey, endpointId, baseUrl } = config;
+  const { apiKey, baseUrl } = config;
 
   const maxLength = Math.max(1, Math.min(opts?.max_length ?? DEFAULT_MAX_TEXT, 2000));
   const cleanText = String(text || '').trim().slice(0, maxLength);

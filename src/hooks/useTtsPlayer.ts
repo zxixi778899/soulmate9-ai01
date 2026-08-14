@@ -17,6 +17,15 @@ export function useTtsPlayer() {
   });
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const stop = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    setState({ playing: false, loading: false, error: null, activeMsgId: null });
+  }, []);
+
   const speak = useCallback(async (text: string, girlfriendId: string, msgId: string) => {
     // If already playing this message, stop it
     if (state.activeMsgId === msgId && state.playing) {
@@ -61,19 +70,11 @@ export function useTtsPlayer() {
 
       await audio.play();
       setState({ playing: true, loading: false, error: null, activeMsgId: msgId });
-    } catch (e: any) {
-      setState({ playing: false, loading: false, error: e.message || 'TTS failed', activeMsgId: null });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'TTS failed';
+      setState({ playing: false, loading: false, error: message || 'TTS failed', activeMsgId: null });
     }
-  }, [state.activeMsgId, state.playing]);
-
-  const stop = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current = null;
-    }
-    setState({ playing: false, loading: false, error: null, activeMsgId: null });
-  }, []);
+  }, [state.activeMsgId, state.playing, stop]);
 
   return { ...state, speak, stop };
 }

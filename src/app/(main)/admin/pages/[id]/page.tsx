@@ -9,11 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
-  ArrowUp, ArrowDown, Plus, Trash2, GripVertical, Loader2, Image as ImageIcon,
+  ArrowUp, ArrowDown, Plus, Trash2, Loader2,
 } from 'lucide-react';
 
 type PageModule = {
@@ -52,14 +52,14 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
       const data = await res.json();
       setPage(data);
       setModules(data.modules || []);
-    } catch (e) {
+    } catch {
       toast.error('');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchPage(); }, []);
+  useEffect(() => { fetchPage(); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only effect，fetchPage 每次渲染重建
 
   const moveModule = async (index: number, direction: 'up' | 'down') => {
     const newModules = [...modules];
@@ -212,6 +212,7 @@ export default function PageEditor({ params }: { params: Promise<{ id: string }>
                           className="flex-1"
                         />
                         {mod.image_url && (
+                          // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
                           <img src={mod.image_url} alt="" className="h-10 w-10 rounded-lg object-cover" />
                         )}
                       </div>

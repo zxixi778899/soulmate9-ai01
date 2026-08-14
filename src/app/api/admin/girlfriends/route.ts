@@ -862,7 +862,7 @@ function generateRandomProfiles(count: number, gender: string): GeneratedProfile
 }
 
 //  Batch create handler 
-async function handleBatchCreate(supabase: any, user: { id: string }, rawCount: number, rawGender?: string) {
+async function handleBatchCreate(supabase: SupabaseClient, user: { id: string }, rawCount: number, rawGender?: string) {
   const count = Math.min(Math.max(Number(rawCount) || 3, 1), 10);
   const gender = ['Female', 'Male', 'Transgender'].includes(String(rawGender)) ? String(rawGender) : 'Female';
 

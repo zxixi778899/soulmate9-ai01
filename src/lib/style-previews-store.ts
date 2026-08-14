@@ -9,6 +9,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 
 export const STYLE_PREVIEWS_KEY = 'creator_style_previews';
 
@@ -33,7 +34,7 @@ export interface StylePreviewsConfig {
 
 // ─── Persistence ─────────────────────────────────────────────
 
-type SupabaseLike = { from: (t: string) => any };
+type SupabaseLike = SiteSettingsClient;
 
 let memoryCache: { config: StylePreviewsConfig; at: number } | null = null;
 const CACHE_MS = 15_000;

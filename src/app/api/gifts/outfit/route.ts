@@ -39,7 +39,7 @@ const REACTIONS = [
  * 8. Return success + message preview + outfit details
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

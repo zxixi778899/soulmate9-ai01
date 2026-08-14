@@ -11,7 +11,7 @@ import { TelegramApi, type InlineKeyboard, type TgUser } from './api';
 import { STR, TIER_NAMES, type BotLocale } from './i18n';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
-import type { Binding, BotSession } from './session';
+import type { BotSession } from './session';
 import { updateBinding } from './session';
 
 export interface BotCtx {
@@ -39,7 +39,7 @@ async function internalFetch(
   ctx: BotCtx,
   path: string,
   init: { method?: string; body?: unknown } = {},
-): Promise<{ status: number; data: Record<string, any> }> {
+): Promise<{ status: number; data: Record<string, unknown> }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 55_000);
   try {
@@ -52,7 +52,7 @@ async function internalFetch(
       ...(init.body ? { body: JSON.stringify(init.body) } : {}),
       signal: ctrl.signal,
     });
-    const data = (await res.json().catch(() => ({}))) as Record<string, any>;
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     return { status: res.status, data };
   } catch (err) {
     logger.warn('[tg-bot] internalFetch failed', {
@@ -191,7 +191,7 @@ export async function handleChat(
   const timer = setTimeout(() => ctrl.abort(), 55_000);
   let reply = '';
   let status = 0;
-  let errBody: Record<string, any> = {};
+  let errBody: Record<string, unknown> = {};
 
   try {
     const res = await fetch(new URL('/api/chat/stream', ctx.baseUrl).toString(), {
@@ -211,7 +211,7 @@ export async function handleChat(
     status = res.status;
 
     if (status !== 200) {
-      errBody = (await res.json().catch(() => ({}))) as Record<string, any>;
+      errBody = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     } else if (res.body) {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();

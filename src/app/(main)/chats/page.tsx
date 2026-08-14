@@ -7,6 +7,7 @@
  */
 
 import { useTranslation } from '@/lib/i18n/context';
+import type { TranslationKey } from '@/lib/i18n/types';
 import { authedFetch } from '@/lib/supabase';
 import { readResponseJson } from '@/lib/safe-json';
 import { useState, useEffect, useMemo, useCallback, useRef, type MouseEvent } from 'react';
@@ -71,7 +72,7 @@ type MemoryItem = { id: string; content: string; type: string; category: string;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatRelative(dateStr: string, t?: (key: string) => string): string {
+function formatRelative(dateStr: string, t?: (key: TranslationKey) => string): string {
   const date = new Date(dateStr);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
@@ -143,10 +144,9 @@ function GrowthStrip({ girlfriend, zh }: { girlfriend: ChatGirlfriend; zh: boole
 
 // ─── Friend Row ──────────────────────────────────────────────────────────────
 
-function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, unreadCount, zh, t, onDelete, onSubmit, onAlbum, onWardrobe, onOpenProfile, onClick }: {
+function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tick, unreadCount, t, onDelete, onSubmit, onAlbum, onWardrobe, onOpenProfile, onClick }: {
   friend: Friend;
-  zh: boolean;
-  t: (key: any, params?: Record<string, any>) => string;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   lastMsg?: LastMessage;
   score: number;
   selected: boolean;
@@ -517,7 +517,6 @@ export default function ChatsPage() {
   // ── Delete friend ──
   const deleteFriend = async (gf: Friend, e: MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    const zh = locale === 'zh';
     const confirmMsg = t('chats.removeFriendConfirm', { name: gf.name });
     if (!window.confirm(confirmMsg)) return;
     setDeletingId(gf.id);
@@ -562,7 +561,6 @@ export default function ChatsPage() {
   //    after admin review. Pending submissions can be withdrawn to draft. ──
   const submitForReview = async (gf: Friend, e: MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    const zh = locale === 'zh';
     const withdrawing = (gf.review_status || 'draft') === 'pending';
     const confirmed = withdrawing
       ? window.confirm(t('chats.withdrawConfirm', { name: gf.name }))
@@ -683,7 +681,10 @@ export default function ChatsPage() {
     } catch { /* ignore */ }
     setLoadingMemories(false);
   };
-  useEffect(() => { if (showMemories) loadMemories(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [showMemories]);
+  useEffect(() => {
+    if (showMemories) loadMemories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadMemories is redefined each render; reload keyed by showMemories
+  }, [showMemories]);
 
   // ── Smart suggestions ──
   const fetchSmartSuggestions = useCallback(async (lastAssistant: string, lastUser?: string) => {
@@ -766,7 +767,6 @@ export default function ChatsPage() {
     if (isGenerating || !selectedId) return;
     setIsGenerating(true);
     const req = (userRequest || 'send me a sexy selfie').trim();
-    const waitZh = /[\u4e00-\u9fff]/.test(req) || String(locale || '').toLowerCase().startsWith('zh');
     const waitText = t('chat.photoStillGenerating');
     const waitId = `selfie-wait-${Date.now()}`;
     setMessages((prev) => [...prev, { id: waitId, role: 'assistant', content: waitText, created_at: new Date().toISOString() }]);
@@ -1051,7 +1051,6 @@ export default function ChatsPage() {
                 <FriendRow
                   key={gf.id}
                   friend={gf}
-                  zh={locale === 'zh'}
                   t={t}
                   lastMsg={lastMessages[gf.id]}
                   score={intimacyMap[gf.id] || loadChatCache(gf.id)?.intimacy?.score || 0}
@@ -1433,7 +1432,10 @@ export default function ChatsPage() {
                     <button key={m.id} type="button" onClick={() => { setShowLightbox(m.media_url!); setShowAlbum(false); }} className="aspect-square rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors">
                       {m.media_type === 'video'
                         ? <video src={m.media_url!} className="h-full w-full object-cover" muted preload="metadata" />
-                        : <img src={m.media_url!} alt="" className="h-full w-full object-cover" loading="lazy" />}
+                        : (
+                          // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
+                          <img src={m.media_url!} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        )}
                     </button>
                   ))}
                 </div>

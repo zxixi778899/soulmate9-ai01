@@ -35,11 +35,17 @@ interface Purchase {
   created_at: string;
 }
 
+interface Membership {
+  membership_tier?: string;
+  tier?: string;
+  credits_remaining?: number;
+}
+
 export default function PurchasesPage() {
   const router = useRouter();
   const { t } = useTranslation();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [membership, setMembership] = useState<any>(null);
+  const [membership, setMembership] = useState<Membership | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

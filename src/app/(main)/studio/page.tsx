@@ -1,15 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, X, Flame, Droplet, Wind, Sun, Moon, Star } from 'lucide-react';
-import { GIRLS, type DemoGirl, RARITY_COLORS } from '@/lib/demo-data';
+import { motion } from 'motion/react';
+import { Sparkles, Flame, Wind, Sun } from 'lucide-react';
+import { GIRLS, type DemoGirl } from '@/lib/demo-data';
 import { NeonGridBackground } from '@/components/discover/NeonGridBackground';
 import { cn } from '@/lib/utils';
 
 type Tool = 'portrait' | 'voice' | 'video';
 
-const TOOLS: { key: Tool; label: string; desc: string; icon: any; gradient: string }[] = [
+const TOOLS: { key: Tool; label: string; desc: string; icon: typeof Sun; gradient: string }[] = [
   { key: 'portrait', label: 'Portrait Studio', desc: 'Generate high-res portraits in any scene', icon: Sun,    gradient: 'from-[#ff2e88] to-[#c026d3]' },
   { key: 'voice',    label: 'Voice Studio',    desc: 'Clone her voice or generate audio stories', icon: Wind,   gradient: 'from-[#00e5ff] to-[#3b82f6]' },
   { key: 'video',    label: 'Video Studio',    desc: 'Animate your companion in short clips',     icon: Flame,  gradient: 'from-[#fbbf24] to-[#ff6b35]' },
@@ -77,6 +77,7 @@ export default function StudioPage() {
                 <button key={g.id} onClick={() => { setSelectedGirl(g); setResult(null); }}
                   className={cn('shrink-0 h-14 w-14 rounded-full overflow-hidden border-2 transition-all',
                     selectedGirl.id === g.id ? 'border-[#ff2e88] scale-110 shadow-[0_0_18px_rgba(255,46,136,0.5)]' : 'border-white/10 hover:border-white/30')}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                   <img src={g.avatar} alt={g.name} className="h-full w-full object-cover" />
                 </button>
               ))}
@@ -95,6 +96,7 @@ export default function StudioPage() {
               <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                 className="relative w-full max-w-sm rounded-2xl overflow-hidden border-2"
                 style={{ borderColor: '#ff2e88', boxShadow: '0 0 36px rgba(255,46,136,0.4)' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                 <img src={result} alt="Generated" className="w-full aspect-square object-cover" />
                 <div className="absolute bottom-2 left-2 right-2 text-center text-xs text-white bg-black/40 backdrop-blur-md rounded-full py-1">
                   {selectedGirl.name} · {activeTool}

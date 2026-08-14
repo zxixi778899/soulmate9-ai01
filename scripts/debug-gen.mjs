@@ -1,6 +1,4 @@
 import { config } from 'dotenv';
-import { createRequire } from 'module';
-import { pathToFileURL } from 'url';
 import path from 'path';
 import { fileURLToPath } from 'url';
 

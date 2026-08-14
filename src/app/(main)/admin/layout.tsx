@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const data = await r.json().catch(() => ({}));
         return { ok: r.ok, status: r.status, data };
       })
-      .then(({ ok, status, data }) => {
+      .then(({ status, data }) => {
         if (data?.isAdmin) {
           setIsAdmin(true);
           setRole(data.role || 'admin');

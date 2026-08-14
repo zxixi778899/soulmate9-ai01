@@ -8,8 +8,27 @@ import { logger } from '@/lib/logger';
 /** @deprecated Seat packs removed — kept for backward-compat with existing purchases. */
 export const COMPANION_SEAT_PACKAGES: readonly { id: string; name: string; seats: number; price_cents: number; sort_order: number }[] = [];
 
+/** Awaitable supabase query result shape used by this module.
+ * `data` stays `unknown` so real SupabaseClient builders are structurally
+ * assignable; call sites narrow with explicit casts below. */
+type SeatAwaitable = PromiseLike<{
+  data: unknown;
+  error: { message: string } | null;
+  count: number | null;
+}>;
+
 export type SeatClient = {
-  from: (table: string) => any;
+  from: (table: string) => {
+    select: (columns: string, options?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }) => {
+      eq: (column: string, value: string) => SeatAwaitable & {
+        eq: (column: string, value: string) => SeatAwaitable;
+        maybeSingle: () => SeatAwaitable;
+      };
+    };
+    update: (values: Record<string, unknown>) => {
+      eq: (column: string, value: string) => SeatAwaitable;
+    };
+  };
 };
 
 export type SeatStatus = {

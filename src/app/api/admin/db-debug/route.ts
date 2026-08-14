@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const guard = await requireAdmin(req, 'superadmin');
   if (guard.error) return guard.error;
 
-  const out: any = {
+  const out: Record<string, unknown> = {
     env_has_COZE_SUPABASE_DB_URL: !!process.env.COZE_SUPABASE_DB_URL,
     env_COZE_SUPABASE_DB_URL_prefix: process.env.COZE_SUPABASE_DB_URL?.slice(0, 70) + '...',
     env_COZE_SUPABASE_URL_prefix: process.env.COZE_SUPABASE_URL?.slice(0, 60),
@@ -64,10 +64,10 @@ export async function GET(req: NextRequest) {
         out.buckets_status = bRes.status;
         if (bRes.ok) {
           const buckets = await bRes.json();
-          out.buckets = buckets.map((b: any) => ({ name: b.name, public: b.public, file_size_limit: b.file_size_limit }));
+          out.buckets = buckets.map((b: { name?: string; public?: boolean; file_size_limit?: number }) => ({ name: b.name, public: b.public, file_size_limit: b.file_size_limit }));
 
           //  portraits  publicservice_role  private
-          const portraitBucket = buckets.find((b: any) => b.name === 'portraits');
+          const portraitBucket = buckets.find((b: { name?: string; public?: boolean }) => b.name === 'portraits');
           if (portraitBucket && !portraitBucket.public) {
             const updRes = await fetch(`${SUPABASE_URL}/storage/v1/bucket/portraits`, {
               method: 'PUT',
@@ -84,8 +84,8 @@ export async function GET(req: NextRequest) {
         } else {
           out.buckets_error = (await bRes.text()).slice(0, 300);
         }
-      } catch (e: any) {
-        out.buckets_exception = e?.message;
+      } catch (e) {
+        out.buckets_exception = (e as { message?: unknown })?.message;
       }
 
       // try GET the portrait URL that refresh returned
@@ -96,16 +96,16 @@ export async function GET(req: NextRequest) {
         });
         out.portrait_get_status = objRes.status;
         out.portrait_get_body = (await objRes.text()).slice(0, 300);
-      } catch (e: any) {
-        out.portrait_get_exception = e?.message;
+      } catch (e) {
+        out.portrait_get_exception = (e as { message?: unknown })?.message;
       }
     } else {
       out.buckets_skipped = 'SUPABASE_URL or KEY missing';
     }
 
     return NextResponse.json(out);
-  } catch (e: any) {
-    out.error = e?.message;
+  } catch (e) {
+    out.error = (e as { message?: unknown })?.message;
     return NextResponse.json(out, { status: 500 });
   }
 }

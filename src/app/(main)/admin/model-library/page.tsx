@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 模型库条目为动态外部 JSON，字段异构且按 key 泛化读写
 type Any = Record<string, any>;
 
 const CAT_LABEL: Record<string, string> = {

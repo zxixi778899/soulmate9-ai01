@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     const page = await res.json();
     return NextResponse.json(page);
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (e) {
+    return NextResponse.json({ error: (e as { message?: unknown }).message }, { status: 500 });
   }
 }

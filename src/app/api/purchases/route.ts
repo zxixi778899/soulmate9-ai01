@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       .limit(50);
 
     const purchases = [
-      ...(cryptoOrders || []).map((o: any) => ({
+      ...(cryptoOrders || []).map((o: Record<string, unknown>) => ({
         id: o.id,
         type: 'crypto' as const,
         amount_usd: o.amount_usd,
@@ -49,9 +49,9 @@ export async function GET(request: Request) {
         plan: o.plan_id,
         status: o.status,
         tx_hash: o.tx_hash,
-        created_at: o.created_at,
+        created_at: o.created_at as string,
       })),
-      ...(shopPurchases || []).map((o: any) => ({
+      ...(shopPurchases || []).map((o: Record<string, unknown>) => ({
         id: o.id,
         type: 'shop' as const,
         amount: o.price_cents,
@@ -59,7 +59,7 @@ export async function GET(request: Request) {
         item_name: o.item_name,
         item_type: o.item_type,
         status: 'completed' as const,
-        created_at: o.created_at,
+        created_at: o.created_at as string,
       })),
     ];
 

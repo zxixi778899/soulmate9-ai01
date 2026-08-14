@@ -145,25 +145,6 @@ export type CompanionSceneIntensity = 1 | 2 | 3 | 4 | 5;
 
 type RealSceneKind = 'home' | 'outdoor' | 'water' | 'mirror' | 'work' | 'nightlife' | 'intimate' | 'neutral';
 
-const REAL_SCENE_DIRECTIONS: Record<RealSceneKind, string> = {
-  home: 'Use soft window light or an ordinary practical lamp with neutral walls and believable household clutter. Show fabric compression against furniture, small wrinkles, and objects placed for use rather than decoration.',
-  outdoor: 'Use weather-consistent daylight, restrained natural greens and sky tones, slight wind affecting hair and clothing, and grounded foot contact with the real surface. Keep the background recognisable instead of dissolving it into artificial bokeh.',
-  water: 'Use physically plausible wet hair, irregular water droplets, damp fabric and reflected ambient light. Keep skin color neutral beneath the moisture and avoid glossy oil-like skin or blue-magenta color contamination.',
-  mirror: 'Make the phone, reflected gaze, hand grip and reflection geometry agree. Use ordinary bathroom or dressing-room light, minor lens distortion and a casually imperfect crop instead of a polished advertisement pose.',
-  work: 'Use credible task lighting and a lived-in workspace with touched objects, subtle clothing creases and hands genuinely handling a relevant prop. The subject is caught between actions rather than presenting a mannequin pose.',
-  nightlife: 'Let colored signs remain mostly in the background while a neutral practical key light protects real skin tone. Keep blacks readable, saturation restrained and the environment grounded rather than bathing the entire body in cyan and magenta.',
-  intimate: 'Use soft neutral bedside or window light, naturally compressed bedding, plausible support from the mattress or furniture, and clear contact points. Preserve real skin variation without glamour retouching.',
-  neutral: 'Use a believable available-light location, neutral white balance, restrained local color, real material texture and a background with small signs of everyday use.',
-};
-
-const INTENSITY_BODY_LANGUAGE: Record<CompanionSceneIntensity, string> = {
-  1: 'Capture an unguarded pause between actions: shoulders at different heights, weight settled through one leg or the furniture, relaxed fingers, and a small spontaneous expression.',
-  2: 'Use quietly flirtatious but plausible body language: a gentle torso turn, one hand occupied by the environment, an off-center stance, and eye contact that feels noticed rather than performed.',
-  3: 'Use confident sensual body language with a supported spine, visible balance, naturally bent joints, and clothing or bedding reacting to the pose. Keep the gesture continuous and physically achievable.',
-  4: 'Use an intimate action with clear preparation and follow-through, anatomically readable contact points, stable support from limbs or furniture, and responsive expressions instead of frozen posing.',
-  5: 'Stage the complex adult action as one believable moment in progress: every body has a stable center of gravity, contact creates visible compression, hands have a clear purpose, and expressions respond naturally to the shared action.',
-};
-
 function inferRealSceneKind(action: string): RealSceneKind {
   const value = action.toLowerCase();
   if (/mirror|selfie|vanity|fitting room|phone/.test(value)) return 'mirror';

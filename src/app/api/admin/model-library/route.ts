@@ -15,7 +15,6 @@ import {
   libraryItemFromCivitai,
   buildLoraUrlsTxt,
   type LibraryItem,
-  type ModelLibrary,
 } from '@/lib/model-library';
 import { LORA_CATALOG, groupLorasByCategory } from '@/lib/comfy-console/lora-catalog';
 import { getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';

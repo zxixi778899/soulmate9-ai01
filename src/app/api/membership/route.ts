@@ -3,7 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { getSeatStatus } from '@/lib/companion-seats';
 
 export async function GET(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

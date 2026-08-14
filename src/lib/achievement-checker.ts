@@ -40,15 +40,58 @@ interface UserStats {
   memoriesCreated: number;
 }
 
+type AchQueryError = { message: string };
+
+type AchQueryResult = {
+  data: Record<string, unknown>[] | null;
+  error: AchQueryError | null;
+  count: number | null;
+};
+
+type AchQueryBuilder = PromiseLike<AchQueryResult> & {
+  eq: (column: string, value: unknown) => AchQueryBuilder;
+  gt: (column: string, value: number) => AchQueryBuilder;
+  gte: (column: string, value: number) => AchQueryBuilder;
+  lt: (column: string, value: number) => AchQueryBuilder;
+  in: (column: string, values: string[]) => AchQueryBuilder;
+  order: (column: string, options?: { ascending?: boolean }) => AchQueryBuilder;
+  limit: (count: number) => AchQueryBuilder;
+  maybeSingle: () => PromiseLike<{
+    data: Record<string, unknown> | null;
+    error: AchQueryError | null;
+  }>;
+};
+
 type SupabaseLike = {
-  from: (table: string) => any;
-  rpc: (fn: string, args: Record<string, unknown>) => any;
+  from: (table: string) => {
+    select: (
+      columns: string,
+      options?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean },
+    ) => AchQueryBuilder;
+    upsert: (
+      values: Record<string, unknown>,
+      options?: { onConflict?: string },
+    ) => PromiseLike<{ error: AchQueryError | null }>;
+    insert: (
+      values: Record<string, unknown>,
+    ) => PromiseLike<{ error: AchQueryError | null }>;
+  };
+};
+
+type AchievementDefRow = {
+  id: string;
+  code: string;
+  name: string;
+  condition_type: string;
+  condition_value: number;
+  reward_tokens: number;
+  is_hidden?: boolean;
 };
 
 async function safeCount(
   supabase: SupabaseLike,
   table: string,
-  apply: (q: any) => any,
+  apply: (q: AchQueryBuilder) => AchQueryBuilder,
 ): Promise<number> {
   try {
     let q = supabase.from(table).select('*', { count: 'exact', head: true });
@@ -82,7 +125,7 @@ export async function checkAchievements(
           .eq('user_id', userId)
           .order('level', { ascending: false })
           .limit(1);
-        return data?.[0]?.level || 1;
+        return (data?.[0]?.level as number | undefined) || 1;
       } catch {
         return 1;
       }
@@ -117,7 +160,7 @@ export async function checkAchievements(
           .select('membership_tier, checkin_streak')
           .eq('user_id', userId)
           .maybeSingle();
-        return data || null;
+        return (data || null) as { membership_tier?: string; checkin_streak?: number } | null;
       } catch {
         return null;
       }
@@ -356,7 +399,7 @@ export async function checkAchievements(
       memoriesCreated,
     };
 
-    let allAchievements = achievementResult?.data || [];
+    let allAchievements = (achievementResult?.data || []) as AchievementDefRow[];
     if (!allAchievements.length) {
       allAchievements = HEAT_ACHIEVEMENT_DEFS.map((d) => ({
         id: `seed-${d.code}`,
@@ -382,7 +425,7 @@ export async function checkAchievements(
           .eq('user_id', userId)
           .eq('achievement_id', ach.id)
           .maybeSingle();
-        existing = data;
+        existing = data as { unlocked?: boolean } | null;
       }
 
       if (existing?.unlocked) continue;

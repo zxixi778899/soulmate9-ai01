@@ -41,7 +41,7 @@ function formatCount(n: number): string {
 
 export function LeaderboardRail() {
   const router = useRouter();
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<RankEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
 

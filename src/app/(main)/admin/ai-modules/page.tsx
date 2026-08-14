@@ -14,11 +14,24 @@ import {
 } from '@/components/ui/select';
 import {
   Loader2, Save, RefreshCw, RotateCcw, Play, Brain, MessageSquare,
-  ImageIcon, Languages, Database, AlertTriangle, CheckCircle2, Plus, Trash2, Copy,
+  ImageIcon, Languages, Database, AlertTriangle, Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 管理后台动态配置 JSON，嵌套结构异构且按 key 泛化编辑
 type AnyConfig = Record<string, any>;
+
+interface SceneConfig {
+  width?: number;
+  height?: number;
+  steps?: number;
+  cfg?: number;
+  count?: number;
+  token_cost?: number;
+  use_consistency_default?: boolean;
+  allow_llm_prompt_polish?: boolean;
+  [key: string]: number | boolean | string | undefined;
+}
 
 const SCENE_LABELS: Record<string, string> = {
   girlfriend_portrait: '伴侣肖像',
@@ -251,16 +264,16 @@ export default function AdminAiModulesPage() {
 
 {/* Tabs */}
       <div className="flex flex-wrap gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1 w-fit">
-        {[
+        {([
           { id: 'overview', label: '总览预览', icon: Play },
           { id: 'chat', label: '聊天', icon: MessageSquare },
           { id: 'image', label: '出图', icon: ImageIcon },
           { id: 'language', label: '语言', icon: Languages },
           { id: 'endpoints', label: '端点', icon: Brain },
-        ].map((t) => (
+        ] as const).map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id as any)}
+            onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${
               tab === t.id ? 'bg-[#2563EB] text-white' : 'text-[#94A3B8] hover:text-white'
             }`}
@@ -589,7 +602,7 @@ export default function AdminAiModulesPage() {
             </CardContent>
           </Card>
 
-          {Object.entries(config.image.scenes || {}).map(([scene, sc]: [string, any]) => (
+          {(Object.entries(config.image.scenes || {}) as Array<[string, SceneConfig]>).map(([scene, sc]) => (
             <Card key={scene} className="border-white/10 bg-white/[0.03]">
               <CardContent className="p-5 space-y-3">
                 <h3 className="font-semibold text-white font-mono text-sm">{scene}</h3>

@@ -3,7 +3,7 @@ import type Stripe from 'stripe';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStripe } from '@/lib/stripe-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { grantCredits, grantTopUpCredits } from '@/lib/credit-system';
+import { grantTopUpCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from '@/lib/analytics';
 import { checkAchievements } from '@/lib/achievement-checker';

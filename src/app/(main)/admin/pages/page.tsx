@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -39,7 +39,7 @@ export default function AdminPages() {
       const res = await authedFetch('/api/admin/pages');
       const data = await res.json();
       setPages(data.pages || []);
-    } catch (e) {
+    } catch {
       toast.error('');
     } finally {
       setLoading(false);
@@ -62,7 +62,7 @@ export default function AdminPages() {
       setEditPage(null);
       setForm({ title: '', slug: '', description: '' });
       fetchPages();
-    } catch (e) { toast.error(''); }
+    } catch { toast.error(''); }
   };
 
   const handleDelete = async (id: string) => {
@@ -76,7 +76,7 @@ export default function AdminPages() {
       if (!res.ok) { toast.error(''); return; }
       toast.success('');
       fetchPages();
-    } catch (e) { toast.error(''); }
+    } catch { toast.error(''); }
   };
 
   const togglePublish = async (page: SitePage) => {
@@ -89,7 +89,7 @@ export default function AdminPages() {
       if (!res.ok) { toast.error(''); return; }
       toast.success(page.is_published ? '' : '');
       fetchPages();
-    } catch (e) { toast.error(''); }
+    } catch { toast.error(''); }
   };
 
   if (loading) return (

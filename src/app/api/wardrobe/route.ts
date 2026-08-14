@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { getOutfitById, resolveOutfitMeta, OUTFIT_CATALOG } from '@/lib/outfit-catalog';
+import { resolveOutfitMeta, OUTFIT_CATALOG } from '@/lib/outfit-catalog';
 import {
   equipOutfitOnGirlfriend,
   unequipOutfitOnGirlfriend,
@@ -12,7 +12,7 @@ import { invalidateShop } from '@/lib/revalidate';
  * Returns wardrobe items + catalog fallbacks. Optional ?girlfriend_id=
  */
 export async function GET(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
  * Prefer POST /api/wardrobe/equip for full "wear on body" flow.
  */
 export async function PATCH(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

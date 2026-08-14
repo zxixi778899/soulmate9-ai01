@@ -3,6 +3,7 @@ import path from 'path';
 import { createDefaultAiModules, AI_MODULES_SETTINGS_KEY } from './defaults';
 import type { AiModulesConfig } from './types';
 import { logger } from '@/lib/logger';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 
 function filePath() {
   return path.join(process.cwd(), 'data', 'ai-modules.json');
@@ -37,15 +38,16 @@ function normalizeAiModules(raw: Partial<AiModulesConfig>): AiModulesConfig {
 }
 
 function deepMerge<T extends Record<string, unknown>>(base: T, patch: Partial<T>): T {
-  const out = { ...base };
+  const baseRec = base as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...base };
   for (const [k, v] of Object.entries(patch)) {
-    if (v && typeof v === 'object' && !Array.isArray(v) && typeof (base as any)[k] === 'object') {
-      (out as any)[k] = deepMerge((base as any)[k], v as any);
+    if (v && typeof v === 'object' && !Array.isArray(v) && typeof baseRec[k] === 'object') {
+      out[k] = deepMerge(baseRec[k] as Record<string, unknown>, v as Record<string, unknown>);
     } else if (v !== undefined) {
-      (out as any)[k] = v;
+      out[k] = v;
     }
   }
-  return out;
+  return out as T;
 }
 
 export async function loadAiModulesFromFile(): Promise<AiModulesConfig> {
@@ -68,9 +70,7 @@ export async function saveAiModulesToFile(config: AiModulesConfig): Promise<void
 /**
  * Load config: memory → optional supabase site_settings → file → defaults
  */
-export async function loadAiModules(supabase?: {
-  from: (t: string) => any;
-}): Promise<AiModulesConfig> {
+export async function loadAiModules(supabase?: SiteSettingsClient): Promise<AiModulesConfig> {
   if (memoryCache && Date.now() - memoryCache.at < CACHE_MS) {
     return memoryCache.config;
   }
@@ -100,7 +100,7 @@ export async function loadAiModules(supabase?: {
 
 export async function saveAiModules(
   config: AiModulesConfig,
-  supabase?: { from: (t: string) => any },
+  supabase?: SiteSettingsClient,
 ): Promise<{ source: 'db' | 'file' }> {
   const next = {
     ...config,

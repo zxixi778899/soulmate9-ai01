@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
-import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,7 +50,6 @@ const defaultForm = {
 };
 
 export default function AdminAdsPage() {
-  const { user } = useAuth();
   const [ads, setAds] = useState<AdData[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -217,6 +215,7 @@ export default function AdminAdsPage() {
               {/* Image Preview */}
               <div className="relative h-40 bg-muted/20 flex items-center justify-center overflow-hidden">
                 {ad.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
                   <img
                     src={ad.image_url}
                     alt={ad.title}

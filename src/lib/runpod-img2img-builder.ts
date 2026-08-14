@@ -18,13 +18,13 @@ export function buildImg2ImgWorkflow(
   height: number = 1216,
   steps: number = 24,
   guidance: number = 1,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 位置参数，内部调用按位置传入，移除会错位后续参数
   fluxGuidance: number = 3.5,
   seed: number = Math.floor(Math.random() * 2 ** 32),
   modelRef?: [string, number],      // ['30', 0] if IP-Adapter used
   clipRef?: [string, number],       // ['22', 0] for split loader
   vaeRef?: [string, number],        // ['23', 0] for split loader
 ): Record<string, unknown> {
-  const seedStr = String(seed);
   const inputNodeId = '11';
   const scaleNodeId = '12';
   const encodeNodeId = '13';
@@ -143,7 +143,6 @@ export function buildCompleteImg2ImgWorkflow(opts: {
     seed = Math.floor(Math.random() * 2 ** 32),
   } = opts;
 
-  const isFlux = true;
   const useSplitLoader = SPLIT_FLUX_CHECKPOINTS.has(checkpoint);
   
   const baseGraph: Record<string, unknown> = {};

@@ -199,25 +199,6 @@ export async function createGift(
     is_active: input.is_active !== false,
   };
 
-  const row = {
-    code: gift.code,
-    name: gift.name,
-    description: gift.description,
-    emoji: gift.emoji,
-    icon_url: gift.icon_url,
-    cost_tokens: gift.cost_tokens,
-    intimacy_boost: gift.intimacy_boost,
-    desire_boost: gift.desire_boost,
-    development_boost: gift.development_boost,
-    kink_boost: gift.kink_boost,
-    effect_type: gift.effect_type,
-    effect_config: gift.effect_config,
-    effect_asset_url: gift.effect_asset_url,
-    sort_order: gift.sort_order,
-    is_active: gift.is_active,
-    updated_at: new Date().toISOString(),
-  };
-
   // site_settings is the primary store (chat_gifts table does not exist)
   let existing: ChatGift[] = [];
   const fromSettings = await loadFromSiteSettings(supabase);

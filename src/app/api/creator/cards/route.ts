@@ -9,7 +9,7 @@ import { logger } from '@/lib/logger';
  * Requires auth.
  */
 export async function GET(req: NextRequest) {
-  const { user, client, error: authError } = await getAuthUser(req);
+  const { user, client } = await getAuthUser(req);
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

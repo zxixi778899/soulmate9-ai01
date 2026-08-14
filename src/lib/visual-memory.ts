@@ -193,7 +193,7 @@ export async function getRecentMemories(
     return [];
   }
 
-  return (data || []).map((m: any) => ({
+  return (data || []).map((m) => ({
     id: m.id,
     image_url: m.image_url,
     prompt: m.prompt,
@@ -260,7 +260,7 @@ export async function cleanupOldMemories(
     .eq('user_id', userId)
     .not('girlfriend_id', 'is', null);
 
-  const girlfriendIds = new Set(gfStats?.map((g: any) => g.girlfriend_id) || []);
+  const girlfriendIds = new Set(gfStats?.map((g) => g.girlfriend_id) || []);
 
   let deletedCount = 0;
 
@@ -275,7 +275,7 @@ export async function cleanupOldMemories(
       .range(keepPerGirlfriend, keepPerGirlfriend + 100);
 
     if (oldMemories?.length) {
-      const idsToDelete = oldMemories.map((m: any) => m.id);
+      const idsToDelete = oldMemories.map((m) => m.id);
       const { error } = await sb
         .from('generation_memory')
         .delete()

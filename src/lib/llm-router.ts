@@ -47,14 +47,6 @@ function loadModelConfig(): Record<string, string> {
   return {};
 }
 
-const MODEL_MAP: Record<string, { id: string; capability: string; cost: 'low' | 'medium' | 'high' }> = {
-  'doubao-seed-2-0-lite-260215': { id: 'doubao-seed-2-0-lite-260215', capability: 'fast_chat', cost: 'low' },
-  'doubao-seed-2-0-pro-260215': { id: 'doubao-seed-2-0-pro-260215', capability: 'complex', cost: 'medium' },
-  'deepseek-v3-2-251201': { id: 'deepseek-v3-2-251201', capability: 'reasoning', cost: 'medium' },
-  'kimi-k2-5-260127': { id: 'kimi-k2-5-260127', capability: 'agent', cost: 'high' },
-  'doubao-seed-2-0-mini-260215': { id: 'doubao-seed-2-0-mini-260215', capability: 'fast_chat', cost: 'low' },
-};
-
 const INTENT_PATTERNS: { pattern: RegExp; task: TaskType; priority: number }[] = [
   { pattern: /(generate|create|make|draw|render|show me)\s.*(picture|image|photo|selfie|art|pic|portrait)/i, task: 'image_generation', priority: 10 },
   { pattern: /(send me|take|snap|shoot)\s.*(selfie|photo|picture|pic)/i, task: 'image_generation', priority: 10 },

@@ -9,6 +9,7 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { logger } from '@/lib/logger';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 
 export const PROMPT_PRESETS_KEY = 'prompt_presets';
 
@@ -79,7 +80,7 @@ export const DEFAULT_PROMPT_PRESETS: PromptPreset[] = [
   },
 ];
 
-type SupabaseLike = { from: (table: string) => any };
+type SupabaseLike = SiteSettingsClient;
 
 function filePath(): string {
   return path.join(process.cwd(), 'data', 'prompt-presets.json');
@@ -109,7 +110,7 @@ export async function loadPromptPresets(supabase?: SupabaseLike): Promise<Prompt
         .maybeSingle();
       if (!error && data?.value) {
         const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        const presets = normalize(val?.presets ?? val);
+        const presets = normalize((val as { presets?: unknown } | null)?.presets ?? val);
         if (presets) {
           cache = { presets, at: Date.now() };
           return presets;

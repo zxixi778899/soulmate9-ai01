@@ -44,7 +44,7 @@ import {
   type NsfwIntensity,
 } from '@/lib/comfy-console/studio-profile';
 import { getFluxPromptPresets, randomFluxPrompt } from '@/lib/comfy-console/flux-prompt-presets';
-import { DEFAULT_ENHANCERS, STUDIO_WORKBENCH_STAGES, type StudioEnhancers } from '@/lib/comfy-console/studio-workbench';
+import { DEFAULT_ENHANCERS, type StudioEnhancers } from '@/lib/comfy-console/studio-workbench';
 import {
   GIRLFRIEND_NEGATIVE_FLUX,
   resolveGirlfriendLoraPlan,
@@ -56,8 +56,6 @@ import {
   type CreativeGenerationMode,
 } from '@/lib/creative-generation-presets';
 import { buildStudioSceneDraft, buildStudioTaskPrompt } from '@/lib/comfy-console/studio-task-prompt';
-import { adultModelPromptSuffix, selectAdultScenePreset } from '@/lib/comfy-console/adult-scene-presets';
-import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
 import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import {
   CHARACTER_ID_PACK,
@@ -72,11 +70,11 @@ import {
   resolvePipelineLoras,
   resolveStageReference,
   buildStageGenerationParams,
-  type PipelineStageConfig,
   type PipelineStageResult,
   type PipelineContext,
 } from '@/lib/character-production-pipeline';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Comfy 控制台动态资源/配置 JSON，字段异构且按 key 泛化读写
 type Any = Record<string, any>;
 
 const CAT_LABEL: Record<string, string> = {
@@ -545,7 +543,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const loadVolume = useCallback(async () => {
     try {
       const res = await authedFetch('/api/admin/comfy?view=volume');
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok) return;
       setInstalledLoras(Array.isArray(data.installed_loras) ? data.installed_loras : []);
       setVolumeInfo(data);
@@ -559,7 +557,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     setLoading(true);
     try {
       const res = await authedFetch('/api/admin/comfy?view=config');
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok) throw new Error(data.error || '加载失败');
       setConfig(data.config);
       setWorkflowId('auto');
@@ -578,7 +576,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       if (activeId) qs.set('girlfriend_id', activeId);
       else qs.set('scope', 'public');
       const res = await authedFetch(`/api/admin/comfy?${qs.toString()}`);
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson(res).catch(() => ({} as Any));
       setAssets(data.assets || []);
       setSelectedAssetKeys([]);
 
@@ -748,6 +746,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- girlfriendId 变更时重新载入伴侣，fillPromptFromGirlfriend 每次渲染重建
   }, [girlfriendId]);
 
   // Auto-load partner list so the "当前伴侣" dropdown shows the name when entering with girlfriendId
@@ -755,6 +754,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     if (girlfriendId && batchGirlfriends.length === 0 && !batchLoading) {
       void loadBatchGirlfriends();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在进入页面时按 girlfriendId 触发一次，避免 batch 状态变化引起重复拉取
   }, [girlfriendId]);
 
   useEffect(() => {
@@ -1103,7 +1103,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     category: companionCategory,
     renderStyle: animeRenderStyle,
     hasIdentityReference: identityConsistencyActive,
-  }), [activeLoraTriggers, animeRenderStyle, cameraAngle, cameraFraming, companionCategory, genMode, generationRoute.modelFamily, identityConsistencyActive, prompt, promptFraming, scopedGirlfriend, studioTask]);
+  }), [activeLoraTriggers, animeRenderStyle, companionCategory, genMode, generationRoute.modelFamily, identityConsistencyActive, prompt, promptFraming, scopedGirlfriend, studioTask]);
   const recipes: Any[] = config?.lora_recipes || [];
   const stackingTips: string[] = config?.lora_stacking_tips || [];
 
@@ -1516,7 +1516,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'sync_installed' }),
       });
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok) throw new Error(data.error || '同步失败');
       await loadVolume();
       toast.success(`已同步盘状态 · 更新 ${data.updated ?? 0} 条`);
@@ -1589,7 +1589,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           loras: effectiveLoras,
         }),
       });
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok) throw new Error(data.error || '生成失败');
       setLastGenerationTrace(data.generation_trace || null);
 
@@ -1604,7 +1604,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           try {
             const activeGfId = productionGirlfriendId || girlfriendId || '';
             const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${activeGfId ? `&girlfriend_id=${encodeURIComponent(activeGfId)}` : ''}&asset_role=${encodeURIComponent(String(assetRole))}`);
-            const pollData = await readResponseJson(pollRes).catch(() => ({} as any));
+            const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
               setGenerationStage('finalizing');
               const saved = Array.isArray(pollData.assets) && pollData.assets.length
@@ -1688,7 +1688,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete_asset', id, storage_key }),
       });
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok) throw new Error(data.error || '删除失败');
       toast.success('已删除');
       setAssets((a) => a.filter((x) => x.id !== id && x.storage_key !== storage_key));
@@ -1739,7 +1739,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           })),
         }),
       });
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok) throw new Error(data.error || '批量删除失败');
       toast.success(`已删除 ${data.deleted ?? selectedAssets.length} 张`);
       clearSelection();
@@ -1789,7 +1789,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       fd.append('kind', kind || 'girlfriend');
       for (const f of files) fd.append('files', f);
       const res = await authedFetch('/api/admin/comfy', { method: 'POST', body: fd });
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok) throw new Error(data.error || '上传失败');
       toast.success(`上传成功 ${data.uploaded ?? files.length} 张`);
       setTab('library');
@@ -1844,7 +1844,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config, replace: true }),
       });
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok) throw new Error(data.error || '保存失败');
       setConfig(data.config);
       toast.success('配置已保存');
@@ -1860,7 +1860,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'reset_config' }),
     });
-    const data = await readResponseJson(res).catch(() => ({} as any));
+    const data = await readResponseJson(res).catch(() => ({} as Any));
     if (res.ok) {
       setConfig(data.config);
       toast.success('已恢复默认');
@@ -2237,6 +2237,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         <p className="text-[9px] text-slate-400">{stage.mode === 'txt2img' ? '文生图' : stage.mode === 'img2img' ? '图生图' : '图生视频'}</p>
                         {result?.imageUrl && (
                           <button type="button" className="group relative mx-auto mt-1 block cursor-zoom-in" onClick={() => setLightboxUrl(result.imageUrl!)}>
+                            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                             <img src={result.imageUrl} alt={stage.shortLabel} className="mx-auto h-12 w-auto rounded border border-slate-700 object-contain" />
                             <span className="absolute inset-0 flex items-center justify-center rounded bg-black/50 opacity-0 transition group-hover:opacity-100"><Maximize2 className="h-4 w-4 text-white" /></span>
                           </button>
@@ -2306,6 +2307,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         className={cn('flex items-center gap-2 rounded-lg border p-2 text-left transition', checked ? 'border-violet-400 bg-violet-500/20' : 'border-slate-700 bg-slate-950/70 hover:border-slate-500')}
                       >
                         <div className="h-11 w-9 shrink-0 overflow-hidden rounded bg-slate-800">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                           {image ? <img src={image} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="m-2 h-5 w-5 text-slate-400" />}
                         </div>
                         <div className="min-w-0 flex-1">
@@ -3534,6 +3536,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           <button type="button" className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" onClick={() => setLightboxUrl(null)}>
             <X className="h-5 w-5" />
           </button>
+          {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
           <img src={lightboxUrl} alt="大图预览" className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
         </div>
       )}

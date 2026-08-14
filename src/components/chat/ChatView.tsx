@@ -381,12 +381,13 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
     try {
       const nextPage = page + 1;
       const res = await authedFetch(`/api/chat/${id}?page=${nextPage}&limit=30`);
-      const data = await readResponseJson(res).catch(() => ({} as any));
-      if (data.messages?.length) {
-        setMessages(prev => [...data.messages, ...prev]);
+      const data = await readResponseJson<{ messages?: Message[] }>(res).catch(() => ({} as { messages?: Message[] }));
+      const msgs = data.messages;
+      if (msgs?.length) {
+        setMessages(prev => [...msgs, ...prev]);
         setPage(nextPage);
       }
-      if (!data.messages?.length || data.messages.length < 30) {
+      if (!msgs?.length || msgs.length < 30) {
         setHasMore(false);
       }
     } catch {}
@@ -397,7 +398,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
     setLoadingMemories(true);
     try {
       const res = await authedFetch(`/api/memories?girlfriend_id=${id}`);
-      const data = await readResponseJson(res).catch(() => ({} as any));
+      const data = await readResponseJson<{ memories?: MemoryItem[] }>(res).catch(() => ({} as { memories?: MemoryItem[] }));
       setMemories(data.memories || []);
     } catch {}
     setLoadingMemories(false);
@@ -600,7 +601,6 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       return;
     }
     resumedGenRef.current = true;
-    const zh = String(locale || '').toLowerCase().startsWith('zh');
     const waitId = `selfie-wait-${job.startedAt}`;
     cancelGenRef.current = false;
     const session = ++genSessionRef.current;
@@ -673,7 +673,6 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           return ts ? Date.now() - Number(ts[1]) > GEN_WAIT_TTL : true;
         });
         if (!stale.length) return prev;
-        const zh = String(locale || '').toLowerCase().startsWith('zh');
         const cleaned = prev.filter((m) => !stale.some((s) => s.id === m.id));
         // Reset generation state so the UI never stays locked on a dead job.
         clearGenJob(id);
@@ -690,7 +689,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       });
     }, 30_000);
     return () => clearInterval(iv);
-  }, [invalidChatId, locale]);
+  }, [invalidChatId, id, t]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -820,7 +819,6 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       ),
     );
     clearGenJob(id);
-    const zh = String(locale || '').toLowerCase().startsWith('zh');
     toast.message(t('chat.photoCancelled'));
   };
 
@@ -966,9 +964,6 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
     extraContext?: Array<{ role: string; content: string }>,
   ) => {
     if (isGenerating) {
-      const busyZh =
-        /[\u4e00-\u9fff]/.test(userRequest || '') ||
-        String(locale || '').toLowerCase().startsWith('zh');
       toast.message(t('chat.sheAlreadyTakingPhoto'));
       return;
     }
@@ -978,10 +973,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
     const req = (userRequest || 'send me a sexy selfie').trim();
     lastSelfieReqRef.current = req;
 
-    // Girlfriend "I'm taking a photo" wait message — match user language
-    const waitZh =
-      /[\u4e00-\u9fff]/.test(req) ||
-      String(locale || '').toLowerCase().startsWith('zh');
+    // Girlfriend "I'm taking a photo" wait message
     const waitText = t('chat.takingNewPhotoForYou');
     const waitId = `selfie-wait-${Date.now()}`;
     setMessages((prev) => [
@@ -1272,16 +1264,12 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
   /** Generate a short video: first create an image, then animate it via RunPod SVD */
   const generateVideo = async (userRequest?: string, tier: 3 | 5 | 10 = videoTier) => {
     if (isGenerating) {
-      const busyZh =
-        /[\u4e00-\u9fff]/.test(userRequest || '') ||
-        String(locale || '').toLowerCase().startsWith('zh');
       toast.message(t('chat.sheAlreadyGenerating'));
       return;
     }
     cancelGenRef.current = false;
     const session = ++genSessionRef.current;
     setIsGenerating(true);
-    const waitZh = /[\u4e00-\u9fff]/.test(userRequest || '') || String(locale || '').toLowerCase().startsWith('zh');
     lastVideoReqRef.current = userRequest || 'send me a selfie';
     const waitText = t('chat.makingVideoForYou');
     const waitId = `video-wait-${Date.now()}`;
@@ -1932,7 +1920,6 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
 
   const downloadLightboxImage = async () => {
     if (!showLightbox) return;
-    const zh = String(locale || '').toLowerCase().startsWith('zh');
     try {
       const res = await fetch(showLightbox);
       const blob = await res.blob();
@@ -2127,6 +2114,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
                   onClick={() => void chooseCandidate(u)}
                   className="group relative aspect-[3/4] overflow-hidden rounded-xl border border-white/10 hover:border-[#FF2D78]/50 transition-colors"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                   <img src={u} alt="" className="h-full w-full object-cover" loading="lazy" />
                   <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2 text-left text-[11px] font-semibold text-white opacity-0 group-hover:opacity-100 transition-opacity">
                     {t('chat.selectThis')}
@@ -2379,6 +2367,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
                             preload="metadata"
                           />
                         ) : (
+                          // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
                           <img
                             src={m.url}
                             alt=""

@@ -13,8 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
-  Loader2, RefreshCw, Plus, Trash2, Play, Zap, ImageIcon,
-  Mic, Settings, CheckCircle2, XCircle,
+  Loader2, RefreshCw, Plus, Trash2, ImageIcon,
+  Settings,
 } from 'lucide-react';
 
 // --- Types ---
@@ -30,8 +30,10 @@ interface CharacterReference {
   companion_id: string | null; tags: string[]; notes: string;
 }
 
+type LoraStackEntry = string | { name: string; strength_model?: number };
+
 interface GenPreset {
-  id: string; name: string; checkpoint: string; lora_stack: any[];
+  id: string; name: string; checkpoint: string; lora_stack: LoraStackEntry[];
   steps: number; cfg: number; sampler: string; scheduler: string;
   width: number; height: number; notes: string;
 }
@@ -43,7 +45,7 @@ export default function AdminPresetsContent({ embedded = false }: { embedded?: b
   const [references, setReferences] = useState<CharacterReference[]>([]);
   const [genPresets, setGenPresets] = useState<GenPreset[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialog, setDialog] = useState<{ type: 'template' | 'reference' | 'gen_preset'; item?: any } | null>(null);
+  const [dialog, setDialog] = useState<{ type: 'template' | 'reference' | 'gen_preset' } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -185,6 +187,7 @@ export default function AdminPresetsContent({ embedded = false }: { embedded?: b
               <Card key={ref.id} className="bg-[#16161f] border-gray-800 overflow-hidden">
                 <div className="aspect-square bg-gray-900 relative">
                   {ref.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
                     <img src={ref.image_url} alt={ref.character_name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex items-center justify-center h-full">
@@ -245,7 +248,7 @@ export default function AdminPresetsContent({ embedded = false }: { embedded?: b
                     </div>
                     {(p.lora_stack || []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {p.lora_stack.map((l: any, i: number) => (
+                        {p.lora_stack.map((l: LoraStackEntry, i: number) => (
                           <Badge key={i} variant="outline" className="bg-violet-500/10 text-violet-400 border-violet-500/30 text-xs">
                             {typeof l === 'string' ? l : l.name}
                           </Badge>
@@ -433,6 +436,7 @@ function ReferenceDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (
           </div>
           {form.image_url && (
             <div className="aspect-video bg-gray-900 rounded-md overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
               <img src={form.image_url} alt="preview" className="w-full h-full object-cover" />
             </div>
           )}

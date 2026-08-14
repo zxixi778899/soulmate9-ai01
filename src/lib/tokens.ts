@@ -164,7 +164,7 @@ export async function grantTokens(
 ): Promise<boolean> {
   const sb = getSupabaseClient();
 
-  const { data, error } = await sb.rpc('grant_tokens', {
+  const { error } = await sb.rpc('grant_tokens', {
     p_user_id: userId,
     p_amount: amount,
     p_reason: reason,

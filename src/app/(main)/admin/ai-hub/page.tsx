@@ -13,9 +13,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
-  Loader2, RefreshCw, Plus, Trash2, Play, Zap, MessageSquare,
+  Loader2, RefreshCw, Plus, Play, Zap, MessageSquare,
   ImageIcon, Mic, Video, Settings, GripVertical, CheckCircle2,
-  XCircle, AlertTriangle, Layers,
+  AlertTriangle,
 } from 'lucide-react';
 import LoraPanel from './LoraPanel';
 
@@ -424,7 +424,7 @@ export default function AdminAiHubPage() {
 
 function AddEndpointDialog({ open, onClose, onSaved, postAction }: {
   open: boolean; onClose: () => void; onSaved: () => void;
-  postAction: (body: Record<string, unknown>) => Promise<any>;
+  postAction: (body: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [form, setForm] = useState({
     id: '', label: '', provider: 'openrouter', model_id: '',

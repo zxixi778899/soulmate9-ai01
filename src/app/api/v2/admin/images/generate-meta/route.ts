@@ -49,7 +49,7 @@ function fixLLMJson(jsonStr: string): string {
 /**
  *  JSON
  */
-function safeParseJSON(text: string): any {
+function safeParseJSON(text: string): unknown {
   //  JSON
   const jsonStr = extractJSON(text);
 
@@ -78,7 +78,12 @@ async function tryLLMWithFallback(userPrompt: string, concept: string, type: str
         throw new Error(`LLM returned empty or too short content (length: ${content?.length || 0})`);
       }
 
-      const metadata = safeParseJSON(content);
+      const metadata = safeParseJSON(content) as {
+        name?: string;
+        description?: string;
+        tags?: unknown;
+        appearance?: string;
+      } | null;
 
       if (metadata && metadata.name && metadata.description && metadata.tags && metadata.appearance) {
         return NextResponse.json({
@@ -132,9 +137,9 @@ export async function POST(req: NextRequest) {
 
     let concept: string;
     let type: string;
-    let girlfriendData: any;
-    let outfitData: any;
-    let propData: any;
+    let girlfriendData: Record<string, unknown> | undefined;
+    let outfitData: Record<string, unknown> | undefined;
+    let propData: Record<string, unknown> | undefined;
     try {
       const body = await req.json();
       concept = body.concept;

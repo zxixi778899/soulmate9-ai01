@@ -28,7 +28,6 @@ export function buildVideoWorkflow(params: VideoGenerationParams): Record<string
     fps = 12,
     resolution = '512x512',
     inputFileImage,
-    denoise = 0.75,
     seed = Math.floor(Math.random() * 2 ** 32),
   } = params;
 

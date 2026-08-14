@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from '@/lib/i18n/context';
-import { useAuth } from '@/components/AuthProvider';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -27,7 +26,6 @@ const QUICK_REPLIES_ZH = [
 
 export default function SupportAgent() {
   const { locale } = useTranslation();
-  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -59,7 +57,7 @@ export default function SupportAgent() {
       setMessages([{ role: 'assistant', content: welcomeMsg }]);
       setGreeted(true);
     }
-  }, [open, greeted]);
+  }, [open, greeted, welcomeMsg]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;

@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import {
   Archive, Coins, Crown, Film, ImageIcon, Loader2, Package2, Plus,
   RefreshCw, Search, Shirt, Sparkles, Star, Upload, WandSparkles,
-  Flame, Edit3,
+  Edit3,
 } from 'lucide-react';
 
 const COLLECTIONS = ['outfit', 'prop', 'membership', 'credits'] as const;

@@ -4,9 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Heart, Sparkles, MessageCircle, Shield, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { Heart, Sparkles, Shield, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { APP_NAME } from '@/lib/constants';
 
 const STEPS = [
   {

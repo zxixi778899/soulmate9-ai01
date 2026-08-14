@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { withAuth, withAuthBody } from '@/lib/api-handler';
 import { z } from 'zod';
 import { DAILY_INTIMACY_CAP, INTIMACY_MAX_SCORE, getIntimacyLevel, getIntimacyProgress } from '@/lib/constants';

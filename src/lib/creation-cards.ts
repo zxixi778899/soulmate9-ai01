@@ -11,8 +11,27 @@
  */
 import { logger } from '@/lib/logger';
 
+/** Profile fields this module reads/writes for the creation-card quota. */
+interface ProfileCardsRow {
+  membership_tier?: string | null;
+  creation_cards?: number | null;
+  creation_card_last_refill?: string | null;
+  free_card_claimed?: boolean | null;
+}
+
+type CardsQueryResult<T> = PromiseLike<{ data: T | null; error: { message: string } | null }>;
+
 export type CardClient = {
-  from: (table: string) => any;
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => {
+        maybeSingle: () => CardsQueryResult<ProfileCardsRow>;
+      };
+    };
+    update: (values: Record<string, unknown>) => {
+      eq: (column: string, value: string) => CardsQueryResult<unknown>;
+    };
+  };
 };
 
 export type CreationCardStatus = {
@@ -43,7 +62,6 @@ export async function getCreationCardStatus(
   let tier = 'free';
   let cards = 1;
   let lastRefill: string | null = null;
-  let freeClaimed = false;
 
   try {
     const { data } = await client
@@ -53,10 +71,9 @@ export async function getCreationCardStatus(
       .maybeSingle();
 
     if (data) {
-      tier = (data as any).membership_tier || 'free';
-      cards = (data as any).creation_cards ?? 1;
-      lastRefill = (data as any).creation_card_last_refill;
-      freeClaimed = (data as any).free_card_claimed ?? false;
+      tier = data.membership_tier || 'free';
+      cards = data.creation_cards ?? 1;
+      lastRefill = data.creation_card_last_refill as string | null;
     }
   } catch (err) {
     logger.warn('[creation-cards] read profile failed', { err: String(err) });
@@ -155,7 +172,7 @@ export async function grantCreationCards(
       .eq('user_id', userId)
       .maybeSingle();
 
-    const current = (data as any)?.creation_cards ?? 0;
+    const current = data?.creation_cards ?? 0;
     const next = current + n;
 
     const { error } = await client

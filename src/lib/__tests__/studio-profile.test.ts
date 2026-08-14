@@ -149,7 +149,7 @@ describe('studio generation profiles', () => {
     expect(Array.isArray(controls.selected)).toBe(true);
     expect(Array.isArray(controls.missing)).toBe(true);
     // Check for correct FLUX LoRA composition - either selected or marked as missing
-    const allIds = [...controls.selected, ...controls.missing].map((item: any) => item.id);
+    const allIds = [...controls.selected, ...controls.missing].map((item) => item.id);
     expect(allIds.some((id: string) => id.includes('mtf') || id.includes('trans'))).toBe(true);
   });
 

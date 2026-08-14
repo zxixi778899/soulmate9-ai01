@@ -7,7 +7,6 @@
 import {
   assembleGirlfriendPrompt,
   assembleGirlfriendFromRow,
-  subjectFromGirlfriendRow,
   type GirlfriendSubject,
 } from './girlfriend';
 import { assembleOutfitPrompt, assembleOutfitFromRow } from './outfit';

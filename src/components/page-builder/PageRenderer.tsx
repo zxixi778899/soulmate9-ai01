@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 
 type PageModule = {
@@ -22,8 +20,12 @@ interface PageRendererProps {
   slug: string;
 }
 
+interface PageData {
+  modules?: PageModule[];
+}
+
 export default function PageRenderer({ slug }: PageRendererProps) {
-  const [page, setPage] = useState<any>(null);
+  const [page, setPage] = useState<PageData | null>(null);
   const [modules, setModules] = useState<PageModule[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +37,7 @@ export default function PageRenderer({ slug }: PageRendererProps) {
         const data = await res.json();
         setPage(data);
         setModules(data.modules || []);
-      } catch (e) {
+      } catch {
         setPage(null);
       } finally {
         setLoading(false);
@@ -67,6 +69,7 @@ export default function PageRenderer({ slug }: PageRendererProps) {
         <section key={mod.id} className="relative flex items-center justify-center px-6 py-24 text-center overflow-hidden">
           {mod.image_url && (
             <div className="absolute inset-0 z-0">
+              {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
               <img src={mod.image_url} alt="" className="h-full w-full object-cover opacity-30" />
               <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/40 to-background" />
             </div>
@@ -137,6 +140,7 @@ export default function PageRenderer({ slug }: PageRendererProps) {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {mod.image_url.split(',').map((url, i) => (
                 <div key={i} className="aspect-square rounded-xl overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                   <img src={url.trim()} alt="" className="h-full w-full object-cover hover:scale-105 transition-transform duration-300" loading="lazy" />
                 </div>
               ))}
@@ -155,6 +159,7 @@ export default function PageRenderer({ slug }: PageRendererProps) {
                 <Card key={i} className="border-border/30 bg-card/40 backdrop-blur-sm hover:border-primary/30 transition-all">
                   {mod.image_url && (
                     <div className="aspect-video rounded-t-xl overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                       <img src={mod.image_url.split(',')[i] || mod.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
                     </div>
                   )}

@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 插入好友关系（引用式，不克隆）
-  const { data: friendRow, error: insertError } = await client
+  const { error: insertError } = await client
     .from('user_friends')
     .insert({ user_id: user.id, girlfriend_id: publicGf.id, source: 'public' })
     .select()

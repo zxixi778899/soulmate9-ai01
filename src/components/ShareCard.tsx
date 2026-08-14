@@ -214,6 +214,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
           >
             {/* Full portrait */}
             {girlfriend.portrait_url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
               <img
                 src={girlfriend.portrait_url}
                 alt={girlfriend.name}

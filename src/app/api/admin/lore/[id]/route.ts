@@ -22,7 +22,7 @@ export async function PATCH(
   const body = await request.json();
   const { keys, content, insertion_order, active } = body;
 
-  const updates: Record<string, any> = {};
+  const updates: Record<string, unknown> = {};
   if (keys) updates.keys = keys;
   if (content !== undefined) updates.content = content;
   if (insertion_order !== undefined) updates.insertion_order = insertion_order;

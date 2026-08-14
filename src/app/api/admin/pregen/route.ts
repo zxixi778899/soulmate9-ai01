@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/require-admin";
 import { logger } from "@/lib/logger";
 import { runpodClient } from "@/lib/runpod";
@@ -16,7 +17,7 @@ const PREGEN_CONFIG_KEY = "pregen_pool_config";
 
 // --- Helpers ---
 
-async function loadPoolConfig(supabase: any): Promise<PregenPoolConfig> {
+async function loadPoolConfig(supabase: SupabaseClient): Promise<PregenPoolConfig> {
   try {
     const { data } = await supabase
       .from("site_settings")

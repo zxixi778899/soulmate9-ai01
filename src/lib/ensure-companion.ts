@@ -24,7 +24,7 @@ export async function ensureCompanionChatId(girl: {
   try {
     const listRes = await authedFetch('/api/friends');
     if (listRes.ok) {
-      const data = await readResponseJson(listRes).catch(() => ({} as any));
+      const data = (await readResponseJson(listRes).catch(() => ({}))) as { friends?: unknown };
       const list = (data.friends || []) as Array<{ id: string; name: string }>;
       const byId = list.find((g) => g.id === girl.id);
       if (byId) return byId.id;

@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { authedFetch } from '@/lib/supabase';
-import { Loader2, Search, CheckCircle, XCircle, Clock, AlertCircle, ExternalLink, RefreshCw, DollarSign, Users, CreditCard } from 'lucide-react';
+import { Loader2, Search, CheckCircle, XCircle, Clock, AlertCircle, RefreshCw, DollarSign, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,

@@ -59,7 +59,6 @@ export async function GET(req: NextRequest) {
 
     const now = Date.now();
     const DAY7 = 7 * 24 * 60 * 60 * 1000;
-    const DAY14 = 14 * 24 * 60 * 60 * 1000;
 
     for (const [userId, info] of userMap.entries()) {
       const lastAt = new Date(info.last_at).getTime();

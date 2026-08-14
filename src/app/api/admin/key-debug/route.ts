@@ -35,7 +35,7 @@ function decodeRole(jwt: string | undefined): string | null {
   try {
     const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
     return payload.role || 'no-role-field';
-  } catch (e: any) {
-    return `decode-err: ${e?.message}`;
+  } catch (e) {
+    return `decode-err: ${(e as { message?: unknown })?.message}`;
   }
 }

@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, X, Flame, Droplet, Wind, Sun, Moon } from 'lucide-react';
 import { GIRLS, type DemoGirl, RARITY_COLORS } from '@/lib/demo-data';
 import { NeonGridBackground } from '@/components/discover/NeonGridBackground';
-import { cn } from '@/lib/utils';
 
 const PITY = { SSR: 80 };
 
@@ -47,6 +46,7 @@ function PulledCard({ girl, onClose }: { girl: DemoGirl; onClose: () => void }) 
       <div className="rounded-2xl overflow-hidden border-2 bg-[#0e0e12]"
         style={{ borderColor: rc.color, boxShadow: `0 0 36px ${rc.glow}` }}>
         <div className="relative aspect-[3/4]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
           <img src={girl.portrait} alt={girl.name} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/70" />
           <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] backdrop-blur-md"

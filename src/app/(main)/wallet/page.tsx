@@ -19,8 +19,7 @@ type HistoryData = { transactions: Transaction[]; total: number; page: number; l
 type TokenPackage = { id: string; name: string; token_count: number; bonus_tokens: number; price_cents: number; sort_order: number; is_active: boolean; video_url?: string; image_url?: string; };
 
 export default function WalletPage() {
-  const { t, locale } = useTranslation();
-  const zh = locale === "zh";
+  const { t } = useTranslation();
   const REASON_META: Record<string, { label: string; icon: typeof Coins; color: string }> = {
     daily_checkin: { label: t('wallet.reason.dailyCheckin'), icon: CalendarCheck, color: "text-emerald-400" },
     chat_extra: { label: t('wallet.reason.extraChat'), icon: MessageCircle, color: "text-sky-400" },
@@ -99,7 +98,7 @@ export default function WalletPage() {
       toast.error(t('common.networkError'));
     }
     setBuying(null);
-  }, [zh]);
+  }, [t]);
 
   const handleSubmitCryptoPayment = async () => {
     if (!cryptoDialog?.txHash?.trim() || cryptoDialog.txHash.trim().length < 10) {

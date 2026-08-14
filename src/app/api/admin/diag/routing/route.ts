@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
 import { resolveImageGenerationRoute, specialistModelsReadyFromEnv } from '@/lib/image-generation-routing';
+import type { CompanionCategory } from '@/lib/companion-category';
+import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,9 +13,8 @@ export async function GET(req: NextRequest) {
     if (adminCheck.error) return adminCheck.error;
 
     const sp = new URL(req.url).searchParams;
-    const intensity = Number(sp.get('intensity') || 3);
-    const category = (sp.get('category') || 'female') as any;
-    const renderStyle = (sp.get('style') || 'realistic') as any;
+    const category = (sp.get('category') || 'female') as CompanionCategory;
+    const renderStyle = (sp.get('style') || 'realistic') as AnimeRenderStyle;
 
     // Raw env values
     const envCheck = {
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
         surface: 'companion',
         category,
         renderStyle,
-        nsfwIntensity: nsfw as any,
+        nsfwIntensity: nsfw as NsfwIntensity,
         specialistModelsReady: specialistModelsReadyFromEnv(),
       });
       return {

@@ -86,16 +86,6 @@ function qualityForModel(modelFamily: PromptInput['modelFamily'], renderStyle: A
   return 'real-camera photograph, face and full body clearly illuminated, no crushed shadows, natural skin, soft practical light';
 }
 
-function taskInstruction(task: StudioPromptTask, hasIdentityReference: boolean): string {
-  if (task !== 'identity' && !hasIdentityReference) return 'No ID reference is available, so preserve identity from the supplied companion profile and create only the requested change.';
-  if (task === 'portrait') return 'Use the supplied ID reference as the only authority for face, hair, body proportions and identity. Describe the new scene, action, wardrobe, lighting and camera composition.';
-  if (task === 'outfit') return 'Use the ID reference for identity and the outfit reference for clothing shape, material and details. Change only wardrobe; preserve the established person, pose and background unless requested.';
-  if (task === 'pose') return 'Use the ID reference for identity and the pose reference for body position, gesture, gaze and framing. Preserve the established appearance and wardrobe unless requested.';
-  if (task === 'background') return 'Use the ID reference for identity and the background reference for environment, perspective and lighting. Preserve the established person, wardrobe and pose unless requested.';
-  if (task === 'video') return 'Animate the supplied source image without redesigning the person or scene.';
-  return 'Create the canonical identity reference from the companion profile. Keep the composition simple, readable and suitable for later IP-Adapter identity control.';
-}
-
 export function buildStudioTaskPrompt(input: PromptInput): string {
   const identity = input.task === 'identity' || !input.hasIdentityReference ? companionIdentity(input.companion) : '';
   const scene = text(input.scene);

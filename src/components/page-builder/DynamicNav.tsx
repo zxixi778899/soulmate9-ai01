@@ -23,7 +23,7 @@ export default function DynamicNav() {
         const res = await fetch('/api/navigation');
         const data = await res.json();
         setItems(data.items || []);
-      } catch (e) {
+      } catch {
         // silently fail
       }
     };

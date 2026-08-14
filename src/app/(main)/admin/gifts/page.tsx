@@ -809,7 +809,7 @@ export default function AdminGiftsPage() {
                 )}
               </div>
               {form.effect_asset_url && isVideoUrl(form.effect_asset_url) && (
-                // eslint-disable-next-line jsx-a11y/media-has-caption
+                 
                 <video
                   src={form.effect_asset_url}
                   muted

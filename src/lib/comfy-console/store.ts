@@ -7,6 +7,7 @@ import {
 } from './defaults';
 import { logger } from '@/lib/logger';
 import { loadModelLibrary } from '@/lib/model-library';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 
 export type { ComfyConsoleConfig };
 
@@ -40,7 +41,7 @@ function mergeDeep(base: ComfyConsoleConfig, patch: Partial<ComfyConsoleConfig>)
   };
 }
 
-export async function loadComfyConfig(supabase?: { from: (t: string) => any }): Promise<ComfyConsoleConfig> {
+export async function loadComfyConfig(supabase?: SiteSettingsClient): Promise<ComfyConsoleConfig> {
   if (cache && Date.now() - cache.at < 10_000) return cache.cfg;
 
   const library = await loadModelLibrary(supabase).catch(() => ({ items: [] as never[] }));
@@ -55,7 +56,7 @@ export async function loadComfyConfig(supabase?: { from: (t: string) => any }): 
         .maybeSingle();
       if (!error && data?.value) {
         const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        const cfg = mergeDeep(createDefaultComfyConfig(libraryItems), val);
+        const cfg = mergeDeep(createDefaultComfyConfig(libraryItems), val as Partial<ComfyConsoleConfig>);
         cache = { cfg, at: Date.now() };
         return cfg;
       }
@@ -78,7 +79,7 @@ export async function loadComfyConfig(supabase?: { from: (t: string) => any }): 
 
 export async function saveComfyConfig(
   cfg: ComfyConsoleConfig,
-  supabase?: { from: (t: string) => any },
+  supabase?: SiteSettingsClient,
 ): Promise<{ source: 'db' | 'file' }> {
   // Keep LoRA list in sync with catalog + model-library on save.
   const library = await loadModelLibrary(supabase).catch(() => ({ items: [] as never[] }));

@@ -5,7 +5,6 @@ import { uploadFile } from '@/lib/storage';
 import {
   getVoiceForCompanionV2,
   synthesizeSpeech,
-  type TTSVoiceProfile,
 } from '@/lib/tts-service';
 import { generateGreetingLLM } from '@/lib/greeting-generator';
 import { buildCompanionGreeting } from '@/lib/companion-greeting';

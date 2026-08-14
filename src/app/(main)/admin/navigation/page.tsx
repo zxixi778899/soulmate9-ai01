@@ -39,7 +39,7 @@ export default function AdminNavigation() {
       const res = await authedFetch('/api/admin/navigation');
       const data = await res.json();
       setItems(data.items || []);
-    } catch (e) {
+    } catch {
       toast.error('');
     } finally {
       setLoading(false);
@@ -64,7 +64,7 @@ export default function AdminNavigation() {
       setEditItem(null);
       setForm({ label: '', url: '', parent_id: '' });
       fetchItems();
-    } catch (e) { toast.error(''); }
+    } catch { toast.error(''); }
   };
 
   const handleDelete = async (id: string) => {

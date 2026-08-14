@@ -11,7 +11,7 @@ import { loggerFromRequest } from '@/lib/logger';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { authedFetch } from '@/lib/supabase';
 
-async function getUserId(_req: NextRequest): Promise<string | null> {
+async function getUserId(): Promise<string | null> {
   try {
     const res = await authedFetch('/api/auth/me');
     if (!res.ok) return null;
@@ -23,7 +23,7 @@ async function getUserId(_req: NextRequest): Promise<string | null> {
 }
 
 export async function GET(req: NextRequest) {
-  const userId = await getUserId(req);
+  const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const supabase = getSupabaseClient();
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const log = loggerFromRequest(req);
-  const userId = await getUserId(req);
+  const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {

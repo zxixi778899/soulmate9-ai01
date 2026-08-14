@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
 import { getOrCreateScenario, updateScenarioState, endScenario } from '@/lib/scenario-engine';
+import type { ScenarioState } from '@/lib/milestone-types';
 
 export async function GET(request: NextRequest) {
   const { user, client } = await getAuthUser(request);
@@ -150,7 +151,7 @@ export async function PUT(request: NextRequest) {
 
     // Update scenario state
     if (stateUpdates.phase || stateUpdates.emotional_beat || stateUpdates.current_scene) {
-      const scenario = await updateScenarioState(client, String(scenario_id), stateUpdates as any);
+      const scenario = await updateScenarioState(client, String(scenario_id), stateUpdates as Partial<ScenarioState>);
       if (!scenario) {
         return NextResponse.json(
           { error: 'Scenario not found or update failed' },

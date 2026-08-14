@@ -338,7 +338,7 @@ export function CompanionAssetLibrary(props: {
                 >
                   {asset.media_type === 'video' ? (
                     <>
-                      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                      { }
                       <video
                         src={asset.thumbnail_url || asset.url}
                         className="h-full w-full object-cover"
@@ -412,7 +412,7 @@ export function CompanionAssetLibrary(props: {
             <X className="h-5 w-5" />
           </button>
           {preview.media_type === 'video' ? (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
+             
             <video
               src={preview.url}
               className="max-h-full max-w-full rounded-2xl shadow-2xl"

@@ -384,7 +384,7 @@ export async function POST(request: NextRequest) {
         name, count, category, renderStyle, promptLen: naturalPrompt.length,
       });
       const jobs = await Promise.all(
-        Array.from({ length: count }, (_, idx) =>
+        Array.from({ length: count }, () =>
           generateImage({
             prompt: naturalPrompt,
             negativePrompt,

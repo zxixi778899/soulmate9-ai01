@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
-    const { user, client, error: authError } = await getAuthUser(request);
+    const { user, client } = await getAuthUser(request);
     if (!user || !client) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

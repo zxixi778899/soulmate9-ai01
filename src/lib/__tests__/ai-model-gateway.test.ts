@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultAiModules } from '@/lib/ai-modules/defaults';
-import { isGatewayV2Enrolled, resolveChatCall, resolveImageCall, scoreChatComplexity } from '@/lib/ai-modules/resolve';
+import { resolveChatCall, resolveImageCall, scoreChatComplexity } from '@/lib/ai-modules/resolve';
 
 describe('AI Model Gateway v2', () => {
   it('keeps free ordinary chat on the economy model', () => {

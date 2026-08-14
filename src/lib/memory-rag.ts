@@ -4,6 +4,8 @@
  * Falls back to keyword search if no endpoint configured.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 const EMBED_URL    = process.env.EMBEDDING_API_URL || '';
 const EMBED_KEY    = process.env.EMBEDDING_API_KEY || process.env.RUNPOD_API_KEY || '';
 const EMBED_MODEL  = process.env.EMBEDDING_MODEL || 'bge-m3';
@@ -65,12 +67,21 @@ export interface MemoryHit {
   score: number;
 }
 
+/** Row shape returned by the search_memories RPC / memories table select. */
+interface MemoryRow {
+  id: string;
+  content: string;
+  type: string;
+  category: string;
+  score?: number;
+}
+
 /**
  * Retrieve top-k memories related to query.
  * Tries pgvector RPC first, falls back to keyword.
  */
 export async function retrieveMemories(
-  client: any,
+  client: SupabaseClient,
   userId: string,
   girlfriendId: string,
   query: string,
@@ -86,7 +97,7 @@ export async function retrieveMemories(
       p_match_count: k,
     });
     if (!error && Array.isArray(data) && data.length) {
-      return data.map((r: any) => ({
+      return (data as MemoryRow[]).map((r) => ({
         id: r.id,
         content: r.content,
         type: r.type,
@@ -105,8 +116,9 @@ export async function retrieveMemories(
     .order('created_at', { ascending: false })
     .limit(50);
   if (error || !Array.isArray(data)) return [];
-  const ranked = data
-    .map((r: any) => ({ ...r, score: keywordScore(query, r.content) }))
+  const rows = data as MemoryRow[];
+  const ranked = rows
+    .map((r) => ({ ...r, score: keywordScore(query, r.content) }))
     .filter((r: MemoryHit) => r.score > 0)
     .sort((a: MemoryHit, b: MemoryHit) => b.score - a.score)
     .slice(0, k);
@@ -115,5 +127,5 @@ export async function retrieveMemories(
 
   // Vague follow-ups often have no keyword overlap. Inject recent durable
   // memories so saved facts still influence the girlfriend's reply.
-  return data.slice(0, k).map((r: any) => ({ ...r, score: 0.05 }));
+  return rows.slice(0, k).map((r) => ({ ...r, score: 0.05 }));
 }

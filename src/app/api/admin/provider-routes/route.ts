@@ -23,7 +23,6 @@ import { requireAdmin } from '@/lib/require-admin';
 import {
   loadProviderRoutes,
   saveProviderRoutes,
-  invalidateProviderRoutesCache,
   type ProviderRoutesConfig,
   type LlmRouteConfig,
 } from '@/lib/provider-routes-store';

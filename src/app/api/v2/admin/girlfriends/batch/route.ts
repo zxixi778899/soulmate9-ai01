@@ -8,12 +8,6 @@ import { invalidateGirlfriends } from '@/lib/revalidate';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-//  ENV 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-  || process.env.COZE_SUPABASE_URL
-  || '';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
 const BATCH_LIMIT = { maxRequests: 20, windowMs: 60 * 60 * 1000 }; // 20/h/admin
 
 //  Random Data Pools 

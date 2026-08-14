@@ -167,9 +167,10 @@ async function main() {
       const url = await uploadToSupabase(`${c.slug}.png`, base64);
       console.log(`  → uploaded: ${url}`);
       results.push({ slug: c.slug, url });
-    } catch (e: any) {
-      console.log(` ✗ ${e?.message}`);
-      results.push({ slug: c.slug, error: e?.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.log(` ✗ ${message}`);
+      results.push({ slug: c.slug, error: message });
     }
   }
 

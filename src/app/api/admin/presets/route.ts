@@ -58,9 +58,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ character_presets: rows });
     }
 
-    let templates: any[] = [];
-    let references: any[] = [];
-    let genPresets: any[] = [];
+    let templates: Record<string, unknown>[] = [];
+    let references: Record<string, unknown>[] = [];
+    let genPresets: Record<string, unknown>[] = [];
 
     if (!type || type === 'templates') {
       const { data } = await admin.supabase
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { type, data } = body as { type: string; data: any };
+  const { type, data } = body as { type: string; data: Record<string, unknown> | undefined };
 
   try {
     switch (type) {
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
           if (typeof v === 'string') return v.split(',').map((x) => x.trim()).filter(Boolean);
           return null;
         };
-        const slug = makeGirlfriendSlug(data.name, str(data.slug));
+        const slug = makeGirlfriendSlug(data.name as string, str(data.slug));
         const gender = str(data.gender) || 'Female';
         const insert = {
           name: data.name,
@@ -284,7 +284,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { type, id, data } = body as { type: string; id: string; data: any };
+  const { type, id, data } = body as { type: string; id: string; data: Record<string, unknown> | undefined };
   if (!id || !data) {
     return NextResponse.json({ error: 'id and data required' }, { status: 400 });
   }

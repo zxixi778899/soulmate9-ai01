@@ -1,6 +1,4 @@
-﻿import { scenarioRelationshipLabel } from '@/lib/companion-profile';
-
-/**
+﻿/**
  * 符合角色的开场白（语音开场白文本）。
  * 按关系 / 职业 / 性格生成中英双语，供语音合成（保留音色）与资料页展示使用。
  */

@@ -1,5 +1,5 @@
 // SoulMate Service Worker - Plan Z v9: DISABLED cache (always network)
-self.addEventListener("install", (event) => {
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 self.addEventListener("activate", (event) => {
@@ -10,6 +10,6 @@ self.addEventListener("activate", (event) => {
   );
   self.clients.claim();
 });
-self.addEventListener("fetch", (event) => {
+self.addEventListener("fetch", () => {
   // Pass through everything - no cache interception
 });

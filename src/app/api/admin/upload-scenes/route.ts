@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
   const bgDir = requestedBgDir;
   const requested = Array.isArray(body.scenes) && body.scenes.length ? body.scenes : SCENES;
 
-  const results: any[] = [];
+  const results: Record<string, unknown>[] = [];
   for (const name of requested) {
     //  kebab-casea-z0-9-
     if (typeof name !== 'string' || !/^[a-z0-9-]{1,64}$/.test(name)) {
@@ -115,8 +115,8 @@ export async function POST(req: NextRequest) {
         public_url: `${SUPABASE_URL}/storage/v1/object/public/portraits/scenes/${name}.png`,
         body: respBody.slice(0, 200),
       });
-    } catch (e: any) {
-      results.push({ name, ok: false, error: e?.message });
+    } catch (e) {
+      results.push({ name, ok: false, error: (e as { message?: unknown })?.message });
     }
   }
 

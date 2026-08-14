@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyNowPaymentsIPN } from '@/lib/nowpayments-server';
-import { grantCredits, grantTopUpCredits } from '@/lib/credit-system';
+import { grantTopUpCredits } from '@/lib/credit-system';
 import { logger } from '@/lib/logger';
 import { createClient } from '@supabase/supabase-js';
 import { checkAchievements } from '@/lib/achievement-checker';

@@ -42,7 +42,7 @@ const CONTENT_LEVEL_KEYS: Record<number, TranslationKey> = {
 import { companionScore, type Rarity } from '@/lib/rarity';
 import { CreateSuccessModal, type CreatedCompanionReveal } from '@/components/creator/CreateSuccessModal';
 import type { CreatorPreset } from '@/lib/creator-presets';
-import { VOICE_TIMBRES, getVoiceTimbre } from '@/lib/voice-timbres';
+import { VOICE_TIMBRES } from '@/lib/voice-timbres';
 import type { CharacterPart } from '@/lib/character-parts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -412,7 +412,7 @@ export default function CreatePage() {
     } finally {
       if (batchRun.current === run) setBatchRunning(false);
     }
-  }, [portraitRequestBody, pollJob, zh]);
+  }, [portraitRequestBody, pollJob, t]);
 
   const startPortraitStep = useCallback(() => {
     if (!infoValid) {
@@ -428,7 +428,7 @@ export default function CreatePage() {
     setError(null);
     setStep('portrait');
     void runBatch();
-  }, [infoValid, name, zh, runBatch]);
+  }, [infoValid, name, runBatch, t]);
 
   // ─── Submit ──────────────────────────────────────────────────────────────
 
@@ -525,7 +525,7 @@ export default function CreatePage() {
     } finally {
       setSaving(false);
     }
-  }, [slots, selectedSlot, saving, getOpts, relationship, locale, zh, visualStyle, gender, faceShape, ethnicity, occupation, shortDescription, name, age, selectedTags, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, skinTone, buildGenome, selectedPreset, appearancePrompt, cardStatus, t]);
+  }, [slots, selectedSlot, saving, getOpts, relationship, locale, visualStyle, gender, faceShape, ethnicity, occupation, shortDescription, name, age, selectedTags, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, skinTone, buildGenome, selectedPreset, selectedVoice, appearancePrompt, cardStatus, t]);
 
   // ─── Reveal actions ──────────────────────────────────────────────────────
 

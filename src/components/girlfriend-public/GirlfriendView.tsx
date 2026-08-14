@@ -39,7 +39,7 @@ export interface PublicGirlfriend {
   portrait_url: string | null;
   avatar_url?: string | null;
   image_url: string | null;
-  character_card: any;
+  character_card: { description?: string } | null;
 }
 
 export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend }) {

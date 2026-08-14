@@ -10,6 +10,7 @@ import type { MembershipTier } from '@/lib/ai-modules/types';
 import { pickImagePromptEndpoint, sanitizeLlmPrompt } from '@/lib/image-prompt-llm';
 import { compactFluxPrompt } from '@/lib/comfy-console/studio-profile';
 import { logger } from '@/lib/logger';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 
 const CJK_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/g;
 
@@ -25,7 +26,7 @@ export async function translatePromptToEnglish(opts: {
   text: string;
   intensity: number;
   mode: 'positive' | 'negative';
-  supabase?: { from: (t: string) => any };
+  supabase?: SiteSettingsClient;
   userId?: string;
   membershipTier?: MembershipTier;
 }): Promise<string | null> {

@@ -6,7 +6,7 @@
  */
 
 import { generateText } from '@/lib/llm-service';
-import type { StructuredMilestone, MilestoneEventType, EmotionalContext } from '@/lib/milestone-types';
+import type { StructuredMilestone } from '@/lib/milestone-types';
 
 const VALID_EVENT_TYPES = new Set([
   'movie', 'restaurant', 'gift', 'anniversary', 'conversation', 'date', 'game',
@@ -52,6 +52,19 @@ Conversation:
 
 const BATCH_SIZE = 10; // last N messages to scan
 
+/** Raw milestone item parsed from the LLM's JSON output (fields untrusted). */
+interface RawMilestone {
+  event_type?: unknown;
+  title?: unknown;
+  description?: unknown;
+  event_date?: unknown;
+  participants?: unknown;
+  location?: unknown;
+  emotional_context?: unknown;
+  keywords?: unknown;
+  importance?: unknown;
+}
+
 /**
  * Extract structured milestones from recent conversation messages.
  * Returns array of milestone objects, empty array if nothing found.
@@ -70,13 +83,13 @@ export async function extractMilestones(
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) return extractMilestonesFallback(last.find((m) => m.role === 'user')?.content || '');
 
-    const arr = JSON.parse(match[0]);
+    const arr = JSON.parse(match[0]) as unknown;
     if (!Array.isArray(arr)) return extractMilestonesFallback(last.find((m) => m.role === 'user')?.content || '');
 
-    const milestones = arr
-      .filter((m: any) => m && typeof m.title === 'string' && m.title.length > 2)
-      .map((m: any) => ({
-        event_type: VALID_EVENT_TYPES.has(m.event_type) ? m.event_type : 'custom',
+    const milestones = (arr as RawMilestone[])
+      .filter((m): m is RawMilestone & { title: string } => m != null && typeof m.title === 'string' && m.title.length > 2)
+      .map((m) => ({
+        event_type: typeof m.event_type === 'string' && (VALID_EVENT_TYPES as Set<string>).has(m.event_type) ? m.event_type : 'custom',
         title: String(m.title).slice(0, 60),
         description: m.description ? String(m.description).slice(0, 300) : undefined,
         event_date: typeof m.event_date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(m.event_date)
@@ -86,7 +99,7 @@ export async function extractMilestones(
           ? m.participants.map(String).slice(0, 10)
           : [],
         location: typeof m.location === 'string' && m.location ? m.location.slice(0, 100) : undefined,
-        emotional_context: VALID_EMOTIONS.has(m.emotional_context) ? m.emotional_context : undefined,
+        emotional_context: typeof m.emotional_context === 'string' && (VALID_EMOTIONS as Set<string>).has(m.emotional_context) ? m.emotional_context : undefined,
         keywords: Array.isArray(m.keywords)
           ? m.keywords.map(String).filter(Boolean).slice(0, 10)
           : [],

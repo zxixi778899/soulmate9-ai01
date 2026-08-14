@@ -1512,7 +1512,9 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     // 换姿势任务 + NSFW≥4：追加 pose_nsfw_dynamic LoRA
     if (shouldAutoPlanLoras && studioTask === 'pose' && generationIntensity >= 4) {
       const poseNsfwLora = { name: 'flux_pose_nsfw_dynamic_v1.safetensors', strength: 0.45 };
-      compatibleLoraPlan.selected.push(poseNsfwLora as any);
+      compatibleLoraPlan.selected.push(
+        poseNsfwLora as { name: string; strength_model: number; strength_clip: number; strength: number },
+      );
     }
     const effectiveLoras = compatibleLoraPlan.selected.map((item) => {
       const strength = Number(('strength' in item ? item.strength : item.strength_model) || loraStrength || 0.7);
@@ -1554,7 +1556,6 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         : Math.min(9, Math.max(3, Number(body.cfg || body.guidance_scale || generationRoute.cfg)));
       // Manual workflow controls may tune dimensions/steps, but NSFW 3–5 must
       // never override the specialist endpoint/checkpoint selected by routing.
-      const allowManualRouting = Boolean(body.workflow_id && wf) && generationIntensity < 3;
       const profile = resolveGenerationProfile({ intensity: generationIntensity, renderStyle: animeStyle });
       const profileCheckpoint = process.env[profile.checkpointEnv]?.trim() || profile.fallbackCheckpoint;
       const profileSteps = Math.max(profile.minSteps, generationIntensity >= 3 ? profile.defaultSteps : steps);

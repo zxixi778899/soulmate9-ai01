@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Image as ImageIcon, Brain, Home, Camera, Volume2, ArrowLeft } from 'lucide-react';
 import type { ChatGirlfriend, IntimacyData } from './types';
-import { HEAT_UNLOCK_HINTS, getIntimacyProgress } from '@/lib/constants';
+import { getIntimacyProgress } from '@/lib/constants';
 import type { INTIMACY_LEVELS } from '@/lib/constants';
 import { traitLabelFor } from '@/lib/girlfriend-traits';
 import { useTranslation } from '@/lib/i18n/context';

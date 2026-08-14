@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     );
     const data = await res.json();
     return NextResponse.json(slug ? (data[0] || null) : data);
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch pages' }, { status: 500 });
   }
 }
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     });
     const data = await res.json();
     return NextResponse.json(data, { status: 201 });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create page' }, { status: 500 });
   }
 }
@@ -60,7 +60,7 @@ export async function PATCH(req: NextRequest) {
     });
     const data = await res.json();
     return NextResponse.json(data);
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'Failed to update page' }, { status: 500 });
   }
 }
@@ -83,7 +83,7 @@ export async function DELETE(req: NextRequest) {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
     });
     return NextResponse.json({ success: true });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'Failed to delete page' }, { status: 500 });
   }
 }
