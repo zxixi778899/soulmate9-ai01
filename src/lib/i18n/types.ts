@@ -1,8 +1,8 @@
 /**
  * Launch contract: 7 supported locales (en / zh / ja / ko / es / fr / de).
- * Currently only en + zh carry complete translation bags; the other locales
- * are accepted by the locale contract and fall back to English in
- * getTranslation() until their bags are restored (i18n:sync backfills them).
+ * en / zh / ja / ko / fr carry native translation bags; es / de currently
+ * mirror English values and fall back to EN via getTranslation() until their
+ * native bags land (i18n:sync backfills any new keys).
  */
 export const SUPPORTED_LOCALES = ['en', 'zh', 'ja', 'ko', 'es', 'fr', 'de'] as const;
 

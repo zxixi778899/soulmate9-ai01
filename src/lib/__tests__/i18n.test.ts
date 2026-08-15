@@ -13,9 +13,27 @@ describe('i18n locale contract', () => {
     expect(isSupportedLocale(null)).toBe(false);
   });
 
-  it('falls back to English instead of exposing empty translation placeholders', () => {
-    expect(getTranslation('common.save', 'ja')).toBe('Save');
+  it('serves native bags for translated locales and falls back to English elsewhere', () => {
+    expect(getTranslation('common.save', 'ja')).toBe('保存');
     expect(getTranslation('common.save', 'pt')).toBe('Save');
+  });
+
+  it('mirrors English values for es/de and never exposes raw keys', () => {
+    // es / de carry EN values until native bags land; no locale may expose raw keys.
+    const sample: Array<'common.cancel' | 'chat.send' | 'auth.login'> = [
+      'common.cancel',
+      'chat.send',
+      'auth.login',
+    ];
+    for (const key of sample) {
+      expect(getTranslation(key, 'es')).toBe(getTranslation(key, 'en'));
+      expect(getTranslation(key, 'de')).toBe(getTranslation(key, 'en'));
+    }
+    for (const locale of ['zh', 'ja', 'ko', 'es', 'fr', 'de']) {
+      const value = getTranslation('common.cancel', locale);
+      expect(value).not.toBe('common.cancel');
+      expect(value.trim().length).toBeGreaterThan(0);
+    }
   });
 
   it('interpolates localized parameters', () => {

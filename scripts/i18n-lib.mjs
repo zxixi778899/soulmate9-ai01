@@ -4,7 +4,7 @@ import path from 'node:path';
 export const ROOT = process.cwd();
 export const TRANSLATIONS_FILE = path.join(ROOT, 'src/lib/i18n/translations.ts');
 export const TYPES_FILE = path.join(ROOT, 'src/lib/i18n/types.ts');
-export const REQUIRED_LOCALES = ['en', 'zh'];
+export const REQUIRED_LOCALES = ['en', 'zh', 'ja', 'ko', 'es', 'fr', 'de'];
 
 export function readUtf8(file) {
   return fs.readFileSync(file, 'utf8');
