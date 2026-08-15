@@ -6,6 +6,7 @@ import { isGpuCapacityError } from '@/lib/runpod';
 import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
 import { CREDIT_COSTS, deductCredits, grantCredits } from '@/lib/credit-system';
 import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
+import { createGenJob, updateGenJob, updateGenJobStage } from '@/lib/gen-hub';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -196,27 +197,60 @@ export async function POST(request: NextRequest) {
         continue;
       }
       const gpuBusy = isGpuCapacityError(submitErrText) || submitRes.status === 429;
+      // Credits were already deducted — refund before surfacing the failure.
+      await grantCredits(client, user.id, videoCost, 'refund', `submit-fail:${Date.now()}`).catch(() => {});
       return NextResponse.json(
         {
           error: gpuBusy
             ? 'GPU is busy right now. Please try again in a minute.'
             : `Video generation submit failed: ${submitRes.status}`,
           code: gpuBusy ? 'gpu_busy' : undefined,
+          refunded: true,
         },
         { status: 502 },
       );
     }
 
     if (!submitRes || !submitRes.ok) {
-      return NextResponse.json({ error: 'Video generation submit failed' }, { status: 502 });
+      await grantCredits(client, user.id, videoCost, 'refund', `submit-fail:${Date.now()}`).catch(() => {});
+      return NextResponse.json({ error: 'Video generation submit failed', refunded: true }, { status: 502 });
     }
 
     let jobId = String(((await submitRes.json()) as { id?: string }).id || '');
     if (!jobId) {
-      return NextResponse.json({ error: 'No job ID returned' }, { status: 502 });
+      await grantCredits(client, user.id, videoCost, 'refund', `submit-fail:${Date.now()}`).catch(() => {});
+      return NextResponse.json({ error: 'No job ID returned', refunded: true }, { status: 502 });
     }
 
     logger.info('[generate-video] job submitted', { jobId, girlfriendId, model: videoRoute.model });
+
+    // Phase 3: track the video as a resumable generation_jobs row.
+    const genJob = await createGenJob(client, {
+      user_id: user.id,
+      kind: 'video',
+      girlfriend_id: girlfriendId,
+      provider: 'runpod',
+      provider_job_id: jobId,
+      cost_tokens: videoCost,
+      status: 'running',
+      stage: 'generating',
+      params: { model: videoRoute.model, duration: durationSec, fps, num_frames: numFrames },
+    });
+
+    // Queued mode: return immediately, the client polls by job id (断点续查).
+    if (body.queue === true || body.queue === 'true') {
+      return NextResponse.json({
+        status: 'queued',
+        job_id: genJob?.id || null,
+        provider_job_id: jobId,
+        endpoint_id: videoEndpointId,
+        kind: 'video',
+        girlfriend_id: girlfriendId || undefined,
+        cost_tokens: videoCost,
+        message:
+          'Video queued. Poll /api/ai/status?job_id=' + jobId + '&kind=video&endpoint_id=' + videoEndpointId + '&cost=' + videoCost,
+      });
+    }
 
     // Poll for completion. The budget is caller-tunable: chat clients pass a
     // short budget and continue via /api/ai/status?kind=video, while the admin
@@ -265,6 +299,13 @@ export async function POST(request: NextRequest) {
 
         if (!videoUrl) {
           await grantCredits(client, user.id, videoCost, 'refund', jobId).catch(() => {});
+          if (genJob) {
+            await updateGenJob(client, genJob.id, {
+              status: 'failed',
+              error: 'No video URL returned',
+              refunded: true,
+            });
+          }
           return NextResponse.json({ error: 'Video generation completed but no video URL returned' }, { status: 500 });
         }
 
@@ -295,6 +336,12 @@ export async function POST(request: NextRequest) {
           void checkAchievements(client as unknown as SupabaseLike, user.id);
         }
 
+        if (genJob) {
+          await updateGenJobStage(client, genJob.id, 'done', {
+            result: { video_url: finalUrl, job_id: jobId, latency_ms: Date.now() - started },
+            provider_job_id: jobId,
+          });
+        }
         return NextResponse.json({ video_url: finalUrl, job_id: jobId, latency_ms: Date.now() - started });
       }
 
@@ -327,6 +374,7 @@ export async function POST(request: NextRequest) {
           }
           if (resubmitOk) {
             logger.info('[generate-video] resubmitted', { jobId });
+            if (genJob) await updateGenJob(client, genJob.id, { provider_job_id: jobId });
             attempt = -1;
             continue;
           }
@@ -334,6 +382,13 @@ export async function POST(request: NextRequest) {
         const gpuBusy = isGpuCapacityError(failMsg);
         // Auto-refund the video cost on failure.
         await grantCredits(client, user.id, videoCost, 'refund', jobId).catch(() => {});
+        if (genJob) {
+          await updateGenJob(client, genJob.id, {
+            status: 'failed',
+            error: failMsg,
+            refunded: true,
+          });
+        }
         return NextResponse.json(
           {
             error: gpuBusy

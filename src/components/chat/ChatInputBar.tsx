@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Armchair, BedDouble, Brain, Building, Building2, Camera, Candy, Flame,
-  Flower2, Footprints, Gift, Hand, Heart, ImagePlus, Lamp, Loader2,
+  Flower2, Footprints, Gift, Hand, Heart, ImagePlus, Lamp, LayoutGrid, Loader2,
   MessageSquareText, Mic, Moon, Move, Music, PersonStanding, Plus, Send,
   Shirt, ShowerHead, Smile, Sofa, Sparkles, Square, Sun, TreePine, Umbrella, X,
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { CHAT_ENVS, CHAT_MOODS, CHAT_POSES } from './types';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
 import type { ChatGift } from '@/lib/gifts/catalog';
+import { PresetPicker, type PickedPreset } from './PresetPicker';
 
 export type PendingMedia = {
   kind: 'image' | 'audio';
@@ -104,6 +105,10 @@ export function ChatInputBar(props: {
   /** Scene / dialogue reply mode toggle */
   replyMode?: 'scene' | 'dialogue';
   onReplyModeChange?: (mode: 'scene' | 'dialogue') => void;
+  /** Visual preset picker (gen_preset_catalog) */
+  girlfriendId?: string;
+  selectedPreset?: PickedPreset | null;
+  onSelectPreset?: (preset: PickedPreset | null) => void;
 }) {
   const {
     input,
@@ -147,6 +152,9 @@ export function ChatInputBar(props: {
     onMemories,
     replyMode = 'scene',
     onReplyModeChange,
+    girlfriendId,
+    selectedPreset,
+    onSelectPreset,
   } = props;
 
   const { t, locale } = useTranslation();
@@ -172,6 +180,8 @@ export function ChatInputBar(props: {
     { key: 'lingerie', zh: '情趣', en: 'Lingerie', icon: Flame, text: '我买了件新睡衣，你要不要看看？' },
   ];
   const [showScenes, setShowScenes] = useState(false);
+  /** visual preset picker panel (catalog thumbnails) */
+  const [showPresetPicker, setShowPresetPicker] = useState(false);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -237,7 +247,7 @@ export function ChatInputBar(props: {
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
     ro?.observe(el);
     return () => ro?.disconnect();
-  }, [tray, showPresets, showSmart, pendingMedia, isRecording, moreOpen]);
+  }, [tray, showPresets, showSmart, pendingMedia, isRecording, moreOpen, showPresetPicker]);
 
   const toggleTray = (key: 'gift' | 'outfit') => {
     setTray((cur) => (cur === key ? null : key));
@@ -408,7 +418,7 @@ export function ChatInputBar(props: {
       {/* ── Tools panel: collapsed behind the "+" button, pops up on tap ── */}
       {moreOpen && (
         <div className="max-w-3xl mx-auto px-2 sm:px-3 pt-2 animate-in slide-in-from-bottom-2 fade-in duration-150">
-          <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-2">
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-2">
             <ToolButton
               active={tray === 'gift'}
               onClick={() => toggleTray('gift')}
@@ -471,6 +481,17 @@ export function ChatInputBar(props: {
               icon={<Sparkles className="h-4 w-4" />}
               label={t('chat.mood')}
               accent="#fbbf24"
+            />
+            <ToolButton
+              active={showPresetPicker}
+              onClick={() => {
+                setMoreOpen(false);
+                closeTray();
+                setShowPresetPicker((v) => !v);
+              }}
+              icon={<LayoutGrid className="h-4 w-4" />}
+              label={t('chat.photoPresets') || (isZh ? '拍照预设' : 'Presets')}
+              accent="#34d399"
             />
             <ToolButton
               active={showScenes}
@@ -690,6 +711,45 @@ export function ChatInputBar(props: {
               />
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Visual preset picker — catalog thumbnails with NSFW blur lock */}
+      {showPresetPicker && (
+        <div className="max-w-3xl mx-auto px-3 pt-1 pb-1.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#34d399]/80">
+              {isZh ? '拍照预设 · 选中后随下一次生成生效' : 'Photo presets · applied to the next generation'}
+            </span>
+            <div className="flex items-center gap-1.5">
+              {selectedPreset && (
+                <span className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-[#34d399]/40 bg-[#34d399]/10 text-[10px] text-[#a7f3d0] max-w-[140px]">
+                  <span className="truncate">{selectedPreset.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => onSelectPreset?.(null)}
+                    className="shrink-0 text-white/50 hover:text-white"
+                    aria-label="Clear preset"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowPresetPicker(false)}
+                className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-white/10 bg-white/[0.04] text-[10px] text-white/50 hover:text-white active:scale-95 transition-all"
+              >
+                <X className="h-3 w-3" />
+                {isZh ? '关闭' : 'Close'}
+              </button>
+            </div>
+          </div>
+          <PresetPicker
+            girlfriendId={girlfriendId}
+            selected={selectedPreset || null}
+            onSelect={(preset) => onSelectPreset?.(preset)}
+          />
         </div>
       )}
 

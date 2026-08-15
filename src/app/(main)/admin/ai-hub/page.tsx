@@ -153,6 +153,19 @@ export default function AdminAiHubPage() {
         </Button>
       </div>
 
+      {/* Convergence entry: the Generation Control Center supersedes the
+          overlapping provider/breaker/preset surfaces over time. */}
+      <a
+        href="/admin/generation"
+        className="flex items-center justify-between rounded-xl border border-pink-500/25 bg-pink-500/[0.06] px-4 py-3 hover:bg-pink-500/[0.10] transition-colors"
+      >
+        <div>
+          <p className="text-sm font-medium text-pink-300">生成控制中心（新）</p>
+          <p className="text-xs text-gray-500">任务监控 · Provider 熔断 · 预设目录 · 内容分级，正在收编本页相关面板</p>
+        </div>
+        <span className="text-pink-400 text-sm">进入 →</span>
+      </a>
+
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="bg-[#16161f] border border-gray-800">
           <TabsTrigger value="overview">Overview</TabsTrigger>

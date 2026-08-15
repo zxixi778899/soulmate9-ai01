@@ -8,6 +8,7 @@ import { normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { logger } from '@/lib/logger';
 import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 import { CREDIT_COSTS, grantCredits } from '@/lib/credit-system';
+import { findGenJobByProviderJobId, refundGenJob, updateGenJob, updateGenJobStage, type GenerationJob } from '@/lib/gen-hub';
 
 /**
  * GET /api/runpod/status?job_id=xxx[&girlfriend_id=yyy&scene=chat_selfie]
@@ -53,6 +54,16 @@ async function handleVideoStatus(
     costRequested: number;
   },
 ): Promise<NextResponse> {
+  // Unified state: completed video jobs are answered from generation_jobs
+  // (idempotent reconnect — 断点续查), no provider round-trip needed.
+  const genJob: GenerationJob | null = params.client
+    ? await findGenJobByProviderJobId(params.client, params.userId, params.jobId)
+    : null;
+  if (genJob?.status === 'completed' && genJob.result) {
+    const stored = genJob.result as Record<string, unknown>;
+    return NextResponse.json({ status: 'COMPLETED', video_url: stored.video_url || '', job_id: params.jobId });
+  }
+
   const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
   if (!apiKey || !params.endpointId) {
     return NextResponse.json(
@@ -111,21 +122,35 @@ async function handleVideoStatus(
       }
       void checkAchievements(params.client as unknown as SupabaseLike, params.userId);
     }
+    if (genJob && params.client) {
+      await updateGenJobStage(params.client, genJob.id, 'done', {
+        result: { video_url: videoUrl, job_id: params.jobId },
+      });
+    }
     return NextResponse.json({ status: 'COMPLETED', video_url: videoUrl, job_id: params.jobId });
   }
 
   if (status.status === 'FAILED') {
-    // Auto-refund once per failed job; capped at the 10s cost so a client
-    // can never inflate the refund amount.
-    if (params.client && !refundedVideoJobs.has(params.jobId)) {
+    // Unified refund: the job row's refunded flag guards at-most-once across
+    // instances. Legacy in-memory guard remains for untracked jobs.
+    let refunded = false;
+    if (genJob && params.client) {
+      const outcome = await refundGenJob(params.client, genJob);
+      refunded = outcome.refunded;
+      await updateGenJob(params.client, genJob.id, {
+        status: 'failed',
+        error: status.error || 'Video generation failed',
+      }).catch(() => undefined);
+    } else if (params.client && !refundedVideoJobs.has(params.jobId)) {
       refundedVideoJobs.add(params.jobId);
       const refund = Math.min(Math.max(0, Math.floor(params.costRequested)), CREDIT_COSTS.video_10s);
       if (refund > 0) {
         await grantCredits(params.client, params.userId, refund, 'refund', params.jobId).catch(() => undefined);
+        refunded = true;
       }
     }
     return NextResponse.json(
-      { error: status.error || 'Video generation failed', status: 'FAILED', refunded: true },
+      { error: status.error || 'Video generation failed', status: 'FAILED', refunded },
       { status: 500 },
     );
   }
@@ -147,6 +172,20 @@ export async function GET(req: NextRequest) {
     const girlfriendId = searchParams.get('girlfriend_id') || undefined;
     const scene = searchParams.get('scene') || 'chat_selfie';
     const locale = (searchParams.get('locale') || 'en').toLowerCase();
+
+    // Unified state: answer repeat polls for already-finished jobs from the
+    // generation_jobs table (idempotent fast path, no provider round-trip).
+    const genJob = client
+      ? await findGenJobByProviderJobId(client, user.id, jobId)
+      : null;
+    if (genJob?.status === 'completed' && genJob.result) {
+      const stored = genJob.result as Record<string, unknown>;
+      return NextResponse.json({ ...stored, job_id: jobId });
+    }
+    // Mirror poll outcomes back onto the job row (best-effort).
+    const mirrorJobCompleted = async (result: Record<string, unknown>) => {
+      if (genJob && client) await updateGenJobStage(client, genJob.id, 'done', { result });
+    };
     const requestedEndpointId = searchParams.get('endpoint_id') || undefined;
     const endpointId =
       requestedEndpointId && /^[a-zA-Z0-9_-]+$/.test(requestedEndpointId)
@@ -260,6 +299,11 @@ export async function GET(req: NextRequest) {
             logger.error('[runpod/status] admin upload failed', { error: e });
           }
         }
+        await mirrorJobCompleted({
+          status: 'COMPLETED',
+          images: assets.map((a) => String(a.url || '')).filter(Boolean),
+          job_id: jobId,
+        });
         return NextResponse.json({
           status: 'COMPLETED',
           images: assets.map((a) => String(a.url || '')).filter(Boolean),
@@ -353,6 +397,7 @@ export async function GET(req: NextRequest) {
         void checkAchievements(client as unknown as SupabaseLike, user.id);
       }
 
+      await mirrorJobCompleted({ status: 'COMPLETED', images: validUrls, job_id: jobId });
       return NextResponse.json({
         status: 'COMPLETED',
         images: validUrls,
@@ -369,6 +414,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
     logger.error('[runpod/status] Error:', { error: errMsg });
+    // Best-effort failure mirror (genJob lookups live inside the try block).
     return NextResponse.json({ error: errMsg, status: 'FAILED' }, { status: 500 });
   }
 }

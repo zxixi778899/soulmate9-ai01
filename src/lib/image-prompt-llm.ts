@@ -27,6 +27,7 @@ import {
   type ImageSceneSemantics,
 } from '@/lib/image-scene-semantics';
 import type { IntimacyGenerationPolicy } from '@/lib/intimacy-policy';
+import { resolveContentRating } from '@/lib/content-rating';
 import { logger } from '@/lib/logger';
 
 export type ImagePromptChannel = 'sfw' | 'nsfw';
@@ -45,32 +46,26 @@ export type ImagePromptLlmResult = {
 const SFW_FORBIDDEN =
   /\b(nude|naked|topless|bottomless|explicit|pussy|penis|cock|vagina|bare breasts|genitals)\b/gi;
 
-/** Adult intent hints drawn from the request + recent chat context. */
-const INTENT_ADULT_RE =
-  /nude|naked|undress|strip|nsfw|explicit|sex|sexy|lingerie|topless|bottomless|masturbat|orgasm|erotic|horny|breast|nipple|thong|bikini|撩|裸体|脱光|内衣|色情|自慰|高潮|性爱|乳头|乳房|一丝不挂/i;
-
 /**
  * Decide the prompt channel from intimacy + the actual request/context.
- * Intimacy level directly drives the NSFW intensity: levels 1-2 stay SFW,
- * levels 3-5 unlock NSFW. adultMention is returned for diagnostics/safety.
+ * Delegates to the unified content-rating layer (single source of truth):
+ * intimacy levels 1-2 stay SFW, levels 3-5 unlock NSFW. adultMention is
+ * returned for diagnostics/safety.
  */
 export function resolveImagePromptChannel(input: {
   intimacyPolicy: IntimacyGenerationPolicy;
   userRequest: string;
   chatContext?: ChatContextLine[];
 }): { channel: ImagePromptChannel; nsfwIntensity: NsfwIntensity; adultMention: boolean } {
-  const { adultAllowed, nsfwIntensity } = input.intimacyPolicy;
-  // Intimacy level directly determines the NSFW channel: levels 1–2 stay SFW,
-  // levels 3–5 unlock the NSFW channel so the image matches the relationship.
-  // Explicit adult language is returned for diagnostics / safety.
-  const blob = `${input.userRequest || ''} ${(input.chatContext || [])
-    .map((line) => line.content)
-    .join(' ')}`.slice(0, 2000);
-  const adultMention = INTENT_ADULT_RE.test(blob);
+  const rating = resolveContentRating({
+    userRequest: input.userRequest,
+    chatContext: input.chatContext,
+    intimacyPolicy: input.intimacyPolicy,
+  });
   return {
-    channel: adultAllowed ? 'nsfw' : 'sfw',
-    nsfwIntensity: nsfwIntensity as NsfwIntensity,
-    adultMention,
+    channel: rating.channel,
+    nsfwIntensity: input.intimacyPolicy.nsfwIntensity as NsfwIntensity,
+    adultMention: rating.adultMention,
   };
 }
 

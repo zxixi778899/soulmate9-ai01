@@ -17,6 +17,13 @@ import { isGpuCapacityError, runpodClient } from '@/lib/runpod';
 import { falGenerate, isFalConfigured } from '@/lib/fal-client';
 import type { ImageModelFamily } from '@/lib/image-generation-routing';
 import {
+  getBreakerState,
+  memoryGetBreaker,
+  openBreakerNow,
+  recordBreakerFailure,
+  resetBreaker,
+} from '@/lib/image-breaker-store';
+import {
   getImageRoutes,
   stampImageRouteCache,
   getImageRouteCacheTtlMs,
@@ -86,44 +93,33 @@ export interface ImageRouterResult {
 }
 
 // ─── Circuit Breaker ─────────────────────────────────────────
+// Shared across instances via Upstash Redis (image-breaker-store); the local
+// memory mirror serves hot-path health reads and the no-Redis fallback.
 
-interface CircuitState {
-  failures: number;
-  openedAt: number | null;
-}
-
-const circuits = new Map<string, CircuitState>();
-
-function isCircuitOpen(config: ImageRouteConfig): boolean {
-  const state = circuits.get(config.id);
+async function isCircuitOpen(config: ImageRouteConfig): Promise<boolean> {
+  const state = await getBreakerState(config.id);
   if (!state?.openedAt) return false;
   if (Date.now() - state.openedAt >= config.reset_ms) {
-    circuits.delete(config.id);
+    await resetBreaker(config.id);
     return false;
   }
   return true;
 }
 
-function recordFailure(config: ImageRouteConfig): void {
-  const state = circuits.get(config.id) || { failures: 0, openedAt: null };
-  state.failures += 1;
-  if (state.failures >= config.failure_threshold) {
-    state.openedAt = Date.now();
+async function recordFailure(config: ImageRouteConfig): Promise<void> {
+  const state = await recordBreakerFailure(config.id, config.failure_threshold, config.reset_ms);
+  if (state.openedAt && state.failures >= config.failure_threshold) {
     logger.warn('[image-router] circuit opened', { provider: config.id, failures: state.failures });
   }
-  circuits.set(config.id, state);
 }
 
-function recordSuccess(config: ImageRouteConfig): void {
-  circuits.delete(config.id);
+async function recordSuccess(config: ImageRouteConfig): Promise<void> {
+  await resetBreaker(config.id);
 }
 
 /** Open the circuit immediately for systemic GPU-capacity failures. */
-function openCircuit(config: ImageRouteConfig): void {
-  const state = circuits.get(config.id) || { failures: 0, openedAt: null };
-  state.failures = config.failure_threshold;
-  state.openedAt = Date.now();
-  circuits.set(config.id, state);
+async function openCircuit(config: ImageRouteConfig): Promise<void> {
+  await openBreakerNow(config.id, config.failure_threshold, config.reset_ms);
   logger.warn('[image-router] circuit opened (gpu capacity)', { provider: config.id });
 }
 
@@ -303,7 +299,7 @@ export async function routeImageGeneration(opts: ImageRouterOptions): Promise<Im
     const route = routes[i];
 
     // Skip if circuit is open
-    if (isCircuitOpen(route)) {
+    if (await isCircuitOpen(route)) {
       attempts.push({ provider: route.provider, success: false, error: 'circuit_open', latency_ms: 0 });
       logger.info('[image-router] skipping (circuit open)', { provider: route.id });
       continue;
@@ -359,7 +355,7 @@ export async function routeImageGeneration(opts: ImageRouterOptions): Promise<Im
 
         // If pending but switch_on_queue is false, return the job for polling
         if (result.pending) {
-          recordSuccess(route);
+          await recordSuccess(route);
           return {
             images: [],
             provider: route.provider,
@@ -384,7 +380,7 @@ export async function routeImageGeneration(opts: ImageRouterOptions): Promise<Im
       }
 
       // Success!
-      recordSuccess(route);
+      await recordSuccess(route);
       const latency = Date.now() - attemptStart;
       attempts.push({ provider: route.provider, success: true, latency_ms: latency });
       logger.info('[image-router] success', {
@@ -412,9 +408,9 @@ export async function routeImageGeneration(opts: ImageRouterOptions): Promise<Im
       // GPU-capacity errors (OOM / no workers / 429-5xx) are systemic: open the
       // circuit at once so later requests skip the dead endpoint.
       if (isGpuCapacityError(errMsg) && (route.provider === 'runpod' || route.provider === 'runpod_dc2')) {
-        openCircuit(route);
+        await openCircuit(route);
       } else if (!errMsg.startsWith('timeout:') && errMsg !== 'queued_switch') {
-        recordFailure(route);
+        await recordFailure(route);
       }
 
       logger.warn('[image-router] provider failed, trying next', {
@@ -446,24 +442,36 @@ export interface ImageProviderHealth {
   configured: boolean;
 }
 
+/**
+ * Synchronous health snapshot from the local memory mirror (admin panels).
+ * The mirror is refreshed on every Redis read and always written on record.
+ */
 export function getImageProviderHealth(): ImageProviderHealth[] {
   const routes = getImageRoutes();
   return routes.map((r) => {
-    const state = circuits.get(r.id);
+    const state = memoryGetBreaker(r.id);
     const configured =
       r.provider === 'fal' ? isFalConfigured() :
       r.provider === 'runpod' ? !!process.env.RUNPOD_API_KEY :
       r.provider === 'runpod_dc2' ? !!(r.endpoint_env && process.env[r.endpoint_env]) :
       r.provider === 'together' ? !!process.env.TOGETHER_API_KEY :
       false;
+    const openedAt = state?.openedAt || null;
+    const circuitOpen = !!openedAt && Date.now() - openedAt < r.reset_ms;
     return {
       id: r.id,
       provider: r.provider,
       label: r.label,
       enabled: r.enabled,
-      circuit_open: isCircuitOpen(r),
+      circuit_open: circuitOpen,
       failures: state?.failures || 0,
       configured,
     };
   });
+}
+
+/** Async variant that pulls the shared Redis state first (cross-instance). */
+export async function getImageProviderHealthAsync(): Promise<ImageProviderHealth[]> {
+  await Promise.all(getImageRoutes().map((r) => getBreakerState(r.id)));
+  return getImageProviderHealth();
 }

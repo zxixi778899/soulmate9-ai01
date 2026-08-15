@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { tryOnOutfit } from '@/lib/outfit-tryon';
 import { OUTFIT_CATALOG } from '@/lib/outfit-catalog';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
+import { forwardLegacyGeneration } from '@/lib/gen-hub';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -27,6 +28,17 @@ export async function POST(req: NextRequest) {
   if (!user || !client) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Phase 2 thin-forward: unified job tracking via gen-hub (loop-guarded).
+  const forwarded = await forwardLegacyGeneration({
+    request: req,
+    kind: 'tryon',
+    client,
+    userId: user.id,
+    handler: POST,
+    routePath: '/api/wardrobe/try-on',
+  });
+  if (forwarded) return forwarded;
 
   const rl = await checkRateLimitAsync(`try-on:${user.id}`, LIMIT);
   if (!rl.allowed) {

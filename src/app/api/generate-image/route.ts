@@ -23,6 +23,7 @@ import {
   timezoneOffsetFromProfile,
 } from '@/lib/ai-quota';
 import { computeCacheKey, lookupCache, writeCache } from '@/lib/generation-cache';
+import { forwardLegacyGeneration } from '@/lib/gen-hub';
 
 const HOURLY_HARD_CAP = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
 
@@ -51,6 +52,17 @@ export async function POST(request: NextRequest) {
   if (!user || !client) {
     return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
   }
+
+  // Phase 2 thin-forward: unified job tracking via gen-hub (loop-guarded).
+  const forwarded = await forwardLegacyGeneration({
+    request,
+    kind: 'image',
+    client,
+    userId: user.id,
+    handler: POST,
+    routePath: '/api/generate-image',
+  });
+  if (forwarded) return forwarded;
 
   // Shared counter across all image entries — limits cannot be stacked.
   const rl = await checkRateLimitAsync(`${IMAGE_GEN_RATE_KEY}:${user.id}`, HOURLY_HARD_CAP);

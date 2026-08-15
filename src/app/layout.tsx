@@ -134,17 +134,25 @@ export default function RootLayout({
             <I18nProvider>
               <AgeVerification />
               {/* Suspense: GlobalTopNav/BottomNav/RetentionLoop read useSearchParams();
-                  without a boundary, static prerendering of every page bails out. */}
+                  without a boundary, static prerendering of every page bails out.
+                  Each boundary carries its own I18nProvider so lazily-hydrated
+                  chrome starts in the same locale the server rendered ('en'),
+                  avoiding hydration text mismatches; instances stay in sync via
+                  the locale listener bus in @/lib/i18n/context. */}
               <Suspense fallback={null}>
-                <GlobalTopNav />
+                <I18nProvider>
+                  <GlobalTopNav />
+                </I18nProvider>
               </Suspense>
               <ErrorBoundary>
                 {children}
               </ErrorBoundary>
               <Toaster position="top-center" richColors />
               <Suspense fallback={null}>
-                <BottomNav />
-                <RetentionLoop />
+                <I18nProvider>
+                  <BottomNav />
+                  <RetentionLoop />
+                </I18nProvider>
               </Suspense>
               <CreateV3PromoModal />
               <RewardEffectOverlay />

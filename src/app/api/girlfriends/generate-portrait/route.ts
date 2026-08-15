@@ -23,6 +23,7 @@ import { GIRLFRIEND_SCENE_RECIPES } from '@/lib/prompt/girlfriend';
 import { buildAutoLoraStack, buildKeywordLoras } from '@/lib/auto-lora';
 import { sanitizeLoraForVolume, getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
 import { translatePromptToEnglish } from '@/lib/prompt-translate';
+import { forwardLegacyGeneration } from '@/lib/gen-hub';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -189,6 +190,19 @@ export async function POST(request: NextRequest) {
     const { user, client, error: authError } = await getAuthUser(request);
     if (!user) {
       return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
+    }
+
+    // Phase 2 thin-forward: unified job tracking via gen-hub (loop-guarded).
+    if (client) {
+      const forwarded = await forwardLegacyGeneration({
+        request,
+        kind: 'portrait',
+        client,
+        userId: user.id,
+        handler: POST,
+        routePath: '/api/girlfriends/generate-portrait',
+      });
+      if (forwarded) return forwarded;
     }
 
     const rl = await checkRateLimitAsync(`portrait-gen:${user.id}`, PORTRAIT_GEN_LIMIT);

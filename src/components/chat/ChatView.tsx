@@ -36,6 +36,7 @@ import { toast } from 'sonner';
 import { ChatAppBar } from '@/components/chat/ChatAppBar';
 import { ChatStream } from '@/components/chat/ChatStream';
 import { ChatInputBar, type PendingMedia } from '@/components/chat/ChatInputBar';
+import type { PickedPreset } from '@/components/chat/PresetPicker';
 import type { ChatMessage as Message, ChatGirlfriend as Girlfriend, IntimacyData } from '@/components/chat/types';
 import { loadChatCache, saveChatCache, mergeMessages, deriveMood } from '@/lib/chat-cache';
 import { parseChatImageIntent, parseVideoIntent } from '@/lib/chat-image-intent';
@@ -47,6 +48,7 @@ import { detectMessageLocale } from '@/lib/chat-locale';
 import { syncRewards } from '@/lib/reward-events';
 import { useTtsPlayer } from '@/hooks/useTtsPlayer';
 import { toPreviewUrl } from '@/lib/image-preview';
+import { GenJobProgress } from '@/components/common/GenJobProgress';
 
 
 type OutfitItem = {
@@ -98,6 +100,8 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  // Unified gen-hub job id while a queued generation is in flight (progress UI)
+  const [activeGenJobId, setActiveGenJobId] = useState<string | null>(null);
   const [aiChannel, setAiChannel] = useState<'sfw' | 'nsfw' | null>(null);
   const [aiModel, setAiModel] = useState<string | null>(null);
   const [loadingMemories, setLoadingMemories] = useState(false);
@@ -129,6 +133,26 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
   const [selectedPose, setSelectedPose] = useState<string | null>(null);
   const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
+  // Visual preset picker selection (gen_preset_catalog) — travels with the
+  // next selfie generation via /api/gen/start as structured params.
+  const [selectedPreset, setSelectedPreset] = useState<PickedPreset | null>(null);
+
+  /**
+   * Selfie endpoint selection: with a picked preset we go through the
+   * unified gateway (which resolves the catalog fragment server-side under
+   * the intimacy cap); otherwise keep the legacy direct route.
+   */
+  const selfieEndpoint = (): { url: string; presetFields: Record<string, unknown> } =>
+    selectedPreset
+      ? {
+          url: '/api/gen/start',
+          presetFields: {
+            kind: 'chat_image',
+            preset_category: selectedPreset.category,
+            preset_slug: selectedPreset.slug,
+          },
+        }
+      : { url: '/api/chat/generate-image', presetFields: {} };
 
   // Chat reply mode: scene (current style) vs dialogue (spoken words only)
   const [replyMode, setReplyMode] = useState<'scene' | 'dialogue'>('scene');
@@ -865,7 +889,8 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       const enrichedReq = recentSummary
         ? `${req}\n\nRecent chat: ${recentSummary}`
         : req;
-      const res = await authedFetch('/api/chat/generate-image', {
+      const endpoint = selfieEndpoint();
+      const res = await authedFetch(endpoint.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -879,6 +904,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           locale,
           count: candidateCount,
           candidate: true,
+          ...endpoint.presetFields,
         }),
       });
       const data = await readResponseJson<{
@@ -1013,7 +1039,8 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         ? `${req}\n\nRecent chat: ${recentSummary}`
         : req;
 
-      const res = await authedFetch('/api/chat/generate-image', {
+      const endpoint = selfieEndpoint();
+      const res = await authedFetch(endpoint.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1025,6 +1052,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           pose: selectedPose,
           environment: selectedEnvironment,
           locale,
+          ...endpoint.presetFields,
         }),
       });
       const data = await readResponseJson<{
@@ -1309,7 +1337,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       }
       if (!imageUrl) throw new Error('No image generated for video');
 
-      // Step 2: Generate video from the image
+      // Step 2: Generate video from the image (queued — poll by job id)
       const vidRes = await authedFetch('/api/ai/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1317,9 +1345,10 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           input_image: imageUrl,
           girlfriend_id: id,
           duration: tier,
+          queue: true,
         }),
       });
-      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; job_id?: string; endpoint_id?: string; cost?: number; error?: string; code?: string }>(vidRes);
+      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; status?: string; job_id?: string; provider_job_id?: string; endpoint_id?: string; cost?: number; cost_tokens?: number; error?: string; code?: string }>(vidRes);
       if (!vidRes.ok) {
         if (vidData.code === 'gpu_busy') {
           throw new Error(t('chat.gpuBusyTryLater'));
@@ -1328,10 +1357,17 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       }
 
       let videoUrl = vidData.video_url;
-      // Handle pending video — continue via the video-aware status route
-      if (!videoUrl && vidData.pending && vidData.job_id) {
+      // Queued/pending video — poll the unified video-aware status route.
+      // provider_job_id is the RunPod id; job_id falls back to it for legacy
+      // pending responses without the queue envelope.
+      const videoProviderJobId = vidData.provider_job_id || vidData.job_id;
+      const videoCost = vidData.cost_tokens ?? vidData.cost;
+      // gen-hub job id (when the jobs table is live) powers the staged progress bar
+      if (vidData.status === 'queued' && vidData.job_id) setActiveGenJobId(vidData.job_id);
+      if (!videoUrl && (vidData.status === 'queued' || vidData.pending) && videoProviderJobId) {
         for (let p = 0; p < 60; p++) {
           if (cancelGenRef.current || genSessionRef.current !== session) {
+            setActiveGenJobId(null);
             if (genSessionRef.current === session) setIsGenerating(false);
             return;
           }
@@ -1348,10 +1384,16 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
               content: t('chat.videoRendering'),
             } : m));
           }
-          const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(vidData.job_id)}&kind=video${vidData.endpoint_id ? `&endpoint_id=${encodeURIComponent(vidData.endpoint_id)}` : ''}${id ? `&girlfriend_id=${encodeURIComponent(id)}` : ''}${vidData.cost ? `&cost=${encodeURIComponent(String(vidData.cost))}` : ''}`);
-          const pollData = await readResponseJson<{ status?: string; video_url?: string; error?: string }>(pollRes);
+          const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(videoProviderJobId)}&kind=video${vidData.endpoint_id ? `&endpoint_id=${encodeURIComponent(vidData.endpoint_id)}` : ''}${id ? `&girlfriend_id=${encodeURIComponent(id)}` : ''}${videoCost ? `&cost=${encodeURIComponent(String(videoCost))}` : ''}`);
+          const pollData = await readResponseJson<{ status?: string; video_url?: string; error?: string; refunded?: boolean }>(pollRes);
           if (pollData.status === 'COMPLETED' && pollData.video_url) { videoUrl = pollData.video_url; break; }
-          if (pollData.status === 'FAILED') throw new Error(pollData.error || 'Video generation failed');
+          if (pollData.status === 'FAILED') {
+            throw new Error(
+              pollData.refunded
+                ? `${pollData.error || 'Video generation failed'} (${t('chat.creditsRefunded')})`
+                : pollData.error || 'Video generation failed',
+            );
+          }
         }
       }
       if (!videoUrl) throw new Error(t('chat.videoGenTimeout'));
@@ -1362,7 +1404,9 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         ...prev.filter((m) => m.id !== waitId),
         { id: `video-${Date.now()}`, role: 'assistant', content: caption, created_at: new Date().toISOString(), media_url: videoUrl, media_type: 'video' },
       ]);
+      setActiveGenJobId(null);
     } catch (err) {
+      setActiveGenJobId(null);
       setMessages((prev) => prev.filter((m) => m.id !== waitId));
       const failText = err instanceof Error ? err.message : 'Video failed';
       setMessages((prev) => [...prev, {
@@ -2097,6 +2141,13 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         speakingLoading={tts.loading}
       />
 
+      {/* Staged generation progress (queued video / gen-hub jobs) */}
+      {activeGenJobId && (
+        <div className="shrink-0 mx-3 sm:mx-6 mb-1 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+          <GenJobProgress jobId={activeGenJobId} />
+        </div>
+      )}
+
       {candidateSheet && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0E0E1A]/95 p-4 shadow-2xl">
@@ -2264,6 +2315,9 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         onMemories={() => setShowMemories(true)}
         replyMode={replyMode}
         onReplyModeChange={handleReplyModeChange}
+        girlfriendId={id}
+        selectedPreset={selectedPreset}
+        onSelectPreset={setSelectedPreset}
       />
       </div>
 

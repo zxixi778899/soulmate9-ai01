@@ -18,7 +18,8 @@ import {
   buildImageActionFromChat,
   type ChatContextLine,
 } from '@/lib/chat-image-intent';
-import { getIntimacyGenerationPolicy } from '@/lib/intimacy-policy';
+import { getIntimacyGenerationPolicy, type IntimacyGenerationPolicy } from '@/lib/intimacy-policy';
+import { getGlobalNsfwEnabled } from '@/lib/gen-monitor';
 import { buildIntimacyDowngradeReply } from '@/lib/intimacy-downgrade';
 import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
 import {
@@ -40,6 +41,8 @@ import {
   resolveImagePromptChannel,
 } from '@/lib/image-prompt-llm';
 import { buildContentOnlyPrompt } from '@/lib/companion-prompt-pipeline';
+import { detectAdultMention } from '@/lib/content-rating';
+import { forwardLegacyGeneration } from '@/lib/gen-hub';
 import {
   IMAGE_GEN_RATE_KEY,
   countTodayImageUsage,
@@ -100,6 +103,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
   }
 
+  // Phase 2 thin-forward: unified job tracking via gen-hub (loop-guarded).
+  // Internal delegations and wrapper failures fall through to the pipeline.
+  const forwarded = await forwardLegacyGeneration({
+    request,
+    kind: 'chat_image',
+    client,
+    userId: user.id,
+    handler: POST,
+    routePath: '/api/chat/generate-image',
+  });
+  if (forwarded) return forwarded;
+
   // Shared counter across all image entries — limits cannot be stacked.
   const rl = await checkRateLimitAsync(`${IMAGE_GEN_RATE_KEY}:${user.id}`, IMAGE_GEN_LIMIT);
   if (!rl.allowed) {
@@ -141,7 +156,8 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle();
     const tier = membershipFromProfile((profile as Record<string, unknown>) || null);
-    const adultRequested = /\b(nude|naked|nsfw|explicit|sex|sexy|lingerie|fuck|cock|pussy|dick|cum|orgasm|blowjob|anal|breast|nipple|horny|moan|undress|strip|bdsm|spank|ride|aroused|climax|erotic|hardcore|fetish|kink|threesome|oral|deepthroat|creampie|facial|bondage|dominat|submiss|collar|leash|whip|gag|choker|thigh.?high|garter|corset|bustier|negligee|see.?through|topless|bottomless|spread|bent.?over|on.?knees|suck|lick|tease|seduce)\b|\u88f8|\u81ea\u6170|\u9ad8\u6f6e|\u4e73\u623f|\u9634\u9053|\u9634\u830e|\u7cbe\u6db2|\u6027\u7231|\u53e3\u4ea4|\u809b\u4ea4|\u5185\u8863|\u9732\u70b9|\u8272\u60c5|\u8c03\u6559/i.test(userRequest);
+    // Unified content-rating layer — no per-route regex allowed.
+    const adultRequested = detectAdultMention(userRequest);
     const { data: intimacyRow } = await client
       .from('intimacy_scores')
       .select('score')
@@ -151,7 +167,18 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
     const intimacyScore = Number(intimacyRow?.score || 0);
-    const intimacyPolicy = getIntimacyGenerationPolicy(intimacyScore);
+    const basePolicy = getIntimacyGenerationPolicy(intimacyScore);
+    // Site-wide NSFW kill switch (admin Generation Control Center → content
+    // rating): when disabled, clamp the policy into the SFW band so no
+    // provider can be reached with adult content.
+    const nsfwGloballyOn = await getGlobalNsfwEnabled(client);
+    const intimacyPolicy: IntimacyGenerationPolicy = nsfwGloballyOn
+      ? basePolicy
+      : {
+          ...basePolicy,
+          adultAllowed: false,
+          nsfwIntensity: Math.min(2, basePolicy.nsfwIntensity) as IntimacyGenerationPolicy['nsfwIntensity'],
+        };
     logger.info('[Chat Generate Image] intimacy context', {
       userId: user.id,
       girlfriendId: girlfriend_id,
