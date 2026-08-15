@@ -155,7 +155,7 @@ export default function WalletPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+      <div className="mx-auto max-w-none px-4 py-6 lg:px-8">
         <div className="flex items-center justify-between gap-3 mb-6">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Coins className="w-6 h-6 text-yellow-400" />

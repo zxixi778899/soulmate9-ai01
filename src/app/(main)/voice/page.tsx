@@ -109,7 +109,7 @@ export default function VoicePage() {
                 <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-4">
                   {c.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
-                    <img src={c.avatar_url} alt={c.name} className="h-12 w-12 rounded-full object-cover" />
+                    <img src={c.avatar_url} alt={c.name} className="h-12 w-12 rounded-full object-cover object-top" />
                   ) : (
                     <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center">
                       <Mic className="h-5 w-5 text-white/40" />

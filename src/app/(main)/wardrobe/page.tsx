@@ -109,7 +109,7 @@ export default function WardrobePage() {
 
   return (
     <main className="min-h-screen bg-[#08080d] p-4 text-white md:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto max-w-none space-y-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3"><Button size="icon" variant="ghost" onClick={() => router.back()}><ArrowLeft className="h-5 w-5" /></Button><div><h1 className="flex items-center gap-2 text-2xl font-semibold"><Shirt className="text-pink-400" />伴侣衣柜</h1><p className="mt-1 text-sm text-zinc-500">已购买和收到的服装会永久保存在这里，可随时为任意个人伴侣更换。</p></div></div>
           <Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />刷新衣柜</Button>

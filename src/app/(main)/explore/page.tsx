@@ -179,7 +179,7 @@ export default function ExplorePage() {
 
       {/* Filters bar */}
       <section className="sticky top-0 z-20 border-y border-[#ff2e88]/12 bg-[#08040e]/85 backdrop-blur-2xl">
-        <div className="mx-auto max-w-7xl px-3 sm:px-6 py-2.5 sm:py-3 space-y-2.5">
+        <div className="mx-auto max-w-none px-3 sm:px-6 py-2.5 sm:py-3 space-y-2.5">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative flex-1 min-w-[min(100%,140px)]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ff6ba6]/50" />
@@ -254,9 +254,9 @@ export default function ExplorePage() {
 
       {/* Card grid — gacha style */}
       <section className="px-4 sm:px-6 py-6">
-        <div className="mx-auto max-w-7xl">
-          {/* 与主页保持一致：一行最多 5 位伴侣，宽间距更大方 */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+        <div className="mx-auto max-w-none">
+          {/* 与主页保持一致：自适应列数，宽屏加列铺满 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5">
             {girls.map((girl) => (
               <button
                 key={girl.id}
@@ -360,7 +360,7 @@ export default function ExplorePage() {
             {addedCompanion.portrait && (
               <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-purple-500/50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={toAvatarPreviewUrl(addedCompanion.portrait, 128)} alt="" className="w-full h-full object-cover" />
+                <img src={toAvatarPreviewUrl(addedCompanion.portrait, 128)} alt="" className="w-full h-full object-cover object-top" />
               </div>
             )}
             <h3 className="text-lg font-bold text-white mb-1">{t('explore.addedToFriends', { name: addedCompanion.name })}</h3>

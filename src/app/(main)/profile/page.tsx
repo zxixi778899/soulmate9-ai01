@@ -360,7 +360,7 @@ export default function ProfilePage() {
             >
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarUrl} alt={shownName} className="h-full w-full rounded-full object-cover" />
+                <img src={avatarUrl} alt={shownName} className="h-full w-full rounded-full object-cover object-top" />
               ) : (
                 <span className="flex h-full w-full items-center justify-center rounded-full bg-[#1a1024] text-3xl font-black text-[#FF2D78]/70">
                   {shownName.charAt(0).toUpperCase()}
@@ -937,7 +937,7 @@ export default function ProfilePage() {
                     <img
                       src={(gf.portrait_url || gf.avatar_url) as string}
                       alt={gf.name}
-                      className="h-10 w-10 rounded-full object-cover ring-2 ring-white/10"
+                      className="h-10 w-10 rounded-full object-cover object-top ring-2 ring-white/10"
                     />
                   ) : (
                     <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] flex items-center justify-center text-sm font-bold text-white">

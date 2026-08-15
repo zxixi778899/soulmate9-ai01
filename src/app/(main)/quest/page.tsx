@@ -314,7 +314,7 @@ function QuestPageInner() {
       <NeonGridBackground />
 
       <section className="relative z-10 pt-6 px-4 sm:px-8">
-        <div className="mx-auto max-w-7xl text-center">
+        <div className="mx-auto max-w-none text-center">
           <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.4em] text-[#ffd700]">
             <Trophy className="h-3 w-3" /> Quest · Achievements · Daily
           </div>
@@ -329,7 +329,7 @@ function QuestPageInner() {
 
       {/* Tabs: Daily Adventure | Hall of Achievements */}
       <section className="relative z-10 mt-6 px-4 sm:px-8">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-none">
           <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-xl p-1.5">
             <button
               type="button"
@@ -365,7 +365,7 @@ function QuestPageInner() {
         <>
           {/* Daily check-in — real streak + real token rewards */}
           <section className="relative z-10 mt-8 px-4 sm:px-8">
-            <div className="mx-auto max-w-5xl">
+            <div className="mx-auto max-w-none">
               <div className="flex items-center justify-between mb-3 px-2">
                 <div className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
                   <CalendarCheck className="h-3.5 w-3.5" /> Daily Check-In
@@ -455,7 +455,7 @@ function QuestPageInner() {
 
           {/* Daily quests — five tasks, live progress, auto-claimed rewards */}
           <section className="relative z-10 mt-10 px-4 sm:px-8 pb-6">
-            <div className="mx-auto max-w-5xl">
+            <div className="mx-auto max-w-none">
               <div className="flex items-center justify-between mb-3 px-2">
                 <div className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5" /> {t('quest.daily.title')}
@@ -684,7 +684,7 @@ function AchievementsPanel({
 
   return (
     <section className="relative z-10 mt-6 px-4 sm:px-8 pb-10">
-      <div className="mx-auto max-w-6xl space-y-4">
+      <div className="mx-auto max-w-none space-y-4">
         {/* Progress header */}
         <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff2e88]/15 via-black/40 to-[#a855f7]/10 backdrop-blur-xl p-4 flex items-center justify-between gap-3">
           <div>

@@ -397,7 +397,7 @@ export default function AdminGiftsPage() {
 
   return (
     <div className="min-h-screen bg-[#F5F7FA]">
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-none mx-auto">
       <GiftEffectOverlay burst={preview} onDone={() => setPreview(null)} />
 
       <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">

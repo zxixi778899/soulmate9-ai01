@@ -220,7 +220,7 @@ function PricingContent() {
         <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
       </div>
 
-      <div className="relative max-w-7xl mx-auto">
+      <div className="relative max-w-none mx-auto">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"

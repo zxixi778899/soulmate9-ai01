@@ -120,7 +120,7 @@ function GrowthStrip({ girlfriend, zh }: { girlfriend: ChatGirlfriend; zh: boole
 
   return (
     <div className="shrink-0 border-b border-white/[0.06] bg-[#0a0612]/80 px-3 py-2 backdrop-blur-xl sm:px-4">
-      <div className="mx-auto flex max-w-5xl items-stretch gap-2 overflow-x-auto">
+      <div className="mx-auto flex max-w-none items-stretch gap-2 overflow-x-auto">
         {metrics.map((metric) => (
           <div key={metric.key} className="min-w-[132px] flex-1 rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-2">
             <div className="flex items-center justify-between gap-2 text-[11px]">

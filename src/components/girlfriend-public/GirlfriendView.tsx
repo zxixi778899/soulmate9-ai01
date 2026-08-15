@@ -145,7 +145,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
       <div className="min-h-screen bg-[#0a0a0f] text-[#fafafa] flex flex-col pb-20 md:pb-0">
         {/* Navbar */}
         <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-xl">
-          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="max-w-none mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] flex items-center justify-center">
                 <Heart className="w-4 h-4 text-white fill-white" />
@@ -184,7 +184,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
                     fill
                     priority
                     fetchPriority="high"
-                    className="object-cover"
+                    className="object-cover object-top"
                     sizes="(max-width: 768px) 160px, 224px"
                     unoptimized={imgUrl.startsWith('data:')}
                   />

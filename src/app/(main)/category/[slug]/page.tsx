@@ -170,7 +170,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
       />
 
       {/* Category switcher — each tab is its own independent page */}
-      <div className="mx-auto max-w-7xl px-3 sm:px-6 pt-4">
+      <div className="mx-auto max-w-none px-3 sm:px-6 pt-4">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
           {COMPANION_CATEGORIES.map((c) => (
             <button
@@ -192,7 +192,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
 
       {/* Card grid */}
       <section className="px-4 sm:px-6 py-6">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-none">
           {loading ? (
             <div className="flex justify-center py-24">
               <Loader2 className="h-8 w-8 animate-spin text-[#ff2e88]/50" />
@@ -212,7 +212,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5">
               {girls.map((girl) => (
                 <button
                   key={girl.id}

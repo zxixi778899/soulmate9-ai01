@@ -55,7 +55,7 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="mx-auto max-w-6xl px-3 sm:px-6 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3">
+      <div className="mx-auto max-w-none px-3 sm:px-6 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={handleBack}

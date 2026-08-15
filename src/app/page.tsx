@@ -386,7 +386,7 @@ export default function HomePage() {
         <div className="hidden md:block absolute top-1/4 left-[15%] h-48 w-48 rounded-full bg-[#ff2e88]/10 blur-[64px]" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-8 pt-2 sm:pt-4 space-y-4 sm:space-y-6">
+      <div className="relative z-10 mx-auto w-full max-w-none px-3 sm:px-5 lg:px-8 pt-2 sm:pt-4 space-y-4 sm:space-y-6">
         {/* Announcement bar — 公告栏（后台 site_settings 管理） */}
         {siteSettings?.announcement_enabled && siteSettings.announcement_text ? (
           <div className="relative flex items-center gap-2.5 rounded-2xl border border-amber-300/25 bg-gradient-to-r from-amber-300/12 via-white/[0.04] to-[#FF2D78]/10 px-3.5 py-2.5">
@@ -696,8 +696,8 @@ export default function HomePage() {
             <ChevronRight className="h-3 w-3" />
           </div>
 
-          {/* 桌面端：一行最多 5 列（与资料库网格一致） */}
-          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+          {/* 桌面端：自适应列数，宽屏加列铺满（与资料库网格一致） */}
+          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5">
             {hotList.map((g, i) => (
               <HotCard
                 key={g.id}
@@ -908,7 +908,7 @@ export default function HomePage() {
             {addedCompanion.portrait && (
               <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-purple-500/50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={addedCompanion.portrait} alt="" className="w-full h-full object-cover" />
+                <img src={addedCompanion.portrait} alt="" className="w-full h-full object-cover object-top" />
               </div>
             )}
             <h3 className="text-lg font-bold text-white mb-1">{t('explore.addedToFriends', { name: addedCompanion.name })}</h3>

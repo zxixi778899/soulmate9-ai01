@@ -123,7 +123,7 @@ export default function CreatorPreviewsAdminContent() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-6">
+    <div className="mx-auto max-w-none space-y-8 p-6">
       <div>
         <h1 className="text-2xl font-bold text-white">捏脸预览配置</h1>
         <p className="mt-1 text-sm text-slate-400">

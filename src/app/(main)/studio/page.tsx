@@ -36,7 +36,7 @@ export default function StudioPage() {
       <NeonGridBackground />
 
       <section className="relative z-10 pt-6 px-4 sm:px-8">
-        <div className="mx-auto max-w-7xl text-center">
+        <div className="mx-auto max-w-none text-center">
           <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.4em] text-[#00e5ff]">
             <Sparkles className="h-3 w-3" /> Studio · Generate · Create
           </div>
@@ -69,7 +69,7 @@ export default function StudioPage() {
       </section>
 
       <section className="relative z-10 mt-8 px-4 sm:px-8 pb-20">
-        <div className="mx-auto max-w-7xl grid md:grid-cols-2 gap-6">
+        <div className="mx-auto max-w-none grid md:grid-cols-2 gap-6">
           <div className="rounded-3xl border border-white/[0.08] bg-[#0e0e12]/80 backdrop-blur-2xl p-5">
             <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-3">Companion</div>
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">

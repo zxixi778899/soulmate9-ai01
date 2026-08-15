@@ -612,7 +612,7 @@ export default function CreatePage() {
 
       {/* Scrollable content */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-4 pb-6">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-none">
           <AnimatePresence mode="wait">
 
             {/* ─── Step 1: 基础信息 ──────────────────────────────────────── */}
