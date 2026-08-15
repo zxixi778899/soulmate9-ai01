@@ -16,6 +16,7 @@ import {
   MessageCircle, ShoppingBag, Wand2, Crown, ChevronLeft, ChevronRight,
   Heart, Flame, Lock, Zap, Users, Share2,
   Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink, Megaphone,
+  Volume2, BookOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
@@ -61,12 +62,14 @@ function HotCard({
   className,
   onOpen,
   fit = 'cover',
+  blurFill = true,
 }: {
   g: DemoGirl;
   rank: number;
   className?: string;
   onOpen: (g: DemoGirl) => void;
   fit?: 'cover' | 'contain';
+  blurFill?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -88,6 +91,7 @@ function HotCard({
           forcePlay={false}
           showBadge={false}
           fit={fit}
+          blurFill={blurFill}
           imgClassName={lockedImageClass(g.locked)}
         />
         {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-sm" />}
@@ -289,6 +293,31 @@ export default function HomePage() {
     if (featured) setDetail(featured);
   }, [featured]);
 
+  // 语音开场白：点击播放/暂停 voice_preview
+  const [voicePlaying, setVoicePlaying] = useState(false);
+  const heroAudioRef = useRef<HTMLAudioElement | null>(null);
+  const toggleVoiceGreeting = useCallback(() => {
+    if (voicePlaying && heroAudioRef.current) {
+      heroAudioRef.current.pause();
+      heroAudioRef.current = null;
+      setVoicePlaying(false);
+      return;
+    }
+    if (featured?.voice_preview) {
+      const audio = new Audio(featured.voice_preview);
+      heroAudioRef.current = audio;
+      audio.onended = () => { setVoicePlaying(false); heroAudioRef.current = null; };
+      audio.onerror = () => { setVoicePlaying(false); heroAudioRef.current = null; };
+      audio.play().then(() => setVoicePlaying(true)).catch(() => {});
+    }
+  }, [voicePlaying, featured?.voice_preview]);
+  // 切换角色时停止上一位的语音
+  useEffect(() => {
+    heroAudioRef.current?.pause();
+    heroAudioRef.current = null;
+    setVoicePlaying(false);
+  }, [featured?.id]);
+
   const enterBond = async (girl: DemoGirl = featured!) => {
     if (!girl) return;
     // Guest → redirect to login before any API call (otherwise 401 "Unauthorized" toast)
@@ -476,21 +505,21 @@ export default function HomePage() {
           onMouseLeave={() => setPaused(false)}
         >
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
-            {/* LEFT — 竖排立绘缩略（切换角色） */}
-            <div className="lg:col-span-1">
+            {/* LEFT — 竖排立绘缩略（切换角色），与右侧面板左右对称 */}
+            <div className="lg:col-span-3">
               <div className="glass-strong rounded-xl sm:rounded-2xl p-2.5 sm:p-3 h-full">
                 <div className="hidden lg:flex items-center justify-between mb-2 px-0.5">
                   <span className="text-[10px] font-bold tracking-wider text-white/45 uppercase">{t('home.switchRole')}</span>
                   <span className="text-[10px] text-white/30 tabular-nums">{focus + 1}/{roster.length}</span>
                 </div>
-                <div className="flex lg:flex-col gap-2.5 overflow-x-auto lg:overflow-y-auto lg:overflow-x-hidden overscroll-contain py-1 px-0.5 scrollbar-hide">
+                <div className="flex lg:grid lg:grid-cols-3 gap-2.5 overflow-x-auto lg:overflow-y-auto lg:overflow-x-hidden lg:max-h-[78vh] overscroll-contain py-1 px-0.5 scrollbar-hide">
                   {roster.map((g, i) => (
                     <button
                       key={g.id}
                       type="button"
                       onClick={() => { setPaused(true); setFocus(i); }}
                       className={cn(
-                        'relative shrink-0 rounded-lg overflow-hidden transition-all touch-manipulation h-[68px] w-[46px] sm:h-[76px] sm:w-[52px]',
+                        'relative shrink-0 rounded-lg overflow-hidden transition-all touch-manipulation h-[76px] w-[54px] sm:h-[92px] sm:w-[64px]',
                         i === focus
                           ? 'ring-2 ring-[#ff2e88] shadow-[0_0_16px_rgba(255,46,136,0.45)] z-[1]'
                           : 'opacity-60 ring-1 ring-white/10 hover:opacity-100',
@@ -508,7 +537,7 @@ export default function HomePage() {
 
             {/* CENTER — 9:16 立绘主视觉 */}
             <div
-              className="lg:col-span-8 relative touch-pan-y flex justify-center"
+              className="lg:col-span-6 relative touch-pan-y flex justify-center"
               onTouchStart={onPortraitTouchStart}
               onTouchEnd={onPortraitTouchEnd}
               onTouchCancel={() => { touchStart.current = null; }}
@@ -536,8 +565,8 @@ export default function HomePage() {
                 key={featured.id}
                 className={cn(
                   'relative overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation text-left',
-                  // 9:16 立绘画框：向两侧扩大，高约 83vh，宽由 min(88vw, 47vh) 推导
-                  'aspect-[9/16] w-[min(88vw,47vh)]',
+                  // 9:16 立绘画框：高约 83vh，宽由 min(88vw, 47vh) 推导，不超过列宽
+                  'aspect-[9/16] w-[min(88vw,47vh)] max-w-full',
                   `game-rarity-${String(featured.rarity || 'R').toLowerCase()}`,
                 )}
                 style={{
@@ -596,6 +625,58 @@ export default function HomePage() {
                 <div className="text-[10px] tracking-[0.25em] text-[#ff6ba6] font-bold">FEATURED</div>
                 <h2 className="mt-1 text-2xl sm:text-3xl font-black seduce-glow leading-none">{featured.name}</h2>
                 <p className="mt-2 text-sm text-white/55 line-clamp-2 sm:line-clamp-3 leading-relaxed">{girlTagline(featured, locale)}</p>
+
+                {/* 详细信息：性格 */}
+                {featured.personality ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {featured.personality.split(/[·,，]+/).map((p) => p.trim()).filter(Boolean).slice(0, 4).map((p) => (
+                      <span key={p} className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#a855f7]/15 text-[#d8b4fe] ring-1 ring-[#a855f7]/25">{p}</span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {/* 语音开场白 */}
+                {featured.voice_preview ? (
+                  <button
+                    type="button"
+                    onClick={toggleVoiceGreeting}
+                    className={cn(
+                      'mt-3 flex items-center gap-2.5 rounded-xl border px-3 py-2 transition-all w-full text-left',
+                      voicePlaying
+                        ? 'bg-[#ff2e88]/10 border-[#ff2e88]/40'
+                        : 'bg-white/[0.04] border-white/[0.08] hover:bg-white/[0.08]',
+                    )}
+                  >
+                    <span className="h-8 w-8 rounded-full bg-gradient-to-br from-[#ff2e88] to-[#00e5ff] flex items-center justify-center shrink-0">
+                      {voicePlaying
+                        ? <span className="h-2.5 w-2.5 rounded-sm bg-white" />
+                        : <Volume2 className="h-3.5 w-3.5 text-white" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-bold text-white">{t('home.voiceGreeting')}</span>
+                      <span className="block text-[10px] text-white/45">{voicePlaying ? t('home.voicePlaying') : t('home.voiceGreetingHint')}</span>
+                    </span>
+                    <span className="flex items-end gap-0.5 h-4 shrink-0">
+                      {[1, 2, 3, 4, 3, 2, 1].map((h, i) => (
+                        <i
+                          key={i}
+                          className={cn('w-0.5 rounded-full', voicePlaying ? 'bg-[#ff2e88] animate-pulse' : 'bg-[#ff2e88]/40')}
+                          style={{ height: `${h * 25}%`, animationDelay: voicePlaying ? `${i * 100}ms` : undefined }}
+                        />
+                      ))}
+                    </span>
+                  </button>
+                ) : null}
+
+                {/* 故事背景 */}
+                {featured.rarity_quote ? (
+                  <div className="mt-3 rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 hidden sm:block">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.2em] text-white/45">
+                      <BookOpen className="h-3 w-3 text-[#ff6ba6]" /> {t('home.storyBackground')}
+                    </div>
+                    <p className="mt-1 text-xs text-white/70 italic leading-relaxed line-clamp-3">{featured.rarity_quote}</p>
+                  </div>
+                ) : null}
 
                 <div className="mt-4 space-y-2.5 hidden sm:block">
                   <Meter label={t('home.meterDesire')} value={featured.desire ?? featured.intimacy} color="#ff2e88" />
@@ -677,6 +758,7 @@ export default function HomePage() {
                       rank={i + 1}
                       onOpen={(girl) => setDetail(girl)}
                       fit="contain"
+                      blurFill={false}
                       className="rounded-xl"
                     />
                   ))}

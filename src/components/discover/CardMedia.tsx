@@ -36,6 +36,8 @@ export interface CardMediaProps {
    * 卡片网格默认 cover 居中铺满。
    */
   fit?: 'cover' | 'contain';
+  /** contain 时是否叠加同源模糊背景填充（热门卡设 false：零遮罩纯完整展示） */
+  blurFill?: boolean;
   /** 预览压缩档位：hero 主视觉用 detail 高清，网格用 card */
   previewSize?: PreviewSize;
 }
@@ -63,6 +65,7 @@ function CardMediaInner({
   showBadge = true,
   objectPosition = 'object-top',
   fit = 'cover',
+  blurFill = true,
   previewSize = 'card',
 }: CardMediaProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -152,7 +155,7 @@ function CardMediaInner({
       {/* Always paint poster first — zero decode cost until video mounts */}
       {poster ? (
         <>
-          {fit === 'contain' && (
+          {fit === 'contain' && blurFill && (
             // eslint-disable-next-line @next/next/no-img-element -- 同源模糊背景填充：contain 完整展示时两侧不留黑边
             <img
               src={posterPreview}
