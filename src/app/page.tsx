@@ -93,7 +93,7 @@ function HotCard({
         <span className="absolute top-1.5 left-1.5 z-[2] text-[9px] font-black px-1.5 py-0.5 rounded bg-black/55 text-[#ffd700]">
           #{rank}
         </span>
-        <div className="absolute bottom-0 left-0 right-0 p-2 z-[2]">
+        <div className="absolute bottom-0 left-0 right-0 p-2 z-[2] text-center">
           <div className="text-xs sm:text-sm font-bold truncate">{g.name}</div>
           <div className="text-[9px] sm:text-[10px] text-white/50 truncate">
             {relationshipLabel(g.relationship, t)} · {g.rarity}
@@ -697,7 +697,7 @@ export default function HomePage() {
           </div>
 
           {/* 桌面端：自适应列数，宽屏加列铺满（与资料库网格一致） */}
-          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5">
+          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5 2xl:gap-6">
             {hotList.map((g, i) => (
               <HotCard
                 key={g.id}
@@ -908,7 +908,7 @@ export default function HomePage() {
             {addedCompanion.portrait && (
               <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-purple-500/50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={addedCompanion.portrait} alt="" className="w-full h-full object-cover object-top" />
+                <img src={addedCompanion.portrait} alt="" className="h-full w-full object-contain" />
               </div>
             )}
             <h3 className="text-lg font-bold text-white mb-1">{t('explore.addedToFriends', { name: addedCompanion.name })}</h3>

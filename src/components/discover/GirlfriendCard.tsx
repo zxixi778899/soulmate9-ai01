@@ -127,13 +127,13 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
           </div>
         </div>
 
-        <div className="absolute bottom-3 left-3 right-3 opacity-90">
+        <div className="absolute bottom-3 left-3 right-3 opacity-90 text-center">
           <p className="text-[10px] italic text-zinc-300 line-clamp-2">&quot;{girl.rarity_quote}&quot;</p>
         </div>
       </div>
 
-      <div className="relative p-4 bg-[#0e0e12]">
-        <div className="flex items-baseline justify-between">
+      <div className="relative p-4 bg-[#0e0e12] text-center">
+        <div className="flex items-baseline justify-center gap-3">
           <h3 className="text-2xl font-bold tracking-tight text-white">
             {girl.name}
             <span className="text-[10px] text-zinc-500 font-normal ml-1.5">· {girl.age}</span>
@@ -146,7 +146,7 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
 
         <p className="text-xs text-zinc-400 line-clamp-1 leading-relaxed mt-0.5">{girl.tagline}</p>
 
-        <div className="flex flex-wrap gap-1 mt-2.5">
+        <div className="flex flex-wrap justify-center gap-1 mt-2.5">
           {(Array.isArray(girl.tags) ? girl.tags : []).slice(0, 3).map((tag) => (
             <span key={tag} onClick={(e) => e.stopPropagation()}
               className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/[0.04] border border-white/[0.08] text-zinc-300">
@@ -196,7 +196,7 @@ export function GirlfriendCardGrid({
 }) {
   return (
     <motion.div
-      className={cn('grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-5', className)}
+      className={cn('grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5 2xl:gap-6', className)}
       initial="hidden" animate="show"
       variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05, delayChildren: 0.05 } } }}
     >

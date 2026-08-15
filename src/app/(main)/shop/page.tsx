@@ -88,7 +88,7 @@ const CREDITS_GRADIENT = 'from-amber-400 to-orange-600';
 const SEATS_GRADIENT = 'from-cyan-500 to-blue-700';
 
 /** Unified shelf grid — identical across every collection. */
-const GRID = 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 gap-3 sm:gap-4';
+const GRID = 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 gap-3 sm:gap-4 2xl:gap-5';
 
 /** Crypto options offered at checkout (NOWPayments). */
 const CRYPTO_PAY_OPTIONS = [

@@ -184,7 +184,7 @@ export function GirlfriendView({ girlfriend }: { girlfriend: PublicGirlfriend })
                     fill
                     priority
                     fetchPriority="high"
-                    className="object-cover object-top"
+                    className="object-contain"
                     sizes="(max-width: 768px) 160px, 224px"
                     unoptimized={imgUrl.startsWith('data:')}
                   />

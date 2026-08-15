@@ -256,7 +256,7 @@ export default function ExplorePage() {
       <section className="px-4 sm:px-6 py-6">
         <div className="mx-auto max-w-none">
           {/* 与主页保持一致：自适应列数，宽屏加列铺满 */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5 2xl:gap-6">
             {girls.map((girl) => (
               <button
                 key={girl.id}
@@ -289,7 +289,7 @@ export default function ExplorePage() {
                   <div className="absolute top-2 right-2 z-[2] text-[9px] font-mono text-white/70 bg-black/40 px-1.5 py-0.5 rounded">
                     {girl.element}
                   </div>
-                  <div className="absolute bottom-0 left-0 right-0 p-3 z-[2]">
+                  <div className="absolute bottom-0 left-0 right-0 p-3 z-[2] text-center">
                     <div className="font-bold text-base sm:text-lg leading-tight">{girl.name}</div>
                     <div className="text-[10px] text-white/55 line-clamp-1 mt-0.5">{girl.tagline}</div>
                     <div className="mt-2 flex items-center gap-1.5">
@@ -360,7 +360,7 @@ export default function ExplorePage() {
             {addedCompanion.portrait && (
               <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-purple-500/50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={toAvatarPreviewUrl(addedCompanion.portrait, 128)} alt="" className="w-full h-full object-cover object-top" />
+                <img src={toAvatarPreviewUrl(addedCompanion.portrait, 128)} alt="" className="h-full w-full object-contain" />
               </div>
             )}
             <h3 className="text-lg font-bold text-white mb-1">{t('explore.addedToFriends', { name: addedCompanion.name })}</h3>

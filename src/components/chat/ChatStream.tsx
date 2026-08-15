@@ -269,7 +269,7 @@ function ChatStreamInner(props: {
                     {showAvatar ? (
                       <Avatar className="h-8 w-8 ring-1 ring-white/10">
                         {girlfriend?.avatar_url ? (
-                          <AvatarImage src={girlfriend.avatar_url} alt={displayName} className="object-cover" />
+                          <AvatarImage src={girlfriend.avatar_url} alt={displayName} />
                         ) : (
                           <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">
                             {safeInitial(displayName)}
@@ -293,7 +293,7 @@ function ChatStreamInner(props: {
                     {showAvatar ? (
                       <Avatar className="h-8 w-8 ring-1 ring-white/10">
                         {girlfriend?.avatar_url ? (
-                          <AvatarImage src={girlfriend.avatar_url} alt={displayName} className="object-cover" />
+                          <AvatarImage src={girlfriend.avatar_url} alt={displayName} />
                         ) : (
                           <AvatarFallback className="bg-[#FF2D78]/15 text-[#FF6BA6] text-[10px]">
                             {safeInitial(displayName)}
@@ -449,7 +449,7 @@ function ChatStreamInner(props: {
             <div className="flex items-center gap-2 px-4 py-2 max-w-3xl xl:max-w-4xl 2xl:max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
               {girlfriend?.avatar_url && (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={girlfriend.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover object-top" />
+                <img src={girlfriend.avatar_url} alt="" className="h-6 w-6 rounded-full object-contain" />
               )}
               <div className="flex gap-1 rounded-2xl bg-white/[0.06] backdrop-blur-sm px-4 py-3 border border-white/[0.08]">
                 <span className="h-2 w-2 rounded-full bg-white/40 animate-bounce [animation-delay:0ms]" />

@@ -1043,8 +1043,13 @@ function AdminGirlfriendsMediaPageInner() {
                   <button type="button" onClick={() => openEdit(g)} className="block w-full text-left">
                     <div className="relative aspect-[2/3] bg-black/40">
                       {cover ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={cover} alt={g.name} className="h-full w-full object-cover" />
+                        <>
+                          {/* 模糊填充背景：主图 contain 完整展示时铺满两侧，无黑边 */}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={cover} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-60" />
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={cover} alt={g.name} className="relative h-full w-full object-contain" />
+                        </>
                       ) : (
                         <div className="flex h-full flex-col items-center justify-center gap-1 text-slate-600">
                           <ImageOff className="h-6 w-6" />
@@ -1075,7 +1080,7 @@ function AdminGirlfriendsMediaPageInner() {
                           <span className="rounded bg-orange-500/90 px-1 py-0.5 text-[9px] font-semibold text-white">热门</span>
                         ) : null}
                       </div>
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1.5 pt-6">
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1.5 pt-6 text-center">
                         <p className="truncate text-xs font-semibold text-white">{g.name}</p>
                         <p className="truncate text-[10px] text-slate-300">
                           {g.age || '—'}岁 · {g.occupation || '—'} · {String(g.rarity || 'R').toUpperCase()}

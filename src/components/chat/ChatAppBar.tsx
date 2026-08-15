@@ -61,7 +61,7 @@ export function ChatAppBar(props: {
         >
           <Avatar className="relative h-10 w-10 ring-2 ring-white/10">
             {girlfriend?.avatar_url ? (
-              <AvatarImage src={girlfriend.avatar_url} alt={name} className="object-cover" />
+              <AvatarImage src={girlfriend.avatar_url} alt={name} />
             ) : (
               <AvatarFallback
                 className="text-white font-semibold text-sm"

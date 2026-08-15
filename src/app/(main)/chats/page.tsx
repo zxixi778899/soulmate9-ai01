@@ -194,7 +194,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
         >
           <Avatar className="h-14 w-14 ring-1 ring-[#ff2e88]/25">
             {friend.avatar_url
-              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 112)} alt={friend.name} className="object-cover" />
+              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 112)} alt={friend.name} />
               : <AvatarFallback className="bg-gradient-to-br from-[#ff2e88]/40 to-[#c026d3]/30 text-[#ff6ba6] font-bold">{friend.name?.charAt(0) || '?'}</AvatarFallback>}
           </Avatar>
           <span className="absolute -bottom-0.5 -right-0.5 text-sm drop-shadow" title={mood.label}>{mood.emoji}</span>
@@ -1013,9 +1013,9 @@ export default function ChatsPage() {
       )}>
         {/* Header */}
         <div className="shrink-0 p-4 border-b border-white/[0.06]">
-          <div className="flex items-center justify-between mb-3">
-            <h1 className="text-lg font-bold text-white tracking-tight">{t('messages.friends') || '密语'}</h1>
-            <button type="button" onClick={() => router.push('/create')} className="glass-btn !h-9 !w-9 !rounded-full !p-0 flex items-center justify-center" aria-label="Create">
+          <div className="relative flex items-center justify-center mb-3">
+            <h1 className="text-lg font-bold text-white tracking-tight text-center">{t('messages.friends') || '密语'}</h1>
+            <button type="button" onClick={() => router.push('/create')} className="glass-btn !h-9 !w-9 !rounded-full !p-0 absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center" aria-label="Create">
               <Plus className="h-4 w-4" />
             </button>
           </div>
