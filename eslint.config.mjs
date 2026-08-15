@@ -54,6 +54,8 @@ const eslintConfig = defineConfig([
     'server.js',
     'dist/**',
     'scripts/**/*.js',
+    'scripts/**/*.mjs',
+    'infra/**',
   ]),
 ]);
 

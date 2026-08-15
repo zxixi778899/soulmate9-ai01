@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 import { loadCreatorPreviews } from '@/lib/creator-previews-store';
 import { logger } from '@/lib/logger';
 
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const client = getSupabaseClient();
-    const config = await loadCreatorPreviews(client as any);
+    const config = await loadCreatorPreviews(client as unknown as SiteSettingsClient);
 
     const previews = config.previews
       .filter((p) => p.is_active)

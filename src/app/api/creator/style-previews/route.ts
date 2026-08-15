@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 import { loadStylePreviews, STYLE_PREVIEW_DEFAULTS } from '@/lib/style-previews-store';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const client = getSupabaseClient();
-    const config = await loadStylePreviews(client as any);
+    const config = await loadStylePreviews(client as unknown as SiteSettingsClient);
     return NextResponse.json(
       {
         previews: {

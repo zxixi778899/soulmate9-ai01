@@ -24,8 +24,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { X, Save, RefreshCw, Eye, EyeOff, Heart, Flame, Sparkles, AlertCircle } from 'lucide-react';
+import { Save, RefreshCw, Eye, EyeOff, Flame, Sparkles, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrowserClient } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
@@ -44,7 +43,7 @@ interface CompanionProfileExt {
   id: string;
   current_mood: string;
   desire_level: number;
-  user_profile?: Record<string, any>;
+  user_profile?: Record<string, unknown>;
   inside_jokes?: string[];
 }
 
@@ -136,7 +135,7 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
   const [activeTab, setActiveTab] = useState('basic');
   
   // Girlfriend data
-  const [girlfriend, setGirlfriend] = useState<Girlfriend | null>(null);
+  const [, setGirlfriend] = useState<Girlfriend | null>(null);
   const [profileExt, setProfileExt] = useState<CompanionProfileExt | null>(null);
   
   // Form state
@@ -154,6 +153,7 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
   // Load data on mount
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadData closes over girlfriendId via component scope
   }, [girlfriendId]);
 
   async function loadData() {
@@ -255,7 +255,7 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
     
     setSelectedTraits(randomTraits);
     setRelationshipStyle(randomStyles[Math.floor(Math.random() * randomStyles.length)]);
-    setOpenness(['moderate', 'open'][Math.floor(Math.random() * 2)] as any);
+    setOpenness(Math.random() < 0.5 ? 'moderate' : 'open');
     
     toast.success('已随机生成新配置！');
   }
@@ -336,7 +336,7 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
               <CardDescription>她与你互动的主要方式</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Select value={relationshipStyle} onValueChange={(v) => setRelationshipStyle(v as any)}>
+              <Select value={relationshipStyle} onValueChange={(v) => setRelationshipStyle(v as Girlfriend['relationship_style'])}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -364,7 +364,7 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
                   <div className="flex gap-2 flex-wrap">
                     {RELATIONSHIP_STYLES[relationshipStyle].examples.map((example, i) => (
                       <Badge key={i} variant="outline" className="bg-pink-500/10 text-pink-400">
-                        "{example}"
+                        “{example}”
                       </Badge>
                     ))}
                   </div>
@@ -390,7 +390,7 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
                 ].map((option) => (
                   <button
                     key={option.value}
-                    onClick={() => setSexualTendency(option.value as any)}
+                    onClick={() => setSexualTendency(option.value as Girlfriend['sexual_tendency'])}
                     className={`p-4 rounded-lg border-2 text-center transition-all ${
                       sexualTendency === option.value
                         ? `border-${option.color.split('-')[1]}-500 bg-${option.color.split('-')[1]}-500/10`
@@ -411,7 +411,7 @@ export function CompanionProfileForm({ girlfriendId }: { girlfriendId: string })
               <CardDescription>她对 NSFW 内容的接受速度</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <Select value={openness} onValueChange={(v) => setOpenness(v as any)}>
+              <Select value={openness} onValueChange={(v) => setOpenness(v as Girlfriend['openness'])}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

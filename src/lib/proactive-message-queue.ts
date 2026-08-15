@@ -6,7 +6,6 @@
  */
 
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 
 export type TriggerType = 'schedule' | 'event' | 'random' | 'anniversary';
@@ -18,7 +17,7 @@ interface ProactiveMessageParams {
   templateId: string;
   triggerType: TriggerType;
   priority?: number;           // 1-10, higher = more urgent
-  params?: Record<string, any>; // Dynamic parameter injection
+  params?: Record<string, unknown>; // Dynamic parameter injection
   scheduledAt?: Date;
 }
 
@@ -30,7 +29,7 @@ interface MessageConfig {
 }
 
 // Default scheduling configurations by category
-const SCHEDULE_CONFIGS: Record<string, MessageConfig> = {
+export const SCHEDULE_CONFIGS: Record<string, MessageConfig> = {
   morning_greeting: {
     maxPerDay: 1,
     timeRanges: ['08:00-10:00'],
@@ -84,7 +83,7 @@ export async function scheduleProactiveMessage(params: ProactiveMessageParams): 
     }
     
     // Check user's daily limit for this category
-    const sentToday = await countSentToday(userId, template.category);
+    const sentToday = await countSentToday(userId);
     if (sentToday >= template.max_per_day) {
       logger.info(`[ProactiveQueue] Daily limit reached for ${userId}:${templateId}`);
       return 'CANCELLED:DAILY_LIMIT';
@@ -167,12 +166,18 @@ export async function getNextMessagesToProcess(limit: number = 50): Promise<Arra
 /**
  * Send a single message from queue
  */
-export async function processQueuedMessage(queueItem: any): Promise<boolean> {
+export async function processQueuedMessage(queueItem: {
+  queueId: string;
+  userId: string;
+  girlfriendId: string;
+  templateId: string;
+  params?: Record<string, unknown>;
+}): Promise<boolean> {
   const { queueId, userId, girlfriendId, templateId, params } = queueItem;
   
   try {
     // 1. Get template content based on language preference
-    const messageText = await getTemplateContent(templateId, userId);
+    const messageText = await getTemplateContent(templateId);
     
     // 2. Inject dynamic parameters
     const finalMessage = injectParameters(messageText, params || {});
@@ -263,7 +268,7 @@ function parseTime(timeStr: string): Date {
 /**
  * Helper: Count messages sent today for category
  */
-async function countSentToday(userId: string, category: string): Promise<number> {
+async function countSentToday(userId: string): Promise<number> {
   const today = new Date().toDateString();
   
   const { count } = await getSupabaseClient()
@@ -295,7 +300,7 @@ async function getIntimacyScore(userId: string, girlfriendId: string): Promise<n
 /**
  * Helper: Get template content in user's language
  */
-async function getTemplateContent(templateId: string, userId: string): Promise<string> {
+async function getTemplateContent(templateId: string): Promise<string> {
   // Determine user's language preference (default English)
   const lang = 'en'; // Could fetch from profiles table
   
@@ -311,7 +316,7 @@ async function getTemplateContent(templateId: string, userId: string): Promise<s
 /**
  * Helper: Inject dynamic parameters into template
  */
-function injectParameters(text: string, params?: Record<string, any>): string {
+function injectParameters(text: string, params?: Record<string, unknown>): string {
   if (!params) return text;
   
   let result = text;
@@ -453,7 +458,7 @@ export async function runSchedulerBatch(): Promise<{
     else failed++;
   }));
   
-  logger.info(`[ProactiveQueue] Batch complete: ${succeeded} succeed, ${failed} failed`);
+  logger.info(`[ProactiveQueue] Batch complete in ${Date.now() - start}ms: ${succeeded} succeed, ${failed} failed`);
   
   return {
     processed: items.length,

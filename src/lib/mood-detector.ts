@@ -130,7 +130,7 @@ export async function detectCompanionMood(params: {
   recentMemories?: Array<{ event_type: string; summary: string; importance: number }>;
   client?: SupabaseClient;
 }): Promise<MoodDetectionResult> {
-  const { userId, girlfriendId, desireLevel, recentMessages, recentMemories, client } = params;
+  const { girlfriendId, desireLevel, recentMessages, recentMemories, client } = params;
   
   const db = client || getSupabaseClient();
   
@@ -149,7 +149,7 @@ export async function detectCompanionMood(params: {
   }
   
   // 2. Check for milestone-triggered moods
-  const memoryTrigger = analyzeMemoryTriggers(recentMemories || [], desireLevel);
+  const memoryTrigger = analyzeMemoryTriggers(recentMemories || []);
   if (memoryTrigger) {
     return {
       currentMood: memoryTrigger.currentMood,
@@ -160,7 +160,7 @@ export async function detectCompanionMood(params: {
   }
   
   // 3. Default prediction from desire level + personality
-  const defaultMood = predictDefaultMood(personalityData.personalityTypes, desireLevel, personalityData.relationshipStyle);
+  const defaultMood = predictDefaultMood(personalityData.personalityTypes, desireLevel);
   
   return {
     currentMood: defaultMood,
@@ -265,8 +265,7 @@ function analyzeMessageTriggers(messages: Array<{ role: string; content: string 
  * Helper: Analyze memories for mood triggers
  */
 function analyzeMemoryTriggers(
-  memories: Array<{ event_type: string; summary: string; importance: number }>,
-  currentDesireLevel: number
+  memories: Array<{ event_type: string; summary: string; importance: number }>
 ): MoodDetectionResult | null {
   // High-importance memories can trigger specific moods
   const significantMemories = memories.filter(m => m.importance > 0.7);
@@ -307,8 +306,7 @@ function analyzeMemoryTriggers(
  */
 function predictDefaultMood(
   personalityTypes: string[],
-  desireLevel: number,
-  relationshipStyle?: string
+  desireLevel: number
 ): CompanionMood {
   // Find the best matching personality pattern
   const bestMatch = personalityTypes.find(p => MOOD_PREDICTION_MATRIX[p]);

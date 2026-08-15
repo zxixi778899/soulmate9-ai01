@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 import { invalidateSettings } from '@/lib/revalidate';
 import {
   loadPromptPresets,
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   const guard = await requireAdmin(req);
   if ('error' in guard && guard.error) return guard.error;
 
-  const presets = await loadPromptPresets(guard.supabase as any);
+  const presets = await loadPromptPresets(guard.supabase as unknown as SiteSettingsClient);
   return NextResponse.json({ presets });
 }
 
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields: label, positivePrompt' }, { status: 400 });
   }
 
-  const presets = await loadPromptPresets(guard.supabase as any);
+  const presets = await loadPromptPresets(guard.supabase as unknown as SiteSettingsClient);
   const newPreset: PromptPreset = {
     id: `preset_${Date.now()}`,
     label,
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     negativePrompt: negativePrompt || DEFAULT_PROMPT_PRESETS[0].negativePrompt,
   };
   presets.push(newPreset);
-  const { source } = await savePromptPresets(presets, guard.supabase as any);
+  const { source } = await savePromptPresets(presets, guard.supabase as unknown as SiteSettingsClient);
   invalidatePromptPresetsCache();
   invalidateSettings();
 
@@ -64,9 +65,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Missing id query param' }, { status: 400 });
   }
 
-  const presets = await loadPromptPresets(guard.supabase as any);
+  const presets = await loadPromptPresets(guard.supabase as unknown as SiteSettingsClient);
   const next = presets.filter((p) => p.id !== id);
-  const { source } = await savePromptPresets(next, guard.supabase as any);
+  const { source } = await savePromptPresets(next, guard.supabase as unknown as SiteSettingsClient);
   invalidatePromptPresetsCache();
   invalidateSettings();
 

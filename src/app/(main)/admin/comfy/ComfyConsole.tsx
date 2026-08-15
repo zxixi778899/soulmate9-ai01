@@ -1286,71 +1286,100 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
 
     // Phase-based: iterate roles FIRST (avatar phase → character-art phase), then companions.
     // Failure on one task does NOT block remaining tasks.
+    const avatarBackfilled = new Set<string>();
+    const runProductionTask = async (role: CharacterAssetRole, girlfriend: Any): Promise<void> => {
+      const preset = getCharacterProductionPreset(role);
+      const id = String(girlfriend.id);
+      const isIdentityAsset = role === 'avatar-closeup' || role.startsWith('identity-');
+      const assembled = buildCompanionGenerationPrompt(girlfriend as Record<string, unknown>, {
+        action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
+        adult: isIdentityAsset ? false : nsfwIntensity >= 3,
+        intensity: isIdentityAsset ? 1 : nsfwIntensity,
+      });
+      // 身份资产用精简提示词（场景+数据库简报），与服务端一致，避免 1200+ 长提示词
+      const promptForRole = isIdentityAsset
+        ? `${preset.scene}, ${buildCompanionIdentityBrief(girlfriend as Record<string, unknown>)}`
+        : assembled.positive;
+      const overrides = { girlfriendId: id, prompt: promptForRole, negative: assembled.negative, assetRole: role };
+      const res = await authedFetch('/api/admin/comfy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...generationBody(overrides),
+          character_consistency: preset.consistency,
+          width: preset.width,
+          height: preset.height,
+          num_images: 1,
+          input_image: undefined,
+        }),
+      });
+      const data = await readResponseJson(res).catch(() => ({} as Any));
+      if (!res.ok) throw new Error(data.error || `${preset.label}生成失败`);
+
+      const executedOverrides = {
+        ...overrides,
+        prompt: String(data.generation_trace?.prompt || overrides.prompt),
+        negative: String(data.generation_trace?.negative || overrides.negative),
+      };
+      if (data.pending && data.job_id) {
+        const jobId = String(data.job_id);
+        let done = false;
+        for (let poll = 0; poll < 24; poll++) {
+          const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${overrides?.girlfriendId ? `&girlfriend_id=${encodeURIComponent(overrides.girlfriendId)}` : ''}&asset_role=${encodeURIComponent(String(overrides?.assetRole || assetRole))}`);
+          const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
+          if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
+            const saved = Array.isArray(pollData.assets) && pollData.assets.length
+              ? pollData.assets as Any[]
+              : await finalizeAssets(jobId, pollData.images, executedOverrides);
+            if (!saved?.length) throw new Error(`${preset.label} asset catalog registration failed`);
+            generatedAssets.push(...saved);
+            done = true;
+            break;
+          }
+          if (pollData.status === 'FAILED') throw new Error(pollData.error || `${preset.label}任务失败`);
+        }
+        if (!done) throw new Error(`${preset.label} GPU 排队超时`);
+      } else {
+        generatedAssets.push(...(Array.isArray(data.assets) ? data.assets : []));
+      }
+    };
     for (const role of roles) {
       const preset = getCharacterProductionPreset(role);
       for (const girlfriend of selected) {
         const id = String(girlfriend.id);
         setBatchProgress((items) => items.map((item) => item.id === id && item.status === 'pending' ? { ...item, status: 'running' } : item));
+        let taskError: unknown = null;
         try {
-          const isIdentityAsset = role === 'avatar-closeup' || role.startsWith('identity-');
-          const assembled = buildCompanionGenerationPrompt(girlfriend as Record<string, unknown>, {
-            action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
-            adult: isIdentityAsset ? false : nsfwIntensity >= 3,
-            intensity: isIdentityAsset ? 1 : nsfwIntensity,
-          });
-          // 身份资产用精简提示词（场景+数据库简报），与服务端一致，避免 1200+ 长提示词
-          const promptForRole = isIdentityAsset
-            ? `${preset.scene}, ${buildCompanionIdentityBrief(girlfriend as Record<string, unknown>)}`
-            : assembled.positive;
-          const overrides = { girlfriendId: id, prompt: promptForRole, negative: assembled.negative, assetRole: role };
-          const res = await authedFetch('/api/admin/comfy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...generationBody(overrides),
-              character_consistency: preset.consistency,
-              width: preset.width,
-              height: preset.height,
-              num_images: 1,
-              input_image: undefined,
-            }),
-          });
-          const data = await readResponseJson(res).catch(() => ({} as Any));
-          if (!res.ok) throw new Error(data.error || `${preset.label}生成失败`);
-
-          const executedOverrides = {
-            ...overrides,
-            prompt: String(data.generation_trace?.prompt || overrides.prompt),
-            negative: String(data.generation_trace?.negative || overrides.negative),
-          };
-          if (data.pending && data.job_id) {
-            const jobId = String(data.job_id);
-            let done = false;
-            for (let poll = 0; poll < 24; poll++) {
-              const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${overrides?.girlfriendId ? `&girlfriend_id=${encodeURIComponent(overrides.girlfriendId)}` : ''}&asset_role=${encodeURIComponent(String(overrides?.assetRole || assetRole))}`);
-              const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
-              if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-                const saved = Array.isArray(pollData.assets) && pollData.assets.length
-                  ? pollData.assets as Any[]
-                  : await finalizeAssets(jobId, pollData.images, executedOverrides);
-                if (!saved?.length) throw new Error(`${preset.label} asset catalog registration failed`);
-                generatedAssets.push(...saved);
-                done = true;
-                break;
-              }
-              if (pollData.status === 'FAILED') throw new Error(pollData.error || `${preset.label}任务失败`);
-            }
-            if (!done) throw new Error(`${preset.label} GPU 排队超时`);
-          } else {
-            generatedAssets.push(...(Array.isArray(data.assets) ? data.assets : []));
-          }
-          succeeded += 1;
+          await runProductionTask(role, girlfriend);
         } catch (error) {
+          taskError = error;
+          const message = error instanceof Error ? error.message : String(error);
+          // 缺头像参考：自动补生半身头像后重试一次（头像落库即可作为 IP-Adapter 锚点）
+          if (role !== 'avatar-closeup' && /avatar reference/i.test(message) && !avatarBackfilled.has(id)) {
+            avatarBackfilled.add(id);
+            toast.message(`「${String(girlfriend.name || id)}」缺少头像参考，自动补生半身头像后重试`);
+            try {
+              await runProductionTask('avatar-closeup', girlfriend);
+              succeeded += 1;
+              await runProductionTask(role, girlfriend);
+              taskError = null;
+            } catch (retryError) {
+              taskError = retryError;
+            }
+          }
+        }
+        if (taskError) {
           failed += 1;
+          const finalMessage = taskError instanceof Error ? taskError.message : '生成失败';
+          const friendly = /avatar reference/i.test(finalMessage)
+            ? '缺少头像参考图，请先在管线阶段生成半身头像或上传参考图'
+            : finalMessage;
           setBatchProgress((items) => items.map((item) => item.id === id
-            ? { ...item, status: 'failed', error: `${preset.shortLabel}：${error instanceof Error ? error.message : '生成失败'}` }
+            ? { ...item, status: 'failed', error: `${preset.shortLabel}：${friendly}` }
             : item));
           // Continue with next task — do NOT break
+        } else {
+          succeeded += 1;
         }
       }
     }
@@ -1485,7 +1514,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         setPipelineAssets({ ...localAssets });
         ctx.existingAssets = { ...localAssets };
       } catch (error) {
-        const msg = error instanceof Error ? error.message : '生成失败';
+        const rawMsg = error instanceof Error ? error.message : '生成失败';
+        const msg = /avatar reference/i.test(rawMsg)
+          ? '缺少头像参考图，请先完成半身头像阶段或上传参考图'
+          : rawMsg;
         setPipelineResults((prev) => prev.map((r) => r.stageId === stage.id ? { ...r, status: 'failed', error: msg } : r));
         toast.error(`${stage.shortLabel}：${msg}`);
         // Stop pipeline on failure (subsequent stages depend on this one)
@@ -1671,7 +1703,11 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       toast.success(`生成成功 ${assets.length} 张`);
       if (tab === 'library') loadAssets();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '生成失败');
+      const message = e instanceof Error ? e.message : '生成失败';
+      // 服务端 400：缺头像参考 → 给出可操作的中文指引
+      toast.error(/avatar reference/i.test(message)
+        ? '该资产需要头像参考图：请先在「管线阶段」生成半身头像，或在参考图处上传一张人设图'
+        : message);
     } finally {
       setGenerating(false);
       setGenerationStage('idle');

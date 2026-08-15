@@ -1409,11 +1409,13 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       assetRole === 'album' ||
       assetRole === 'scene'
     );
+    const suppliedIpAdapterImage = String(body.ip_adapter_image || '').trim();
     const hasIdentityReference = Boolean(
       resolvedReferenceImage ||
       storedAvatarUrl ||
       consistencyReference ||
-      suppliedReference
+      suppliedReference ||
+      suppliedIpAdapterImage
     );
     if (requiresIdentityReference && !hasIdentityReference) {
       return NextResponse.json({
@@ -1423,7 +1425,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     // IP-Adapter: identity reference without composition lock (request or auto-resolved avatar).
     const ipAdapterImage = ipAdapterEnabled
       ? (
-          String(body.ip_adapter_image || '').trim() ||
+          suppliedIpAdapterImage ||
           storedAvatarUrl ||
           consistencyReference ||
           resolvedReferenceImage

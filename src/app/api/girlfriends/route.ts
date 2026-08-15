@@ -3,7 +3,7 @@ import { getAuthUser } from '@/lib/supabase-server';
 import { ensureImageKey, resolveImageUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { makeGirlfriendSlug } from '@/lib/girlfriend-slug';
-import { consumeCreationCard } from '@/lib/creation-cards';
+import { consumeCreationCard, type CardClient } from '@/lib/creation-cards';
 import { logger } from '@/lib/logger';
 import { invalidateGirlfriends } from '@/lib/revalidate';
 import { resolveCompanionProfile } from '@/lib/companion-profile';
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
     : undefined;
 
   // Consume a creation card
-  const cardResult = await consumeCreationCard(client as any, user.id);
+  const cardResult = await consumeCreationCard(client as unknown as CardClient, user.id);
   if (!cardResult.ok) {
     return NextResponse.json(
       {

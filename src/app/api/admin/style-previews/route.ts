@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 import { uploadFile } from '@/lib/storage';
 import {
   loadStylePreviews,
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Use admin.supabase but cast to avoid SiteSettingsClient type depth
-    const config = await loadStylePreviews(admin.supabase as any);
+    const config = await loadStylePreviews(admin.supabase as unknown as SiteSettingsClient);
     return NextResponse.json({ previews: config });
   } catch (e) {
     return NextResponse.json(
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use admin.supabase but cast to avoid SiteSettingsClient type depth
-    const client = admin.supabase as any;
+    const client = admin.supabase as unknown as SiteSettingsClient;
     const previews = await saveStylePreviews({ [style]: url }, client);
     invalidateStylePreviewsCache();
 

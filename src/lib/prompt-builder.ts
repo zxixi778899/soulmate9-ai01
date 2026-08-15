@@ -14,8 +14,7 @@
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { retrieveMilestones } from '@/lib/milestone-retriever';
-import { detectCompanionMood, buildMoodContext } from '@/lib/mood-detector';
-import { calculateDesireLevel } from '@/lib/desire-calculator';
+import { detectCompanionMood } from '@/lib/mood-detector';
 import { logger } from '@/lib/logger';
 
 interface BuildPromptInput {
@@ -31,7 +30,7 @@ interface BuildPromptInput {
   client?: SupabaseClient;
 }
 
-interface PersonaPromptLayers {
+export interface PersonaPromptLayers {
   layer1BasePersona: string;
   layer2RelationshipContext: string;
   layer3DynamicState: string;
@@ -196,7 +195,7 @@ const PERSONA_TEMPLATES = {
  * Main build function
  */
 export async function buildPersonaPrompt(input: BuildPromptInput): Promise<string> {
-  const { userId, girlfriendId, currentMessage, scenarioState, mode = 'daily_chat', client } = input;
+  const { userId, girlfriendId, scenarioState, mode = 'daily_chat', client } = input;
   
   const db = client || getSupabaseClient();
   
@@ -222,15 +221,26 @@ export async function buildPersonaPrompt(input: BuildPromptInput): Promise<strin
 }
 
 /**
+ * Subset of girlfriend columns the persona engine reads.
+ */
+type GirlfriendDetail = {
+  name?: string;
+  personality_traits?: string[];
+  openness?: string;
+  relationship_style?: string;
+} | null;
+
+/**
  * Layer 1: Build base persona definition
  */
-function buildBasePersona(girlfriendData: any): string {
-  const personalityTypes = girlfriendData.personality_traits || ['friendly'];
+function buildBasePersona(girlfriendData: GirlfriendDetail): string {
+  const data = girlfriendData || {};
+  const personalityTypes = data.personality_traits || ['friendly'];
   const primaryType = personalityTypes[0];
   
   const template = PERSONA_TEMPLATES[primaryType as keyof typeof PERSONA_TEMPLATES] || PERSONA_TEMPLATES.oneeSan;
   
-  let personaDef = `【基础人设】\n角色名：${girlfriendData.name}\n`;
+  let personaDef = `【基础人设】\n角色名：${data.name || '她'}\n`;
   personaDef += template.baseDefinition + '\n\n';
   
   // Add specific traits
@@ -272,14 +282,14 @@ Lv.4-5: 深度情感交流，完全坦诚`;
 /**
  * Helper: Get girlfriend detail from database
  */
-async function getGirlfriendDetail(girlfriendId: string, db: SupabaseClient): Promise<any> {
+async function getGirlfriendDetail(girlfriendId: string, db: SupabaseClient): Promise<GirlfriendDetail> {
   try {
     const { data } = await db
       .from('girlfriends')
       .select('*')
       .eq('id', girlfriendId)
       .single();
-    return data;
+    return (data ?? null) as GirlfriendDetail;
   } catch (error) {
     logger.warn('[PromptBuilder] Get girlfriend detail failed', { error: String(error) });
     return null;
@@ -318,7 +328,6 @@ async function detectMoodAndDesire(userId: string, girlfriendId: string, db: Sup
       .single();
     
     const desireLevel = profileData?.desire_level ?? 50;
-    const currentMood = profileData?.current_mood ?? 'neutral';
     
     // Detect mood with higher confidence using recent messages
     const moodResult = await detectCompanionMood({
@@ -359,7 +368,7 @@ function buildDynamicState(
     suggestedStyle?: string[];
   },
   scenarioState?: BuildPromptInput['scenarioState'],
-  girlfriendData?: any
+  girlfriendData?: GirlfriendDetail
 ): string {
   const { desireLevel, currentMood, moodConfidence, moodReason, suggestedStyle } = moodAndDesire;
   
@@ -416,7 +425,7 @@ async function recallTopMemories(userId: string, girlfriendId: string, db: Supab
       importance: m.relevance_score
     }));
   } catch (error) {
-    console.warn('[PromptBuilder] Memory recall failed:', error);
+    logger.warn('[PromptBuilder] Memory recall failed', { error: String(error) });
     return [];
   }
 }
@@ -516,16 +525,7 @@ ${layers.layer5}
 /**
  * Utility: Get partner's title for user
  */
-export function getPartnerTitle(intimacyLevel: number, relationshipStyle?: string): string {
-  const styles: Record<string, string[]> = {
-    direct: ['亲爱的', '宝贝', '老公', '灵魂伴侣'],
-    playful: ['小坏蛋', '大笨蛋', '心上人', '唯一'],
-    maternal: ['宝贝', '亲爱的', '孩子', '小心肝'],
-    passive: ['你', '那个人', '最重要的人'],
-    tsundere: ['那个家伙', '某人', '笨蛋', '特别的你']
-  };
-  
-  const options = styles[relationshipStyle ?? 'direct'] || styles.direct;
+export function getPartnerTitle(intimacyLevel: number): string {
   const titlesByLevel = [
     ['初次见面', '嗨'],  // Lv.1
     ['有趣的你', '嘿'],  // Lv.2

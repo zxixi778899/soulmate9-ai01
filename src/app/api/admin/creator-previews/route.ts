@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/require-admin';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import type { SiteSettingsClient } from '@/lib/site-settings-client';
 import { resolveImageUrl } from '@/lib/storage';
 import {
   loadCreatorPreviews,
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Use admin.supabase but cast to avoid SiteSettingsClient type depth
-    const config = await loadCreatorPreviews(admin.supabase as any);
+    const config = await loadCreatorPreviews(admin.supabase as unknown as SiteSettingsClient);
 
     const previews = await Promise.all(
       config.previews
@@ -71,7 +71,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Use admin.supabase but cast to avoid SiteSettingsClient type depth
-    const config = await loadCreatorPreviews(admin.supabase as any);
+    const config = await loadCreatorPreviews(admin.supabase as unknown as SiteSettingsClient);
 
     const idx = config.previews.findIndex(
       (p) => p.gender === gender && p.visual_style === visual_style,
@@ -87,7 +87,7 @@ export async function PUT(request: NextRequest) {
       config.previews[idx].is_active = Boolean(is_active);
     }
 
-    await saveCreatorPreviews(config, admin.supabase as any);
+    await saveCreatorPreviews(config, admin.supabase as unknown as SiteSettingsClient);
     invalidateCreatorPreviewsCache();
 
     return NextResponse.json({ preview: config.previews[idx] });
