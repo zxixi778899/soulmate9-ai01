@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { OptimizedImg } from '@/components/OptimizedImg';
 import Link from 'next/link';
 import {
   COMPANION_CATEGORIES,
@@ -2210,8 +2211,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                           <button type="button" className="block aspect-[3/4] w-full overflow-hidden bg-black" onClick={() => setLightboxUrl(String(item.url || ''))}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={String(item.thumbnail_url || item.url || '')} alt="伴侣资源" className="h-full w-full object-cover" />
+                            {/* 资源横条按需压缩（512px 档），压缩失败自动回退原图 */}
+                            <OptimizedImg src={String(item.thumbnail_url || item.url || '')} size="card" alt="伴侣资源" className="h-full w-full object-cover" />
                           </button>
                           <button type="button" onClick={() => setCompanionAssetAsReference(item)} className={cn('h-8 w-full border-t border-slate-700 px-2 text-[10px] font-semibold transition', inputImage === String(item.url || '') ? 'bg-cyan-500/20 text-cyan-100' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white')}>
                             {inputImage === String(item.url || '') ? '当前画面参考' : '设为画面参考'}
@@ -2273,8 +2274,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         <p className="text-[9px] text-slate-400">{stage.mode === 'txt2img' ? '文生图' : stage.mode === 'img2img' ? '图生图' : '图生视频'}</p>
                         {result?.imageUrl && (
                           <button type="button" className="group relative mx-auto mt-1 block cursor-zoom-in" onClick={() => setLightboxUrl(result.imageUrl!)}>
-                            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
-                            <img src={result.imageUrl} alt={stage.shortLabel} className="mx-auto h-12 w-auto rounded border border-slate-700 object-contain" />
+                            {/* 阶段缩略图按需压缩（320px 档），点击仍可打开原图大图 */}
+                            <OptimizedImg src={result.imageUrl} size="thumb" alt={stage.shortLabel} className="mx-auto h-12 w-auto rounded border border-slate-700 object-contain" />
                             <span className="absolute inset-0 flex items-center justify-center rounded bg-black/50 opacity-0 transition group-hover:opacity-100"><Maximize2 className="h-4 w-4 text-white" /></span>
                           </button>
                         )}
@@ -2343,8 +2344,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         className={cn('flex items-center gap-2 rounded-lg border p-2 text-left transition', checked ? 'border-violet-400 bg-violet-500/20' : 'border-slate-700 bg-slate-950/70 hover:border-slate-500')}
                       >
                         <div className="h-11 w-9 shrink-0 overflow-hidden rounded bg-slate-800">
-                          {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
-                          {image ? <img src={image} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="m-2 h-5 w-5 text-slate-400" />}
+                          {image ? <OptimizedImg src={image} size="thumb" alt="" className="h-full w-full object-cover" /> : <ImageIcon className="m-2 h-5 w-5 text-slate-400" />}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-xs font-semibold text-white">{item.name || id}</p>
@@ -2966,8 +2966,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                   <Input value={inputImage} onChange={(e) => setInputImage(e.target.value)} className="bg-slate-950 border-slate-700 text-xs font-mono" placeholder="也可粘贴 HTTPS 图片地址" />
                   {inputImage ? (
                     <div className="flex items-center gap-2 rounded border border-white/10 bg-black/20 p-1.5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={inputImage} alt="参考图预览" className="h-16 w-12 rounded object-cover" />
+                      <OptimizedImg src={inputImage} size="thumb" alt="参考图预览" className="h-16 w-12 rounded object-cover" />
                       <div className="min-w-0 flex-1 text-[10px] text-slate-300">
                         <p className="font-medium text-amber-100">已启用参考图</p>
                         <p className="truncate">{inputImage}</p>
@@ -3367,8 +3366,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     >
                       {selected ? <CheckSquare className="h-4 w-4 text-rose-400" /> : <Square className="h-4 w-4" />}
                     </button>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
+                    {/* 图库网格按需压缩（512px 档），复制/下载仍走原图 URL */}
+                    <OptimizedImg src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
                     <div className="p-2 space-y-1">
                       <div className="flex gap-1 flex-wrap">
                         <Badge variant="outline" className="text-[9px] border-slate-600">{a.kind || 'img'}</Badge>
@@ -3644,8 +3643,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                         {isVideo ? (
                           <video src={a.url} muted loop playsInline className="aspect-[3/4] w-full object-cover" onMouseEnter={(e) => (e.target as HTMLVideoElement).play()} onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()} />
                         ) : (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
+                          /* 资源库网格按需压缩（512px 档），「查看大图」仍走原图 */
+                          <OptimizedImg src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
                         )}
                         {/* Folder badge */}
                         <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-cyan-200">{folderLabel}</span>

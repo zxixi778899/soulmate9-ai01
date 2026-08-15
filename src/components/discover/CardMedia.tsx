@@ -11,6 +11,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Film } from 'lucide-react';
+import { toPreviewUrl } from '@/lib/image-preview';
 import {
   isCoarsePointer,
   prefersReducedMotion,
@@ -66,6 +67,10 @@ function CardMediaInner({
   const [mountVideo, setMountVideo] = useState(false);
 
   const poster = (src || '').trim();
+  // 预览压缩：卡片网格只需 512px 宽（约 1.5–2× CSS 尺寸，高分屏仍清晰）；
+  // 变换失败时回退原图，预览永不白屏。
+  const [posterFailed, setPosterFailed] = useState(false);
+  const posterPreview = posterFailed ? poster : toPreviewUrl(poster, 'card');
   const video = (videoSrc || '').trim();
   // Only treat real video URLs as video. Never treat arbitrary HTTPS (image CDN) as video.
   const hasVideo =
@@ -139,7 +144,7 @@ function CardMediaInner({
       {poster ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={poster}
+          src={posterPreview}
           alt={alt}
           className={cn(
             'absolute inset-0 h-full w-full object-cover',
@@ -151,6 +156,9 @@ function CardMediaInner({
           loading="lazy"
           decoding="async"
           draggable={false}
+          onError={() => {
+            if (!posterFailed) setPosterFailed(true);
+          }}
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-white/20 text-4xl font-black">
@@ -170,7 +178,7 @@ function CardMediaInner({
           )}
           // Only set src when mounted for play — avoids eager network fetch
           src={video}
-          poster={poster || undefined}
+          poster={posterPreview || undefined}
           muted
           loop
           playsInline

@@ -30,6 +30,8 @@ import {
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
+import { toAvatarPreviewUrl } from '@/lib/image-preview';
+import { OptimizedImg } from '@/components/OptimizedImg';
 import { toast } from 'sonner';
 
 // Chat components
@@ -192,7 +194,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
         >
           <Avatar className="h-14 w-14 ring-1 ring-[#ff2e88]/25">
             {friend.avatar_url
-              ? <AvatarImage src={friend.avatar_url} alt={friend.name} className="object-cover" />
+              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 112)} alt={friend.name} className="object-cover" />
               : <AvatarFallback className="bg-gradient-to-br from-[#ff2e88]/40 to-[#c026d3]/30 text-[#ff6ba6] font-bold">{friend.name?.charAt(0) || '?'}</AvatarFallback>}
           </Avatar>
           <span className="absolute -bottom-0.5 -right-0.5 text-sm drop-shadow" title={mood.label}>{mood.emoji}</span>
@@ -1220,9 +1222,10 @@ export default function ChatsPage() {
                 onClick={() => router.push(`/chats?friend=${encodeURIComponent(selFriend.id)}`)}
               >
                 {(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url || undefined}
+                  // 右侧立绘按需压缩（832px 档），压缩失败自动回退原图
+                  <OptimizedImg
+                    src={String(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url || '')}
+                    size="detail"
                     alt={selFriend.name}
                     className="h-full w-full object-cover"
                   />
@@ -1433,8 +1436,8 @@ export default function ChatsPage() {
                       {m.media_type === 'video'
                         ? <video src={m.media_url!} className="h-full w-full object-cover" muted preload="metadata" />
                         : (
-                          // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
-                          <img src={m.media_url!} alt="" className="h-full w-full object-cover" loading="lazy" />
+                          // 相册缩略图：按需压缩（320px 宽），失败自动回退原图
+                          <OptimizedImg src={m.media_url!} size="thumb" alt="" className="h-full w-full object-cover" />
                         )}
                     </button>
                   ))}
@@ -1453,8 +1456,8 @@ export default function ChatsPage() {
           <button type="button" className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-white z-10" aria-label="Close" onClick={() => setShowLightbox(null)}>
             <X className="h-5 w-5" />
           </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={showLightbox} alt="Preview" className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+          {/* 灯箱高清档：1600px 上限，小图不放大；压缩失败自动回退原图 */}
+          <OptimizedImg src={showLightbox} size="lightbox" alt="Preview" className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
 import type { AssetCategory, CompanionAsset } from '@/lib/companion-assets';
+import { OptimizedImg } from '@/components/OptimizedImg';
 
 export interface GroupedAssets {
   id_reference: CompanionAsset[];
@@ -352,12 +353,12 @@ export function CompanionAssetLibrary(props: {
                       </span>
                     </>
                   ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    // 相册网格按需压缩（512px 档），预览弹窗仍用原图
+                    <OptimizedImg
                       src={asset.url}
+                      size="card"
                       alt={asset.caption || ''}
                       className="h-full w-full object-cover"
-                      loading="lazy"
                     />
                   )}
                 </button>

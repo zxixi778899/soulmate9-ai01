@@ -20,6 +20,7 @@ import {
 } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/LockedPortrait';
+import { toAvatarPreviewUrl } from '@/lib/image-preview';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { authedFetch } from '@/lib/supabase';
@@ -359,7 +360,7 @@ export default function ExplorePage() {
             {addedCompanion.portrait && (
               <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-purple-500/50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={addedCompanion.portrait} alt="" className="w-full h-full object-cover" />
+                <img src={toAvatarPreviewUrl(addedCompanion.portrait, 128)} alt="" className="w-full h-full object-cover" />
               </div>
             )}
             <h3 className="text-lg font-bold text-white mb-1">{t('explore.addedToFriends', { name: addedCompanion.name })}</h3>

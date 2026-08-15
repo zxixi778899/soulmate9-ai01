@@ -24,6 +24,7 @@ import {
   type GroupedAssets,
 } from '@/components/companion/CompanionAssetLibrary';
 import ChatView from '@/components/chat/ChatView';
+import { OptimizedImg } from '@/components/OptimizedImg';
 
 interface ProfileData {
   girlfriend: Record<string, unknown>;
@@ -312,9 +313,10 @@ export default function CompanionProfilePage() {
           <div className="relative shrink-0">
             <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] p-[3px]">
               {avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                // 头像按需压缩（320px 档），压缩失败自动回退原图
+                <OptimizedImg
                   src={avatar}
+                  size="thumb"
                   alt={name}
                   className="h-full w-full rounded-full object-cover"
                 />

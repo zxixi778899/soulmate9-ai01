@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
+import { OptimizedImg } from '@/components/OptimizedImg';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
 import type { TranslationKey } from '@/lib/i18n/types';
@@ -653,12 +654,11 @@ export default function CreatePage() {
                                 )}
                               >
                                 {preset.portrait_url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
+                                  // 预设卡片按需压缩（512px 档），压缩失败自动回退原图
+                                  <OptimizedImg
                                     src={preset.portrait_url}
+                                    size="card"
                                     alt={presetName}
-                                    loading="lazy"
-                                    decoding="async"
                                     className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
                                   />
                                 ) : (
@@ -726,9 +726,10 @@ export default function CreatePage() {
                           <div className="relative mx-auto aspect-[3/4] w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-[0_12px_40px_rgba(139,92,246,0.18)]">
                             {selectedPreset?.portrait_url ? (
                               <>
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
+                                {/* 档案卡立绘按需压缩（832px 档） */}
+                                <OptimizedImg
                                   src={selectedPreset.portrait_url}
+                                  size="detail"
                                   alt={zh ? selectedPreset.name_zh : selectedPreset.name}
                                   className="h-full w-full object-cover"
                                 />
@@ -835,12 +836,11 @@ export default function CreatePage() {
                                   )}
                                 >
                                   {preview ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
+                                    // 风格卡片按需压缩（512px 档）
+                                    <OptimizedImg
                                       src={preview}
+                                      size="card"
                                       alt={getLabel(v, locale)}
-                                      loading="lazy"
-                                      decoding="async"
                                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
                                     />
                                   ) : (
@@ -1090,8 +1090,8 @@ export default function CreatePage() {
                       )}
                     >
                       {slot.status === 'ready' && slot.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={slot.url} alt={`portrait-${idx + 1}`} className="h-full w-full object-cover" />
+                        // 选片网格按需压缩（512px 宽），压缩失败自动回退原图
+                        <OptimizedImg src={slot.url} size="card" alt={`portrait-${idx + 1}`} className="h-full w-full object-cover" />
                       ) : slot.status === 'loading' ? (
                         <div className="relative flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden">
                           {/* shimmer sweep */}
