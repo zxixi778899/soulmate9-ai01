@@ -45,7 +45,7 @@ function PulledCard({ girl, onClose }: { girl: DemoGirl; onClose: () => void }) 
     >
       <div className="rounded-2xl overflow-hidden border-2 bg-[#0e0e12]"
         style={{ borderColor: rc.color, boxShadow: `0 0 36px ${rc.glow}` }}>
-        <div className="relative aspect-[3/4]">
+        <div className="relative aspect-[2/3]">
           {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
           <img src={girl.portrait} alt={girl.name} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/70" />

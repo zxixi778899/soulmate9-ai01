@@ -294,7 +294,7 @@ export function CreateSuccessModal({ companion, onGoChat, onCreateAnother }: Pro
                     transition={{ type: 'spring', stiffness: 200, damping: 18 }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={companion.portraitUrl} alt={companion.name} className="aspect-[3/4] w-full object-cover" />
+                    <img src={companion.portraitUrl} alt={companion.name} className="aspect-[2/3] w-full object-cover" />
                     <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent" />
                     <div className="absolute bottom-3 left-3.5 right-3.5 flex items-end justify-between">
                       <div className="min-w-0">

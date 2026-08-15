@@ -2210,7 +2210,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                           <button type="button" aria-label="删除伴侣资源" title="删除" onClick={() => void deleteCompanionAsset(item)} className="absolute right-1.5 top-1.5 z-10 rounded-md border border-red-400/40 bg-black/75 p-1.5 text-red-300 opacity-0 transition hover:bg-red-950 group-hover:opacity-100 focus:opacity-100">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
-                          <button type="button" className="block aspect-[3/4] w-full overflow-hidden bg-black" onClick={() => setLightboxUrl(String(item.url || ''))}>
+                          <button type="button" className="block aspect-[2/3] w-full overflow-hidden bg-black" onClick={() => setLightboxUrl(String(item.url || ''))}>
                             {/* 资源横条按需压缩（512px 档），压缩失败自动回退原图 */}
                             <OptimizedImg src={String(item.thumbnail_url || item.url || '')} size="card" alt="伴侣资源" className="h-full w-full object-cover" />
                           </button>
@@ -3367,7 +3367,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                       {selected ? <CheckSquare className="h-4 w-4 text-rose-400" /> : <Square className="h-4 w-4" />}
                     </button>
                     {/* 图库网格按需压缩（512px 档），复制/下载仍走原图 URL */}
-                    <OptimizedImg src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
+                    <OptimizedImg src={a.url} alt="" className="aspect-[2/3] w-full object-cover" />
                     <div className="p-2 space-y-1">
                       <div className="flex gap-1 flex-wrap">
                         <Badge variant="outline" className="text-[9px] border-slate-600">{a.kind || 'img'}</Badge>
@@ -3641,10 +3641,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     return (
                       <div key={a.id || a.url || idx} className="group relative overflow-hidden rounded-lg border border-slate-700 bg-slate-900/50">
                         {isVideo ? (
-                          <video src={a.url} muted loop playsInline className="aspect-[3/4] w-full object-cover" onMouseEnter={(e) => (e.target as HTMLVideoElement).play()} onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()} />
+                          <video src={a.url} muted loop playsInline className="aspect-[2/3] w-full object-cover" onMouseEnter={(e) => (e.target as HTMLVideoElement).play()} onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()} />
                         ) : (
                           /* 资源库网格按需压缩（512px 档），「查看大图」仍走原图 */
-                          <OptimizedImg src={a.url} alt="" className="aspect-[3/4] w-full object-cover" />
+                          <OptimizedImg src={a.url} alt="" className="aspect-[2/3] w-full object-cover" />
                         )}
                         {/* Folder badge */}
                         <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-cyan-200">{folderLabel}</span>

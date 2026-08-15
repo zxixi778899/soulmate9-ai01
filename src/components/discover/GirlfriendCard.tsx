@@ -91,7 +91,7 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
         style={{ background: `radial-gradient(circle at ${lightX}% ${lightY}%, rgba(255, 46, 136, 0.18), transparent 50%)` }}
       />
 
-      <div className="relative aspect-[3/4] overflow-hidden">
+      <div className="relative aspect-[2/3] overflow-hidden">
         <div className={cn('absolute inset-0 bg-gradient-to-b opacity-50 z-[1] pointer-events-none',
           girl.rarity === 'SSR' && 'from-[#ffd700]/40 via-[#ff2e88]/15 to-[#00e5ff]/10',
           girl.rarity === 'SR' && 'from-[#ff2e88]/45 to-fuchsia-500/10',

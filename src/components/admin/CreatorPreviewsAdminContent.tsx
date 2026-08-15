@@ -161,7 +161,7 @@ export default function CreatorPreviewsAdminContent() {
                     </div>
 
                     {/* Preview image */}
-                    <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
+                    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
                       {preview?.thumbnail_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img

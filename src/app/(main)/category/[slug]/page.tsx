@@ -224,7 +224,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                     'transition-transform duration-200 active:scale-[0.98] hover:-translate-y-1',
                   )}
                 >
-                  <div className="relative aspect-[3/4]">
+                  <div className="relative aspect-[2/3]">
                     <CardMedia
                       src={girl.portrait || girl.avatar}
                       videoSrc={girl.video || girl.avatar_video}

@@ -228,7 +228,7 @@ function OutfitCard({ outfit, isEquipped, isEquipping, onEquip }: OutfitCardProp
       )}
     >
       {/* Preview Image */}
-      <div className="relative aspect-[3/4] overflow-hidden">
+      <div className="relative aspect-[2/3] overflow-hidden">
         <Image
           src={outfit.preview_image}
           alt={outfit.name}

@@ -46,6 +46,7 @@ import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 import { detectMessageLocale } from '@/lib/chat-locale';
 import { syncRewards } from '@/lib/reward-events';
 import { useTtsPlayer } from '@/hooks/useTtsPlayer';
+import { toPreviewUrl } from '@/lib/image-preview';
 
 
 type OutfitItem = {
@@ -1984,7 +1985,9 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
 
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#0b0b12] text-white">
-      {/* Companion portrait background at 40% opacity (立绘) */}
+      {/* Companion portrait background — full-height 2:3 artwork, 50% opacity (立绘).
+          Height-anchored so the portrait is never sliced top/bottom; narrow
+          viewports crop the sides only (face stays centered). */}
       {(() => {
         const bgPortrait =
           girlfriend?.card_url ||
@@ -1993,15 +1996,17 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           girlfriend?.avatar_url ||
           null;
         return bgPortrait ? (
-          <div
-            className="pointer-events-none absolute inset-0 z-0 opacity-40"
-            style={{
-              backgroundImage: `url(${bgPortrait})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center top',
-              backgroundRepeat: 'no-repeat',
-            }}
-          />
+          <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative compressed background */}
+            <img
+              src={toPreviewUrl(bgPortrait, 'detail')}
+              alt=""
+              aria-hidden
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-y-0 left-1/2 h-full max-w-none -translate-x-1/2 opacity-50"
+            />
+          </div>
         ) : null;
       })()}
       {/* NSFW 热感光晕：进入亲密通道时轻呼吸 */}
@@ -2112,7 +2117,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
                   key={u}
                   type="button"
                   onClick={() => void chooseCandidate(u)}
-                  className="group relative aspect-[3/4] overflow-hidden rounded-xl border border-white/10 hover:border-[#FF2D78]/50 transition-colors"
+                  className="group relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 hover:border-[#FF2D78]/50 transition-colors"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
                   <img src={u} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -2348,11 +2353,11 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
                 );
               }
               return (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
                   {allMedia.map((m) => (
                     <div
                       key={m.id}
-                      className="relative aspect-square rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors group"
+                      className="relative aspect-[2/3] rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors group"
                     >
                       <button
                         type="button"
@@ -2367,11 +2372,11 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
                             preload="metadata"
                           />
                         ) : (
-                          // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL
+                          // eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL; thumb preset keeps album grids fast
                           <img
-                            src={m.url}
+                            src={toPreviewUrl(m.url, 'thumb')}
                             alt=""
-                            className="h-full w-full object-cover"
+                            className="h-full w-full object-cover object-top"
                             loading="lazy"
                           />
                         )}

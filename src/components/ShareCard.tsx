@@ -210,7 +210,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
         <div className="px-6 pb-4">
           <div
             ref={cardRef}
-            className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden border border-white/10"
+            className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden border border-white/10"
           >
             {/* Full portrait */}
             {girlfriend.portrait_url ? (

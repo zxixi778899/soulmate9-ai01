@@ -329,7 +329,7 @@ export default function CreatorProfilePage() {
                 onClick={() => router.push(`/chats?friend=${encodeURIComponent(w.id)}`)}
                 className="group relative overflow-hidden rounded-xl ring-1 ring-white/10 hover:ring-[#ff2e88]/45 transition-all active:scale-[0.98] text-left"
               >
-                <div className="relative aspect-[3/4]">
+                <div className="relative aspect-[2/3]">
                   {w.portrait_url || w.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

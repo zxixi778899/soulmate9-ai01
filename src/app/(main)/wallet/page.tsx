@@ -227,7 +227,7 @@ export default function WalletPage() {
                     key={pkg.id}
                     className="group relative shrink-0 w-[220px] sm:w-[260px] snap-start rounded-2xl overflow-hidden border border-yellow-500/25 bg-gray-900/80 shadow-lg hover:border-yellow-400/50 hover:shadow-yellow-500/15 transition-all hover:-translate-y-0.5"
                   >
-                    <div className="relative aspect-[3/4] bg-black/40">
+                    <div className="relative aspect-[2/3] bg-black/40">
                       {pkg.video_url ? (
                         <video src={pkg.video_url} poster={pkg.image_url || undefined} muted loop playsInline autoPlay preload="metadata" className="h-full w-full object-cover" />
                       ) : pkg.image_url ? (

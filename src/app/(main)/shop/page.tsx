@@ -148,7 +148,7 @@ function ShelfCard({
       onClick={onClick}
       className="group relative rounded-2xl overflow-hidden border border-white/10 text-left active:scale-[0.98] transition-all duration-300 hover:border-white/25 hover:shadow-[0_0_28px_rgba(255,46,136,0.18)]"
     >
-      <div className={cn('aspect-[3/4] bg-gradient-to-br relative', gradient)}>
+      <div className={cn('aspect-[2/3] bg-gradient-to-br relative', gradient)}>
         {image ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
@@ -248,7 +248,7 @@ function SkeletonGrid({ n }: { n: number }) {
   return (
     <div className={GRID}>
       {Array.from({ length: n }).map((_, i) => (
-        <div key={i} className="rounded-2xl bg-white/[0.04] animate-pulse aspect-[3/4]" />
+        <div key={i} className="rounded-2xl bg-white/[0.04] animate-pulse aspect-[2/3]" />
       ))}
     </div>
   );

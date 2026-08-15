@@ -53,7 +53,7 @@ function GeneratingCard({
   return (
     <div className="w-[240px] sm:w-[260px] mt-2 rounded-2xl overflow-hidden border border-white/[0.10] bg-white/[0.04] shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
       {/* Developing area — shimmer sweep + pulsing icon */}
-      <div className="relative aspect-[3/4] bg-gradient-to-br from-[#1a1025] via-[#150c1e] to-[#0e0816] overflow-hidden">
+      <div className="relative aspect-[2/3] bg-gradient-to-br from-[#1a1025] via-[#150c1e] to-[#0e0816] overflow-hidden">
         {/* soft color blobs for depth */}
         <div className="absolute -top-8 -left-8 h-32 w-32 rounded-full bg-[#FF2D78]/[0.13] blur-2xl animate-pulse" />
         <div className="absolute -bottom-10 -right-6 h-36 w-36 rounded-full bg-[#C026D3]/[0.13] blur-2xl animate-pulse [animation-delay:700ms]" />

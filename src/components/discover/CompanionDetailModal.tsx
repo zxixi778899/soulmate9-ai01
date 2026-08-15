@@ -91,7 +91,7 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
 
         <div className="grid md:grid-cols-[1.2fr_1fr] gap-0">
           {/* LEFT: 3D portrait */}
-          <div className="relative aspect-[3/4] md:aspect-auto md:min-h-[600px] overflow-hidden">
+          <div className="relative aspect-[2/3] md:aspect-auto md:min-h-[600px] overflow-hidden">
             <motion.div
               className="absolute inset-0 flex items-center justify-center cursor-grab"
               ref={ref}

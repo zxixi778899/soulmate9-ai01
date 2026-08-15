@@ -647,7 +647,7 @@ export default function CreatePage() {
                                 onClick={() => applyPreset(preset)}
                                 title={`${presetName} — ${zh ? preset.description_zh : preset.description}`}
                                 className={cn(
-                                  'group relative aspect-[3/4] w-36 shrink-0 overflow-hidden rounded-2xl border text-left transition-all duration-300 touch-manipulation sm:w-40',
+                                  'group relative aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-2xl border text-left transition-all duration-300 touch-manipulation sm:w-40',
                                   activePreset
                                     ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_28px_rgba(255,45,120,0.45)]'
                                     : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-[#FF2D78]/50 hover:shadow-[0_8px_28px_rgba(255,45,120,0.18)]',
@@ -723,7 +723,7 @@ export default function CreatePage() {
                       <div className="relative hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-[#FF2D78]/[0.07] via-white/[0.02] to-transparent shadow-[0_8px_32px_rgba(0,0,0,0.28)] lg:block">
                         <div className="sticky top-4 p-5">
                           {/* Portrait preview — shows the applied preset's artwork */}
-                          <div className="relative mx-auto aspect-[3/4] w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-[0_12px_40px_rgba(139,92,246,0.18)]">
+                          <div className="relative mx-auto aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-[0_12px_40px_rgba(139,92,246,0.18)]">
                             {selectedPreset?.portrait_url ? (
                               <>
                                 {/* 档案卡立绘按需压缩（832px 档） */}
@@ -829,7 +829,7 @@ export default function CreatePage() {
                                   type="button"
                                   onClick={() => setVisualStyle(v.value)}
                                   className={cn(
-                                    'group relative aspect-[3/4] overflow-hidden rounded-2xl border text-left transition-all duration-300 touch-manipulation',
+                                    'group relative aspect-[2/3] overflow-hidden rounded-2xl border text-left transition-all duration-300 touch-manipulation',
                                     activeStyle
                                       ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_24px_rgba(255,45,120,0.4)]'
                                       : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/25',
@@ -1081,7 +1081,7 @@ export default function CreatePage() {
                       disabled={slot.status !== 'ready'}
                       onClick={() => setSelectedSlot(idx)}
                       className={cn(
-                        'group relative aspect-[3/4] overflow-hidden rounded-2xl border text-left transition-all',
+                        'group relative aspect-[2/3] overflow-hidden rounded-2xl border text-left transition-all',
                         slot.status === 'ready' && selectedSlot === idx
                           ? 'border-[#FF2D78] ring-2 ring-[#FF2D78]/60 shadow-[0_0_28px_rgba(255,45,120,0.45)] scale-[1.02]'
                           : slot.status === 'ready'

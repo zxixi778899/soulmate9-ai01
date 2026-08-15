@@ -79,7 +79,7 @@ function HotCard({
         className,
       )}
     >
-      <div className="relative aspect-[3/4]">
+      <div className="relative aspect-[2/3]">
         <CardMedia
           src={g.portrait || g.avatar}
           alt={g.name}
@@ -506,7 +506,7 @@ export default function HomePage() {
                 key={featured.id}
                 className={cn(
                   'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation text-left',
-                  'aspect-[3/4] max-h-[min(52dvh,440px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
+                  'aspect-[2/3] max-h-[min(52dvh,440px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
                   `game-rarity-${String(featured.rarity || 'R').toLowerCase()}`,
                 )}
                 style={{

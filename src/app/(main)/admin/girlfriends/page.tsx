@@ -1041,7 +1041,7 @@ function AdminGirlfriendsMediaPageInner() {
                     )}
                   </button>
                   <button type="button" onClick={() => openEdit(g)} className="block w-full text-left">
-                    <div className="relative aspect-[3/4] bg-black/40">
+                    <div className="relative aspect-[2/3] bg-black/40">
                       {cover ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={cover} alt={g.name} className="h-full w-full object-cover" />
@@ -1433,7 +1433,7 @@ function AdminGirlfriendsMediaPageInner() {
                               {girlfriendAssets.map((asset, index) => {
                                 const url = asset.preview_url || asset.url || '';
                                 if (!url) return null;
-                                return <button key={asset.id || asset.storage_key || index} type="button" className="aspect-[3/4] overflow-hidden rounded border border-white/15 hover:border-violet-300" onClick={() => { setField(assetPickerField, url); setAssetPickerField(null); toast.success('已从伴侣资源库选中'); }}>
+                                return <button key={asset.id || asset.storage_key || index} type="button" className="aspect-[2/3] overflow-hidden rounded border border-white/15 hover:border-violet-300" onClick={() => { setField(assetPickerField, url); setAssetPickerField(null); toast.success('已从伴侣资源库选中'); }}>
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src={url} alt="伴侣资源" className="h-full w-full object-cover" />
                                 </button>;
@@ -1451,7 +1451,7 @@ function AdminGirlfriendsMediaPageInner() {
                       ]).map(([field, label, key]) => (
                         <div key={field} className="rounded-lg border border-white/10 p-1.5">
                           <p className="mb-1 text-[10px] text-slate-400">{label}</p>
-                          <div className="mb-1 aspect-[3/4] overflow-hidden rounded bg-black/40">
+                          <div className="mb-1 aspect-[2/3] overflow-hidden rounded bg-black/40">
                             {form[field] ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={form[field]} alt={label} className="h-full w-full object-cover" />

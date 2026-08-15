@@ -300,7 +300,7 @@ export default function AdminShopPage() {
                   className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] transition hover:border-fuchsia-400/40 hover:bg-fuchsia-500/5"
                 >
                   <button type="button" onClick={() => openEdit(item)} className="block w-full text-left">
-                    <div className="relative aspect-[3/4] bg-black/40">
+                    <div className="relative aspect-[2/3] bg-black/40">
                       {item.video_url ? (
                         <video
                           src={item.video_url}
@@ -546,9 +546,9 @@ export default function AdminShopPage() {
                 <div className="overflow-hidden rounded-lg border border-white/[0.06] bg-black/30">
                   {form.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={form.image_url} alt={form.name} className="aspect-[3/4] w-full object-cover" />
+                    <img src={form.image_url} alt={form.name} className="aspect-[2/3] w-full object-cover" />
                   ) : (
-                    <div className="flex aspect-[3/4] items-center justify-center">
+                    <div className="flex aspect-[2/3] items-center justify-center">
                       <ImageIcon className="h-8 w-8 text-slate-700" />
                     </div>
                   )}

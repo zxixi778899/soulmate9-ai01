@@ -563,7 +563,7 @@ export default function AdminAssetsContent({ embedded = false }: { embedded?: bo
                         <Square className="h-4 w-4 text-slate-600" />
                       )}
                     </button>
-                    <div className="aspect-[3/4] bg-gray-100">
+                    <div className="aspect-[2/3] bg-gray-100">
                       {url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={url} alt={a.name || key} className="h-full w-full object-cover" />

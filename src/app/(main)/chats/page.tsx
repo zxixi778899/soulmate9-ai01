@@ -30,7 +30,7 @@ import {
 import { INTIMACY_LEVELS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
-import { toAvatarPreviewUrl } from '@/lib/image-preview';
+import { toAvatarPreviewUrl, toPreviewUrl } from '@/lib/image-preview';
 import { OptimizedImg } from '@/components/OptimizedImg';
 import { toast } from 'sonner';
 
@@ -1081,9 +1081,9 @@ export default function ChatsPage() {
       )}>
         {selectedId && !isLoading && girlfriend ? (
           <div className="relative flex h-full flex-col overflow-hidden">
-            {/* Companion portrait background at 40% opacity (立绘) */}
+            {/* Companion portrait background at 50% opacity (立绘) */}
             {(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || girlfriend?.avatar_url) && (
-              <div className="pointer-events-none absolute inset-0 z-0 opacity-40" style={{ backgroundImage: `url(${girlfriend.card_url || girlfriend.portrait_url || girlfriend.image_url || girlfriend.avatar_url})`, backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat' }} />
+              <div className="pointer-events-none absolute inset-0 z-0 opacity-50" style={{ backgroundImage: `url(${toPreviewUrl(girlfriend.card_url || girlfriend.portrait_url || girlfriend.image_url || girlfriend.avatar_url, 'card')})`, backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat' }} />
             )}
             <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0b0b12]/70 via-[#0b0b12]/50 to-[#0b0b12]/90" />
 
@@ -1216,7 +1216,7 @@ export default function ChatsPage() {
             {/* Portrait — click opens companion profile page */}
             <div className="p-4 pb-0">
               <div
-                className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] cursor-pointer transition-opacity hover:opacity-90"
+                className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] cursor-pointer transition-opacity hover:opacity-90"
                 role="button"
                 aria-label={t('chats.openCompanionProfile')}
                 onClick={() => router.push(`/chats?friend=${encodeURIComponent(selFriend.id)}`)}
@@ -1430,14 +1430,14 @@ export default function ChatsPage() {
                 </div>
               );
               return (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
                   {mediaItems.map((m) => (
-                    <button key={m.id} type="button" onClick={() => { setShowLightbox(m.media_url!); setShowAlbum(false); }} className="aspect-square rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors">
+                    <button key={m.id} type="button" onClick={() => { setShowLightbox(m.media_url!); setShowAlbum(false); }} className="aspect-[2/3] rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors">
                       {m.media_type === 'video'
-                        ? <video src={m.media_url!} className="h-full w-full object-cover" muted preload="metadata" />
+                        ? <video src={m.media_url!} className="h-full w-full object-cover object-top" muted preload="metadata" />
                         : (
                           // 相册缩略图：按需压缩（320px 宽），失败自动回退原图
-                          <OptimizedImg src={m.media_url!} size="thumb" alt="" className="h-full w-full object-cover" />
+                          <OptimizedImg src={m.media_url!} size="thumb" alt="" className="h-full w-full object-cover object-top" />
                         )}
                     </button>
                   ))}

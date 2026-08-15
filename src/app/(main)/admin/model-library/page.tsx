@@ -490,7 +490,7 @@ export default function AdminModelLibraryPage() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {hits.map((h) => (
                 <div key={`${h.model_id}-${h.version_id}`} className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#1a1a28] shadow-sm">
-                  <div className="relative aspect-[3/4] bg-black/40">
+                  <div className="relative aspect-[2/3] bg-black/40">
                     {h.preview_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={h.preview_url} alt={h.name} className="h-full w-full object-cover" />

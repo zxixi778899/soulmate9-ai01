@@ -439,7 +439,7 @@ export default function AdminPresetLibraryContent({ embedded }: { embedded?: boo
                 return (
                   <Card key={preset.id} className={cn('bg-[#16161f] border-gray-800 overflow-hidden', !preset.is_active && 'opacity-50')}>
                     {/* Portrait preview */}
-                    <div className="relative aspect-[3/4] bg-gray-900">
+                    <div className="relative aspect-[2/3] bg-gray-900">
                       {preset.portrait_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={preset.portrait_url} alt={preset.name} className="w-full h-full object-cover" loading="lazy" />
@@ -949,7 +949,7 @@ function StylePreviewsCard() {
                   <span className="text-[11px] text-gray-400">{slot.labelZh}</span>
                   <span className="text-[10px] text-gray-500">{slot.label}</span>
                 </div>
-                <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-gray-800 bg-gray-900">
+                <div className="relative aspect-[2/3] overflow-hidden rounded-lg border border-gray-800 bg-gray-900">
                   {url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={url} alt={slot.labelZh} className="h-full w-full object-cover" loading="lazy" />
