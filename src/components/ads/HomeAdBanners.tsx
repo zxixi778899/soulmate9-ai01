@@ -81,7 +81,7 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
         const href = ad.link_url || '#';
         const internal = href.startsWith('/');
         const linkClass =
-          'block relative overflow-hidden rounded-2xl ring-1 ring-white/10 hover:ring-[#ff2e88]/40 transition-all group h-36 sm:h-44';
+          'block relative overflow-hidden rounded-2xl ring-1 ring-white/10 hover:ring-[#ff2e88]/40 transition-all group h-40 sm:h-52';
         const inner = (
           <>
             {/* Full-bleed art — ads are designed to crop; focal point per slot */}
@@ -98,21 +98,26 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/15 pointer-events-none" />
             {copy ? (
-              // 文案横版排版：徽章/标题/卖点/CTA 单行横向排布居中，窄屏自动换行
-              <div className="relative z-[2] h-full flex flex-row flex-wrap items-center justify-center gap-x-3 gap-y-1.5 px-4 sm:px-8 text-center">
+              // 文案层级排版：徽章 → 主标题 → 副标题 → 卖点 → CTA，纵向居中，画面饱满
+              <div className="relative z-[2] h-full flex flex-col items-center justify-center gap-1 sm:gap-1.5 px-4 sm:px-8 py-3 text-center">
                 <span
                   className={cn(
-                    'w-fit rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] font-black tracking-widest ring-1 backdrop-blur',
+                    'w-fit rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-black tracking-widest ring-1 backdrop-blur',
                     copy.badgeClass,
                   )}
                 >
                   {t(copy.badge)}
                 </span>
-                <h3 className="text-lg sm:text-2xl font-black tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                <h3 className="text-xl sm:text-3xl font-black tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] leading-tight">
                   {t(copy.title)}
                 </h3>
+                {copy.sub ? (
+                  <p className="text-[11px] sm:text-sm font-semibold text-white/85 drop-shadow">
+                    {t(copy.sub)}
+                  </p>
+                ) : null}
                 {copy.chips ? (
-                  <div className="flex flex-wrap justify-center gap-1.5">
+                  <div className="flex flex-wrap justify-center gap-1.5 mt-0.5">
                     {copy.chips.map((chip) => (
                       <span
                         key={chip}
@@ -123,14 +128,9 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
                     ))}
                   </div>
                 ) : null}
-                {copy.sub ? (
-                  <p className="text-xs font-medium text-white/80 drop-shadow">
-                    {t(copy.sub)}
-                  </p>
-                ) : null}
                 <span
                   className={cn(
-                    'w-fit rounded-full px-3 py-1 text-[10px] sm:text-xs font-bold shadow-lg active:scale-95 transition-transform',
+                    'mt-1 w-fit rounded-full px-4 py-1.5 text-[11px] sm:text-sm font-bold shadow-lg active:scale-95 transition-transform',
                     copy.ctaClass,
                   )}
                 >

@@ -2,9 +2,9 @@
 
 /**
  * Home lobby
- * - Hero: 左侧竖排头像（切换角色）+ 中间 9:16 立绘主视觉 + 右侧基础数值
+ * - Hero: 左侧竖排立绘缩略（切换角色）+ 中间 9:16 立绘主视觉 + 右侧基础数值
  * - Modules: 2 rows × 3 cols (fuller cards)
- * - Hot: 4 category rows (female / male / transgender / anime)
+ * - Hot: 4 category rows × 5 (female / male / transgender / anime, contain no-crop)
  * - Site footer: Telegram / X / etc.
  */
 
@@ -60,11 +60,13 @@ function HotCard({
   rank,
   className,
   onOpen,
+  fit = 'cover',
 }: {
   g: DemoGirl;
   rank: number;
   className?: string;
   onOpen: (g: DemoGirl) => void;
+  fit?: 'cover' | 'contain';
 }) {
   const { t } = useTranslation();
   return (
@@ -85,6 +87,7 @@ function HotCard({
           hoverPlay={false}
           forcePlay={false}
           showBadge={false}
+          fit={fit}
           imgClassName={lockedImageClass(g.locked)}
         />
         {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-sm" />}
@@ -216,7 +219,7 @@ export default function HomePage() {
   const featured = roster[focus] || filteredCatalog[0] || null;
   const rc = RARITY_COLORS[(featured?.rarity as keyof typeof RARITY_COLORS) || 'R'] || RARITY_COLORS.R;
 
-  // 热门 4 行：女性/男性/跨性别/二次元各一行，行内按 hot_score 排序
+  // 热门 4 行：女性/男性/跨性别/二次元各一行，每行 5 个，行内按 hot_score 排序
   const hotRows = useMemo(
     () =>
       COMPANION_CATEGORIES.map((cat) => ({
@@ -224,7 +227,7 @@ export default function HomePage() {
         items: catalog
           .filter((g) => g.category === cat)
           .sort((a, b) => Number(b.hot_score ?? b.intimacy ?? 0) - Number(a.hot_score ?? a.intimacy ?? 0))
-          .slice(0, 8),
+          .slice(0, 5),
       })),
     [catalog],
   );
@@ -473,7 +476,7 @@ export default function HomePage() {
           onMouseLeave={() => setPaused(false)}
         >
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
-            {/* LEFT — 竖排头像（切换角色） */}
+            {/* LEFT — 竖排立绘缩略（切换角色） */}
             <div className="lg:col-span-1">
               <div className="glass-strong rounded-xl sm:rounded-2xl p-2.5 sm:p-3 h-full">
                 <div className="hidden lg:flex items-center justify-between mb-2 px-0.5">
@@ -487,14 +490,16 @@ export default function HomePage() {
                       type="button"
                       onClick={() => { setPaused(true); setFocus(i); }}
                       className={cn(
-                        'shrink-0 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3] transition-transform touch-manipulation',
-                        i === focus ? 'scale-110 shadow-[0_0_16px_rgba(255,46,136,0.45)]' : 'opacity-60 hover:opacity-100',
+                        'relative shrink-0 rounded-lg overflow-hidden transition-all touch-manipulation h-[68px] w-[46px] sm:h-[76px] sm:w-[52px]',
+                        i === focus
+                          ? 'ring-2 ring-[#ff2e88] shadow-[0_0_16px_rgba(255,46,136,0.45)] z-[1]'
+                          : 'opacity-60 ring-1 ring-white/10 hover:opacity-100',
                       )}
                       aria-label={g.name}
                       aria-pressed={i === focus}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={g.avatar || g.portrait} alt="" className="h-12 w-12 sm:h-14 sm:w-14 rounded-full object-contain" draggable={false} loading="lazy" decoding="async" />
+                      <img src={g.portrait || g.avatar} alt="" className="h-full w-full object-cover object-center" draggable={false} loading="lazy" decoding="async" />
                     </button>
                   ))}
                 </div>
@@ -531,8 +536,8 @@ export default function HomePage() {
                 key={featured.id}
                 className={cn(
                   'relative overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation text-left',
-                  // 9:16 立绘画框：高约 72vh，宽由 min(86vw, 40.5vh) 推导
-                  'aspect-[9/16] w-[min(86vw,40.5vh)]',
+                  // 9:16 立绘画框：向两侧扩大，高约 83vh，宽由 min(88vw, 47vh) 推导
+                  'aspect-[9/16] w-[min(88vw,47vh)]',
                   `game-rarity-${String(featured.rarity || 'R').toLowerCase()}`,
                 )}
                 style={{
@@ -663,17 +668,16 @@ export default function HomePage() {
             {hotRows.filter((row) => row.items.length > 0).map(({ cat, items }) => (
               <div key={cat}>
                 <div className="game-chip mb-2 w-fit">{COMPANION_CATEGORY_LABELS[cat][locale]}</div>
-                <div
-                  className="flex gap-3 overflow-x-auto overscroll-x-contain scrollbar-hide snap-x snap-mandatory touch-pan-x pb-1"
-                  style={{ WebkitOverflowScrolling: 'touch' }}
-                >
+                {/* 一行 5 个，宽度自适应，contain 完整展示不裁剪 */}
+                <div className="grid grid-cols-5 gap-2 sm:gap-3">
                   {items.map((g, i) => (
                     <HotCard
                       key={g.id}
                       g={g}
                       rank={i + 1}
                       onOpen={(girl) => setDetail(girl)}
-                      className="snap-start shrink-0 w-[130px] sm:w-[150px] rounded-xl"
+                      fit="contain"
+                      className="rounded-xl"
                     />
                   ))}
                 </div>
