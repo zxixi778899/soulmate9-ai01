@@ -78,7 +78,7 @@ export default function StudioPage() {
                   className={cn('shrink-0 h-14 w-14 rounded-full overflow-hidden border-2 transition-all',
                     selectedGirl.id === g.id ? 'border-[#ff2e88] scale-110 shadow-[0_0_18px_rgba(255,46,136,0.5)]' : 'border-white/10 hover:border-white/30')}>
                   {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
-                  <img src={g.avatar} alt={g.name} className="h-full w-full object-cover" />
+                  <img src={g.avatar} alt={g.name} className="h-full w-full object-contain" />
                 </button>
               ))}
             </div>

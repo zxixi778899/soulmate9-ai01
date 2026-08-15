@@ -536,6 +536,8 @@ export default function HomePage() {
                   forcePlay
                   hoverPlay={false}
                   showBadge
+                  fit="contain"
+                  previewSize="detail"
                   imgClassName={lockedImageClass(featured.locked)}
                 />
                 {featured.locked && (
@@ -567,7 +569,7 @@ export default function HomePage() {
 
             {/* RIGHT — stats + actions + avatar strip */}
             <div className="lg:col-span-3 flex flex-col gap-3 min-h-0">
-              <div className="flex-1 rounded-xl sm:rounded-2xl bg-black/25 border border-white/[0.07] p-4 sm:p-5 flex flex-col">
+              <div className="flex-1 rounded-xl sm:rounded-2xl bg-black/25 border border-white/[0.07] p-4 sm:p-5 flex flex-col sm:justify-between">
                 <div className="text-[10px] tracking-[0.25em] text-[#ff6ba6] font-bold">FEATURED</div>
                 <h2 className="mt-1 text-2xl sm:text-3xl font-black seduce-glow leading-none">{featured.name}</h2>
                 <p className="mt-2 text-sm text-white/55 line-clamp-2 sm:line-clamp-3 leading-relaxed">{girlTagline(featured, locale)}</p>
@@ -663,18 +665,18 @@ export default function HomePage() {
 
         {/* ═══════════ Hot 20：移动端左右滑动轮播 / 桌面 4×5 网格 ═══════════ */}
         <section>
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div>
+          <div className="relative mb-3">
+            <div className="flex flex-col items-center text-center">
               <div className="game-chip mb-1">
                 <Flame className="h-3 w-3" /> HOT · TOP 20
               </div>
-              <h3 className="text-lg font-bold">{t('home.hotTitle')}</h3>
+              <h3 className="text-xl sm:text-2xl font-black">{t('home.hotTitle')}</h3>
               <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
             </div>
             <button
               type="button"
               onClick={() => router.push('/explore')}
-              className="glass-btn !h-10 !px-4 text-xs flex items-center gap-1 shrink-0"
+              className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 glass-btn !h-10 !px-4 text-xs items-center gap-1 shrink-0"
             >
               {t('home.moreGirls')} <ChevR className="h-3.5 w-3.5" />
             </button>
@@ -722,11 +724,9 @@ export default function HomePage() {
 
         {/* ═══════════ Modules: 2 rows × 3 cols ═══════════ */}
         <section>
-          <div className="flex items-end justify-between mb-3">
-            <div>
-              <div className="game-chip mb-1">HUB · 2 ROWS</div>
-              <h3 className="text-lg font-bold">{t('home.modulesTitle')}</h3>
-            </div>
+          <div className="flex flex-col items-center text-center mb-3">
+            <div className="game-chip mb-1">HUB · 2 ROWS</div>
+            <h3 className="text-xl sm:text-2xl font-black">{t('home.modulesTitle')}</h3>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
             {modules.map((m) => {

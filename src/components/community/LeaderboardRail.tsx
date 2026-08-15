@@ -72,18 +72,16 @@ export function LeaderboardRail() {
 
   return (
     <section>
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div>
-          <div className="game-chip mb-1">
-            <Trophy className="h-3 w-3" /> {t('community.rankingTop15')}
-          </div>
-          <h3 className="text-lg font-bold">
-            {t('community.topCreatorRanking')}
-          </h3>
-          <p className="text-[11px] text-white/40 mt-0.5">
-            {t('community.rankingDesc')}
-          </p>
+      <div className="flex flex-col items-center text-center mb-3">
+        <div className="game-chip mb-1">
+          <Trophy className="h-3 w-3" /> {t('community.rankingTop15')}
         </div>
+        <h3 className="text-xl sm:text-2xl font-black">
+          {t('community.topCreatorRanking')}
+        </h3>
+        <p className="text-[11px] text-white/40 mt-0.5">
+          {t('community.rankingDesc')}
+        </p>
       </div>
 
       {/* 移动端横滑 / 桌面 5 列网格 */}
