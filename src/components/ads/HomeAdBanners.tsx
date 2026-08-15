@@ -96,9 +96,9 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
                 copy?.coverClass || 'object-center',
               )}
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/55 to-black/10 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/15 pointer-events-none" />
             {copy ? (
-              <div className="relative z-[2] h-full flex flex-col justify-center gap-1 sm:gap-1.5 px-4 sm:px-6">
+              <div className="relative z-[2] h-full flex flex-col items-center justify-center gap-1 sm:gap-1.5 px-4 sm:px-6 text-center">
                 <span
                   className={cn(
                     'w-fit rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] font-black tracking-widest ring-1 backdrop-blur',
@@ -111,7 +111,7 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
                   {t(copy.title)}
                 </h3>
                 {copy.chips ? (
-                  <div className="hidden sm:flex flex-wrap gap-1.5">
+                  <div className="hidden sm:flex flex-wrap justify-center gap-1.5">
                     {copy.chips.map((chip) => (
                       <span
                         key={chip}

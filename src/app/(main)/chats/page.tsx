@@ -1434,10 +1434,10 @@ export default function ChatsPage() {
                   {mediaItems.map((m) => (
                     <button key={m.id} type="button" onClick={() => { setShowLightbox(m.media_url!); setShowAlbum(false); }} className="aspect-[2/3] rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06] hover:border-[#FF2D78]/40 transition-colors">
                       {m.media_type === 'video'
-                        ? <video src={m.media_url!} className="h-full w-full object-cover object-top" muted preload="metadata" />
+                        ? <video src={m.media_url!} className="h-full w-full object-cover object-center" muted preload="metadata" />
                         : (
                           // 相册缩略图：按需压缩（320px 宽），失败自动回退原图
-                          <OptimizedImg src={m.media_url!} size="thumb" alt="" className="h-full w-full object-cover object-top" />
+                          <OptimizedImg src={m.media_url!} size="thumb" alt="" className="h-full w-full object-cover object-center" />
                         )}
                     </button>
                   ))}

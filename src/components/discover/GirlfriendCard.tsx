@@ -107,7 +107,6 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
           showBadge={!!(girl.video || girl.avatar_video)}
           imgClassName="transition-transform duration-300 group-hover:scale-[1.03]"
         />
-        <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/30 via-transparent to-black/75 pointer-events-none" />
 
         {hovered && (
           <motion.div
@@ -128,7 +127,7 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
         </div>
 
         <div className="absolute bottom-3 left-3 right-3 opacity-90 text-center">
-          <p className="text-[10px] italic text-zinc-300 line-clamp-2">&quot;{girl.rarity_quote}&quot;</p>
+          <p className="text-[10px] italic text-zinc-100 line-clamp-2 [text-shadow:0_1px_8px_rgba(0,0,0,0.95)]">&quot;{girl.rarity_quote}&quot;</p>
         </div>
       </div>
 

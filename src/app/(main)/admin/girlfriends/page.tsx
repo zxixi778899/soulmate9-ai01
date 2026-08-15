@@ -1044,11 +1044,8 @@ function AdminGirlfriendsMediaPageInner() {
                     <div className="relative aspect-[2/3] bg-black/40">
                       {cover ? (
                         <>
-                          {/* 模糊填充背景：主图 contain 完整展示时铺满两侧，无黑边 */}
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={cover} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-60" />
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={cover} alt={g.name} className="relative h-full w-full object-contain" />
+                          <img src={cover} alt={g.name} className="absolute inset-0 h-full w-full object-cover object-center" />
                         </>
                       ) : (
                         <div className="flex h-full flex-col items-center justify-center gap-1 text-slate-600">

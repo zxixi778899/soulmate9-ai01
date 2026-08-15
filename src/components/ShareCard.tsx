@@ -218,7 +218,7 @@ export function ShareCard({ girlfriend, open, onOpenChange }: ShareCardProps) {
               <img
                 src={girlfriend.portrait_url}
                 alt={girlfriend.name}
-                className="absolute inset-0 w-full h-full object-cover object-top"
+                className="absolute inset-0 w-full h-full object-cover object-center"
                 crossOrigin="anonymous"
               />
             ) : (

@@ -142,37 +142,24 @@ function CardMediaInner({
     >
       {/* Always paint poster first — zero decode cost until video mounts */}
       {poster ? (
-        <>
-          {/* 模糊填充背景：主图 contain 完整展示时，两侧用同源放大模糊图铺满，避免黑边、保持饱满 */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={posterPreview}
-            alt=""
-            aria-hidden
-            className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-60"
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={posterPreview}
-            alt={alt}
-            className={cn(
-              // 立绘完整展示：contain 保证画面零裁切（源 2:3 与容器 2:3 时等同铺满）
-              'absolute inset-0 h-full w-full object-contain',
-              imgClassName,
-              mountVideo && wantPlay ? 'opacity-0' : 'opacity-100',
-              'transition-opacity duration-300',
-            )}
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-            onError={() => {
-              if (!posterFailed) setPosterFailed(true);
-            }}
-          />
-        </>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={posterPreview}
+          alt={alt}
+          className={cn(
+            // 立绘等比例中心放大铺满控制框：零遮罩、不偏锡
+            'absolute inset-0 h-full w-full object-cover object-center',
+            imgClassName,
+            mountVideo && wantPlay ? 'opacity-0' : 'opacity-100',
+            'transition-opacity duration-300',
+          )}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          onError={() => {
+            if (!posterFailed) setPosterFailed(true);
+          }}
+        />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-white/20 text-4xl font-black">
           {alt.charAt(0) || '?'}

@@ -238,13 +238,12 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                       )}
                     />
                     {girl.locked && <LockedPortraitOverlay price={girl.unlock_price_tokens} />}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20 z-[1]" />
                     <div className="absolute top-2 left-2 z-[2]">
                       <RarityBadge rarity={girl.rarity} />
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 p-3 z-[2]">
-                      <div className="font-bold text-base sm:text-lg leading-tight">{girl.name}</div>
-                      <div className="text-[10px] text-white/55 line-clamp-1 mt-0.5">{girl.tagline}</div>
+                      <div className="font-bold text-base sm:text-lg leading-tight [text-shadow:0_1px_10px_rgba(0,0,0,0.95)]">{girl.name}</div>
+                      <div className="text-[10px] text-white/70 line-clamp-1 mt-0.5 [text-shadow:0_1px_8px_rgba(0,0,0,0.95)]">{girl.tagline}</div>
                       <div className="mt-2 flex items-center gap-1.5">
                         <div className="flex-1 h-1 rounded-full bg-white/15 overflow-hidden">
                           <div

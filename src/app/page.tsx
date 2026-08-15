@@ -89,13 +89,12 @@ function HotCard({
           imgClassName={lockedImageClass(g.locked)}
         />
         {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-sm" />}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent z-[1]" />
         <span className="absolute top-1.5 left-1.5 z-[2] text-[9px] font-black px-1.5 py-0.5 rounded bg-black/55 text-[#ffd700]">
           #{rank}
         </span>
         <div className="absolute bottom-0 left-0 right-0 p-2 z-[2] text-center">
-          <div className="text-xs sm:text-sm font-bold truncate">{g.name}</div>
-          <div className="text-[9px] sm:text-[10px] text-white/50 truncate">
+          <div className="text-xs sm:text-sm font-bold truncate [text-shadow:0_1px_10px_rgba(0,0,0,0.95)]">{g.name}</div>
+          <div className="text-[9px] sm:text-[10px] text-white/60 truncate [text-shadow:0_1px_8px_rgba(0,0,0,0.95)]">
             {relationshipLabel(g.relationship, t)} · {g.rarity}
           </div>
         </div>
@@ -111,6 +110,10 @@ export default function HomePage() {
   const friendStatus = useFriendStatus();
   const { settings: siteSettings } = useSiteSettings();
   const { ads: bannerAds } = useSiteAds('banner');
+  // 公告 i18n：后台默认英文文案命中时展示当前语言翻译，自定义文案原样渲染
+  const announceText = siteSettings?.announcement_text?.includes('beta test kicks off')
+    ? t('home.betaAnnouncement')
+    : (siteSettings?.announcement_text || '');
   const modules = useMemo(
     () => [
       {
@@ -387,59 +390,64 @@ export default function HomePage() {
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-none px-3 sm:px-5 lg:px-8 pt-2 sm:pt-4 space-y-4 sm:space-y-6">
-        {/* Announcement bar — 公告栏（后台 site_settings 管理） */}
-        {siteSettings?.announcement_enabled && siteSettings.announcement_text ? (
-          <div className="relative flex items-center gap-2.5 rounded-2xl border border-amber-300/25 bg-gradient-to-r from-amber-300/12 via-white/[0.04] to-[#FF2D78]/10 px-3.5 py-2.5">
-            <Megaphone className="h-4 w-4 shrink-0 text-amber-300" />
-            <p className="flex-1 text-[12px] leading-snug text-amber-50/95">{siteSettings.announcement_text}</p>
-            {siteSettings.announcement_link ? (
-              <a
-                href={siteSettings.announcement_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:bg-amber-300/20 active:scale-95 transition-all"
-              >
-                {t('common.viewAll')}
-              </a>
-            ) : null}
-          </div>
-        ) : null}
-
         {/* Ad banner — 广告栏（后台 admin_ads 管理，position=banner；i18n 文案覆盖层见 HomeAdBanners） */}
         <HomeAdBanners ads={bannerAds} />
 
-        {/* Top */}
-        <div className="flex items-center justify-between gap-2 sm:gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <GameChip>
-                <Flame className="h-3 w-3" /> 18+
-              </GameChip>
-              <span className="text-[10px] sm:text-[11px] text-white/35 truncate">
-                {t('home.onlineRoles', { count: catalog.length })}
-                {catalogSource === 'api' ? ' · live' : ' · demo'}
-              </span>
+        {/* Announcement bar — 公告栏（后台 site_settings 管理）· i18n + 走马灯 + 发光，置于广告图下方 */}
+        {siteSettings?.announcement_enabled && announceText ? (
+          <div className="relative overflow-hidden rounded-2xl border border-amber-300/30 bg-gradient-to-r from-amber-300/15 via-[#FF2D78]/10 to-amber-300/15 px-3.5 py-2.5 shadow-[0_0_28px_rgba(252,211,77,0.28),inset_0_0_20px_rgba(255,46,136,0.10)]">
+            <div className="flex items-center gap-2.5">
+              <Megaphone className="h-4 w-4 shrink-0 text-amber-300 drop-shadow-[0_0_6px_rgba(252,211,77,0.9)]" />
+              <div className="relative flex-1 overflow-hidden">
+                <div className="h5-marquee items-center gap-12">
+                  <span className="text-[12px] font-semibold text-amber-100 [text-shadow:0_0_10px_rgba(252,211,77,0.85),0_0_22px_rgba(255,46,136,0.55)]">{announceText}</span>
+                  <span aria-hidden className="text-[12px] font-semibold text-amber-100 [text-shadow:0_0_10px_rgba(252,211,77,0.85),0_0_22px_rgba(255,46,136,0.55)]">{announceText}</span>
+                </div>
+              </div>
+              {siteSettings.announcement_link ? (
+                <a
+                  href={siteSettings.announcement_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:bg-amber-300/20 active:scale-95 transition-all"
+                >
+                  {t('common.viewAll')}
+                </a>
+              ) : null}
             </div>
-            {user ? (
-              <h1 className="mt-1 text-lg sm:text-3xl font-black tracking-tight leading-tight">
-                {t('home.chooseYour')}
-                <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
-                  {' '}{t('home.obsession')}
-                </span>
-              </h1>
-            ) : (
-              <h1 className="mt-1 text-lg sm:text-2xl font-black tracking-tight leading-tight">
-                {t('home.heroTaglineLead')}
-                <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
-                  {' — '}{t('home.heroTaglineRest')}
-                </span>
-              </h1>
-            )}
           </div>
+        ) : null}
+
+        {/* Top */}
+        <div className="relative flex flex-col items-center gap-1.5 text-center">
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <GameChip>
+              <Flame className="h-3 w-3" /> 18+
+            </GameChip>
+            <span className="text-[10px] sm:text-[11px] text-white/35 truncate">
+              {t('home.onlineRoles', { count: catalog.length })}
+              {catalogSource === 'api' ? ' · live' : ' · demo'}
+            </span>
+          </div>
+          {user ? (
+            <h1 className="text-xl sm:text-4xl font-black tracking-tight leading-tight">
+              {t('home.chooseYour')}
+              <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
+                {' '}{t('home.obsession')}
+              </span>
+            </h1>
+          ) : (
+            <h1 className="text-xl sm:text-3xl font-black tracking-tight leading-tight">
+              {t('home.heroTaglineLead')}
+              <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
+                {' — '}{t('home.heroTaglineRest')}
+              </span>
+            </h1>
+          )}
           <button
             type="button"
             onClick={() => setShareOpen(true)}
-            className="glass h-10 w-10 sm:w-auto sm:px-3 rounded-full text-xs flex items-center justify-center gap-1.5 text-[#ffb3cd] shrink-0 touch-manipulation active:scale-95"
+            className="glass h-10 w-10 sm:w-auto sm:px-3 rounded-full text-xs flex items-center justify-center gap-1.5 text-[#ffb3cd] shrink-0 touch-manipulation active:scale-95 absolute right-0 top-0"
             aria-label={t('home.share')}
           >
             <Share2 className="h-4 w-4" />
@@ -475,10 +483,10 @@ export default function HomePage() {
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
+          <div className="grid grid-cols-1 lg:grid-cols-10 gap-4 lg:gap-5 items-stretch">
             {/* LEFT — tall full-body stage */}
             <div
-              className="lg:col-span-6 xl:col-span-5 relative touch-pan-y"
+              className="lg:col-span-7 relative touch-pan-y"
               onTouchStart={onPortraitTouchStart}
               onTouchEnd={onPortraitTouchEnd}
               onTouchCancel={() => { touchStart.current = null; }}
@@ -535,7 +543,6 @@ export default function HomePage() {
                 )}
 
                 {/* Single vignette — no mix-blend / particle / shimmer (GPU-heavy) */}
-                <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/55 via-transparent to-black/15 pointer-events-none" />
 
                 <div className="absolute top-3 left-3 z-[3] flex flex-col gap-1.5">
                   <RarityBadge rarity={featured.rarity} />
@@ -559,7 +566,7 @@ export default function HomePage() {
             </div>
 
             {/* RIGHT — stats + actions + avatar strip */}
-            <div className="lg:col-span-6 xl:col-span-7 flex flex-col gap-3 min-h-0">
+            <div className="lg:col-span-3 flex flex-col gap-3 min-h-0">
               <div className="flex-1 rounded-xl sm:rounded-2xl bg-black/25 border border-white/[0.07] p-4 sm:p-5 flex flex-col">
                 <div className="text-[10px] tracking-[0.25em] text-[#ff6ba6] font-bold">FEATURED</div>
                 <h2 className="mt-1 text-2xl sm:text-3xl font-black seduce-glow leading-none">{featured.name}</h2>
@@ -642,7 +649,7 @@ export default function HomePage() {
                       aria-pressed={i === focus}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={g.portrait || g.avatar} alt="" className="h-full w-full object-cover object-top" draggable={false} loading="lazy" decoding="async" />
+                      <img src={g.portrait || g.avatar} alt="" className="h-full w-full object-cover object-center" draggable={false} loading="lazy" decoding="async" />
                       {i === focus && (
                         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-[#ff2e88] to-[#ffd700]" />
                       )}
@@ -757,8 +764,8 @@ export default function HomePage() {
             badgeClass="text-[#ffd700]"
             icon={<Coins className="h-5 w-5 text-black" />}
             iconBg="from-[#ffd700] to-[#f59e0b]"
-            title={siteSettings?.recharge_banner_title || t('home.promoTopup')}
-            desc={siteSettings?.recharge_banner_desc || t('home.promoTopupDesc')}
+            title={locale === 'en' ? (siteSettings?.recharge_banner_title || t('home.promoTopup')) : t('home.promoTopup')}
+            desc={locale === 'en' ? (siteSettings?.recharge_banner_desc || t('home.promoTopupDesc')) : t('home.promoTopupDesc')}
             glow="from-amber-500/20"
           />
           <PromoCard
@@ -767,8 +774,8 @@ export default function HomePage() {
             badgeClass="text-[#ff6ba6]"
             icon={<Trophy className="h-5 w-5 text-white" />}
             iconBg="from-[#ff2e88] to-[#c026d3]"
-            title={siteSettings?.achievement_banner_title || t('home.promoQuest')}
-            desc={siteSettings?.achievement_banner_desc || t('home.promoQuestDesc')}
+            title={locale === 'en' ? (siteSettings?.achievement_banner_title || t('home.promoQuest')) : t('home.promoQuest')}
+            desc={locale === 'en' ? (siteSettings?.achievement_banner_desc || t('home.promoQuestDesc')) : t('home.promoQuestDesc')}
             glow="from-[#ff2e88]/20"
           />
         </section>

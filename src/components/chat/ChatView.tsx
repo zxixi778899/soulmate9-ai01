@@ -2376,7 +2376,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
                           <img
                             src={toPreviewUrl(m.url, 'thumb')}
                             alt=""
-                            className="h-full w-full object-cover object-top"
+                            className="h-full w-full object-cover object-center"
                             loading="lazy"
                           />
                         )}
