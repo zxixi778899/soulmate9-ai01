@@ -2,10 +2,9 @@
 
 /**
  * Home lobby
- * - Tall full-body portrait (main visual) + VFX
- * - Avatar strip under right info panel
+ * - Hero: 左侧竖排头像（切换角色）+ 中间 9:16 立绘主视觉 + 右侧基础数值
  * - Modules: 2 rows × 3 cols (fuller cards)
- * - Hot 20: 4 rows × 5 cols on desktop
+ * - Hot: 4 category rows (female / male / transgender / anime)
  * - Site footer: Telegram / X / etc.
  */
 
@@ -217,16 +216,18 @@ export default function HomePage() {
   const featured = roster[focus] || filteredCatalog[0] || null;
   const rc = RARITY_COLORS[(featured?.rarity as keyof typeof RARITY_COLORS) || 'R'] || RARITY_COLORS.R;
 
-  // 热门 20：后台 is_hot / featured 优先，再按 hot_score
-  const hotList = useMemo(() => {
-    const score = (g: DemoGirl) => {
-      const base = Number(g.hot_score ?? g.intimacy ?? 0);
-      if (g.is_hot || g.list_kind === 'hot') return 2_000_000 + base;
-      if (g.is_featured || g.list_kind === 'featured') return 1_000_000 + base;
-      return base;
-    };
-    return [...filteredCatalog].sort((a, b) => score(b) - score(a)).slice(0, 20);
-  }, [filteredCatalog]);
+  // 热门 4 行：女性/男性/跨性别/二次元各一行，行内按 hot_score 排序
+  const hotRows = useMemo(
+    () =>
+      COMPANION_CATEGORIES.map((cat) => ({
+        cat,
+        items: catalog
+          .filter((g) => g.category === cat)
+          .sort((a, b) => Number(b.hot_score ?? b.intimacy ?? 0) - Number(a.hot_score ?? a.intimacy ?? 0))
+          .slice(0, 8),
+      })),
+    [catalog],
+  );
 
   useEffect(() => {
     if (catalog.length < 2 || paused) return;
@@ -284,18 +285,6 @@ export default function HomePage() {
     }
     if (featured) setDetail(featured);
   }, [featured]);
-
-  // 移动端 Hot-12 轮播：记录当前居中卡片索引（用于 n/12 指示器）
-  const hotScrollRef = useRef<HTMLDivElement>(null);
-  const [hotIndex, setHotIndex] = useState(0);
-  const onHotScroll = useCallback(() => {
-    const el = hotScrollRef.current;
-    if (!el) return;
-    const first = el.querySelector<HTMLElement>('[data-hotcard]');
-    const cardW = first ? first.offsetWidth + 12 : el.clientWidth * 0.66; // 12 = gap-3
-    const idx = Math.round(el.scrollLeft / cardW);
-    setHotIndex(Math.max(0, Math.min(hotList.length - 1, idx)));
-  }, [hotList.length]);
 
   const enterBond = async (girl: DemoGirl = featured!) => {
     if (!girl) return;
@@ -457,7 +446,7 @@ export default function HomePage() {
 
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Companion categories">
           <button type="button" onClick={() => { setCategoryFilter('all'); setFocus(0); }} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === 'all' ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55')}>{t('landing.filterAll')}</button>
-          {COMPANION_CATEGORIES.map((category) => <button key={category} type="button" onClick={() => router.push(`/category/${category}`)} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === category ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55 hover:text-white')}>{COMPANION_CATEGORY_LABELS[category][locale]}</button>)}
+          {COMPANION_CATEGORIES.map((category) => <button key={category} type="button" onClick={() => { setCategoryFilter(category); setFocus(0); }} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === category ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55 hover:text-white')}>{COMPANION_CATEGORY_LABELS[category][locale]}</button>)}
         </div>
 
         {/* Guest conversion strip */}
@@ -483,10 +472,38 @@ export default function HomePage() {
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-10 gap-4 lg:gap-5 items-stretch">
-            {/* LEFT — tall full-body stage */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
+            {/* LEFT — 竖排头像（切换角色） */}
+            <div className="lg:col-span-1">
+              <div className="glass-strong rounded-xl sm:rounded-2xl p-2.5 sm:p-3 h-full">
+                <div className="hidden lg:flex items-center justify-between mb-2 px-0.5">
+                  <span className="text-[10px] font-bold tracking-wider text-white/45 uppercase">{t('home.switchRole')}</span>
+                  <span className="text-[10px] text-white/30 tabular-nums">{focus + 1}/{roster.length}</span>
+                </div>
+                <div className="flex lg:flex-col gap-2.5 overflow-x-auto lg:overflow-y-auto lg:overflow-x-hidden overscroll-contain py-1 px-0.5 scrollbar-hide">
+                  {roster.map((g, i) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => { setPaused(true); setFocus(i); }}
+                      className={cn(
+                        'shrink-0 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3] transition-transform touch-manipulation',
+                        i === focus ? 'scale-110 shadow-[0_0_16px_rgba(255,46,136,0.45)]' : 'opacity-60 hover:opacity-100',
+                      )}
+                      aria-label={g.name}
+                      aria-pressed={i === focus}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={g.avatar || g.portrait} alt="" className="h-12 w-12 sm:h-14 sm:w-14 rounded-full object-contain" draggable={false} loading="lazy" decoding="async" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* CENTER — 9:16 立绘主视觉 */}
             <div
-              className="lg:col-span-7 relative touch-pan-y"
+              className="lg:col-span-8 relative touch-pan-y flex justify-center"
               onTouchStart={onPortraitTouchStart}
               onTouchEnd={onPortraitTouchEnd}
               onTouchCancel={() => { touchStart.current = null; }}
@@ -513,8 +530,9 @@ export default function HomePage() {
                 type="button"
                 key={featured.id}
                 className={cn(
-                  'relative w-full overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation text-left',
-                  'aspect-[2/3] max-h-[min(52dvh,440px)] sm:aspect-[3/4.65] sm:max-h-[82vh] sm:min-h-[560px] lg:min-h-[640px]',
+                  'relative overflow-hidden rounded-xl sm:rounded-2xl cursor-pointer touch-manipulation text-left',
+                  // 9:16 立绘画框：高约 72vh，宽由 min(86vw, 40.5vh) 推导
+                  'aspect-[9/16] w-[min(86vw,40.5vh)]',
                   `game-rarity-${String(featured.rarity || 'R').toLowerCase()}`,
                 )}
                 style={{
@@ -567,7 +585,7 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* RIGHT — stats + actions + avatar strip */}
+            {/* RIGHT — stats + actions */}
             <div className="lg:col-span-3 flex flex-col gap-3 min-h-0">
               <div className="flex-1 rounded-xl sm:rounded-2xl bg-black/25 border border-white/[0.07] p-4 sm:p-5 flex flex-col sm:justify-between">
                 <div className="text-[10px] tracking-[0.25em] text-[#ff6ba6] font-bold">FEATURED</div>
@@ -627,95 +645,51 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="glass-strong rounded-xl sm:rounded-2xl p-2.5 sm:p-3 overflow-visible">
-                <div className="flex items-center justify-between mb-2 px-0.5">
-                  <span className="text-[10px] font-bold tracking-wider text-white/45 uppercase">{t('home.switchRole')}</span>
-                  <span className="text-[10px] text-white/30 tabular-nums">{focus + 1}/{roster.length}</span>
-                </div>
-                <div
-                  className="flex gap-2.5 overflow-x-auto overscroll-x-contain py-2 px-1 scrollbar-hide snap-x snap-mandatory touch-pan-x"
-                  style={{ WebkitOverflowScrolling: 'touch' }}
-                >
-                  {roster.map((g, i) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => { setPaused(true); setFocus(i); }}
-                      className={cn(
-                        'relative shrink-0 rounded-xl overflow-hidden transition-transform snap-start touch-manipulation',
-                        i === focus
-                          ? 'h-[76px] w-[58px] sm:h-[84px] sm:w-[70px] ring-2 ring-[#ff2e88] shadow-[0_0_16px_rgba(255,46,136,0.45)] z-[1]'
-                          : 'h-[68px] w-[52px] sm:h-[76px] sm:w-[58px] opacity-70 ring-1 ring-white/10 hover:opacity-100',
-                      )}
-                      aria-label={g.name}
-                      aria-pressed={i === focus}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={g.portrait || g.avatar} alt="" className="h-full w-full object-cover object-center" draggable={false} loading="lazy" decoding="async" />
-                      {i === focus && (
-                        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-[#ff2e88] to-[#ffd700]" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         </section>
 
-        {/* ═══════════ Hot 20：移动端左右滑动轮播 / 桌面 4×5 网格 ═══════════ */}
+        {/* ═══════════ Hot：4 行，女性/男性/跨性别/二次元各一行 ═══════════ */}
         <section>
-          <div className="relative mb-3">
-            <div className="flex flex-col items-center text-center">
-              <div className="game-chip mb-1">
-                <Flame className="h-3 w-3" /> HOT · TOP 20
-              </div>
-              <h3 className="text-xl sm:text-2xl font-black">{t('home.hotTitle')}</h3>
-              <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
+          <div className="flex flex-col items-center text-center mb-3">
+            <div className="game-chip mb-1">
+              <Flame className="h-3 w-3" /> HOT
             </div>
+            <h3 className="text-xl sm:text-2xl font-black">{t('home.hotTitle')}</h3>
+            <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
+          </div>
+
+          <div className="space-y-4">
+            {hotRows.filter((row) => row.items.length > 0).map(({ cat, items }) => (
+              <div key={cat}>
+                <div className="game-chip mb-2 w-fit">{COMPANION_CATEGORY_LABELS[cat][locale]}</div>
+                <div
+                  className="flex gap-3 overflow-x-auto overscroll-x-contain scrollbar-hide snap-x snap-mandatory touch-pan-x pb-1"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
+                  {items.map((g, i) => (
+                    <HotCard
+                      key={g.id}
+                      g={g}
+                      rank={i + 1}
+                      onOpen={(girl) => setDetail(girl)}
+                      className="snap-start shrink-0 w-[130px] sm:w-[150px] rounded-xl"
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 更多伴侣按钮置于下方 */}
+          <div className="mt-4 flex justify-center">
             <button
               type="button"
               onClick={() => router.push('/explore')}
-              className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 glass-btn !h-10 !px-4 text-xs items-center gap-1 shrink-0"
+              className="glass-btn !h-10 !px-5 text-xs flex items-center gap-1"
             >
               {t('home.moreGirls')} <ChevR className="h-3.5 w-3.5" />
             </button>
-          </div>
-
-          {/* 移动端：左右滑动浏览（居中一张，两侧露出下一张/上一张） */}
-          <div
-            ref={hotScrollRef}
-            onScroll={onHotScroll}
-            className="sm:hidden -mx-3 px-4 flex gap-3 overflow-x-auto overscroll-x-contain scrollbar-hide snap-x snap-mandatory touch-pan-x pb-1"
-            style={{ WebkitOverflowScrolling: 'touch' }}
-          >
-            {hotList.map((g, i) => (
-              <HotCard
-                key={g.id}
-                g={g}
-                rank={i + 1}
-                onOpen={(girl) => setDetail(girl)}
-                className="snap-center shrink-0 w-[62vw] max-w-[250px] rounded-xl"
-              />
-            ))}
-          </div>
-          <div className="sm:hidden mt-2 flex items-center justify-center gap-1.5 text-[10px] text-white/40">
-            <ChevronLeft className="h-3 w-3" />
-            <span className="tabular-nums">{hotIndex + 1}/{hotList.length}</span>
-            <ChevronRight className="h-3 w-3" />
-          </div>
-
-          {/* 桌面端：自适应列数，宽屏加列铺满（与资料库网格一致） */}
-          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5 2xl:gap-6">
-            {hotList.map((g, i) => (
-              <HotCard
-                key={g.id}
-                g={g}
-                rank={i + 1}
-                onOpen={(girl) => setDetail(girl)}
-                className="rounded-xl sm:rounded-2xl"
-              />
-            ))}
           </div>
         </section>
 
@@ -913,9 +887,9 @@ export default function HomePage() {
         >
           <div className="w-80 rounded-2xl bg-gray-900 border border-purple-500/30 p-6 mx-4 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {addedCompanion.portrait && (
-              <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-purple-500/50">
+              <div className="w-16 h-16 mx-auto mb-3 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={addedCompanion.portrait} alt="" className="h-full w-full object-contain" />
+                <img src={addedCompanion.portrait} alt="" className="h-full w-full rounded-full object-contain" />
               </div>
             )}
             <h3 className="text-lg font-bold text-white mb-1">{t('explore.addedToFriends', { name: addedCompanion.name })}</h3>

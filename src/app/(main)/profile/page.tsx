@@ -356,7 +356,7 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="block h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] p-[3px] active:scale-95 transition-transform"
+              className="block h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3] p-[2.5px] active:scale-95 transition-transform"
             >
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element

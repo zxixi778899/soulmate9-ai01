@@ -290,8 +290,10 @@ export default function AdminLeaderboardPage() {
                     {p.rank}
                   </span>
                   {p.avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.avatar} alt="" className="h-7 w-7 rounded-full object-contain shrink-0" />
+                    <div className="shrink-0 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.avatar} alt="" className="h-7 w-7 rounded-full object-contain" />
+                    </div>
                   ) : (
                     <div className="h-7 w-7 rounded-full bg-slate-700 shrink-0" />
                   )}
@@ -321,8 +323,10 @@ export default function AdminLeaderboardPage() {
             <Card key={e.id} className={cn('border-slate-800 bg-[#12121a]', !e.is_active && 'opacity-55')}>
               <CardContent className="pt-5 flex flex-wrap items-center gap-4">
                 {e.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={e.avatar_url} alt="" className="h-12 w-12 rounded-full object-contain ring-2 ring-slate-700 shrink-0" />
+                  <div className="shrink-0 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={e.avatar_url} alt="" className="h-12 w-12 rounded-full object-contain" />
+                  </div>
                 ) : (
                   <div className="h-12 w-12 rounded-full bg-gradient-to-br from-pink-600/50 to-purple-600/50 flex items-center justify-center text-white font-bold shrink-0">
                     {e.display_name.charAt(0).toUpperCase()}

@@ -448,8 +448,10 @@ function ChatStreamInner(props: {
           {isTyping && (
             <div className="flex items-center gap-2 px-4 py-2 max-w-3xl xl:max-w-4xl 2xl:max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
               {girlfriend?.avatar_url && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={girlfriend.avatar_url} alt="" className="h-6 w-6 rounded-full object-contain" />
+                <div className="shrink-0 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={girlfriend.avatar_url} alt="" className="h-6 w-6 rounded-full object-contain" />
+                </div>
               )}
               <div className="flex gap-1 rounded-2xl bg-white/[0.06] backdrop-blur-sm px-4 py-3 border border-white/[0.08]">
                 <span className="h-2 w-2 rounded-full bg-white/40 animate-bounce [animation-delay:0ms]" />
