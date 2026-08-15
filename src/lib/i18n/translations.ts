@@ -5,6 +5,23 @@
  */
 
 export const en = {
+  // ── Home ad banners (i18n overlay copy) ──
+  'ads.weekly.badge': 'THIS WEEK',
+  'ads.weekly.title': 'She Speaks. She Remembers.',
+  'ads.weekly.f1': 'Voice Profiles',
+  'ads.weekly.f2': 'Visual Memory Recall',
+  'ads.weekly.f3': 'Milestones & Scenarios',
+  'ads.weekly.cta': 'Try It Now',
+  'ads.beta.badge': 'BETA EVENT · AUG 15',
+  'ads.beta.title': 'Beta Launch Celebration',
+  'ads.beta.p1': 'Massive Points',
+  'ads.beta.p2': 'Free Membership',
+  'ads.beta.p3': 'Win an iPhone 18 Pro',
+  'ads.beta.cta': 'Join the Beta',
+  'ads.sale.badge': 'BETA ONLY · LIMITED TIME',
+  'ads.sale.title': '2× Points on Every Top-Up',
+  'ads.sale.sub': 'Memberships 50% off — Pro $9.99 · Unlimited $29.99',
+  'ads.sale.cta': 'Upgrade Now',
   'home.checkin': 'Check-in',
   'quest.daily.share': 'Daily Share',
   'chat.modeScene': 'Scenario',
@@ -1305,6 +1322,23 @@ export const en = {
 };
 
 const zh: Record<string, string> = {
+  // ── 首页广告横幅 ──
+  'ads.weekly.badge': '本周特色',
+  'ads.weekly.title': '她会说话，会记住你',
+  'ads.weekly.f1': '声音档案',
+  'ads.weekly.f2': '视觉记忆召回',
+  'ads.weekly.f3': '里程碑 · 情景',
+  'ads.weekly.cta': '立即体验',
+  'ads.beta.badge': '内测活动 · 8月15日',
+  'ads.beta.title': '内测开启庆典',
+  'ads.beta.p1': '海量积分',
+  'ads.beta.p2': '免费会员',
+  'ads.beta.p3': '赢取 iPhone 18 Pro',
+  'ads.beta.cta': '加入内测',
+  'ads.sale.badge': '内测限定 · 限时',
+  'ads.sale.title': '积分充值翻倍',
+  'ads.sale.sub': '会员 5 折 — Pro $9.99 · Unlimited $29.99',
+  'ads.sale.cta': '立即升级',
   'home.checkin': '签到',
   'quest.daily.share': '每日分享',
   'chat.modeScene': '情景模式',
@@ -2598,6 +2632,23 @@ const zh: Record<string, string> = {
 };
 
 const ja: Record<string, string> = {
+  // ── ホーム広告バナー ──
+  'ads.weekly.badge': '今週の特徴',
+  'ads.weekly.title': '彼女が話し、覚える。',
+  'ads.weekly.f1': 'ボイスプロファイル',
+  'ads.weekly.f2': 'ビジュアル記憶リコール',
+  'ads.weekly.f3': 'マイルストーン＆シナリオ',
+  'ads.weekly.cta': '今すぐ体験',
+  'ads.beta.badge': 'ベータイベント · 8/15',
+  'ads.beta.title': 'ベータ開始キャンペーン',
+  'ads.beta.p1': '大量ポイント',
+  'ads.beta.p2': '無料メンバーシップ',
+  'ads.beta.p3': 'iPhone 18 Pro が当たる',
+  'ads.beta.cta': 'ベータに参加',
+  'ads.sale.badge': 'ベータ限定 · 期間限定',
+  'ads.sale.title': 'チャージポイント2倍',
+  'ads.sale.sub': 'メンバーシップ50%オフ — Pro $9.99 · Unlimited $29.99',
+  'ads.sale.cta': '今すぐアップグレード',
   'home.checkin': 'チェックイン',
   'quest.daily.share': 'デイリーシェア',
   'chat.modeScene': 'シナリオ',
@@ -3848,6 +3899,23 @@ const ja: Record<string, string> = {
 };
 
 const ko: Record<string, string> = {
+  // ── 홈 광고 배너 ──
+  'ads.weekly.badge': '이번 주 특징',
+  'ads.weekly.title': '그녀가 말하고, 기억해요',
+  'ads.weekly.f1': '보이스 프로필',
+  'ads.weekly.f2': '비주얼 메모리 리콜',
+  'ads.weekly.f3': '마일스톤 & 시나리오',
+  'ads.weekly.cta': '지금 체험',
+  'ads.beta.badge': '베타 이벤트 · 8/15',
+  'ads.beta.title': '베타 론칭 기념',
+  'ads.beta.p1': '대량 포인트',
+  'ads.beta.p2': '무료 멤버십',
+  'ads.beta.p3': 'iPhone 18 Pro 증정',
+  'ads.beta.cta': '베타 참여',
+  'ads.sale.badge': '베타 한정 · 기간 한정',
+  'ads.sale.title': '충전 포인트 2배',
+  'ads.sale.sub': '멤버십 50% 할인 — Pro $9.99 · Unlimited $29.99',
+  'ads.sale.cta': '지금 업그레이드',
   'home.checkin': '출석체크',
   'quest.daily.share': '데일리 공유',
   'chat.modeScene': '시나리오',
@@ -5098,6 +5166,23 @@ const ko: Record<string, string> = {
 };
 
 const fr: Record<string, string> = {
+  // ── Bannières publicitaires ──
+  'ads.weekly.badge': 'CETTE SEMAINE',
+  'ads.weekly.title': 'Elle parle. Elle se souvient.',
+  'ads.weekly.f1': 'Profils de voix',
+  'ads.weekly.f2': 'Mémoire visuelle',
+  'ads.weekly.f3': 'Jalons & scénarios',
+  'ads.weekly.cta': 'Essayer maintenant',
+  'ads.beta.badge': 'ÉVÉNEMENT BÊTA · 15 AOÛT',
+  'ads.beta.title': 'Célébration du lancement Bêta',
+  'ads.beta.p1': 'Points en masse',
+  'ads.beta.p2': 'Abonnement gratuit',
+  'ads.beta.p3': 'Gagnez un iPhone 18 Pro',
+  'ads.beta.cta': 'Rejoindre la bêta',
+  'ads.sale.badge': 'SPÉCIAL BÊTA · DURÉE LIMITÉE',
+  'ads.sale.title': 'Points ×2 sur chaque recharge',
+  'ads.sale.sub': 'Abonnements −50% — Pro $9.99 · Unlimited $29.99',
+  'ads.sale.cta': 'Mettre à niveau',
   'home.checkin': 'Connexion',
   'quest.daily.share': 'Partage quotidien',
   'chat.modeScene': 'Scénario',
@@ -6348,6 +6433,23 @@ const fr: Record<string, string> = {
 };
 
 const es: Record<string, string> = {
+  // ── Banners publicitarios ──
+  'ads.weekly.badge': 'ESTA SEMANA',
+  'ads.weekly.title': 'Ella habla. Ella recuerda.',
+  'ads.weekly.f1': 'Perfiles de voz',
+  'ads.weekly.f2': 'Memoria visual',
+  'ads.weekly.f3': 'Hitos y escenarios',
+  'ads.weekly.cta': 'Pruébalo ya',
+  'ads.beta.badge': 'EVENTO BETA · 15 AGO',
+  'ads.beta.title': 'Celebración del lanzamiento Beta',
+  'ads.beta.p1': 'Puntos en masa',
+  'ads.beta.p2': 'Membresía gratis',
+  'ads.beta.p3': 'Gana un iPhone 18 Pro',
+  'ads.beta.cta': 'Únete a la Beta',
+  'ads.sale.badge': 'SOLO BETA · TIEMPO LIMITADO',
+  'ads.sale.title': 'Puntos ×2 en cada recarga',
+  'ads.sale.sub': 'Membresías al 50% — Pro $9.99 · Unlimited $29.99',
+  'ads.sale.cta': 'Mejora ahora',
   'home.checkin': 'Check-in',
   'quest.daily.share': 'Daily Share',
   'chat.modeScene': 'Scenario',
@@ -7598,6 +7700,23 @@ const es: Record<string, string> = {
 };
 
 const de: Record<string, string> = {
+  // ── Startseite-Werbebanner ──
+  'ads.weekly.badge': 'DIESE WOCHE',
+  'ads.weekly.title': 'Sie spricht. Sie erinnert sich.',
+  'ads.weekly.f1': 'Stimmprofile',
+  'ads.weekly.f2': 'Visuelle Erinnerung',
+  'ads.weekly.f3': 'Meilensteine & Szenarien',
+  'ads.weekly.cta': 'Jetzt testen',
+  'ads.beta.badge': 'BETA-EVENT · 15. AUG',
+  'ads.beta.title': 'Beta-Launch-Feier',
+  'ads.beta.p1': 'Masse an Punkten',
+  'ads.beta.p2': 'Gratis-Mitgliedschaft',
+  'ads.beta.p3': 'iPhone 18 Pro gewinnen',
+  'ads.beta.cta': 'Beta beitreten',
+  'ads.sale.badge': 'NUR BETA · LIMITIERT',
+  'ads.sale.title': '2× Punkte bei jeder Aufladung',
+  'ads.sale.sub': 'Mitgliedschaft −50% — Pro $9.99 · Unlimited $29.99',
+  'ads.sale.cta': 'Jetzt upgraden',
   'home.checkin': 'Check-in',
   'quest.daily.share': 'Daily Share',
   'chat.modeScene': 'Scenario',

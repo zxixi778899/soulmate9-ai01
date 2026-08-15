@@ -24,14 +24,13 @@ const headers = {
 };
 
 const ads = [
-  { title: 'Your AI Companion, Reimagined', image_url: '/ads/ad-features.png', position: 'banner', sort_order: 0 },
-  { title: 'Hot Beta · Official Launch Aug 15', image_url: '/ads/ad-launch.png', position: 'banner', sort_order: 1 },
-  { title: 'Your Exclusive Companion', image_url: '/ads/ad-exclusive.png', position: 'banner', sort_order: 2 },
+  { title: 'New This Week — Voice · Memory · Milestones', image_url: '/ads/ad-weekly.webp', link_url: '/create', position: 'banner', sort_order: 0 },
+  { title: 'Beta Launch · Aug 15 — Massive Points / Free Membership / iPhone 18 Pro', image_url: '/ads/ad-beta-launch.webp', link_url: '/quest', position: 'banner', sort_order: 1 },
+  { title: 'Beta Sale — 2× Points · 50% Off Membership', image_url: '/ads/ad-beta-sale.webp', link_url: '/pricing', position: 'banner', sort_order: 2 },
 ];
 
-// 1) Delete existing rows with these image_urls (idempotent)
-const urlEnc = ads.map((a) => encodeURIComponent(a.image_url)).join(',');
-const delRes = await fetch(`${BASE}/rest/v1/admin_ads?image_url=in.(${urlEnc})`, {
+// 1) Delete ALL existing banner rows (full replacement)
+const delRes = await fetch(`${BASE}/rest/v1/admin_ads?position=eq.banner`, {
   method: 'DELETE',
   headers,
 });
@@ -47,7 +46,7 @@ const insRes = await fetch(`${BASE}/rest/v1/admin_ads`, {
     ads.map((a) => ({
       title: a.title,
       image_url: a.image_url,
-      link_url: null,
+      link_url: a.link_url,
       position: a.position,
       active: true,
       sort_order: a.sort_order,

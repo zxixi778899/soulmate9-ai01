@@ -39,6 +39,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { HEAT_UNLOCK_HINTS, INTIMACY_LEVELS } from '@/lib/constants';
 import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
 import { useSiteSettings, useSiteAds } from '@/hooks/useSiteSettings';
+import { HomeAdBanners } from '@/components/ads/HomeAdBanners';
 
 
 function isHomeVideoUrl(url?: string | null): boolean {
@@ -404,30 +405,8 @@ export default function HomePage() {
           </div>
         ) : null}
 
-        {/* Ad banner — 广告栏（后台 admin_ads 管理，position=banner） */}
-        {bannerAds.length > 0 && (
-          <section className="space-y-2">
-            {bannerAds.map((ad) => (
-              <a
-                key={ad.id}
-                href={ad.link_url || '#'}
-                target={ad.link_url ? '_blank' : undefined}
-                rel={ad.link_url ? 'noopener noreferrer' : undefined}
-                className="block relative overflow-hidden rounded-2xl ring-1 ring-white/10 hover:ring-[#ff2e88]/40 transition-all group"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
-                <img
-                  src={ad.image_url}
-                  alt={ad.title}
-                  className="w-full h-28 sm:h-36 object-cover group-hover:scale-[1.02] transition-transform duration-300"
-                />
-                <span className="absolute top-2 right-2 z-[2] rounded-md bg-black/45 px-1.5 py-0.5 text-[9px] font-bold tracking-widest text-white/80 ring-1 ring-white/20 backdrop-blur">
-                  AD
-                </span>
-              </a>
-            ))}
-          </section>
-        )}
+        {/* Ad banner — 广告栏（后台 admin_ads 管理，position=banner；i18n 文案覆盖层见 HomeAdBanners） */}
+        <HomeAdBanners ads={bannerAds} />
 
         {/* Top */}
         <div className="flex items-center justify-between gap-2 sm:gap-3">

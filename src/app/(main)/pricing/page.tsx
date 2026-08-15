@@ -41,18 +41,20 @@ const PLANS = [
     features: [
       '40 messages per day',
       '5 companions',
-      'Created companions counted separately',
       '3 trial image generations',
+      '3 voice syntheses per day',
+      '8k context window',
       'Shallow memory',
       'Intimacy up to Level 3',
-      'Basic chat',
     ],
   },
   {
     id: 'pro',
     name: 'Pro',
     priceMonthly: '$9.99',
+    originalMonthly: '$19.99', // pre-beta anchor — beta sale is −50%
     priceYearly: '$101.88',
+    originalYearly: '$239.88',
     periodMonthly: '/month',
     periodYearly: '/year',
     yearlyNote: 'Save 15% · $8.49/mo equivalent',
@@ -62,10 +64,10 @@ const PLANS = [
     features: [
       '300 messages per day',
       '20 companions',
-      'Created companions counted separately',
       '16k context window',
-      'Full memory depth',
+      'Deep memory',
       '100 Credits / month',
+      'Premium outfits',
       'NSFW content',
       'Priority support',
     ],
@@ -74,7 +76,9 @@ const PLANS = [
     id: 'unlimited',
     name: 'Unlimited',
     priceMonthly: '$29.99',
+    originalMonthly: '$59.99', // pre-beta anchor — beta sale is −50%
     priceYearly: '$287.88',
+    originalYearly: '$719.88',
     periodMonthly: '/month',
     periodYearly: '/year',
     yearlyNote: 'Save 20% · $23.99/mo equivalent',
@@ -84,10 +88,10 @@ const PLANS = [
       'Unlimited messages (fair use)',
       'Unlimited companions',
       '32k context window',
-      'Priority queue',
+      'Infinite memory',
       '300 Credits / month',
       'Video generation access',
-      'Infinite memory depth',
+      'All outfits unlocked',
       'Early access to new features',
     ],
   },
@@ -260,6 +264,14 @@ function PricingContent() {
           </p>
         </div>
 
+        {/* Beta celebration sale banner */}
+        <div className="mb-6 rounded-2xl border border-amber-300/25 bg-gradient-to-r from-amber-300/12 via-white/[0.04] to-[#FF2D78]/10 px-4 py-3 text-center">
+          <p className="text-sm font-bold text-amber-200">🎉 Beta Celebration — limited time</p>
+          <p className="mt-0.5 text-xs text-white/70">
+            2× points on every top-up · 50% off all memberships during the beta period
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
           {PLANS.map((plan) => (
             <Card
@@ -294,6 +306,16 @@ function PricingContent() {
                   </div>
                 </CardTitle>
                 <div className="mt-2">
+                  {plan.originalMonthly && (
+                    <div className="mb-1 flex items-center gap-1.5">
+                      <span className="text-sm text-muted-foreground/70 line-through">
+                        {billing === 'yearly' ? plan.originalYearly : plan.originalMonthly}
+                      </span>
+                      <Badge className="bg-gradient-to-r from-rose-500 to-fuchsia-600 text-white border-0 px-1.5 py-0 text-[9px] font-black">
+                        BETA −50%
+                      </Badge>
+                    </div>
+                  )}
                   <span className="text-3xl font-bold">
                     {billing === 'yearly' ? plan.priceYearly : plan.priceMonthly}
                   </span>
