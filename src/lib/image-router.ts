@@ -259,6 +259,47 @@ async function executeTogether(
   return { images, seed };
 }
 
+// ─── Matrix Asset Readiness Gate ────────────────────────────
+
+/**
+ * Pre-submit checkpoint readiness check for the SDXL matrix endpoint.
+ * Consults gen_model_assets (gen-assets manifest); a checkpoint row that
+ * exists but is not installed blocks submission so the router records a
+ * failure, trips the breaker and degrades to the FLUX routes. Missing table
+ * or DB errors fail-open (legacy env inventory decides inside the manifest).
+ */
+async function ensureMatrixCheckpointReady(
+  config: ImageRouteConfig,
+  opts: ImageRouterOptions,
+): Promise<void> {
+  if (config.provider !== 'runpod_dc2') return;
+  const family = opts.model_family;
+  if (!opts.ckpt_name || !family || family === 'flux') return;
+  try {
+    const [{ assertCheckpointReady }, { getSupabaseClient }] = await Promise.all([
+      import('@/lib/gen-assets/manifest'),
+      import('@/storage/database/supabase-client'),
+    ]);
+    const readiness = await assertCheckpointReady(
+      // Cast via unknown: full SupabaseClient generics are too deep for direct
+      // structural matching against the duck-typed settings client (TS2589).
+      getSupabaseClient() as unknown as import('@supabase/supabase-js').SupabaseClient,
+      family,
+      opts.ckpt_name,
+    );
+    if (!readiness.ready) {
+      throw new Error(`checkpoint-not-ready:${opts.ckpt_name}:${readiness.reason}`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.startsWith('checkpoint-not-ready:')) throw err;
+    // Manifest unavailable — fail-open and let the worker preflight decide.
+    logger.warn('[image-router] asset readiness check skipped (fail-open)', {
+      err: msg.slice(0, 200),
+    });
+  }
+}
+
 // ─── Main Router ─────────────────────────────────────────────
 
 /**
@@ -276,6 +317,17 @@ export async function routeImageGeneration(opts: ImageRouterOptions): Promise<Im
   let routes = getImageRoutes()
     .filter((r) => r.enabled)
     .sort((a, b) => a.priority - b.priority);
+
+  // SDXL matrix: non-flux family requests prefer the dedicated SDXL endpoint
+  // first; if it fails (missing checkpoint / breaker open) the remaining FLUX
+  // routes catch the request as the same-tier degradation path.
+  if (opts.model_family && opts.model_family !== 'flux') {
+    routes = [...routes].sort(
+      (a, b) =>
+        a.priority + (a.provider === 'runpod_dc2' ? -1000 : 0) -
+        (b.priority + (b.provider === 'runpod_dc2' ? -1000 : 0)),
+    );
+  }
 
   // Filter by NSFW capability if needed
   if (opts.nsfw) {
@@ -331,6 +383,10 @@ export async function routeImageGeneration(opts: ImageRouterOptions): Promise<Im
       let result: { images: string[]; pending?: boolean; job_id?: string; seed?: number };
 
       if (route.provider === 'runpod' || route.provider === 'runpod_dc2') {
+        // Matrix gate: verify the requested checkpoint against gen_model_assets
+        // before burning a GPU slot. Not-ready → recorded failure → breaker →
+        // loop continues to the FLUX degradation routes.
+        await ensureMatrixCheckpointReady(route, opts);
         // Race RunPod against timeout
         result = await Promise.race([
           executeRunPod(route, opts),

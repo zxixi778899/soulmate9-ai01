@@ -34,8 +34,6 @@ interface SlotCopy {
   badgeClass: string;
   ctaClass: string;
   chipClass: string;
-  /** Full-bleed crop focal point (ads are allowed to crop). */
-  coverClass: string;
 }
 
 const SLOT_COPY: Record<AdSlot, SlotCopy> = {
@@ -47,7 +45,6 @@ const SLOT_COPY: Record<AdSlot, SlotCopy> = {
     badgeClass: 'bg-[#ff2e88]/20 text-[#ffb3cd] ring-[#ff2e88]/40',
     ctaClass: 'bg-gradient-to-r from-[#FF2D78] to-[#C026D3] text-white',
     chipClass: 'bg-white/10 text-white/80 ring-white/15',
-    coverClass: 'object-[50%_42%]',
   },
   launch: {
     badge: 'ads.beta.badge',
@@ -57,7 +54,6 @@ const SLOT_COPY: Record<AdSlot, SlotCopy> = {
     badgeClass: 'bg-amber-300/20 text-amber-200 ring-amber-300/40',
     ctaClass: 'bg-gradient-to-r from-amber-400 to-orange-500 text-black',
     chipClass: 'bg-amber-300/10 text-amber-100/90 ring-amber-300/25',
-    coverClass: 'object-[50%_42%]',
   },
   sale: {
     badge: 'ads.sale.badge',
@@ -67,7 +63,6 @@ const SLOT_COPY: Record<AdSlot, SlotCopy> = {
     badgeClass: 'bg-emerald-400/20 text-emerald-200 ring-emerald-400/40',
     ctaClass: 'bg-gradient-to-r from-emerald-400 to-teal-500 text-black',
     chipClass: 'bg-emerald-400/10 text-emerald-100/90 ring-emerald-400/25',
-    coverClass: 'object-center',
   },
 };
 
@@ -104,22 +99,19 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
         const href = ad.link_url || '#';
         const internal = href.startsWith('/');
         const linkClass = cn(
-          'absolute inset-0 block overflow-hidden rounded-2xl ring-1 ring-white/10 transition-all duration-500 group',
+          'absolute inset-0 block overflow-hidden rounded-2xl ring-1 ring-white/10 bg-[#0a0612] transition-all duration-500 group',
           i === active ? 'opacity-100 z-[1]' : 'opacity-0 z-0 pointer-events-none',
         );
         const inner = (
           <>
-            {/* Full-bleed art — ads are designed to crop; focal point per slot */}
+            {/* Base art — full-bleed and centered (object-cover, focal 50% 50%) */}
             {/* eslint-disable-next-line @next/next/no-img-element -- dynamic admin-managed ad asset */}
             <img
               src={ad.image_url}
               alt={ad.title}
               loading={i === active ? 'eager' : 'lazy'}
               decoding="async"
-              className={cn(
-                'absolute inset-0 h-full w-full object-cover group-hover:scale-[1.02] transition-transform duration-300',
-                copy?.coverClass || 'object-center',
-              )}
+              className="absolute inset-0 h-full w-full object-cover object-center group-hover:scale-[1.02] transition-transform duration-300"
             />
             {/* 均匀暗化：居中排版下整幅文案可读，不偏侧遮人物 */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/30 to-black/50 pointer-events-none" />

@@ -1,12 +1,14 @@
 import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { classifyImageScene, isComplexAdultScene, type ImageSceneSemantics } from '@/lib/image-scene-semantics';
+import { resolveModelPlan, type ModelPlan } from '@/lib/model-matrix';
 
 export type ImageSurface = 'companion' | 'outfit' | 'prop' | 'advert';
 /**
- * 'pony' / 'illustrious' are retained purely for type compatibility with
- * legacy callers and the runpod preflight fallback; routing never returns
- * them anymore — every request runs on the unified FLUX pipeline.
+ * Model families of the generation matrix:
+ *  - 'flux'        — FLUX 精品层（premium / turbo / 3D / 产品资产 / 矩阵总闸关闭时的回退）
+ *  - 'pony'        — ponyRealism 写实旗舰（女/男/跨靠 LoRA slider 分化）
+ *  - 'illustrious' — waiMatureIllustrious 二次元旗舰（danbooru tags）
  */
 export type ImageModelFamily = 'flux' | 'pony' | 'illustrious';
 
@@ -37,13 +39,21 @@ export type ImageGenerationRoute = {
   height: number;
   presetId: string;
   reason: string;
-  modelDetails: {
-    architecture: 'flux-dev';
-    precision: 'fp8';
-    textEncoder: 't5xxl+clip-l';
-    vae: 'ae.safetensors';
-    predictionType: 'flow';
-  };
+  modelDetails:
+    | {
+        architecture: 'flux-dev';
+        precision: 'fp8';
+        textEncoder: 't5xxl+clip-l';
+        vae: 'ae.safetensors';
+        predictionType: 'flow';
+      }
+    | {
+        architecture: 'sdxl';
+        precision: 'fp16';
+        textEncoder: 'clip-l+clip-g';
+        vae: 'built-in';
+        predictionType: 'epsilon';
+      };
   loraPolicy: {
     inventoryEnv: string[];
     categoryEnv: string;
@@ -71,9 +81,13 @@ export const TASK_DENOISE_DEFAULTS: Record<'outfit' | 'pose' | 'background' | 'p
 
 const env = (name: string, fallback: string): string => process.env[name]?.trim() || fallback;
 
+/**
+ * SDXL 模型矩阵总闸（RUNPOD_SDXL_MODELS_READY）。开启且
+ * RUNPOD_ENDPOINT_ID_SDXL 已配置时，resolveImageGenerationRoute 委托
+ * resolveModelPlan 把写实/二次元题材路由到 SDXL 生产端点；否则全链路
+ * fail-open 回 FLUX。
+ */
 export function specialistModelsReadyFromEnv(): boolean {
-  // Legacy SDXL gate — kept because admin health endpoints surface it. The
-  // routing matrix no longer consumes it: everything stays on FLUX.
   return process.env.RUNPOD_SDXL_MODELS_READY?.trim().toLowerCase() === 'true';
 }
 
@@ -136,11 +150,57 @@ function fluxRoute(
   };
 }
 
+function sdxlMatrixRoute(
+  plan: ModelPlan,
+  surface: ImageSurface,
+  category: CompanionCategory,
+  nsfw: boolean,
+): ImageGenerationRoute {
+  const familyPrefix = plan.modelFamily === 'illustrious' ? 'RUNPOD_ILLUSTRIOUS' : 'RUNPOD_PONY';
+  const categoryKey = category === 'anime' ? 'FEMALE' : category.toUpperCase();
+  return {
+    surface,
+    modelFamily: plan.modelFamily,
+    endpointId: env('RUNPOD_ENDPOINT_ID_SDXL', ''),
+    checkpoint: plan.checkpoint,
+    sampler: plan.sampler,
+    scheduler: plan.scheduler,
+    steps: plan.steps,
+    cfg: plan.cfg,
+    // 非 FLUX 工作流忽略 FluxGuidance；保留字段形状兼容，值取 KSampler cfg。
+    fluxGuidance: plan.cfg,
+    clipSkip: plan.clipSkip,
+    width: plan.width,
+    height: plan.height,
+    presetId: `sdxl-${plan.modelFamily}-${nsfw ? 'adult' : surface === 'outfit' ? 'outfit' : 'portrait'}`,
+    reason: plan.reason,
+    modelDetails: {
+      architecture: 'sdxl',
+      precision: 'fp16',
+      textEncoder: 'clip-l+clip-g',
+      vae: 'built-in',
+      predictionType: 'epsilon',
+    },
+    loraPolicy: {
+      inventoryEnv: [
+        `RUNPOD_INSTALLED_LORAS_${plan.modelFamily.toUpperCase()}`,
+        'RUNPOD_INSTALLED_LORAS_SDXL',
+      ],
+      categoryEnv: `${familyPrefix}_${categoryKey}_LORAS`,
+      adultEnv: `${familyPrefix}_NSFW_LORAS`,
+      maxLoras: 4,
+      maxCombinedStrength: 1.65,
+      failClosed: true,
+    },
+  };
+}
+
 /**
- * Resolve generation parameters for the unified ComfyUI endpoint.
- * Every scenario — female / male / transgender / 2D anime / 3D, SFW or NSFW —
- * runs on flux1-dev-fp8; scenario differences live in steps, flux guidance,
- * canvas size and the downstream LoRA plan.
+ * Resolve generation parameters for the generation model matrix.
+ *
+ * 矩阵总闸开启（RUNPOD_SDXL_MODELS_READY=true + RUNPOD_ENDPOINT_ID_SDXL）时
+ * 委托 resolveModelPlan：写实女/男/跨 → ponyRealism，二次元 → Illustrious；
+ * premium/turbo/3D/产品资产及总闸关闭时全部保留 FLUX 精品层分支。
  */
 export function resolveImageGenerationRoute(input: {
   surface: ImageSurface;
@@ -160,6 +220,22 @@ export function resolveImageGenerationRoute(input: {
   const semantics = input.sceneSemantics || classifyImageScene(input.sceneText || '', category);
   const complexScene = isComplexAdultScene(semantics);
   const nsfw = intensity >= 3;
+
+  // ─── SDXL 模型矩阵（RUNPOD_SDXL_MODELS_READY 总闸） ───────────────────────
+  // 总闸关闭 / 端点未配置 / premium / turbo / 3D / 产品资产时 plan 自动落回
+  // 'runpod-flux'，继续走下方保留的 FLUX 分支（行为与重构前一致）。
+  const matrixPlan = resolveModelPlan({
+    surface: input.surface,
+    category,
+    renderStyle,
+    nsfwLevel: intensity,
+    turbo: input.turbo,
+    sceneComplex: complexScene,
+  });
+  if (matrixPlan.endpointKey === 'runpod-sdxl-pro') {
+    return sdxlMatrixRoute(matrixPlan, input.surface, category, nsfw);
+  }
+
   // Unified FLUX strategy: every scenario uses the same verified dev-fp8
   // checkpoint. NSFW guidance is controlled by fluxGuidance and step budget,
   // not by switching to an alternative checkpoint.

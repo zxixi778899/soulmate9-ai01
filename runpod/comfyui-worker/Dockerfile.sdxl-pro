@@ -1,0 +1,45 @@
+# SoulMate9 ComfyUI SDXL-Pro serverless worker (multi-model matrix endpoint)
+#
+# Capability stack: SDXL/Pony/Illustrious checkpoints + LoRA stack +
+# ControlNet (OpenPose/Depth via aux preprocessors) + Impact-Pack
+# FaceDetailer (ADetailer parity) + IPAdapter FaceID (identity lock) +
+# ESRGAN-class upscalers. Models come from the RunPod network volume at
+# /runpod-volume/models (provisioned by download-sdxl-matrix-bundle.sh).
+FROM runpod/worker-comfyui:5.8.6-base
+
+USER root
+
+# ─── Custom nodes ───────────────────────────────────────────
+# Impact Pack  : FaceDetailer (yolov8 bbox detect + local repaint)
+# controlnet_aux: OpenPose / Depth preprocessors for SDXL ControlNet
+# IPAdapter_plus: IPAdapter FaceID plusv2 (SDXL identity lock)
+# ComfyUI-Manager: runtime node/model diagnostics on the worker
+RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git \
+      /comfyui/custom_nodes/ComfyUI-Impact-Pack \
+    && git clone --depth 1 https://github.com/Fannovel16/comfyui_controlnet_aux.git \
+      /comfyui/custom_nodes/comfyui_controlnet_aux \
+    && git clone --depth 1 https://github.com/cubiq/ComfyUI_IPAdapter_plus.git \
+      /comfyui/custom_nodes/ComfyUI_IPAdapter_plus \
+    && git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager.git \
+      /comfyui/custom_nodes/ComfyUI-Manager \
+    && for node in ComfyUI-Impact-Pack comfyui_controlnet_aux ComfyUI_IPAdapter_plus ComfyUI-Manager; do \
+         if [ -f "/comfyui/custom_nodes/$node/requirements.txt" ]; then \
+           python -m pip install --no-cache-dir \
+             -r "/comfyui/custom_nodes/$node/requirements.txt"; \
+         fi; \
+       done \
+    # InsightFace is required by IPAdapter FaceID; onnxruntime is its CPU-safe
+    # backend on serverless workers.
+    && python -m pip install --no-cache-dir insightface onnxruntime
+
+# ─── Network-volume model links ─────────────────────────────
+# The matrix bundle downloads into /workspace/ComfyUI/models on the volume;
+# expose the relevant subfolders to the worker's model search paths.
+RUN mkdir -p /comfyui/models/controlnet /comfyui/models/ipadapter \
+      /comfyui/models/ultralytics/bbox /comfyui/models/upscale_models \
+    && ln -sf /runpod-volume/models/controlnet /comfyui/models/controlnet-sdxl-matrix \
+    && ln -sf /runpod-volume/models/ipadapter /comfyui/models/ipadapter-sdxl-matrix \
+    && ln -sf /runpod-volume/models/ultralytics /comfyui/models/ultralytics-matrix
+
+# Keep the upstream entrypoint/CMD. The official worker automatically discovers
+# models under /runpod-volume/models when the endpoint has a network volume.

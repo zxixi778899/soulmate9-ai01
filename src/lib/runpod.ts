@@ -150,6 +150,17 @@ export function buildFluxWorkflow(opts: {
   ip_adapter_model?: string;
   /** SigLIP model id/directory consumed by the Shakker loader. */
   clip_vision_model?: string;
+  /**
+   * ControlNet reference image (worker-local filename). Depth-based control;
+   * gated by RUNPOD_CONTROLNET_READY — skipped with a warning when off.
+   */
+  control_image?: string;
+  /** ControlNet strength 0.2–1. Default 0.7. */
+  control_strength?: number;
+  /** Impact Pack FaceDetailer pass; gated by RUNPOD_ADETAILER_READY. */
+  face_detailer?: boolean;
+  /** Hi-res upscale factor (1.5–4) via 4x-UltraSharp; gated by RUNPOD_UPSCALE_READY. */
+  upscale_factor?: number;
 }): Record<string, unknown> {
   const modelFamily = opts.model_family || 'flux';
   const isFlux = modelFamily === 'flux';
@@ -351,6 +362,138 @@ export function buildFluxWorkflow(opts: {
     modelRef = ['30', 0];
   }
 
+  // ─── Enhancement passes (ControlNet / FaceDetailer / hi-res upscale) ────────
+  // 门控关闭时告警跳过（不抛错，保持既有调用方稳定）；节点 ID 段与
+  // comfy-builders/enhance-blocks 对齐：ControlNet 40-43、FaceDetailer 50-51、
+  // Upscale 60-62。
+  const enhancerFlag = (name: string): boolean =>
+    process.env[name]?.trim().toLowerCase() === 'true';
+  let currentImageOut = '6';
+  const applyEnhancements = (graph: Record<string, unknown>): Record<string, unknown> => {
+    const samplerInputs = (graph['5'] as { inputs?: Record<string, unknown> } | undefined)?.inputs;
+    const saveInputs = (graph['7'] as { inputs?: Record<string, unknown> } | undefined)?.inputs;
+    if (!samplerInputs || !saveInputs) return graph;
+
+    if (opts.control_image) {
+      if (!enhancerFlag('RUNPOD_CONTROLNET_READY')) {
+        logger.warn('[runpod] control_image requested but RUNPOD_CONTROLNET_READY is off — skipping');
+      } else {
+        Object.assign(graph, {
+          '40': { class_type: 'LoadImage', inputs: { image: opts.control_image } },
+          '41': {
+            class_type: 'DepthAnythingV2Preprocessor',
+            inputs: { image: ['40', 0], resolution: 1024 },
+          },
+          '42': {
+            class_type: 'ControlNetLoader',
+            inputs: {
+              control_net_name:
+                process.env.RUNPOD_CONTROLNET_MODEL?.trim() || 'flux-depth-controlnet.safetensors',
+            },
+          },
+          '43': {
+            class_type: 'ControlNetApplyAdvanced',
+            inputs: {
+              positive: samplerInputs.positive,
+              negative: samplerInputs.negative,
+              control_net: ['42', 0],
+              image: ['41', 0],
+              vae: vaeRef,
+              strength: Math.min(1, Math.max(0.2, opts.control_strength ?? 0.7)),
+              start_percent: 0,
+              end_percent: 0.85,
+            },
+          },
+        });
+        samplerInputs.positive = ['43', 0];
+        samplerInputs.negative = ['43', 1];
+      }
+    }
+
+    if (opts.face_detailer) {
+      if (!enhancerFlag('RUNPOD_ADETAILER_READY')) {
+        logger.warn('[runpod] face_detailer requested but RUNPOD_ADETAILER_READY is off — skipping');
+      } else {
+        Object.assign(graph, {
+          '51': {
+            class_type: 'UltralyticsDetectorProvider',
+            inputs: { model_name: process.env.RUNPOD_ADETAILER_MODEL?.trim() || 'face_yolov8m.pt' },
+          },
+          '50': {
+            class_type: 'FaceDetailer',
+            inputs: {
+              image: [currentImageOut, 0],
+              model: modelRef,
+              clip: clipRef,
+              vae: vaeRef,
+              positive: samplerInputs.positive,
+              negative: samplerInputs.negative,
+              bbox_detector: ['51', 0],
+              seed: seed + 1,
+              steps: 20,
+              cfg: samplerCfg,
+              sampler_name,
+              scheduler,
+              denoise: 0.4,
+              feather_mask: 5,
+              noise_mask: true,
+              force_inpaint: true,
+              wildcard_opt: '',
+              guide_size: 512,
+              guide_size_for: true,
+              max_size: 1024,
+              bbox_threshold: 0.5,
+              bbox_dilation: 0,
+              bbox_crop_factor: 3,
+              sam_detection_hint: 'center',
+              sam_dilation: 0,
+              sam_threshold: 0.93,
+              sam_expansion: 0.5,
+              segs_pivot: 'center',
+            },
+          },
+        });
+        currentImageOut = '50';
+      }
+    }
+
+    if (opts.upscale_factor && opts.upscale_factor > 1) {
+      if (!enhancerFlag('RUNPOD_UPSCALE_READY')) {
+        logger.warn('[runpod] upscale requested but RUNPOD_UPSCALE_READY is off — skipping');
+      } else {
+        const factor = Math.min(4, Math.max(1.5, opts.upscale_factor));
+        const megapixels = Math.min(
+          4.2,
+          Math.max(1, ((width * height) / 1_000_000) * factor * factor),
+        );
+        Object.assign(graph, {
+          '60': {
+            class_type: 'UpscaleModelLoader',
+            inputs: { upscale_model: process.env.RUNPOD_UPSCALE_MODEL?.trim() || '4x-UltraSharp.pth' },
+          },
+          '61': {
+            class_type: 'ImageUpscaleWithModel',
+            inputs: { upscale_model: ['60', 0], image: [currentImageOut, 0] },
+          },
+          '62': {
+            class_type: 'ImageScaleToTotalPixels',
+            inputs: {
+              upscale_method: 'lanczos',
+              image: ['61', 0],
+              megapixels: Number(megapixels.toFixed(2)),
+            },
+          },
+        });
+        currentImageOut = '62';
+      }
+    }
+
+    if (currentImageOut !== '6') {
+      saveInputs.images = [currentImageOut, 0];
+    }
+    return graph;
+  };
+
   // img2img path
   if (effectiveInputImage) {
     const denoise = opts.denoising_strength ?? (sdxlReferenceImage ? 0.62 : 0.55);
@@ -406,7 +549,7 @@ export function buildFluxWorkflow(opts: {
       },
     };
     Object.assign(graph, loaderNodes, loraNodes, clipSkipNodes, fluxGuidanceNodes, ipAdapterNodes);
-    return graph;
+    return applyEnhancements(graph);
   }
 
   // txt2img (default) — FLUX-safe empty negative + cfg≈1
@@ -448,7 +591,7 @@ export function buildFluxWorkflow(opts: {
     },
   };
   Object.assign(graph, loaderNodes, loraNodes, clipSkipNodes, fluxGuidanceNodes, ipAdapterNodes);
-  return graph;
+  return applyEnhancements(graph);
 }
 
 // 
@@ -492,6 +635,14 @@ export interface RunPodGenerateOptions {
   ip_adapter_image?: string;
   /** IP-Adapter weight 0–1 (default 0.75). Higher = stronger face similarity. */
   ip_adapter_weight?: number;
+  /** ControlNet reference image (URL/base64/worker filename) for pose/depth control. */
+  control_image?: string;
+  /** ControlNet strength 0.2–1 (default 0.7). */
+  control_strength?: number;
+  /** Run an Impact Pack FaceDetailer pass after the base generation. */
+  face_detailer?: boolean;
+  /** Hi-res upscale factor (1.5–4) applied after the base generation. */
+  upscale_factor?: number;
   /** Optional installed enhancement passes; validated by the admin API. */
   enhancers?: {
     controlnet?: boolean;
@@ -883,6 +1034,23 @@ class RunPodClient {
       }
     }
 
+    // Resolve ControlNet reference image (same mechanism as input_image)
+    let controlImageName: string | undefined;
+    let controlImageB64: string | undefined;
+    if (options.control_image) {
+      try {
+        const resolved = await resolveInputImageBase64(options.control_image);
+        if (resolved) {
+          controlImageName = `controlnet_ref.${resolved.name.split('.').pop() || 'png'}`;
+          controlImageB64 = resolved.base64;
+        }
+      } catch (err) {
+        logger.warn('[runpod] failed to resolve control_image, skipping ControlNet', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     const promptText = String(options.prompt || '').trim();
     if (!promptText) {
       throw new Error('prompt is required (empty positive prompt)');
@@ -924,6 +1092,16 @@ class RunPodClient {
       loras: options.loras,
       ip_adapter_image: ipAdapterImageName || (options.ip_adapter_image && !options.ip_adapter_image.startsWith('http') && !options.ip_adapter_image.startsWith('data:') ? options.ip_adapter_image : undefined),
       ip_adapter_weight: options.ip_adapter_weight,
+      control_image:
+        controlImageName ||
+        (options.control_image &&
+        !options.control_image.startsWith('http') &&
+        !options.control_image.startsWith('data:')
+          ? options.control_image
+          : undefined),
+      control_strength: options.control_strength,
+      face_detailer: options.face_detailer,
+      upscale_factor: options.upscale_factor,
     });
 
     const samplerNode = workflow['5'] as { inputs?: Record<string, unknown> } | undefined;
@@ -951,6 +1129,9 @@ class RunPodClient {
     }
     if (ipAdapterImageName && ipAdapterImageB64) {
       imageEntries.push({ name: ipAdapterImageName, image: ipAdapterImageB64 });
+    }
+    if (controlImageName && controlImageB64) {
+      imageEntries.push({ name: controlImageName, image: controlImageB64 });
     }
     const imagesPayload = imageEntries.length ? { images: imageEntries } : {};
 

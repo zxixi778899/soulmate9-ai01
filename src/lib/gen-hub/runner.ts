@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
+import { hasAnyCapability, parseGenCapabilities } from './capabilities';
 import { createGenJob, updateGenJob, updateGenJobStage } from './jobs';
 import { GEN_HUB_INTERNAL_HEADER, type GenJobKind, type GenerationJob } from './types';
 
@@ -69,12 +70,29 @@ export async function runGenerationJob(
 ): Promise<RunGenerationJobResult> {
   const route = input.delegate;
 
+  // Normalize enhancement capability flags (control / face_fix / upscale /
+  // identity_image) so delegated pipelines see one canonical shape under
+  // params.capabilities; invalid entries are dropped with a warning.
+  const capabilities = parseGenCapabilities(input.params);
+  const params = hasAnyCapability(capabilities)
+    ? { ...input.params, capabilities }
+    : input.params;
+  if (hasAnyCapability(capabilities)) {
+    logger.info('[gen-hub] job capabilities', {
+      kind: input.kind,
+      control: capabilities.control?.type || null,
+      face_fix: !!capabilities.face_fix,
+      upscale: capabilities.upscale ?? null,
+      identity: !!capabilities.identity_image,
+    });
+  }
+
   const job = await createGenJob(input.client, {
     user_id: input.userId,
     kind: input.kind,
     girlfriend_id: input.girlfriendId ?? null,
     idempotency_key: input.idempotencyKey ?? null,
-    params: input.params,
+    params,
     nsfw_level: input.nsfwLevel ?? 0,
     status: 'queued',
     stage: 'queued',
@@ -105,7 +123,7 @@ export async function runGenerationJob(
       'x-session': input.sessionToken,
       [GEN_HUB_INTERNAL_HEADER]: '1',
     },
-    body: JSON.stringify(input.params),
+    body: JSON.stringify(params),
   });
 
   let response: Response;

@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * Character Creator v4 — golove 式五步向导（风格 → 基本 → 面部 → 身材 → 立绘）。
+ * Character Creator v4 — 四步向导（风格 → 面部/身材 → 人设+内容级别 → 立绘）。
  *
- * Steps 风格/基本/面部/身材：左侧档案卡预览 + 右侧分步选项面板；
+ * Steps 风格/面部身材/人设：左侧档案卡预览 + 右侧分步选项面板；
+ * Step 人设：身份档案 + 性格灵魂 + 声音 + NSFW 内容级别（5 级预览图）；
  * Step 立绘：4 张 AI 立绘并排生成，选一张完成。
  * On success a gacha-style reveal modal shows the rolled score / rarity.
  *
@@ -45,8 +46,8 @@ import type { CreatorPreset } from '@/lib/creator-presets';
 import { VOICE_TIMBRES } from '@/lib/voice-timbres';
 import type { CharacterPart } from '@/lib/character-parts';
 
-type CreateStep = 'style' | 'general' | 'face' | 'body' | 'portrait';
-const CREATE_STEPS: CreateStep[] = ['style', 'general', 'face', 'body', 'portrait'];
+type CreateStep = 'style' | 'appearance' | 'general' | 'portrait';
+const CREATE_STEPS: CreateStep[] = ['style', 'appearance', 'general', 'portrait'];
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -166,6 +167,57 @@ const DEFAULT_STYLE_PREVIEWS: Record<string, string> = {
   '3d': 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/3d.png',
 };
 
+/** 内容级别 1-5 预设预览图（portraits/nsfw-previews/level-N.png，后台可替换） */
+const NSFW_LEVEL_PREVIEWS: Record<number, string> = {
+  1: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-1.png',
+  2: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-2.png',
+  3: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-3.png',
+  4: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-4.png',
+  5: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-5.png',
+};
+
+/** 内容级别选择卡：预设预览图 + 级别名，图片缺失/加载失败回退渐变占位 */
+function NsfwLevelCard({ lv, label, active, onClick }: { lv: number; label: string; active: boolean; onClick: () => void }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const preview = NSFW_LEVEL_PREVIEWS[lv];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className={cn(
+        'group relative aspect-[3/4] overflow-hidden rounded-xl border text-left transition-all duration-300 touch-manipulation',
+        active
+          ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_22px_rgba(255,45,120,0.4)]'
+          : 'border-white/[0.09] shadow-[0_4px_14px_rgba(0,0,0,0.3)] hover:border-[#FF2D78]/50',
+      )}
+    >
+      {preview && !imgFailed ? (
+        // object-top 对齐主页女友卡标准：头部永不被裁切
+        <img
+          src={preview}
+          alt={label}
+          loading="lazy"
+          onError={() => setImgFailed(true)}
+          className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.06]"
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#FF2D78]/20 via-white/[0.03] to-[#8b5cf6]/25">
+          <span className="text-2xl font-black text-white/60">{lv}</span>
+        </div>
+      )}
+      {active && (
+        <span className="absolute right-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_10px_rgba(255,45,120,0.6)]">
+          <Check className="h-3 w-3 text-white" />
+        </span>
+      )}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-1 pb-1.5 pt-5 text-center">
+        <span className="text-[10px] font-semibold text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{lv} · {label}</span>
+      </div>
+    </button>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function CreatePage() {
@@ -173,7 +225,7 @@ export default function CreatePage() {
   const { t, locale } = useTranslation();
   const zh = locale === 'zh';
 
-  // Steps: golove 式五步向导 风格 → 基本 → 面部 → 身材 → 立绘
+  // Steps: 四步向导 风格 → 面部/身材 → 人设+内容级别 → 立绘
   const [step, setStep] = useState<CreateStep>('style');
   /** 立绘内容级别：1-5 全部支持（默认 1 = SFW，捏脸不锁定 NSFW） */
   const [nsfwLevel, setNsfwLevel] = useState(1);
@@ -563,9 +615,8 @@ export default function CreatePage() {
   const readyCount = slots.filter((s) => s.status === 'ready').length;
   const stepLabels: TranslationKey[] = [
     'create.stepStyle',
+    'create.stepFaceBody',
     'create.stepGeneral',
-    'create.stepFace',
-    'create.stepBody',
     'create.portrait',
   ];
   const stepIndex = CREATE_STEPS.indexOf(step);
@@ -654,8 +705,8 @@ export default function CreatePage() {
                   </div>
                 ) : (
                   <>
-                    {/* Preset quick-start rail — 仅风格步展示（golove 式先选人设模板） */}
-                    {step === 'style' && presets.length > 0 && (
+                    {/* Preset quick-start rail — 风格步 + 面部/身材步展示预设预览图 */}
+                    {(step === 'style' || step === 'appearance') && presets.length > 0 && (
                       <Panel
                         title={t('create.quickStart')}
                         hint={t('create.quickStartHint')}
@@ -801,7 +852,7 @@ export default function CreatePage() {
 
                       {/* Right column: options */}
                       <div className="space-y-4">
-                        {/* ── 基本步（golove General）：身份档案 ── */}
+                        {/* ── 人设步：身份档案 ── */}
                         {step === 'general' && (
                         <Panel title={t('create.identity')}>
                           <div className="grid grid-cols-[1fr_auto] gap-3">
@@ -942,8 +993,8 @@ export default function CreatePage() {
                         </Panel>
                         )}
 
-                        {/* ── 面部步（golove Face）：种族 / 脸型 / 发型 / 眸色 / 肤色 / 发色 ── */}
-                        {step === 'face' && (
+                        {/* ── 面部/身材步：种族 / 脸型 / 发型 / 眸色 / 肤色 / 发色 ── */}
+                        {step === 'appearance' && (
                         <Panel title={t('create.stepFace')}>
                           {/* Pill groups */}
                           {[
@@ -1001,8 +1052,8 @@ export default function CreatePage() {
                         </Panel>
                         )}
 
-                        {/* ── 身材步（golove Body）：体型 / 穿搭风格 / 额外备注 ── */}
-                        {step === 'body' && (
+                        {/* ── 面部/身材步（续）：体型 / 穿搭风格 / 额外备注 ── */}
+                        {step === 'appearance' && (
                         <Panel title={t('create.stepBody')}>
                           {[
                             { key: 'body_type', title: t('create.bodyType'), items: getOpts('body_type'), value: bodyType, set: setBodyType },
@@ -1116,6 +1167,21 @@ export default function CreatePage() {
                                   {locale === 'zh' ? timbre.descZh : timbre.descEn}
                                 </div>
                               </button>
+                            ))}
+                          </div>
+                        </Panel>
+
+                        {/* ── 内容级别（NSFW 1-5）：预设预览图选择，选完即可生图 ── */}
+                        <Panel title={t('create.contentLevel')} hint={t('create.nsfwLevelHint')}>
+                          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                            {[1, 2, 3, 4, 5].map((lv) => (
+                              <NsfwLevelCard
+                                key={lv}
+                                lv={lv}
+                                label={t(CONTENT_LEVEL_KEYS[lv])}
+                                active={nsfwLevel === lv}
+                                onClick={() => setNsfwLevel(lv)}
+                              />
                             ))}
                           </div>
                         </Panel>
@@ -1260,10 +1326,10 @@ export default function CreatePage() {
           <ArrowLeft className="h-4 w-4" /> {t('create.back')}
         </button>
 
-        {step === 'body' ? (
+        {step === 'general' ? (
           <GamePrimaryButton
             className="h-11 px-6 touch-manipulation"
-            disabled={!infoValid || noCards || loadingData}
+            disabled={!infoValid || !generalValid || noCards || loadingData}
             onClick={startPortraitStep}
           >
             <Wand2 className="h-4 w-4" />
@@ -1275,7 +1341,6 @@ export default function CreatePage() {
         ) : step !== 'portrait' ? (
           <GamePrimaryButton
             className="h-11 px-6 touch-manipulation"
-            disabled={step === 'general' && !generalValid}
             onClick={goNextStep}
           >
             {t('create.next')}

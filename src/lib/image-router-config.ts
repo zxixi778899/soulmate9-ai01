@@ -79,7 +79,7 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
   {
     id: 'runpod-dc2',
     provider: 'runpod_dc2',
-    label: 'RunPod Pony / Illustrious',
+    label: 'RunPod SDXL Pro Matrix (Pony / Illustrious)',
     enabled: true,
     priority: 15,
     timeout_ms: 30_000,
@@ -90,7 +90,8 @@ export const DEFAULT_IMAGE_ROUTES: ImageRouteConfig[] = [
     supports_reference: true,
     nsfw_capable: true,
     endpoint_env: 'RUNPOD_ENDPOINT_ID_SDXL',
-    notes: 'Dedicated SDXL endpoint: Pony for adult realism/transgender; Illustrious for 2D.',
+    notes:
+      'Dedicated SDXL matrix endpoint: ponyRealism for realistic female/male/transgender; Illustrious for anime. Gated by RUNPOD_SDXL_MODELS_READY; degrades to FLUX routes on failure.',
   },
 ];
 
