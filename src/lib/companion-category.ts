@@ -50,15 +50,29 @@ export function normalizeCompanionCategory(input: {
   style?: unknown;
   tags?: unknown;
 }): CompanionCategory {
-  // Anime is a render-style category (not a gender): 2d/anime style or tags route here first.
-  if (exactStyle(input.style) === '2d') return 'anime';
-  if (Array.isArray(input.tags) && input.tags.some((tag) => ['anime', '2d', 'manga'].includes(String(tag).trim().toLowerCase()))) return 'anime';
   const gender = String(input.gender || '').trim().toLowerCase();
   // Gender is an identity field. Style and tags must never override it.
   if (/\btrans(?:gender|sexual)?\b|non.?binary|mtf|ftm/.test(gender)) return 'transgender';
   if (/\bmale\b|\bman\b|\bmen\b|boyfriend/.test(gender)) return 'male';
   if (/\bfemale\b|\bwoman\b|\bwomen\b|girlfriend/.test(gender)) return 'female';
   return 'female';
+}
+
+/**
+ * Display-side classification for catalog browsing (Explore / Home tabs).
+ * Unlike normalizeCompanionCategory (which feeds the generation pipeline and
+ * must stay gender-first so pronouns/anatomy stay consistent), the showcase
+ * surfaces group 2D companions under the Anime tab: 2d/anime style or tags
+ * win over gender here.
+ */
+export function companionDisplayCategory(input: {
+  gender?: unknown;
+  style?: unknown;
+  tags?: unknown;
+}): CompanionCategory {
+  if (exactStyle(input.style) === '2d') return 'anime';
+  if (Array.isArray(input.tags) && input.tags.some((tag) => ['anime', '2d', 'manga'].includes(String(tag).trim().toLowerCase()))) return 'anime';
+  return normalizeCompanionCategory(input);
 }
 
 export type CompanionRenderStyle = 'realistic' | '2d' | '3d';

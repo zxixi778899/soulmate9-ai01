@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeCompanionCategory, normalizeCompanionRenderStyle, STUDIO_PROMPTS } from '../companion-category';
+import { companionDisplayCategory, normalizeCompanionCategory, normalizeCompanionRenderStyle, STUDIO_PROMPTS } from '../companion-category';
 
 describe('companion categories', () => {
   it('never lets render style override gender', () => {
@@ -17,6 +17,13 @@ describe('companion categories', () => {
   it('detects transgender and male rows', () => {
     expect(normalizeCompanionCategory({ gender: 'Transgender' })).toBe('transgender');
     expect(normalizeCompanionCategory({ gender: 'Male' })).toBe('male');
+  });
+
+  it('groups 2D companions under the anime tab for display only', () => {
+    expect(companionDisplayCategory({ gender: 'Female', style: 'anime' })).toBe('anime');
+    expect(companionDisplayCategory({ gender: 'Male', tags: ['2d'] })).toBe('anime');
+    expect(companionDisplayCategory({ gender: 'Male', style: 'realistic' })).toBe('male');
+    expect(companionDisplayCategory({ gender: 'Transgender', style: 'photorealistic' })).toBe('transgender');
   });
 
   it('keeps every studio preset adult-only', () => {
