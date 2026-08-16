@@ -20,7 +20,7 @@ ALTER TABLE gen_preset_catalog ADD COLUMN IF NOT EXISTS style_family VARCHAR(16)
 ALTER TABLE gen_preset_catalog ADD COLUMN IF NOT EXISTS pose_reference TEXT;
 -- URL or storage key for ControlNet pose image thumbnail / reference.
 
-ALTER TABLE gen_preset_catalog ADD COLUMN IF NOT EXISTS workflow_flags JSONB DEFAULT '{}::jsonb';
+ALTER TABLE gen_preset_catalog ADD COLUMN IF NOT EXISTS workflow_flags JSONB DEFAULT '{}'::jsonb;
 -- { "face_fix": true, "upscale": 2, "identity_image": true } default choices from preset.
 
 -- Update indexes if they don't exist (defensive).
