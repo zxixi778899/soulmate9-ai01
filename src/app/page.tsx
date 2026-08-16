@@ -9,7 +9,7 @@
  * - Leaderboard / Modules / Promo / Footer kept below
  */
 
-import { Fragment, useEffect, useState, useCallback, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useDataSync } from '@/hooks/useDataSync';
 import { useRouter } from 'next/navigation';
@@ -42,6 +42,38 @@ import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory
 import { useSiteSettings, useSiteAds } from '@/hooks/useSiteSettings';
 import { useGridPreviewSize } from '@/hooks/useGridPreviewSize';
 import { HomeAdBanners } from '@/components/ads/HomeAdBanners';
+import { HomeLayoutAdmin } from '@/components/home/HomeLayoutAdmin';
+import {
+  HOME_SECTION_IDS,
+  type HomeLayoutConfig,
+  type HomeSectionConfig,
+  type HomeSectionId,
+} from '@/lib/home-layout-store';
+
+/**
+ * Admin-driven section wrapper: hides the section when the layout config
+ * marks it invisible and reorders it via CSS `order` (flex container).
+ */
+function Sec({
+  id,
+  layout,
+  children,
+}: {
+  id: HomeSectionId;
+  layout: HomeLayoutConfig | null;
+  children: ReactNode;
+}) {
+  const list = layout?.sections;
+  const idx = list ? list.findIndex((s) => s.id === id) : -1;
+  const cfg = idx >= 0 && list ? list[idx] : null;
+  if (cfg && cfg.visible === false) return null;
+  const order = idx >= 0 ? idx : HOME_SECTION_IDS.indexOf(id);
+  return (
+    <div style={{ order }} className="min-w-0">
+      {children}
+    </div>
+  );
+}
 
 
 const FOOTER_FALLBACK = {
@@ -179,6 +211,32 @@ export default function HomePage() {
   const { settings: siteSettings } = useSiteSettings();
   const { ads: bannerAds } = useSiteAds('banner');
   const gridPreviewSize = useGridPreviewSize();
+  // 管理员板块布局（顺序/显隐/图片覆盖）：公开配置 + 管理面板实时覆盖
+  const [publicLayout, setPublicLayout] = useState<HomeLayoutConfig | null>(null);
+  const [layoutOverride, setLayoutOverride] = useState<HomeLayoutConfig | null>(null);
+  const layout = layoutOverride || publicLayout;
+  const handleLayoutChange = useCallback((l: HomeLayoutConfig) => setLayoutOverride(l), []);
+  const secCfg = useCallback(
+    (id: HomeSectionId): HomeSectionConfig | null =>
+      layout?.sections.find((s) => s.id === id) || null,
+    [layout],
+  );
+  const heroImage = secCfg('hero')?.image || '';
+  const promoImage = secCfg('promo')?.image || '';
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/home-layout')
+      .then((r) => readResponseJson<{ layout?: HomeLayoutConfig }>(r))
+      .then((d) => {
+        if (!cancelled && d?.layout?.sections?.length) setPublicLayout(d.layout);
+      })
+      .catch(() => {
+        /* offline — fall back to built-in order */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // 公告 i18n：后台默认英文文案命中时展示当前语言翻译，自定义文案原样渲染
   const announceText = siteSettings?.announcement_text?.includes('beta test kicks off')
     ? t('home.betaAnnouncement')
@@ -387,11 +445,14 @@ export default function HomePage() {
         <div className="hidden md:block absolute top-1/4 left-[15%] h-48 w-48 rounded-full bg-[#ff2e88]/10 blur-[64px]" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-none px-3 sm:px-5 lg:px-8 pt-2 sm:pt-4 space-y-4 sm:space-y-6">
+      <div className="relative z-10 mx-auto flex w-full max-w-none flex-col px-3 sm:px-5 lg:px-8 pt-2 sm:pt-4 space-y-4 sm:space-y-6">
         {/* Ad banner — 广告栏（后台 admin_ads 管理，position=banner；i18n 文案覆盖层见 HomeAdBanners） */}
-        <HomeAdBanners ads={bannerAds} />
+        <Sec id="adsBanner" layout={layout}>
+          <HomeAdBanners ads={bannerAds} />
+        </Sec>
 
         {/* Announcement bar — 公告栏（后台 site_settings 管理）· i18n + 走马灯 + 发光，置于广告图下方 */}
+        <Sec id="announcement" layout={layout}>
         {siteSettings?.announcement_enabled && announceText ? (
           <div className="relative overflow-hidden rounded-2xl border border-amber-300/30 bg-gradient-to-r from-amber-300/15 via-[#FF2D78]/10 to-amber-300/15 px-3.5 py-2.5 shadow-[0_0_28px_rgba(252,211,77,0.28),inset_0_0_20px_rgba(255,46,136,0.10)]">
             <div className="flex items-center gap-2.5">
@@ -415,9 +476,17 @@ export default function HomePage() {
             </div>
           </div>
         ) : null}
+        </Sec>
 
         {/* Top */}
+        <Sec id="hero" layout={layout}>
         <div className="relative flex flex-col items-center gap-1.5 text-center">
+          {heroImage ? (
+            <div className="relative mb-2 h-40 w-full overflow-hidden rounded-2xl ring-1 ring-white/10 sm:h-56">
+              {/* eslint-disable-next-line @next/next/no-img-element -- admin-managed hero artwork */}
+              <img src={heroImage} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+            </div>
+          ) : null}
           <div className="flex items-center justify-center gap-2 flex-wrap">
             <GameChip>
               <Flame className="h-3 w-3" /> 18+
@@ -452,8 +521,10 @@ export default function HomePage() {
             <span className="hidden sm:inline">{t('home.share')}</span>
           </button>
         </div>
+        </Sec>
 
         {/* ═══════════ Live avatars rail（golove 式圆形头像横排） ═══════════ */}
+        <Sec id="liveRail" layout={layout}>
         <section aria-label="Live companions">
           <div className="mb-2 flex items-center gap-2">
             <span className="relative flex h-2 w-2">
@@ -481,8 +552,10 @@ export default function HomePage() {
             ))}
           </div>
         </section>
+        </Sec>
 
         {/* Guest conversion strip */}
+        <Sec id="guestStrip" layout={layout}>
         {!user && (
           <div className="flex items-center gap-3 rounded-2xl border border-[#ff2e88]/30 bg-gradient-to-r from-[#FF2D78]/[0.16] via-transparent to-[#C026D3]/[0.16] px-4 py-3">
             <div className="min-w-0 flex-1">
@@ -498,8 +571,10 @@ export default function HomePage() {
             </button>
           </div>
         )}
+        </Sec>
 
         {/* ═══════════ 两层筛选：排序下拉 + 分类 chips（golove 式） ═══════════ */}
+        <Sec id="filters" layout={layout}>
         <div className="flex items-center gap-2">
           <div className="flex flex-1 gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Companion categories">
             <button type="button" onClick={() => setCategoryFilter('all')} className={cn('shrink-0 rounded-full border px-4 py-2 text-xs font-semibold', categoryFilter === 'all' ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white' : 'border-white/10 bg-white/5 text-white/55')}>{t('landing.filterAll')}</button>
@@ -516,8 +591,10 @@ export default function HomePage() {
             <option value="featured">{t('home.sortFeatured')}</option>
           </select>
         </div>
+        </Sec>
 
         {/* ═══════════ 高密度卡片网格（golove 式：22px 圆角 + 底部渐变文字层） ═══════════ */}
+        <Sec id="hotGrid" layout={layout}>
         <section>
           <div className="flex flex-col items-center text-center mb-3">
             <div className="game-chip mb-1">
@@ -546,11 +623,15 @@ export default function HomePage() {
             </button>
           </div>
         </section>
+        </Sec>
 
         {/* ═══════════ Ranking：人气创作者 Top15（虚拟+真实合并） ═══════════ */}
-        <LeaderboardRail />
+        <Sec id="leaderboard" layout={layout}>
+          <LeaderboardRail />
+        </Sec>
 
         {/* ═══════════ Modules: 2 rows × 3 cols ═══════════ */}
+        <Sec id="modules" layout={layout}>
         <section>
           <div className="flex flex-col items-center text-center mb-3">
             <div className="game-chip mb-1">HUB · 2 ROWS</div>
@@ -583,9 +664,21 @@ export default function HomePage() {
             })}
           </div>
         </section>
+        </Sec>
 
         {/* Promo */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Sec id="promo" layout={layout}>
+        {promoImage ? (
+          <button
+            type="button"
+            onClick={() => router.push('/wallet')}
+            className="relative block h-36 w-full overflow-hidden rounded-2xl ring-1 ring-white/10 transition-all active:scale-[0.99] sm:h-44"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- admin-managed promo artwork */}
+            <img src={promoImage} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+          </button>
+        ) : (
+          <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <PromoCard
             onClick={() => router.push('/wallet')}
             badge="RECHARGE"
@@ -606,12 +699,15 @@ export default function HomePage() {
             desc={locale === 'en' ? (siteSettings?.achievement_banner_desc || t('home.promoQuestDesc')) : t('home.promoQuestDesc')}
             glow="from-[#ff2e88]/20"
           />
-        </section>
+          </section>
+        )}
+        </Sec>
 
 
         {/* (Ad banner moved to the top of the homepage) */}
 
         {/* ═══════════ Footer ═══════════ */}
+        <Sec id="footer" layout={layout}>
         <footer className="glass-strong rounded-2xl px-4 sm:px-6 py-6 sm:py-8 mt-2">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
             <div>
@@ -700,7 +796,11 @@ export default function HomePage() {
             </span>
           </div>
         </footer>
+        </Sec>
       </div>
+
+      {/* 首页板块管理（仅管理员可见：拖拽排序/显隐/换图） */}
+      <HomeLayoutAdmin onLayoutChange={handleLayoutChange} />
 
       {detail && (
         <CompanionDetailModal
