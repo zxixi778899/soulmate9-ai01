@@ -92,7 +92,8 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
 
   return (
     <section
-      className="relative h-44 sm:h-60"
+      // 横屏构图：移动端 16:9 观感 → 桌面更宽幅，高度随断点抬升
+      className="relative h-52 sm:h-64 lg:h-80"
       aria-label="Featured offers"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
@@ -120,11 +121,11 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
                 copy?.coverClass || 'object-center',
               )}
             />
-            {/* 左暗右透：保左侧 i18n 文案可读，不遮右侧人物与内嵌性格文案 */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-transparent pointer-events-none" />
+            {/* 均匀暗化：居中排版下整幅文案可读，不偏侧遮人物 */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/30 to-black/50 pointer-events-none" />
             {copy ? (
-              // 文案左对齐纵居中，右侧留白给人物与内嵌 quote
-              <div className="relative z-[2] h-full flex flex-col items-start justify-center gap-1 sm:gap-1.5 pl-5 sm:pl-8 pr-[38%] text-left">
+              // 文案居中排版：badge → 标题 → chips → CTA 纵向居中
+              <div className="relative z-[2] h-full flex flex-col items-center justify-center gap-1 sm:gap-2 px-4 text-center">
                 <span
                   className={cn(
                     'w-fit rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-black tracking-widest ring-1 backdrop-blur',
@@ -142,7 +143,7 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
                   </p>
                 ) : null}
                 {copy.chips ? (
-                  <div className="flex flex-wrap justify-start gap-1.5 mt-0.5">
+                  <div className="flex flex-wrap justify-center gap-1.5 mt-0.5">
                     {copy.chips.map((chip) => (
                       <span
                         key={chip}
@@ -194,9 +195,9 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
         );
       })}
 
-      {/* 轮播指示点 */}
+      {/* 轮播指示点（居中排版 → 底部居中） */}
       {count > 1 ? (
-        <div className="absolute bottom-2 right-3 z-[3] flex gap-1.5">
+        <div className="absolute bottom-2 left-1/2 z-[3] flex -translate-x-1/2 gap-1.5">
           {ads.map((ad, i) => (
             <button
               key={ad.id}

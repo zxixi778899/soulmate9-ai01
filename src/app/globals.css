@@ -1559,3 +1559,14 @@ body {
 .creator-rail::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(90deg, #ff5c97, #a78bfa);
 }
+
+/* 卡片 hover 图片轮转（无视频伴侣）：缓慢推拉 + 微移的呼吸式运镜 */
+@keyframes card-kenburns {
+  0% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.09) translateY(-2%); }
+  100% { transform: scale(1) translateY(0); }
+}
+.card-kenburns {
+  animation: card-kenburns 5s ease-in-out infinite;
+  will-change: transform;
+}

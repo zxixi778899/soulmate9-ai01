@@ -32,6 +32,7 @@ import {
   GameShell, GameChip, RarityBadge,
 } from '@/components/game/GameShell';
 import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/LockedPortrait';
+import type { PreviewSize } from '@/lib/image-preview';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
@@ -48,35 +49,57 @@ const FOOTER_FALLBACK = {
   email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@oxmate-ai.com',
 };
 
+/** 网格像素档随断点自适应：桌面列多卡宽小 → detail 档（832px）保视网膜清晰；移动端卡宽大 → card 档（512px）控流量 */
+function useGridPreviewSize(): PreviewSize {
+  const [size, setSize] = useState<PreviewSize>('card');
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const apply = () => setSize(mq.matches ? 'detail' : 'card');
+    apply();
+    mq.addEventListener?.('change', apply);
+    return () => mq.removeEventListener?.('change', apply);
+  }, []);
+  return size;
+}
+
 /** 高密度网格卡片（golove 式：22px 圆角 + 底部黑渐变文字层） */
 function GridCard({
   g,
   onOpen,
   className,
+  previewSize = 'card',
 }: {
   g: DemoGirl;
   onOpen: (g: DemoGirl) => void;
   className?: string;
+  previewSize?: PreviewSize;
 }) {
   const { t } = useTranslation();
+  const video = g.video || g.avatar_video;
   return (
     <button
       type="button"
       onClick={() => onOpen(g)}
       className={cn(
-        'relative overflow-hidden rounded-[22px] text-left ring-1 ring-white/10 transition-all active:scale-[0.98] hover:ring-[#ff2e88]/45 hover:shadow-[0_0_28px_rgba(255,46,136,0.22)]',
+        'group relative overflow-hidden rounded-[22px] text-left ring-1 ring-white/10 transition-all active:scale-[0.98] hover:ring-[#ff2e88]/45 hover:shadow-[0_0_28px_rgba(255,46,136,0.22)]',
         className,
       )}
     >
       <div className="relative aspect-[3/4]">
         <CardMedia
           src={g.portrait || g.avatar}
+          videoSrc={video}
           alt={g.name}
           hoverPlay
           forcePlay={false}
           showBadge={false}
           fit="cover"
-          imgClassName={lockedImageClass(g.locked)}
+          previewSize={previewSize}
+          imgClassName={cn(
+            // 无视频的伴侣：hover 时图片呼吸式运镜轮转；有视频则 hoverPlay 接管
+            !video && 'group-hover:[animation:card-kenburns_5s_ease-in-out_infinite]',
+            lockedImageClass(g.locked),
+          )}
         />
         {g.locked && <LockedPortraitOverlay price={g.unlock_price_tokens} className="!backdrop-blur-sm" />}
         {/* 竞品式底部文字层：黑/90 → 透明渐变 */}
@@ -101,6 +124,7 @@ export default function HomePage() {
   const friendStatus = useFriendStatus();
   const { settings: siteSettings } = useSiteSettings();
   const { ads: bannerAds } = useSiteAds('banner');
+  const gridPreviewSize = useGridPreviewSize();
   // 公告 i18n：后台默认英文文案命中时展示当前语言翻译，自定义文案原样渲染
   const announceText = siteSettings?.announcement_text?.includes('beta test kicks off')
     ? t('home.betaAnnouncement')
@@ -450,7 +474,7 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5">
             {gridGirls.map((g) => (
-              <GridCard key={g.id} g={g} onOpen={(girl) => setDetail(girl)} />
+              <GridCard key={g.id} g={g} onOpen={(girl) => setDetail(girl)} previewSize={gridPreviewSize} />
             ))}
           </div>
           {/* 更多伴侣按钮 */}

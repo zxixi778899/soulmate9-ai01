@@ -1,11 +1,10 @@
 'use client';
 
 /**
- * Character Creator v3 — game-style companion creation.
+ * Character Creator v4 — golove 式五步向导（风格 → 基本 → 面部 → 身材 → 立绘）。
  *
- * Step 1 "基础信息": card-style panels for appearance + identity (optional
- *         preset quick-start rail).
- * Step 2 "选择立绘": 4 AI portraits generated side by side; pick one, finish.
+ * Steps 风格/基本/面部/身材：左侧档案卡预览 + 右侧分步选项面板；
+ * Step 立绘：4 张 AI 立绘并排生成，选一张完成。
  * On success a gacha-style reveal modal shows the rolled score / rarity.
  *
  * Rarity rule (site-wide, see src/lib/rarity.ts):
@@ -45,6 +44,9 @@ import { CreateSuccessModal, type CreatedCompanionReveal } from '@/components/cr
 import type { CreatorPreset } from '@/lib/creator-presets';
 import { VOICE_TIMBRES } from '@/lib/voice-timbres';
 import type { CharacterPart } from '@/lib/character-parts';
+
+type CreateStep = 'style' | 'general' | 'face' | 'body' | 'portrait';
+const CREATE_STEPS: CreateStep[] = ['style', 'general', 'face', 'body', 'portrait'];
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -163,8 +165,8 @@ export default function CreatePage() {
   const { t, locale } = useTranslation();
   const zh = locale === 'zh';
 
-  // Steps: info → portrait
-  const [step, setStep] = useState<'info' | 'portrait'>('info');
+  // Steps: golove 式五步向导 风格 → 基本 → 面部 → 身材 → 立绘
+  const [step, setStep] = useState<CreateStep>('style');
   /** 立绘内容级别：1-5 全部支持（默认 1 = SFW，捏脸不锁定 NSFW） */
   const [nsfwLevel, setNsfwLevel] = useState(1);
 
@@ -316,6 +318,9 @@ export default function CreatePage() {
     () => name.trim().length >= 2 && age >= 18 && Boolean(ethnicity && hairStyle && eyeColor && bodyType && relationship),
     [name, age, ethnicity, hairStyle, eyeColor, bodyType, relationship],
   );
+
+  // 「基本」步门槛：名字与年龄先行校验，避免到立绘步才报错
+  const generalValid = useMemo(() => name.trim().length >= 2 && age >= 18, [name, age]);
 
   const noCards = Boolean(cardStatus && cardStatus.cards <= 0);
 
@@ -541,18 +546,31 @@ export default function CreatePage() {
     setReveal(null);
     setSlots(EMPTY_SLOTS);
     setSelectedSlot(-1);
-    setStep('info');
+    setStep('style');
     void fetchCreatorData();
   }, [fetchCreatorData]);
 
   // ─── Derived UI bits ─────────────────────────────────────────────────────
 
   const readyCount = slots.filter((s) => s.status === 'ready').length;
-  const stepLabels = [
-    t('create.basics'),
-    t('create.portrait'),
+  const stepLabels: TranslationKey[] = [
+    'create.stepStyle',
+    'create.stepGeneral',
+    'create.stepFace',
+    'create.stepBody',
+    'create.portrait',
   ];
-  const stepIndex = step === 'info' ? 0 : 1;
+  const stepIndex = CREATE_STEPS.indexOf(step);
+  const isFormStep = step !== 'portrait';
+  const goPrevStep = useCallback(() => {
+    const idx = CREATE_STEPS.indexOf(step);
+    if (idx > 0) setStep(CREATE_STEPS[idx - 1]);
+    else router.push('/');
+  }, [step, router]);
+  const goNextStep = useCallback(() => {
+    const idx = CREATE_STEPS.indexOf(step);
+    if (idx >= 0 && idx < CREATE_STEPS.length - 1) setStep(CREATE_STEPS[idx + 1]);
+  }, [step]);
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -582,8 +600,8 @@ export default function CreatePage() {
           </div>
         )}
 
-        {/* 竞品式步骤指示器：圆形图标钮（无连接线），激活 = 品牌粉实心 */}
-        <div className="flex items-center gap-3 sm:gap-4">
+        {/* 竞品式步骤指示器：圆形图标钮（无连接线），激活 = 品牌粉实心；五步紧凑排布 */}
+        <div className="flex items-center gap-2.5 sm:gap-4">
           {stepLabels.map((label, idx) => {
             const active = idx === stepIndex;
             const done = idx < stepIndex;
@@ -599,8 +617,8 @@ export default function CreatePage() {
                 >
                   {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
                 </div>
-                <span className={cn('text-[9px] font-semibold', active ? 'text-white' : 'text-white/40')}>
-                  {label}
+                <span className={cn('text-[9px] font-semibold whitespace-nowrap', active ? 'text-white' : 'text-white/40')}>
+                  {t(label)}
                 </span>
               </div>
             );
@@ -614,9 +632,9 @@ export default function CreatePage() {
           <AnimatePresence mode="wait">
 
             {/* ─── Step 1: 基础信息 ──────────────────────────────────────── */}
-            {step === 'info' && (
+            {isFormStep && (
               <motion.div
-                key="info"
+                key={`form-${step}`}
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -24 }}
@@ -628,8 +646,8 @@ export default function CreatePage() {
                   </div>
                 ) : (
                   <>
-                    {/* Preset quick-start rail */}
-                    {presets.length > 0 && (
+                    {/* Preset quick-start rail — 仅风格步展示（golove 式先选人设模板） */}
+                    {step === 'style' && presets.length > 0 && (
                       <Panel
                         title={t('create.quickStart')}
                         hint={t('create.quickStartHint')}
@@ -645,7 +663,7 @@ export default function CreatePage() {
                                 onClick={() => applyPreset(preset)}
                                 title={`${presetName} — ${zh ? preset.description_zh : preset.description}`}
                                 className={cn(
-                                  'group relative aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-2xl border text-left transition-all duration-300 touch-manipulation sm:w-40',
+                                  'group relative aspect-[3/4] w-36 shrink-0 overflow-hidden rounded-[22px] border text-left transition-all duration-300 touch-manipulation sm:w-40',
                                   activePreset
                                     ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_28px_rgba(255,45,120,0.45)]'
                                     : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-[#FF2D78]/50 hover:shadow-[0_8px_28px_rgba(255,45,120,0.18)]',
@@ -721,7 +739,7 @@ export default function CreatePage() {
                       <div className="relative hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-[#FF2D78]/[0.07] via-white/[0.02] to-transparent shadow-[0_8px_32px_rgba(0,0,0,0.28)] lg:block">
                         <div className="sticky top-4 p-5">
                           {/* Portrait preview — shows the applied preset's artwork */}
-                          <div className="relative mx-auto aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-[0_12px_40px_rgba(139,92,246,0.18)]">
+                          <div className="relative mx-auto aspect-[3/4] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] shadow-[0_12px_40px_rgba(139,92,246,0.18)]">
                             {selectedPreset?.portrait_url ? (
                               <>
                                 {/* 档案卡立绘按需压缩（832px 档） */}
@@ -774,6 +792,8 @@ export default function CreatePage() {
 
                       {/* Right column: options */}
                       <div className="space-y-4">
+                        {/* ── 基本步（golove General）：身份档案 ── */}
+                        {step === 'general' && (
                         <Panel title={t('create.identity')}>
                           <div className="grid grid-cols-[1fr_auto] gap-3">
                             <div>
@@ -814,8 +834,11 @@ export default function CreatePage() {
                             />
                           </div>
                         </Panel>
+                        )}
 
-                        <Panel title={t('create.appearance')}>
+                        {/* ── 风格步（golove Style）：视觉风格卡 + 性别 ── */}
+                        {step === 'style' && (
+                        <Panel title={t('create.stepStyle')}>
                           {/* Visual style cards — artwork preview */}
                           <div className="mb-4 grid grid-cols-3 gap-2.5">
                             {getOpts('visual_style').map((v) => {
@@ -827,7 +850,7 @@ export default function CreatePage() {
                                   type="button"
                                   onClick={() => setVisualStyle(v.value)}
                                   className={cn(
-                                    'group relative aspect-[2/3] overflow-hidden rounded-[20px] border text-left transition-all duration-300 touch-manipulation',
+                                    'group relative aspect-[3/4] overflow-hidden rounded-[20px] border text-left transition-all duration-300 touch-manipulation',
                                     activeStyle
                                       ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_24px_rgba(255,45,120,0.4)]'
                                       : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/25',
@@ -872,15 +895,31 @@ export default function CreatePage() {
                             })}
                           </div>
 
+                          {/* 性别（风格步） */}
+                          {getOpts('gender').length > 0 && (
+                            <div>
+                              <div className="mb-1.5 text-[11px] text-white/40">{t('create.gender')}</div>
+                              <div className="flex flex-wrap gap-2">
+                                {getOpts('gender').map((o) => (
+                                  <Pill key={o.value} active={gender === o.value} onClick={() => setGender(o.value)}>
+                                    {getLabel(o, locale)}
+                                  </Pill>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </Panel>
+                        )}
+
+                        {/* ── 面部步（golove Face）：种族 / 脸型 / 发型 / 眸色 / 肤色 / 发色 ── */}
+                        {step === 'face' && (
+                        <Panel title={t('create.stepFace')}>
                           {/* Pill groups */}
                           {[
-                            { key: 'gender', title: t('create.gender'), items: getOpts('gender'), value: gender, set: setGender },
                             { key: 'ethnicity', title: t('create.ethnicity'), items: getOpts('ethnicity'), value: ethnicity, set: setEthnicity },
                             { key: 'face_shape', title: t('create.faceShape'), items: getOpts('face_shape'), value: faceShape, set: setFaceShape },
-                            { key: 'body_type', title: t('create.bodyType'), items: getOpts('body_type'), value: bodyType, set: setBodyType },
                             { key: 'hair_style', title: t('create.hairStyle'), items: getOpts('hair_style'), value: hairStyle, set: setHairStyle },
                             { key: 'eye_color', title: t('create.eyeColor'), items: getOpts('eye_color'), value: eyeColor, set: setEyeColor },
-                            { key: 'fashion_style', title: t('create.fashionStyle'), items: getOpts('fashion_style'), value: fashionStyle, set: setFashionStyle },
                           ].map((group) => group.items.length > 0 && (
                             <div key={group.key} className="mb-3">
                               <div className="mb-1.5 text-[11px] text-white/40">{group.title}</div>
@@ -928,6 +967,28 @@ export default function CreatePage() {
                             </div>
                           </div>
 
+                        </Panel>
+                        )}
+
+                        {/* ── 身材步（golove Body）：体型 / 穿搭风格 / 额外备注 ── */}
+                        {step === 'body' && (
+                        <Panel title={t('create.stepBody')}>
+                          {[
+                            { key: 'body_type', title: t('create.bodyType'), items: getOpts('body_type'), value: bodyType, set: setBodyType },
+                            { key: 'fashion_style', title: t('create.fashionStyle'), items: getOpts('fashion_style'), value: fashionStyle, set: setFashionStyle },
+                          ].map((group) => group.items.length > 0 && (
+                            <div key={group.key} className="mb-3">
+                              <div className="mb-1.5 text-[11px] text-white/40">{group.title}</div>
+                              <div className="flex flex-wrap gap-2">
+                                {group.items.map((o) => (
+                                  <Pill key={o.value} active={group.value === o.value} onClick={() => group.set(o.value)}>
+                                    {getLabel(o, locale)}
+                                  </Pill>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+
                           {/* Extra notes */}
                           <div>
                             <div className="mb-1.5 text-[11px] text-white/40">
@@ -942,7 +1003,11 @@ export default function CreatePage() {
                             />
                           </div>
                         </Panel>
+                        )}
 
+                        {/* ── 基本步（golove General）：性格灵魂 / 声音 ── */}
+                        {step === 'general' && (
+                        <>
                         <Panel title={t('create.personalitySoul')}>
                           <div className="mb-3">
                             <div className="mb-1.5 text-[11px] text-white/40">
@@ -1023,6 +1088,8 @@ export default function CreatePage() {
                             ))}
                           </div>
                         </Panel>
+                        </>
+                        )}
                       </div>
                     </div>
                   </>
@@ -1084,7 +1151,7 @@ export default function CreatePage() {
                       disabled={slot.status !== 'ready'}
                       onClick={() => setSelectedSlot(idx)}
                       className={cn(
-                        'group relative aspect-[2/3] overflow-hidden rounded-2xl border text-left transition-all',
+                        'group relative aspect-[3/4] overflow-hidden rounded-[22px] border text-left transition-all',
                         slot.status === 'ready' && selectedSlot === idx
                           ? 'border-[#FF2D78] ring-2 ring-[#FF2D78]/60 shadow-[0_0_28px_rgba(255,45,120,0.45)] scale-[1.02]'
                           : slot.status === 'ready'
@@ -1145,7 +1212,7 @@ export default function CreatePage() {
             )}
           </AnimatePresence>
 
-          {error && step === 'info' && <p className="mt-4 text-sm text-red-400">{error}</p>}
+          {error && isFormStep && <p className="mt-4 text-sm text-red-400">{error}</p>}
         </div>
       </div>
 
@@ -1156,16 +1223,13 @@ export default function CreatePage() {
       >
         <button
           type="button"
-          onClick={() => {
-            if (step === 'portrait') { setStep('info'); return; }
-            router.push('/');
-          }}
+          onClick={goPrevStep}
           className="h-11 min-w-[5.5rem] px-4 rounded-full border border-white/10 text-sm flex items-center justify-center gap-1 touch-manipulation hover:bg-white/[0.04]"
         >
           <ArrowLeft className="h-4 w-4" /> {t('create.back')}
         </button>
 
-        {step === 'info' ? (
+        {step === 'body' ? (
           <GamePrimaryButton
             className="h-11 px-6 touch-manipulation"
             disabled={!infoValid || noCards || loadingData}
@@ -1175,6 +1239,15 @@ export default function CreatePage() {
             {noCards
               ? (t('create.noCards'))
               : (t('create.generatePortraits'))}
+            <ArrowRight className="h-4 w-4" />
+          </GamePrimaryButton>
+        ) : step !== 'portrait' ? (
+          <GamePrimaryButton
+            className="h-11 px-6 touch-manipulation"
+            disabled={step === 'general' && !generalValid}
+            onClick={goNextStep}
+          >
+            {t('create.next')}
             <ArrowRight className="h-4 w-4" />
           </GamePrimaryButton>
         ) : (

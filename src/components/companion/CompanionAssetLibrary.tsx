@@ -326,11 +326,12 @@ export function CompanionAssetLibrary(props: {
                 : t('companion.emptyVideo')}
           </p>
         ) : (
-          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+          // 全站相册统一规格：3:4 立绘比例 + 16px 圆角（与伴侣卡视觉语言一致）
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3">
             {current.map((asset) => (
               <div
                 key={asset.id}
-                className="group relative aspect-square overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.04]"
+                className="group relative aspect-[3/4] overflow-hidden rounded-[16px] ring-1 ring-white/10 bg-white/[0.04]"
               >
                 <button
                   type="button"
@@ -339,10 +340,9 @@ export function CompanionAssetLibrary(props: {
                 >
                   {asset.media_type === 'video' ? (
                     <>
-                      { }
                       <video
                         src={asset.thumbnail_url || asset.url}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover object-top"
                         muted
                         preload="metadata"
                       />
@@ -358,7 +358,7 @@ export function CompanionAssetLibrary(props: {
                       src={asset.url}
                       size="card"
                       alt={asset.caption || ''}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover object-top"
                     />
                   )}
                 </button>

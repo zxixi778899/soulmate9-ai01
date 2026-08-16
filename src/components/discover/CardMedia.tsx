@@ -172,9 +172,9 @@ function CardMediaInner({
             src={posterPreview}
             alt={alt}
             className={cn(
-              // 立绘展示：默认等比例中心放大铺满（零遮罩）；hero 主视觉 contain 高清完整展示
-              'absolute inset-0 h-full w-full object-center',
-              fit === 'contain' ? 'object-contain' : 'object-cover',
+              // 立绘展示：默认 object-top 保头部不被裁切；hero 主视觉 contain 高清完整展示
+              'absolute inset-0 h-full w-full',
+              fit === 'contain' ? 'object-contain object-center' : cn('object-cover', objectPosition),
               imgClassName,
               mountVideo && wantPlay ? 'opacity-0' : 'opacity-100',
               'transition-opacity duration-300',

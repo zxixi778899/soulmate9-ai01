@@ -65,7 +65,8 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
   return (
     <motion.div
       className={cn(
-        'relative rounded-3xl overflow-hidden cursor-pointer group',
+        // 全站伴侣卡统一规格：22px 圆角（与首页网格卡一致）
+        'relative rounded-[22px] overflow-hidden cursor-pointer group',
         'bg-[#0e0e12] border-2',
         rStyle.border,
         'transition-shadow duration-300',
@@ -91,7 +92,8 @@ export function GirlfriendCard({ girl, size = 'normal', onSelect, onClick, class
         style={{ background: `radial-gradient(circle at ${lightX}% ${lightY}%, rgba(255, 46, 136, 0.18), transparent 50%)` }}
       />
 
-      <div className="relative aspect-[2/3] overflow-hidden">
+      {/* 全站伴侣卡统一规格：3:4 立绘比例 + object-top 不截头 */}
+      <div className="relative aspect-[3/4] overflow-hidden">
         <div className={cn('absolute inset-0 bg-gradient-to-b opacity-50 z-[1] pointer-events-none',
           girl.rarity === 'SSR' && 'from-[#ffd700]/40 via-[#ff2e88]/15 to-[#00e5ff]/10',
           girl.rarity === 'SR' && 'from-[#ff2e88]/45 to-fuchsia-500/10',
@@ -195,7 +197,7 @@ export function GirlfriendCardGrid({
 }) {
   return (
     <motion.div
-      className={cn('grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-4 sm:gap-5 2xl:gap-6', className)}
+      className={cn('grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 min-[1920px]:grid-cols-7 gap-2.5 sm:gap-3.5 2xl:gap-5', className)}
       initial="hidden" animate="show"
       variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05, delayChildren: 0.05 } } }}
     >
