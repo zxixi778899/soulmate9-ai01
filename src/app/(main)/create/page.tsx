@@ -176,9 +176,8 @@ const NSFW_LEVEL_PREVIEWS: Record<number, string> = {
   5: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-5.png',
 };
 
-/** 内容级别选择卡：预设预览图 + 级别名，图片缺失/加载失败回退渐变占位 */
+/** 内容级别选择卡：预设预览图 + 级别名 */
 function NsfwLevelCard({ lv, label, active, onClick }: { lv: number; label: string; active: boolean; onClick: () => void }) {
-  const [imgFailed, setImgFailed] = useState(false);
   const preview = NSFW_LEVEL_PREVIEWS[lv];
   return (
     <button
@@ -192,20 +191,14 @@ function NsfwLevelCard({ lv, label, active, onClick }: { lv: number; label: stri
           : 'border-white/[0.09] shadow-[0_4px_14px_rgba(0,0,0,0.3)] hover:border-[#FF2D78]/50',
       )}
     >
-      {preview && !imgFailed ? (
-        // object-top 对齐主页女友卡标准：头部永不被裁切
-        <img
-          src={preview}
-          alt={label}
-          loading="lazy"
-          onError={() => setImgFailed(true)}
-          className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.06]"
-        />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#FF2D78]/20 via-white/[0.03] to-[#8b5cf6]/25">
-          <span className="text-2xl font-black text-white/60">{lv}</span>
-        </div>
-      )}
+      {/* imgproxy 压缩失败自动回退原图，永不中断 */}
+      <OptimizedImg
+        src={preview}
+        size="card"
+        alt={label}
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.06]"
+      />
       {active && (
         <span className="absolute right-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_10px_rgba(255,45,120,0.6)]">
           <Check className="h-3 w-3 text-white" />
