@@ -13,7 +13,7 @@ function Avatar({
     <AvatarPrimitive.Root
       data-slot="avatar"
       className={cn(
-        // 全站头像标准：金→粉→紫渐变环 + 圆形 contain 完整展示（参考 LeaderboardRail）
+        // 全站头像标准：金→粉→紫渐变环 + 圆形 1:1 居中裁切（object-cover 默认 center）
         "relative flex size-8 shrink-0 overflow-hidden rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]",
         className
       )}
@@ -29,7 +29,7 @@ function AvatarImage({
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
-      className={cn("aspect-square size-full rounded-full object-contain", className)}
+      className={cn("aspect-square size-full rounded-full object-cover", className)}
       {...props}
     />
   )

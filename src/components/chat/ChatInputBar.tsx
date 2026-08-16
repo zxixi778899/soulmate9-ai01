@@ -880,13 +880,17 @@ export function ChatInputBar(props: {
           <button
             type="button"
             onClick={() => setMoreOpen((v) => !v)}
-            className={cn(
-              'glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center transition-transform active:scale-95',
-              moreOpen && 'rotate-45',
-            )}
+            className="h-11 w-11 shrink-0 rounded-full p-[1.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3] shadow-[0_0_14px_rgba(255,45,120,0.25)] active:scale-95 transition-all touch-manipulation"
             aria-label={moreOpen ? 'Close tools' : 'More tools'}
           >
-            <Plus className="h-5 w-5 text-[#ff6ba6]" />
+            <span
+              className={cn(
+                'flex h-full w-full items-center justify-center rounded-full bg-[#120a16]/95 backdrop-blur transition-transform duration-300',
+                moreOpen && 'rotate-45',
+              )}
+            >
+              <Plus className="h-5 w-5 text-[#ff6ba6]" />
+            </span>
           </button>
 
           <div className="flex-1 min-w-0">
@@ -913,7 +917,7 @@ export function ChatInputBar(props: {
               type="button"
               onClick={onSend}
               disabled={isSending}
-              className="glass-btn h-11 w-11 shrink-0 !rounded-full flex items-center justify-center disabled:opacity-60"
+              className="h-11 w-11 shrink-0 rounded-full flex items-center justify-center bg-gradient-to-r from-[#ff2e88] to-[#c026d3] text-white shadow-[0_0_18px_rgba(255,45,120,0.45)] active:scale-95 transition-all disabled:opacity-60 touch-manipulation"
               aria-label={t('chat.send')}
             >
               {isSending ? (
@@ -927,16 +931,25 @@ export function ChatInputBar(props: {
               type="button"
               onClick={onToggleVoice}
               className={cn(
-                'h-11 w-11 shrink-0 rounded-full flex items-center justify-center active:scale-95',
-                isRecording ? 'bg-red-500/90 text-white' : 'glass text-[#ff6ba6]',
+                'h-11 w-11 shrink-0 rounded-full p-[1.5px] active:scale-95 transition-all touch-manipulation',
+                isRecording
+                  ? 'bg-red-500 shadow-[0_0_16px_rgba(239,68,68,0.55)]'
+                  : 'bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3] shadow-[0_0_14px_rgba(255,45,120,0.25)]',
               )}
               aria-label={isRecording ? 'Stop' : 'Voice'}
             >
-              {isRecording ? (
-                <Square className="h-4 w-4 fill-current" />
-              ) : (
-                <Mic className="h-4 w-4" />
-              )}
+              <span
+                className={cn(
+                  'flex h-full w-full items-center justify-center rounded-full backdrop-blur',
+                  isRecording ? 'bg-red-950/85 text-white' : 'bg-[#120a16]/95 text-[#ff6ba6]',
+                )}
+              >
+                {isRecording ? (
+                  <Square className="h-4 w-4 fill-current" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </span>
             </button>
           )}
         </div>

@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/sheet';
 import {
   Loader2, MessageCircle, Plus, Search, X, Trash2,
-  Heart, BrainCircuit, ChevronDown, Camera, Crown, Globe, Send,
+  Heart, BrainCircuit, ChevronDown, ChevronRight, Camera, Crown, Globe, Send,
   Image as ImageIcon, Shirt,
 } from 'lucide-react';
 import { INTIMACY_LEVELS } from '@/lib/constants';
@@ -192,10 +192,10 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
             onOpenProfile(friend, e);
           }}
         >
-          {/* 会话列表头像：全站标准金→粉→紫渐变环 + object-top 头肩裁切，视网膜档 224px */}
+          {/* 会话列表头像：全站标准金→粉→紫渐变环 + 1:1 居中裁切，视网膜档 224px */}
           <Avatar className="h-14 w-14 shadow-[0_0_16px_rgba(255,45,120,0.28)]">
             {friend.avatar_url
-              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 224)} alt={friend.name} className="object-cover object-top" />
+              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 224)} alt={friend.name} />
               : <AvatarFallback className="bg-gradient-to-br from-[#ff2e88]/40 to-[#c026d3]/30 text-[#ff6ba6] font-bold">{friend.name?.charAt(0) || '?'}</AvatarFallback>}
           </Avatar>
           <span className="absolute -bottom-0.5 -right-0.5 text-sm drop-shadow" title={mood.label}>{mood.emoji}</span>
@@ -1032,9 +1032,6 @@ export default function ChatsPage() {
         <div className="shrink-0 p-4 border-b border-white/[0.06]">
           <div className="relative flex items-center justify-center mb-3">
             <h1 className="text-lg font-bold text-white tracking-tight text-center">{t('messages.friends') || '密语'}</h1>
-            <button type="button" onClick={() => router.push('/create')} className="glass-btn !h-9 !w-9 !rounded-full !p-0 absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center" aria-label="Create">
-              <Plus className="h-4 w-4" />
-            </button>
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ff6ba6]/50" />
@@ -1062,10 +1059,32 @@ export default function ChatsPage() {
             <div className="flex flex-col items-center gap-4 p-8 text-center">
               <MessageCircle className="h-8 w-8 text-[#ff6ba6]/40" />
               <p className="text-sm text-white/40">{t('chats.noChats')}</p>
-              <button type="button" onClick={() => router.push('/create')} className="glass-btn !h-10 !px-4 text-sm">创建伴侣</button>
+              <button type="button" onClick={() => router.push('/create')} className="glass-btn !h-10 !px-4 text-sm">{t('chats.createEntry')}</button>
             </div>
           ) : (
             <ul className="divide-y divide-white/[0.05]">
+              {/* 置顶创建入口：好友位第一项（虚线渐变环 + 加号头像） */}
+              <li className="relative flex items-center">
+                <button
+                  type="button"
+                  onClick={() => router.push('/create')}
+                  className="flex flex-1 min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.04] active:bg-white/[0.06] touch-manipulation"
+                >
+                  <span className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3] shadow-[0_0_16px_rgba(255,45,120,0.28)]">
+                    <span className="flex h-full w-full items-center justify-center rounded-full border border-dashed border-white/25 bg-[#141019]">
+                      <Plus className="h-5 w-5 text-[#ff6ba6]" />
+                    </span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-[15px] font-semibold text-white">{t('chats.createEntry')}</span>
+                      <span className="shrink-0 rounded-full bg-gradient-to-r from-[#ff2e88] to-[#c026d3] px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-white">NEW</span>
+                    </span>
+                    <span className="mt-0.5 block truncate text-[12px] text-white/40">{t('chats.createEntryDesc')}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-white/25" />
+                </button>
+              </li>
               {sorted.map((gf) => (
                 <FriendRow
                   key={gf.id}
