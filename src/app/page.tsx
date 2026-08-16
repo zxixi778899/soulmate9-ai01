@@ -9,7 +9,10 @@
  * - Leaderboard / Modules / Promo / Footer kept below
  */
 
-import { Fragment, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
+import {
+  Fragment, useEffect, useState, useCallback, useMemo, useRef,
+  type ReactNode, type ChangeEvent,
+} from 'react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useDataSync } from '@/hooks/useDataSync';
 import { useRouter } from 'next/navigation';
@@ -17,7 +20,7 @@ import {
   MessageCircle, ShoppingBag, Wand2, Crown,
   Flame, Zap, Users, Share2,
   Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink, Megaphone,
-  Percent, Gift,
+  Percent, Gift, ImagePlus, Trash2, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
@@ -142,9 +145,19 @@ function GridCard({
 function GridPromoCard({
   variant,
   onClick,
+  bgImage,
+  isAdmin,
+  busy,
+  onUpload,
+  onClear,
 }: {
   variant: 'recharge' | 'firstTopup';
   onClick: () => void;
+  bgImage?: string;
+  isAdmin?: boolean;
+  busy?: boolean;
+  onUpload?: () => void;
+  onClear?: () => void;
 }) {
   const { t } = useTranslation();
   const recharge = variant === 'recharge';
@@ -159,14 +172,57 @@ function GridPromoCard({
           : 'ring-[#ff2e88]/40 bg-gradient-to-br from-[#3b0a26] via-[#1f0a1c] to-[#0d0512] hover:ring-[#ff2e88]/70 hover:shadow-[0_0_28px_rgba(255,46,136,0.25)]',
       )}
     >
+      {/* 管理员上传的背景图：暗化遮罩保证文字层可读 */}
+      {bgImage ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element -- admin-managed promo background */}
+          <img src={bgImage} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/30 to-black/60" aria-hidden />
+        </>
+      ) : null}
+      {/* admin 就地管理：上传/移除背景图（普通用户不可见） */}
+      {isAdmin ? (
+        <span
+          className="absolute left-1.5 top-1.5 z-[3] flex gap-1"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <span
+            role="button"
+            tabIndex={0}
+            title={t('homeLayout.uploadImage')}
+            aria-label={t('homeLayout.uploadImage')}
+            onClick={(e) => { e.stopPropagation(); onUpload?.(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onUpload?.(); } }}
+            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white/75 backdrop-blur transition-colors hover:bg-[#FF2D78] hover:text-white"
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+          </span>
+          {bgImage ? (
+            <span
+              role="button"
+              tabIndex={0}
+              title={t('homeLayout.removeImage')}
+              aria-label={t('homeLayout.removeImage')}
+              onClick={(e) => { e.stopPropagation(); onClear?.(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onClear?.(); } }}
+              className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white/75 backdrop-blur transition-colors hover:bg-red-500/90 hover:text-white"
+            >
+              <Trash2 className="h-3 w-3" />
+            </span>
+          ) : null}
+        </span>
+      ) : null}
       <div className="relative flex aspect-[3/4] flex-col items-center justify-center gap-1.5 px-2 text-center">
-        <div
-          className={cn(
-            'absolute -top-8 -right-8 h-28 w-28 rounded-full blur-2xl transition-opacity duration-500 group-hover:opacity-90 opacity-60',
-            recharge ? 'bg-[#ffd700]/30' : 'bg-[#ff2e88]/30',
-          )}
-          aria-hidden
-        />
+        {!bgImage ? (
+          <div
+            className={cn(
+              'absolute -top-8 -right-8 h-28 w-28 rounded-full blur-2xl transition-opacity duration-500 group-hover:opacity-90 opacity-60',
+              recharge ? 'bg-[#ffd700]/30' : 'bg-[#ff2e88]/30',
+            )}
+            aria-hidden
+          />
+        ) : null}
         <span
           className={cn(
             'rounded-md px-2 py-0.5 text-[9px] font-black tracking-[0.2em]',
@@ -223,6 +279,79 @@ export default function HomePage() {
   );
   const heroImage = secCfg('hero')?.image || '';
   const promoImage = secCfg('promo')?.image || '';
+  const gridPromo = layout?.gridPromo;
+  // 管理员就地管理推广卡背景图：探测 /api/admin/home-layout（同第十七轮面板）
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [promoBusy, setPromoBusy] = useState<'recharge' | 'firstTopup' | null>(null);
+  const promoFileRef = useRef<HTMLInputElement>(null);
+  const promoTargetRef = useRef<'recharge' | 'firstTopup' | null>(null);
+  const applyLayoutResponse = useCallback((l: HomeLayoutConfig | undefined) => {
+    if (l?.sections?.length) setLayoutOverride(l);
+  }, []);
+  useEffect(() => {
+    if (!user) return; // 游客必非管理员，不探测
+    let cancelled = false;
+    authedFetch('/api/admin/home-layout')
+      .then(async (r) => {
+        if (!r.ok) return;
+        const data = await readResponseJson<{ layout?: HomeLayoutConfig }>(r);
+        if (cancelled) return;
+        setIsAdmin(true);
+        applyLayoutResponse(data?.layout);
+      })
+      .catch(() => {
+        /* 非管理员：无就地管理入口 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, applyLayoutResponse]);
+  const pickPromoImage = useCallback((variant: 'recharge' | 'firstTopup') => {
+    promoTargetRef.current = variant;
+    promoFileRef.current?.click();
+  }, []);
+  const handlePromoFile = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      const variant = promoTargetRef.current;
+      if (!file || !variant) return;
+      setPromoBusy(variant);
+      try {
+        const fd = new FormData();
+        fd.append('section', variant === 'recharge' ? 'gridPromoRecharge' : 'gridPromoFirstTopup');
+        fd.append('file', file);
+        const res = await authedFetch('/api/admin/home-layout', { method: 'POST', body: fd });
+        const data = await readResponseJson<{ layout?: HomeLayoutConfig }>(res);
+        if (!res.ok) throw new Error((data as { error?: string })?.error || 'upload failed');
+        applyLayoutResponse(data.layout);
+        toast.success(t('homeLayout.saved'));
+      } catch {
+        toast.error(t('homeLayout.saveFailed'));
+      } finally {
+        setPromoBusy(null);
+      }
+    },
+    [applyLayoutResponse, t],
+  );
+  const clearPromoImage = useCallback(
+    async (variant: 'recharge' | 'firstTopup') => {
+      setPromoBusy(variant);
+      try {
+        const section = variant === 'recharge' ? 'gridPromoRecharge' : 'gridPromoFirstTopup';
+        const res = await authedFetch(`/api/admin/home-layout?section=${section}`, { method: 'DELETE' });
+        const data = await readResponseJson<{ layout?: HomeLayoutConfig }>(res);
+        if (!res.ok) throw new Error((data as { error?: string })?.error || 'remove failed');
+        applyLayoutResponse(data.layout);
+        toast.success(t('homeLayout.saved'));
+      } catch {
+        toast.error(t('homeLayout.saveFailed'));
+      } finally {
+        setPromoBusy(null);
+      }
+    },
+    [applyLayoutResponse, t],
+  );
   useEffect(() => {
     let cancelled = false;
     fetch('/api/home-layout')
@@ -606,8 +735,28 @@ export default function HomePage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5">
             {gridGirls.map((g, i) => (
               <Fragment key={g.id}>
-                {i === promoSlots[0] && <GridPromoCard variant="recharge" onClick={() => router.push('/wallet')} />}
-                {i === promoSlots[1] && <GridPromoCard variant="firstTopup" onClick={() => router.push('/wallet')} />}
+                {i === promoSlots[0] && (
+                  <GridPromoCard
+                    variant="recharge"
+                    onClick={() => router.push('/wallet')}
+                    bgImage={gridPromo?.recharge || ''}
+                    isAdmin={isAdmin}
+                    busy={promoBusy === 'recharge'}
+                    onUpload={() => pickPromoImage('recharge')}
+                    onClear={() => void clearPromoImage('recharge')}
+                  />
+                )}
+                {i === promoSlots[1] && (
+                  <GridPromoCard
+                    variant="firstTopup"
+                    onClick={() => router.push('/wallet')}
+                    bgImage={gridPromo?.firstTopup || ''}
+                    isAdmin={isAdmin}
+                    busy={promoBusy === 'firstTopup'}
+                    onUpload={() => pickPromoImage('firstTopup')}
+                    onClear={() => void clearPromoImage('firstTopup')}
+                  />
+                )}
                 <GridCard g={g} onOpen={(girl) => setDetail(girl)} previewSize={gridPreviewSize} />
               </Fragment>
             ))}
@@ -801,6 +950,15 @@ export default function HomePage() {
 
       {/* 首页板块管理（仅管理员可见：拖拽排序/显隐/换图） */}
       <HomeLayoutAdmin onLayoutChange={handleLayoutChange} />
+
+      {/* 推广卡背景图上传选择器（仅管理员触发） */}
+      <input
+        ref={promoFileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => void handlePromoFile(e)}
+      />
 
       {detail && (
         <CompanionDetailModal

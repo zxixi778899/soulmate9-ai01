@@ -7,9 +7,12 @@ import {
   loadHomeLayout,
   saveHomeLayout,
   setHomeSectionImage,
+  setGridPromoImage,
   invalidateHomeLayoutCache,
   isHomeSectionId,
+  isGridPromoVariant,
   HOME_LAYOUT_DEFAULTS,
+  GRID_PROMO_DEFAULTS,
   type HomeSectionConfig,
 } from '@/lib/home-layout-store';
 import { logger } from '@/lib/logger';
@@ -71,7 +74,13 @@ export async function POST(request: NextRequest) {
     const section = String(formData.get('section') || '');
     const file = formData.get('file') as File | null;
 
-    if (!isHomeSectionId(section)) {
+    // Grid promo card backgrounds use their own variant keys.
+    const gridPromoVariant = section.startsWith('gridPromo')
+      ? section.slice('gridPromo'.length).toLowerCase()
+      : '';
+    const homeSection = isHomeSectionId(section) ? section : null;
+
+    if (!homeSection && !isGridPromoVariant(gridPromoVariant)) {
       return NextResponse.json({ error: 'Unknown section' }, { status: 400 });
     }
     if (!file) {
@@ -89,10 +98,15 @@ export async function POST(request: NextRequest) {
 
     const ext = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/webp' ? 'webp' : 'png';
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await uploadFile(buffer, `${section}.${ext}`, file.type, 'home-layout');
+    const assetName = isGridPromoVariant(gridPromoVariant) ? `grid-promo-${gridPromoVariant}` : section;
+    const result = await uploadFile(buffer, `${assetName}.${ext}`, file.type, 'home-layout');
     const url = result.url;
 
-    if (section === 'adsBanner') {
+    if (isGridPromoVariant(gridPromoVariant)) {
+      await setGridPromoImage(gridPromoVariant, url, client);
+      invalidateHomeLayoutCache();
+      invalidateHomepage();
+    } else if (section === 'adsBanner') {
       // Swap the first banner ad's artwork (admin_ads is the banner source of truth).
       const { data: ads, error: adsErr } = await admin.supabase
         .from('admin_ads')
@@ -121,7 +135,10 @@ export async function POST(request: NextRequest) {
       }
       invalidateAds();
     } else {
-      await setHomeSectionImage(section, url, client);
+      if (!homeSection) {
+        return NextResponse.json({ error: 'Unknown section' }, { status: 400 });
+      }
+      await setHomeSectionImage(homeSection, url, client);
       invalidateHomeLayoutCache();
       invalidateHomepage();
     }
@@ -145,8 +162,9 @@ export async function POST(request: NextRequest) {
 
 /**
  * DELETE /api/admin/home-layout
- *  - ?reset=1           restore the default section order / visibility / images
- *  - ?section=hero      clear one section's image override (hero / promo only)
+ *  - ?reset=1                    restore default order / visibility / images
+ *  - ?section=hero|promo         clear one section's image override
+ *  - ?section=gridPromoRecharge|gridPromoFirstTopup  clear a promo card bg
  */
 export async function DELETE(request: NextRequest) {
   const admin = await requireAdmin(request, 'admin');
@@ -157,7 +175,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     if (searchParams.get('reset') === '1') {
-      const layout = await saveHomeLayout(HOME_LAYOUT_DEFAULTS, client);
+      const layout = await saveHomeLayout(HOME_LAYOUT_DEFAULTS, client, GRID_PROMO_DEFAULTS);
       invalidateHomeLayoutCache();
       invalidateHomepage();
       logger.info('[admin/home-layout] reset to defaults');
@@ -165,6 +183,22 @@ export async function DELETE(request: NextRequest) {
     }
 
     const section = String(searchParams.get('section') || '');
+
+    if (section.startsWith('gridPromo')) {
+      const variant = section.slice('gridPromo'.length).toLowerCase();
+      if (!isGridPromoVariant(variant)) {
+        return NextResponse.json(
+          { error: 'section must be gridPromoRecharge or gridPromoFirstTopup' },
+          { status: 400 },
+        );
+      }
+      const layout = await setGridPromoImage(variant, '', client);
+      invalidateHomeLayoutCache();
+      invalidateHomepage();
+      logger.info('[admin/home-layout] grid promo image cleared', { variant });
+      return NextResponse.json({ success: true, layout });
+    }
+
     if (!isHomeSectionId(section) || section === 'adsBanner') {
       return NextResponse.json(
         { error: 'section must be hero or promo' },

@@ -31,6 +31,20 @@ export type HomeSectionId = (typeof HOME_SECTION_IDS)[number];
 /** Sections that support an admin-uploaded image override. */
 export const IMAGE_SECTION_IDS: readonly HomeSectionId[] = ['adsBanner', 'hero', 'promo'];
 
+/** Background artwork variants for the two in-grid promo cards (hotGrid). */
+export interface GridPromoImages {
+  recharge: string;
+  firstTopup: string;
+}
+
+export const GRID_PROMO_DEFAULTS: GridPromoImages = { recharge: '', firstTopup: '' };
+
+export type GridPromoVariant = keyof GridPromoImages;
+
+export function isGridPromoVariant(v: unknown): v is GridPromoVariant {
+  return v === 'recharge' || v === 'firstTopup';
+}
+
 export interface HomeSectionConfig {
   id: HomeSectionId;
   visible: boolean;
@@ -40,6 +54,8 @@ export interface HomeSectionConfig {
 
 export interface HomeLayoutConfig {
   sections: HomeSectionConfig[];
+  /** Background images for the two grid promo cards ('' = gradient default). */
+  gridPromo: GridPromoImages;
   updated_at?: string;
 }
 
@@ -84,8 +100,18 @@ export function normalizeHomeLayout(raw: unknown): HomeLayoutConfig {
     if (!seen.has(id)) sections.push({ id, visible: true, image: '' });
   }
 
+  const gp = (r.gridPromo && typeof r.gridPromo === 'object' ? r.gridPromo : {}) as Record<
+    string,
+    unknown
+  >;
+  const gridPromo: GridPromoImages = {
+    recharge: typeof gp.recharge === 'string' ? gp.recharge.trim() : '',
+    firstTopup: typeof gp.firstTopup === 'string' ? gp.firstTopup.trim() : '',
+  };
+
   return {
     sections,
+    gridPromo,
     ...(typeof r.updated_at === 'string' ? { updated_at: r.updated_at } : {}),
   };
 }
@@ -128,9 +154,12 @@ export async function loadHomeLayout(supabase: SupabaseLike): Promise<HomeLayout
 export async function saveHomeLayout(
   sections: HomeSectionConfig[],
   supabase: SupabaseLike,
+  gridPromo?: GridPromoImages,
 ): Promise<HomeLayoutConfig> {
+  const current = gridPromo ? null : await loadHomeLayout(supabase);
   const next: HomeLayoutConfig = {
     sections: normalizeHomeLayout({ sections }).sections,
+    gridPromo: gridPromo || (current ? current.gridPromo : { ...GRID_PROMO_DEFAULTS }),
     updated_at: new Date().toISOString(),
   };
 
@@ -153,7 +182,20 @@ export async function setHomeSectionImage(
 ): Promise<HomeLayoutConfig> {
   const current = await loadHomeLayout(supabase);
   const sections = current.sections.map((s) => (s.id === id ? { ...s, image } : s));
-  return saveHomeLayout(sections, supabase);
+  return saveHomeLayout(sections, supabase, current.gridPromo);
+}
+
+/** Patch one grid promo card's background image ('' clears it). */
+export async function setGridPromoImage(
+  variant: GridPromoVariant,
+  image: string,
+  supabase: SupabaseLike,
+): Promise<HomeLayoutConfig> {
+  const current = await loadHomeLayout(supabase);
+  return saveHomeLayout(current.sections, supabase, {
+    ...current.gridPromo,
+    [variant]: image,
+  });
 }
 
 export function invalidateHomeLayoutCache(): void {
