@@ -1,19 +1,22 @@
 # SoulMate9 ComfyUI SDXL-Pro serverless worker (multi-model matrix endpoint)
 #
-# Capability stack: SDXL/Pony/Illustrious checkpoints + LoRA stack +
-# ControlNet (OpenPose/Depth via aux preprocessors) + Impact-Pack
-# FaceDetailer (ADetailer parity) + IPAdapter FaceID (identity lock) +
-# ESRGAN-class upscalers. Models come from the RunPod network volume at
-# /runpod-volume/models (provisioned by download-sdxl-matrix-bundle.sh).
+# Isolated from the FLUX worker image on purpose: the FLUX endpoint keeps its
+# Shakker-only node stack, while this image carries the SDXL enhancement stack:
+#   Impact-Pack      : FaceDetailer (yolov8 bbox detect + local repaint)
+#   controlnet_aux   : DWPreprocessor / DepthAnythingV2 for SDXL ControlNet
+#   IPAdapter_plus   : FaceID Plus V2 (identity lock, SDXL)
+#   ComfyUI-Manager  : runtime node diagnostics
+#
+# Models come from the RunPod network volume at /runpod-volume/models
+# (provisioned by the sdxl-bundle-installer endpoint). The official worker's
+# extra_model_paths.yaml already maps checkpoints/loras/controlnet/
+# upscale_models off the volume; ultralytics + ipadapter are linked at
+# container start by start-sdxl-pro.sh (volume is only mounted at runtime).
 FROM runpod/worker-comfyui:5.8.6-base
 
 USER root
 
 # ─── Custom nodes ───────────────────────────────────────────
-# Impact Pack  : FaceDetailer (yolov8 bbox detect + local repaint)
-# controlnet_aux: OpenPose / Depth preprocessors for SDXL ControlNet
-# IPAdapter_plus: IPAdapter FaceID plusv2 (SDXL identity lock)
-# ComfyUI-Manager: runtime node/model diagnostics on the worker
 RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git \
       /comfyui/custom_nodes/ComfyUI-Impact-Pack \
     && git clone --depth 1 https://github.com/Fannovel16/comfyui_controlnet_aux.git \
@@ -32,14 +35,19 @@ RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git \
     # backend on serverless workers.
     && python -m pip install --no-cache-dir insightface onnxruntime
 
-# ─── Network-volume model links ─────────────────────────────
-# The matrix bundle downloads into /workspace/ComfyUI/models on the volume;
-# expose the relevant subfolders to the worker's model search paths.
-RUN mkdir -p /comfyui/models/controlnet /comfyui/models/ipadapter \
-      /comfyui/models/ultralytics/bbox /comfyui/models/upscale_models \
-    && ln -sf /runpod-volume/models/controlnet /comfyui/models/controlnet-sdxl-matrix \
-    && ln -sf /runpod-volume/models/ipadapter /comfyui/models/ipadapter-sdxl-matrix \
-    && ln -sf /runpod-volume/models/ultralytics /comfyui/models/ultralytics-matrix
+# Build-time smoke test: starting ComfyUI imports every custom node module, so
+# an import-breaking dependency fails HERE instead of on a live worker.
+# Guarded: older ComfyUI builds without --quick-test-for-ci skip it.
+RUN cd /comfyui && { python main.py --help 2>&1 | grep -q quick-test-for-ci; } \
+    && timeout 300 python main.py --quick-test-for-ci --cpu \
+    || echo "sdxl-pro: smoke test skipped or passed"
 
-# Keep the upstream entrypoint/CMD. The official worker automatically discovers
-# models under /runpod-volume/models when the endpoint has a network volume.
+# ─── Runtime model links ────────────────────────────────────
+# /runpod-volume is only mounted at container start, so volume symlinks must be
+# created then (not at build time). start-sdxl-pro.sh wraps the official
+# entrypoint and links the two model dirs the official extra_model_paths.yaml
+# does not cover (ultralytics for Impact-Pack, ipadapter for IPAdapter_plus).
+COPY start-sdxl-pro.sh /start-sdxl-pro.sh
+RUN chmod +x /start-sdxl-pro.sh
+
+CMD ["/start-sdxl-pro.sh"]

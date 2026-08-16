@@ -54,6 +54,8 @@ HF_ASSETS = [
      "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors"),
     ("ultralytics/bbox", "face_yolov8m.pt",
      "https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt"),
+    ("upscale_models", "4x-UltraSharp.pth",
+     "https://huggingface.co/Kim2091/UltraSharp/resolve/main/4x-UltraSharp.pth"),
 ]
 
 
@@ -146,7 +148,7 @@ def run_download():
         return {"rc": 22, "error": "CIVITAI_API_TOKEN secret was not resolved"}
 
     for sub in ("checkpoints", "loras", "controlnet", "ipadapter",
-                "ultralytics/bbox"):
+                "ultralytics/bbox", "upscale_models"):
         os.makedirs(os.path.join(ROOT, sub), exist_ok=True)
     os.makedirs(STATE, exist_ok=True)
     manifest = os.path.join(STATE, "sdxl-matrix-installed.txt")
