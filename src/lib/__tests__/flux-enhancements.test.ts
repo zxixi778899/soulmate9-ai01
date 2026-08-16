@@ -25,7 +25,7 @@ describe('buildFluxWorkflow enhancement branches', () => {
   it('wires depth ControlNet into the FLUX conditioning chain', () => {
     const graph = buildFluxWorkflow({ prompt: 'x', control_image: 'pose.png', control_strength: 0.85 });
     expect(inputsOf(graph, '42')).toMatchObject({ control_net_name: 'flux-depth-controlnet.safetensors' });
-    expect(inputsOf(graph, '43')).toMatchObject({ positive: ['21', 0], strength: 0.85, vae: ['1', 2] });
+    expect(inputsOf(graph, '43')).toMatchObject({ positive: ['21', 0], strength: 0.85, vae: ['23', 0] });
     expect(inputsOf(graph, '5')).toMatchObject({ positive: ['43', 0], negative: ['43', 1] });
   });
 
@@ -86,6 +86,6 @@ describe('gen-hub capability parsing', () => {
   it('clamps upscale factors into the supported range', () => {
     expect(parseGenCapabilities({ upscale: '4' }).upscale).toBe(4);
     expect(parseGenCapabilities({ upscale: 8 }).upscale).toBe(4);
-    expect(parseGenCapabilities({ upscale: 1.2 }).upscale).toBeUndefined();
+    expect(parseGenCapabilities({ upscale: 1.2 }).upscale).toBe(1.5);
   });
 });

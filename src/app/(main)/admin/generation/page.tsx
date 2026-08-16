@@ -29,12 +29,13 @@ import {
 import {
   Loader2, RefreshCw, Plus, Trash2, Pencil, ImageIcon,
   ShieldCheck, ShieldOff, Activity, Layers, SlidersHorizontal,
+  Package, Network, Copy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ─── Types ───────────────────────────────────────────────────
 
-type Tab = 'providers' | 'monitor' | 'presets' | 'rating';
+type Tab = 'providers' | 'monitor' | 'presets' | 'rating' | 'assets' | 'matrix';
 
 interface ProviderHealth {
   id: string;
@@ -88,6 +89,43 @@ interface GenStats {
   recent: RecentJob[];
 }
 
+interface ModelAssetRow {
+  id: string;
+  asset_type: string;
+  model_family: string;
+  name: string;
+  endpoint_scope: string;
+  civitai_source: string | null;
+  tags: string[];
+  installed: boolean;
+  verified: boolean;
+  nsfw: boolean;
+  notes: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+interface MatrixGate {
+  ready: boolean;
+  endpoint_configured: boolean;
+  active: boolean;
+}
+
+interface MatrixPlan {
+  endpointKey: string;
+  modelFamily: string;
+  checkpoint: string;
+  loras: string[];
+  steps: number;
+  cfg: number;
+  sampler: string;
+  scheduler: string;
+  clipSkip: number;
+  width: number;
+  height: number;
+  reason: string;
+}
+
 interface PresetRow {
   category: string;
   slug: string;
@@ -101,6 +139,9 @@ interface PresetRow {
   model_family: string | null;
   sort_order: number;
   is_active: boolean;
+  gender?: string;
+  style_family?: string;
+  pose_reference?: string | null;
 }
 
 interface PresetDraft {
@@ -115,6 +156,9 @@ interface PresetDraft {
   model_family: string;
   sort_order: number;
   is_active: boolean;
+  gender: string;
+  style_family: string;
+  pose_reference: string;
 }
 
 const CATEGORIES = ['scene', 'pose', 'outfit', 'style', 'mood'];
@@ -122,11 +166,43 @@ const CATEGORY_LABELS: Record<string, string> = {
   scene: '场景', pose: '姿态', outfit: '服装', style: '风格', mood: '氛围',
 };
 const LEVEL_LABELS = ['日常', '暧昧', '内衣', '性感', '裸露', '显性'];
+const PRESET_GENDERS = [
+  { value: 'all', label: '通用' },
+  { value: 'female', label: '女性' },
+  { value: 'male', label: '男性' },
+  { value: 'trans', label: '跨性别' },
+];
+const PRESET_STYLE_FAMILIES = [
+  { value: 'realistic', label: '写实' },
+  { value: 'anime', label: '二次元' },
+  { value: '3d', label: '3D' },
+];
+
+/** Worker volume target directory per asset type (for download snippets). */
+const ASSET_TARGET_DIRS: Record<string, string> = {
+  checkpoint: 'models/checkpoints',
+  lora: 'models/loras',
+  controlnet: 'models/controlnet',
+  upscaler: 'models/upscale_models',
+  embedding: 'models/embeddings',
+  ipadapter: 'models/ipadapter',
+  detector: 'models/ultralytics',
+};
+
+function assetDownloadSnippet(asset: ModelAssetRow): string {
+  const dir = ASSET_TARGET_DIRS[asset.asset_type] || 'models';
+  const target = `${dir}/${asset.name}`;
+  if (!asset.civitai_source) {
+    return `# 未配置 civitai_source，手动放置文件到 worker 卷：${target}`;
+  }
+  return `curl -L "${asset.civitai_source}" -o ${target}`;
+}
 
 const EMPTY_DRAFT: PresetDraft = {
   category: 'scene', slug: '', label_en: '', label_zh: '',
   prompt_fragment: '', negative_fragment: '', nsfw_level: 0,
   tier: 'free', model_family: '', sort_order: 0, is_active: true,
+  gender: 'all', style_family: 'realistic', pose_reference: '',
 };
 
 function statusBadge(status: string) {
@@ -150,6 +226,9 @@ export default function AdminGenerationPage() {
   const [stats, setStats] = useState<GenStats | null>(null);
   const [nsfwEnabled, setNsfwEnabled] = useState(true);
   const [savingRating, setSavingRating] = useState(false);
+  const [assets, setAssets] = useState<ModelAssetRow[]>([]);
+  const [assetsTableMissing, setAssetsTableMissing] = useState(false);
+  const [matrixGate, setMatrixGate] = useState<MatrixGate | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -160,6 +239,9 @@ export default function AdminGenerationPage() {
       setHealth(data.provider_health || []);
       setStats(data.stats || null);
       setNsfwEnabled(Boolean(data.rating?.nsfw_enabled));
+      setAssets(data.assets || []);
+      setAssetsTableMissing(Boolean(data.assets_table_missing));
+      setMatrixGate(data.matrix || null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -225,6 +307,8 @@ export default function AdminGenerationPage() {
     { key: 'monitor', label: '任务监控', icon: Activity },
     { key: 'providers', label: 'Provider 健康', icon: Layers },
     { key: 'presets', label: '预设目录', icon: ImageIcon },
+    { key: 'assets', label: '模型资产', icon: Package },
+    { key: 'matrix', label: '路由矩阵', icon: Network },
     { key: 'rating', label: '内容分级', icon: SlidersHorizontal },
   ];
 
@@ -234,7 +318,7 @@ export default function AdminGenerationPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">生成控制中心</h1>
           <p className="text-sm text-gray-400 mt-1">
-            统一网关（gen-hub）的 Provider 状态、任务指标、预设目录与内容分级
+            统一网关（gen-hub）的 Provider 状态、任务指标、预设目录、模型资产、路由矩阵与内容分级
           </p>
         </div>
         <Button variant="outline" onClick={() => void load()} disabled={loading}>
@@ -264,6 +348,14 @@ export default function AdminGenerationPage() {
       {tab === 'monitor' && <MonitorTab stats={stats} onRefund={refundJob} />}
       {tab === 'providers' && <ProvidersTab health={health} onToggle={toggleRoute} nsfwEnabled={nsfwEnabled} />}
       {tab === 'presets' && <PresetsTab />}
+      {tab === 'assets' && (
+        <AssetsTab
+          assets={assets}
+          tableMissing={assetsTableMissing}
+          onReload={load}
+        />
+      )}
+      {tab === 'matrix' && <MatrixTab gate={matrixGate} />}
       {tab === 'rating' && (
         <RatingTab
           nsfwEnabled={nsfwEnabled}
@@ -680,6 +772,9 @@ function PresetsTab() {
                         nsfw_level: preset.nsfw_level, tier: preset.tier,
                         model_family: preset.model_family || '',
                         sort_order: preset.sort_order, is_active: preset.is_active,
+                        gender: preset.gender || 'all',
+                        style_family: preset.style_family || 'realistic',
+                        pose_reference: preset.pose_reference || '',
                       });
                     }}>
                       <Pencil className="h-3 w-3 mr-1" />编辑
@@ -742,6 +837,32 @@ function PresetsTab() {
                 <Textarea className="mt-1" rows={2} value={draft.negative_fragment}
                   onChange={(e) => setDraft({ ...draft, negative_fragment: e.target.value })} />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>适用题材（gender）</Label>
+                  <Select value={draft.gender} onValueChange={(v) => setDraft({ ...draft, gender: v })}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PRESET_GENDERS.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>风格家族（style_family）</Label>
+                  <Select value={draft.style_family} onValueChange={(v) => setDraft({ ...draft, style_family: v })}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PRESET_STYLE_FAMILIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>姿势参考描述（pose_reference，可选）</Label>
+                <Input className="mt-1" value={draft.pose_reference}
+                  onChange={(e) => setDraft({ ...draft, pose_reference: e.target.value })}
+                  placeholder="e.g. sitting cross-legged, looking over shoulder" />
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label>NSFW 等级</Label>
@@ -790,7 +911,275 @@ function PresetsTab() {
   );
 }
 
-// ─── Tab 4: 内容分级 ─────────────────────────────────────────
+// ─── Tab 4: 模型资产 ─────────────────────────────────────
+
+const ASSET_TYPE_LABELS: Record<string, string> = {
+  checkpoint: '底模', lora: 'LoRA', controlnet: 'ControlNet',
+  upscaler: '放大器', embedding: 'Embedding', ipadapter: 'IP-Adapter', detector: '检测器',
+};
+
+function AssetsTab(props: {
+  assets: ModelAssetRow[];
+  tableMissing: boolean;
+  onReload: () => Promise<void>;
+}) {
+  const { assets, tableMissing, onReload } = props;
+  const [seeding, setSeeding] = useState(false);
+
+  const seed = async () => {
+    setSeeding(true);
+    try {
+      const res = await authedFetch('/api/admin/generation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seed_assets' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '播种失败');
+      toast.success(`已写入 ${data.upserted} 条资产清单`);
+      await onReload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '播种失败');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const copySnippet = async (asset: ModelAssetRow) => {
+    try {
+      await navigator.clipboard.writeText(assetDownloadSnippet(asset));
+      toast.success('下载命令已复制');
+    } catch {
+      toast.error('复制失败，请手动选取命令');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-xs text-gray-500 flex-1 min-w-[240px]">
+          gen_model_assets 清单（迁移 0041）：提交前门控检查 checkpoint 是否在目标端点就绪；
+          worker 卷实际携带文件后将 installed 置位，验收通过后置 verified。
+        </p>
+        <Button size="sm" variant="outline" onClick={() => void seed()} disabled={seeding}>
+          {seeding ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+          一键播种标准清单
+        </Button>
+      </div>
+
+      {tableMissing && (
+        <p className="text-xs text-amber-400">
+          gen_model_assets 表尚未创建（迁移 0041 未执行），当前路由门控降级为 env 清单模式。
+        </p>
+      )}
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[720px]">
+              <thead>
+                <tr className="text-gray-500 text-left">
+                  <th className="py-1.5">类型</th><th>家族</th><th>名称</th>
+                  <th>端点</th><th>状态</th><th>标签</th><th></th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-300">
+                {assets.map((asset) => (
+                  <tr key={asset.id} className={`border-t border-white/5 ${asset.is_active ? '' : 'opacity-50'}`}>
+                    <td className="py-2">{ASSET_TYPE_LABELS[asset.asset_type] || asset.asset_type}</td>
+                    <td className="font-mono">{asset.model_family}</td>
+                    <td>
+                      <p className="font-mono text-white break-all">{asset.name}</p>
+                      {asset.notes && <p className="text-[10px] text-gray-500">{asset.notes}</p>}
+                    </td>
+                    <td className="font-mono text-gray-400">{asset.endpoint_scope}</td>
+                    <td>
+                      <div className="flex gap-1 flex-wrap">
+                        {asset.installed
+                          ? <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">installed</Badge>
+                          : <Badge variant="outline" className="bg-red-500/15 text-red-400 border-red-500/30">未安装</Badge>}
+                        {asset.verified
+                          ? <Badge variant="outline" className="bg-blue-500/15 text-blue-400 border-blue-500/30">verified</Badge>
+                          : <Badge variant="outline" className="bg-gray-500/15 text-gray-400 border-gray-500/30">未验收</Badge>}
+                      </div>
+                    </td>
+                    <td className="text-gray-500">{asset.tags.join(', ') || '—'}</td>
+                    <td className="text-right">
+                      <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => void copySnippet(asset)}>
+                        <Copy className="h-3 w-3 mr-1" />下载命令
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {!assets.length && (
+                  <tr><td colSpan={7} className="py-6 text-center text-gray-500">
+                    {tableMissing ? '表未创建，先执行迁移 0041 再播种' : '清单为空，点击“一键播种标准清单”'}
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Tab 5: 路由矩阵预览 ──────────────────────────────────
+
+function MatrixTab(props: { gate: MatrixGate | null }) {
+  const { gate } = props;
+  const [category, setCategory] = useState('female');
+  const [renderStyle, setRenderStyle] = useState('realistic');
+  const [nsfwLevel, setNsfwLevel] = useState(1);
+  const [tier, setTier] = useState('standard');
+  const [turbo, setTurbo] = useState(false);
+  const [plan, setPlan] = useState<MatrixPlan | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const preview = async () => {
+    setLoading(true);
+    try {
+      const res = await authedFetch('/api/admin/generation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'matrix_preview',
+          category, render_style: renderStyle, nsfw_level: nsfwLevel, tier, turbo,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '预览失败');
+      setPlan(data.plan || null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '预览失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {gate && (
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          <span className="text-gray-500">矩阵总闸：</span>
+          {gate.active
+            ? <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">SDXL 矩阵生效</Badge>
+            : <Badge variant="outline" className="bg-amber-500/15 text-amber-400 border-amber-500/30">fail-open 回 FLUX</Badge>}
+          {!gate.ready && <span className="text-amber-400">RUNPOD_SDXL_MODELS_READY 未开</span>}
+          {!gate.endpoint_configured && <span className="text-amber-400">RUNPOD_ENDPOINT_ID_SDXL 未配置</span>}
+        </div>
+      )}
+
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div>
+              <Label>题材</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="female">写实女</SelectItem>
+                  <SelectItem value="male">写实男</SelectItem>
+                  <SelectItem value="transgender">跨性别</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>风格</Label>
+              <Select value={renderStyle} onValueChange={setRenderStyle}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="realistic">写实</SelectItem>
+                  <SelectItem value="2d">二次元</SelectItem>
+                  <SelectItem value="3d">3D</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>NSFW 强度</Label>
+              <Select value={String(nsfwLevel)} onValueChange={(v) => setNsfwLevel(Number(v))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5].map((lv) => (
+                    <SelectItem key={lv} value={String(lv)}>Lv{lv} {LEVEL_LABELS[lv] || ''}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>档位</Label>
+              <Select value={tier} onValueChange={setTier}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">标准</SelectItem>
+                  <SelectItem value="premium">精品（FLUX）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end pb-1">
+              <div className="flex items-center gap-2">
+                <Switch checked={turbo} onCheckedChange={setTurbo} />
+                <span className="text-xs text-gray-400">turbo 草稿</span>
+              </div>
+            </div>
+          </div>
+          <Button onClick={() => void preview()} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Network className="h-4 w-4 mr-1" />}
+            解析路由
+          </Button>
+        </CardContent>
+      </Card>
+
+      {plan && (
+        <Card>
+          <CardContent className="pt-6">
+            <h3 className="text-sm font-semibold text-white mb-3">命中结果</h3>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+                <p className="text-gray-500">端点</p>
+                <p className="font-mono text-pink-300 mt-0.5">{plan.endpointKey}</p>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+                <p className="text-gray-500">模型家族</p>
+                <p className="font-mono text-white mt-0.5">{plan.modelFamily}</p>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+                <p className="text-gray-500">Checkpoint</p>
+                <p className="font-mono text-white mt-0.5 break-all">{plan.checkpoint}</p>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 sm:col-span-2 lg:col-span-3">
+                <p className="text-gray-500">推荐 LoRA（下游按卷清单复核）</p>
+                {plan.loras.length ? (
+                  <div className="flex gap-1.5 flex-wrap mt-1">
+                    {plan.loras.map((lora) => (
+                      <Badge key={lora} variant="outline" className="font-mono bg-violet-500/15 text-violet-300 border-violet-500/30">{lora}</Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 mt-0.5">无</p>
+                )}
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+                <p className="text-gray-500">采样</p>
+                <p className="font-mono text-gray-300 mt-0.5">
+                  {plan.steps} steps · cfg {plan.cfg} · {plan.sampler}/{plan.scheduler} · clipSkip {plan.clipSkip}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+                <p className="text-gray-500">尺寸</p>
+                <p className="font-mono text-gray-300 mt-0.5">{plan.width}×{plan.height}</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-500 mt-3">{plan.reason}</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab 6: 内容分级 ─────────────────────────────────────────
 
 function RatingTab(props: {
   nsfwEnabled: boolean;

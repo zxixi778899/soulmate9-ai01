@@ -213,16 +213,18 @@ export async function equipOutfitOnGirlfriend(opts: {
 
   if (regeneratePortrait) {
     try {
-      const gen = await regenerateGirlfriendPortrait({
-        name: String(gf.name || 'companion'),
-        referenceUrl: basePortrait,
-        wearPrompt: outfit.wear_prompt,
-        styleHint: nextStyle,
+      const { tryOnOutfit } = await import('@/lib/outfit-tryon');
+      const gen = await tryOnOutfit({
+        client,
+        userId,
+        girlfriendId,
+        outfitId: outfit.id,
+        // identity lock + face detailer are applied inside the RunPod pipeline
       });
-      if (gen) {
-        portraitUrl = gen;
-        gfUpdate.portrait_url = gen;
-        gfUpdate.avatar_url = gen;
+      if (gen.ok && gen.portrait_url) {
+        portraitUrl = gen.portrait_url;
+        gfUpdate.portrait_url = gen.portrait_url;
+        gfUpdate.avatar_url = gen.portrait_url;
         regenerated = true;
       }
     } catch (e) {
@@ -315,55 +317,4 @@ export async function unequipOutfitOnGirlfriend(opts: {
   return { ok: true, girlfriend: updatedGf as Record<string, unknown> };
 }
 
-/**
- * Best-effort FLUX regen with outfit wear prompt + optional reference image.
- */
-async function regenerateGirlfriendPortrait(opts: {
-  name: string;
-  referenceUrl: string | null;
-  wearPrompt: string;
-  styleHint: string;
-}): Promise<string | null> {
-  const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
-  const endpointId = process.env.RUNPOD_ENDPOINT_ID || '';
-  if (!apiKey || !endpointId) {
-    logger.warn('[wardrobe-equip] RunPod not configured, skip portrait regen');
-    return null;
-  }
 
-  try {
-    const { runpodClient } = await import('@/lib/runpod');
-    if (!runpodClient.isConfigured) {
-      logger.warn('[wardrobe-equip] RunPod not configured, skip portrait regen');
-      return null;
-    }
-    const prompt = [
-      `Three-quarter body portrait of ${opts.name}, a stunningly beautiful young woman`,
-      opts.wearPrompt,
-      'large breasts, wide hips, sexy alluring, soft cinematic lighting',
-      'ultra photorealistic, 8k, sharp focus, looking at viewer',
-      opts.styleHint,
-    ].join(', ');
-
-    const urls = await runpodClient.generateAndUpload(
-      {
-        prompt,
-        negative_prompt:
-          'blurry, deformed, bad anatomy, watermark, text, child, underage, wrong clothes',
-        width: 832,
-        height: 1216,
-        num_inference_steps: 24,
-        guidance_scale: 3.5,
-        input_image: opts.referenceUrl || undefined,
-        denoising_strength: opts.referenceUrl ? 0.55 : undefined,
-      },
-      'wardrobe',
-    );
-    return urls[0] || null;
-  } catch (e) {
-    logger.warn('[wardrobe-equip] portrait regen failed', {
-      err: e instanceof Error ? e.message : String(e),
-    });
-    return null;
-  }
-}

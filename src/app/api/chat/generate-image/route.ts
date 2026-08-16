@@ -552,10 +552,23 @@ export async function POST(request: NextRequest) {
 
     // --- Unified multi-provider image router (RunPod → fal.ai failover) ---
     const requestedProvider = String((body as { provider?: string }).provider || '') as ImageProvider | '';
+    // gen-hub normalizes enhancement capability flags into body.capabilities
+    // (control / face_fix / upscale / identity_image). Map them onto the
+    // router options; the worker-side workflow gates each pass on env flags.
+    const caps = ((body as { capabilities?: unknown }).capabilities || {}) as {
+      control?: { type?: string; image?: string; strength?: number };
+      face_fix?: boolean;
+      upscale?: number;
+      identity_image?: string;
+    };
+    const hasEnhancement = Boolean(
+      caps.control?.image || caps.face_fix || caps.upscale || caps.identity_image,
+    );
     // Only force the self-hosted RunPod path when the request actually needs
-    // its capabilities (NSFW, LoRA stack, identity reference). Plain SFW
-    // generations can fall through to the free Together FLUX primary.
-    const needsRunPod = effectiveAdult || intelligentLoras.length > 0 || useConsistency;
+    // its capabilities (NSFW, LoRA stack, identity reference, enhancement
+    // passes). Plain SFW generations can fall through to the free Together
+    // FLUX primary.
+    const needsRunPod = effectiveAdult || intelligentLoras.length > 0 || useConsistency || hasEnhancement;
     const defaultProvider: ImageProvider = generationRoute.modelFamily === 'flux' ? 'runpod' : 'runpod_dc2';
     const candidateCount = Math.max(1, Math.min(4, Math.round(Number((body as { count?: number }).count) || 1)));
     const candidateMode = (body as { candidate?: boolean }).candidate === true && candidateCount > 1;
@@ -567,8 +580,12 @@ export async function POST(request: NextRequest) {
       num_inference_steps: generationRoute.steps,
       guidance_scale: generationRoute.cfg,
       seed: generationSeed,
-      ip_adapter_image: useConsistency ? referenceImage : undefined,
-      ip_adapter_weight: useConsistency ? ipAdapterWeight : undefined,
+      ip_adapter_image: useConsistency ? referenceImage : caps.identity_image || undefined,
+      ip_adapter_weight: useConsistency ? ipAdapterWeight : caps.identity_image ? 0.75 : undefined,
+      control_image: caps.control?.image,
+      control_strength: caps.control?.strength,
+      face_detailer: caps.face_fix === true,
+      upscale_factor: caps.upscale,
       loras: intelligentLoras,
       ckpt_name: generationRoute.checkpoint,
       sampler_name: generationRoute.sampler,

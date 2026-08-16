@@ -39,6 +39,17 @@ function sanitizeSlug(value: unknown): string {
     .slice(0, 64);
 }
 
+const PRESET_GENDERS = ['female', 'male', 'trans', 'all'] as const;
+const PRESET_STYLE_FAMILIES = ['realistic', 'anime', '3d'] as const;
+
+function sanitizeGender(value: unknown): string | null {
+  return (PRESET_GENDERS as readonly string[]).includes(String(value)) ? String(value) : null;
+}
+
+function sanitizeStyleFamily(value: unknown): string | null {
+  return (PRESET_STYLE_FAMILIES as readonly string[]).includes(String(value)) ? String(value) : null;
+}
+
 export async function GET(request: NextRequest) {
   const admin = await requireAdmin(request);
   if ('error' in admin) return admin.error;
@@ -119,6 +130,10 @@ export async function POST(request: NextRequest) {
     model_family: body.model_family != null ? String(body.model_family).slice(0, 32) : null,
     sort_order: Math.round(Number(body.sort_order || 0)),
     is_active: body.is_active !== false,
+    // Model matrix capability fields (migration 0042).
+    gender: sanitizeGender(body.gender) || 'all',
+    style_family: sanitizeStyleFamily(body.style_family) || 'realistic',
+    pose_reference: body.pose_reference ? String(body.pose_reference).slice(0, 500) : null,
     updated_at: new Date().toISOString(),
   };
 
@@ -160,6 +175,17 @@ export async function PATCH(request: NextRequest) {
   }
   if (body.sort_order !== undefined) patch.sort_order = Math.round(Number(body.sort_order || 0));
   if (body.is_active !== undefined) patch.is_active = Boolean(body.is_active);
+  if (body.gender !== undefined) {
+    const gender = sanitizeGender(body.gender);
+    if (gender) patch.gender = gender;
+  }
+  if (body.style_family !== undefined) {
+    const styleFamily = sanitizeStyleFamily(body.style_family);
+    if (styleFamily) patch.style_family = styleFamily;
+  }
+  if (body.pose_reference !== undefined) {
+    patch.pose_reference = body.pose_reference ? String(body.pose_reference).slice(0, 500) : null;
+  }
 
   const { data, error } = await admin.supabase
     .from('gen_preset_catalog')

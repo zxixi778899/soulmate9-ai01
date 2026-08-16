@@ -184,7 +184,9 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
 
   let portraitUrl: string;
   try {
-    // Primary: girl as img2img base (keeps face), params from AI modules
+    // Primary: girl as img2img base (keeps face), params from AI modules.
+    // Enhancement passes are chained inside the RunPod workflow when the
+    // corresponding env flags are ready; otherwise they are skipped silently.
     const urls = await runpodClient.generateAndUpload(
       {
         prompt,
@@ -196,6 +198,11 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
         input_image: girlImage,
         denoising_strength: denoise,
         endpoint_id: endpointId,
+        // ── Capability flags (worker-side gated, fail-open)
+        ip_adapter_image: girlImage,
+        ip_adapter_weight: 0.75,
+        face_detailer: true,
+        upscale_factor: 2,
       },
       'tryon',
     );

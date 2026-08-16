@@ -65,10 +65,20 @@ export async function GET(request: NextRequest) {
 
   const presets = await getGenPresets(client, category, { maxNsfwLevel: 5 });
 
+  // Optional matrix filters (Studio): gender / style_family. Rows without the
+  // 0042 columns keep passing through so legacy presets remain visible.
+  const genderParam = String(request.nextUrl.searchParams.get('gender') || '').toLowerCase();
+  const styleParam = String(request.nextUrl.searchParams.get('style_family') || '').toLowerCase();
+  const filtered = presets.filter((preset) => {
+    if (genderParam && preset.gender && preset.gender !== 'all' && preset.gender !== genderParam) return false;
+    if (styleParam && preset.style_family && preset.style_family !== styleParam) return false;
+    return true;
+  });
+
   return NextResponse.json({
     category,
     max_nsfw_level: maxNsfwLevel,
-    presets: presets.map((preset) => ({
+    presets: filtered.map((preset) => ({
       category: preset.category,
       slug: preset.slug,
       label_en: preset.label_en,
@@ -78,6 +88,10 @@ export async function GET(request: NextRequest) {
       nsfw_level: preset.nsfw_level,
       tier: preset.tier,
       locked: preset.nsfw_level > maxNsfwLevel,
+      gender: preset.gender ?? null,
+      style_family: preset.style_family ?? null,
+      pose_reference: preset.pose_reference ?? null,
+      workflow_flags: preset.workflow_flags ?? null,
     })),
   });
 }

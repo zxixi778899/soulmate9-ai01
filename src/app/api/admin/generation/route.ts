@@ -2,10 +2,14 @@
  * Admin API: Generation Control Center backend.
  *
  * GET  /api/admin/generation — job stats (24h window) + provider health +
- *                              global content-rating config.
+ *                              global content-rating config + model asset
+ *                              manifest + SDXL matrix gate state.
  * POST /api/admin/generation — actions:
  *   - refund_job:    { job_id } → one-shot refund via gen-hub
  *   - save_rating:   { nsfw_enabled } → site_settings kill switch
+ *   - seed_assets:   upsert the canonical gen_model_assets manifest
+ *   - matrix_preview: { category, render_style, nsfw_level, tier, turbo }
+ *                     → resolved ModelPlan (checkpoint/LoRA/endpoint)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,6 +17,18 @@ import { requireAdmin } from '@/lib/require-admin';
 import { collectGenJobStats, invalidateGlobalNsfwCache } from '@/lib/gen-monitor';
 import { getImageProviderHealthAsync } from '@/lib/image-router';
 import { refundGenJob } from '@/lib/gen-hub';
+import {
+  assetFromRow,
+  isMissingAssetTableError,
+  seedModelAssets,
+  type ModelAsset,
+} from '@/lib/gen-assets/manifest';
+import {
+  isSdxlMatrixActive,
+  isSdxlMatrixEndpointConfigured,
+  isSdxlMatrixReady,
+  resolveModelPlan,
+} from '@/lib/model-matrix';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
@@ -23,20 +39,45 @@ export async function GET(request: NextRequest) {
   if ('error' in admin) return admin.error;
 
   try {
-    const [stats, providerHealth, nsfwRow] = await Promise.all([
+    const [stats, providerHealth, nsfwRow, assetRows] = await Promise.all([
       collectGenJobStats(admin.supabase, 24),
       getImageProviderHealthAsync(),
       admin.supabase.from('site_settings').select('value').eq('key', 'nsfw_enabled').maybeSingle(),
+      admin.supabase
+        .from('gen_model_assets')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .limit(1000),
     ]);
 
     const rawNsfw = (nsfwRow.data as { value?: unknown } | null)?.value;
     const nsfwEnabled =
       rawNsfw === false || rawNsfw === 'false' || rawNsfw === '0' || rawNsfw === 0 ? false : true;
 
+    let assets: ModelAsset[] = [];
+    let assetsTableMissing = false;
+    if (assetRows.error) {
+      assetsTableMissing = isMissingAssetTableError(assetRows.error);
+      if (!assetsTableMissing) {
+        logger.warn('[admin/generation] asset manifest query failed', { error: String(assetRows.error) });
+      }
+    } else {
+      assets = ((assetRows.data as unknown[]) || [])
+        .map(assetFromRow)
+        .filter((row): row is ModelAsset => row !== null);
+    }
+
     return NextResponse.json({
       stats,
       provider_health: providerHealth,
       rating: { nsfw_enabled: nsfwEnabled },
+      assets,
+      assets_table_missing: assetsTableMissing,
+      matrix: {
+        ready: isSdxlMatrixReady(),
+        endpoint_configured: isSdxlMatrixEndpointConfigured(),
+        active: isSdxlMatrixActive(),
+      },
     });
   } catch (e) {
     logger.error('[admin/generation] GET failed', { error: String(e) });
@@ -92,6 +133,43 @@ export async function POST(request: NextRequest) {
         invalidateGlobalNsfwCache();
         logger.info('[admin/generation] nsfw kill switch updated', { nsfwEnabled });
         return NextResponse.json({ success: true, rating: { nsfw_enabled: nsfwEnabled } });
+      }
+
+      case 'seed_assets': {
+        const outcome = await seedModelAssets(admin.supabase);
+        if (outcome.error) {
+          const tableMissing = isMissingAssetTableError({ message: outcome.error });
+          return NextResponse.json(
+            { error: outcome.error },
+            { status: tableMissing ? 503 : 500 },
+          );
+        }
+        logger.info('[admin/generation] model assets seeded', { upserted: outcome.upserted });
+        return NextResponse.json({ success: true, upserted: outcome.upserted });
+      }
+
+      case 'matrix_preview': {
+        const b = body as {
+          category?: string;
+          render_style?: string;
+          nsfw_level?: number;
+          tier?: string;
+          turbo?: boolean;
+        };
+        const category =
+          b.category === 'male' ? 'male' : b.category === 'transgender' ? 'transgender' : 'female';
+        const renderStyle =
+          b.render_style === '2d' || b.render_style === '3d' ? b.render_style : 'realistic';
+        const nsfwLevel = Math.min(5, Math.max(1, Math.round(Number(b.nsfw_level || 1)))) as 1 | 2 | 3 | 4 | 5;
+        const plan = resolveModelPlan({
+          surface: 'companion',
+          category,
+          renderStyle,
+          nsfwLevel,
+          tier: b.tier === 'premium' ? 'premium' : 'standard',
+          turbo: b.turbo === true,
+        });
+        return NextResponse.json({ success: true, plan, matrix: { active: isSdxlMatrixActive() } });
       }
 
       default:

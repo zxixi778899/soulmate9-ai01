@@ -69,6 +69,15 @@ export interface ImageRouterOptions {
   nsfw?: boolean;
   /** Endpoint ID override for RunPod */
   endpoint_id?: string;
+  // ── Enhancement capability flags (gen-hub params.capabilities → RunPod)
+  /** ControlNet reference image (pose/depth control). */
+  control_image?: string;
+  /** ControlNet strength 0.2–1. */
+  control_strength?: number;
+  /** Run an Impact Pack FaceDetailer pass after base generation. */
+  face_detailer?: boolean;
+  /** Hi-res upscale factor (1.5–4). */
+  upscale_factor?: number;
 }
 
 export function shouldSwitchFromQueuedRunPod(
@@ -191,6 +200,11 @@ async function executeRunPod(
     scheduler: opts.scheduler,
     clip_skip: opts.clip_skip,
     model_family: opts.model_family,
+    // Enhancement passes — worker-side env gated, fail-open when not ready.
+    control_image: opts.control_image,
+    control_strength: opts.control_strength,
+    face_detailer: opts.face_detailer,
+    upscale_factor: opts.upscale_factor,
     submit_only: true,
   });
 

@@ -31,6 +31,9 @@ export function isGenPresetCategory(value: unknown): value is GenPresetCategory 
 
 export type GenPresetTier = 'free' | 'premium';
 
+export type PresetGender = 'female' | 'male' | 'trans' | 'all';
+export type PresetStyleFamily = 'realistic' | 'anime' | '3d';
+
 export interface GenPreset {
   id: string;
   category: GenPresetCategory;
@@ -46,6 +49,11 @@ export interface GenPreset {
   model_family: string | null;
   sort_order: number;
   is_active: boolean;
+  // ── Model matrix capability fields (migration 0042)
+  gender?: PresetGender;
+  style_family?: PresetStyleFamily;
+  pose_reference?: string | null;
+  workflow_flags?: { face_fix?: boolean; upscale?: number; identity_image?: boolean };
 }
 
 /** Defensive row → GenPreset mapping (missing columns degrade gracefully). */
@@ -69,6 +77,10 @@ export function presetFromRow(row: unknown): GenPreset | null {
     model_family: r.model_family != null ? String(r.model_family) : null,
     sort_order: Number(r.sort_order || 0),
     is_active: r.is_active !== false,
+    gender: (['female', 'male', 'trans', 'all'].includes(r.gender as string)) ? (r.gender as PresetGender) : undefined,
+    style_family: (['realistic', 'anime', '3d'].includes(r.style_family as string)) ? (r.style_family as PresetStyleFamily) : undefined,
+    pose_reference: r.pose_reference != null ? String(r.pose_reference) : null,
+    workflow_flags: r.workflow_flags != null && typeof r.workflow_flags === 'object' ? (r.workflow_flags as { face_fix?: boolean; upscale?: number; identity_image?: boolean }) : undefined,
   };
 }
 
@@ -328,14 +340,174 @@ export async function resolveCatalogPromptFragment(
 
 // ─────────────────────────── seeding / writes ───────────────────────────
 
+/** One template-pack preset row (category 'scene'), fully typed for upsert. */
+interface MatrixTemplateRow {
+  category: 'scene';
+  slug: string;
+  label_en: string;
+  label_zh: string;
+  preview_url: null;
+  prompt_fragment: string;
+  negative_fragment: string;
+  lora_hints: unknown[];
+  nsfw_level: number;
+  tier: GenPresetTier;
+  model_family: string;
+  sort_order: number;
+  is_active: boolean;
+  gender: PresetGender;
+  style_family: PresetStyleFamily;
+  pose_reference: null;
+  workflow_flags: { face_fix: boolean; upscale: number };
+}
+
 /**
- * Upsert the full legacy mapping into gen_preset_catalog. Idempotent
+ * 模板包（migration 0042）：按模型矩阵逐题材 × SFW/NSFW 配置场景模板。
+ * prompt_fragment 使用各底模的原生提示词协议：
+ *   - pony 写实：自然语言描述
+ *   - illustrious 二次元：danbooru tag 协议
+ * 每条模板默认开启 face_fix + 2x 高清放大（workflow_flags），Studio 可覆盖。
+ */
+export function buildMatrixTemplatePack(): MatrixTemplateRow[] {
+  const rows: MatrixTemplateRow[] = [];
+  let order = 2000;
+  const push = (row: Omit<MatrixTemplateRow, 'category' | 'sort_order' | 'is_active' | 'preview_url' | 'pose_reference' | 'workflow_flags'>) => {
+    rows.push({
+      category: 'scene',
+      ...row,
+      sort_order: order,
+      is_active: true,
+      preview_url: null,
+      pose_reference: null,
+      workflow_flags: { face_fix: true, upscale: 2 },
+    });
+    order += 10;
+  };
+
+  // ── pony 写实（自然语言协议） ──
+  const realisticBase = 'score_9, score_8_up, score_7_up, photorealistic, masterpiece, detailed skin texture, natural lighting';
+  push({
+    slug: 'tpl-real-female-sfw',
+    label_en: 'Realistic Woman — Classic Portrait',
+    label_zh: '写实女·经典人像',
+    prompt_fragment: `${realisticBase}, elegant woman, three-quarter body portrait, soft studio light`,
+    negative_fragment: 'cartoon, anime, deformed, bad anatomy',
+    lora_hints: [],
+    nsfw_level: 0,
+    tier: 'free',
+    model_family: 'pony',
+    gender: 'female',
+    style_family: 'realistic',
+  });
+  push({
+    slug: 'tpl-real-female-nsfw',
+    label_en: 'Realistic Woman — Intimate',
+    label_zh: '写实女·亲密',
+    prompt_fragment: `${realisticBase}, intimate boudoir scene, sensual pose, warm dim lighting`,
+    negative_fragment: 'cartoon, anime, deformed, bad anatomy',
+    lora_hints: [],
+    nsfw_level: 4,
+    tier: 'premium',
+    model_family: 'pony',
+    gender: 'female',
+    style_family: 'realistic',
+  });
+  push({
+    slug: 'tpl-real-male-sfw',
+    label_en: 'Realistic Man — Editorial',
+    label_zh: '写实男·时尚大片',
+    prompt_fragment: `${realisticBase}, handsome man, sharp jawline, editorial fashion pose, dramatic key light`,
+    negative_fragment: 'feminine, cartoon, anime, deformed, bad anatomy',
+    lora_hints: [],
+    nsfw_level: 0,
+    tier: 'free',
+    model_family: 'pony',
+    gender: 'male',
+    style_family: 'realistic',
+  });
+  push({
+    slug: 'tpl-real-male-nsfw',
+    label_en: 'Realistic Man — Intimate',
+    label_zh: '写实男·亲密',
+    prompt_fragment: `${realisticBase}, muscular man, intimate scene, low warm light, confident gaze`,
+    negative_fragment: 'feminine, cartoon, anime, deformed, bad anatomy',
+    lora_hints: [],
+    nsfw_level: 4,
+    tier: 'premium',
+    model_family: 'pony',
+    gender: 'male',
+    style_family: 'realistic',
+  });
+  push({
+    slug: 'tpl-real-trans-sfw',
+    label_en: 'Trans — Glamour Portrait',
+    label_zh: '跨性别·魅力人像',
+    prompt_fragment: `${realisticBase}, beautiful trans woman, glamorous pose, studio lighting`,
+    negative_fragment: 'cartoon, anime, deformed, bad anatomy',
+    lora_hints: [],
+    nsfw_level: 0,
+    tier: 'free',
+    model_family: 'pony',
+    gender: 'trans',
+    style_family: 'realistic',
+  });
+  push({
+    slug: 'tpl-real-trans-nsfw',
+    label_en: 'Trans — Intimate',
+    label_zh: '跨性别·亲密',
+    prompt_fragment: `${realisticBase}, trans woman, intimate sensual scene, warm mood lighting`,
+    negative_fragment: 'cartoon, anime, deformed, bad anatomy',
+    lora_hints: [],
+    nsfw_level: 4,
+    tier: 'premium',
+    model_family: 'pony',
+    gender: 'trans',
+    style_family: 'realistic',
+  });
+
+  // ── illustrious 二次元（danbooru tag 协议） ──
+  const animeBase = 'masterpiece, best quality, amazing quality, very awa, detailed illustration';
+  push({
+    slug: 'tpl-anime-sfw',
+    label_en: 'Anime — Idol Portrait',
+    label_zh: '二次元·偶像立绘',
+    prompt_fragment: `${animeBase}, 1girl, solo, smile, idol, stage light, sparkles`,
+    negative_fragment: 'worst quality, lowres, bad anatomy, bad hands',
+    lora_hints: [],
+    nsfw_level: 0,
+    tier: 'free',
+    model_family: 'illustrious',
+    gender: 'female',
+    style_family: 'anime',
+  });
+  push({
+    slug: 'tpl-anime-nsfw',
+    label_en: 'Anime — Mature',
+    label_zh: '二次元·成熟',
+    prompt_fragment: `${animeBase}, 1girl, solo, mature female, sensual, detailed eyes`,
+    negative_fragment: 'worst quality, lowres, bad anatomy, bad hands, child, loli',
+    lora_hints: [],
+    nsfw_level: 4,
+    tier: 'premium',
+    model_family: 'illustrious',
+    gender: 'female',
+    style_family: 'anime',
+  });
+
+  return rows;
+}
+
+/** Upsert the full legacy mapping into gen_preset_catalog. Idempotent
  * (onConflict category,slug); admins can then edit rows freely.
+ * 
+ * Migration 0042+: seed also inserts "template pack" presets for each
+ * model family lane (pony realistic / illustrious anime) so Studio can
+ * show preset thumbnails and drive model routing.
  */
 export async function seedPresetsFromLegacy(
   client: SupabaseClient,
 ): Promise<{ upserted: number; error: string | null }> {
-  const rows = buildLegacyCatalog().map((preset) => ({
+  const legacyRows = buildLegacyCatalog().map((preset) => ({
     category: preset.category,
     slug: preset.slug,
     label_en: preset.label_en,
@@ -349,8 +521,20 @@ export async function seedPresetsFromLegacy(
     model_family: preset.model_family,
     sort_order: preset.sort_order,
     is_active: preset.is_active,
+    // 0042 fields: default on legacy import, admin overrides later.
+    gender: preset.model_family === 'illustrious' ? 'female' : 'female',
+    style_family: preset.model_family === 'illustrious' ? 'anime' : 'realistic',
+    pose_reference: null,
+    workflow_flags: {},
     updated_at: new Date().toISOString(),
   }));
+
+  // Template pack (model matrix lanes) — merged so one seed call covers both.
+  const packRows = buildMatrixTemplatePack().map((row) => ({
+    ...row,
+    updated_at: new Date().toISOString(),
+  }));
+  const rows = [...legacyRows, ...packRows];
 
   let upserted = 0;
   for (let i = 0; i < rows.length; i += 50) {
