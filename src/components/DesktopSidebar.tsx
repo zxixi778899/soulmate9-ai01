@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 
 /**
- * Desktop sidebar (md+) — full-height app navigation for PC.
+ * Desktop sidebar (md+) — golove-style floating glass nav panel:
+ * sticky left, 8px edge gap, rounded-2xl, full-height minus 16px.
  * Hidden on mobile (BottomNav takes over) and on admin (admin layout owns nav).
  */
 export default function DesktopSidebar() {
@@ -61,7 +62,7 @@ export default function DesktopSidebar() {
   }
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 bottom-0 z-[70] w-64 flex-col border-r border-white/[0.07] bg-[#0A0712]/90 backdrop-blur-2xl">
+    <aside className="hidden md:flex fixed left-2 top-2 bottom-2 z-[70] w-60 flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0A0712]/78 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.5)]">
       <Link
         href="/"
         className="flex h-14 shrink-0 items-center gap-2.5 border-b border-white/[0.06] px-5"

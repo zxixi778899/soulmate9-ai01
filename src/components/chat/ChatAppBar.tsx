@@ -41,7 +41,7 @@ export function ChatAppBar(props: {
 
   return (
     <header
-      className="sticky top-0 z-30 shrink-0 border-b border-[#ff2e88]/12 bg-[#08040e]/92 backdrop-blur-xl"
+      className="sticky top-0 z-30 shrink-0 border-b border-transparent bg-[#08040e]/55 backdrop-blur-xl"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2">

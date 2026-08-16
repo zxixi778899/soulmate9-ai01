@@ -900,7 +900,11 @@ export function ChatInputBar(props: {
               placeholder={livePlaceholder}
               rows={1}
               enterKeyHint="send"
-              className="glass-input w-full resize-none px-3.5 sm:px-4 py-2.5 text-[16px] sm:text-sm leading-snug min-h-[44px] max-h-[120px]"
+              className={cn(
+                'glass-input w-full resize-none px-3.5 sm:px-4 py-2.5 text-[16px] sm:text-sm leading-snug min-h-[44px] max-h-[120px]',
+                // 竞品式胶囊输入：单行 = pill，多行展开时降为 22px 圆角
+                input.includes('\n') ? '!rounded-[22px]' : '!rounded-full',
+              )}
             />
           </div>
 

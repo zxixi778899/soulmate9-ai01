@@ -582,28 +582,26 @@ export default function CreatePage() {
           </div>
         )}
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* 竞品式步骤指示器：圆形图标钮（无连接线），激活 = 品牌粉实心 */}
+        <div className="flex items-center gap-3 sm:gap-4">
           {stepLabels.map((label, idx) => {
             const active = idx === stepIndex;
             const done = idx < stepIndex;
             return (
-              <div key={label} className="flex items-center gap-1.5">
+              <div key={label} className="flex flex-col items-center gap-1">
                 <div
                   className={cn(
-                    'h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold',
-                    active && 'bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white shadow-[0_0_16px_rgba(255,45,120,0.4)]',
-                    done && 'bg-[#FF2D78]/80 text-white',
-                    !active && !done && 'bg-white/5 text-white/40',
+                    'h-9 w-9 rounded-full flex items-center justify-center text-[11px] font-bold transition-all',
+                    active && 'bg-[#FF2D78] text-white shadow-[0_0_16px_rgba(255,45,120,0.5)]',
+                    done && 'bg-[#FF2D78]/25 text-[#FF8FBB] ring-1 ring-[#FF2D78]/50',
+                    !active && !done && 'bg-white/[0.08] text-white/45',
                   )}
                 >
-                  {done ? <Check className="h-3 w-3" /> : idx + 1}
+                  {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
                 </div>
-                <span className={cn('hidden sm:block text-[10px] font-medium', active ? 'text-white' : 'text-white/40')}>
+                <span className={cn('text-[9px] font-semibold', active ? 'text-white' : 'text-white/40')}>
                   {label}
                 </span>
-                {idx < stepLabels.length - 1 && (
-                  <div className={cn('h-px w-6 sm:w-10', done ? 'bg-[#FF2D78]/50' : 'bg-white/10')} />
-                )}
               </div>
             );
           })}

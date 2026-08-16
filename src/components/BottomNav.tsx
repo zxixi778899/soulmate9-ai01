@@ -97,7 +97,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 game-bottom-nav"
+      className="md:hidden fixed bottom-2 left-2 right-2 z-50 game-bottom-nav overflow-hidden rounded-2xl ring-1 ring-white/[0.08] shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
       style={{ paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom))' }}
       aria-label="Primary"
     >
