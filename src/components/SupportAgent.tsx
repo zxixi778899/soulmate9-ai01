@@ -24,6 +24,16 @@ const QUICK_REPLIES_ZH = [
   '怎么取消订阅？',
 ];
 
+const FAB_STORAGE_KEY = 'soulmate:support-fab-pos';
+
+// 拖动后的位置限制在视口内（按钮约 56px + 边距）
+function clampFab(left: number, top: number): { left: number; top: number } {
+  return {
+    left: Math.min(Math.max(8, left), window.innerWidth - 64),
+    top: Math.min(Math.max(8, top), window.innerHeight - 64),
+  };
+}
+
 export default function SupportAgent() {
   const { locale } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -43,6 +53,45 @@ export default function SupportAgent() {
     : 'Hi! I\'m Luna, your AI assistant. How can I help you? You can tap a quick question below or type your own.';
 
   const quickReplies = isZh ? QUICK_REPLIES_ZH : QUICK_REPLIES_EN;
+
+  // ── 可拖动悬浮按钮：位置持久化到 localStorage，短按打开面板 ──
+  const [fabPos, setFabPos] = useState<{ left: number; top: number } | null>(null);
+  const fabDragRef = useRef<{ startX: number; startY: number; baseLeft: number; baseTop: number; moved: boolean } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(FAB_STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw) as { left?: number; top?: number };
+        setFabPos(clampFab(Number(p.left) || 0, Number(p.top) || 0));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (!fabPos) return;
+    try { window.localStorage.setItem(FAB_STORAGE_KEY, JSON.stringify(fabPos)); } catch { /* ignore */ }
+  }, [fabPos]);
+
+  const onFabPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    fabDragRef.current = { startX: e.clientX, startY: e.clientY, baseLeft: rect.left, baseTop: rect.top, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onFabPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = fabDragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) < 6) return;
+    d.moved = true;
+    setFabPos(clampFab(d.baseLeft + dx, d.baseTop + dy));
+  };
+  const onFabPointerUp = () => {
+    const wasDrag = fabDragRef.current?.moved;
+    fabDragRef.current = null;
+    if (!wasDrag) setOpen(true);
+  };
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -173,11 +222,14 @@ export default function SupportAgent() {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button (可拖动，位置记忆) */}
       {!open && (
         <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-[max(5rem,env(safe-area-inset-bottom))] right-4 z-50 group"
+          onPointerDown={onFabPointerDown}
+          onPointerMove={onFabPointerMove}
+          onPointerUp={onFabPointerUp}
+          style={fabPos ? { left: fabPos.left, top: fabPos.top } : undefined}
+          className={`fixed z-50 group touch-none select-none cursor-grab active:cursor-grabbing ${fabPos ? '' : 'bottom-[max(5rem,env(safe-area-inset-bottom))] right-4'}`}
           aria-label={title}
         >
           {/* Ping animation (desktop only) */}

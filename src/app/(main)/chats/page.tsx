@@ -192,9 +192,10 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
             onOpenProfile(friend, e);
           }}
         >
-          <Avatar className="h-14 w-14 ring-1 ring-[#ff2e88]/25">
+          {/* 会话列表头像：全站标准金→粉→紫渐变环 + object-top 头肩裁切，视网膜档 224px */}
+          <Avatar className="h-14 w-14 shadow-[0_0_16px_rgba(255,45,120,0.28)]">
             {friend.avatar_url
-              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 112)} alt={friend.name} />
+              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 224)} alt={friend.name} className="object-cover object-top" />
               : <AvatarFallback className="bg-gradient-to-br from-[#ff2e88]/40 to-[#c026d3]/30 text-[#ff6ba6] font-bold">{friend.name?.charAt(0) || '?'}</AvatarFallback>}
           </Avatar>
           <span className="absolute -bottom-0.5 -right-0.5 text-sm drop-shadow" title={mood.label}>{mood.emoji}</span>
@@ -327,6 +328,7 @@ export default function ChatsPage() {
   const [showMemories, setShowMemories] = useState(false);
   const [showAlbum, setShowAlbum] = useState(false);
   const [showLightbox, setShowLightbox] = useState<string | null>(null);
+  const [slideIdx, setSlideIdx] = useState(0);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [selectedPose, setSelectedPose] = useState<string | null>(null);
@@ -640,7 +642,7 @@ export default function ChatsPage() {
   useEffect(() => {
     if (selectedId) {
       setPage(1); setHasMore(true); setMessages([]); setGirlfriend(null);
-      setSmartSuggestions([]); setPendingMedia(null); setSelectedOutfit(null);
+      setSmartSuggestions([]); setPendingMedia(null); setSelectedOutfit(null); setSlideIdx(0);
       void loadChat(selectedId);
       // User is viewing this chat — mark it read, then refresh the badge counts.
       authedFetch('/api/chat/mark-read', {
@@ -1002,6 +1004,21 @@ export default function ChatsPage() {
   const selIsPending = selReviewStatus === 'pending';
   const selIsRejected = selReviewStatus === 'rejected';
 
+  // ── 右栏立绘轮播图源：主立绘 + 聊天中产出的照片（去重，最多 8 张）──
+  const carouselImages = useMemo(() => {
+    const primary = String(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend?.avatar_url || '');
+    const extras = messages
+      .map((m) => m.media_url)
+      .filter((u): u is string => !!u && u.startsWith('http') && !/\.(mp4|webm|mov|m4v)(\?|$)/i.test(u));
+    return [primary, ...extras].filter(Boolean).filter((u, i, arr) => arr.indexOf(u) === i).slice(0, 8);
+  }, [girlfriend, selFriend, messages]);
+
+  useEffect(() => {
+    if (carouselImages.length < 2) return;
+    const id = window.setInterval(() => setSlideIdx((i) => (i + 1) % carouselImages.length), 4000);
+    return () => window.clearInterval(id);
+  }, [carouselImages.length]);
+
   // ── Render ──
   return (
     <div className="h-full flex bg-[#0a0a12] overflow-hidden pb-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:pb-0">
@@ -1081,11 +1098,11 @@ export default function ChatsPage() {
       )}>
         {selectedId && !isLoading && girlfriend ? (
           <div className="relative flex h-full flex-col overflow-hidden">
-            {/* Companion portrait background at 50% opacity (立绘) */}
+            {/* Companion portrait background（立绘半透明背景，适度压暗保证气泡可读） */}
             {(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || girlfriend?.avatar_url) && (
-              <div className="pointer-events-none absolute inset-0 z-0 opacity-50" style={{ backgroundImage: `url(${toPreviewUrl(girlfriend.card_url || girlfriend.portrait_url || girlfriend.image_url || girlfriend.avatar_url, 'card')})`, backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat' }} />
+              <div className="pointer-events-none absolute inset-0 z-0 opacity-35" style={{ backgroundImage: `url(${toPreviewUrl(girlfriend.card_url || girlfriend.portrait_url || girlfriend.image_url || girlfriend.avatar_url, 'card')})`, backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat' }} />
             )}
-            <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0b0b12]/70 via-[#0b0b12]/50 to-[#0b0b12]/90" />
+            <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0b0b12]/55 via-[#0b0b12]/38 to-[#0b0b12]/80" />
 
             <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
               <ChatAppBar
@@ -1213,22 +1230,42 @@ export default function ChatsPage() {
       <aside className="hidden xl:flex w-[320px] 2xl:w-[360px] shrink-0 flex-col border-l border-white/[0.06] bg-[#0e0e18] overflow-hidden">
         {selFriend ? (
           <div className="flex-1 overflow-y-auto">
-            {/* Portrait — click opens companion profile page */}
+            {/* Portrait carousel — 轮转展示立绘/相册照片，点击进入伴侣主页 */}
             <div className="p-4 pb-0">
               <div
                 className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] cursor-pointer transition-opacity hover:opacity-90"
                 role="button"
                 aria-label={t('chats.openCompanionProfile')}
-                onClick={() => router.push(`/chats?friend=${encodeURIComponent(selFriend.id)}`)}
+                onClick={() => router.push(`/companion/${encodeURIComponent(selFriend.id)}`)}
               >
-                {(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url) ? (
-                  // 右侧立绘按需压缩（832px 档），压缩失败自动回退原图
-                  <OptimizedImg
-                    src={String(girlfriend?.card_url || girlfriend?.portrait_url || girlfriend?.image_url || selFriend.avatar_url || '')}
-                    size="detail"
-                    alt={selFriend.name}
-                    className="h-full w-full object-cover"
-                  />
+                {carouselImages.length > 0 ? (
+                  <>
+                    {carouselImages.map((src, i) => (
+                      <OptimizedImg
+                        key={src}
+                        src={src}
+                        size="detail"
+                        alt={selFriend.name}
+                        className={cn(
+                          'absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-700',
+                          i === slideIdx % carouselImages.length ? 'opacity-100' : 'opacity-0',
+                        )}
+                      />
+                    ))}
+                    {carouselImages.length > 1 && (
+                      <div className="absolute bottom-2 left-1/2 z-[2] flex -translate-x-1/2 gap-1">
+                        {carouselImages.map((_, i) => (
+                          <span
+                            key={i}
+                            className={cn(
+                              'h-1.5 rounded-full transition-all',
+                              i === slideIdx % carouselImages.length ? 'w-4 bg-white' : 'w-1.5 bg-white/40',
+                            )}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#ff2e88]/30 to-[#c026d3]/20 text-4xl font-bold text-[#ff6ba6]">
                     {selFriend.name?.charAt(0) || '?'}

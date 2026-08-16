@@ -192,11 +192,12 @@ function ChatStreamInner(props: {
             <img
               src={portrait}
               alt=""
-              className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.14]"
+              className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.3]"
               loading="lazy"
               decoding="async"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#08040e]/75 via-[#08040e]/88 to-[#08040e]" />
+            {/* 立绘半透明背景：顶部轻压、底部适度加深保证气泡与输入区可读 */}
+            <div className="absolute inset-0 bg-gradient-to-b from-[#08040e]/55 via-[#08040e]/70 to-[#08040e]/92" />
           </>
         ) : (
           <div
