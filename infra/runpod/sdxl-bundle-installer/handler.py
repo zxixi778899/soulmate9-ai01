@@ -3,8 +3,10 @@ attached network volume (/runpod-volume). Pure-python downloader (no
 curl/apt needed). Progress + final report are relayed to Supabase
 site_settings so runs are observable without pod logs.
 
-Job input: {"cmd": "download"} (anything else = no-op ping).
-Idempotent: sha256-verified files are skipped, HTTP downloads resume.
+Job input:
+  {"cmd": "download"}  -> install the bundle (idempotent)
+  {"cmd": "inventory"} -> list model files with sizes (verification)
+  anything else         -> no-op ping
 """
 import hashlib
 import os
@@ -178,10 +180,33 @@ def run_download():
     return {"rc": rc, "results": results}
 
 
+def run_inventory():
+    exts = (".safetensors", ".bin", ".pt", ".pth")
+    files = []
+    for dirpath, _dirs, names in os.walk(ROOT):
+        for n in sorted(names):
+            if n.endswith(exts):
+                p = os.path.join(dirpath, n)
+                files.append({
+                    "path": os.path.relpath(p, "/runpod-volume"),
+                    "size_mb": round(os.path.getsize(p) / (1024 * 1024), 1),
+                })
+    files.sort(key=lambda f: f["path"])
+    manifest = os.path.join(STATE, "sdxl-matrix-installed.txt")
+    manifest_lines = []
+    if os.path.exists(manifest):
+        with open(manifest) as f:
+            manifest_lines = [ln.strip() for ln in f if ln.strip()]
+    return {"files": files, "count": len(files), "manifest": manifest_lines}
+
+
 def handler(job):
     inp = job.get("input", {}) or {}
-    if inp.get("cmd") == "download":
+    cmd = inp.get("cmd")
+    if cmd == "download":
         return run_download()
+    if cmd == "inventory":
+        return run_inventory()
     return {"pong": True, "volume_mounted": os.path.isdir("/runpod-volume")}
 
 
