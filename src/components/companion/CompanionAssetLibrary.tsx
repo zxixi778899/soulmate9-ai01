@@ -326,12 +326,12 @@ export function CompanionAssetLibrary(props: {
                 : t('companion.emptyVideo')}
           </p>
         ) : (
-          // 全站相册统一规格：3:4 立绘比例 + 16px 圆角（与伴侣卡视觉语言一致）
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3">
+          // 全站相册统一规格：与卡池伴侣卡(GridCard)一致 —— 3:4 + 22px 圆角 + hover 粉色辉光/kenburns
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5 xl:grid-cols-6 lg:gap-4">
             {current.map((asset) => (
               <div
                 key={asset.id}
-                className="group relative aspect-[3/4] overflow-hidden rounded-[16px] ring-1 ring-white/10 bg-white/[0.04]"
+                className="group relative aspect-[3/4] overflow-hidden rounded-[22px] ring-1 ring-white/10 bg-white/[0.04] transition-all hover:ring-[#ff2e88]/45 hover:shadow-[0_0_28px_rgba(255,46,136,0.22)]"
               >
                 <button
                   type="button"
@@ -342,7 +342,7 @@ export function CompanionAssetLibrary(props: {
                     <>
                       <video
                         src={asset.thumbnail_url || asset.url}
-                        className="h-full w-full object-cover object-top"
+                        className="h-full w-full object-cover object-top group-hover:[animation:card-kenburns_5s_ease-in-out_infinite]"
                         muted
                         preload="metadata"
                       />
@@ -358,7 +358,7 @@ export function CompanionAssetLibrary(props: {
                       src={asset.url}
                       size="card"
                       alt={asset.caption || ''}
-                      className="h-full w-full object-cover object-top"
+                      className="h-full w-full object-cover object-top group-hover:[animation:card-kenburns_5s_ease-in-out_infinite]"
                     />
                   )}
                 </button>

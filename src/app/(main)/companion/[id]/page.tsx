@@ -294,7 +294,8 @@ export default function CompanionProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
-      <div className="mx-auto max-w-3xl px-4 pb-28 pt-4 sm:pt-6">
+      {/* 宽屏展示：容器上限 5xl/6xl，相册网格在组件内随断点加列 */}
+      <div className="mx-auto max-w-5xl px-4 pb-28 pt-4 sm:pt-6 xl:max-w-6xl">
         {/* Top bar */}
         <div className="mb-4 flex items-center gap-2">
           <button
