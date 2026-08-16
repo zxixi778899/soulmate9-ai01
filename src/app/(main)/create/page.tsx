@@ -219,8 +219,8 @@ const DEFAULT_STYLE_PREVIEWS: Record<string, string> = {
   '3d': 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/3d.png',
 };
 
-/** 内容级别 1-5 预设预览图（portraits/nsfw-previews/level-N.png，后台可替换） */
-const NSFW_LEVEL_PREVIEWS: Record<number, string> = {
+/** 内容级别 1-5 内置默认预览图（site_settings creator_nsfw_previews 可后台替换） */
+const NSFW_LEVEL_PREVIEWS: Record<string, string> = {
   1: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-1.png',
   2: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-2.png',
   3: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-3.png',
@@ -228,9 +228,8 @@ const NSFW_LEVEL_PREVIEWS: Record<number, string> = {
   5: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-5.png',
 };
 
-/** 内容级别选择卡：预设预览图 + 级别名 */
-function NsfwLevelCard({ lv, label, active, onClick }: { lv: number; label: string; active: boolean; onClick: () => void }) {
-  const preview = NSFW_LEVEL_PREVIEWS[lv];
+/** 内容级别选择卡：预览图 + 级别名；管理员可就地上传/恢复默认 */
+function NsfwLevelCard({ lv, label, active, preview, onClick, adminSlot }: { lv: number; label: string; active: boolean; preview: string; onClick: () => void; adminSlot?: React.ReactNode }) {
   return (
     <button
       type="button"
@@ -251,6 +250,7 @@ function NsfwLevelCard({ lv, label, active, onClick }: { lv: number; label: stri
         aria-hidden="true"
         className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.06]"
       />
+      {adminSlot}
       {active && (
         <span className="absolute right-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_10px_rgba(255,45,120,0.6)]">
           <Check className="h-3 w-3 text-white" />
@@ -287,6 +287,8 @@ export default function CreatePage() {
   const [stylePreviews, setStylePreviews] = useState<Record<string, string>>(DEFAULT_STYLE_PREVIEWS);
   // 性别示例图（site_settings creator_gender_previews），空 = 符号占位，管理员可上传/删除
   const [genderPreviews, setGenderPreviews] = useState<Record<string, string>>({});
+  // 内容级别示例图（site_settings creator_nsfw_previews），缺省用内置默认图，管理员可上传/恢复默认
+  const [nsfwPreviews, setNsfwPreviews] = useState<Record<string, string>>(NSFW_LEVEL_PREVIEWS);
   // 管理员身份探测：admin API 可访问 → 在创建页显示就地上传/删除入口
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
@@ -313,19 +315,30 @@ export default function CreatePage() {
       .catch(() => {
         /* keep defaults */
       });
+    fetch('/api/creator/nsfw-previews')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => mergePatch(setNsfwPreviews, data?.previews))
+      .catch(() => {
+        /* keep defaults */
+      });
     // 管理员探测：非管理员返回 401/403，静默跳过；成功则顺带取最新配置
     authedFetch('/api/admin/style-previews')
       .then(async (r) => {
         if (!r.ok) return null;
         setIsAdmin(true);
-        const [styleData, genderRes] = await Promise.all([
+        const [styleData, genderRes, nsfwRes] = await Promise.all([
           readResponseJson<{ previews?: Record<string, unknown> }>(r),
           authedFetch('/api/admin/gender-previews'),
+          authedFetch('/api/admin/nsfw-previews'),
         ]);
         mergePatch(setStylePreviews, styleData.previews);
         if (genderRes.ok) {
           const genderData = await readResponseJson<{ previews?: Record<string, unknown> }>(genderRes);
           mergePatch(setGenderPreviews, genderData.previews);
+        }
+        if (nsfwRes.ok) {
+          const nsfwData = await readResponseJson<{ previews?: Record<string, unknown> }>(nsfwRes);
+          mergePatch(setNsfwPreviews, nsfwData.previews);
         }
       })
       .catch(() => {
@@ -688,7 +701,7 @@ export default function CreatePage() {
 
   // ─── Admin 就地管理：风格/性别/预设 示例图上传与删除 ────────────────────
 
-  type UploadTarget = { kind: 'style' | 'gender' | 'preset'; key: string };
+  type UploadTarget = { kind: 'style' | 'gender' | 'nsfw' | 'preset'; key: string };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [assetBusy, setAssetBusy] = useState<string | null>(null);
@@ -705,12 +718,16 @@ export default function CreatePage() {
     if (!file || !target || !isAdmin) return;
     setAssetBusy(`${target.kind}:${target.key}`);
     try {
-      if (target.kind === 'style' || target.kind === 'gender') {
+      if (target.kind === 'style' || target.kind === 'gender' || target.kind === 'nsfw') {
         const fd = new FormData();
-        fd.append(target.kind, target.key);
+        fd.append(target.kind === 'nsfw' ? 'level' : target.kind, target.key);
         fd.append('file', file);
         const res = await authedFetch(
-          target.kind === 'style' ? '/api/admin/style-previews' : '/api/admin/gender-previews',
+          target.kind === 'style'
+            ? '/api/admin/style-previews'
+            : target.kind === 'gender'
+              ? '/api/admin/gender-previews'
+              : '/api/admin/nsfw-previews',
           { method: 'POST', body: fd },
         );
         const data = await readResponseJson<{ previews?: Record<string, string>; error?: string }>(res);
@@ -718,7 +735,8 @@ export default function CreatePage() {
         if (data.previews) {
           const patch = data.previews;
           if (target.kind === 'style') setStylePreviews((prev) => ({ ...prev, ...patch }));
-          else setGenderPreviews((prev) => ({ ...prev, ...patch }));
+          else if (target.kind === 'gender') setGenderPreviews((prev) => ({ ...prev, ...patch }));
+          else setNsfwPreviews((prev) => ({ ...prev, ...patch }));
         }
       } else {
         const fd = new FormData();
@@ -758,6 +776,14 @@ export default function CreatePage() {
         const data = await readResponseJson<{ error?: string }>(res);
         if (!res.ok) throw new Error(data.error || 'delete failed');
         setGenderPreviews((prev) => ({ ...prev, [key]: '' }));
+      } else if (kind === 'nsfw') {
+        const res = await authedFetch(`/api/admin/nsfw-previews?level=${encodeURIComponent(key)}`, { method: 'DELETE' });
+        const data = await readResponseJson<{ previews?: Record<string, string>; error?: string }>(res);
+        if (!res.ok) throw new Error(data.error || 'reset failed');
+        if (data.previews) {
+          const patch = data.previews;
+          setNsfwPreviews((prev) => ({ ...prev, ...patch }));
+        }
       } else {
         const res = await authedFetch(`/api/admin/preset-portraits?slug=${encodeURIComponent(key)}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('delete failed');
@@ -1409,7 +1435,17 @@ export default function CreatePage() {
                                 lv={lv}
                                 label={t(CONTENT_LEVEL_KEYS[lv])}
                                 active={nsfwLevel === lv}
+                                preview={nsfwPreviews[String(lv)] || NSFW_LEVEL_PREVIEWS[String(lv)]}
                                 onClick={() => setNsfwLevel(lv)}
+                                adminSlot={isAdmin ? (
+                                  <AdminCardButtons
+                                    busy={assetBusy === `nsfw:${lv}`}
+                                    onUpload={() => pickAssetImage('nsfw', String(lv))}
+                                    onClear={() => void clearAssetImage('nsfw', String(lv))}
+                                    clearTitle={t('create.adminResetDefault')}
+                                    clearIcon="reset"
+                                  />
+                                ) : undefined}
                               />
                             ))}
                           </div>
