@@ -24,7 +24,8 @@ import {
 } from '@/components/ui/sheet';
 import {
   Loader2, MessageCircle, Plus, Search, X, Trash2,
-  Heart, BrainCircuit, ChevronDown, ChevronRight, Camera, Crown, Globe, Send,
+  Heart, BrainCircuit, ChevronDown, ChevronRight, ChevronLeft, Camera, Crown, Globe, Send,
+  Gift, Smile, Wand2,
   Image as ImageIcon, Shirt,
 } from 'lucide-react';
 import { INTIMACY_LEVELS } from '@/lib/constants';
@@ -37,9 +38,9 @@ import { toast } from 'sonner';
 // Chat components
 import { ChatAppBar } from '@/components/chat/ChatAppBar';
 import { ChatStream } from '@/components/chat/ChatStream';
-import { ChatInputBar, type PendingMedia } from '@/components/chat/ChatInputBar';
+import { ChatInputBar, PRESET_META, type PendingMedia } from '@/components/chat/ChatInputBar';
 import { GiftEffectOverlay, type GiftBurstState } from '@/components/chat/GiftEffectOverlay';
-import type { ChatMessage, ChatGirlfriend, IntimacyData, StreamRow } from '@/components/chat/types';
+import { CHAT_ENVS, CHAT_MOODS, CHAT_POSES, type ChatMessage, type ChatGirlfriend, type IntimacyData, type StreamRow } from '@/components/chat/types';
 
 // Utils
 import { dateGroupLabel, dayKey } from '@/lib/chat-utils';
@@ -192,10 +193,10 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
             onOpenProfile(friend, e);
           }}
         >
-          {/* 会话列表头像：全站标准金→粉→紫渐变环 + 1:1 居中裁切，视网膜档 224px */}
+          {/* 会话列表头像：全站标准金→粉→紫渐变环 + 1:1 圆形裁切，立绘图源 object-top 保头部，视网膜档 224px */}
           <Avatar className="h-14 w-14 shadow-[0_0_16px_rgba(255,45,120,0.28)]">
             {friend.avatar_url
-              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 224)} alt={friend.name} />
+              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 224)} alt={friend.name} className="object-top" />
               : <AvatarFallback className="bg-gradient-to-br from-[#ff2e88]/40 to-[#c026d3]/30 text-[#ff6ba6] font-bold">{friend.name?.charAt(0) || '?'}</AvatarFallback>}
           </Avatar>
           <span className="absolute -bottom-0.5 -right-0.5 text-sm drop-shadow" title={mood.label}>{mood.emoji}</span>
@@ -287,6 +288,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
 
 export default function ChatsPage() {
   const { t, locale } = useTranslation();
+  const isZh = String(locale || '').toLowerCase().startsWith('zh');
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedFriendId = searchParams.get('friend');
@@ -329,6 +331,8 @@ export default function ChatsPage() {
   const [showAlbum, setShowAlbum] = useState(false);
   const [showLightbox, setShowLightbox] = useState<string | null>(null);
   const [slideIdx, setSlideIdx] = useState(0);
+  // 右侧面板快捷功能区：礼物 / 心情 / 拍照姿势 / 场景（第二十轮）
+  const [quickPanel, setQuickPanel] = useState<'gifts' | 'mood' | 'pose' | 'env' | null>(null);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [selectedPose, setSelectedPose] = useState<string | null>(null);
@@ -1272,7 +1276,31 @@ export default function ChatsPage() {
                       />
                     ))}
                     {carouselImages.length > 1 && (
-                      <div className="absolute bottom-2 left-1/2 z-[2] flex -translate-x-1/2 gap-1">
+                      <>
+                        {/* 左右切换钮（第二十轮）：stopPropagation 防止触发外层跳伴侣主页 */}
+                        <button
+                          type="button"
+                          aria-label={t('chats.carouselPrev')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSlideIdx((i) => (i - 1 + carouselImages.length) % carouselImages.length);
+                          }}
+                          className="absolute left-1.5 top-1/2 z-[3] flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white/80 backdrop-blur transition-colors hover:bg-[#FF2D78] hover:text-white"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={t('chats.carouselNext')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSlideIdx((i) => (i + 1) % carouselImages.length);
+                          }}
+                          className="absolute right-1.5 top-1/2 z-[3] flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white/80 backdrop-blur transition-colors hover:bg-[#FF2D78] hover:text-white"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                        <div className="absolute bottom-2 left-1/2 z-[2] flex -translate-x-1/2 gap-1">
                         {carouselImages.map((_, i) => (
                           <span
                             key={i}
@@ -1282,7 +1310,8 @@ export default function ChatsPage() {
                             )}
                           />
                         ))}
-                      </div>
+                        </div>
+                      </>
                     )}
                   </>
                 ) : (
@@ -1404,7 +1433,7 @@ export default function ChatsPage() {
               </div>
             </div>
 
-            {/* Secondary entries */}
+            {/* Secondary entries + 快捷功能区（第二十轮：礼物/心情/拍照姿势/场景；移除冗余的“打开对话”自跳转按钮） */}
             <div className="px-4 py-4 space-y-1">
               <button
                 type="button"
@@ -1414,14 +1443,92 @@ export default function ChatsPage() {
                 <BrainCircuit className="h-4 w-4 text-[#FF6BA6]" />
                 <span className="text-[12px]">{t('chats.memories')}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => router.push(`/chats?friend=${encodeURIComponent(selFriend.id)}`)}
-                className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-white/60 hover:text-white hover:bg-white/[0.05] transition-colors touch-manipulation"
-              >
-                <MessageCircle className="h-4 w-4 text-sky-400" />
-                <span className="text-[12px]">{t('chats.fullChatView')}</span>
-              </button>
+              {([
+                { key: 'gifts' as const, icon: Gift, iconCls: 'text-amber-400', label: t('chats.qGifts') },
+                { key: 'mood' as const, icon: Smile, iconCls: 'text-[#FF6BA6]', label: t('chats.qMood') },
+                { key: 'pose' as const, icon: Camera, iconCls: 'text-emerald-400', label: t('chats.qPose') },
+                { key: 'env' as const, icon: Wand2, iconCls: 'text-violet-400', label: t('chats.qScene') },
+              ]).map((entry) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  onClick={() => setQuickPanel((cur) => (cur === entry.key ? null : entry.key))}
+                  className={cn(
+                    'w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors touch-manipulation',
+                    quickPanel === entry.key
+                      ? 'bg-white/[0.07] text-white'
+                      : 'text-white/60 hover:text-white hover:bg-white/[0.05]',
+                  )}
+                >
+                  <entry.icon className={cn('h-4 w-4', entry.iconCls)} />
+                  <span className="text-[12px]">{entry.label}</span>
+                  <ChevronDown
+                    className={cn(
+                      'ml-auto h-3.5 w-3.5 text-white/30 transition-transform',
+                      quickPanel === entry.key && 'rotate-180',
+                    )}
+                  />
+                </button>
+              ))}
+
+              {/* 礼物快捷面板：点击直接送出（复用聊天内 handleSendGift 进发特效） */}
+              {quickPanel === 'gifts' && (
+                <div className="grid grid-cols-3 gap-1.5 px-1 pb-1 pt-1">
+                  {gifts.slice(0, 9).map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => handleSendGift(g)}
+                      className="flex flex-col items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.04] p-2 hover:border-[#ff2e88]/50 hover:bg-[#ff2e88]/10 active:scale-95 transition-all touch-manipulation"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-black/30 text-2xl ring-1 ring-white/10">
+                        {g.icon_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- gift icon asset
+                          <img src={g.icon_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          g.emoji
+                        )}
+                      </span>
+                      <span className="w-full truncate text-center text-[10px] text-white/70">{g.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* 心情 / 拍照姿势 / 场景 pill 选择器：与聊天输入栏预设共享同一状态，选中后随下一条消息生效 */}
+              {quickPanel === 'mood' || quickPanel === 'pose' || quickPanel === 'env' ? (
+                <div className="flex flex-wrap gap-1.5 px-1 pb-1 pt-1">
+                  {(quickPanel === 'mood' ? CHAT_MOODS : quickPanel === 'pose' ? CHAT_POSES : CHAT_ENVS).map((it) => {
+                    const meta = PRESET_META[it];
+                    const active =
+                      quickPanel === 'mood'
+                        ? selectedMood === it
+                        : quickPanel === 'pose'
+                          ? selectedPose === it
+                          : selectedEnvironment === it;
+                    const toggle = () => {
+                      if (quickPanel === 'mood') setSelectedMood(active ? null : it);
+                      else if (quickPanel === 'pose') setSelectedPose(active ? null : it);
+                      else setSelectedEnvironment(active ? null : it);
+                    };
+                    return (
+                      <button
+                        key={it}
+                        type="button"
+                        onClick={toggle}
+                        className={cn(
+                          'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] transition-all active:scale-95',
+                          active
+                            ? 'bg-[#FF2D78]/20 border-[#FF2D78]/45 text-[#ff9ec4]'
+                            : 'border-white/10 bg-white/[0.04] text-[#8B8BA3] hover:text-white',
+                        )}
+                      >
+                        {meta ? (isZh ? meta.zh : meta.en) : it.replace('_', ' ')}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
           </div>
         ) : (

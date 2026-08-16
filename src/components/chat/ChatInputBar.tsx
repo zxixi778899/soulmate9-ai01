@@ -30,7 +30,7 @@ type OutfitLite = {
 };
 
 /** 预设选项元信息：图标 + 中/英文案（EN/ZH 优化） */
-const PRESET_META: Record<string, { icon: React.ElementType; zh: string; en: string }> = {
+export const PRESET_META: Record<string, { icon: React.ElementType; zh: string; en: string }> = {
   // MOOD 氛围
   romantic: { icon: Heart, zh: '浪漫', en: 'Romantic' },
   playful: { icon: Smile, zh: '俏皮', en: 'Playful' },
