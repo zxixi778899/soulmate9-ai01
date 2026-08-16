@@ -9,7 +9,7 @@
  * - Leaderboard / Modules / Promo / Footer kept below
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo } from 'react';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useDataSync } from '@/hooks/useDataSync';
 import { useRouter } from 'next/navigation';
@@ -17,6 +17,7 @@ import {
   MessageCircle, ShoppingBag, Wand2, Crown,
   Flame, Zap, Users, Share2,
   Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink, Megaphone,
+  Percent, Gift,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
@@ -105,9 +106,74 @@ function GridCard({
   );
 }
 
+/** 网格内推广卡（与 GridCard 同规格：22px 圆角 + 3:4，点击跳充值页） */
+function GridPromoCard({
+  variant,
+  onClick,
+}: {
+  variant: 'recharge' | 'firstTopup';
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  const recharge = variant === 'recharge';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'group relative overflow-hidden rounded-[22px] text-left ring-1 transition-all active:scale-[0.98]',
+        recharge
+          ? 'ring-[#ffd700]/40 bg-gradient-to-br from-[#3a2a05] via-[#1c1406] to-[#0d0a04] hover:ring-[#ffd700]/70 hover:shadow-[0_0_28px_rgba(255,215,0,0.25)]'
+          : 'ring-[#ff2e88]/40 bg-gradient-to-br from-[#3b0a26] via-[#1f0a1c] to-[#0d0512] hover:ring-[#ff2e88]/70 hover:shadow-[0_0_28px_rgba(255,46,136,0.25)]',
+      )}
+    >
+      <div className="relative flex aspect-[3/4] flex-col items-center justify-center gap-1.5 px-2 text-center">
+        <div
+          className={cn(
+            'absolute -top-8 -right-8 h-28 w-28 rounded-full blur-2xl transition-opacity duration-500 group-hover:opacity-90 opacity-60',
+            recharge ? 'bg-[#ffd700]/30' : 'bg-[#ff2e88]/30',
+          )}
+          aria-hidden
+        />
+        <span
+          className={cn(
+            'rounded-md px-2 py-0.5 text-[9px] font-black tracking-[0.2em]',
+            recharge ? 'bg-gradient-to-r from-[#ffd700] to-[#f59e0b] text-black' : 'bg-gradient-to-r from-[#ff2e88] to-[#c026d3] text-white',
+          )}
+        >
+          {t('home.gridPromoAd')}
+        </span>
+        <div
+          className={cn(
+            'flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br shadow-lg',
+            recharge ? 'from-[#ffd700] to-[#f59e0b]' : 'from-[#ff2e88] to-[#c026d3]',
+          )}
+        >
+          {recharge ? <Percent className="h-5 w-5 text-black" /> : <Gift className="h-5 w-5 text-white" />}
+        </div>
+        <div className="text-base font-black leading-tight [text-shadow:0_1px_8px_rgba(0,0,0,0.9)]">
+          {recharge ? t('home.gridPromoRechargeTitle') : t('home.gridPromoFirstTopupTitle')}
+        </div>
+        <div className="text-[10px] text-white/55 leading-snug">
+          {recharge ? t('home.gridPromoRechargeDesc') : t('home.gridPromoFirstTopupDesc')}
+        </div>
+        <span className="mt-0.5 text-[10px] font-bold text-white/85 flex items-center gap-0.5 group-hover:text-white">
+          {t('home.gridPromoCta')} <ChevR className="h-3 w-3" />
+        </span>
+      </div>
+    </button>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { t, locale } = useTranslation();
+  // 推广卡随机插位（挂载时固定一次，避免重渲染跳动）
+  const [promoSlots] = useState<number[]>(() => {
+    const a = 2 + Math.floor(Math.random() * 6);
+    const b = a + 4 + Math.floor(Math.random() * 6);
+    return [a, b];
+  });
   const { user } = useAuth();
   const friendStatus = useFriendStatus();
   const { settings: siteSettings } = useSiteSettings();
@@ -461,8 +527,12 @@ export default function HomePage() {
             <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5">
-            {gridGirls.map((g) => (
-              <GridCard key={g.id} g={g} onOpen={(girl) => setDetail(girl)} previewSize={gridPreviewSize} />
+            {gridGirls.map((g, i) => (
+              <Fragment key={g.id}>
+                {i === promoSlots[0] && <GridPromoCard variant="recharge" onClick={() => router.push('/wallet')} />}
+                {i === promoSlots[1] && <GridPromoCard variant="firstTopup" onClick={() => router.push('/wallet')} />}
+                <GridCard g={g} onOpen={(girl) => setDetail(girl)} previewSize={gridPreviewSize} />
+              </Fragment>
             ))}
           </div>
           {/* 更多伴侣按钮 */}
