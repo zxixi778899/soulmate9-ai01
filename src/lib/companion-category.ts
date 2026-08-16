@@ -50,6 +50,9 @@ export function normalizeCompanionCategory(input: {
   style?: unknown;
   tags?: unknown;
 }): CompanionCategory {
+  // Anime is a render-style category (not a gender): 2d/anime style or tags route here first.
+  if (exactStyle(input.style) === '2d') return 'anime';
+  if (Array.isArray(input.tags) && input.tags.some((tag) => ['anime', '2d', 'manga'].includes(String(tag).trim().toLowerCase()))) return 'anime';
   const gender = String(input.gender || '').trim().toLowerCase();
   // Gender is an identity field. Style and tags must never override it.
   if (/\btrans(?:gender|sexual)?\b|non.?binary|mtf|ftm/.test(gender)) return 'transgender';

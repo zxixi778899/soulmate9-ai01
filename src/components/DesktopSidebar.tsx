@@ -4,12 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
-import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { cn } from '@/lib/utils';
 import {
-  Home, Heart, MessageCircle, Wand2, ShoppingBag, Coins, Shirt,
-  BookHeart, CalendarCheck, User, Crown, Sparkles, LogIn,
+  Compass, Heart, Users, Wand2, Shirt, Trophy, User, Crown, Sparkles, LogIn,
 } from 'lucide-react';
 
 /**
@@ -21,7 +19,6 @@ export default function DesktopSidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { t } = useTranslation();
-  const { settings } = useSiteSettings();
   const { unreadTotal } = useUnreadMessages();
 
   if (pathname?.startsWith('/admin')) return null;
@@ -31,35 +28,23 @@ export default function DesktopSidebar() {
       ? pathname === '/'
       : pathname === href || pathname?.startsWith(href + '/');
 
+  // 第九轮定稿菜单：探索 / 卡池 / 好友 / 创建 / 衣柜 / 成就 / 个人主页
   const items = user
     ? [
-        { href: '/', label: t('home.selectCast'), icon: Home },
-        { href: '/explore', label: t('home.pool'), icon: Heart },
-        { href: '/chats', label: t('home.messages'), icon: MessageCircle, badge: unreadTotal },
-        { href: '/create', label: t('home.create'), icon: Wand2 },
-        { href: '/wallet', label: t('nav.wallet'), icon: Coins },
+        { href: '/', label: t('nav.explore'), icon: Compass },
+        { href: '/explore', label: t('nav.pool'), icon: Heart },
+        { href: '/chats', label: t('nav.friends'), icon: Users, badge: unreadTotal },
+        { href: '/create', label: t('nav.create'), icon: Wand2 },
         { href: '/wardrobe', label: t('nav.wardrobe'), icon: Shirt },
-        { href: '/memories', label: t('nav.memories'), icon: BookHeart },
-        { href: '/quest', label: t('nav.quest'), icon: CalendarCheck },
-        { href: '/profile', label: t('home.me'), icon: User },
-      ].filter(
-        (item) =>
-          item.href !== '/shop' ||
-          settings?.shop_enabled,
-      )
+        { href: '/achievements', label: t('nav.achievements'), icon: Trophy },
+        { href: '/profile', label: t('nav.profile'), icon: User },
+      ]
     : [
-        { href: '/', label: t('home.selectCast'), icon: Home },
-        { href: '/explore', label: t('home.pool'), icon: Heart },
+        { href: '/', label: t('nav.explore'), icon: Compass },
+        { href: '/explore', label: t('nav.pool'), icon: Heart },
         { href: '/login', label: t('home.login'), icon: LogIn },
         { href: '/register', label: t('home.join'), icon: Sparkles },
       ];
-
-  // Insert shop right after create when enabled (logged-in only)
-  if (user && settings?.shop_enabled) {
-    const shopItem = { href: '/shop', label: t('home.shop'), icon: ShoppingBag };
-    const createIdx = items.findIndex((i) => i.href === '/create');
-    if (createIdx >= 0) items.splice(createIdx + 1, 0, shopItem);
-  }
 
   return (
     <aside className="hidden md:flex fixed left-2 top-2 bottom-2 z-[70] w-60 flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0A0712]/78 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.5)]">

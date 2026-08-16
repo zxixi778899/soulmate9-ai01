@@ -39,6 +39,7 @@ import { useTranslation } from '@/lib/i18n/context';
 import { useAuth } from '@/components/AuthProvider';
 import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
 import { useSiteSettings, useSiteAds } from '@/hooks/useSiteSettings';
+import { useGridPreviewSize } from '@/hooks/useGridPreviewSize';
 import { HomeAdBanners } from '@/components/ads/HomeAdBanners';
 
 
@@ -48,19 +49,6 @@ const FOOTER_FALLBACK = {
   discord: process.env.NEXT_PUBLIC_DISCORD_URL || '',
   email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@oxmate-ai.com',
 };
-
-/** 网格像素档随断点自适应：桌面列多卡宽小 → detail 档（832px）保视网膜清晰；移动端卡宽大 → card 档（512px）控流量 */
-function useGridPreviewSize(): PreviewSize {
-  const [size, setSize] = useState<PreviewSize>('card');
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)');
-    const apply = () => setSize(mq.matches ? 'detail' : 'card');
-    apply();
-    mq.addEventListener?.('change', apply);
-    return () => mq.removeEventListener?.('change', apply);
-  }, []);
-  return size;
-}
 
 /** 高密度网格卡片（golove 式：22px 圆角 + 底部黑渐变文字层） */
 function GridCard({

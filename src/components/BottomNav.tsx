@@ -8,7 +8,7 @@ import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { cn } from '@/lib/utils';
 import {
-  Heart, MessageCircle, User, Home, LogIn, Wand2, ShoppingBag, Sparkles,
+  Heart, MessageCircle, User, Compass, LogIn, Wand2, ShoppingBag, Sparkles,
 } from 'lucide-react';
 
 export default function BottomNav() {
@@ -28,20 +28,21 @@ export default function BottomNav() {
   const isLoggedIn = !!user;
 
   // 5-tab dock: create sits center (logged-in) for thumb reach
+  // 第十轮定稿：探索 / 卡池 / 好友(中心) / 创建 / 个人主页
   const leftItems = isLoggedIn
     ? [
-        { href: '/', label: t('home.selectCast'), icon: Home },
-        { href: '/explore', label: t('home.pool'), icon: Heart },
+        { href: '/', label: t('nav.explore'), icon: Compass },
+        { href: '/explore', label: t('nav.pool'), icon: Heart },
       ]
     : [
-        { href: '/', label: t('home.selectCast'), icon: Home },
-        { href: '/explore', label: t('home.pool'), icon: Heart },
+        { href: '/', label: t('nav.explore'), icon: Compass },
+        { href: '/explore', label: t('nav.pool'), icon: Heart },
       ];
 
   const rightItems = isLoggedIn
     ? [
-        { href: '/create', label: t('home.create'), icon: Wand2 },
-        { href: '/profile', label: t('home.me'), icon: User },
+        { href: '/create', label: t('nav.create'), icon: Wand2 },
+        { href: '/profile', label: t('nav.profile'), icon: User },
       ]
     : [
         { href: '/login', label: t('home.login'), icon: LogIn },
@@ -117,7 +118,7 @@ export default function BottomNav() {
                 'active:scale-95 transition-transform touch-manipulation',
                 isActive('/chats') && 'ring-2 ring-[#ffb3cd]/60',
               )}
-              aria-label={t('home.messages')}
+              aria-label={t('nav.friends')}
             >
               <MessageCircle className="h-6 w-6 text-white" />
               {unreadTotal > 0 && (
@@ -126,7 +127,7 @@ export default function BottomNav() {
                 </span>
               )}
             </Link>
-            <span className="mt-8 text-[10px] font-medium text-white/40 leading-none">{t('home.messages')}</span>
+            <span className="mt-8 text-[10px] font-medium text-white/40 leading-none">{t('nav.friends')}</span>
           </div>
         ) : settings?.shop_enabled ? (
           <Link

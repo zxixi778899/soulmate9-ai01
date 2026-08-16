@@ -21,6 +21,8 @@ import {
 import { PageHeader } from '@/components/game/PageHeader';
 import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/LockedPortrait';
 import { toAvatarPreviewUrl } from '@/lib/image-preview';
+import { useGridPreviewSize } from '@/hooks/useGridPreviewSize';
+import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { authedFetch } from '@/lib/supabase';
@@ -31,12 +33,14 @@ type SortKey = 'rarity' | 'hot' | 'intimacy' | 'new';
 const TAG_POOL = ['mysterious', 'romantic', 'playful', 'sweet', 'creative', 'flirty', 'bold', 'confident', 'passionate', 'gentle', 'wise', 'caring', 'cool', 'obsessive', 'energetic', 'fantasy', 'sensual', 'dominant', 'intellectual'];
 
 export default function ExplorePage() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const friendStatus = useFriendStatus();
+  const gridPreviewSize = useGridPreviewSize();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<'all' | CompanionCategory>('all');
   const [sort, setSort] = useState<SortKey>('rarity');
   const [selected, setSelected] = useState<DemoGirl | null>(null);
   const [selecting, setSelecting] = useState(false);
@@ -72,6 +76,9 @@ export default function ExplorePage() {
     if (selectedTags.length) {
       arr = arr.filter((g) => selectedTags.every((t) => (Array.isArray(g.tags) ? g.tags : []).includes(t)));
     }
+    if (categoryFilter !== 'all') {
+      arr = arr.filter((g) => g.category === categoryFilter);
+    }
     if (rarityFilter) arr = arr.filter((g) => g.rarity === rarityFilter);
     if (sort === 'hot' || sort === 'intimacy') arr.sort((a, b) => b.intimacy - a.intimacy);
     if (sort === 'new') arr = arr.reverse();
@@ -80,7 +87,7 @@ export default function ExplorePage() {
       arr.sort((a, b) => (order[b.rarity] || 0) - (order[a.rarity] || 0));
     }
     return arr;
-  }, [catalog, search, selectedTags, sort, rarityFilter]);
+  }, [catalog, search, selectedTags, sort, rarityFilter, categoryFilter]);
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
@@ -229,6 +236,36 @@ export default function ExplorePage() {
               })}
             </div>
           </div>
+          {/* 大分类（与主页一致）：全部 / 女性 / 男性 / 跨性别 / 二次元 */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+            <button
+              type="button"
+              onClick={() => setCategoryFilter('all')}
+              className={cn(
+                'shrink-0 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold transition-all touch-manipulation',
+                categoryFilter === 'all'
+                  ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white'
+                  : 'border-white/10 bg-white/[0.04] text-white/50 hover:text-white',
+              )}
+            >
+              {t('landing.filterAll')}
+            </button>
+            {COMPANION_CATEGORIES.map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setCategoryFilter(categoryFilter === category ? 'all' : category)}
+                className={cn(
+                  'shrink-0 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold transition-all touch-manipulation',
+                  categoryFilter === category
+                    ? 'border-[#ff2e88] bg-[#ff2e88]/20 text-white'
+                    : 'border-white/10 bg-white/[0.04] text-white/50 hover:text-white',
+                )}
+              >
+                {COMPANION_CATEGORY_LABELS[category][locale]}
+              </button>
+            ))}
+          </div>
           <div className="hidden md:flex items-center gap-1.5 flex-wrap">
             <Filter className="h-3.5 w-3.5 text-white/30" />
             {TAG_POOL.map((tag) => {
@@ -268,7 +305,7 @@ export default function ExplorePage() {
                   'transition-transform duration-200 active:scale-[0.98] hover:-translate-y-1',
                 )}
               >
-                <div className="relative aspect-[2/3]">
+                <div className="relative aspect-[3/4]">
                   <CardMedia
                     src={girl.portrait || girl.avatar}
                     videoSrc={girl.video || girl.avatar_video}
@@ -276,8 +313,10 @@ export default function ExplorePage() {
                     hoverPlay
                     forcePlay={false}
                     showBadge={!!(girl.video || girl.avatar_video)}
+                    previewSize={gridPreviewSize}
                     imgClassName={cn(
-                      'transition-transform duration-300 group-hover:scale-[1.03]',
+                      // 与主页一致：无视频 hover 呼吸运镜，有视频 hoverPlay 接管
+                      !(girl.video || girl.avatar_video) && 'group-hover:[animation:card-kenburns_5s_ease-in-out_infinite]',
                       lockedImageClass(girl.locked),
                     )}
                   />
@@ -331,6 +370,7 @@ export default function ExplorePage() {
                   setSearch('');
                   setSelectedTags([]);
                   setRarityFilter(null);
+                  setCategoryFilter('all');
                 }}
                 className="ml-2 text-[#ff2e88] hover:underline"
               >

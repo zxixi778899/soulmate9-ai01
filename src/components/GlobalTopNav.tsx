@@ -5,11 +5,10 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState, useEffect } from 'react';
 import {
   Menu, X, User, LogOut, Crown, Flame, ArrowLeft,
-  Heart, MessageCircle, ShoppingBag, Wand2, Home, Coins, CalendarCheck,
+  Heart, Wand2, Compass, Users, Coins, CalendarCheck,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
-import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
@@ -24,7 +23,6 @@ export default function GlobalTopNav() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { t } = useTranslation();
-  const { settings } = useSiteSettings();
 
   const [balance, setBalance] = useState<number | null>(null);
   const loadBalance = useCallback((): void => {
@@ -60,24 +58,22 @@ export default function GlobalTopNav() {
 
   const isHome = pathname === '/';
 
+  // 第十轮定稿顶栏：探索 / 卡池 / 好友 / 创建 / 个人主页
   const navLoggedIn = [
-    { href: '/', label: t('home.selectCast'), icon: Home },
-    { href: '/explore', label: t('home.pool'), icon: Heart },
-    { href: '/chats', label: t('home.messages'), icon: MessageCircle },
-    { href: '/shop', label: t('home.shop'), icon: ShoppingBag },
-    { href: '/create', label: t('home.create'), icon: Wand2 },
-    { href: '/profile', label: t('home.me'), icon: User },
+    { href: '/', label: t('nav.explore'), icon: Compass },
+    { href: '/explore', label: t('nav.pool'), icon: Heart },
+    { href: '/chats', label: t('nav.friends'), icon: Users },
+    { href: '/create', label: t('nav.create'), icon: Wand2 },
+    { href: '/profile', label: t('nav.profile'), icon: User },
   ];
 
   const navGuest = [
-    { href: '/', label: t('home.selectCast'), icon: Home },
-    { href: '/explore', label: t('home.pool'), icon: Heart },
+    { href: '/', label: t('nav.explore'), icon: Compass },
+    { href: '/explore', label: t('nav.pool'), icon: Heart },
     { href: '/pricing', label: 'VIP', icon: Crown },
   ];
 
-  const displayLinks = user
-    ? navLoggedIn.filter((l) => l.href !== "/shop" || settings?.shop_enabled)
-    : navGuest;
+  const displayLinks = user ? navLoggedIn : navGuest;
 
   const goBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
