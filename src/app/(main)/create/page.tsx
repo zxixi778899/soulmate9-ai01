@@ -111,6 +111,14 @@ function getExtra(opt: OptionItem, key: string, locale: string): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** 性别选项图标符号（第十二轮定稿：仅 女/男/跨性别 三项） */
+const GENDER_SYMBOLS: Record<string, string> = {
+  Female: '♀',
+  Male: '♂',
+  Transgender: '⚧',
+};
+const CANONICAL_GENDERS = ['Female', 'Male', 'Transgender'] as const;
+
 // ─── Small building blocks ───────────────────────────────────────────────────
 
 function Pill({
@@ -670,12 +678,13 @@ export default function CreatePage() {
                                 )}
                               >
                                 {preset.portrait_url ? (
-                                  // 预设卡片按需压缩（512px 档），压缩失败自动回退原图
+                                  // 预设卡片按需压缩（512px 档），压缩失败自动回退原图；
+                                  // object-top 对齐主页女友卡标准：头部永不被裁切
                                   <OptimizedImg
                                     src={preset.portrait_url}
                                     size="card"
                                     alt={presetName}
-                                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+                                    className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.06]"
                                   />
                                 ) : (
                                   <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#FF2D78]/15 via-white/[0.03] to-[#8b5cf6]/20">
@@ -857,13 +866,23 @@ export default function CreatePage() {
                                   )}
                                 >
                                   {preview ? (
-                                    // 风格卡片按需压缩（512px 档）
-                                    <OptimizedImg
-                                      src={preview}
-                                      size="card"
-                                      alt={getLabel(v, locale)}
-                                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
-                                    />
+                                    <>
+                                      {/* 同源模糊背景填充：contain 完整展示时两侧不留黑边（同主页 CardMedia 标准） */}
+                                      <OptimizedImg
+                                        src={preview}
+                                        size="card"
+                                        alt=""
+                                        aria-hidden
+                                        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-xl"
+                                      />
+                                      {/* 画风示例图：contain 完整展示、不裁剪画面 */}
+                                      <OptimizedImg
+                                        src={preview}
+                                        size="card"
+                                        alt={getLabel(v, locale)}
+                                        className="absolute inset-0 h-full w-full object-contain object-center"
+                                      />
+                                    </>
                                   ) : (
                                     <div className="absolute inset-0 bg-gradient-to-br from-[#FF2D78]/15 via-white/[0.03] to-[#8b5cf6]/20" />
                                   )}
@@ -895,19 +914,31 @@ export default function CreatePage() {
                             })}
                           </div>
 
-                          {/* 性别（风格步） */}
-                          {getOpts('gender').length > 0 && (
+                          {/* 性别（风格步）：定稿仅 女性/男性/跨性别 三项 + 符号图标 */
+                          (() => {
+                            const allGenders = getOpts('gender');
+                            const canonical = allGenders.filter((o) =>
+                              (CANONICAL_GENDERS as readonly string[]).includes(o.value),
+                            );
+                            const genderOpts = canonical.length ? canonical : allGenders;
+                            return genderOpts.length > 0 ? (
                             <div>
                               <div className="mb-1.5 text-[11px] text-white/40">{t('create.gender')}</div>
                               <div className="flex flex-wrap gap-2">
-                                {getOpts('gender').map((o) => (
+                                {genderOpts.map((o) => (
                                   <Pill key={o.value} active={gender === o.value} onClick={() => setGender(o.value)}>
-                                    {getLabel(o, locale)}
+                                    <span className="flex items-center gap-1.5">
+                                      <span aria-hidden className="w-4 text-center text-[13px] leading-none">
+                                        {GENDER_SYMBOLS[o.value] || '⚧'}
+                                      </span>
+                                      {getLabel(o, locale)}
+                                    </span>
                                   </Pill>
                                 ))}
                               </div>
                             </div>
-                          )}
+                            ) : null;
+                          })()}
                         </Panel>
                         )}
 

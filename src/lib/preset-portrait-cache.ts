@@ -13,6 +13,7 @@ import {
   uploadFixedKeyFile,
   toPublicUrl,
   decodeImagePayload,
+  deleteFile,
 } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 import type { CreatorPreset } from '@/lib/creator-presets';
@@ -124,6 +125,37 @@ export async function writebackPresetPortrait(
       err: e instanceof Error ? e.message : String(e),
     });
     return null;
+  }
+}
+
+/**
+ * Remove a preset's shared portrait from the cache (admin 删除图片).
+ * Deletes the storage object and marks the stats row uncached so the
+ * creator page stops serving it. Best-effort: never throws.
+ */
+export async function clearPresetPortraitCache(slug: string): Promise<void> {
+  if (!slug) return;
+  try {
+    const key = presetPortraitKey(slug);
+    try {
+      await deleteFile(key);
+    } catch (e) {
+      logger.warn('[preset-portrait-cache] storage remove failed', {
+        slug,
+        err: e instanceof Error ? e.message : String(e),
+      });
+    }
+    const client = getSupabaseClient();
+    await client
+      .from('preset_portrait_stats')
+      .update({ cached: false, portrait_url: null, updated_at: new Date().toISOString() })
+      .eq('slug', slug);
+    logger.info('[preset-portrait-cache] portrait cleared', { slug });
+  } catch (e) {
+    logger.warn('[preset-portrait-cache] clear failed', {
+      slug,
+      err: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 

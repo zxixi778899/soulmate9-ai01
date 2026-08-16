@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import {
   Loader2, RefreshCw, Plus, Trash2, Pencil, ImageIcon, Folder as FolderIcon,
-  FolderPlus, Sparkles, Zap, Square, Users, Camera, Crosshair, Box, Layers, Upload,
+  FolderPlus, Sparkles, Zap, Square, Users, Camera, Crosshair, Box, Layers, Upload, ImageOff,
 } from 'lucide-react';
 import { GIRLFRIEND_SCENE_RECIPES } from '@/lib/prompt/girlfriend';
 import { cn } from '@/lib/utils';
@@ -110,6 +110,8 @@ export default function AdminPresetLibraryContent({ embedded }: { embedded?: boo
   const [presetDialog, setPresetDialog] = useState<{ mode: 'create' | 'edit'; preset?: Preset } | null>(null);
   const [folderDialog, setFolderDialog] = useState<{ mode: 'create' | 'edit'; folder?: Folder } | null>(null);
   const [portraitJobs, setPortraitJobs] = useState<Record<string, { status: 'generating' | 'pending'; jobId?: string }>>({});
+  /** 手工上传/删除立绘的进行中状态（按 slug） */
+  const [imgBusy, setImgBusy] = useState<Record<string, 'upload' | 'delete' | undefined>>({});
   const [batch, setBatch] = useState<{ running: boolean; done: number; total: number; label: string }>({
     running: false, done: 0, total: 0, label: '',
   });
@@ -183,6 +185,52 @@ export default function AdminPresetLibraryContent({ embedded }: { embedded?: boo
     setPresets((prev) => prev.map((p) => (p.slug === slug
       ? { ...p, portrait_cached: true, portrait_url: url }
       : p)));
+  };
+
+  const clearPortraitLocal = (slug: string) => {
+    setPresets((prev) => prev.map((p) => (p.slug === slug
+      ? { ...p, portrait_cached: false, portrait_url: null }
+      : p)));
+  };
+
+  // ─── 手工上传 / 删除立绘（写入同一共享缓存，创建页即时生效） ────────────
+
+  const uploadPortrait = async (preset: Preset, file: File) => {
+    const slug = preset.slug;
+    if (!slug) { toast.error('该预设没有 slug，无法上传图片'); return; }
+    setImgBusy((prev) => ({ ...prev, [slug]: 'upload' }));
+    try {
+      const fd = new FormData();
+      fd.append('slug', slug);
+      fd.append('file', file);
+      const res = await authedFetch('/api/admin/preset-portraits', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || '上传失败');
+      patchPortrait(slug, data.portrait_url);
+      toast.success(`图片已上传并生效：${preset.name}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '上传失败');
+    } finally {
+      setImgBusy((prev) => { const next = { ...prev }; delete next[slug]; return next; });
+    }
+  };
+
+  const deletePortrait = async (preset: Preset) => {
+    const slug = preset.slug;
+    if (!slug) { toast.error('该预设没有 slug，无法删除图片'); return; }
+    if (!confirm(`确认删除「${preset.name}」的立绘图片？\n删除后创建页不再展示该图，之后可重新生成或上传。`)) return;
+    setImgBusy((prev) => ({ ...prev, [slug]: 'delete' }));
+    try {
+      const res = await authedFetch(`/api/admin/preset-portraits?slug=${encodeURIComponent(slug)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || '删除失败');
+      clearPortraitLocal(slug);
+      toast.success('立绘图片已删除');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '删除失败');
+    } finally {
+      setImgBusy((prev) => { const next = { ...prev }; delete next[slug]; return next; });
+    }
   };
 
   const generatePortrait = async (preset: Preset) => {
@@ -490,6 +538,39 @@ export default function AdminPresetLibraryContent({ embedded }: { embedded?: boo
                                 ? <><Sparkles className="w-3 h-3 mr-1" />重新生成</>
                                 : <><Sparkles className="w-3 h-3 mr-1" />生成立绘</>}
                         </Button>
+                        {/* 手工上传图片 → 直接写入共享缓存（支持 JPG/PNG/WEBP ≤10MB） */}
+                        <label
+                          title="上传图片（替换立绘）"
+                          className={cn(
+                            'inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-white/10 hover:text-white',
+                            (!preset.slug || imgBusy[preset.slug!] === 'upload') && 'pointer-events-none opacity-40',
+                          )}
+                        >
+                          {imgBusy[preset.slug!] === 'upload'
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Upload className="w-3.5 h-3.5" />}
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = '';
+                              if (file) uploadPortrait(preset, file);
+                            }}
+                          />
+                        </label>
+                        {/* 删除已缓存图片 */}
+                        {preset.portrait_cached && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-amber-400 hover:text-amber-300"
+                            title="删除图片"
+                            disabled={imgBusy[preset.slug!] === 'delete' || !preset.slug}
+                            onClick={() => deletePortrait(preset)}>
+                            {imgBusy[preset.slug!] === 'delete'
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <ImageOff className="w-3.5 h-3.5" />}
+                          </Button>
+                        )}
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400"
                           onClick={() => setPresetDialog({ mode: 'edit', preset })}>
                           <Pencil className="w-3.5 h-3.5" />

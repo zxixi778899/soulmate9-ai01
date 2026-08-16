@@ -6,6 +6,8 @@
  *      body: { slug: string, force?: boolean, job_id?: string }
  *      When job_id is provided, resumes a previously queued GPU job instead of
  *      regenerating (polls up to ~2.5 min, writes back on completion).
+ *      multipart/form-data { slug, file } → admin 手工上传图片直接入缓存。
+ * DELETE /api/admin/preset-portraits?slug=xxx → 删除该预设的共享立绘。
  *
  * One portrait per request keeps the route inside maxDuration; call it in a
  * loop (admin UI / script) to batch-fill all 24 presets offline.
@@ -32,11 +34,19 @@ import { normalizeCreatorPreset, type CreatorPreset } from '@/lib/creator-preset
 import {
   findCachedPresetPortrait,
   writebackPresetPortrait,
+  presetPortraitKey,
+  markPresetPortraitCached,
+  clearPresetPortraitCache,
 } from '@/lib/preset-portrait-cache';
+import { uploadFixedKeyFile } from '@/lib/storage';
 import { GIRLFRIEND_SCENE_RECIPES } from '@/lib/prompt/girlfriend';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
+
+const UPLOAD_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const UPLOAD_MAX_SIZE = 10 * 1024 * 1024; // 10MB
+const SLUG_PATTERN = /^[a-z0-9-_]+$/;
 
 function hairColorName(hexOrName: string): string {
   const v = (hexOrName || '').trim();
@@ -152,6 +162,41 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const admin = await requireAdmin(request);
   if ('error' in admin) return admin.error;
+
+  // ─── Upload path: multipart { slug, file } → 手工上传图片直接写入共享缓存 ───
+  const contentType = request.headers.get('content-type') || '';
+  if (contentType.includes('multipart/form-data')) {
+    try {
+      const formData = await request.formData();
+      const slug = String(formData.get('slug') || '').trim().toLowerCase();
+      const file = formData.get('file') as File | null;
+      if (!slug || !SLUG_PATTERN.test(slug)) {
+        return NextResponse.json({ error: 'invalid slug' }, { status: 400 });
+      }
+      if (!file) {
+        return NextResponse.json({ error: 'Missing file' }, { status: 400 });
+      }
+      if (!UPLOAD_ALLOWED_TYPES.includes(file.type)) {
+        return NextResponse.json(
+          { error: `Unsupported file type. Allowed: ${UPLOAD_ALLOWED_TYPES.join(', ')}` },
+          { status: 400 },
+        );
+      }
+      if (file.size > UPLOAD_MAX_SIZE) {
+        return NextResponse.json({ error: 'File too large. Maximum size is 10MB.' }, { status: 400 });
+      }
+      const buffer = Buffer.from(await file.arrayBuffer());
+      // 固定 key preset-portraits/{slug}.png 保证 findCachedPresetPortrait 命中
+      const { url } = await uploadFixedKeyFile(buffer, presetPortraitKey(slug), file.type);
+      await markPresetPortraitCached(slug, url);
+      logger.info('[admin/preset-portraits] manual upload cached', { slug });
+      return NextResponse.json({ success: true, cached: true, slug, portrait_url: url, uploaded: true });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('[admin/preset-portraits] upload failed', { err: msg });
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const slug = String(body.slug || '').trim().toLowerCase();
@@ -298,4 +343,22 @@ export async function POST(request: NextRequest) {
     logger.error('[admin/preset-portraits] generation failed', { slug, err: msg });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+/**
+ * DELETE /api/admin/preset-portraits?slug=xxx
+ * Remove the preset's shared portrait (storage object + cache flag).
+ */
+export async function DELETE(request: NextRequest) {
+  const admin = await requireAdmin(request);
+  if ('error' in admin) return admin.error;
+
+  const { searchParams } = new URL(request.url);
+  const slug = String(searchParams.get('slug') || '').trim().toLowerCase();
+  if (!slug || !SLUG_PATTERN.test(slug)) {
+    return NextResponse.json({ error: 'invalid slug' }, { status: 400 });
+  }
+
+  await clearPresetPortraitCache(slug);
+  return NextResponse.json({ success: true, slug, cached: false });
 }

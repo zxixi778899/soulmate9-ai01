@@ -2524,7 +2524,7 @@ const zh: Record<string, string> = {
   'create.age': '年龄',
   'create.tagline': '一句话人设',
   'create.taglineExample': '深夜电台里的温柔声音…',
-  'create.gender': '性别气质',
+  'create.gender': '性别',
   'create.ethnicity': '种族 / 血统',
   'create.faceShape': '脸型',
   'create.fashionStyle': '服装风格',
