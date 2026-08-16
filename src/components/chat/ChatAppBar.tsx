@@ -115,14 +115,25 @@ export function ChatAppBar(props: {
           </div>
         </div>
 
+        {/* 竞品同款渐变环语音按钮：开启 = 绿渐变环 + 内圈暗底 */}
         <button
           type="button"
           onClick={() => onVoiceReplyChange?.(!voiceReply)}
-          className={`glass h-11 w-11 shrink-0 rounded-full flex items-center justify-center transition-all active:scale-95 touch-manipulation ${voiceReply ? 'text-[#ff6ba6] ring-1 ring-[#ff6ba6]/40' : 'text-[#ffb3cd] hover:text-white'}`}
+          className={`h-11 w-11 shrink-0 rounded-full p-[1.5px] transition-all active:scale-95 touch-manipulation ${
+            voiceReply
+              ? 'bg-gradient-to-br from-[#5BF8D3] to-[#18FF8C] shadow-[0_0_16px_rgba(24,255,140,0.35)]'
+              : 'bg-white/10 hover:bg-white/20'
+          }`}
           aria-label="语音回复"
           title={voiceReply ? '语音回复已开启' : '开启语音回复'}
         >
-          <Volume2 className="h-5 w-5" />
+          <span
+            className={`h-full w-full rounded-full flex items-center justify-center backdrop-blur ${
+              voiceReply ? 'bg-[#08140e]/90 text-[#5BF8D3]' : 'bg-[#08040e]/60 text-[#ffb3cd]'
+            }`}
+          >
+            <Volume2 className="h-5 w-5" />
+          </span>
         </button>
         <button
           type="button"

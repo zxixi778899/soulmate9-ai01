@@ -267,7 +267,7 @@ function ChatStreamInner(props: {
                 >
                   <div className="w-8 shrink-0">
                     {showAvatar ? (
-                      <Avatar className="h-8 w-8 ring-1 ring-white/10">
+                      <Avatar className="h-8 w-8 ring-2 ring-[#FF2D78]/35">
                         {girlfriend?.avatar_url ? (
                           <AvatarImage src={girlfriend.avatar_url} alt={displayName} />
                         ) : (
@@ -291,7 +291,7 @@ function ChatStreamInner(props: {
                 {isAssistant && (
                   <div className="w-8 shrink-0">
                     {showAvatar ? (
-                      <Avatar className="h-8 w-8 ring-1 ring-white/10">
+                      <Avatar className="h-8 w-8 ring-2 ring-[#FF2D78]/35">
                         {girlfriend?.avatar_url ? (
                           <AvatarImage src={girlfriend.avatar_url} alt={displayName} />
                         ) : (

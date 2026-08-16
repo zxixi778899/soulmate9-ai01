@@ -45,7 +45,7 @@ const SLOT_COPY: Record<AdSlot, SlotCopy> = {
     badgeClass: 'bg-[#ff2e88]/20 text-[#ffb3cd] ring-[#ff2e88]/40',
     ctaClass: 'bg-gradient-to-r from-[#FF2D78] to-[#C026D3] text-white',
     chipClass: 'bg-white/10 text-white/80 ring-white/15',
-    coverClass: 'object-[50%_25%]',
+    coverClass: 'object-[50%_42%]',
   },
   launch: {
     badge: 'ads.beta.badge',
@@ -55,7 +55,7 @@ const SLOT_COPY: Record<AdSlot, SlotCopy> = {
     badgeClass: 'bg-amber-300/20 text-amber-200 ring-amber-300/40',
     ctaClass: 'bg-gradient-to-r from-amber-400 to-orange-500 text-black',
     chipClass: 'bg-amber-300/10 text-amber-100/90 ring-amber-300/25',
-    coverClass: 'object-[50%_45%]',
+    coverClass: 'object-[50%_42%]',
   },
   sale: {
     badge: 'ads.sale.badge',
@@ -81,7 +81,7 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
         const href = ad.link_url || '#';
         const internal = href.startsWith('/');
         const linkClass =
-          'block relative overflow-hidden rounded-2xl ring-1 ring-white/10 hover:ring-[#ff2e88]/40 transition-all group h-40 sm:h-52';
+          'block relative overflow-hidden rounded-2xl ring-1 ring-white/10 hover:ring-[#ff2e88]/40 transition-all group h-44 sm:h-60';
         const inner = (
           <>
             {/* Full-bleed art — ads are designed to crop; focal point per slot */}
@@ -96,10 +96,11 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
                 copy?.coverClass || 'object-center',
               )}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/15 pointer-events-none" />
+            {/* 左暗右透：保左侧 i18n 文案可读，不遮右侧人物与内嵌性格文案 */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-transparent pointer-events-none" />
             {copy ? (
-              // 文案层级排版：徽章 → 主标题 → 副标题 → 卖点 → CTA，纵向居中，画面饱满
-              <div className="relative z-[2] h-full flex flex-col items-center justify-center gap-1 sm:gap-1.5 px-4 sm:px-8 py-3 text-center">
+              // 文案左对齐纵居中，右侧留白给人物与内嵌 quote
+              <div className="relative z-[2] h-full flex flex-col items-start justify-center gap-1 sm:gap-1.5 pl-5 sm:pl-8 pr-[38%] text-left">
                 <span
                   className={cn(
                     'w-fit rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-black tracking-widest ring-1 backdrop-blur',
@@ -117,7 +118,7 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
                   </p>
                 ) : null}
                 {copy.chips ? (
-                  <div className="flex flex-wrap justify-center gap-1.5 mt-0.5">
+                  <div className="flex flex-wrap justify-start gap-1.5 mt-0.5">
                     {copy.chips.map((chip) => (
                       <span
                         key={chip}

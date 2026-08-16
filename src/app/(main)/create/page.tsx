@@ -829,7 +829,7 @@ export default function CreatePage() {
                                   type="button"
                                   onClick={() => setVisualStyle(v.value)}
                                   className={cn(
-                                    'group relative aspect-[2/3] overflow-hidden rounded-2xl border text-left transition-all duration-300 touch-manipulation',
+                                    'group relative aspect-[2/3] overflow-hidden rounded-[20px] border text-left transition-all duration-300 touch-manipulation',
                                     activeStyle
                                       ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_24px_rgba(255,45,120,0.4)]'
                                       : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/25',
@@ -856,13 +856,18 @@ export default function CreatePage() {
                                       <Check className="h-3.5 w-3.5 text-white" />
                                     </motion.span>
                                   )}
-                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-2.5 pb-2.5 pt-10">
-                                    <div className="text-sm font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                                  {/* 竞品同款底部 pill 标签：选中=品牌粉实心，未选=black/50 毛玻璃 */}
+                                  <div className="absolute inset-x-0 bottom-0 flex justify-center pb-3">
+                                    <span
+                                      className={cn(
+                                        'rounded-full px-3.5 py-1 text-xs font-semibold backdrop-blur transition-all',
+                                        activeStyle
+                                          ? 'bg-[#FF2D78] text-white shadow-[0_0_16px_rgba(255,45,120,0.5)]'
+                                          : 'bg-black/50 text-white/85',
+                                      )}
+                                    >
                                       {getLabel(v, locale)}
-                                    </div>
-                                    <div className="mt-0.5 line-clamp-1 text-[10px] text-white/55">
-                                      {getExtra(v, 'desc', locale)}
-                                    </div>
+                                    </span>
                                   </div>
                                 </button>
                               );
