@@ -1,8 +1,10 @@
 // Submit/poll a job on a RunPod serverless endpoint (ops tooling).
 // Usage:
 //   node scripts/runpod/rp-job.mjs <endpointId> <inputJson>      submit async job
+//   node scripts/runpod/rp-job.mjs <endpointId> @file.json       submit input from file
 //   node scripts/runpod/rp-job.mjs <endpointId> status <jobId>   poll job status
 // Reads RUNPOD_API_KEY2 from env. Never hardcode keys here.
+import { readFileSync } from 'node:fs';
 const rk = process.env.RUNPOD_API_KEY2;
 if (!rk) {
   console.error('RUNPOD_API_KEY2 env required');
@@ -25,7 +27,8 @@ if (mode === 'status') {
   process.exit(0);
 }
 
-const input = JSON.parse(mode);
+const raw = mode.startsWith('@') ? readFileSync(mode.slice(1), 'utf8') : mode;
+const input = JSON.parse(raw);
 const r = await fetch(`${base}/run`, {
   method: 'POST',
   headers: { Authorization: `Bearer ${rk}`, 'Content-Type': 'application/json' },
