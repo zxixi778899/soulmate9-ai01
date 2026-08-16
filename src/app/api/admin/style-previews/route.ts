@@ -7,6 +7,7 @@ import {
   saveStylePreviews,
   invalidateStylePreviewsCache,
   STYLE_PREVIEW_KEYS,
+  STYLE_PREVIEW_DEFAULTS,
   type StylePreviewKey,
 } from '@/lib/style-previews-store';
 import { logger } from '@/lib/logger';
@@ -109,6 +110,41 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Upload failed' },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * DELETE /api/admin/style-previews?style=realistic
+ * Reset one style's sample image back to the built-in default artwork.
+ */
+export async function DELETE(request: NextRequest) {
+  const admin = await requireAdmin(request, 'admin');
+  if (admin.error) return admin.error;
+
+  const { searchParams } = new URL(request.url);
+  const style = String(searchParams.get('style') || '');
+  if (!isStyleKey(style)) {
+    return NextResponse.json(
+      { error: `style must be one of ${STYLE_PREVIEW_KEYS.join(', ')}` },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const client = admin.supabase as unknown as SiteSettingsClient;
+    const previews = await saveStylePreviews({ [style]: STYLE_PREVIEW_DEFAULTS[style] }, client);
+    invalidateStylePreviewsCache();
+    logger.info('[admin/style-previews] reset to default', { style });
+    return NextResponse.json({ success: true, previews });
+  } catch (e) {
+    logger.error('[admin/style-previews] reset failed', {
+      style,
+      err: e instanceof Error ? e.message : String(e),
+    });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Reset failed' },
       { status: 500 },
     );
   }

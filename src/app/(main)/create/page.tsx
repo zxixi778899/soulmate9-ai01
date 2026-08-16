@@ -23,7 +23,7 @@ import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { notifyDataChange } from '@/hooks/useDataSync';
 import {
   ArrowLeft, ArrowRight, Wand2, Loader2, Sparkles, Check, User2,
-  CreditCard, RefreshCw, ImagePlus,
+  CreditCard, RefreshCw, ImagePlus, RotateCcw, Trash2,
 } from 'lucide-react';
 import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
@@ -119,6 +119,58 @@ const GENDER_SYMBOLS: Record<string, string> = {
   Transgender: '⚧',
 };
 const CANONICAL_GENDERS = ['Female', 'Male', 'Transgender'] as const;
+
+/** 性别选项值 → gender-previews 存储键 */
+const GENDER_PREVIEW_KEYOF: Record<string, string> = {
+  Female: 'female',
+  Male: 'male',
+  Transgender: 'transgender',
+};
+
+/**
+ * 管理员专属：卡片左上角 上传/删除(恢复默认) 小按钮组。
+ * 仅 isAdmin 渲染；stopPropagation 避免触发卡片选择。
+ */
+function AdminCardButtons({
+  busy,
+  onUpload,
+  onClear,
+  clearTitle,
+  clearIcon,
+}: {
+  busy: boolean;
+  onUpload: () => void;
+  onClear: () => void;
+  clearTitle: string;
+  clearIcon: 'reset' | 'trash';
+}) {
+  const { t } = useTranslation();
+  return (
+    <span
+      className="absolute left-1.5 top-1.5 z-20 flex gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        title={t('create.adminUploadImage')}
+        disabled={busy}
+        onClick={(e) => { e.stopPropagation(); onUpload(); }}
+        className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white/80 backdrop-blur-sm transition-colors hover:bg-[#FF2D78] hover:text-white disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+      </button>
+      <button
+        type="button"
+        title={clearTitle}
+        disabled={busy}
+        onClick={(e) => { e.stopPropagation(); onClear(); }}
+        className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white/80 backdrop-blur-sm transition-colors hover:bg-red-500/90 hover:text-white disabled:opacity-50"
+      >
+        {clearIcon === 'reset' ? <RotateCcw className="h-3 w-3" /> : <Trash2 className="h-3 w-3" />}
+      </button>
+    </span>
+  );
+}
 
 // ─── Small building blocks ───────────────────────────────────────────────────
 
@@ -233,20 +285,51 @@ export default function CreatePage() {
 
   // 风格示例图可在后台「预设库管理」更换（site_settings creator_style_previews），缺省用内置默认图
   const [stylePreviews, setStylePreviews] = useState<Record<string, string>>(DEFAULT_STYLE_PREVIEWS);
+  // 性别示例图（site_settings creator_gender_previews），空 = 符号占位，管理员可上传/删除
+  const [genderPreviews, setGenderPreviews] = useState<Record<string, string>>({});
+  // 管理员身份探测：admin API 可访问 → 在创建页显示就地上传/删除入口
+  const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
+    const mergePatch = (
+      set: (fn: (prev: Record<string, string>) => Record<string, string>) => void,
+      raw: unknown,
+    ) => {
+      const p = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+      const patchUrls: Record<string, string> = {};
+      for (const [k, v] of Object.entries(p)) {
+        if (typeof v === 'string' && v.trim()) patchUrls[k] = v;
+      }
+      if (Object.keys(patchUrls).length) set((prev) => ({ ...prev, ...patchUrls }));
+    };
     fetch('/api/creator/style-previews')
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const p = (data && data.previews) as Record<string, unknown> | undefined;
-        if (!p) return;
-        const patchUrls: Record<string, string> = {};
-        for (const [k, v] of Object.entries(p)) {
-          if (typeof v === 'string' && v.trim()) patchUrls[k] = v;
-        }
-        if (Object.keys(patchUrls).length) setStylePreviews((prev) => ({ ...prev, ...patchUrls }));
-      })
+      .then((data) => mergePatch(setStylePreviews, data?.previews))
       .catch(() => {
         /* keep defaults */
+      });
+    fetch('/api/creator/gender-previews')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => mergePatch(setGenderPreviews, data?.previews))
+      .catch(() => {
+        /* keep defaults */
+      });
+    // 管理员探测：非管理员返回 401/403，静默跳过；成功则顺带取最新配置
+    authedFetch('/api/admin/style-previews')
+      .then(async (r) => {
+        if (!r.ok) return null;
+        setIsAdmin(true);
+        const [styleData, genderRes] = await Promise.all([
+          readResponseJson<{ previews?: Record<string, unknown> }>(r),
+          authedFetch('/api/admin/gender-previews'),
+        ]);
+        mergePatch(setStylePreviews, styleData.previews);
+        if (genderRes.ok) {
+          const genderData = await readResponseJson<{ previews?: Record<string, unknown> }>(genderRes);
+          mergePatch(setGenderPreviews, genderData.previews);
+        }
+      })
+      .catch(() => {
+        /* 非管理员或离线：无就地管理入口 */
       });
   }, []);
 
@@ -603,6 +686,91 @@ export default function CreatePage() {
     void fetchCreatorData();
   }, [fetchCreatorData]);
 
+  // ─── Admin 就地管理：风格/性别/预设 示例图上传与删除 ────────────────────
+
+  type UploadTarget = { kind: 'style' | 'gender' | 'preset'; key: string };
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
+  const [assetBusy, setAssetBusy] = useState<string | null>(null);
+
+  const pickAssetImage = useCallback((kind: UploadTarget['kind'], key: string) => {
+    setUploadTarget({ kind, key });
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleAssetFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const target = uploadTarget;
+    e.target.value = '';
+    if (!file || !target || !isAdmin) return;
+    setAssetBusy(`${target.kind}:${target.key}`);
+    try {
+      if (target.kind === 'style' || target.kind === 'gender') {
+        const fd = new FormData();
+        fd.append(target.kind, target.key);
+        fd.append('file', file);
+        const res = await authedFetch(
+          target.kind === 'style' ? '/api/admin/style-previews' : '/api/admin/gender-previews',
+          { method: 'POST', body: fd },
+        );
+        const data = await readResponseJson<{ previews?: Record<string, string>; error?: string }>(res);
+        if (!res.ok) throw new Error(data.error || 'upload failed');
+        if (data.previews) {
+          const patch = data.previews;
+          if (target.kind === 'style') setStylePreviews((prev) => ({ ...prev, ...patch }));
+          else setGenderPreviews((prev) => ({ ...prev, ...patch }));
+        }
+      } else {
+        const fd = new FormData();
+        fd.append('slug', target.key);
+        fd.append('file', file);
+        const res = await authedFetch('/api/admin/preset-portraits', { method: 'POST', body: fd });
+        const data = await readResponseJson<{ portrait_url?: string; error?: string }>(res);
+        if (!res.ok) throw new Error(data.error || 'upload failed');
+        if (data.portrait_url) {
+          const url = data.portrait_url;
+          setPresets((prev) => prev.map((p) => (p.slug === target.key ? { ...p, portrait_url: url } : p)));
+        }
+      }
+    } catch (err) {
+      logger.warn('[creator] admin asset upload failed', { error: String(err) });
+      setError(errorMessageFromUnknown(err, t('create.adminUploadFailed')));
+    } finally {
+      setAssetBusy(null);
+      setUploadTarget(null);
+    }
+  }, [uploadTarget, isAdmin, t]);
+
+  const clearAssetImage = useCallback(async (kind: UploadTarget['kind'], key: string) => {
+    if (!isAdmin) return;
+    setAssetBusy(`${kind}:${key}`);
+    try {
+      if (kind === 'style') {
+        const res = await authedFetch(`/api/admin/style-previews?style=${encodeURIComponent(key)}`, { method: 'DELETE' });
+        const data = await readResponseJson<{ previews?: Record<string, string>; error?: string }>(res);
+        if (!res.ok) throw new Error(data.error || 'delete failed');
+        if (data.previews) {
+          const patch = data.previews;
+          setStylePreviews((prev) => ({ ...prev, ...patch }));
+        }
+      } else if (kind === 'gender') {
+        const res = await authedFetch(`/api/admin/gender-previews?gender=${encodeURIComponent(key)}`, { method: 'DELETE' });
+        const data = await readResponseJson<{ error?: string }>(res);
+        if (!res.ok) throw new Error(data.error || 'delete failed');
+        setGenderPreviews((prev) => ({ ...prev, [key]: '' }));
+      } else {
+        const res = await authedFetch(`/api/admin/preset-portraits?slug=${encodeURIComponent(key)}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('delete failed');
+        setPresets((prev) => prev.map((p) => (p.slug === key ? { ...p, portrait_url: undefined } : p)));
+      }
+    } catch (err) {
+      logger.warn('[creator] admin asset delete failed', { error: String(err) });
+      setError(errorMessageFromUnknown(err, t('common.networkError')));
+    } finally {
+      setAssetBusy(null);
+    }
+  }, [isAdmin, t]);
+
   // ─── Derived UI bits ─────────────────────────────────────────────────────
 
   const readyCount = slots.filter((s) => s.status === 'ready').length;
@@ -751,6 +919,17 @@ export default function CreatePage() {
                                   </span>
                                 )}
 
+                                {/* Admin 就地管理：上传/删除该预设形象图 */}
+                                {isAdmin && preset.slug && (
+                                  <AdminCardButtons
+                                    busy={assetBusy === `preset:${preset.slug}`}
+                                    onUpload={() => pickAssetImage('preset', preset.slug as string)}
+                                    onClear={() => void clearAssetImage('preset', preset.slug as string)}
+                                    clearTitle={t('create.adminDeleteImage')}
+                                    clearIcon="trash"
+                                  />
+                                )}
+
                                 {/* Applied check */}
                                 {activePreset && (
                                   <motion.span
@@ -786,8 +965,8 @@ export default function CreatePage() {
                       </Panel>
                     )}
 
-                    {/* Dossier preview + core identity */}
-                    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+                    {/* Dossier preview + core identity — 左右三七分 */}
+                    <div className="grid gap-4 lg:grid-cols-[3fr_7fr]">
                       {/* Live dossier card */}
                       <div className="relative hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-[#FF2D78]/[0.07] via-white/[0.02] to-transparent shadow-[0_8px_32px_rgba(0,0,0,0.28)] lg:block">
                         <div className="sticky top-4 p-5">
@@ -910,25 +1089,25 @@ export default function CreatePage() {
                                   )}
                                 >
                                   {preview ? (
-                                    <>
-                                      {/* 同源模糊背景填充：contain 完整展示时两侧不留黑边（同主页 CardMedia 标准） */}
-                                      <OptimizedImg
-                                        src={preview}
-                                        size="card"
-                                        alt=""
-                                        aria-hidden
-                                        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-xl"
-                                      />
-                                      {/* 画风示例图：contain 完整展示、不裁剪画面 */}
-                                      <OptimizedImg
-                                        src={preview}
-                                        size="card"
-                                        alt={getLabel(v, locale)}
-                                        className="absolute inset-0 h-full w-full object-contain object-center"
-                                      />
-                                    </>
+                                    // 取消遮罩：示例图按 3:4 比例正常填充整卡，不裁剪上下
+                                    <OptimizedImg
+                                      src={preview}
+                                      size="card"
+                                      alt={getLabel(v, locale)}
+                                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                                    />
                                   ) : (
                                     <div className="absolute inset-0 bg-gradient-to-br from-[#FF2D78]/15 via-white/[0.03] to-[#8b5cf6]/20" />
+                                  )}
+                                  {/* Admin 就地管理：上传/恢复默认 */}
+                                  {isAdmin && (
+                                    <AdminCardButtons
+                                      busy={assetBusy === `style:${v.value}`}
+                                      onUpload={() => pickAssetImage('style', v.value)}
+                                      onClear={() => void clearAssetImage('style', v.value)}
+                                      clearTitle={t('create.adminResetDefault')}
+                                      clearIcon="reset"
+                                    />
                                   )}
                                   {activeStyle && (
                                     <motion.span
@@ -958,8 +1137,8 @@ export default function CreatePage() {
                             })}
                           </div>
 
-                          {/* 性别（风格步）：定稿仅 女性/男性/跨性别 三项 + 符号图标 */
-                          (() => {
+                          {/* 性别（风格步）：同风格卡图片预设展示，管理员可上传/删除 */}
+                          {(() => {
                             const allGenders = getOpts('gender');
                             const canonical = allGenders.filter((o) =>
                               (CANONICAL_GENDERS as readonly string[]).includes(o.value),
@@ -968,17 +1147,74 @@ export default function CreatePage() {
                             return genderOpts.length > 0 ? (
                             <div>
                               <div className="mb-1.5 text-[11px] text-white/40">{t('create.gender')}</div>
-                              <div className="flex flex-wrap gap-2">
-                                {genderOpts.map((o) => (
-                                  <Pill key={o.value} active={gender === o.value} onClick={() => setGender(o.value)}>
-                                    <span className="flex items-center gap-1.5">
-                                      <span aria-hidden className="w-4 text-center text-[13px] leading-none">
-                                        {GENDER_SYMBOLS[o.value] || '⚧'}
-                                      </span>
-                                      {getLabel(o, locale)}
-                                    </span>
-                                  </Pill>
-                                ))}
+                              <div className="grid grid-cols-3 gap-2.5">
+                                {genderOpts.map((o) => {
+                                  const activeGender = gender === o.value;
+                                  const gKey = GENDER_PREVIEW_KEYOF[o.value] || o.value.toLowerCase();
+                                  const gPreview = genderPreviews[gKey];
+                                  return (
+                                    <button
+                                      key={o.value}
+                                      type="button"
+                                      onClick={() => setGender(o.value)}
+                                      className={cn(
+                                        'group relative aspect-[3/4] overflow-hidden rounded-[20px] border text-left transition-all duration-300 touch-manipulation',
+                                        activeGender
+                                          ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_24px_rgba(255,45,120,0.4)]'
+                                          : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/25',
+                                      )}
+                                    >
+                                      {gPreview ? (
+                                        <OptimizedImg
+                                          src={gPreview}
+                                          size="card"
+                                          alt={getLabel(o, locale)}
+                                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                                        />
+                                      ) : (
+                                        // 无图占位：渐变底 + 性别符号（管理员上传后自动替换）
+                                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#FF2D78]/15 via-white/[0.03] to-[#8b5cf6]/20">
+                                          <span aria-hidden className="text-4xl text-white/25">
+                                            {GENDER_SYMBOLS[o.value] || '⚧'}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {/* Admin 就地管理：上传/删除 */}
+                                      {isAdmin && (
+                                        <AdminCardButtons
+                                          busy={assetBusy === `gender:${gKey}`}
+                                          onUpload={() => pickAssetImage('gender', gKey)}
+                                          onClear={() => void clearAssetImage('gender', gKey)}
+                                          clearTitle={t('create.adminDeleteImage')}
+                                          clearIcon="trash"
+                                        />
+                                      )}
+                                      {activeGender && (
+                                        <motion.span
+                                          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
+                                          initial={{ scale: 0 }}
+                                          animate={{ scale: 1 }}
+                                          transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                                        >
+                                          <Check className="h-3.5 w-3.5 text-white" />
+                                        </motion.span>
+                                      )}
+                                      {/* 底部 pill 标签：选中=品牌粉实心，未选=black/50 毛玻璃 */}
+                                      <div className="absolute inset-x-0 bottom-0 flex justify-center pb-3">
+                                        <span
+                                          className={cn(
+                                            'rounded-full px-3.5 py-1 text-xs font-semibold backdrop-blur transition-all',
+                                            activeGender
+                                              ? 'bg-[#FF2D78] text-white shadow-[0_0_16px_rgba(255,45,120,0.5)]'
+                                              : 'bg-black/50 text-white/85',
+                                          )}
+                                        >
+                                          {getLabel(o, locale)}
+                                        </span>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
                             ) : null;
@@ -1361,6 +1597,15 @@ export default function CreatePage() {
           </div>
         )}
       </div>
+
+      {/* Admin 就地管理：隐藏文件选择器（风格/性别/预设共用） */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => void handleAssetFile(e)}
+      />
 
       {/* Gacha-style success reveal */}
       <CreateSuccessModal
