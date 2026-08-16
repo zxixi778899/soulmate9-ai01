@@ -52,6 +52,10 @@ HF_ASSETS = [
      "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin"),
     ("ipadapter", "ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
      "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors"),
+    # IPAdapter_plus resolves the FaceID lora from the "loras" folder, so keep
+    # a copy there as well (start-sdxl-pro.sh also symlinks it at boot).
+    ("loras", "ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
+     "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors"),
     ("ultralytics/bbox", "face_yolov8m.pt",
      "https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt"),
     ("upscale_models", "4x-UltraSharp.pth",

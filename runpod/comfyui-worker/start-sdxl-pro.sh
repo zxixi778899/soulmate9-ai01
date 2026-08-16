@@ -33,4 +33,14 @@ link_vol_dir ultralytics /comfyui/models/ultralytics
 link_vol_dir ipadapter /comfyui/models/ipadapter
 link_vol_dir insightface /comfyui/models/insightface
 
+# IPAdapter_plus loads the FaceID Plus V2 lora from the "loras" folder, but
+# the bundle installer stores it next to the ipadapter model. Bridge it with a
+# symlink so IPAdapterUnifiedLoader(preset=FACEID PLUS V2) finds it.
+FACEID_LORA="$VOL_MODELS/ipadapter/ip-adapter-faceid-plusv2_sdxl_lora.safetensors"
+if [ -f "$FACEID_LORA" ]; then
+  mkdir -p /comfyui/models/loras
+  ln -sfn "$FACEID_LORA" /comfyui/models/loras/ip-adapter-faceid-plusv2_sdxl_lora.safetensors
+  echo "sdxl-pro: linked faceid lora into /comfyui/models/loras"
+fi
+
 exec /start.sh
