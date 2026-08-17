@@ -3,6 +3,7 @@
 import { useEffect, useCallback, useState } from 'react';
 import { authedFetch } from '@/lib/supabase';
 import { readResponseJson } from '@/lib/safe-json';
+import { buildCompanionIdentityBrief } from '@/lib/companion-generation';
 import { StudioProvider, useStudio } from './StudioContext';
 import { ModeSelector } from './panels/ModeSelector';
 import { InputPanel } from './panels/InputPanel';
@@ -32,6 +33,11 @@ function StudioInner({ girlfriendId }: { girlfriendId?: string }) {
         const gf = list.find((g: Any) => String(g.id) === girlfriendId);
         if (gf) {
           dispatch({ type: 'SET_COMPANION', id: girlfriendId, girlfriend: gf, assets: [] });
+          // Auto-fill prompt with companion brief
+          try {
+            const brief = buildCompanionIdentityBrief(gf as Record<string, unknown>);
+            dispatch({ type: 'SET_PROMPT', text: brief });
+          } catch { /* ignore */ }
           // Load companion assets
           void loadCompanionAssets(girlfriendId);
         }
@@ -68,6 +74,13 @@ function StudioInner({ girlfriendId }: { girlfriendId?: string }) {
   const selectCompanion = useCallback((id: string) => {
     const gf = girlfriends.find((g) => String(g.id) === id) || null;
     dispatch({ type: 'SET_COMPANION', id, girlfriend: gf, assets: [] });
+    // Auto-fill prompt with companion identity brief
+    if (gf) {
+      try {
+        const brief = buildCompanionIdentityBrief(gf as Record<string, unknown>);
+        dispatch({ type: 'SET_PROMPT', text: brief });
+      } catch { /* fallback: leave prompt empty */ }
+    }
     void loadCompanionAssets(id);
   }, [dispatch, girlfriends, loadCompanionAssets]);
 
@@ -87,7 +100,7 @@ function StudioInner({ girlfriendId }: { girlfriendId?: string }) {
 
       {/* Main workspace: left input + right output */}
       <main className="mx-auto max-w-[1600px] px-4 py-4">
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_1fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[3fr_7fr]">
           <InputPanel />
           <OutputPanel />
         </div>

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NsfwIntensity } from '@/lib/comfy-console/studio-profile';
+import { PromptPresets } from './PromptPresets';
 
 const NSFW_LABELS: Record<number, string> = { 1: 'SFW', 2: 'LV1 暗示', 3: 'LV2 暧昧', 4: 'LV3 性感', 5: 'LV4+ 大胆' };
 
@@ -13,6 +14,9 @@ export function PromptComposer() {
 
   return (
     <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+      {/* Prompt presets */}
+      <PromptPresets />
+
       {/* Prompt textarea */}
       <div>
         <div className="flex items-center justify-between">
