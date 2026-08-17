@@ -12,9 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import {
   Loader2, RefreshCw, Plus, Trash2, ImageIcon,
   FileText, Move, MapPin, ChevronDown, ChevronRight,
+  Copy, Edit, Check,
 } from 'lucide-react';
 
 // --- Types ---
@@ -242,33 +244,68 @@ function CategoryPanel({
   onDelete: (p: GenPreset) => void;
 }) {
   const meta = CATEGORY_META[category];
+  const [nsfwFilter, setNsfwFilter] = useState<number | null>(null);
+
+  // Filter presets by NSFW level
+  const filteredPresets = useMemo(() => {
+    if (nsfwFilter === null) return presets;
+    return presets.filter((p) => p.nsfw_level === nsfwFilter);
+  }, [presets, nsfwFilter]);
 
   // Group presets by preset_group (or 'ungrouped')
   const groups = useMemo(() => {
     const map = new Map<string, GenPreset[]>();
-    for (const p of presets) {
+    for (const p of filteredPresets) {
       const group = p.preset_group || '未分组';
       if (!map.has(group)) map.set(group, []);
       map.get(group)!.push(p);
     }
     return map;
-  }, [presets]);
+  }, [filteredPresets]);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-400">
-          {presets.length} 条预设 · {meta.hint}
+          {filteredPresets.length}/{presets.length} 条预设 · {meta.hint}
         </p>
         <Button size="sm" onClick={onAdd}>
           <Plus className="w-4 h-4 mr-1" /> 添加
         </Button>
       </div>
 
-      {presets.length === 0 && (
+      {/* NSFW level filter */}
+      <div className="flex items-center gap-1 flex-wrap">
+        <span className="text-[10px] text-gray-500 mr-1">NSFW:</span>
+        {[
+          { value: null, label: '全部', count: presets.length },
+          { value: 0, label: 'SFW', count: presets.filter((p) => p.nsfw_level === 0).length },
+          { value: 1, label: 'LV1', count: presets.filter((p) => p.nsfw_level === 1).length },
+          { value: 2, label: 'LV2', count: presets.filter((p) => p.nsfw_level === 2).length },
+          { value: 3, label: 'LV3', count: presets.filter((p) => p.nsfw_level === 3).length },
+          { value: 4, label: 'LV4', count: presets.filter((p) => p.nsfw_level === 4).length },
+          { value: 5, label: 'LV5', count: presets.filter((p) => p.nsfw_level === 5).length },
+        ].map((opt) => (
+          <button
+            key={opt.label}
+            onClick={() => setNsfwFilter(opt.value)}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all border',
+              nsfwFilter === opt.value
+                ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                : 'bg-gray-800/40 text-gray-500 border-gray-700/40 hover:text-gray-300 hover:border-gray-600',
+            )}
+          >
+            {opt.label}
+            <span className="opacity-60">{opt.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {filteredPresets.length === 0 && (
         <Card className="bg-[#16161f] border-gray-800">
           <CardContent className="p-8 text-center text-gray-400 text-sm">
-            暂无预设。点击"添加"创建第一条。
+            {presets.length === 0 ? '暂无预设。点击"添加"创建第一条。' : '当前筛选无结果。'}
           </CardContent>
         </Card>
       )}
@@ -277,7 +314,7 @@ function CategoryPanel({
       {groups.size <= 1 ? (
         // Single group: flat list
         <div className="space-y-2">
-          {presets.map((p) => (
+          {filteredPresets.map((p) => (
             <PresetCard key={p.id} preset={p} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
           ))}
         </div>
@@ -315,6 +352,32 @@ function CategoryPanel({
   );
 }
 
+// --- Copy Button Helper ---
+
+function CopyButton({ text, className }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [text]);
+  return (
+    <button
+      onClick={handleCopy}
+      className={cn(
+        'shrink-0 rounded p-0.5 transition-colors',
+        copied ? 'text-green-400' : 'text-gray-600 hover:text-gray-400',
+        className,
+      )}
+      title="复制"
+    >
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+    </button>
+  );
+}
+
 // --- Preset Card ---
 
 function PresetCard({
@@ -328,12 +391,18 @@ function PresetCard({
   onToggle: (p: GenPreset, active: boolean) => void;
   onDelete: (p: GenPreset) => void;
 }) {
+  const ep = preset.extra_params as Record<string, unknown> | undefined;
+  const loraArr = Array.isArray(preset.lora_hints) ? preset.lora_hints.filter(Boolean) : [];
+  const hasLora = loraArr.length > 0;
+  const hasParams = ep && Object.keys(ep).length > 0;
+
   return (
     <Card className={`bg-[#16161f] border-gray-800 ${!preset.is_active ? 'opacity-50' : ''}`}>
       <CardContent className="p-3">
+        {/* Row 1: Header — thumbnail, name, badges, actions */}
         <div className="flex items-start gap-3">
           {/* Preview thumbnail */}
-          <div className="w-14 h-14 rounded-md bg-gray-900 flex-shrink-0 overflow-hidden flex items-center justify-center">
+          <div className="w-12 h-12 rounded-md bg-gray-900 flex-shrink-0 overflow-hidden flex items-center justify-center">
             {preset.preview_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={preset.preview_url} alt={preset.label_en} className="w-full h-full object-cover" />
@@ -342,15 +411,11 @@ function PresetCard({
             )}
           </div>
 
-          {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                onClick={() => onEdit(preset)}
-                className="text-sm font-medium text-white hover:text-violet-300 transition truncate text-left"
-              >
+              <span className="text-sm font-medium text-white truncate">
                 {preset.label_zh || preset.label_en || preset.slug}
-              </button>
+              </span>
               {preset.label_zh && preset.label_en && (
                 <span className="text-[10px] text-gray-500 truncate hidden sm:inline">
                   {preset.label_en}
@@ -358,7 +423,7 @@ function PresetCard({
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
               <Badge variant="outline" className={`text-[10px] px-1 py-0 ${
                 preset.tier === 'premium'
                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
@@ -386,24 +451,66 @@ function PresetCard({
                 </Badge>
               )}
             </div>
-
-            {/* Prompt preview */}
-            {preset.prompt_fragment && (
-              <p className="text-[11px] text-gray-500 mt-1 line-clamp-1 font-mono">
-                {preset.prompt_fragment}
-              </p>
-            )}
           </div>
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-violet-400 hover:text-violet-300"
+              onClick={() => onEdit(preset)} title="编辑">
+              <Edit className="w-3.5 h-3.5" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-300"
-              onClick={() => onDelete(preset)}>
+              onClick={() => onDelete(preset)} title="删除">
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
             <Switch checked={preset.is_active} onCheckedChange={(v) => onToggle(preset, v)} />
           </div>
         </div>
+
+        {/* Row 2: Positive prompt */}
+        {preset.prompt_fragment && (
+          <div className="mt-2 rounded-md bg-[#0d0d15] px-2.5 py-1.5">
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] font-semibold text-emerald-500/70 uppercase tracking-wider shrink-0">正向</span>
+              <p className="text-[11px] text-gray-400 font-mono line-clamp-2 flex-1">
+                {preset.prompt_fragment}
+              </p>
+              <CopyButton text={preset.prompt_fragment} />
+            </div>
+          </div>
+        )}
+
+        {/* Row 3: Negative prompt */}
+        {preset.negative_fragment && (
+          <div className="mt-1 rounded-md bg-[#0d0d15] px-2.5 py-1.5">
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] font-semibold text-red-500/70 uppercase tracking-wider shrink-0">反向</span>
+              <p className="text-[11px] text-gray-400 font-mono line-clamp-1 flex-1">
+                {preset.negative_fragment}
+              </p>
+              <CopyButton text={preset.negative_fragment} />
+            </div>
+          </div>
+        )}
+
+        {/* Row 4: Model / Params / LoRA */}
+        {(hasParams || hasLora) && (
+          <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+            {hasParams && (
+              <span className="text-[10px] text-gray-500 font-mono">
+                {ep?.steps ? `${String(ep.steps)}步` : ''}
+                {ep?.cfg ? ` · CFG ${String(ep.cfg)}` : ''}
+                {ep?.sampler ? ` · ${String(ep.sampler)}` : ''}
+                {ep?.width && ep?.height ? ` · ${String(ep.width)}×${String(ep.height)}` : ''}
+              </span>
+            )}
+            {hasLora && (
+              <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/30 text-[10px] px-1 py-0">
+                LoRA ×{loraArr.length}
+              </Badge>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

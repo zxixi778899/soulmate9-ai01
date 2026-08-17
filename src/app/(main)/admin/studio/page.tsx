@@ -5,26 +5,22 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
-  FolderOpen,
   Layers,
   Loader2,
   Palette,
   SlidersHorizontal,
   UserRound,
-  Users,
   Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import ComfyConsole from '../comfy/ComfyConsole';
-import AdminPresetsContent from '@/components/admin/AdminPresetsContent';
+import { StudioWorkbench } from '@/components/studio-workbench/StudioWorkbench';
 import AdminUnifiedPresetsContent from '@/components/admin/AdminUnifiedPresetsContent';
 import CreatorPreviewsAdminContent from '@/components/admin/CreatorPreviewsAdminContent';
-import AdminAssetsContent from '@/components/admin/AdminAssetsContent';
-import AdminPresetLibraryContent from '@/components/admin/AdminPresetLibraryContent';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
 
-type Section = 'studio' | 'assets' | 'presets' | 'unified-presets' | 'previews' | 'character-presets';
+type Section = 'studio' | 'unified-presets' | 'previews';
 
 const SECTIONS: Array<{
   id: Section;
@@ -39,28 +35,10 @@ const SECTIONS: Array<{
     hint: 'Comfy 出图 · LoRA · 角色生产管线',
   },
   {
-    id: 'character-presets',
-    label: '角色预设库',
-    icon: Users,
-    hint: '立绘 · 稀有度 · 文件夹管理',
-  },
-  {
     id: 'unified-presets',
     label: '预设库',
     icon: SlidersHorizontal,
     hint: '提示词 · 姿势动作 · 场景',
-  },
-  {
-    id: 'assets',
-    label: '公共资产库',
-    icon: FolderOpen,
-    hint: '按伴侣分类 · 多选上传 · 批量处理',
-  },
-  {
-    id: 'presets',
-    label: '预设管理',
-    icon: SlidersHorizontal,
-    hint: '场景模板 · 角色参考 · 生成预设',
   },
   {
     id: 'previews',
@@ -79,7 +57,8 @@ function StudioInner(): React.JSX.Element {
   ).trim();
   const sectionParam = searchParams.get('section');
   const section: Section =
-    sectionParam === 'character-presets' || sectionParam === 'assets' || sectionParam === 'presets' || sectionParam === 'unified-presets' || sectionParam === 'previews' ? sectionParam : 'studio';
+    sectionParam === 'unified-presets' || sectionParam === 'previews' ? sectionParam : 'studio';
+  const useLegacy = searchParams.get('v') === 'legacy';
 
   // 头部引擎徽章跟随 SDXL 矩阵总闸（服务端 env 客户端不可见，走 API 下发）。
   const [matrixReady, setMatrixReady] = useState(false);
@@ -170,10 +149,10 @@ function StudioInner(): React.JSX.Element {
 
       {/* ─── Content ────────────────────────────────────────────── */}
       <div className="mx-auto max-w-[1600px] px-3 py-4 md:px-4">
-        {section === 'studio' && <ComfyConsole girlfriendId={girlfriendId || undefined} embedded />}
-        {section === 'character-presets' && <AdminPresetLibraryContent embedded />}
-        {section === 'assets' && <AdminAssetsContent embedded />}
-        {section === 'presets' && <AdminPresetsContent embedded />}
+        {section === 'studio' && (useLegacy
+          ? <ComfyConsole girlfriendId={girlfriendId || undefined} embedded />
+          : <StudioWorkbench girlfriendId={girlfriendId || undefined} />
+        )}
         {section === 'unified-presets' && <AdminUnifiedPresetsContent embedded />}
         {section === 'previews' && <CreatorPreviewsAdminContent />}
       </div>

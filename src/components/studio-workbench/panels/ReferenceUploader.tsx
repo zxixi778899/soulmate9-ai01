@@ -1,0 +1,78 @@
+'use client';
+
+import { useRef } from 'react';
+import { useStudio } from '../StudioContext';
+import { Button } from '@/components/ui/button';
+import { Upload, X, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+
+export function ReferenceUploader() {
+  const { state, dispatch, uploadReferenceImage } = useStudio();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File | null) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      await uploadReferenceImage(file);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+      <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        {state.genMode === 'img2video' ? '视频源图' : '参考图'}
+      </label>
+
+      {state.inputImage ? (
+        <div className="relative group">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={state.inputImage} alt="参考图" className="w-full h-36 object-cover rounded-lg" />
+          <button
+            onClick={() => dispatch({ type: 'SET_INPUT_IMAGE', url: '' })}
+            className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-red-300 opacity-0 transition group-hover:opacity-100"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+          <div className="absolute bottom-2 left-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] text-emerald-300">
+            参考图已加载
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="flex h-28 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-white/10 bg-white/[0.02] text-slate-500 transition hover:border-violet-500/30 hover:bg-violet-500/[0.03] hover:text-violet-400"
+        >
+          {uploading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Upload className="h-5 w-5" />
+          )}
+          <span className="text-xs">点击上传或拖拽参考图</span>
+        </button>
+      )}
+
+      {/* URL input */}
+      <div className="mt-2 flex gap-1">
+        <input
+          value={state.inputImage}
+          onChange={(e) => dispatch({ type: 'SET_INPUT_IMAGE', url: e.target.value })}
+          placeholder="或粘贴 HTTPS 图片地址"
+          className="flex-1 rounded-md border border-white/10 bg-[#0d0d15] px-2 py-1 text-[11px] text-white placeholder:text-slate-600 focus:border-violet-500/50 focus:outline-none"
+        />
+      </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(e) => void handleFile(e.target.files?.[0] || null)}
+      />
+    </div>
+  );
+}

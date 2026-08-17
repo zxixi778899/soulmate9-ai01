@@ -42,7 +42,7 @@ const CONTENT_LEVEL_KEYS: Record<number, TranslationKey> = {
 };
 import { companionScore, type Rarity } from '@/lib/rarity';
 import { CreateSuccessModal, type CreatedCompanionReveal } from '@/components/creator/CreateSuccessModal';
-import type { CreatorPreset } from '@/lib/creator-presets';
+
 import { VOICE_TIMBRES } from '@/lib/voice-timbres';
 import type { CharacterPart } from '@/lib/character-parts';
 
@@ -276,9 +276,8 @@ export default function CreatePage() {
   const [nsfwLevel, setNsfwLevel] = useState(1);
 
   // Data from backend
-  const [presets, setPresets] = useState<CreatorPreset[]>([]);
   const [options, setOptions] = useState<Record<string, OptionItem[]>>({});
-  const [vibes, setVibes] = useState<Record<string, { en: string; zh: string }>>({});
+  const [companions, setCompanions] = useState<Array<Record<string, unknown>>>([]);
   const [parts, setParts] = useState<Record<string, CharacterPart[]>>({});
   const [cardStatus, setCardStatus] = useState<CardStatus | null>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -364,7 +363,6 @@ export default function CreatePage() {
   const [age, setAge] = useState(22);
   const [shortDescription, setShortDescription] = useState('');
   const [relationship, setRelationship] = useState('girlfriend');
-  const [selectedPreset, setSelectedPreset] = useState<CreatorPreset | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<string>(''); // empty = default (warm-caring)
 
   // Portrait slots
@@ -384,20 +382,21 @@ export default function CreatePage() {
   const fetchCreatorData = useCallback(async () => {
     setLoadingData(true);
     try {
-      const [optsRes, cardsRes, partsRes] = await Promise.all([
+      const [optsRes, cardsRes, partsRes, gfRes] = await Promise.all([
         fetch('/api/creator/presets?section=all'),
         authedFetch('/api/creator/cards'),
         fetch('/api/creator/parts'),
+        authedFetch('/api/girlfriends'),
       ]);
-      const optsData = await readResponseJson<{ presets?: CreatorPreset[]; options?: Record<string, OptionItem[]>; vibes?: Record<string, { en: string; zh: string }> }>(optsRes);
+      const optsData = await readResponseJson<{ options?: Record<string, OptionItem[]> }>(optsRes);
       const cardsData = await readResponseJson<CardStatus>(cardsRes);
       const partsData = await readResponseJson<{ categories?: Record<string, CharacterPart[]> }>(partsRes);
+      const gfData = await readResponseJson<{ girlfriends?: Array<Record<string, unknown>> }>(gfRes);
 
       if (optsData.options) setOptions(optsData.options);
-      if (optsData.presets) setPresets(optsData.presets);
-      if (optsData.vibes) setVibes(optsData.vibes);
       if (cardsData) setCardStatus(cardsData);
       if (partsData.categories) setParts(partsData.categories);
+      if (gfData.girlfriends) setCompanions(gfData.girlfriends);
     } catch (err) {
       logger.warn('[creator] fetch data failed', { error: String(err) });
     } finally {
@@ -434,26 +433,6 @@ export default function CreatePage() {
     return genome;
   }, [parts, hairStyle, hairColor, faceShape, bodyType, skinTone, eyeColor]);
 
-  const applyPreset = useCallback((preset: CreatorPreset) => {
-    setSelectedPreset(preset);
-    setVisualStyle(preset.visual_style);
-    setGender(preset.gender);
-    setEthnicity(preset.ethnicity);
-    setFaceShape(preset.face_shape);
-    setHairStyle(preset.hair_style);
-    setHairColor(preset.hair_color);
-    setEyeColor(preset.eye_color);
-    setBodyType(preset.body_type);
-    setFashionStyle(preset.fashion_style);
-    setSelectedTags(preset.personality_tags.slice(0, 8));
-    setOccupation(preset.occupation);
-    setRelationship(preset.relationship);
-    setShortDescription(preset.short_description);
-    setName((prev) => (prev.trim() ? prev : preset.default_name || preset.name));
-    setAge(preset.age && preset.age >= 18 ? preset.age : 22);
-    // Voice timbre from preset mapping
-    if (preset.voice_timbre) setSelectedVoice(preset.voice_timbre);
-  }, []);
 
   const toggleTag = useCallback((tag: string) => {
     setSelectedTags((prev) =>
@@ -484,10 +463,10 @@ export default function CreatePage() {
     fashion_style: fashionStyle, appearance_prompt: appearancePrompt,
     personality: selectedTags.join(', '),
     skin_tone: partPrompt('skin_tone', skinTone) || undefined,
-    // Preset cache: only when the look still matches the preset exactly
-    preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
+    // Preset cache: no longer using presets
+    preset_slug: undefined,
     nsfw_level: nsfwLevel,
-  }), [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, partPrompt, skinTone, selectedPreset, nsfwLevel]);
+  }), [name, visualStyle, ethnicity, gender, faceShape, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, appearancePrompt, selectedTags, partPrompt, skinTone, nsfwLevel]);
 
   const pollJob = useCallback(async (jobId: string, endpointId?: string): Promise<string | null> => {
     for (let i = 0; i < 80; i++) {
@@ -627,7 +606,7 @@ export default function CreatePage() {
           tags: [...selectedTags, ethnicity, occupation, relLabel],
           avatar_url: chosen.url,
           portrait_url: chosen.url,
-          preset_slug: selectedPreset && selectedPreset.gender === gender ? selectedPreset.slug : undefined,
+          preset_slug: undefined,
           voice_timbre_id: selectedVoice || 'warm-caring',
           locale,
           meta: {
@@ -680,7 +659,7 @@ export default function CreatePage() {
     } finally {
       setSaving(false);
     }
-  }, [slots, selectedSlot, saving, getOpts, relationship, locale, visualStyle, gender, faceShape, ethnicity, occupation, shortDescription, name, age, selectedTags, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, skinTone, buildGenome, selectedPreset, selectedVoice, appearancePrompt, cardStatus, t]);
+  }, [slots, selectedSlot, saving, getOpts, relationship, locale, visualStyle, gender, faceShape, ethnicity, occupation, shortDescription, name, age, selectedTags, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, skinTone, buildGenome, selectedVoice, appearancePrompt, cardStatus, t]);
 
   // ─── Reveal actions ──────────────────────────────────────────────────────
 
@@ -701,7 +680,7 @@ export default function CreatePage() {
 
   // ─── Admin 就地管理：风格/性别/预设 示例图上传与删除 ────────────────────
 
-  type UploadTarget = { kind: 'style' | 'gender' | 'nsfw' | 'preset'; key: string };
+  type UploadTarget = { kind: 'style' | 'gender' | 'nsfw'; key: string };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [assetBusy, setAssetBusy] = useState<string | null>(null);
@@ -738,17 +717,6 @@ export default function CreatePage() {
           else if (target.kind === 'gender') setGenderPreviews((prev) => ({ ...prev, ...patch }));
           else setNsfwPreviews((prev) => ({ ...prev, ...patch }));
         }
-      } else {
-        const fd = new FormData();
-        fd.append('slug', target.key);
-        fd.append('file', file);
-        const res = await authedFetch('/api/admin/preset-portraits', { method: 'POST', body: fd });
-        const data = await readResponseJson<{ portrait_url?: string; error?: string }>(res);
-        if (!res.ok) throw new Error(data.error || 'upload failed');
-        if (data.portrait_url) {
-          const url = data.portrait_url;
-          setPresets((prev) => prev.map((p) => (p.slug === target.key ? { ...p, portrait_url: url } : p)));
-        }
       }
     } catch (err) {
       logger.warn('[creator] admin asset upload failed', { error: String(err) });
@@ -784,10 +752,6 @@ export default function CreatePage() {
           const patch = data.previews;
           setNsfwPreviews((prev) => ({ ...prev, ...patch }));
         }
-      } else {
-        const res = await authedFetch(`/api/admin/preset-portraits?slug=${encodeURIComponent(key)}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('delete failed');
-        setPresets((prev) => prev.map((p) => (p.slug === key ? { ...p, portrait_url: undefined } : p)));
       }
     } catch (err) {
       logger.warn('[creator] admin asset delete failed', { error: String(err) });
@@ -892,36 +856,30 @@ export default function CreatePage() {
                   </div>
                 ) : (
                   <>
-                    {/* Preset quick-start rail — 风格步 + 面部/身材步展示预设预览图 */}
-                    {(step === 'style' || step === 'appearance') && presets.length > 0 && (
+                    {/* Companions rail — show user's existing companions */}
+                    {(step === 'style' || step === 'appearance') && companions.length > 0 && (
                       <Panel
-                        title={t('create.quickStart')}
-                        hint={t('create.quickStartHint')}
+                        title={t('create.yourCompanions')}
+                        hint={t('create.yourCompanionsHint')}
                       >
                         <div className="creator-rail -mx-1 flex gap-3 overflow-x-auto px-1 pb-2.5">
-                          {presets.map((preset) => {
-                            const activePreset = selectedPreset?.id === preset.id;
-                            const presetName = zh ? preset.name_zh : preset.name;
+                          {companions.map((gf) => {
+                            const gfName = String(gf.name || '');
+                            const gfPortrait = String(gf.portrait_url || gf.avatar_url || '');
+                            const gfRarity = String(gf.rarity || '');
                             return (
-                              <button
-                                key={preset.id}
-                                type="button"
-                                onClick={() => applyPreset(preset)}
-                                title={`${presetName} — ${zh ? preset.description_zh : preset.description}`}
+                              <div
+                                key={String(gf.id)}
                                 className={cn(
-                                  'group relative aspect-[3/4] w-36 shrink-0 overflow-hidden rounded-[22px] border text-left transition-all duration-300 touch-manipulation sm:w-40',
-                                  activePreset
-                                    ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_28px_rgba(255,45,120,0.45)]'
-                                    : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-[#FF2D78]/50 hover:shadow-[0_8px_28px_rgba(255,45,120,0.18)]',
+                                  'group relative aspect-[3/4] w-36 shrink-0 overflow-hidden rounded-[22px] border text-left transition-all duration-300 sm:w-40',
+                                  'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)]',
                                 )}
                               >
-                                {preset.portrait_url ? (
-                                  // 预设卡片按需压缩（512px 档），压缩失败自动回退原图；
-                                  // object-top 对齐主页女友卡标准：头部永不被裁切
+                                {gfPortrait && gfPortrait !== 'null' ? (
                                   <OptimizedImg
-                                    src={preset.portrait_url}
+                                    src={gfPortrait}
                                     size="card"
-                                    alt={presetName}
+                                    alt={gfName}
                                     className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.06]"
                                   />
                                 ) : (
@@ -931,60 +889,27 @@ export default function CreatePage() {
                                 )}
 
                                 {/* Rarity badge */}
-                                {preset.rarity && (
+                                {gfRarity && gfRarity !== 'null' && gfRarity !== '' && (
                                   <span
                                     className={cn(
                                       'absolute right-2 top-2 z-10 rounded-md px-1.5 py-0.5 text-[9px] font-black tracking-wider backdrop-blur-sm',
-                                      preset.rarity === 'SSR' && 'bg-gradient-to-r from-amber-300 to-yellow-500 text-amber-950 shadow-[0_0_12px_rgba(251,191,36,0.55)]',
-                                      preset.rarity === 'SR' && 'bg-violet-500/85 text-white shadow-[0_0_10px_rgba(139,92,246,0.5)]',
-                                      preset.rarity === 'R' && 'bg-sky-500/85 text-white',
-                                      preset.rarity === 'N' && 'bg-black/55 text-white/75',
+                                      gfRarity === 'SSR' && 'bg-gradient-to-r from-amber-300 to-yellow-500 text-amber-950 shadow-[0_0_12px_rgba(251,191,36,0.55)]',
+                                      gfRarity === 'SR' && 'bg-violet-500/85 text-white shadow-[0_0_10px_rgba(139,92,246,0.5)]',
+                                      gfRarity === 'R' && 'bg-sky-500/85 text-white',
+                                      gfRarity === 'N' && 'bg-black/55 text-white/75',
                                     )}
                                   >
-                                    {preset.rarity}
+                                    {gfRarity}
                                   </span>
                                 )}
 
-                                {/* Admin 就地管理：上传/删除该预设形象图 */}
-                                {isAdmin && preset.slug && (
-                                  <AdminCardButtons
-                                    busy={assetBusy === `preset:${preset.slug}`}
-                                    onUpload={() => pickAssetImage('preset', preset.slug as string)}
-                                    onClear={() => void clearAssetImage('preset', preset.slug as string)}
-                                    clearTitle={t('create.adminDeleteImage')}
-                                    clearIcon="trash"
-                                  />
-                                )}
-
-                                {/* Applied check */}
-                                {activePreset && (
-                                  <motion.span
-                                    className="absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    transition={{ type: 'spring', stiffness: 320, damping: 18 }}
-                                  >
-                                    <Check className="h-3.5 w-3.5 text-white" />
-                                  </motion.span>
-                                )}
-
-                                {/* Bottom gradient overlay: name + vibes */}
+                                {/* Bottom gradient overlay: name */}
                                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-2.5 pb-2.5 pt-10">
                                   <div className="truncate text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                                    {presetName}
-                                  </div>
-                                  <div className="mt-1 flex flex-wrap gap-1">
-                                    {(preset.vibe_tags || []).slice(0, 2).map((v) => (
-                                      <span
-                                        key={v}
-                                        className="rounded-full border border-[#FF2D78]/30 bg-[#FF2D78]/15 px-1.5 py-0.5 text-[9px] text-[#ffb3d1] backdrop-blur-sm"
-                                      >
-                                        {vibes[v] ? (zh ? vibes[v].zh : vibes[v].en) : v}
-                                      </span>
-                                    ))}
+                                    {gfName}
                                   </div>
                                 </div>
-                              </button>
+                              </div>
                             );
                           })}
                         </div>
@@ -996,40 +921,16 @@ export default function CreatePage() {
                       {/* Live dossier card */}
                       <div className="relative hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-[#FF2D78]/[0.07] via-white/[0.02] to-transparent shadow-[0_8px_32px_rgba(0,0,0,0.28)] lg:block">
                         <div className="sticky top-4 p-5">
-                          {/* Portrait preview — shows the applied preset's artwork */}
+                          {/* Portrait preview — live preview of companion being created */}
                           <div className="relative mx-auto aspect-[3/4] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] shadow-[0_12px_40px_rgba(139,92,246,0.18)]">
-                            {selectedPreset?.portrait_url ? (
-                              <>
-                                {/* 档案卡立绘按需压缩（832px 档） */}
-                                <OptimizedImg
-                                  src={selectedPreset.portrait_url}
-                                  size="detail"
-                                  alt={zh ? selectedPreset.name_zh : selectedPreset.name}
-                                  className="h-full w-full object-cover"
-                                />
-                                <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
-                                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 to-transparent" />
-                                <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
-                                  <span className="truncate text-[11px] font-semibold text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                                    {zh ? selectedPreset.name_zh : selectedPreset.name}
-                                  </span>
-                                  {selectedPreset.rarity && (
-                                    <span className="shrink-0 rounded-md bg-black/50 px-1.5 py-0.5 text-[9px] font-black text-amber-300 backdrop-blur-sm">
-                                      {selectedPreset.rarity}
-                                    </span>
-                                  )}
-                                </div>
-                              </>
-                            ) : (
-                              <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-                                <div className="flex h-24 w-24 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] shadow-[inset_0_0_40px_rgba(139,92,246,0.15)]">
-                                  <User2 className="h-10 w-10 text-white/15" />
-                                </div>
-                                <span className="text-[10px] text-white/25">
-                                  {t('create.pickPresetOrGen')}
-                                </span>
+                            <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+                              <div className="flex h-24 w-24 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] shadow-[inset_0_0_40px_rgba(139,92,246,0.15)]">
+                                <User2 className="h-10 w-10 text-white/15" />
                               </div>
-                            )}
+                              <span className="text-[10px] text-white/25">
+                                {t('create.createPreview')}
+                              </span>
+                            </div>
                           </div>
                           <div className="mt-4 text-center">
                             <div className="text-base font-bold text-white/90">
