@@ -8,9 +8,10 @@ import type { NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 
 // ─── Preset categories ───────────────────────────────────────────────────────
 
-type PresetCategory = 'framing' | 'camera' | 'scene' | 'pose' | 'lighting';
+type PresetCategory = 'framing' | 'camera' | 'scene' | 'pose' | 'lighting' | 'style';
 
 const CATEGORIES: Array<{ id: PresetCategory; label: string; icon: string }> = [
+  { id: 'style', label: '风格', icon: '🎨' },
   { id: 'framing', label: '取景', icon: '🖼' },
   { id: 'camera', label: '机位', icon: '📷' },
   { id: 'scene', label: '场景', icon: '🏞' },
@@ -29,6 +30,16 @@ interface PresetItem {
 }
 
 const BUILTIN_PRESETS: PresetItem[] = [
+  // Style
+  { id: 'st-photoreal', label: '写实', value: 'photorealistic, ultra detailed, 8k, professional photography', nsfw: [1, 2, 3, 4, 5] },
+  { id: 'st-anime', label: '二次元', value: 'anime style, cel shading, vibrant colors, detailed illustration', nsfw: [1, 2, 3, 4, 5] },
+  { id: 'st-3d', label: '3D 渲染', value: '3D render, octane render, subsurface scattering, detailed textures', nsfw: [1, 2, 3, 4, 5] },
+  { id: 'st-cinematic', label: '电影感', value: 'cinematic, dramatic lighting, film grain, shallow depth of field', nsfw: [1, 2, 3, 4, 5] },
+  { id: 'st-manga', label: '漫画', value: 'manga style, black and white ink, screentone shading, dynamic lines', nsfw: [1, 2, 3, 4, 5] },
+  { id: 'st-oilpaint', label: '油画', value: 'oil painting style, rich brushstrokes, classical art, warm tones', nsfw: [1, 2, 3] },
+  { id: 'st-watercolor', label: '水彩', value: 'watercolor painting, soft edges, pastel colors, artistic splashes', nsfw: [1, 2, 3] },
+  { id: 'st-semireal', label: '半写实', value: 'semi-realistic, digital art, blend of realism and illustration', nsfw: [1, 2, 3, 4, 5] },
+
   // Framing
   { id: 'f-waist', label: '半身', value: 'waist-up portrait', nsfw: [1, 2, 3, 4, 5] },
   { id: 'f-full', label: '全身', value: 'full body shot', nsfw: [1, 2, 3, 4, 5] },
@@ -115,6 +126,7 @@ export function PromptPresets() {
 
   const filteredPresets = useMemo(() => {
     const categoryMap: Record<PresetCategory, string[]> = {
+      style: ['st-'],
       framing: ['f-'],
       camera: ['c-'],
       scene: ['s-'],
