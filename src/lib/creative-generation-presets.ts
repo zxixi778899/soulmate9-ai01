@@ -43,6 +43,8 @@ export function resolveCreativeGenerationPreset(input: {
   identityConsistency?: boolean;
   turbo?: boolean;
   specialistModelsReady?: boolean;
+  /** SDXL 端点 override（客户端 env 不可见，由服务端随响应下发）。 */
+  sdxlEndpointId?: string;
 }): CreativeGenerationPreset {
   if (input.mode === 'img2video') {
     const explicitMotion = input.intensity >= 4;
@@ -74,6 +76,7 @@ export function resolveCreativeGenerationPreset(input: {
     sceneText: input.scene,
     turbo: input.turbo,
     specialistModelsReady: input.specialistModelsReady,
+    sdxlEndpointId: input.sdxlEndpointId,
   });
   const isIdentityAsset = input.assetRole === 'avatar-closeup' || (input.assetRole?.startsWith('identity-') ?? false);
   const denoise = input.mode === 'img2img'

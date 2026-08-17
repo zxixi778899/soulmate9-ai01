@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
       code_allowlist: installed,
       inventory_source: installed.length ? 'runtime-volume' : 'unavailable',
       sdxl_models_ready: specialistModelsReadyFromEnv(),
+      endpoint_id_sdxl: process.env.RUNPOD_ENDPOINT_ID_SDXL?.trim() || '',
       env_override: !!(process.env.RUNPOD_INSTALLED_LORAS || process.env.COMFY_INSTALLED_LORAS),
       paths: {
         loras: cfg.network_volume?.loras_dir || 'models/loras',

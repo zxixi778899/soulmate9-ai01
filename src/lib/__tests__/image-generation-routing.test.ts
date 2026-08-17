@@ -161,3 +161,56 @@ describe('image generation routing — SDXL matrix gate open', () => {
     expect(route.presetId).toBe('sdxl-pony-portrait');
   });
 });
+
+describe('image generation routing — client-side gate override', () => {
+  it('honors the server-provided gate flag when the client env is closed', () => {
+    // Client bundles cannot read server env; the admin API ships the
+    // RUNPOD_SDXL_MODELS_READY flag + SDXL endpoint id in its response.
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      category: 'female',
+      renderStyle: 'realistic',
+      nsfwIntensity: 3,
+      specialistModelsReady: true,
+      sdxlEndpointId: 'client-sdxl-endpoint',
+    });
+    expect(route.modelFamily).toBe('pony');
+    expect(route.endpointId).toBe('client-sdxl-endpoint');
+    expect(route.checkpoint).toBe('ponyRealism_V22.safetensors');
+  });
+
+  it('routes 2D through the client-provided gate as well', () => {
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      renderStyle: '2d',
+      nsfwIntensity: 4,
+      matrixActive: true,
+      sdxlEndpointId: 'client-sdxl-endpoint',
+    });
+    expect(route.modelFamily).toBe('illustrious');
+    expect(route.endpointId).toBe('client-sdxl-endpoint');
+  });
+
+  it('fails open to FLUX when the override gate is on but no endpoint is supplied', () => {
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      category: 'female',
+      renderStyle: 'realistic',
+      nsfwIntensity: 3,
+      matrixActive: true,
+    });
+    expect(route.modelFamily).toBe('flux');
+    expect(route.presetId).toBe('flux-matrix-failopen');
+  });
+
+  it('keeps FLUX parity when neither env nor override opens the gate', () => {
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      category: 'female',
+      renderStyle: 'realistic',
+      nsfwIntensity: 4,
+    });
+    expect(route.modelFamily).toBe('flux');
+    expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
+  });
+});

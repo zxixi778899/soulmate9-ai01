@@ -107,6 +107,12 @@ export function resolveModelPlan(input: {
   turbo?: boolean;
   /** 复杂多人/高控制场景（+2 步采样预算） */
   sceneComplex?: boolean;
+  /**
+   * 矩阵总闸显式 override（客户端 bundle 读不到服务端 env 时使用：
+   * 由服务端 API 把 RUNPOD_SDXL_MODELS_READY 旗标随响应带给前端）。
+   * 未提供时回读 env（isSdxlMatrixActive()）。
+   */
+  matrixActive?: boolean;
 }): ModelPlan {
   const renderStyle = input.renderStyle || 'realistic';
   const nsfwLevel = input.nsfwLevel || 1;
@@ -131,7 +137,8 @@ export function resolveModelPlan(input: {
   });
 
   // ── 总闸未开 / 端点未配置 → 全站 FLUX（fail-open，与重构前行为一致） ──
-  if (!isSdxlMatrixActive()) {
+  const matrixActive = input.matrixActive ?? isSdxlMatrixActive();
+  if (!matrixActive) {
     return fluxPlan('SDXL matrix gate closed — unified FLUX pipeline.');
   }
   // ── premium 精品层与 turbo 草稿保留 FLUX ──

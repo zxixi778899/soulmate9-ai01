@@ -393,6 +393,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       renderStyle: animeRenderStyle,
       nsfwIntensity: isIdentityAsset ? 1 : nsfwIntensity,
       specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
+      sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
     });
     const portraitScene = buildStudioSceneDraft({
       task: role === 'character-art' ? 'portrait' : studioTask,
@@ -876,6 +877,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         renderStyle: animeRenderStyle,
         nsfwIntensity,
         specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
+        sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
       });
       const modelFamily = genMode === 'img2video' ? 'wan22' : route.modelFamily;
       const generatedPrompt = buildStudioSceneDraft({
@@ -965,7 +967,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     ['flux-fp8', 'flux-unchained'].includes(String(item.id)),
   );
   const allLoras: Any[] = useMemo(() => config?.loras || [], [config?.loras]);
-  const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity, turbo: fastPreview && genMode !== 'img2video', specialistModelsReady: volumeInfo?.sdxl_models_ready === true });
+  const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity, turbo: fastPreview && genMode !== 'img2video', specialistModelsReady: volumeInfo?.sdxl_models_ready === true, sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined });
   // FLUX responds better to concise natural-language composition; omit hard
   // directional camera clauses (LOW/HIGH-ANGLE REQUIREMENT) from its payload.
   const promptFraming = generationRoute.modelFamily === 'flux'
@@ -982,6 +984,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     identityConsistency,
     turbo: fastPreview && genMode !== 'img2video',
     specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
+    sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
   });
   const applyRecommendedParameters = (
     mode: CreativeGenerationMode = genMode,
@@ -998,6 +1001,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       identityConsistency,
       turbo: fastPreview && mode !== 'img2video',
       specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
+      sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
     });
     setWidth(preset.width);
     setHeight(preset.height);
@@ -1017,6 +1021,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       nsfwIntensity: next,
       turbo: false,
       specialistModelsReady: specialistReady,
+      sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
     });
     const promptTask = next >= 3 || assetRole === 'character-art' || assetRole === 'scene'
       ? 'portrait'
@@ -1052,6 +1057,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       identityConsistency,
       turbo: false,
       specialistModelsReady: specialistReady,
+      sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
     });
     setNsfwIntensity(next);
     setFastPreview(false);
@@ -1073,9 +1079,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     if (endpointAsset?.id) setEndpointKey(String(endpointAsset.id));
     setWorkflowId('auto');
     if (next >= 3 && !specialistReady && animeRenderStyle !== '3d') {
-      // resolveImageGenerationRoute already fell back to FLUX (specialist
-      // branches require a verified SDXL endpoint) — inform, don't block.
-      toast.warning('Pony/Illustrious 专用端点尚未验证，已降级到 FLUX 生成');
+      // resolveImageGenerationRoute already fell back to FLUX (SDXL matrix
+      // branches require the verified RUNPOD_SDXL_MODELS_READY gate) — inform, don't block.
+      toast.warning('SDXL 矩阵总闸未开启（RUNPOD_SDXL_MODELS_READY），按路由规则降级到 FLUX 生成');
     }
     toast.success(`NSFW ${next}/5：已切换模型参数 profile，保留当前提示词和 LoRA`);
   };
@@ -2393,6 +2399,26 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <Badge className="ml-auto border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
                 {generationRoute.modelFamily === 'flux' ? 'CD1 · FLUX' : generationRoute.modelFamily === 'pony' ? 'CD2 · Pony Realism' : 'CD2 · Illustrious 2D'}
               </Badge>
+            </div>
+            <div className="mb-3 rounded-md border border-cyan-500/20 bg-cyan-950/10 p-3">
+              <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                <Label className="text-[11px] text-cyan-100">生图路由 · SDXL 模型矩阵</Label>
+                <Badge className={volumeInfo?.sdxl_models_ready === true
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                  : 'border-amber-500/40 bg-amber-500/10 text-amber-200'}>
+                  {volumeInfo?.sdxl_models_ready === true ? '矩阵总闸 ON' : '矩阵总闸 OFF · 回退 FLUX'}
+                </Badge>
+                <span className="text-[10px] text-slate-400">
+                  {generationRoute.endpointId ? `端点 ${generationRoute.endpointId}` : 'SDXL 端点未配置'}
+                </span>
+              </div>
+              <div className="grid gap-1 text-[10px] text-slate-300 sm:grid-cols-2">
+                <div>底模：<span className="font-mono text-cyan-200">{generationRoute.checkpoint}</span></div>
+                <div>采样：<span className="text-cyan-200">{generationRoute.steps} 步 · cfg {generationRoute.cfg} · {generationRoute.sampler} · {generationRoute.scheduler} · clip_skip {generationRoute.clipSkip}</span></div>
+                <div>尺寸：<span className="text-cyan-200">{generationRoute.width}×{generationRoute.height}</span> · 预设 {generationRoute.presetId}</div>
+                <div>LoRA 白名单：<span className="font-mono text-cyan-200">{generationRoute.loraPolicy.categoryEnv}</span></div>
+              </div>
+              <p className="mt-1 text-[10px] text-slate-400">{generationRoute.reason}</p>
             </div>            <div className="mb-3 flex flex-wrap gap-2" aria-label="角色分类">
               {COMPANION_CATEGORIES.filter((category) => category !== 'anime').map((category) => (
                 <Button
@@ -2443,7 +2469,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
                     </Button>
                   ))}
                 </div>
-                <p className="mt-2 text-[10px] text-slate-400">画风只改变渲染与风格 LoRA，不改变女性、男性或跨性别的身体逻辑。</p>
+                <p className="mt-2 text-[10px] text-slate-400">路由规则：写实 → SDXL·Pony Realism；2D 动漫 → SDXL·Illustrious；3D 与产品资产 → FLUX；矩阵总闸关闭时全部 fail-open 回 FLUX。画风不改变女性、男性或跨性别的身体逻辑。</p>
               </div>
             </div>
             <div className="mb-3 rounded-lg border border-slate-700 bg-slate-950/60 p-3">

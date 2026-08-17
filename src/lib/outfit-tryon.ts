@@ -9,6 +9,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getOutfitById, resolveOutfitMeta, type OutfitCatalogItem } from '@/lib/outfit-catalog';
 import { runpodClient } from '@/lib/runpod';
 import { logger } from '@/lib/logger';
+import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
+import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
 
 export type TryOnInput = {
   client: SupabaseClient;
@@ -71,7 +73,7 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
   const { data: gf, error: gfErr } = await client
     .from('girlfriends')
     .select(
-      'id, user_id, name, portrait_url, avatar_url, base_portrait_url, character_card, appearance_race, appearance_hair, appearance_hair_color, appearance_eyes, appearance_body',
+      'id, user_id, name, portrait_url, avatar_url, base_portrait_url, character_card, gender, appearance_style, render_style, anime_render_style, visual_style, tags, appearance_race, appearance_hair, appearance_hair_color, appearance_eyes, appearance_body',
     )
     .eq('id', girlfriendId)
     .eq('user_id', userId)
@@ -150,11 +152,21 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
   // strength: 0.5 keeps face; 0.65 changes clothes more
   const denoise = Math.min(0.75, Math.max(0.35, input.strength ?? 0.55));
 
-  // Resolve image module preset (outfit_prop) for steps/size/cfg/endpoint
-  let sceneWidth = 832;
-  let sceneHeight = 1216;
-  let sceneSteps = 26;
-  let sceneCfg = 1.0;
+  // 生图路由（SDXL 模型矩阵）：写实 → Pony / 2D → Illustrious；总闸关闭或
+  // 端点缺失时 resolver 自动 fail-open 回 FLUX（服务端 env 可见，无需 override）。
+  const genRoute = resolveImageGenerationRoute({
+    surface: 'outfit',
+    category: normalizeCompanionCategory({ gender: gf.gender, tags: gf.tags }),
+    renderStyle: normalizeCompanionRenderStyle({
+      renderStyle: gf.render_style,
+      animeRenderStyle: gf.anime_render_style,
+      visualStyle: gf.visual_style,
+      appearanceStyle: gf.appearance_style,
+    }),
+    nsfwIntensity: 2,
+  });
+
+  // AI 模块生图闸门（禁用则提前返回）；采样参数已由生图路由决定。
   let endpointId: string | undefined;
   try {
     const { loadAiModules, resolveImageCall } = await import('@/lib/ai-modules');
@@ -168,14 +180,7 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
           : 'Image generation is not configured.',
       };
     }
-    sceneWidth = img.config.width || sceneWidth;
-    sceneHeight = img.config.height || sceneHeight;
-    sceneSteps = img.config.steps || sceneSteps;
-    sceneCfg = Math.min(Math.max(img.config.cfg || 1.0, 1.0), 3.5);
     endpointId = img.endpointId || undefined;
-    if (img.defaultNegative) {
-      // keep identity-safe negatives; append module default if present
-    }
   } catch (e) {
     logger.warn('[try-on] ai-modules resolve skipped', {
       err: e instanceof Error ? e.message : String(e),
@@ -191,13 +196,19 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
       {
         prompt,
         negative_prompt: negative,
-        width: sceneWidth,
-        height: sceneHeight,
-        num_inference_steps: sceneSteps,
-        guidance_scale: sceneCfg,
+        width: genRoute.width,
+        height: genRoute.height,
+        num_inference_steps: genRoute.steps,
+        guidance_scale: genRoute.cfg,
         input_image: girlImage,
         denoising_strength: denoise,
-        endpoint_id: endpointId,
+        endpoint_id: genRoute.endpointId || endpointId,
+        // ── Generation-route model profile (SDXL matrix aware)
+        ckpt_name: genRoute.checkpoint,
+        sampler_name: genRoute.sampler,
+        scheduler: genRoute.scheduler,
+        clip_skip: genRoute.clipSkip,
+        model_family: genRoute.modelFamily,
         // ── Capability flags (worker-side gated, fail-open)
         ip_adapter_image: girlImage,
         ip_adapter_weight: 0.75,

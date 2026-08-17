@@ -155,13 +155,14 @@ function sdxlMatrixRoute(
   surface: ImageSurface,
   category: CompanionCategory,
   nsfw: boolean,
+  endpointId: string,
 ): ImageGenerationRoute {
   const familyPrefix = plan.modelFamily === 'illustrious' ? 'RUNPOD_ILLUSTRIOUS' : 'RUNPOD_PONY';
   const categoryKey = category === 'anime' ? 'FEMALE' : category.toUpperCase();
   return {
     surface,
     modelFamily: plan.modelFamily,
-    endpointId: env('RUNPOD_ENDPOINT_ID_SDXL', ''),
+    endpointId,
     checkpoint: plan.checkpoint,
     sampler: plan.sampler,
     scheduler: plan.scheduler,
@@ -211,8 +212,20 @@ export function resolveImageGenerationRoute(input: {
   sceneSemantics?: ImageSceneSemantics;
   /** Quick preview mode: minimal steps for fast companion drafts */
   turbo?: boolean;
-  /** @deprecated ignored — retained for caller compatibility. Routing is FLUX-only. */
+  /**
+   * 矩阵总闸显式 override。客户端 bundle 读不到服务端 env（非
+   * NEXT_PUBLIC_ 变量不会内联），所以服务端 API（如 /api/admin/comfy
+   * view=volume）把 RUNPOD_SDXL_MODELS_READY 旗标随响应带给前端，
+   * 前端调本函数时显式传入。未提供时回读 env。
+   */
+  matrixActive?: boolean;
+  /** @deprecated 历史名，现作为 matrixActive 别名生效。 */
   specialistModelsReady?: boolean;
+  /**
+   * SDXL 端点显式 override（同 matrixActive：客户端 env 不可见，
+   * 由服务端随响应下发）。未提供时回读 RUNPOD_ENDPOINT_ID_SDXL。
+   */
+  sdxlEndpointId?: string;
 }): ImageGenerationRoute {
   const renderStyle = input.renderStyle || 'realistic';
   const intensity = input.nsfwIntensity || 1;
@@ -224,6 +237,8 @@ export function resolveImageGenerationRoute(input: {
   // ─── SDXL 模型矩阵（RUNPOD_SDXL_MODELS_READY 总闸） ───────────────────────
   // 总闸关闭 / 端点未配置 / premium / turbo / 3D / 产品资产时 plan 自动落回
   // 'runpod-flux'，继续走下方保留的 FLUX 分支（行为与重构前一致）。
+  const matrixActive = input.matrixActive ?? input.specialistModelsReady;
+  const sdxlEndpointId = input.sdxlEndpointId?.trim() || env('RUNPOD_ENDPOINT_ID_SDXL', '');
   const matrixPlan = resolveModelPlan({
     surface: input.surface,
     category,
@@ -231,9 +246,23 @@ export function resolveImageGenerationRoute(input: {
     nsfwLevel: intensity,
     turbo: input.turbo,
     sceneComplex: complexScene,
+    matrixActive,
   });
   if (matrixPlan.endpointKey === 'runpod-sdxl-pro') {
-    return sdxlMatrixRoute(matrixPlan, input.surface, category, nsfw);
+    // 端点缺失时 fail-open 回 FLUX（与 env 总闸语义一致）。
+    if (!sdxlEndpointId) {
+      return fluxRoute({
+        surface: input.surface,
+        checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
+        steps: nsfw ? 28 : 24,
+        fluxGuidance: nsfw ? 4.0 : 3.5,
+        width: 832,
+        height: 1216,
+        presetId: 'flux-matrix-failopen',
+        reason: 'SDXL matrix gate open but no SDXL endpoint — fail-open to FLUX.',
+      }, category, renderStyle);
+    }
+    return sdxlMatrixRoute(matrixPlan, input.surface, category, nsfw, sdxlEndpointId);
   }
 
   // Unified FLUX strategy: every scenario uses the same verified dev-fp8

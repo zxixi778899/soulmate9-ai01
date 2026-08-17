@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
@@ -21,6 +21,7 @@ import CreatorPreviewsAdminContent from '@/components/admin/CreatorPreviewsAdmin
 import AdminAssetsContent from '@/components/admin/AdminAssetsContent';
 import AdminPresetLibraryContent from '@/components/admin/AdminPresetLibraryContent';
 import { cn } from '@/lib/utils';
+import { authedFetch } from '@/lib/supabase';
 
 type Section = 'studio' | 'assets' | 'presets' | 'previews' | 'character-presets';
 
@@ -73,6 +74,23 @@ function StudioInner(): React.JSX.Element {
   const section: Section =
     sectionParam === 'character-presets' || sectionParam === 'assets' || sectionParam === 'presets' || sectionParam === 'previews' ? sectionParam : 'studio';
 
+  // 头部引擎徽章跟随 SDXL 矩阵总闸（服务端 env 客户端不可见，走 API 下发）。
+  const [matrixReady, setMatrixReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authedFetch('/api/admin/comfy?view=volume');
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({} as Record<string, unknown>));
+        if (!cancelled) setMatrixReady(data?.sdxl_models_ready === true);
+      } catch {
+        /* keep FLUX-only badge */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0b0b12] text-slate-100">
       {/* ─── Header ─────────────────────────────────────────────── */}
@@ -82,7 +100,7 @@ function StudioInner(): React.JSX.Element {
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold tracking-tight text-white md:text-lg">创建与素材</h1>
               <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-400">
-                FLUX · RunPod Comfy
+                {matrixReady ? 'FLUX + SDXL 矩阵 · RunPod Comfy' : 'FLUX · RunPod Comfy'}
               </span>
             </div>
             {girlfriendId ? (
