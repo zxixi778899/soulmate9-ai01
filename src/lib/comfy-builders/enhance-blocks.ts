@@ -106,7 +106,8 @@ export function applyFaceDetailer(
 
   ctx.graph['51'] = {
     class_type: 'UltralyticsDetectorProvider',
-    inputs: { model_name: envModel('RUNPOD_ADETAILER_MODEL', 'face_yolov8m.pt') },
+    // Impact-Subpack enumerates models with their type prefix (bbox/ or segm/).
+    inputs: { model_name: envModel('RUNPOD_ADETAILER_MODEL', 'bbox/face_yolov8m.pt') },
   };
   ctx.graph['50'] = {
     class_type: 'FaceDetailer',
@@ -175,7 +176,14 @@ export function applyHiresUpscale(
   };
   ctx.graph['62'] = {
     class_type: 'ImageScaleToTotalPixels',
-    inputs: { upscale_method: 'lanczos', image: ['61', 0], megapixels: Number(megapixels.toFixed(2)) },
+    inputs: {
+      upscale_method: 'lanczos',
+      image: ['61', 0],
+      megapixels: Number(megapixels.toFixed(2)),
+      // Newer ComfyUI makes resolution_steps a required input (used to pick
+      // the resample filter); mirror the base KSampler step budget.
+      resolution_steps: 20,
+    },
   };
   ctx.imageOutId = '62';
 
@@ -228,8 +236,16 @@ export function applyIdentitySDXL(
   const weight = Math.min(0.85, Math.max(0.6, opts.weight ?? 0.75));
 
   ctx.graph['70'] = {
-    class_type: 'IPAdapterUnifiedLoader',
-    inputs: { model: ctx.refs.modelRef, preset: 'FACEID PLUS V2' },
+    // FACEID presets live on the FaceID loader subclass — the base
+    // IPAdapterUnifiedLoader only exposes non-faceid presets.
+    class_type: 'IPAdapterUnifiedLoaderFaceID',
+    inputs: {
+      model: ctx.refs.modelRef,
+      preset: 'FACEID PLUS V2',
+      lora_strength: 0.6,
+      // CPU provider: onnxruntime (CPU) is what the worker image ships.
+      provider: 'CPU',
+    },
   };
   ctx.graph['71'] = {
     class_type: 'LoadImage',

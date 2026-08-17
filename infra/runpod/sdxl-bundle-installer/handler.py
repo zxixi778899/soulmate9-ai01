@@ -44,6 +44,11 @@ LORAS = [
 ]
 # (subdir, name, url)
 HF_ASSETS = [
+    # IPAdapter_plus FaceID (SDXL) resolves ClipVision by filename pattern
+    # ViT.H.14.*s32B.b79K — the official extra_model_paths.yaml already maps
+    # clip_vision to /runpod-volume/models/clip_vision.
+    ("clip_vision", "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+     "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors"),
     ("controlnet", "xinsir-openpose-sdxl.safetensors",
      "https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors"),
     ("controlnet", "xinsir-depth-sdxl.safetensors",
@@ -152,7 +157,7 @@ def run_download():
         return {"rc": 22, "error": "CIVITAI_API_TOKEN secret was not resolved"}
 
     for sub in ("checkpoints", "loras", "controlnet", "ipadapter",
-                "ultralytics/bbox", "upscale_models"):
+                "clip_vision", "ultralytics/bbox", "upscale_models"):
         os.makedirs(os.path.join(ROOT, sub), exist_ok=True)
     os.makedirs(STATE, exist_ok=True)
     manifest = os.path.join(STATE, "sdxl-matrix-installed.txt")

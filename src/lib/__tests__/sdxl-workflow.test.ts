@@ -119,7 +119,7 @@ describe('enhance blocks', () => {
   it('applyFaceDetailer runs a local inpaint pass on the decoded image', () => {
     const ctx = buildSdxlWorkflow({ prompt: 'x', seed: 7 });
     applyFaceDetailer(ctx, {});
-    expect(inputsOf(ctx.graph, '51')).toMatchObject({ model_name: 'face_yolov8m.pt' });
+    expect(inputsOf(ctx.graph, '51')).toMatchObject({ model_name: 'bbox/face_yolov8m.pt' });
     expect(inputsOf(ctx.graph, '50')).toMatchObject({
       image: ['6', 0],
       denoise: 0.4,
@@ -147,7 +147,8 @@ describe('enhance blocks', () => {
   it('applyIdentitySDXL clamps the FaceID weight and rewires the model chain', () => {
     const ctx = buildSdxlWorkflow({ prompt: 'x' });
     applyIdentitySDXL(ctx, { faceImage: 'face.png', weight: 1.5 });
-    expect(inputsOf(ctx.graph, '70')).toMatchObject({ preset: 'FACEID PLUS V2' });
+    expect(ctx.graph['70']).toMatchObject({ class_type: 'IPAdapterUnifiedLoaderFaceID' });
+    expect(inputsOf(ctx.graph, '70')).toMatchObject({ preset: 'FACEID PLUS V2', lora_strength: 0.6, provider: 'CPU' });
     expect(inputsOf(ctx.graph, '72')).toMatchObject({ weight: 0.85, end_at: 0.85 });
     expect(inputsOf(ctx.graph, '5')).toMatchObject({ model: ['72', 0] });
   });
