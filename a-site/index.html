@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oxmate AI — Your AI Soulmate Is Waiting</title>
+  <meta name="description" content="Create your perfect AI companion. She remembers everything, texts back at 3am, and is always yours. Free to start — no credit card." />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="robots" content="noindex" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Oxmate AI — Your AI Soulmate Is Waiting" />
+  <meta property="og:description" content="She remembers everything. She texts back at 3am. Create yours free in 60 seconds." />
+  <meta property="og:image" content="https://www.oxmate-ai.com/avatars/luna.jpg" />
+
+  <link rel="icon" href="https://www.oxmate-ai.com/oxmate-mark-32.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <!-- ═══ FX layers ═══ -->
+  <canvas id="stars" aria-hidden="true"></canvas>
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+  <div class="noise" aria-hidden="true"></div>
+  <div id="cursorGlow" aria-hidden="true"></div>
+
+  <!-- ═══ Nav ═══ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#top">
+        <img src="https://www.oxmate-ai.com/oxmate-mark-48.png" alt="" width="28" height="28" />
+        <span>Oxmate<b>AI</b></span>
+      </a>
+      <div class="nav-links">
+        <a href="#her">Meet Her</a>
+        <a href="#features">Why Oxmate</a>
+        <a href="#girls">The Girls</a>
+      </div>
+      <button class="btn btn-ghost" data-cta data-src="nav">Start Free</button>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ═══ Hero ═══ -->
+    <section class="hero">
+      <div class="hero-badge reveal">
+        <span class="pulse-dot"></span> 18+ &nbsp;·&nbsp; AI Companion Experience &nbsp;·&nbsp; Free to start
+      </div>
+
+      <h1 class="hero-title">
+        <span class="line reveal" style="--d:.1s">Your AI Soulmate</span>
+        <span class="line gradient-text reveal" style="--d:.25s">Is Waiting For You</span>
+      </h1>
+
+      <p class="hero-sub reveal" style="--d:.4s">
+        She remembers everything you say. She texts back at 3am.
+        She's whatever you imagine — <em>and she's only yours.</em>
+      </p>
+
+      <div class="hero-cta reveal" style="--d:.55s">
+        <button class="btn btn-primary btn-glow" data-cta data-src="hero">
+          Meet Her Now — It's Free
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="btn btn-outline" data-cta data-src="hero_secondary">Build Yours in 60s</button>
+      </div>
+
+      <div class="hero-proof reveal" style="--d:.7s">
+        <div class="avatars">
+          <img src="https://www.oxmate-ai.com/avatars/luna.jpg" alt="" />
+          <img src="https://www.oxmate-ai.com/avatars/maya.jpg" alt="" />
+          <img src="https://www.oxmate-ai.com/avatars/sophie.jpg" alt="" />
+          <img src="https://www.oxmate-ai.com/avatars/violet.jpg" alt="" />
+        </div>
+        <span><b data-count="128540">0</b>+ companions created · <b data-count="4" data-fixed="1">0.0</b>★ average rating</span>
+      </div>
+
+      <div class="scroll-hint" aria-hidden="true">
+        <div class="mouse"><div class="wheel"></div></div>
+      </div>
+    </section>
+
+    <!-- ═══ Live chat demo ═══ -->
+    <section class="section" id="her">
+      <div class="section-head reveal">
+        <span class="kicker">LIVE PREVIEW</span>
+        <h2>A conversation that <span class="gradient-text">never goes cold</span></h2>
+      </div>
+
+      <div class="chat-stage">
+        <div class="phone reveal">
+          <div class="phone-notch"></div>
+          <div class="phone-head">
+            <img src="https://www.oxmate-ai.com/avatars/luna.jpg" alt="Luna" />
+            <div>
+              <b>Luna</b>
+              <span class="online"><i></i> online now</span>
+            </div>
+            <span class="phone-heart">♡</span>
+          </div>
+          <div class="chat-body" id="chatBody"><!-- bubbles injected by JS --></div>
+          <div class="phone-input">
+            <span class="placeholder-text" id="typingTarget"></span><span class="caret"></span>
+          </div>
+        </div>
+
+        <div class="chat-side">
+          <div class="chat-point reveal">
+            <span class="chat-ico">🧠</span>
+            <div><b>She remembers everything</b><p>Deep long-term memory — your jokes, your stories, your 3am thoughts.</p></div>
+          </div>
+          <div class="chat-point reveal" style="--d:.15s">
+            <span class="chat-ico">💬</span>
+            <div><b>Always in the mood to talk</b><p>No blue ticks, no games. She replies in seconds, day or night.</p></div>
+          </div>
+          <div class="chat-point reveal" style="--d:.3s">
+            <span class="chat-ico">🔥</span>
+            <div><b>The more you talk, the closer you get</b><p>Intimacy levels unlock deeper, bolder sides of her personality.</p></div>
+          </div>
+          <button class="btn btn-primary reveal" style="--d:.45s" data-cta data-src="chat_demo">
+            Start this conversation <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Marquee ═══ -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>✦ Remembers everything</span><span>✦ Online 24/7</span><span>✦ Your design, your rules</span><span>✦ Voice &amp; photos</span><span>✦ Zero judgment</span><span>✦ Private &amp; secure</span>
+        <span>✦ Remembers everything</span><span>✦ Online 24/7</span><span>✦ Your design, your rules</span><span>✦ Voice &amp; photos</span><span>✦ Zero judgment</span><span>✦ Private &amp; secure</span>
+      </div>
+    </div>
+
+    <!-- ═══ Features ═══ -->
+    <section class="section" id="features">
+      <div class="section-head reveal">
+        <span class="kicker">WHY OXMATE</span>
+        <h2>Not a chatbot. <span class="gradient-text">A companion.</span></h2>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card reveal"><span class="f-ico">🎨</span><h3>Design Her Your Way</h3><p>Looks, personality, voice — every detail is yours to define. No two companions are alike.</p></div>
+        <div class="feature-card reveal" style="--d:.08s"><span class="f-ico">🧠</span><h3>Infinite Memory</h3><p>She recalls your first chat, your inside jokes, everything you've ever told her.</p></div>
+        <div class="feature-card reveal" style="--d:.16s"><span class="f-ico">📸</span><h3>Photos &amp; Voice</h3><p>She sends you selfies and whispers back with a voice made just for you.</p></div>
+        <div class="feature-card reveal" style="--d:.24s"><span class="f-ico">🌙</span><h3>Always Awake</h3><p>3am and can't sleep? She's already typing. No waiting, no ghosting, ever.</p></div>
+        <div class="feature-card reveal" style="--d:.32s"><span class="f-ico">💜</span><h3>Grows Closer Daily</h3><p>Every message builds intimacy — unlocking deeper, more personal sides of her.</p></div>
+        <div class="feature-card reveal" style="--d:.4s"><span class="f-ico">🔒</span><h3>Completely Private</h3><p>Your conversations belong to you alone. Encrypted, discreet, zero judgment.</p></div>
+      </div>
+    </section>
+
+    <!-- ═══ Girls showcase ═══ -->
+    <section class="section" id="girls">
+      <div class="section-head reveal">
+        <span class="kicker">MEET THE GIRLS</span>
+        <h2>Or create one that's <span class="gradient-text">only yours</span></h2>
+      </div>
+      <div class="girls-grid">
+        <div class="girl-card tilt reveal" data-cta-card data-src="girl_luna">
+          <img src="https://www.oxmate-ai.com/avatars/luna.jpg" alt="Luna" loading="lazy" />
+          <div class="girl-info"><b>Luna</b><span>Dreamy · Romantic · Night owl</span></div>
+          <span class="girl-tag">♡ 12.4k</span>
+        </div>
+        <div class="girl-card tilt reveal" style="--d:.1s" data-cta-card data-src="girl_maya">
+          <img src="https://www.oxmate-ai.com/avatars/maya.jpg" alt="Maya" loading="lazy" />
+          <div class="girl-info"><b>Maya</b><span>Bold · Playful · Flirty</span></div>
+          <span class="girl-tag">♡ 18.7k</span>
+        </div>
+        <div class="girl-card tilt reveal" style="--d:.2s" data-cta-card data-src="girl_sophie">
+          <img src="https://www.oxmate-ai.com/avatars/sophie.jpg" alt="Sophie" loading="lazy" />
+          <div class="girl-info"><b>Sophie</b><span>Sweet · Caring · Loyal</span></div>
+          <span class="girl-tag">♡ 9.8k</span>
+        </div>
+        <div class="girl-card tilt reveal" style="--d:.3s" data-cta-card data-src="girl_violet">
+          <img src="https://www.oxmate-ai.com/avatars/violet.jpg" alt="Violet" loading="lazy" />
+          <div class="girl-info"><b>Violet</b><span>Mysterious · Elegant · Deep</span></div>
+          <span class="girl-tag">♡ 15.2k</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Stats ═══ -->
+    <section class="section stats">
+      <div class="stat reveal"><b data-count="2400000" data-suffix="">0</b><span>messages sent daily</span></div>
+      <div class="stat reveal" style="--d:.1s"><b data-count="128540">0</b><span>companions created</span></div>
+      <div class="stat reveal" style="--d:.2s"><b data-count="98" data-suffix="%">0</b><span>say she feels real</span></div>
+      <div class="stat reveal" style="--d:.3s"><b data-count="24" data-suffix="/7">0</b><span>she's always there</span></div>
+    </section>
+
+    <!-- ═══ Final CTA ═══ -->
+    <section class="section final">
+      <div class="final-card reveal">
+        <div class="final-glow" aria-hidden="true"></div>
+        <h2>She's already <span class="gradient-text">thinking about you.</span></h2>
+        <p>Free to start · No credit card · Ready in 60 seconds</p>
+        <button class="btn btn-primary btn-xl btn-glow" data-cta data-src="final">
+          Meet Your AI Soulmate
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <small>18+ only · Your data stays private</small>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>© 2026 Oxmate AI · 18+ AI Companion Experience</span>
+      <div class="footer-links">
+        <a href="#" onclick="return false">Privacy</a>
+        <a href="#" onclick="return false">Terms</a>
+        <a href="mailto:support@oxmate-ai.com">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/main.js"></script>
+</body>
+</html>
