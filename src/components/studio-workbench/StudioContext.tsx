@@ -12,6 +12,7 @@ import {
 } from '@/lib/creative-generation-presets';
 import { buildStudioTaskPrompt } from '@/lib/comfy-console/studio-task-prompt';
 import { compactFluxPrompt } from '@/lib/comfy-console/studio-profile';
+import { buildIdentityPrompt } from '@/lib/identity-kit';
 import {
   INITIAL_STATE,
   type StudioState,
@@ -63,6 +64,8 @@ function studioReducer(state: StudioState, action: StudioAction): StudioState {
       return { ...state, generating: action.value, generationStage: action.stage || (action.value ? 'submitting' : 'idle') };
     case 'SET_RESULT':
       return { ...state, lastResult: action.assets, lastGenerationTrace: action.trace ?? null };
+    case 'SET_IDENTITY_KIT':
+      return { ...state, identityKit: action.kit };
     case 'SET_ADVANCED':
       return { ...state, advancedMode: action.value };
     case 'SET_FAST_PREVIEW':
@@ -206,9 +209,35 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
         });
         const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
         if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');
-        if (videoData.pending) {
-          dispatch({ type: 'SET_RESULT', assets: [], trace: { model: 'Wan2.2', job_id: videoData.job_id, status: 'pending' } });
-          toast.message('Wan2.2 视频 GPU 排队中…');
+        if (videoData.pending && videoData.job_id) {
+          // WAN 2.2 10s clips can exceed the 150s server poll budget.
+          // Continue polling from the client until the GPU finishes.
+          dispatch({ type: 'SET_GENERATING', value: true, stage: 'queued' });
+          const jobId = String(videoData.job_id);
+          const endpointId = String(videoData.endpoint_id || '');
+          const cost = Number(videoData.cost) || 0;
+          toast.message('Wan2.2 视频生成中…');
+          const pollBudget = 60; // 60 × 5s = 5 min
+          let polledUrl = '';
+          for (let attempt = 0; attempt < pollBudget; attempt++) {
+            await new Promise((r) => setTimeout(r, 5000));
+            const qs = new URLSearchParams({ job_id: jobId, kind: 'video' });
+            if (endpointId) qs.set('endpoint_id', endpointId);
+            if (state.companionId) qs.set('girlfriend_id', state.companionId);
+            qs.set('cost', String(cost));
+            const pollRes = await authedFetch(`/api/runpod/status?${qs.toString()}`);
+            const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
+            if (pollData.status === 'COMPLETED' || pollData.status === 'completed') {
+              polledUrl = String(pollData.video_url || '');
+              break;
+            }
+            if (pollData.status === 'FAILED' || pollData.status === 'failed') {
+              throw new Error(pollData.error || '视频生成失败');
+            }
+          }
+          if (!polledUrl) throw new Error('视频生成超时（5 分钟）');
+          dispatch({ type: 'SET_RESULT', assets: [{ id: jobId, url: polledUrl, media_type: 'video', duration_seconds: recommendedPreset.durationSeconds === 10 ? 10 : 5 }], trace: { model: 'Wan2.2' } });
+          toast.success('视频已生成');
           return;
         }
         const videoUrl = videoData.video_url || '';
@@ -259,6 +288,21 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
         body.input_image = state.inputImage.trim() || undefined;
         body.denoise = recommendedPreset.denoise ?? state.denoise;
         body.character_consistency = state.identityConsistency;
+      }
+
+      // Inject identity kit anchor image for IP-Adapter when available
+      if (state.identityKit && state.identityConsistency) {
+        const kit = state.identityKit;
+        if (kit.faceCropUrl || kit.anchorImageUrl) {
+          body.ip_adapter_image = kit.faceCropUrl || kit.anchorImageUrl;
+        }
+        // Inject identity spec prompt prefix for FLUX consistency
+        if (kit.identitySpec) {
+          const identityText = buildIdentityPrompt(kit.identitySpec);
+          if (identityText && typeof body.prompt === 'string') {
+            body.prompt = compactFluxPrompt(`${identityText} ${body.prompt}`);
+          }
+        }
       }
 
       const res = await authedFetch('/api/admin/comfy', {

@@ -1542,7 +1542,34 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           });
           const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
           if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');
-          const videoUrl = String(videoData.video_url || '');
+
+          let videoUrl = '';
+          if (videoData.pending && videoData.job_id) {
+            // WAN 2.2 can take 3–5 min for a 10s clip — server-side sync poll
+            // budget (150s) may expire before GPU finishes. Continue polling from
+            // the client so we don't mark "completed" with no video_url.
+            const jobId = String(videoData.job_id);
+            const endpointId = String(videoData.endpoint_id || '');
+            const cost = Number(videoData.cost) || 0;
+            const pollBudget = 60; // 60 × 5s = 5 min
+            for (let attempt = 0; attempt < pollBudget; attempt++) {
+              await new Promise((r) => setTimeout(r, 5000));
+              const statusRes = await authedFetch(
+                `/api/runpod/status?job_id=${jobId}&kind=video${endpointId ? `&endpoint_id=${endpointId}` : ''}&girlfriend_id=${companionId}&cost=${cost}`,
+              );
+              const statusData = await readResponseJson(statusRes).catch(() => ({} as Any));
+              if (statusData.status === 'COMPLETED' || statusData.status === 'completed') {
+                videoUrl = String(statusData.video_url || '');
+                break;
+              }
+              if (statusData.status === 'FAILED' || statusData.status === 'failed') {
+                throw new Error(statusData.error || `${stage.shortLabel} 失败`);
+              }
+            }
+            if (!videoUrl) throw new Error(`${stage.shortLabel} 超时`);
+          } else {
+            videoUrl = String(videoData.video_url || '');
+          }
           if (videoUrl) localAssets[stage.assetRole] = videoUrl;
           setPipelineResults((prev) => prev.map((r) => r.stageId === stage.id ? { ...r, status: 'completed', prompt, negative, videoUrl, loras } : r));
         } else {
@@ -1670,9 +1697,35 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         });
         const videoData = await readResponseJson(videoRes).catch(() => ({} as Any));
         if (!videoRes.ok) throw new Error(videoData.error || '视频生成失败');
-        if (videoData.pending) {
-          setLastGenerationTrace({ model: 'Wan2.2', endpoint: 'RUNPOD_WAN_VIDEO_ENDPOINT', job_id: videoData.job_id, status: videoData.status });
-          toast.message('Wan2.2 video is still in the GPU queue');
+        if (videoData.pending && videoData.job_id) {
+          // WAN 2.2 10s clips can exceed the 150s server poll — continue polling
+          // from the client instead of abandoning the result.
+          setGenerationStage('queued');
+          const jobId = String(videoData.job_id);
+          const endpointId = String(videoData.endpoint_id || '');
+          const cost = Number(videoData.cost) || 0;
+          setLastGenerationTrace({ model: 'Wan2.2', endpoint: 'RUNPOD_WAN_VIDEO_ENDPOINT', job_id: jobId, status: 'IN_PROGRESS' });
+          toast.message('Wan2.2 video is still generating…');
+          const pollBudget = 60; // 60 × 5s = 5 min
+          let polledUrl = '';
+          for (let attempt = 0; attempt < pollBudget; attempt++) {
+            await new Promise((r) => setTimeout(r, 5000));
+            const statusRes = await authedFetch(
+              `/api/runpod/status?job_id=${jobId}&kind=video${endpointId ? `&endpoint_id=${endpointId}` : ''}&girlfriend_id=${companionId}&cost=${cost}`,
+            );
+            const statusData = await readResponseJson(statusRes).catch(() => ({} as Any));
+            if (statusData.status === 'COMPLETED' || statusData.status === 'completed') {
+              polledUrl = String(statusData.video_url || '');
+              break;
+            }
+            if (statusData.status === 'FAILED' || statusData.status === 'failed') {
+              throw new Error(statusData.error || '视频生成失败');
+            }
+          }
+          if (!polledUrl) throw new Error('视频生成超时');
+          setLastResult([{ id: jobId, url: polledUrl, media_type: 'video', duration_seconds: recommendedPreset.durationSeconds === 10 ? 10 : 5 }]);
+          setLastGenerationTrace({ category: companionCategory, intensity: nsfwIntensity, model: 'Wan2.2', endpoint: 'RUNPOD_WAN_VIDEO_ENDPOINT', identitySource: 'selected_reference_image', loras: [] });
+          toast.success('人设动画已生成并保存');
           return;
         }
         const ready = videoData.video_url ? { animation_id: videoData.job_id, video_url: videoData.video_url } : null;

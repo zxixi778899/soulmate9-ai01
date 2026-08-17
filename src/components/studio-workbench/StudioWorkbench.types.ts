@@ -3,6 +3,7 @@ import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio
 import type { CreativeGenerationMode } from '@/lib/creative-generation-presets';
 import type { ImageSurface } from '@/lib/image-generation-routing';
 import type { CharacterAssetRole } from '@/lib/character-asset-production';
+import type { IdentityKit } from '@/lib/identity-kit';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Studio state carries heterogeneous API payloads
 export type Any = Record<string, any>;
@@ -65,6 +66,9 @@ export interface StudioState {
   lastResult: Any[];
   lastGenerationTrace: Any | null;
 
+  // Identity Kit (character consistency anchor)
+  identityKit: IdentityKit | null;
+
   // UI
   advancedMode: boolean;
 }
@@ -90,6 +94,7 @@ export type StudioAction =
   | { type: 'SET_ASSET_ROLE'; role: CharacterAssetRole }
   | { type: 'SET_GENERATING'; value: boolean; stage?: GenerationStage }
   | { type: 'SET_RESULT'; assets: Any[]; trace?: Any | null }
+  | { type: 'SET_IDENTITY_KIT'; kit: IdentityKit | null }
   | { type: 'SET_ADVANCED'; value: boolean }
   | { type: 'SET_FAST_PREVIEW'; value: boolean }
   | { type: 'APPLY_TRANSFORM'; kind: 'outfit' | 'pose' | 'background' };
@@ -127,5 +132,6 @@ export const INITIAL_STATE: StudioState = {
   generationStage: 'idle',
   lastResult: [],
   lastGenerationTrace: null,
+  identityKit: null,
   advancedMode: false,
 };

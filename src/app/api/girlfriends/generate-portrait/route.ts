@@ -335,36 +335,53 @@ export async function POST(request: NextRequest) {
       renderStyle,
       nsfwIntensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
     });
-    const referencePlan = buildReferenceGenerationPlan({
-      surface: 'companion',
-      category,
-      renderStyle,
-      modelFamily: route.modelFamily,
-      nsfwLevel,
-      allowIdentity: false,
-      controls: config.reference_control,
-      assets: config.reference_assets || [],
-    });
-    // 中文自由描述自动转英文（与后台控制台同一套翻译逻辑）
-    const translatedIdentity = await translatePromptToEnglish({
-      text: prompt,
-      intensity: nsfwLevel,
-      mode: 'positive',
-      supabase: undefined,
-      userId: user.id,
-    });
-    const finalIdentity = translatedIdentity || prompt;
-    const naturalPrompt = buildStudioPromptEnhancement({
-      category,
-      intensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
-      animeStyle: renderStyle,
-      identity: finalIdentity,
-      scene: [
-        buildIdReferencePrompt(framing),
-        ...referencePlan.promptHints,
-      ].join('. '),
-    });
     const negativePrompt = studioNegativePrompt(category, renderStyle);
+
+    // ── Custom prompt bypass: if client already generated a prompt via
+    //    /api/creator/generate-prompt, use it directly (text-to-image mode). ──
+    const customPrompt = typeof body.custom_prompt === 'string' ? body.custom_prompt.trim() : '';
+    let naturalPrompt: string;
+    let finalIdentity: string;
+
+    if (customPrompt) {
+      // Pre-built prompt from the creator wizard — skip internal prompt building
+      naturalPrompt = customPrompt;
+      finalIdentity = customPrompt;
+      logger.info('[Generate Portrait] Using custom prompt (text-to-image mode)', {
+        name, promptLen: customPrompt.length,
+      });
+    } else {
+      // Original prompt building pipeline
+      const referencePlan = buildReferenceGenerationPlan({
+        surface: 'companion',
+        category,
+        renderStyle,
+        modelFamily: route.modelFamily,
+        nsfwLevel,
+        allowIdentity: false,
+        controls: config.reference_control,
+        assets: config.reference_assets || [],
+      });
+      // 中文自由描述自动转英文（与后台控制台同一套翻译逻辑）
+      const translatedIdentity = await translatePromptToEnglish({
+        text: prompt,
+        intensity: nsfwLevel,
+        mode: 'positive',
+        supabase: undefined,
+        userId: user.id,
+      });
+      finalIdentity = translatedIdentity || prompt;
+      naturalPrompt = buildStudioPromptEnhancement({
+        category,
+        intensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
+        animeStyle: renderStyle,
+        identity: finalIdentity,
+        scene: [
+          buildIdReferencePrompt(framing),
+          ...referencePlan.promptHints,
+        ].join('. '),
+      });
+    }
 
     // 自动 LoRA：与后台一致（性别/风格固定组合 + 提示词关键词触发，仅用运行卷已验证文件）
     const installedSet = [...getVerifiedInstalledLoraSet()];
@@ -452,7 +469,7 @@ export async function POST(request: NextRequest) {
       category,
       renderStyle,
       promptLen: naturalPrompt.length,
-      referenceRoles: referencePlan.selected.map((asset) => asset.role),
+      customPromptUsed: !!customPrompt,
     });
     const result = await generateImage({
       prompt: naturalPrompt,
@@ -477,7 +494,7 @@ export async function POST(request: NextRequest) {
           renderStyle,
           modelFamily: route.modelFamily,
           checkpoint: route.checkpoint,
-          referencePlan: referencePlan.trace,
+          customPrompt: !!customPrompt,
         },
         message: 'Portrait is being generated. Poll /api/ai/status?job_id=' + result.jobId,
       });

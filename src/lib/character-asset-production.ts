@@ -2,6 +2,7 @@ import type { AnimeRenderStyle } from '@/lib/comfy-console/studio-profile';
 
 export const CHARACTER_ASSET_ROLES = [
   'avatar-closeup',
+  'identity-anchor',
   'identity-front',
   'identity-profile',
   'identity-back',
@@ -181,14 +182,13 @@ export const CHARACTER_ID_PACK: CharacterAssetRole[] = [
 ];
 
 export function identityReferenceRolePriority(role: CharacterAssetRole): CharacterAssetRole[] {
-  // The waist-up avatar is the single IP-Adapter identity anchor for every
-  // downstream asset (character-art, album, scene, video). Legacy identity-*
-  // reference sheets are kept only as secondary fallbacks so existing DB assets
-  // still resolve, but new productions never generate them.
-  if (role === 'identity-front') return ['avatar-closeup'];
-  if (role === 'identity-profile') return ['identity-front', 'avatar-closeup'];
-  if (role === 'identity-back') return ['identity-profile', 'identity-front', 'avatar-closeup'];
-  return ['avatar-closeup', 'identity-turnaround', 'identity-front', 'identity-profile', 'identity-back'];
+  // The identity-anchor (best-of-4 avatar selection) is the primary IP-Adapter
+  // reference for all downstream assets. avatar-closeup is the fallback.
+  if (role === 'identity-anchor') return ['avatar-closeup'];
+  if (role === 'identity-front') return ['identity-anchor', 'avatar-closeup'];
+  if (role === 'identity-profile') return ['identity-anchor', 'identity-front', 'avatar-closeup'];
+  if (role === 'identity-back') return ['identity-anchor', 'identity-profile', 'identity-front', 'avatar-closeup'];
+  return ['identity-anchor', 'avatar-closeup', 'identity-turnaround', 'identity-front', 'identity-profile', 'identity-back'];
 }
 
 export function identityTurnaroundDenoise(role: CharacterAssetRole, requested: number): number {

@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useStudio } from '../StudioContext';
 import { cn } from '@/lib/utils';
-import { Copy, Check, ImagePlay, Video, Trash2, Maximize2 } from 'lucide-react';
+import { Copy, Check, ImagePlay, Video, Trash2, Maximize2, Anchor } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Any } from '../StudioWorkbench.types';
 
@@ -31,6 +31,37 @@ export function OutputGrid() {
     dispatch({ type: 'SET_MODE', genMode: 'img2video' });
     toast.success('已切换到图生视频模式');
   }, [dispatch]);
+
+  const setAsIdentityAnchor = useCallback(async (url: string) => {
+    if (!state.companionId) {
+      toast.error('请先选择伴侣');
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/comfy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_companion_asset',
+          girlfriend_id: state.companionId,
+          url,
+          asset_role: 'identity-anchor',
+          meta: { asset_role: 'identity-anchor', quality_score: 90, source: 'manual-anchor-set' },
+        }),
+      });
+      if (!res.ok) throw new Error('保存失败');
+      // Update identity kit in state
+      dispatch({
+        type: 'SET_IDENTITY_KIT',
+        kit: state.identityKit
+          ? { ...state.identityKit, anchorImageUrl: url, anchorTimestamp: new Date().toISOString() }
+          : { companionId: state.companionId, anchorImageUrl: url, identitySpec: { age: 25, gender: '', ethnicity: '', hairColor: '', hairStyle: '', eyeColor: '', bodyBuild: '', height: '', faceShape: '', jawline: '', cheekbones: '', noseBridge: '', noseTip: '', lipShape: '', eyeShape: '', eyeSpacing: '', browShape: '', forehead: '', chinShape: '', distinguishingMarks: [], skinTone: '', skinTexture: '' }, anchorSeed: -1, anchorPrompt: '', anchorTimestamp: new Date().toISOString(), qualityScore: 90 },
+      });
+      toast.success('已设为身份锚点图');
+    } catch {
+      toast.error('设为身份锚点失败');
+    }
+  }, [state.companionId, state.identityKit, dispatch]);
 
   if (state.lastResult.length === 0) return null;
 
@@ -100,6 +131,13 @@ export function OutputGrid() {
                       title="生成视频"
                     >
                       <Video className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setAsIdentityAnchor(url)}
+                      className="rounded p-1.5 text-white/70 transition hover:bg-white/10 hover:text-amber-300"
+                      title="设为身份锚点"
+                    >
+                      <Anchor className="h-3.5 w-3.5" />
                     </button>
                   </>
                 )}

@@ -41,11 +41,12 @@ const PLANS = [
     features: [
       '40 messages per day',
       '5 companions',
-      '3 trial image generations',
-      '3 voice syntheses per day',
+      '50 starter Credits (one-time)',
       '8k context window',
-      'Shallow memory',
+      'Shallow memory (7 days)',
       'Intimacy up to Level 3',
+      'Good Night proactive message',
+      'Basic outfits',
     ],
   },
   {
@@ -62,13 +63,15 @@ const PLANS = [
     border: 'border-purple-500/30',
     popular: true,
     features: [
-      '300 messages per day',
+      '200 messages per day',
       '20 companions',
+      '500 Credits / month',
       '16k context window',
-      'Deep memory',
-      '100 Credits / month',
-      'Premium outfits',
-      'NSFW content',
+      'Deep memory (90 days)',
+      'All 5 intimacy levels + NSFW',
+      'All 4 proactive time slots',
+      '1.5x daily quest rewards',
+      'Premium outfits + Studio',
       'Priority support',
     ],
   },
@@ -87,12 +90,14 @@ const PLANS = [
     features: [
       'Unlimited messages (fair use)',
       'Unlimited companions',
+      '1500 Credits / month',
       '32k context window',
-      'Infinite memory',
-      '300 Credits / month',
-      'Video generation access',
+      'Infinite permanent memory',
+      'AI-personalized proactive messages',
+      '2x daily quest rewards',
       'All outfits unlocked',
-      'Early access to new features',
+      'Studio + early access',
+      'Priority support',
     ],
   },
 ];
@@ -327,9 +332,9 @@ function PricingContent() {
                   <p className="text-[11px] text-emerald-400 mt-1">{plan.yearlyNote}</p>
                 )}
                 <CardDescription className="text-xs text-muted-foreground/60">
-                  {plan.id === 'free' && 'Get started free'}
-                  {plan.id === 'pro' && 'For serious connections'}
-                  {plan.id === 'unlimited' && 'The ultimate experience'}
+                  {plan.id === 'free' && 'Explore with 50 free Credits'}
+                  {plan.id === 'pro' && 'Best value for regular users'}
+                  {plan.id === 'unlimited' && 'Maximum freedom & creativity'}
                 </CardDescription>
               </CardHeader>
 

@@ -13,35 +13,44 @@ export type MembershipTier = 'free' | 'pro' | 'unlimited' | 'admin';
 /**
  * Soft limits surfaced in UI. Hard enforcement lives on the server
  * (chat/stream, generate-image, etc.).
+ * Media generation (image/video/TTS) is gated by Credits balance, not tier.
  */
 export const MEMBERSHIP_LIMITS = {
   free: {
     dailyMessageLimit: 40,
     maxIntimacyLevel: 3,
-    maxGirlfriends: 3,
-    canGenerateImages: true,
+    maxGirlfriends: 5,
     canUsePremiumOutfits: false,
+    videoGen: false,
+    proactiveSlots: 1,
+    questMultiplier: 1,
   },
   pro: {
-    dailyMessageLimit: 300,
-    maxIntimacyLevel: 6,
-    maxGirlfriends: 10,
-    canGenerateImages: true,
+    dailyMessageLimit: 200,
+    maxIntimacyLevel: 5,
+    maxGirlfriends: 20,
     canUsePremiumOutfits: true,
+    videoGen: true,
+    proactiveSlots: 4,
+    questMultiplier: 1.5,
   },
   unlimited: {
     dailyMessageLimit: Number.POSITIVE_INFINITY,
-    maxIntimacyLevel: 6,
+    maxIntimacyLevel: 5,
     maxGirlfriends: Number.POSITIVE_INFINITY,
-    canGenerateImages: true,
     canUsePremiumOutfits: true,
+    videoGen: true,
+    proactiveSlots: 4,
+    questMultiplier: 2,
   },
   admin: {
     dailyMessageLimit: Number.POSITIVE_INFINITY,
     maxIntimacyLevel: 10,
     maxGirlfriends: Number.POSITIVE_INFINITY,
-    canGenerateImages: true,
     canUsePremiumOutfits: true,
+    videoGen: true,
+    proactiveSlots: 4,
+    questMultiplier: 1,
   },
 } as const;
 

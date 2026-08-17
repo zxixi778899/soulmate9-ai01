@@ -211,9 +211,11 @@ export function buildCompleteImg2ImgWorkflow(opts: {
         ipadapter_flux: ['31', 0],
         image: ['33', 0],
         weight: ipWeight,
-        weight_type: 'style transfer',
-        start_percent: 0.0,
-        end_percent: 0.7,
+        // 'linear' preserves face geometry better than 'style transfer'
+        weight_type: 'linear',
+        start_percent: 0.05,
+        // Extended end_percent anchors identity through late detail refinement
+        end_percent: 0.85,
       },
     };
 

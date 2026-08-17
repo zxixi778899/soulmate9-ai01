@@ -9,10 +9,13 @@ export const SUPPORT_EMAIL = 'support@oxmate-ai.com';
 export const PRIVACY_EMAIL = 'privacy@oxmate-ai.com';
 
 /**
- * Membership tiers — text subscription only (GPU media uses Credits separately).
- * Free: trial · Pro: high daily chat cap + full memory · Unlimited: fair-use unlimited chat + video access.
- * Prices tax-exclusive; customer pays tax at checkout.
+ * Membership tiers — unified Credits model for all GPU media (image / video / TTS).
  *
+ * Free: one-time starter pack (50 Credits) + basic chat, no monthly credit refill.
+ * Pro ($9.99/mo): 200 msgs/day, 500 Credits/mo, deep memory, all 4 proactive slots.
+ * Unlimited ($29.99/mo): fair-use unlimited chat, 1500 Credits/mo, infinite memory, 2x quest rewards.
+ *
+ * Prices tax-exclusive; customer pays tax at checkout.
  * Billing: monthly or yearly only. Yearly discount: Pro 15%, Unlimited 20%.
  */
 export const MEMBERSHIP_TIERS = {
@@ -21,42 +24,45 @@ export const MEMBERSHIP_TIERS = {
     price_cents: 0,
     yearly_price_cents: 0,
     messages_per_day: 40,
-    image_gen_per_day: 3,
-    tts_per_day: 3,
-    video_gen: false,
     memory_depth: 'shallow' as const,
     max_girlfriends: 5,
     outfit_access: 'basic' as const,
     context_window: 8192,
     monthly_credits: 0,
+    starter_credits: 50, // one-time welcome gift (enough for ~5 images or ~10 voice msgs)
+    video_gen: false,
+    proactive_slots: 1, // night-only (good night message)
+    quest_reward_multiplier: 1,
   },
   pro: {
     name: 'Pro',
     price_cents: 999,
     yearly_price_cents: 10188, // $101.88/yr = 15% off 12 x $9.99 ($8.49/mo equivalent)
-    messages_per_day: 300,
-    image_gen_per_day: 0, // images via Credits
-    tts_per_day: 0, // voice via Credits
-    video_gen: false,
+    messages_per_day: 200,
     memory_depth: 'deep' as const,
     max_girlfriends: 20,
     outfit_access: 'premium' as const,
     context_window: 16384,
-    monthly_credits: 100,
+    monthly_credits: 500,
+    starter_credits: 0,
+    video_gen: true, // video access via Credits
+    proactive_slots: 4, // all time slots
+    quest_reward_multiplier: 1.5,
   },
   unlimited: {
     name: 'Unlimited',
     price_cents: 2999,
     yearly_price_cents: 28788, // $287.88/yr = 20% off 12 x $29.99 ($23.99/mo equivalent)
     messages_per_day: -1, // fair-use unlimited
-    image_gen_per_day: 0, // images via Credits
-    tts_per_day: 0, // voice via Credits
-    video_gen: true, // video access (costs Credits)
     memory_depth: 'infinite' as const,
     max_girlfriends: -1,
     outfit_access: 'all' as const,
     context_window: 32768,
-    monthly_credits: 300,
+    monthly_credits: 1500,
+    starter_credits: 0,
+    video_gen: true, // video access via Credits
+    proactive_slots: 4, // all time slots + AI-personalized generation
+    quest_reward_multiplier: 2,
   },
 } as const;
 

@@ -18,6 +18,7 @@
 import { buildCompanionIdentityBrief } from './companion-generation';
 import { getCharacterProductionPreset, styleProductionHint, type CharacterAssetRole } from './character-asset-production';
 import { resolveModelLoraPlan, type RoutedLora } from './model-lora-routing';
+import { resolveIpAdapterWeight } from './identity-kit';
 import { logger } from './logger';
 
 
@@ -47,6 +48,8 @@ export interface PipelineStageConfig {
   denoise?: number;
   /** IP-Adapter weight (face similarity) */
   ipAdapterWeight?: number;
+  /** Number of images to generate (avatar stage generates 4 for quality selection) */
+  numImages?: number;
   /** Which previous stage outputs to use as reference */
   referenceStages: PipelineStageId[];
   /** Video-specific params */
@@ -94,6 +97,8 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     height: 1024,
     steps: 28,
     guidance: 3.0,
+    // Generate 4 candidates for automatic face quality selection
+    numImages: 4,
     referenceStages: [],
   },
   {
@@ -108,11 +113,8 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     height: 1216,
     steps: 28,
     guidance: 3.0,
-    // Face identity from the avatar via IP-Adapter only (no img2img base image).
-    // 0.65 keeps the face consistent while the prompt fully controls pose, wardrobe,
-    // framing and scene — feeding the avatar as an img2img base used to drag the
-    // output back into a portrait crop, so it is intentionally omitted here.
-    ipAdapterWeight: 0.62,
+    // 0.72 from identity-kit resolver: balanced identity + creative freedom
+    ipAdapterWeight: resolveIpAdapterWeight('character-art', undefined, 'flux'),
     referenceStages: ['avatar'],
   },
   {
@@ -344,7 +346,7 @@ export function buildStageGenerationParams(
     height: stage.height,
     num_inference_steps: stage.steps,
     guidance_scale: stage.guidance,
-    num_images: 1,
+    num_images: stage.numImages ?? 1,
     asset_role: stage.assetRole,
     character_consistency: stage.id !== 'avatar',
     loras: loras.map((l) => ({

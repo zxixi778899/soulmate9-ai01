@@ -146,6 +146,10 @@ export function buildFluxWorkflow(opts: {
   ip_adapter_image?: string;
   /** IP-Adapter weight 0–1. Default 0.7. Higher = stronger face similarity. */
   ip_adapter_weight?: number;
+  /** IP-Adapter start percent (0-1). Default 0.05 — skip pure-noise early steps. */
+  ip_adapter_start?: number;
+  /** IP-Adapter end percent (0-1). Default 0.85 — anchor identity through late detail steps. */
+  ip_adapter_end?: number;
   /** FLUX IP-Adapter filename in models/ipadapter-flux/. Default: ip-adapter.bin */
   ip_adapter_model?: string;
   /** SigLIP model id/directory consumed by the Shakker loader. */
@@ -331,6 +335,11 @@ export function buildFluxWorkflow(opts: {
     const ipWeight = Math.min(0.95, Math.max(0.15, opts.ip_adapter_weight ?? 0.7));
     const ipModel = opts.ip_adapter_model || 'ip-adapter.bin';
     const clipVision = opts.clip_vision_model || 'google/siglip-so400m-patch14-384';
+    // Identity-consistency scheduling: extend IP-Adapter influence to late diffusion
+    // steps (0.85) so the face stays anchored through final detail refinement.
+    // Skip the first 5% of pure-noise steps where IP-Adapter adds noise.
+    const ipStart = opts.ip_adapter_start ?? 0.05;
+    const ipEnd = opts.ip_adapter_end ?? 0.85;
     ipAdapterNodes['30'] = {
       class_type: 'ApplyIPAdapterFlux',
       inputs: {
@@ -338,12 +347,12 @@ export function buildFluxWorkflow(opts: {
         ipadapter_flux: ['31', 0],
         image: ['33', 0],
         weight: ipWeight,
-        // 实测工作机节点会忽略 weight_type（三种模式输出一致），身份强度由 weight + 作用区间控制
-        weight_type: 'style transfer',
-        start_percent: 0.0,
-        // Keep the identity anchor early and weak enough that prompt controls
-        // the scene, crop, pose and lighting.
-        end_percent: 0.7,
+        // 'linear' applies uniform feature transfer across all scales,
+        // preserving face geometry better than 'style transfer' which biases
+        // toward color/texture and loses structural identity.
+        weight_type: 'linear',
+        start_percent: ipStart,
+        end_percent: ipEnd,
       },
     };
     ipAdapterNodes['31'] = {
@@ -434,8 +443,10 @@ export function buildFluxWorkflow(opts: {
               cfg: samplerCfg,
               sampler_name,
               scheduler,
-              denoise: 0.4,
-              feather_mask: 5,
+              // Conservative face repair: lower denoise preserves identity,
+              // higher feather blends the repaired face naturally.
+              denoise: 0.35,
+              feather_mask: 8,
               noise_mask: true,
               force_inpaint: true,
               wildcard_opt: '',
@@ -448,7 +459,8 @@ export function buildFluxWorkflow(opts: {
               sam_detection_hint: 'center',
               sam_dilation: 0,
               sam_threshold: 0.93,
-              sam_expansion: 0.5,
+              // Larger expansion covers forehead + hairline for consistent skin
+              sam_expansion: 0.6,
               segs_pivot: 'center',
             },
           },
@@ -635,6 +647,10 @@ export interface RunPodGenerateOptions {
   ip_adapter_image?: string;
   /** IP-Adapter weight 0–1 (default 0.75). Higher = stronger face similarity. */
   ip_adapter_weight?: number;
+  /** IP-Adapter start percent (0-1). Default 0.05 — skip pure-noise early steps. */
+  ip_adapter_start?: number;
+  /** IP-Adapter end percent (0-1). Default 0.85 — anchor identity through late detail steps. */
+  ip_adapter_end?: number;
   /** ControlNet reference image (URL/base64/worker filename) for pose/depth control. */
   control_image?: string;
   /** ControlNet strength 0.2–1 (default 0.7). */

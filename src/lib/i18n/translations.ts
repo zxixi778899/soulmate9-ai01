@@ -1431,6 +1431,16 @@ export const en = {
   'create.contentLevel3': 'Nude',
   'create.contentLevel4': 'Solo',
   'create.contentLevel5': 'Sex',
+  'create.startCreation': 'Start Creation',
+  'create.craftingPrompt': 'Crafting your unique prompt…',
+  'create.generatingImages': 'Generating 4 portraits…',
+  'create.almostDone': 'Almost there, painting the final strokes…',
+  'create.promptReady': 'Prompt ready! Starting generation…',
+  'create.cardConsumed': 'Card consumed, generation started',
+  'create.noCardsRetry': 'No creation cards remaining. Buy more in Shop.',
+  'create.promptPreview': 'Generation Prompt',
+  'create.promptPreviewHint': 'AI crafted this prompt from your selections',
+  'create.creating': 'Creating…',
 };
 
 const zh: Record<string, string> = {
@@ -2853,6 +2863,16 @@ const zh: Record<string, string> = {
   'create.contentLevel3': '全裸',
   'create.contentLevel4': '自慰',
   'create.contentLevel5': '性爱',
+  'create.startCreation': '开始创建',
+  'create.craftingPrompt': '正在为你定制专属提示词…',
+  'create.generatingImages': '正在生成 4 张立绘…',
+  'create.almostDone': '马上就好，最后一笔润色中…',
+  'create.promptReady': '提示词就绪！开始生成…',
+  'create.cardConsumed': '已消耗创作卡，开始生成',
+  'create.noCardsRetry': '创作卡不足，请到商城购买。',
+  'create.promptPreview': '生成提示词',
+  'create.promptPreviewHint': 'AI 根据你的选择生成了这段提示词',
+  'create.creating': '创建中…',
 };
 
 const ja: Record<string, string> = {

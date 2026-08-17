@@ -249,3 +249,27 @@ export function buildCompanionGenerationPrompt(
 export function randomCompanionAction(category: CompanionCategory, random = Math.random()): string {
   return pick(ACTIONS[category], random);
 }
+
+// ─── Identity Kit Integration ─────────────────────────────────────────────────
+
+import { buildIdentitySpec, buildIdentityPrompt, type IdentitySpecification } from '@/lib/identity-kit';
+
+/**
+ * Build a detailed identity specification from companion data (30+ dimensions).
+ * This is the authoritative identity description used by all generation stages.
+ * Deterministic: same companion always produces the same spec.
+ */
+export function buildDetailedIdentitySpec(row: Record<string, unknown>): IdentitySpecification {
+  return buildIdentitySpec(row);
+}
+
+/**
+ * Build a FLUX-friendly identity anchor prompt from companion data.
+ * This ~100-120 word text is prepended to generation prompts for consistency.
+ * Uses the 30+ dimension spec for far more precise identity anchoring than
+ * the legacy buildCompanionIdentityBrief (which only had 6 fields).
+ */
+export function buildIdentityAnchorPrompt(row: Record<string, unknown>): string {
+  const spec = buildIdentitySpec(row);
+  return buildIdentityPrompt(spec);
+}

@@ -33,7 +33,8 @@ import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, compactFluxPrompt, ensureStudioFluxPrompt, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
-import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
+import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief, buildIdentityAnchorPrompt } from '@/lib/companion-generation';
+import { resolveIpAdapterWeight, resolveIpAdapterSchedule, resolveIdentityKit } from '@/lib/identity-kit';
 import { resolveGenerationProfile } from '@/lib/comfy-console/generation-profiles';
 import { assertEnhancersReady, getEnhancerStatuses, type EnhancerId } from '@/lib/comfy-console/enhancer-config';
 
@@ -1305,7 +1306,14 @@ if (body.action === 'verify_loras') {
           error: storedIdentityError.message,
         });
       } else {
-        const avatarMatch = allStoredReferenceRows.find((row) => {
+        // Prefer identity-anchor (best-of-4 selection) over avatar-closeup
+        const anchorMatch = allStoredReferenceRows.find((row) => {
+          const meta = row.meta && typeof row.meta === 'object'
+            ? row.meta as Record<string, unknown>
+            : {};
+          return String(meta.asset_role || '') === 'identity-anchor' && typeof row.url === 'string' && row.url.trim();
+        });
+        const avatarMatch = anchorMatch || allStoredReferenceRows.find((row) => {
           const meta = row.meta && typeof row.meta === 'object'
             ? row.meta as Record<string, unknown>
             : {};
@@ -1452,6 +1460,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       }, { status: 400 });
     }
     // IP-Adapter: identity reference without composition lock (request or auto-resolved avatar).
+    // Priority: explicit request > identity-anchor (best-of-4) > avatar-closeup > card image > reference plan
     const ipAdapterImage = ipAdapterEnabled
       ? (
           suppliedIpAdapterImage ||
@@ -1460,24 +1469,20 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
           resolvedReferenceImage
         )
       : undefined;
-    // Identity reference sheets lock hard to the avatar; final products
-    // (character-art, album, scene) use a slightly looser weight so the reference
-    // guides identity without copying the portrait composition. Outfit swaps
-    // need face lock with wardrobe freedom; pose swaps sit in between.
-    const defaultIpAdapterWeight = generationRoute.modelFamily === 'flux' && isFinalProductAsset
-      ? 0.35
-      : assetRole === 'avatar-closeup'
-      ? 0.74
-      : assetRole.startsWith('identity-')
-        ? 0.82
-        : studioTask === 'outfit'
-          ? 0.75
-          : studioTask === 'pose'
-            ? 0.7
-            : 0.68;
+    // Dynamic IP-Adapter weight based on asset role and studio task.
+    // identity-kit's resolver replaces the old static weight table with
+    // asset-aware scheduling for better face consistency.
+    const defaultIpAdapterWeight = resolveIpAdapterWeight(
+      assetRole,
+      studioTask,
+      generationRoute.modelFamily,
+    );
     const ipAdapterWeight = ipAdapterEnabled
       ? Math.min(1.0, Math.max(0.3, Number(body.ip_adapter_weight ?? defaultIpAdapterWeight)))
       : undefined;
+    // IP-Adapter scheduling: extend influence to late diffusion steps for
+    // stronger identity anchoring (see identity-kit.resolveIpAdapterSchedule)
+    const ipSchedule = resolveIpAdapterSchedule(assetRole);
     const folder = assetFolder(girlfriendId, assetRole);
     const loraStrength =
       body.lora_strength != null
@@ -1556,6 +1561,14 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       const missingTriggers = compatibleLoraPlan.triggerWords.filter((word) => !promptLower.includes(word.toLowerCase()));
       if (missingTriggers.length > 0) prompt = `${missingTriggers.join(', ')}. ${prompt}`;
     }
+    // Identity anchor prompt injection: prepend 30-dim identity spec for
+    // non-identity FLUX assets to maintain face consistency across generations
+    if (!isIdentityAsset && databaseCompanion && generationRoute.modelFamily === 'flux') {
+      const identityAnchorText = buildIdentityAnchorPrompt(databaseCompanion);
+      if (identityAnchorText) {
+        prompt = `${identityAnchorText} ${prompt}`;
+      }
+    }
     prompt = generationRoute.modelFamily === 'flux' ? compactFluxPrompt(prompt) : compactTagPrompt(prompt);
 
     try {
@@ -1568,16 +1581,24 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       const requestedEnhancers: Partial<Record<EnhancerId, boolean>> = bodyEnhancers
         ? { ...bodyEnhancers }
         : {
-            adetailer: generationRoute.qualityEnhancers.adetailer && readyEnhancerIds.has('adetailer'),
+            // Force-enable ADetailer for all character generations (face repair).
+            // Silently skips if the node is not installed on the worker.
+            adetailer: Boolean(girlfriendId),
             upscale: generationRoute.qualityEnhancers.upscale && readyEnhancerIds.has('upscale'),
           };
       try {
         assertEnhancersReady(requestedEnhancers);
       } catch (enhancerError) {
-        return NextResponse.json({
-          error: enhancerError instanceof Error ? enhancerError.message : '图像增强节点未就绪',
-          enhancers: getEnhancerStatuses(),
-        }, { status: 503 });
+        // ADetailer force-enabled but not installed: silently disable rather than blocking
+        if (requestedEnhancers.adetailer && !readyEnhancerIds.has('adetailer')) {
+          requestedEnhancers.adetailer = false;
+          logger.info('[comfy] ADetailer force-requested but not installed, skipping');
+        } else {
+          return NextResponse.json({
+            error: enhancerError instanceof Error ? enhancerError.message : '图像增强节点未就绪',
+            enhancers: getEnhancerStatuses(),
+          }, { status: 503 });
+        }
       }
       const singleLoraAllowed = lora ? isLoraAllowedForContext(lora, { surface, category, modelFamily: generationRoute.modelFamily }) : false;
       const requestedLora = singleLoraAllowed ? lora?.filename || null : null;
@@ -1629,6 +1650,8 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         loras: effectiveLoras,
         ip_adapter_image: ipAdapterImage,
         ip_adapter_weight: ipAdapterWeight,
+        ip_adapter_start: ipSchedule.start,
+        ip_adapter_end: ipSchedule.end,
         enhancers: requestedEnhancers,
         endpoint_id: body.endpoint_id || endpointId || generationRoute.endpointId,
         submit_only: true,
@@ -1687,6 +1710,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
             guidance: generationOptions.flux_guidance ?? generationOptions.guidance_scale,
             loraStrength: generationOptions.lora_strength_model,
             ipAdapterWeight: generationOptions.ip_adapter_weight ?? null,
+            ipAdapterSchedule: { start: ipSchedule.start, end: ipSchedule.end },
             enhancers: generationOptions.enhancers,
             referenceDenoise: effectiveDenoise ?? null,
             referencePlan: referencePlan.trace,

@@ -9,6 +9,7 @@ import {
 } from '@/lib/proactive-templates';
 import { resolveReplyLocale } from '@/lib/chat-locale';
 import { dailyProactiveTarget, generateContextualProactiveMessage } from '@/lib/proactive-generation';
+import { MEMBERSHIP_TIERS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +73,29 @@ export async function POST(request: NextRequest) {
     const holiday = getCurrentHolidayKey(now);
     const weekend = isWeekendDay(now);
     const slot = timeSlotOfDay(now);
+
+    // ── Tier-based proactive slot gating ──
+    // Free users only receive night (good night) messages.
+    // Pro/Unlimited users receive messages in all 4 time slots.
+    const { data: tierProfile } = await client
+      .from('profiles')
+      .select('membership_tier')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const rawTier = String(tierProfile?.membership_tier || 'free');
+    const normTier = (rawTier === 'basic' || rawTier === 'premium') ? 'pro' : rawTier;
+    const allowedSlots = MEMBERSHIP_TIERS[normTier as keyof typeof MEMBERSHIP_TIERS]?.proactive_slots ?? 1;
+    // proactive_slots=1 → night only; 4 → all slots
+    const nightOnly = allowedSlots <= 1;
+    if (nightOnly && slot !== 'night') {
+      return NextResponse.json({
+        messages: [],
+        sent: 0,
+        day: dayKey,
+        slot,
+        skip_reason: 'free_tier_night_only',
+      });
+    }
 
     const newMessages: Array<{
       girlfriend_id: string;

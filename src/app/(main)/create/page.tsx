@@ -377,6 +377,11 @@ export default function CreatePage() {
   const [reveal, setReveal] = useState<CreatedCompanionReveal | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Creation flow (LLM prompt → text-to-image) ──
+  const [creating, setCreating] = useState(false);
+  const [createPhase, setCreatePhase] = useState<'idle' | 'consuming_card' | 'crafting_prompt' | 'generating_images' | 'done'>('idle');
+  const [generatedPrompt, setGeneratedPrompt] = useState('');
+
   // ─── Data fetching ───────────────────────────────────────────────────────
 
   const fetchCreatorData = useCallback(async () => {
@@ -481,17 +486,26 @@ export default function CreatePage() {
     return null;
   }, []);
 
-  const runBatch = useCallback(async (level?: number) => {
+  const runBatch = useCallback(async (level?: number, customPromptOverride?: string) => {
     const run = ++batchRun.current;
     setBatchRunning(true);
     setError(null);
     setSelectedSlot(-1);
     setSlots(Array.from({ length: SLOT_COUNT }, () => ({ status: 'loading' as const })));
     try {
+      const reqBody: Record<string, unknown> = {
+        ...portraitRequestBody(),
+        count: SLOT_COUNT,
+        ...(level ? { nsfw_level: level } : {}),
+      };
+      // Text-to-image mode: use pre-built prompt from creator wizard
+      if (customPromptOverride) {
+        reqBody.custom_prompt = customPromptOverride;
+      }
       const res = await authedFetch('/api/girlfriends/generate-portrait', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...portraitRequestBody(), count: SLOT_COUNT, ...(level ? { nsfw_level: level } : {}) }),
+        body: JSON.stringify(reqBody),
       });
       const data = await readResponseJson<PortraitBatchResponse>(res);
       if (batchRun.current !== run) return;
@@ -548,21 +562,70 @@ export default function CreatePage() {
     }
   }, [portraitRequestBody, pollJob, t]);
 
-  const startPortraitStep = useCallback(() => {
-    if (!infoValid) {
+  const handleStartCreation = useCallback(async () => {
+    if (!infoValid || creating) {
       if (name.trim().length < 2) {
         setError(t('create.enterNameMin2'));
         nameInputRef.current?.focus();
         nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
+      } else if (!infoValid) {
         setError(t('create.completeRequired'));
       }
       return;
     }
     setError(null);
-    setStep('portrait');
-    void runBatch();
-  }, [infoValid, name, runBatch, t]);
+    setCreating(true);
+
+    try {
+      // Phase 1: Consume creation card (card -1)
+      setCreatePhase('consuming_card');
+      const cardRes = await authedFetch('/api/creator/consume-card', { method: 'POST' });
+      const cardData = await readResponseJson<{ ok?: boolean; remaining?: number; error?: string; code?: string }>(cardRes);
+      if (!cardRes.ok || !cardData.ok) {
+        setError(cardData.code === 'NO_CARDS' ? t('create.noCardsRetry') : (cardData.error || t('create.createFailed')));
+        setCreating(false);
+        setCreatePhase('idle');
+        return;
+      }
+      // Update local card status
+      if (cardData.remaining !== undefined && cardStatus) {
+        setCardStatus({ ...cardStatus, cards: cardData.remaining });
+      }
+
+      // Phase 2: Generate LLM prompt from form selections
+      setCreatePhase('crafting_prompt');
+      const promptRes = await authedFetch('/api/creator/generate-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...portraitRequestBody(),
+          nsfw_level: nsfwLevel,
+        }),
+      });
+      const promptData = await readResponseJson<{ success?: boolean; prompt?: string; error?: string }>(promptRes);
+      if (!promptRes.ok || !promptData.success || !promptData.prompt) {
+        setError(promptData.error || t('create.genFailed'));
+        setCreating(false);
+        setCreatePhase('idle');
+        return;
+      }
+      setGeneratedPrompt(promptData.prompt);
+
+      // Phase 3: Start image generation (text-to-image mode)
+      setCreatePhase('generating_images');
+      setStep('portrait');
+      await runBatch(undefined, promptData.prompt);
+      setCreatePhase('done');
+    } catch (e) {
+      logger.error(String(e));
+      setError(errorMessageFromUnknown(e, t('create.genFailed')));
+      setCreatePhase('idle');
+    } finally {
+      setCreating(false);
+    }
+  }, [infoValid, creating, name, t, cardStatus, portraitRequestBody, nsfwLevel, runBatch]);
+
+  const startPortraitStep = handleStartCreation;
 
   // ─── Submit ──────────────────────────────────────────────────────────────
 
@@ -675,6 +738,9 @@ export default function CreatePage() {
     setSlots(EMPTY_SLOTS);
     setSelectedSlot(-1);
     setStep('style');
+    setCreating(false);
+    setCreatePhase('idle');
+    setGeneratedPrompt('');
     void fetchCreatorData();
   }, [fetchCreatorData]);
 
@@ -841,8 +907,92 @@ export default function CreatePage() {
         <div className="mx-auto max-w-none">
           <AnimatePresence mode="wait">
 
+            {/* ─── Creating phase: LLM prompt + image gen progress ────────────── */}
+            {creating && step === 'general' && (
+              <motion.div
+                key="creating"
+                initial={{ opacity: 0, scale: 0.97 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className="flex min-h-[60vh] flex-col items-center justify-center gap-6 py-12"
+              >
+                {/* Animated glow orb */}
+                <div className="relative">
+                  <motion.div
+                    className="h-24 w-24 rounded-full bg-gradient-to-br from-[#FF2D78]/30 to-[#8b5cf6]/30 blur-2xl"
+                    animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  <motion.div
+                    className="absolute inset-0 flex items-center justify-center"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+                  >
+                    <Sparkles className="h-10 w-10 text-[#FF2D78]/80 drop-shadow-[0_0_12px_rgba(255,45,120,0.5)]" />
+                  </motion.div>
+                </div>
+
+                {/* Phase progress messages */}
+                <div className="text-center">
+                  <motion.p
+                    key={createPhase}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-lg font-bold text-white/90"
+                  >
+                    {createPhase === 'consuming_card' && t('create.cardConsumed')}
+                    {createPhase === 'crafting_prompt' && t('create.craftingPrompt')}
+                    {createPhase === 'generating_images' && t('create.generatingImages')}
+                    {createPhase === 'done' && t('create.promptReady')}
+                  </motion.p>
+                  <motion.p
+                    className="mt-2 text-xs text-white/40"
+                    animate={{ opacity: [0.4, 0.7, 0.4] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    {createPhase !== 'done' && t('create.almostDone')}
+                  </motion.p>
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full max-w-xs">
+                  <div className="h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                    <motion.div
+                      className="h-full rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6]"
+                      initial={{ width: '0%' }}
+                      animate={{
+                        width:
+                          createPhase === 'consuming_card' ? '15%' :
+                          createPhase === 'crafting_prompt' ? '45%' :
+                          createPhase === 'generating_images' ? '75%' : '100%',
+                      }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Generated prompt preview (shown once ready) */}
+                {generatedPrompt && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full max-w-md rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 backdrop-blur-sm"
+                  >
+                    <div className="mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-[#FF2D78]/70">
+                      <Wand2 className="h-3 w-3" />
+                      {t('create.promptPreview')}
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-white/50 line-clamp-4">
+                      {generatedPrompt}
+                    </p>
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+
             {/* ─── Step 1: 基础信息 ──────────────────────────────────────── */}
-            {isFormStep && (
+            {isFormStep && !creating && (
               <motion.div
                 key={`form-${step}`}
                 initial={{ opacity: 0, x: 24 }}
@@ -1487,7 +1637,8 @@ export default function CreatePage() {
         <button
           type="button"
           onClick={goPrevStep}
-          className="h-11 min-w-[5.5rem] px-4 rounded-full border border-white/10 text-sm flex items-center justify-center gap-1 touch-manipulation hover:bg-white/[0.04]"
+          disabled={creating}
+          className="h-11 min-w-[5.5rem] px-4 rounded-full border border-white/10 text-sm flex items-center justify-center gap-1 touch-manipulation hover:bg-white/[0.04] disabled:opacity-40"
         >
           <ArrowLeft className="h-4 w-4" /> {t('create.back')}
         </button>
@@ -1495,14 +1646,20 @@ export default function CreatePage() {
         {step === 'general' ? (
           <GamePrimaryButton
             className="h-11 px-6 touch-manipulation"
-            disabled={!infoValid || !generalValid || noCards || loadingData}
+            disabled={!infoValid || !generalValid || noCards || loadingData || creating}
             onClick={startPortraitStep}
           >
-            <Wand2 className="h-4 w-4" />
-            {noCards
-              ? (t('create.noCards'))
-              : (t('create.generatePortraits'))}
-            <ArrowRight className="h-4 w-4" />
+            {creating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4" />
+            )}
+            {creating
+              ? t('create.creating')
+              : noCards
+                ? t('create.noCards')
+                : t('create.startCreation')}
+            {!creating && <ArrowRight className="h-4 w-4" />}
           </GamePrimaryButton>
         ) : step !== 'portrait' ? (
           <GamePrimaryButton
@@ -1517,7 +1674,7 @@ export default function CreatePage() {
             <button
               type="button"
               disabled={batchRunning}
-              onClick={() => void runBatch()}
+              onClick={() => void runBatch(undefined, generatedPrompt || undefined)}
               className="h-11 px-4 rounded-full border border-[#8b5cf6]/40 bg-[#8b5cf6]/10 text-sm text-violet-200 flex items-center justify-center gap-1.5 touch-manipulation hover:bg-[#8b5cf6]/20 disabled:opacity-40"
             >
               <RefreshCw className={cn('h-4 w-4', batchRunning && 'animate-spin')} />

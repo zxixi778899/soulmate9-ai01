@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildVideoWorkerInput, resolveVideoModelRoute } from '@/app/api/generate-video/route';
+import { buildVideoWorkerInput, resolveVideoModelRoute } from '@/lib/video-routing';
 
 const ORIGINAL_ENV = { ...process.env };
 afterEach(() => { process.env = { ...ORIGINAL_ENV }; });
