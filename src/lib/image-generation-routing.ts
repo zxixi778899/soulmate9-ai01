@@ -2,6 +2,13 @@ import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { classifyImageScene, isComplexAdultScene, type ImageSceneSemantics } from '@/lib/image-scene-semantics';
 import { resolveModelPlan, type ModelPlan } from '@/lib/model-matrix';
+import {
+  familyNegativePrompt,
+  familyQualityEnhancers,
+  PROMPT_PROTOCOL_BY_FAMILY,
+  resolvePromptSubject,
+  type PromptProtocolId,
+} from '@/lib/prompt/prompt-protocols';
 
 export type ImageSurface = 'companion' | 'outfit' | 'prop' | 'advert';
 /**
@@ -37,6 +44,12 @@ export type ImageGenerationRoute = {
   clipSkip: 1 | 2;
   width: number;
   height: number;
+  /** 提示词协议（家族原生，禁止跨族混用：flux-natural / pony-tags / illustrious-tags） */
+  promptProtocol: PromptProtocolId;
+  /** 家族×题材负向（含全局 BLOCKED 与 NSFW 去打码） */
+  negativePrompt: string;
+  /** 质量增强默认（ADetailer 修脸 / 放大去糊） */
+  qualityEnhancers: { adetailer: boolean; upscale: boolean };
   presetId: string;
   reason: string;
   modelDetails:
@@ -121,11 +134,16 @@ function fluxRoute(
   },
   category: CompanionCategory,
   renderStyle: AnimeRenderStyle,
+  nsfw: boolean,
 ): ImageGenerationRoute {
   const categoryKey = category === 'anime' ? 'FEMALE' : category.toUpperCase();
+  const subject = resolvePromptSubject(category, renderStyle);
   return {
     ...route,
     modelFamily: 'flux',
+    promptProtocol: PROMPT_PROTOCOL_BY_FAMILY.flux,
+    negativePrompt: familyNegativePrompt('flux', subject, nsfw),
+    qualityEnhancers: familyQualityEnhancers('flux', subject),
     endpointId: env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT),
     sampler: 'euler',
     scheduler: 'simple',
@@ -173,6 +191,9 @@ function sdxlMatrixRoute(
     clipSkip: plan.clipSkip,
     width: plan.width,
     height: plan.height,
+    promptProtocol: plan.promptProtocol,
+    negativePrompt: plan.negativePrompt,
+    qualityEnhancers: plan.qualityEnhancers,
     presetId: `sdxl-${plan.modelFamily}-${nsfw ? 'adult' : surface === 'outfit' ? 'outfit' : 'portrait'}`,
     reason: plan.reason,
     modelDetails: {
@@ -260,7 +281,7 @@ export function resolveImageGenerationRoute(input: {
         height: 1216,
         presetId: 'flux-matrix-failopen',
         reason: 'SDXL matrix gate open but no SDXL endpoint — fail-open to FLUX.',
-      }, category, renderStyle);
+      }, category, renderStyle, nsfw);
     }
     return sdxlMatrixRoute(matrixPlan, input.surface, category, nsfw, sdxlEndpointId);
   }
@@ -283,7 +304,7 @@ export function resolveImageGenerationRoute(input: {
       height: 1216,
       presetId: 'flux-turbo',
       reason: 'Turbo preview: minimal steps for a fast companion draft.',
-    }, category, renderStyle);
+    }, category, renderStyle, nsfw);
   }
 
   // ─── 2D / Anime style ─────────────────────────────────────────────────────
@@ -301,7 +322,7 @@ export function resolveImageGenerationRoute(input: {
       reason: complexScene
         ? 'Multi-character 2D art uses the high-step FLUX anime preset.'
         : '2D art uses the FLUX anime portrait preset with the anime LoRA.',
-    }, category, renderStyle);
+    }, category, renderStyle, nsfw);
   }
 
   // ─── 3D render style ──────────────────────────────────────────────────────
@@ -315,7 +336,7 @@ export function resolveImageGenerationRoute(input: {
       height: 1152,
       presetId: complexScene ? 'flux-3d-multi-control' : 'flux-3d-portrait',
       reason: '3D companion rendering uses FLUX with the 3D render LoRA.',
-    }, category, renderStyle);
+    }, category, renderStyle, nsfw);
   }
 
   // ─── Transgender anatomy ──────────────────────────────────────────────────
@@ -333,7 +354,7 @@ export function resolveImageGenerationRoute(input: {
         ? complexScene ? 'flux-trans-composition' : 'flux-trans-adult'
         : 'flux-trans-portrait',
       reason: 'Transgender anatomy uses the FLUX pipeline with the MTF LoRA.',
-    }, category, renderStyle);
+    }, category, renderStyle, nsfw);
   }
 
   // ─── Adult / NSFW anatomy (realistic female / male) ───────────────────────
@@ -348,7 +369,7 @@ export function resolveImageGenerationRoute(input: {
       height: 1152,
       presetId: highControl ? 'flux-adult-composition-control' : complexScene ? 'flux-adult-pair' : 'flux-adult-portrait',
       reason: 'Explicit adult anatomy uses the high-step FLUX pipeline with NSFW LoRAs.',
-    }, category, renderStyle);
+    }, category, renderStyle, nsfw);
   }
 
   // ─── Default: FLUX SFW companion / product ────────────────────────────────
@@ -361,5 +382,5 @@ export function resolveImageGenerationRoute(input: {
     height: input.surface === 'companion' ? 1216 : 1024,
     presetId: input.surface === 'companion' ? 'flux-portrait-sfw' : `flux-${input.surface}-product`,
     reason: `${input.surface} generation uses the unified FLUX pipeline.`,
-  }, category, renderStyle);
+  }, category, renderStyle, nsfw);
 }

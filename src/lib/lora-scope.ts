@@ -34,8 +34,9 @@ export function isLoraAllowedForContext(
   if (context.surface === 'advert') return category === 'style' && /photo|cinematic|advert|product/.test(id);
   if (!['body', 'action', 'detail', 'style'].includes(category)) return false;
 
-  if (/masc|male|man/.test(id)) return context.category === 'male';
-  if (/curvy|pear|female|woman/.test(id)) return context.category === 'female';
-  if (/trans|futa|mtf/.test(id)) return context.category === 'transgender';
+  // 词边界匹配：避免 female 被 /male/ 误判、woman 被 /man/ 误判、transition 之外的词被 /trans/ 波及。
+  if (/\bmasc\b|\bmale\b|\bman\b|\bmasculine\b/.test(id)) return context.category === 'male';
+  if (/curvy|pear|\bfemale\b|\bwoman\b|\bfeminine\b/.test(id)) return context.category === 'female';
+  if (/\btrans\b|transgender|transition|futa|\bmtf\b/.test(id)) return context.category === 'transgender';
   return true;
 }

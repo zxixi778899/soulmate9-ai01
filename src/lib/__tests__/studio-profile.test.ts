@@ -165,4 +165,21 @@ describe('studio generation profiles', () => {
     expect(loraUsageZh({ id: 'pose-test', category: 'action' })).toContain('成人动作');
     expect(loraUsageZh({ id: 'style-anime-3d-flux', category: 'style' })).toContain('3D');
   });
+
+  it('recommends volume-verified SDXL LoRAs per routed family', () => {
+    const ponyFemale = recommendedStudioLoras('female', 'realistic', 2, 'pony');
+    expect(ponyFemale.map((item) => item.id)).toContain('pony-mature-female-slider-v2');
+    expect(ponyFemale.map((item) => item.id)).toContain('pony-detailifier-v5');
+
+    const ponyTrans = recommendedStudioLoras('transgender', 'realistic', 4, 'pony');
+    expect(ponyTrans.map((item) => item.id)).toContain('pony-gender-transition-slider');
+
+    const illustrious = recommendedStudioLoras('female', '2d', 3, 'illustrious');
+    expect(illustrious.map((item) => item.id)).toContain('illustrious-realism-slider-v1');
+    expect(illustrious.map((item) => item.id)).toContain('illustrious-nsfw-slider-v1');
+
+    // FLUX 默认路径保持不变
+    const flux = recommendedStudioLoras('female', 'realistic', 2);
+    expect(flux[0]?.id).toContain('photoreal');
+  });
 });

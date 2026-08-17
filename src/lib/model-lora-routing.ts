@@ -1,6 +1,7 @@
 import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import type { ImageModelFamily, ImageSurface } from '@/lib/image-generation-routing';
+import loraCatalog from '../../data/lora-catalog.json';
 
 export type RoutedLora = {
   name: string;
@@ -53,6 +54,40 @@ const DEFAULT_FAMILY_LORAS: Record<ImageModelFamily, Partial<Record<CompanionCat
     '2d': ['StS-Illustrious-Detail-Slider-v1.0.safetensors'],
   },
 };
+
+// ─── 模型族隔离：SDXL/FLUX/Pony/Illustrious LoRA 完全隔离，不同模型不套用 ───
+type CatalogEntry = { filename: string; family?: string };
+const CATALOG_FAMILY_BY_FILE: Map<string, ImageModelFamily> = new Map(
+  (loraCatalog.loras as CatalogEntry[])
+    .filter((entry): entry is CatalogEntry & { family: ImageModelFamily } =>
+      entry.family === 'flux' || entry.family === 'pony' || entry.family === 'illustrious',
+    )
+    .map((entry) => [entry.filename, entry.family]),
+);
+
+// 未登记文件的前缀兜底：一眼可判族的命名直接隔离，无需等 catalog 收录。
+const FAMILY_PREFIX_RULES: Array<[RegExp, ImageModelFamily]> = [
+  [/^flux[_-]/i, 'flux'],
+  [/rdanimeflux/i, 'flux'],
+  [/^pony[_-]/i, 'pony'],
+  [/illustrious/i, 'illustrious'],
+];
+
+export function isLoraFamilyCompatible(name: string, family: ImageModelFamily | 'sdxl'): boolean {
+  const base = name.split(/[/\\]/).pop()?.trim() || name;
+  const catalogFamily = CATALOG_FAMILY_BY_FILE.get(base);
+  if (catalogFamily) {
+    return family === 'sdxl' ? catalogFamily !== 'flux' : catalogFamily === family;
+  }
+  const lower = base.toLowerCase();
+  for (const [pattern, detected] of FAMILY_PREFIX_RULES) {
+    if (pattern.test(lower)) {
+      return family === 'sdxl' ? detected !== 'flux' : detected === family;
+    }
+  }
+  // 未登记且前缀无法判族：放行，交由运行时库存校验兜底。
+  return true;
+}
 
 function inventoryForFamily(family: ImageModelFamily | 'sdxl'): { files: Set<string>; source: string } {
   const familyKey = family.toUpperCase();
@@ -156,14 +191,22 @@ export function fluxScenarioPlan(input: {
       ? { name: 'flux_outfit_latex_v1.safetensors', strength: 0.55 }
       : /bikini|swim|beach|pool/.test(scene)
         ? { name: 'flux_outfit_bikini_v1.safetensors', strength: 0.55 }
-        : { name: 'flux_outfit_lingerie_v1.safetensors', strength: 0.55 };
+        : /bunny|playboy|兔女郎/.test(scene)
+          ? { name: 'flux_outfit_bunny_v1.safetensors', strength: 0.55 }
+          : /maid|女仆/.test(scene)
+            ? { name: 'flux_outfit_maid_v1.safetensors', strength: 0.55 }
+            : /school|uniform|制服/.test(scene)
+              ? { name: 'flux_outfit_school_v1.safetensors', strength: 0.5 }
+              : { name: 'flux_outfit_lingerie_v1.safetensors', strength: 0.55 };
+    // 服装(0.55) + 写实底(0.35) = 0.9 ≤ 1.0 总强度约束
     return [outfit, { name: 'flux_style_photoreal_v1.safetensors', strength: 0.35 }];
   }
 
   // ─── 二次元 2D ────────────────────────────────────────────────────────────
   if (input.animeStyle === '2d') {
-    const plan: FluxScenarioLora[] = [{ name: 'rdanimefluxv1rapid.safetensors', strength: 0.7 }];
-    if (nsfw) plan.push({ name: 'flux_lewd_v1.safetensors', strength: 0.45 });
+    // NSFW 时 anime(0.6) + lewd(0.35) = 0.95 ≤ 1.0
+    const plan: FluxScenarioLora[] = [{ name: 'rdanimefluxv1rapid.safetensors', strength: 0.6 }];
+    if (nsfw) plan.push({ name: 'flux_lewd_v1.safetensors', strength: 0.35 });
     return plan;
   }
 
@@ -176,40 +219,46 @@ export function fluxScenarioPlan(input: {
   if (input.category === 'male') {
     return nsfw
       ? [
-          { name: 'flux_male_masc_v1.safetensors', strength: 0.55 },
-          { name: 'flux_male_muscle_v1.safetensors', strength: 0.4 },
-          { name: 'flux_lewd_v1.safetensors', strength: 0.5 },
+          // NSFW：0.4 + 0.3 + 0.3 = 1.0
+          { name: 'flux_male_masc_v1.safetensors', strength: 0.4 },
+          { name: 'flux_male_muscle_v1.safetensors', strength: 0.3 },
+          { name: 'flux_lewd_v1.safetensors', strength: 0.3 },
         ]
       : [
-          { name: 'flux_male_masc_v1.safetensors', strength: 0.55 },
+          // SFW：0.5 + 0.4 = 0.9
+          { name: 'flux_male_masc_v1.safetensors', strength: 0.5 },
           { name: 'flux_style_photoreal_v1.safetensors', strength: 0.4 },
         ];
   }
 
   // ─── 跨性别 ───────────────────────────────────────────────────────────────
   if (input.category === 'transgender') {
-    const plan: FluxScenarioLora[] = [{ name: 'realistic-mtf-trans.safetensors', strength: 0.65 }];
-    if (nsfw) plan.push({ name: 'flux_lewd_v1.safetensors', strength: 0.5 });
+    // NSFW：0.6 + 0.35 = 0.95 ≤ 1.0
+    const plan: FluxScenarioLora[] = [{ name: 'realistic-mtf-trans.safetensors', strength: 0.6 }];
+    if (nsfw) plan.push({ name: 'flux_lewd_v1.safetensors', strength: 0.35 });
     return plan;
   }
 
   // ─── 女性写实 ─────────────────────────────────────────────────────────────
   if (!nsfw) {
+    // SFW：风格(0.3) + 皮肤细节(0.2) = 0.5，符合风格+细节 ≤0.5 约束
     return [
-      { name: 'flux_style_photoreal_v1.safetensors', strength: 0.5 },
-      { name: 'flux_detail_skin_v1.safetensors', strength: 0.3 },
+      { name: 'flux_style_photoreal_v1.safetensors', strength: 0.3 },
+      { name: 'flux_detail_skin_v1.safetensors', strength: 0.2 },
     ];
   }
   if (input.intensity === 3) {
+    // NSFW 3：lewd(0.5) + 皮肤细节(0.2) = 0.7 ≤ 1.0
     return [
-      { name: 'flux_lewd_v1.safetensors', strength: 0.55 },
-      { name: 'flux_detail_skin_v1.safetensors', strength: 0.3 },
+      { name: 'flux_lewd_v1.safetensors', strength: 0.5 },
+      { name: 'flux_detail_skin_v1.safetensors', strength: 0.2 },
     ];
   }
+  // NSFW 4~5：lewd(0.4) + 动态姿势(0.35) + 高潮表情(0.25) = 1.0
   return [
-    { name: 'flux_lewd_v1.safetensors', strength: 0.6 },
-    { name: 'flux_pose_nsfw_dynamic_v1.safetensors', strength: 0.45 },
-    { name: 'flux_detail_hands_v1.safetensors', strength: 0.3 },
+    { name: 'flux_lewd_v1.safetensors', strength: 0.4 },
+    { name: 'flux_pose_nsfw_dynamic_v1.safetensors', strength: 0.35 },
+    { name: 'flux_face_ahegao_v1.safetensors', strength: 0.25 },
   ];
 }
 
@@ -259,6 +308,7 @@ export function validateModelLoraName(
     return { name: null, reason: 'inventory-unavailable-strict' };
   }
   if (inventory.files.size === 0) return { name: null, reason: 'inventory-unavailable-strict' };
+  if (!isLoraFamilyCompatible(base, family)) return { name: null, reason: 'family-mismatch' };
   if (inventory.files.has(base)) return { name: base };
   return { name: null, reason: `missing-from-${inventory.source}` };
 }
@@ -330,14 +380,16 @@ export function resolveModelLoraPlan(input: {
     : input.intensity >= 3
       ? [...effectiveConfigured, ...requestedNames]
       : [...requestedNames, ...effectiveConfigured];
-  const names = [...new Set([...prioritizedNames, ...inventoryCandidates])].filter((name) =>
-    !input.identityAsset ||
-    !/(?:add[_-]?details?|detail|skin|micro|hyperreal|aidma|nsfw|uncensored|pose|body|anatomy)/i.test(name),
-  );
+  const names = [...new Set([...prioritizedNames, ...inventoryCandidates])]
+    .filter((name) => isLoraFamilyCompatible(name, input.modelFamily))
+    .filter((name) =>
+      !input.identityAsset ||
+      !/(?:add[_-]?details?|detail|skin|micro|hyperreal|aidma|nsfw|uncensored|pose|body|anatomy)/i.test(name),
+    );
   const verifiedNames = names.filter((name) => inventory.files.has(name));
-  const fallbackNames = verifiedNames.length === 0 && canAutoSelectInventory
+  const fallbackNames = (verifiedNames.length === 0 && canAutoSelectInventory
     ? rankInventory(inventory.files, input.category, input.intensity)
-    : [];
+    : []).filter((name) => isLoraFamilyCompatible(name, input.modelFamily));
   const allowed = [...new Set([...verifiedNames, ...fallbackNames])].slice(0, maxLoras);
   const selected = allowed.map((name, index) => {
     const explicit = requested.find((item) => item.name === name);

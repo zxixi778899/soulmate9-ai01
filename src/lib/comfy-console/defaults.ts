@@ -213,7 +213,7 @@ export function createDefaultComfyConfig(libraryItems?: LibraryItem[]): ComfyCon
       {
         id: 'comfy-sdxl-cd2',
         label: 'ComfyUI SDXL · Pony / Illustrious',
-        endpoint_id: process.env.RUNPOD_ENDPOINT_ID_SDXL || '6jc28kjitp0qq3',
+        endpoint_id: process.env.RUNPOD_ENDPOINT_ID_SDXL || 'kbca2e380jc74s',
         kind: 'comfy',
         notes: '聊天用 vLLM，不是出图；RUNPOD_VLLM_URL 使用',
       },

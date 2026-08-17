@@ -18,4 +18,14 @@ describe('LoRA context isolation', () => {
     const flux = { id: 'detail-skin', category: 'detail', filename: 'flux_detail_skin_v1.safetensors' };
     expect(isLoraAllowedForContext(flux, { surface: 'companion', modelFamily: 'pony', category: 'transgender' })).toBe(false);
   });
+
+  it('does not misgate female-named sliders as male', () => {
+    const femaleSlider = { id: 'pony-mature-female-slider-v2', category: 'body', filename: 'pony_mature_female_slider_v2.safetensors' };
+    expect(isLoraAllowedForContext(femaleSlider, { surface: 'companion', modelFamily: 'pony', category: 'female' })).toBe(true);
+    expect(isLoraAllowedForContext(femaleSlider, { surface: 'companion', modelFamily: 'pony', category: 'male' })).toBe(false);
+
+    const transSlider = { id: 'pony-gender-transition-slider', category: 'body', filename: 'pony_gender_transition_slider.safetensors' };
+    expect(isLoraAllowedForContext(transSlider, { surface: 'companion', modelFamily: 'pony', category: 'transgender' })).toBe(true);
+    expect(isLoraAllowedForContext(transSlider, { surface: 'companion', modelFamily: 'pony', category: 'female' })).toBe(false);
+  });
 });

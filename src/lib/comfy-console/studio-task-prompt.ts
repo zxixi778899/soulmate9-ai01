@@ -2,6 +2,7 @@ import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import type { ImageModelFamily } from '@/lib/image-generation-routing';
 import { randomFluxPrompt } from '@/lib/comfy-console/flux-prompt-presets';
+import { encodeFamilyPrompt, resolvePromptSubject } from '@/lib/prompt/prompt-protocols';
 
 export type StudioPromptTask = 'identity' | 'portrait' | 'outfit' | 'pose' | 'background' | 'video';
 
@@ -42,7 +43,11 @@ export function buildStudioSceneDraft(input: {
   };
   const modelNote = input.modelFamily === 'wan22'
     ? 'stable temporal continuity, no morphing and no scene cut'
-    : 'FLUX-ready natural-language scene with concrete camera, materials and physical relationships';
+    : input.modelFamily === 'pony'
+      ? 'Pony SDXL scene written as concrete subject/action tags plus short camera and light tags'
+      : input.modelFamily === 'illustrious'
+        ? 'Illustrious anime scene written as danbooru tags plus short camera and light tags'
+        : 'FLUX-ready natural-language scene with concrete camera, materials and physical relationships';
   const lighting = 'bright soft key light, balanced frontal fill light, correct exposure, face and body clearly illuminated, visible shadow detail, no crushed shadows';
   const existingLower = existing.toLowerCase();
   const randomScene = input.modelFamily === 'flux' && !existing
@@ -77,6 +82,10 @@ function qualityForModel(modelFamily: PromptInput['modelFamily'], renderStyle: A
   if (modelFamily === 'wan22') {
     return 'stable camera, natural motion';
   }
+  // tag 族的画质开头由 encodeFamilyPrompt 的 qualityPrefix 提供，此处不再叠加。
+  if (modelFamily === 'pony' || modelFamily === 'illustrious') {
+    return '';
+  }
   if (renderStyle === '2d') {
     return '2D anime illustration, clean line art, cel shading';
   }
@@ -91,6 +100,20 @@ export function buildStudioTaskPrompt(input: PromptInput): string {
   const scene = text(input.scene);
   const framing = text(input.framing);
   const triggers = [...new Set((input.loraTriggers || []).map(text).filter(Boolean))].slice(0, 8);
+
+  // ── SDXL 家族：按族原生协议（pony score tags / illustrious danbooru tags）组装 ──
+  if (input.modelFamily === 'pony' || input.modelFamily === 'illustrious') {
+    return encodeFamilyPrompt({
+      family: input.modelFamily,
+      subject: resolvePromptSubject(input.category, input.renderStyle),
+      identity,
+      scene,
+      framing: framing || (scene ? '' : 'medium shot'),
+      loraTriggers: triggers,
+    });
+  }
+
+  // ── FLUX 家族：自然语言协议（含 authored scene 保护规则） ──
   // An authored prompt is the source of truth for composition. Do not append
   // task templates or random scene language; only append model quality cues
   // that never fight the authored scene.

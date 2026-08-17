@@ -214,11 +214,58 @@ const FLUX_LORA_CATALOG: Record<string, { id: string; reasonZh: string }> = {
   'flux_outfit_latex_v1.safetensors': { id: 'flux-outfit-latex-v1', reasonZh: '乳胶/胶衣穿搭 LoRA：仅控制服装，不改变人物身份。' },
 };
 
+/** Catalog mapping for the curated SDXL (Pony / Illustrious) volume-verified LoRAs. */
+const SDXL_LORA_CATALOG: Record<string, { id: string; reasonZh: string }> = {
+  'pony_detailifier_v5.safetensors': { id: 'pony-detailifier-v5', reasonZh: 'Pony 细节主力：增强皮肤与五官微细节。' },
+  'pony_mature_female_slider_v2.safetensors': { id: 'pony-mature-female-slider-v2', reasonZh: 'Pony 成熟女性滑块：稳定成熟曲线与年龄感。' },
+  'pony_gender_transition_slider.safetensors': { id: 'pony-gender-transition-slider', reasonZh: 'Pony 跨性别滑块：女性曲线与男性特征共存。' },
+  'pony_futa_style.safetensors': { id: 'pony-futa-style', reasonZh: 'Pony 扶她风格：高强度跨性别场景叠加。' },
+  'BackgroundDetailerV3-000004.safetensors': { id: 'pony-background-detailer-v3', reasonZh: 'Pony 背景细节：增强场景与道具质感。' },
+  'AddMicroDetails_Illustrious_v6.safetensors': { id: 'illustrious-micro-details-v6', reasonZh: 'Illustrious 微细节：增强线稿与皮肤质感。' },
+  'StS-Illustrious-Detail-Slider-v1.0.safetensors': { id: 'illustrious-detail-slider-v1', reasonZh: 'Illustrious 细节滑块：整体细节增减。' },
+  'illustrious_realism_slider_v1.safetensors': { id: 'illustrious-realism-slider-v1', reasonZh: 'Illustrious 写实滑块：2D 插画向真实质感靠拢。' },
+  'illustrious_nsfw_slider_v1.safetensors': { id: 'illustrious-nsfw-slider-v1', reasonZh: 'Illustrious NSFW 滑块：强度 ≥3 场景叠加。' },
+};
+
+/** SDXL 矩阵场景计划：按底模家族 + 类别 + 强度生成 LoRA 推荐。 */
+export function sdxlScenarioPlan(input: {
+  category: CompanionCategory;
+  intensity: NsfwIntensity;
+  family: 'pony' | 'illustrious';
+}): Array<{ name: string; strength: number }> {
+  const { category, intensity, family } = input;
+  if (family === 'illustrious') {
+    const plan = [
+      { name: 'illustrious_realism_slider_v1.safetensors', strength: 0.5 },
+      { name: 'AddMicroDetails_Illustrious_v6.safetensors', strength: 0.35 },
+    ];
+    if (intensity >= 3) plan.push({ name: 'illustrious_nsfw_slider_v1.safetensors', strength: 0.45 });
+    return plan;
+  }
+  const plan: Array<{ name: string; strength: number }> = [];
+  if (category === 'transgender') plan.push({ name: 'pony_gender_transition_slider.safetensors', strength: 0.5 });
+  else if (category !== 'male') plan.push({ name: 'pony_mature_female_slider_v2.safetensors', strength: 0.5 });
+  plan.push({ name: 'pony_detailifier_v5.safetensors', strength: 0.4 });
+  if (category === 'transgender' && intensity >= 4) plan.push({ name: 'pony_futa_style.safetensors', strength: 0.4 });
+  return plan;
+}
+
 export function recommendedStudioLoras(
   category: CompanionCategory,
   animeStyle: AnimeRenderStyle = 'realistic',
   intensity: NsfwIntensity = 1,
+  modelFamily: string = 'flux',
 ): Array<{ id: string; strength: number; reasonZh: string }> {
+  // SDXL 矩阵分支：路由到 Pony / Illustrious 时消费 SDXL 卷上已验证 LoRA。
+  if (modelFamily === 'pony' || modelFamily === 'illustrious') {
+    return sdxlScenarioPlan({ category, intensity, family: modelFamily })
+      .map((item) => {
+        const meta = SDXL_LORA_CATALOG[item.name];
+        return meta ? { id: meta.id, strength: item.strength, reasonZh: meta.reasonZh } : null;
+      })
+      .filter((item): item is { id: string; strength: number; reasonZh: string } => item !== null)
+      .slice(0, 3);
+  }
   // 全站统一 FLUX：推荐面板直接消费精编场景计划表，
   // 覆盖女性/男性/跨性别/2D/3D 全部 SFW/NSFW 场景。
   return fluxScenarioPlan({ category, intensity, animeStyle })

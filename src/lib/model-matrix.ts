@@ -16,6 +16,13 @@
 import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import type { ImageSurface } from '@/lib/image-generation-routing';
+import {
+  familyNegativePrompt,
+  familyQualityEnhancers,
+  PROMPT_PROTOCOL_BY_FAMILY,
+  resolvePromptSubject,
+  type PromptProtocolId,
+} from '@/lib/prompt/prompt-protocols';
 
 export type ModelMatrixEndpointKey = 'runpod-sdxl-pro' | 'runpod-flux';
 export type ModelMatrixFamily = 'flux' | 'pony' | 'illustrious';
@@ -34,6 +41,12 @@ export interface ModelPlan {
   width: number;
   height: number;
   reason: string;
+  /** 提示词协议（家族原生，禁止跨族混用） */
+  promptProtocol: PromptProtocolId;
+  /** 家族×题材负向（含 BLOCKED 与 NSFW 去打码） */
+  negativePrompt: string;
+  /** 质量增强默认（ADetailer 修脸 / 放大去糊） */
+  qualityEnhancers: { adetailer: boolean; upscale: boolean };
 }
 
 // ─── 总闸 ───────────────────────────────────────────────────
@@ -57,12 +70,13 @@ export function isSdxlMatrixActive(): boolean {
 
 /** 写实旗舰（女/男/跨靠 LoRA slider 分化）。已验证生产资产，见 cd2-models.txt。 */
 export function realisticCheckpoint(): string {
-  return process.env.RUNPOD_PONY_CHECKPOINT?.trim() || 'ponyRealism_V22.safetensors';
+  // 兼容两种 env 命名：代码约定 RUNPOD_PONY_CHECKPOINT / 生产已配 RUNPOD_CHECKPOINT_PONY。
+  return process.env.RUNPOD_PONY_CHECKPOINT?.trim() || process.env.RUNPOD_CHECKPOINT_PONY?.trim() || 'ponyRealism_V22.safetensors';
 }
 
 /** 二次元旗舰（danbooru tag 提示词协议）。 */
 export function animeCheckpoint(): string {
-  return process.env.RUNPOD_ILLUSTRIOUS_CHECKPOINT?.trim() || 'waiMatureIllustrious_v20.safetensors';
+  return process.env.RUNPOD_ILLUSTRIOUS_CHECKPOINT?.trim() || process.env.RUNPOD_CHECKPOINT_ILLUSTRIOUS?.trim() || 'waiMatureIllustrious_v20.safetensors';
 }
 
 /** FLUX 精品层底模。 */
@@ -134,6 +148,9 @@ export function resolveModelPlan(input: {
     width: 832,
     height: 1216,
     reason,
+    promptProtocol: PROMPT_PROTOCOL_BY_FAMILY.flux,
+    negativePrompt: familyNegativePrompt('flux', resolvePromptSubject(category, renderStyle), nsfw),
+    qualityEnhancers: familyQualityEnhancers('flux', resolvePromptSubject(category, renderStyle)),
   });
 
   // ── 总闸未开 / 端点未配置 → 全站 FLUX（fail-open，与重构前行为一致） ──
@@ -171,6 +188,9 @@ export function resolveModelPlan(input: {
       width: 832,
       height: 1216,
       reason: 'Anime uses the Illustrious flagship with danbooru tag prompts.',
+      promptProtocol: PROMPT_PROTOCOL_BY_FAMILY.illustrious,
+      negativePrompt: familyNegativePrompt('illustrious', resolvePromptSubject(category, '2d'), nsfw),
+      qualityEnhancers: familyQualityEnhancers('illustrious', resolvePromptSubject(category, '2d')),
     };
   }
 
@@ -189,5 +209,8 @@ export function resolveModelPlan(input: {
     width: category === 'transgender' ? 896 : 832,
     height: category === 'transgender' ? 1152 : 1216,
     reason: `Realistic ${category} uses ponyRealism with category LoRA sliders.`,
+    promptProtocol: PROMPT_PROTOCOL_BY_FAMILY.pony,
+    negativePrompt: familyNegativePrompt('pony', resolvePromptSubject(category, renderStyle), nsfw),
+    qualityEnhancers: familyQualityEnhancers('pony', resolvePromptSubject(category, renderStyle)),
   };
 }

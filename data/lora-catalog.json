@@ -1,12 +1,14 @@
 {
-  "version": 6,
-  "updated": "2026-08-02",
+  "version": 8,
+  "updated": "2026-08-17",
   "base_model": "multi-family",
   "target_volume": "p1dup48kuq",
   "volume_path": "/runpod-volume/models/loras",
   "region": "US-CA-2",
   "notes": [
     "v6: FLUX entries synced to actual worker volume filenames (ComfyUI object_info verified).",
+    "v7: added bunny/maid/school outfit + ahegao face LoRAs (downloaded locally 2026-08-16, pending volume upload).",
+    "v8: 新增 Pony/Illustrious 类目专项 LoRA 条目（跨性别/体型/姿势/场景）；模型族隔离校验（SDXL/FLUX/Pony/Illustrious 互不套用）；全部条目采用中文标准说明。",
     "installed=false means static catalog does not prove file downloaded; availability determined by RUNPOD_INSTALLED_LORAS_* runtime list only.",
     "Identity avatar and turnaround always use base model, no auto LoRA.",
     "Download auth only via CIVITAI_TOKEN env var; no tokens in repo.",
@@ -65,7 +67,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": false,
-      "notes": "worker volume actual file; ComfyUI object_info verified."
+      "notes": "卷上文件已确认（ComfyUI object_info 已验证）"
     },
     {
       "id": "flux-krea-realism",
@@ -87,7 +89,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": false,
-      "notes": "worker volume actual file; ComfyUI object_info verified."
+      "notes": "卷上文件已确认（ComfyUI object_info 已验证）"
     },
     {
       "id": "flux-hyperrealism-aidma",
@@ -109,7 +111,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": false,
-      "notes": "worker volume actual file; ComfyUI object_info verified."
+      "notes": "卷上文件已确认（ComfyUI object_info 已验证）"
     },
     {
       "id": "flux-add-details",
@@ -131,7 +133,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": false,
-      "notes": "worker volume actual file; ComfyUI object_info verified."
+      "notes": "卷上文件已确认（ComfyUI object_info 已验证）"
     },
     {
       "id": "flux-detail-enhancer",
@@ -153,11 +155,11 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": false,
-      "notes": "worker volume actual file; ComfyUI object_info verified."
+      "notes": "卷上文件已确认（ComfyUI object_info 已验证）"
     },
     {
       "id": "flux-nsfw-klein-v2",
-      "label": "FLUX NSFW(klein v2)",
+      "label": "FLUX 无码写实(klein v2)",
       "category": "action",
       "filename": "flux_nsfw_klein_v2.safetensors",
       "default_strength": 0.4,
@@ -176,7 +178,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": false,
-      "notes": "worker volume actual file; ComfyUI object_info verified."
+      "notes": "卷上文件已确认（ComfyUI object_info 已验证）"
     },
     {
       "id": "flux-uncensored",
@@ -198,7 +200,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": false,
-      "notes": "worker volume actual file; ComfyUI object_info verified."
+      "notes": "卷上文件已确认（ComfyUI object_info 已验证）"
     },
     {
       "id": "pony-detailifier-v5",
@@ -327,6 +329,96 @@
       "size_mb": 217.88
     },
     {
+      "id": "pony-mature-female-slider-v2",
+      "label": "Pony 成熟女性滑块 v2",
+      "category": "body",
+      "filename": "pony_mature_female_slider_v2.safetensors",
+      "default_strength": 0.5,
+      "nsfw": false,
+      "usage": "Pony 写实成熟女性身体滑块：稳定成熟曲线与年龄感；建议强度 0.4-0.6，仅 Pony 底模。",
+      "trigger_words": [],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "runpod-volume",
+      "base_model": "Pony",
+      "family": "pony",
+      "installed": true,
+      "notes": "运行卷清单 RUNPOD_INSTALLED_LORAS_PONY 已声明。"
+    },
+    {
+      "id": "pony-gender-transition-slider",
+      "label": "Pony 跨性别过渡滑块",
+      "category": "body",
+      "filename": "pony_gender_transition_slider.safetensors",
+      "default_strength": 0.5,
+      "nsfw": true,
+      "usage": "Pony 跨性别身体滑块：女性曲线与男性特征共存；建议强度 0.4-0.6，仅 Pony 底模。",
+      "trigger_words": [],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "runpod-volume",
+      "base_model": "Pony",
+      "family": "pony",
+      "installed": true,
+      "notes": "运行卷清单 RUNPOD_INSTALLED_LORAS_PONY 已声明。"
+    },
+    {
+      "id": "pony-futa-style",
+      "label": "Pony Futa 风格",
+      "category": "body",
+      "filename": "pony_futa_style.safetensors",
+      "default_strength": 0.45,
+      "nsfw": true,
+      "usage": "Pony 扶她/跨性别风格增强；建议强度 0.35-0.55，仅 Pony 底模。",
+      "trigger_words": [],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "runpod-volume",
+      "base_model": "Pony",
+      "family": "pony",
+      "installed": true,
+      "notes": "运行卷清单 RUNPOD_INSTALLED_LORAS_PONY 已声明。"
+    },
+    {
+      "id": "illustrious-nsfw-slider-v1",
+      "label": "Illustrious NSFW 滑块 v1",
+      "category": "detail",
+      "filename": "illustrious_nsfw_slider_v1.safetensors",
+      "default_strength": 0.5,
+      "nsfw": true,
+      "usage": "Illustrious NSFW 强度滑块：强度 >=3 场景叠加；建议强度 0.4-0.6。",
+      "trigger_words": [],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "runpod-volume",
+      "base_model": "Illustrious",
+      "family": "illustrious",
+      "installed": true,
+      "notes": "运行卷清单 RUNPOD_INSTALLED_LORAS_ILLUSTRIOUS 已声明。"
+    },
+    {
+      "id": "illustrious-realism-slider-v1",
+      "label": "Illustrious 写实滑块 v1",
+      "category": "style",
+      "filename": "illustrious_realism_slider_v1.safetensors",
+      "default_strength": 0.5,
+      "nsfw": false,
+      "usage": "Illustrious 写实化滑块：2D 插画向真实质感靠拢；建议强度 0.4-0.6。",
+      "trigger_words": [],
+      "workflows": [
+        "wf-girlfriend"
+      ],
+      "source": "runpod-volume",
+      "base_model": "Illustrious",
+      "family": "illustrious",
+      "installed": true,
+      "notes": "运行卷清单 RUNPOD_INSTALLED_LORAS_ILLUSTRIOUS 已声明。"
+    },
+    {
       "id": "flux-style-photoreal-v1",
       "label": "FLUX 写实风格 v1",
       "category": "style",
@@ -349,7 +441,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 111.4
     },
     {
@@ -376,7 +468,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 164
     },
     {
@@ -403,7 +495,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 73.1
     },
     {
@@ -430,7 +522,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 85.6
     },
     {
@@ -456,7 +548,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 292.3
     },
     {
@@ -482,7 +574,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 164
     },
     {
@@ -508,7 +600,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 164
     },
     {
@@ -534,7 +626,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 73.1
     },
     {
@@ -560,7 +652,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 327.9
     },
     {
@@ -587,7 +679,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 49.9
     },
     {
@@ -613,7 +705,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "cd1 essential 清单已下载",
+      "notes": "cd1 必备清单已下载（卷上已验证）",
       "size_mb": 969.3
     },
     {
@@ -642,7 +734,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "extra 清单已下载",
+      "notes": "extra 扩展清单已下载（卷上已验证）",
       "size_mb": 662
     },
     {
@@ -670,7 +762,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "extra 清单已下载",
+      "notes": "extra 扩展清单已下载（卷上已验证）",
       "size_mb": 74.8
     },
     {
@@ -699,7 +791,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "extra 清单已下载",
+      "notes": "extra 扩展清单已下载（卷上已验证）",
       "size_mb": 17.4
     },
     {
@@ -727,7 +819,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "extra 清单已下载",
+      "notes": "extra 扩展清单已下载（卷上已验证）",
       "size_mb": 18.4
     },
     {
@@ -755,7 +847,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "extra 清单已下载",
+      "notes": "extra 扩展清单已下载（卷上已验证）",
       "size_mb": 85.6
     },
     {
@@ -783,7 +875,7 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "extra 清单已下载",
+      "notes": "extra 扩展清单已下载（卷上已验证）",
       "size_mb": 146.2
     },
     {
@@ -812,8 +904,213 @@
       "base_model": "FLUX.1",
       "family": "flux",
       "installed": true,
-      "notes": "extra 清单已下载",
+      "notes": "extra 扩展清单已下载（卷上已验证）",
       "size_mb": 27.6
+    },
+    {
+      "id": "flux-outfit-bunny-v1",
+      "label": "FLUX 兔女郎装 v1",
+      "category": "outfit",
+      "filename": "flux_outfit_bunny_v1.safetensors",
+      "default_strength": 0.45,
+      "nsfw": true,
+      "usage": "兔女郎/Playboy 风格服饰：NSFW 强度 2~3 时使用，强度 0.4~0.55。",
+      "trigger_words": [
+        "bunny girl outfit",
+        "兔女郎",
+        "playboy bunny"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/817758",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "2026-08-17 已上传 RunPod 卷 models/loras（SHA256 校验通过）并加入 RUNPOD_INSTALLED_LORAS_FLUX",
+      "size_mb": 37.9,
+      "sha256": "E267CB627EA940C64850E58D76E3D5F5B8AF5F955611B8EE2EB9C870BAE912B8"
+    },
+    {
+      "id": "flux-outfit-maid-v1",
+      "label": "FLUX 女仆装 v1",
+      "category": "outfit",
+      "filename": "flux_outfit_maid_v1.safetensors",
+      "default_strength": 0.45,
+      "nsfw": true,
+      "usage": "女仆装角色扮演：NSFW 强度 1~3 时使用，强度 0.4~0.55。",
+      "trigger_words": [
+        "maid outfit",
+        "女仆装",
+        "french maid"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/1588611",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "2026-08-17 已上传 RunPod 卷 models/loras（SHA256 校验通过）并加入 RUNPOD_INSTALLED_LORAS_FLUX",
+      "size_mb": 37.9,
+      "sha256": "74EC42C56C82625016ECC225D347EBF1910DC2F1697A446B063E4B92203F671F"
+    },
+    {
+      "id": "flux-outfit-school-v1",
+      "label": "FLUX 校园制服 v1",
+      "category": "outfit",
+      "filename": "flux_outfit_school_v1.safetensors",
+      "default_strength": 0.45,
+      "nsfw": false,
+      "usage": "校园制服风格：日常/角色扮演场景，强度 0.4~0.5。",
+      "trigger_words": [
+        "school uniform",
+        "校园制服",
+        "制服"
+      ],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/2163726",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "2026-08-17 已上传 RunPod 卷 models/loras（SHA256 校验通过）并加入 RUNPOD_INSTALLED_LORAS_FLUX",
+      "size_mb": 64.2,
+      "sha256": "E5EA04878532559C1448B2F1C48548DC398632261C9D438103ABEC238B03058A"
+    },
+    {
+      "id": "flux-face-ahegao-v1",
+      "label": "FLUX 高潮表情 v1",
+      "category": "action",
+      "filename": "flux_face_ahegao_v1.safetensors",
+      "default_strength": 0.3,
+      "nsfw": true,
+      "usage": "高潮表情特写：NSFW 强度 ≥4 时叠加，强度 0.2~0.35，避免过度扭曲。",
+      "trigger_words": [
+        "ahegao",
+        "高潮表情",
+        "rolling eyes"
+      ],
+      "workflows": [
+        "wf-portrait",
+        "wf-pose"
+      ],
+      "source": "civitai",
+      "download_url": "https://civitai.com/api/download/models/1477302",
+      "base_model": "FLUX.1",
+      "family": "flux",
+      "installed": true,
+      "notes": "2026-08-17 已上传 RunPod 卷 models/loras（SHA256 校验通过）并加入 RUNPOD_INSTALLED_LORAS_FLUX",
+      "size_mb": 18.4,
+      "sha256": "9CA8FB8B571096EC40643BB90EEAB442FB2A19D3BF880A4671A633D5736859B5"
+    },
+    {
+      "id": "pony-sex-box-v3",
+      "label": "Pony 性爱场景 v3",
+      "category": "action",
+      "filename": "pony_sex_box_v3.safetensors",
+      "default_strength": 0.45,
+      "nsfw": true,
+      "usage": "仅用于 Pony 底模的性爱场景/姿势 LoRA：NSFW 强度 ≥3 时叠加，建议强度 0.35~0.5；禁止与 FLUX/SDXL/Illustrious LoRA 混用。",
+      "trigger_words": [
+        "s3xb0x"
+      ],
+      "workflows": [
+        "wf-portrait",
+        "wf-pose"
+      ],
+      "source": "civitai",
+      "version_id": 1769189,
+      "civitai_version_id": 1769189,
+      "sha256": "C64899CCDFE6ECC9E4BF40DBC73CB441F6B4D3AEBE39A7D108A40CB7C4EC93BE",
+      "download_url": "https://civitai.com/api/download/models/1769189",
+      "base_model": "Pony",
+      "family": "pony",
+      "installed": false,
+      "notes": "cd2 类目清单已声明；待卷上文件清单验证后设 installed=true"
+    },
+    {
+      "id": "pony-girl-size-rank4",
+      "label": "Pony 女性体型(rank4)",
+      "category": "body",
+      "filename": "pony_girl_size_rank4.safetensors",
+      "default_strength": 0.3,
+      "nsfw": false,
+      "usage": "仅用于 Pony 底模的女性体型调整 LoRA：控制女性身材比例，建议强度 0.25~0.4；禁止与 FLUX/SDXL/Illustrious LoRA 混用。",
+      "trigger_words": [],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
+      "source": "civitai",
+      "version_id": 544022,
+      "civitai_version_id": 544022,
+      "sha256": "E023A619852C6AC2FEED5484206169B9687A47133979A06233A76BFA7481B0CF",
+      "download_url": "https://civitai.com/api/download/models/544022",
+      "base_model": "Pony",
+      "family": "pony",
+      "installed": false,
+      "notes": "cd2 类目清单已声明；待卷上文件清单验证后设 installed=true"
+    },
+    {
+      "id": "illustrious-gender-transition-slider",
+      "label": "Illustrious 跨性别过渡滑块",
+      "category": "body",
+      "filename": "illustrious_gender_transition_slider.safetensors",
+      "default_strength": 0.35,
+      "nsfw": true,
+      "usage": "仅用于 Illustrious 底模的跨性别过渡身体滑块：男性/跨性别角色女性化特征，建议强度 0.3~0.45；禁止与 FLUX/SDXL/Pony LoRA 混用。",
+      "trigger_words": [],
+      "workflows": [
+        "wf-character",
+        "wf-portrait",
+        "wf-pose"
+      ],
+      "source": "civitai",
+      "version_id": 1981172,
+      "civitai_version_id": 1981172,
+      "sha256": "862DB60020FC989554E7FAE1E833F5FBA22B8B571BCB338132949EE9C32AB1D9",
+      "download_url": "https://civitai.com/api/download/models/1981172",
+      "base_model": "Illustrious",
+      "family": "illustrious",
+      "installed": false,
+      "notes": "cd2 类目清单已声明；待卷上文件清单验证后设 installed=true"
+    },
+    {
+      "id": "illustrious-sex-box-v3",
+      "label": "Illustrious 性爱场景 v3",
+      "category": "action",
+      "filename": "illustrious_sex_box_v3.safetensors",
+      "default_strength": 0.45,
+      "nsfw": true,
+      "usage": "仅用于 Illustrious 底模的性爱场景/姿势 LoRA：NSFW 强度 ≥3 时叠加，建议强度 0.35~0.5；禁止与 FLUX/SDXL/Pony LoRA 混用。",
+      "trigger_words": [
+        "s3xb0x"
+      ],
+      "workflows": [
+        "wf-portrait",
+        "wf-pose"
+      ],
+      "source": "civitai",
+      "version_id": 1769196,
+      "civitai_version_id": 1769196,
+      "sha256": "26BBD9B3EA9D004620EE801273B6414EDCE4A0B7ABEFBD573C6F0158929B96E0",
+      "download_url": "https://civitai.com/api/download/models/1769196",
+      "base_model": "Illustrious",
+      "family": "illustrious",
+      "installed": false,
+      "notes": "cd2 类目清单已声明；待卷上文件清单验证后设 installed=true"
     }
   ],
   "routing_rules": {

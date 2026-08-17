@@ -261,6 +261,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [pipelineResults, setPipelineResults] = useState<PipelineStageResult[]>([]);
   const [pipelineAssets, setPipelineAssets] = useState<Record<string, string>>({});
   const pipelineCancelRef = useRef(false);
+  const lastAutoLoraKeyRef = useRef<string>('');
+  const lastMissingCheckpointRef = useRef<string>('');
+  const lastEnhancerFamilyRef = useRef<string>('');
 
   useEffect(() => {
     let active = true;
@@ -311,7 +314,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     animeStyle: AnimeRenderStyle = animeRenderStyle,
     intensity: NsfwIntensity = nsfwIntensity,
   ) => {
-    const recommendations = recommendedStudioLoras(category, animeStyle, intensity);
+    const recommendations = recommendedStudioLoras(category, animeStyle, intensity, generationRoute.modelFamily);
     const available = recommendations
       .map((item) => ({ item, asset: (config?.loras || []).find((l: Any) => l.id === item.id) }))
       .filter((entry) => entry.item.id !== 'none' && entry.asset && (!entry.asset.filename || installedLoras.includes(String(entry.asset.filename))))
@@ -963,11 +966,18 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const workflows: Any[] = useMemo(() => config?.workflows || [], [config?.workflows]);
   const endpoints: Any[] = useMemo(() => config?.endpoints || [], [config?.endpoints]);
   const checkpoints: Any[] = useMemo(() => config?.checkpoints || [], [config?.checkpoints]);
-  const studioCheckpoints = checkpoints.filter((item) =>
-    ['flux-fp8', 'flux-unchained'].includes(String(item.id)),
-  );
   const allLoras: Any[] = useMemo(() => config?.loras || [], [config?.loras]);
   const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity, turbo: fastPreview && genMode !== 'img2video', specialistModelsReady: volumeInfo?.sdxl_models_ready === true, sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined });
+  // Checkpoint 下拉跟随路由：仅展示当前底模家族的候选（SDXL 时自动带出 Pony/Illustrious 底模）。
+  const studioCheckpoints = (() => {
+    const routedIds = generationRoute.modelFamily === 'pony'
+      ? ['pony-realism-v22']
+      : generationRoute.modelFamily === 'illustrious'
+        ? ['wai-mature-illustrious-v20']
+        : ['flux-fp8', 'flux-unchained'];
+    const routed = checkpoints.filter((item) => routedIds.includes(String(item.id)));
+    return routed.length ? routed : checkpoints.filter((item) => ['flux-fp8', 'flux-unchained'].includes(String(item.id)));
+  })();
   // FLUX responds better to concise natural-language composition; omit hard
   // directional camera clauses (LOW/HIGH-ANGLE REQUIREMENT) from its payload.
   const promptFraming = generationRoute.modelFamily === 'flux'
@@ -1135,14 +1145,76 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     const routedCheckpoint = checkpoints.find((item) =>
       item.filename === generationRoute.checkpoint || item.id === generationRoute.checkpoint,
     );
-    const checkpoint = routedCheckpoint?.id || (generationRoute.modelFamily === 'flux'
-      ? (generationRoute.checkpoint.toLowerCase().includes('unchained') ? 'flux-unchained' : 'flux-fp8')
-        : 'flux-fp8');
+    // 按家族回退：SDXL 族找不到 checkpoint 时保持本族 ID，绝不静默回退 flux-fp8
+    //（FLUX checkpoint + SDXL 参数混用是 2D 出图模糊的根因之一）。
+    const checkpoint = routedCheckpoint?.id
+      || (generationRoute.modelFamily === 'pony'
+        ? 'pony-realism-v22'
+        : generationRoute.modelFamily === 'illustrious'
+          ? 'wai-mature-illustrious-v20'
+          : (generationRoute.checkpoint.toLowerCase().includes('unchained') ? 'flux-unchained' : 'flux-fp8'));
+    if (!routedCheckpoint && generationRoute.modelFamily !== 'flux') {
+      const missKey = `${generationRoute.modelFamily}:${generationRoute.checkpoint}`;
+      if (lastMissingCheckpointRef.current !== missKey) {
+        lastMissingCheckpointRef.current = missKey;
+        toast.warning(`控制台 checkpoint 清单缺少 ${generationRoute.checkpoint}，已保持 ${generationRoute.modelFamily} 家族路由，请检查 checkpoints 配置`);
+      }
+    }
     setEndpointKey(endpoint);
     setCkptId(checkpoint);
-    setSelectedLoras((current) => current.filter((selection) => selection.id !== 'none' && loras.some((lora) => lora.id === selection.id)));
-    setLoraId((current) => current === 'none' || loras.some((lora) => lora.id === current) ? current : 'none');
-  }, [checkpoints, generationRoute.cfg, generationRoute.checkpoint, generationRoute.modelFamily, generationRoute.sampler, generationRoute.scheduler, generationRoute.steps, loras]);
+    // 参数跟随路由：尺寸/steps/cfg/sampler/scheduler 按底模家族自动应用，无需手选。
+    const preset = resolveCreativeGenerationPreset({
+      mode: genMode,
+      surface: generationSurface,
+      category: companionCategory,
+      renderStyle: animeRenderStyle,
+      intensity: nsfwIntensity,
+      assetRole,
+      scene: prompt,
+      identityConsistency,
+      turbo: fastPreview && genMode !== 'img2video',
+      specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
+      sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
+    });
+    setWidth(preset.width);
+    setHeight(preset.height);
+    setSteps(preset.steps);
+    setCfg(preset.cfg);
+    setSampler(preset.sampler);
+    setScheduler(preset.scheduler);
+    if (preset.denoise != null) setDenoise(preset.denoise);
+    // LoRA 跟随路由：「底模家族:类别」组合变化时自动补齐目标家族推荐 LoRA；
+    // 同一组合内保留用户当前选择（含手动清空）。
+    const autoLoraKey = `${generationRoute.modelFamily}:${companionCategory}`;
+    if (loras.length > 0 && lastAutoLoraKeyRef.current !== autoLoraKey) {
+      lastAutoLoraKeyRef.current = autoLoraKey;
+      const filled = recommendedStudioLoras(companionCategory, animeRenderStyle, nsfwIntensity, generationRoute.modelFamily)
+        .map((item) => ({ item, asset: loras.find((lora) => lora.id === item.id) }))
+        .filter((entry) => Boolean(entry.asset))
+        .map((entry) => ({
+          id: entry.item.id,
+          strength: Number(Math.min(1.05, entry.item.strength * studioLoraStrengthScale(nsfwIntensity)).toFixed(2)),
+        }))
+        .slice(0, 3);
+      setSelectedLoras(filled);
+      setLoraId(filled[0]?.id || 'none');
+      if (filled[0]) setLoraStrength(filled[0].strength);
+    } else {
+      setSelectedLoras((current) => current.filter((selection) => selection.id !== 'none' && loras.some((lora) => lora.id === selection.id)));
+      setLoraId((current) => current === 'none' || loras.some((lora) => lora.id === current) ? current : 'none');
+    }
+    // 增强器跟随路由：家族×题材变化时自动启用质量默认（如 2D 修脸+放大去糊），
+    // ControlNet 保留用户选择。
+    const enhancerKey = `${generationRoute.modelFamily}:${companionCategory}:${animeRenderStyle}`;
+    if (lastEnhancerFamilyRef.current !== enhancerKey) {
+      lastEnhancerFamilyRef.current = enhancerKey;
+      setEnhancers((current) => ({
+        ...current,
+        adetailer: generationRoute.qualityEnhancers.adetailer,
+        upscale: generationRoute.qualityEnhancers.upscale,
+      }));
+    }
+  }, [animeRenderStyle, checkpoints, companionCategory, generationRoute.cfg, generationRoute.checkpoint, generationRoute.modelFamily, generationRoute.qualityEnhancers.adetailer, generationRoute.qualityEnhancers.upscale, generationRoute.sampler, generationRoute.scheduler, generationRoute.steps, loras]);
 
   const filteredBatchGirlfriends = useMemo(() => {
     const query = batchSearch.trim().toLowerCase();
@@ -1587,7 +1659,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       // The task-aware compiler already produced the final model-specific prompt.
       // Submit immediately; AI optimization remains an explicit optional button.
       const effectivePrompt = resolvedTaskPrompt;
-      const effectiveNegative = negative.trim() || studioNegativePrompt(companionCategory, animeRenderStyle);
+      const effectiveNegative = negative.trim() || generationRoute.negativePrompt;
       const fluxPreset = recommendedPreset;
       const effectiveLoras = compatibleSelectedLoras;
 

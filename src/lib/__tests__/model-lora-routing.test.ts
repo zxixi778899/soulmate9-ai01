@@ -122,7 +122,9 @@ describe('model-specific LoRA routing', () => {
       intensity: 5,
     });
     expect(plan.selected.map((item) => item.name)).toEqual(['pony_nsfw_pose.safetensors']);
-    expect(plan.missing).toContain('flux_pose_nsfw_dynamic_v1.safetensors');
+    // 族兼容过滤在更早阶段剔除跨族 LoRA：既不加载，也不计入 missing。
+    expect(plan.selected.map((item) => item.name)).not.toContain('flux_pose_nsfw_dynamic_v1.safetensors');
+    expect(plan.missing).not.toContain('flux_pose_nsfw_dynamic_v1.safetensors');
   });
 
   it('auto-selects compatible entries from a family-specific inventory', () => {

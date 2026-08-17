@@ -48,6 +48,29 @@ function assetFolder(girlfriendId?: string | null, assetRole?: unknown): string 
   return 'comfy-outputs';
 }
 
+/**
+ * SDXL tag 族（pony/illustrious）提示词压缩：保留 danbooru/score tag 原貌，
+ * 只做 tag 级去重与长度限制，禁止用 FLUX 的句子级压缩（会破坏 tag 结构）。
+ */
+function compactTagPrompt(value: string, maxCharacters = 650): string {
+  const tags = String(value || '')
+    .split(',')
+    .map((tag) => tag.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const unique = tags.filter((tag) => {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  let rebuilt = unique.join(', ');
+  if (rebuilt.length <= maxCharacters) return rebuilt;
+  rebuilt = rebuilt.slice(0, maxCharacters + 1);
+  const boundary = rebuilt.lastIndexOf(', ');
+  return (boundary > Math.floor(maxCharacters * 0.6) ? rebuilt.slice(0, boundary) : rebuilt.slice(0, maxCharacters)).trim();
+}
+
 
 function mergeInstalledLoras(config: ComfyConsoleConfig): ComfyConsoleConfig {
   const installed = getVerifiedInstalledLoraSet();
@@ -571,7 +594,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const cfg = mergeInstalledLoras(await loadComfyConfig());
       const installed = getInstalledLoraSet();
       const scale = studioLoraStrengthScale(intensity);
-      const recommendations = recommendedStudioLoras(category, animeStyle, intensity);
+      const recommendations = recommendedStudioLoras(category, animeStyle, intensity, generationRoute.modelFamily);
       const loras = recommendations
         .map((item) => {
           const asset = cfg.loras.find((candidate) => candidate.id === item.id);
@@ -614,7 +637,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       const cfg = mergeInstalledLoras(await loadComfyConfig());
       const installed = getInstalledLoraSet();
       const scale = studioLoraStrengthScale(intensity);
-      const recommendations = recommendedStudioLoras(category, animeStyle, intensity);
+      const recommendations = recommendedStudioLoras(category, animeStyle, intensity, generationRoute.modelFamily);
       const loras = recommendations
         .map((item) => {
           const asset = cfg.loras.find((candidate) => candidate.id === item.id);
@@ -1250,7 +1273,7 @@ if (body.action === 'verify_loras') {
         scene: prompt,
       });
     }
-    if (!negative.trim()) negative = studioNegativePrompt(category, animeStyle);
+    if (!negative.trim()) negative = generationRoute.negativePrompt;
 
     const suppliedReference = String(body.input_image || '').trim();
     const storedIdentityUrls: string[] = [];
@@ -1368,9 +1391,14 @@ if (body.action === 'verify_loras') {
 prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
     const authoredPrompt = body.prompt_profile_applied === true || body.prompt_source === 'llm';
-    prompt = surface === 'companion' && !isIdentityAsset && generationRoute.modelFamily === 'flux' && !authoredPrompt
-      ? ensureStudioFluxPrompt({ prompt, category, intensity: generationIntensity, animeStyle })
-      : compactFluxPrompt(prompt);
+    if (surface === 'companion' && !isIdentityAsset && generationRoute.modelFamily === 'flux' && !authoredPrompt) {
+      prompt = ensureStudioFluxPrompt({ prompt, category, intensity: generationIntensity, animeStyle });
+    } else if (generationRoute.modelFamily === 'flux') {
+      prompt = compactFluxPrompt(prompt);
+    } else {
+      // SDXL tag 族：保留 danbooru/score tag 原貌，禁止 FLUX 句子级压缩。
+      prompt = compactTagPrompt(prompt);
+    }
     const resolvedReferenceImage =
       referencePlan.primaryIdentity?.url ||
       referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
@@ -1528,12 +1556,21 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       const missingTriggers = compatibleLoraPlan.triggerWords.filter((word) => !promptLower.includes(word.toLowerCase()));
       if (missingTriggers.length > 0) prompt = `${missingTriggers.join(', ')}. ${prompt}`;
     }
-    prompt = compactFluxPrompt(prompt);
+    prompt = generationRoute.modelFamily === 'flux' ? compactFluxPrompt(prompt) : compactTagPrompt(prompt);
 
     try {
-      const requestedEnhancers = (body.enhancers && typeof body.enhancers === 'object'
-        ? body.enhancers
-        : {}) as Partial<Record<EnhancerId, boolean>>;
+      const bodyEnhancers = body.enhancers && typeof body.enhancers === 'object'
+        ? body.enhancers as Partial<Record<EnhancerId, boolean>>
+        : null;
+      // 客户端未传增强器时，应用路由家族×题材的质量默认（ADetailer 修脸 /
+      // 2D 放大去糊）；只对已安装就绪的增强器注入默认，未就绪节点行为不变。
+      const readyEnhancerIds = new Set(getEnhancerStatuses().filter((status) => status.enabled).map((status) => status.id));
+      const requestedEnhancers: Partial<Record<EnhancerId, boolean>> = bodyEnhancers
+        ? { ...bodyEnhancers }
+        : {
+            adetailer: generationRoute.qualityEnhancers.adetailer && readyEnhancerIds.has('adetailer'),
+            upscale: generationRoute.qualityEnhancers.upscale && readyEnhancerIds.has('upscale'),
+          };
       try {
         assertEnhancersReady(requestedEnhancers);
       } catch (enhancerError) {
@@ -1559,15 +1596,22 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         : Math.min(9, Math.max(3, Number(body.cfg || body.guidance_scale || generationRoute.cfg)));
       // Manual workflow controls may tune dimensions/steps, but NSFW 3–5 must
       // never override the specialist endpoint/checkpoint selected by routing.
+      // checkpoint / steps 与路由家族原子绑定：FLUX profile 只对 flux 族生效，
+      // SDXL 族全量使用路由给出的参数集，禁止跨族混用（2D 模糊根因修复）。
+      const fluxFamily = generationRoute.modelFamily === 'flux';
       const profile = resolveGenerationProfile({ intensity: generationIntensity, renderStyle: animeStyle });
-      const profileCheckpoint = process.env[profile.checkpointEnv]?.trim() || profile.fallbackCheckpoint;
-      const profileSteps = Math.max(profile.minSteps, generationIntensity >= 3 ? profile.defaultSteps : steps);
+      const effectiveCheckpoint = fluxFamily
+        ? process.env[profile.checkpointEnv]?.trim() || profile.fallbackCheckpoint
+        : generationRoute.checkpoint;
+      const effectiveSteps = fluxFamily
+        ? Math.max(profile.minSteps, generationIntensity >= 3 ? profile.defaultSteps : steps)
+        : body.steps != null ? Math.min(40, Math.max(15, steps)) : generationRoute.steps;
       const generationOptions = {
         prompt,
         negative_prompt: negative,
         width,
         height,
-        num_inference_steps: profileSteps,
+        num_inference_steps: effectiveSteps,
         guidance_scale: effectiveGuidance,
         flux_guidance: generationRoute.modelFamily === 'flux' ? effectiveGuidance : undefined,
         sampler_name: body.sampler_name ? samplerName : generationRoute.sampler,
@@ -1577,7 +1621,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         seed: seed >= 0 ? seed : undefined,
         input_image: effectiveInputImage,
         denoising_strength: effectiveDenoise,
-        ckpt_name: profileCheckpoint,
+        ckpt_name: effectiveCheckpoint,
         model_family: generationRoute.modelFamily,
         lora_name: effectiveLoras.length ? null : loraSan.lora_name,
         lora_strength_model: effectiveLoras[0]?.strength_model || loraStrength,
