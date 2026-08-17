@@ -1,9 +1,10 @@
 /**
- * Admin API: gen preset catalog CRUD (generation control center, Tab 3).
+ * Admin API: unified gen preset catalog CRUD.
  *
- * GET    /api/admin/gen-presets?category=       → list rows (incl. inactive)
- * POST   /api/admin/gen-presets                 → seed legacy or upsert one
- * PATCH  /api/admin/gen-presets                 → partial update by (category, slug)
+ * GET    /api/admin/gen-presets?category=&preset_group=&unified=1
+ *        → list rows; unified=1 groups by prompt/pose/scene
+ * POST   /api/admin/gen-presets       → seed legacy or upsert one
+ * PATCH  /api/admin/gen-presets       → partial update by (category, slug)
  * DELETE /api/admin/gen-presets?category=&slug= → remove one row
  *
  * POST body: { seed?: true } or a single preset object. Upserts on
@@ -15,6 +16,7 @@ import { requireAdmin } from '@/lib/require-admin';
 import {
   buildLegacyCatalog,
   GEN_PRESET_CATEGORIES,
+  getUnifiedPresets,
   invalidatePresetCache,
   isGenPresetCategory,
   isMissingPresetTableError,
@@ -54,8 +56,21 @@ export async function GET(request: NextRequest) {
   const admin = await requireAdmin(request);
   if ('error' in admin) return admin.error;
 
+  const unified = request.nextUrl.searchParams.get('unified') === '1';
+  if (unified) {
+    // Return all presets grouped by the 3 unified categories.
+    const groups = await getUnifiedPresets(admin.supabase, { includeInactive: true, maxNsfwLevel: 5 });
+    return NextResponse.json({
+      unified: groups,
+      categories: ['prompt', 'pose', 'scene'],
+    });
+  }
+
   const categoryParam = String(
     request.nextUrl.searchParams.get('category') || '',
+  ).toLowerCase();
+  const groupParam = String(
+    request.nextUrl.searchParams.get('preset_group') || '',
   ).toLowerCase();
   const categories: GenPresetCategory[] = isGenPresetCategory(categoryParam)
     ? [categoryParam]
@@ -81,11 +96,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Optional: filter by preset_group
+  const filtered = groupParam
+    ? presets.filter((p) => (p.preset_group || '').toLowerCase() === groupParam)
+    : presets;
+
   // Before the first seed the table is empty — expose the legacy mapping so
   // the admin UI is immediately usable.
   const seeded = presets.length > 0;
   return NextResponse.json({
-    presets: seeded ? presets : buildLegacyCatalog(),
+    presets: seeded ? filtered : buildLegacyCatalog(),
     seeded,
     table_missing: tableMissing,
     categories: GEN_PRESET_CATEGORIES,
@@ -134,6 +154,9 @@ export async function POST(request: NextRequest) {
     gender: sanitizeGender(body.gender) || 'all',
     style_family: sanitizeStyleFamily(body.style_family) || 'realistic',
     pose_reference: body.pose_reference ? String(body.pose_reference).slice(0, 500) : null,
+    // Unified preset library fields (migration 0044).
+    preset_group: body.preset_group != null ? String(body.preset_group).slice(0, 32) : '',
+    extra_params: body.extra_params && typeof body.extra_params === 'object' ? body.extra_params : {},
     updated_at: new Date().toISOString(),
   };
 
@@ -185,6 +208,13 @@ export async function PATCH(request: NextRequest) {
   }
   if (body.pose_reference !== undefined) {
     patch.pose_reference = body.pose_reference ? String(body.pose_reference).slice(0, 500) : null;
+  }
+  // 0044 unified fields.
+  if (body.preset_group !== undefined) {
+    patch.preset_group = body.preset_group != null ? String(body.preset_group).slice(0, 32) : '';
+  }
+  if (body.extra_params !== undefined) {
+    patch.extra_params = body.extra_params && typeof body.extra_params === 'object' ? body.extra_params : {};
   }
 
   const { data, error } = await admin.supabase

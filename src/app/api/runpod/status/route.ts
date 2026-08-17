@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { runpodClient } from '@/lib/runpod';
-import { uploadDataUrl, uploadImageBase64, resolveImageUrl } from '@/lib/storage';
+import { uploadDataUrl, uploadImageAsWebP, uploadImageBase64, resolveImageUrl } from '@/lib/storage';
 import { normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { logger } from '@/lib/logger';
 import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
@@ -321,7 +321,7 @@ export async function GET(req: NextRequest) {
             const dataUrl = base64Data.startsWith('data:')
               ? base64Data
               : `data:image/png;base64,${base64Data}`;
-            const key = await uploadDataUrl(dataUrl, girlfriendId ? `chat_photos/${girlfriendId}` : 'generated-images');
+            const key = await uploadImageAsWebP(dataUrl, girlfriendId ? `chat_photos/${girlfriendId}` : 'generated-images');
             return (await resolveImageUrl(key)) || key;
           } catch (e) {
             logger.error('[runpod/status] upload failed', { error: e });

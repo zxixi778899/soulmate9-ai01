@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { runpodClient } from '@/lib/runpod';
-import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
+import { uploadImageAsWebP, resolveImageUrl } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import {
@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
         if (!base64Data) return { url: '', prompt };
         try {
           const dataUrl = `data:image/png;base64,${base64Data}`;
-          const key = await uploadDataUrl(dataUrl, 'chat-images');
+          const key = await uploadImageAsWebP(dataUrl, 'chat-images');
           const signed = await resolveImageUrl(key);
           // Warm the generation cache with the first successful output.
           if (index === 0 && cacheKey && signed) {

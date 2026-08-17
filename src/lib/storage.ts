@@ -334,6 +334,46 @@ export async function uploadDataUrl(dataUrl: string, prefix = 'girlfriends'): Pr
 }
 
 /**
+ * Upload a generated image, transcoding PNG/JPEG → WebP (quality 85) to cut
+ * storage + bandwidth ~70%. Browsers render WebP natively so no client change
+ * is needed. Falls back to the original buffer if sharp is unavailable.
+ */
+export async function uploadImageAsWebP(
+  dataUrl: string,
+  prefix = 'chat-images',
+): Promise<string> {
+  if (!isDataUrl(dataUrl)) throw new Error('not a data url');
+  const { buffer, contentType, ext } = parseDataUrl(dataUrl);
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+
+  // Only transcode raster stills; leave WEBP/GIF/unknown as-is.
+  const transcodable =
+    contentType === 'image/png' ||
+    contentType === 'image/jpeg' ||
+    contentType === 'image/jpg';
+  let uploadBuffer = buffer;
+  let uploadMime = contentType;
+  let uploadExt = ext;
+  if (transcodable) {
+    try {
+      const sharpMod = await import('sharp');
+      const sharp = sharpMod.default || sharpMod;
+      uploadBuffer = await sharp(buffer).webp({ quality: 85 }).toBuffer();
+      uploadMime = 'image/webp';
+      uploadExt = 'webp';
+    } catch (e) {
+      logger.warn('[storage] webp transcode failed, keeping original', {
+        err: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  const fileName = `${prefix}/avatar_${ts}_${rand}.${uploadExt}`;
+  const { key } = await uploadFile(uploadBuffer, fileName, uploadMime, '');
+  return key;
+}
+
+/**
  * Resolve image value to a browser-usable URL
  */
 export async function resolveImageUrl(value: string | null | undefined): Promise<string> {

@@ -17,13 +17,14 @@ import {
 } from 'lucide-react';
 import ComfyConsole from '../comfy/ComfyConsole';
 import AdminPresetsContent from '@/components/admin/AdminPresetsContent';
+import AdminUnifiedPresetsContent from '@/components/admin/AdminUnifiedPresetsContent';
 import CreatorPreviewsAdminContent from '@/components/admin/CreatorPreviewsAdminContent';
 import AdminAssetsContent from '@/components/admin/AdminAssetsContent';
 import AdminPresetLibraryContent from '@/components/admin/AdminPresetLibraryContent';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
 
-type Section = 'studio' | 'assets' | 'presets' | 'previews' | 'character-presets';
+type Section = 'studio' | 'assets' | 'presets' | 'unified-presets' | 'previews' | 'character-presets';
 
 const SECTIONS: Array<{
   id: Section;
@@ -42,6 +43,12 @@ const SECTIONS: Array<{
     label: '角色预设库',
     icon: Users,
     hint: '立绘 · 稀有度 · 文件夹管理',
+  },
+  {
+    id: 'unified-presets',
+    label: '预设库',
+    icon: SlidersHorizontal,
+    hint: '提示词 · 姿势动作 · 场景',
   },
   {
     id: 'assets',
@@ -72,7 +79,7 @@ function StudioInner(): React.JSX.Element {
   ).trim();
   const sectionParam = searchParams.get('section');
   const section: Section =
-    sectionParam === 'character-presets' || sectionParam === 'assets' || sectionParam === 'presets' || sectionParam === 'previews' ? sectionParam : 'studio';
+    sectionParam === 'character-presets' || sectionParam === 'assets' || sectionParam === 'presets' || sectionParam === 'unified-presets' || sectionParam === 'previews' ? sectionParam : 'studio';
 
   // 头部引擎徽章跟随 SDXL 矩阵总闸（服务端 env 客户端不可见，走 API 下发）。
   const [matrixReady, setMatrixReady] = useState(false);
@@ -115,10 +122,10 @@ function StudioInner(): React.JSX.Element {
 
           <div className="flex flex-wrap gap-1.5">
             <Link
-              href="/admin/studio?section=presets"
+              href="/admin/studio?section=unified-presets"
               className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-white/10"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" /> 预设管理
+              <SlidersHorizontal className="h-3.5 w-3.5" /> 预设库
             </Link>
             <Link
               href="/admin/model-library"
@@ -167,6 +174,7 @@ function StudioInner(): React.JSX.Element {
         {section === 'character-presets' && <AdminPresetLibraryContent embedded />}
         {section === 'assets' && <AdminAssetsContent embedded />}
         {section === 'presets' && <AdminPresetsContent embedded />}
+        {section === 'unified-presets' && <AdminUnifiedPresetsContent embedded />}
         {section === 'previews' && <CreatorPreviewsAdminContent />}
       </div>
     </div>

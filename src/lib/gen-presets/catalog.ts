@@ -1,12 +1,14 @@
 /**
- * Unified generation preset catalog (gen_preset_catalog, migration 0040).
+ * Unified generation preset catalog (gen_preset_catalog, migration 0040/0044).
  *
- * Converges the 7 legacy preset files into one admin-maintained source.
- * The legacy files stay in place as runtime fallbacks: when the table is
- * missing (migration not applied yet) or empty, the legacy mapping serves
- * the same shape so every caller keeps working.
+ * Converges ALL preset systems into one admin-maintained source with 3
+ * unified categories: prompt | pose | scene.
  *
- * Categories: scene | pose | outfit | style | mood
+ * - **prompt**: FLUX/SDXL prompt presets (migrated from site_settings)
+ * - **pose**:   pose / action references
+ * - **scene**:  scene environments + outfits + styles + moods (converged)
+ *
+ * Legacy files stay as runtime fallbacks when the table is missing or empty.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -14,16 +16,29 @@ import { logger } from '@/lib/logger';
 import { PRESET_LIBRARY, PRESET_VIBE_LABELS, type PresetVibe } from '@/lib/preset-library';
 import { ADULT_SCENE_PRESETS } from '@/lib/comfy-console/adult-scene-presets';
 import { GIRLFRIEND_SCENE_RECIPES } from '@/lib/prompt/girlfriend';
+import { DEFAULT_PROMPT_PRESETS } from '@/lib/prompt-presets-store';
 
-export type GenPresetCategory = 'scene' | 'pose' | 'outfit' | 'style' | 'mood';
+export type GenPresetCategory = 'prompt' | 'pose' | 'scene' | 'outfit' | 'style' | 'mood';
+
+/** The 3 main UI categories — outfit/style/mood are legacy sub-groups of scene. */
+export const UNIFIED_PRESET_CATEGORIES = ['prompt', 'pose', 'scene'] as const;
+export type UnifiedPresetCategory = (typeof UNIFIED_PRESET_CATEGORIES)[number];
 
 export const GEN_PRESET_CATEGORIES: readonly GenPresetCategory[] = [
-  'scene',
+  'prompt',
   'pose',
+  'scene',
   'outfit',
   'style',
   'mood',
 ];
+
+/** Map legacy categories into the unified 'scene' bucket for the new UI. */
+export function toUnifiedCategory(cat: string): UnifiedPresetCategory {
+  if (cat === 'prompt') return 'prompt';
+  if (cat === 'pose') return 'pose';
+  return 'scene'; // scene | outfit | style | mood → scene
+}
 
 export function isGenPresetCategory(value: unknown): value is GenPresetCategory {
   return GEN_PRESET_CATEGORIES.includes(value as GenPresetCategory);
@@ -54,6 +69,9 @@ export interface GenPreset {
   style_family?: PresetStyleFamily;
   pose_reference?: string | null;
   workflow_flags?: { face_fix?: boolean; upscale?: number; identity_image?: boolean };
+  // ── Unified preset library fields (migration 0044)
+  preset_group?: string;
+  extra_params?: Record<string, unknown>;
 }
 
 /** Defensive row → GenPreset mapping (missing columns degrade gracefully). */
@@ -81,6 +99,8 @@ export function presetFromRow(row: unknown): GenPreset | null {
     style_family: (['realistic', 'anime', '3d'].includes(r.style_family as string)) ? (r.style_family as PresetStyleFamily) : undefined,
     pose_reference: r.pose_reference != null ? String(r.pose_reference) : null,
     workflow_flags: r.workflow_flags != null && typeof r.workflow_flags === 'object' ? (r.workflow_flags as { face_fix?: boolean; upscale?: number; identity_image?: boolean }) : undefined,
+    preset_group: r.preset_group != null ? String(r.preset_group) : '',
+    extra_params: r.extra_params != null && typeof r.extra_params === 'object' ? (r.extra_params as Record<string, unknown>) : {},
   };
 }
 
@@ -232,6 +252,27 @@ export function buildLegacyCatalog(): GenPreset[] {
     });
   });
 
+  // Prompt presets from DEFAULT_PROMPT_PRESETS (site_settings fallback).
+  DEFAULT_PROMPT_PRESETS.forEach((pp, index) => {
+    push({
+      category: 'prompt',
+      slug: pp.id,
+      label_en: pp.label,
+      label_zh: pp.label,
+      preview_url: null,
+      prompt_fragment: pp.positivePrompt,
+      negative_fragment: pp.negativePrompt || '',
+      lora_hints: [],
+      nsfw_level: 0,
+      tier: 'free',
+      model_family: 'flux',
+      sort_order: index * 10,
+      is_active: true,
+      preset_group: 'flux',
+      extra_params: {},
+    });
+  });
+
   legacyCatalogCache = rows;
   return rows;
 }
@@ -336,6 +377,34 @@ export async function resolveCatalogPromptFragment(
   if (!preset || !preset.is_active) return null;
   if (preset.nsfw_level > maxNsfwLevel) return null;
   return preset;
+}
+
+/** Load ALL presets and group by the 3 unified categories (prompt/pose/scene).
+ *  Legacy categories (outfit/style/mood) are merged into 'scene'. */
+export async function getUnifiedPresets(
+  client: SupabaseClient,
+  options: GetGenPresetsOptions = {},
+): Promise<Record<UnifiedPresetCategory, GenPreset[]>> {
+  const result: Record<UnifiedPresetCategory, GenPreset[]> = {
+    prompt: [],
+    pose: [],
+    scene: [],
+  };
+
+  for (const category of GEN_PRESET_CATEGORIES) {
+    const rows = await loadCategoryRows(client, category, Boolean(options.includeInactive));
+    const maxLevel = Math.min(5, Math.max(0, options.maxNsfwLevel ?? 5));
+    const filtered = rows.filter((r) => r.nsfw_level <= maxLevel);
+    const unified = toUnifiedCategory(category);
+    result[unified].push(...filtered);
+  }
+
+  // Sort each group by sort_order
+  for (const key of Object.keys(result) as UnifiedPresetCategory[]) {
+    result[key].sort((a, b) => a.sort_order - b.sort_order);
+  }
+
+  return result;
 }
 
 // ─────────────────────────── seeding / writes ───────────────────────────
@@ -526,6 +595,9 @@ export async function seedPresetsFromLegacy(
     style_family: preset.model_family === 'illustrious' ? 'anime' : 'realistic',
     pose_reference: null,
     workflow_flags: {},
+    // 0044 unified preset library fields.
+    preset_group: preset.preset_group || '',
+    extra_params: preset.extra_params || {},
     updated_at: new Date().toISOString(),
   }));
 

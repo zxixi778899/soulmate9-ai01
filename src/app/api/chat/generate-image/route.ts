@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { resolveImageUrl, uploadDataUrl } from '@/lib/storage';
+import { resolveImageUrl, uploadImageAsWebP } from '@/lib/storage';
 import { checkRateLimitAsync, rateLimitHeaders } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { loadAiModules, resolveImageCall } from '@/lib/ai-modules';
@@ -684,7 +684,7 @@ export async function POST(request: NextRequest) {
       generatedUrl = firstImage;
     } else {
       const dataUrl = `data:image/png;base64,${firstImage}`;
-      const key = await uploadDataUrl(dataUrl, `chat_photos/${girlfriend_id}`);
+      const key = await uploadImageAsWebP(dataUrl, `chat_photos/${girlfriend_id}`);
       generatedUrl = (await resolveImageUrl(key)) || key;
     }
 

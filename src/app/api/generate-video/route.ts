@@ -7,12 +7,21 @@ import { uploadDataUrl, resolveImageUrl } from '@/lib/storage';
 import { CREDIT_COSTS, deductCredits, grantCredits } from '@/lib/credit-system';
 import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
 import { createGenJob, updateGenJob, updateGenJobStage } from '@/lib/gen-hub';
+import { computeCacheKey, lookupCache, writeCache } from '@/lib/generation-cache';
+import crypto from 'node:crypto';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
 
 const VIDEO_LIMIT = { maxRequests: 6, windowMs: 60 * 60 * 1000 };
+// Daily GPU ceiling: protects cost when users buy extra credits to burn
+// videos. Cache hits do NOT consume this budget (no GPU used). Default 10/day,
+// tunable via VIDEO_DAILY_LIMIT env var.
+const VIDEO_DAILY_LIMIT = {
+  maxRequests: Number(process.env.VIDEO_DAILY_LIMIT) || 10,
+  windowMs: 24 * 60 * 60 * 1000,
+};
 
 type VideoModel = 'svd' | 'wan22';
 
@@ -66,6 +75,55 @@ export function buildVideoWorkerInput(input: {
 }
 
 /**
+ * Fingerprint the source image so identical (image + motion params) reuse a
+ * cached video instead of re-running the GPU. Hashing is O(n) but source
+ * portraits are typically 100–500 KB — negligible vs. a 30–60s GPU job.
+ */
+function fingerprintImagePayload(payload: string): string {
+  return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 16);
+}
+
+/**
+ * Compute a video cache key from the source image fingerprint + motion params.
+ * Reuses the generation_cache infrastructure (kind='video', 7-day TTL).
+ */
+function computeVideoCacheKey(input: {
+  imagePayload: string;
+  model: VideoModel;
+  duration: number;
+  fps: number;
+  numFrames: number;
+  motionBucketId?: number;
+  decodeChunkSize?: number;
+  prompt?: string;
+  negativePrompt?: string;
+}): string {
+  const imageFp = fingerprintImagePayload(input.imagePayload);
+  // Fold all motion-affecting params into the "prompt" slot so the existing
+  // SHA256 canonicalization keys on the full determinism surface.
+  const compositePrompt = [
+    imageFp,
+    `d=${input.duration}`,
+    `fps=${input.fps}`,
+    `nf=${input.numFrames}`,
+    `mbi=${input.motionBucketId ?? ''}`,
+    `dcs=${input.decodeChunkSize ?? ''}`,
+    input.prompt || '',
+  ].join('|');
+  const dims = input.model === 'wan22' ? { w: 832, h: 480 } : { w: 576, h: 1024 };
+  return computeCacheKey({
+    prompt: compositePrompt,
+    negativePrompt: input.negativePrompt,
+    width: dims.w,
+    height: dims.h,
+    steps: 30,
+    guidance: 5,
+    model: input.model,
+    kind: 'video',
+  });
+}
+
+/**
  * POST /api/generate-video
  *
  * Generates a short image-to-video clip. WAN 2.2 is the production route;
@@ -106,6 +164,62 @@ export async function POST(request: NextRequest) {
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
     const negativePrompt = typeof body.negative_prompt === 'string' ? body.negative_prompt.trim() : '';
 
+    // Resolve input image to base64 BEFORE cache check / credit charge so we
+    // can fingerprint the actual pixel content (URL content may drift over time).
+    let imagePayload = inputImage;
+    if (inputImage.startsWith('http')) {
+      try {
+        const imgRes = await fetch(inputImage, { signal: AbortSignal.timeout(15000) });
+        if (imgRes.ok) {
+          const buf = Buffer.from(await imgRes.arrayBuffer());
+          imagePayload = buf.toString('base64');
+        }
+      } catch (e) {
+        logger.warn('[generate-video] failed to fetch input image', { err: e instanceof Error ? e.message : String(e) });
+      }
+    } else if (inputImage.startsWith('data:image/')) {
+      imagePayload = inputImage.replace(/^data:image\/\w+;base64,/, '');
+    }
+
+    // Generation cache: identical (image + motion params) reuses a 7-day-TTL
+    // cached video and skips the GPU entirely. Cache hits are FREE (no credit
+    // charge, no daily GPU budget consumed) — there is zero marginal cost.
+    const videoCacheKey = computeVideoCacheKey({
+      imagePayload,
+      model: videoRoute.model,
+      duration: requestedDuration,
+      fps,
+      numFrames,
+      motionBucketId,
+      decodeChunkSize,
+      prompt,
+      negativePrompt,
+    });
+    const cachedOssKey = await lookupCache(videoCacheKey, 'video');
+    if (cachedOssKey) {
+      const cachedUrl = await resolveImageUrl(cachedOssKey).catch(() => null);
+      if (cachedUrl) {
+        logger.info('[generate-video] cache hit — skipping GPU', { cacheKey: videoCacheKey });
+        return NextResponse.json({
+          video_url: cachedUrl,
+          job_id: null,
+          cached: true,
+          latency_ms: Date.now() - started,
+        });
+      }
+    }
+
+    // Daily GPU ceiling (cost protection): caps real GPU burns per day even
+    // when a user buys extra credits. Checked AFTER cache so free hits don't
+    // consume the budget.
+    const dailyRl = await checkRateLimitAsync(`gen-video-daily:${user.id}`, VIDEO_DAILY_LIMIT);
+    if (!dailyRl.allowed) {
+      return NextResponse.json(
+        { error: 'Daily video generation limit reached. Try again tomorrow.', code: 'daily_limit' },
+        { status: 429, headers: rateLimitHeaders(dailyRl, VIDEO_DAILY_LIMIT) },
+      );
+    }
+
     // Verify the endpoint is configured BEFORE charging — users must never
     // lose credits to a 503 not_configured response.
     const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
@@ -143,22 +257,6 @@ export async function POST(request: NextRequest) {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     };
-
-    // Resolve input image to base64 if URL
-    let imagePayload = inputImage;
-    if (inputImage.startsWith('http')) {
-      try {
-        const imgRes = await fetch(inputImage, { signal: AbortSignal.timeout(15000) });
-        if (imgRes.ok) {
-          const buf = Buffer.from(await imgRes.arrayBuffer());
-          imagePayload = buf.toString('base64');
-        }
-      } catch (e) {
-        logger.warn('[generate-video] failed to fetch input image', { err: e instanceof Error ? e.message : String(e) });
-      }
-    } else if (inputImage.startsWith('data:image/')) {
-      imagePayload = inputImage.replace(/^data:image\/\w+;base64,/, '');
-    }
 
     const workerInput = buildVideoWorkerInput({
       model: videoRoute.model,
@@ -309,16 +407,35 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Video generation completed but no video URL returned' }, { status: 500 });
         }
 
-        // Upload data URLs to storage
+        // Persist the video to object storage so the URL is stable + cacheable.
+        // data: URLs are uploaded directly; http URLs (RunPod-hosted) are
+        // fetched and re-uploaded so they survive RunPod link expiry and can
+        // warm the 7-day video cache for identical future requests.
         let finalUrl = videoUrl;
-        if (videoUrl.startsWith('data:video/')) {
-          try {
-            const folder = girlfriendId ? `chat_videos/${girlfriendId}` : 'chat_videos';
-            const key = await uploadDataUrl(videoUrl, folder);
-            finalUrl = (await resolveImageUrl(key)) || key;
-          } catch (e) {
-            logger.warn('[generate-video] upload failed, using original URL', { err: e instanceof Error ? e.message : String(e) });
+        let persistedOssKey: string | null = null;
+        try {
+          const folder = girlfriendId ? `chat_videos/${girlfriendId}` : 'chat_videos';
+          if (videoUrl.startsWith('data:video/')) {
+            persistedOssKey = await uploadDataUrl(videoUrl, folder);
+          } else if (videoUrl.startsWith('http')) {
+            const vidRes = await fetch(videoUrl, { signal: AbortSignal.timeout(30000) });
+            if (vidRes.ok) {
+              const vidBuf = Buffer.from(await vidRes.arrayBuffer());
+              const dataUrl = `data:video/mp4;base64,${vidBuf.toString('base64')}`;
+              persistedOssKey = await uploadDataUrl(dataUrl, folder);
+            }
           }
+          if (persistedOssKey) {
+            finalUrl = (await resolveImageUrl(persistedOssKey)) || persistedOssKey;
+          }
+        } catch (e) {
+          logger.warn('[generate-video] upload failed, using original URL', { err: e instanceof Error ? e.message : String(e) });
+        }
+
+        // Warm the video cache with the persisted OSS key (best-effort, never
+        // blocks the response).
+        if (persistedOssKey && videoCacheKey) {
+          await writeCache(videoCacheKey, 'video', persistedOssKey).catch(() => {});
         }
 
         // Save to chat_media
