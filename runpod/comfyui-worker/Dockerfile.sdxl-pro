@@ -17,7 +17,11 @@ FROM runpod/worker-comfyui:5.8.6-base
 USER root
 
 # ─── Custom nodes ───────────────────────────────────────────
-RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git \
+# NOTE: Impact-Pack keeps UltralyticsDetectorProvider in its `subpack` git
+# submodule — a shallow clone WITHOUT submodules silently drops FaceDetailer's
+# detector provider, so --recurse-submodules is mandatory.
+RUN git clone --depth 1 --recurse-submodules --shallow-submodules \
+      https://github.com/ltdrdata/ComfyUI-Impact-Pack.git \
       /comfyui/custom_nodes/ComfyUI-Impact-Pack \
     && git clone --depth 1 https://github.com/Fannovel16/comfyui_controlnet_aux.git \
       /comfyui/custom_nodes/comfyui_controlnet_aux \
@@ -25,7 +29,7 @@ RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git \
       /comfyui/custom_nodes/ComfyUI_IPAdapter_plus \
     && git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Manager.git \
       /comfyui/custom_nodes/ComfyUI-Manager \
-    && for node in ComfyUI-Impact-Pack comfyui_controlnet_aux ComfyUI_IPAdapter_plus ComfyUI-Manager; do \
+    && for node in ComfyUI-Impact-Pack ComfyUI-Impact-Pack/subpack comfyui_controlnet_aux ComfyUI_IPAdapter_plus ComfyUI-Manager; do \
          if [ -f "/comfyui/custom_nodes/$node/requirements.txt" ]; then \
            python -m pip install --no-cache-dir \
              -r "/comfyui/custom_nodes/$node/requirements.txt"; \
@@ -37,10 +41,14 @@ RUN git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git \
 
 # Build-time smoke test: starting ComfyUI imports every custom node module, so
 # an import-breaking dependency fails HERE instead of on a live worker.
-# Guarded: older ComfyUI builds without --quick-test-for-ci skip it.
-RUN cd /comfyui && { python main.py --help 2>&1 | grep -q quick-test-for-ci; } \
-    && timeout 300 python main.py --quick-test-for-ci --cpu \
-    || echo "sdxl-pro: smoke test skipped or passed"
+# The guard only skips when the ComfyUI build predates --quick-test-for-ci;
+# any real failure (non-zero exit) aborts the build.
+RUN cd /comfyui \
+    && if python main.py --help 2>&1 | grep -q quick-test-for-ci; then \
+         timeout 300 python main.py --quick-test-for-ci --cpu; \
+       else \
+         echo "sdxl-pro: quick-test-for-ci unavailable, skipping smoke test"; \
+       fi
 
 # ─── Runtime model links ────────────────────────────────────
 # /runpod-volume is only mounted at container start, so volume symlinks must be

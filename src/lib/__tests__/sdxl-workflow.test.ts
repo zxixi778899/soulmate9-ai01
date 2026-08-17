@@ -123,7 +123,7 @@ describe('enhance blocks', () => {
     expect(inputsOf(ctx.graph, '50')).toMatchObject({
       image: ['6', 0],
       denoise: 0.4,
-      feather_mask: 5,
+      feather: 5,
       seed: 8,
       bbox_detector: ['51', 0],
     });
@@ -133,7 +133,7 @@ describe('enhance blocks', () => {
   it('applyHiresUpscale chains 4x-UltraSharp with an optional refine pass', () => {
     const ctx = buildSdxlWorkflow({ prompt: 'x', width: 832, height: 1216 });
     applyHiresUpscale(ctx, { factor: 2 });
-    expect(inputsOf(ctx.graph, '60')).toMatchObject({ upscale_model: '4x-UltraSharp.pth' });
+    expect(inputsOf(ctx.graph, '60')).toMatchObject({ model_name: '4x-UltraSharp.pth' });
     expect(inputsOf(ctx.graph, '62').megapixels).toBeCloseTo(4.06, 1);
     expect(ctx.graph['64']).toBeUndefined();
     expect(inputsOf(ctx.graph, '7')).toMatchObject({ images: ['62', 0] });

@@ -124,21 +124,24 @@ export function applyFaceDetailer(
       sampler_name: ctx.sampler,
       scheduler: ctx.scheduler,
       denoise,
-      feather_mask: opts?.feather ?? 5,
+      feather: opts?.feather ?? 5,
       noise_mask: true,
       force_inpaint: true,
-      wildcard_opt: '',
+      wildcard: '',
       guide_size: 512,
       guide_size_for: true,
       max_size: 1024,
       bbox_threshold: 0.5,
       bbox_dilation: 0,
       bbox_crop_factor: 3,
-      sam_detection_hint: 'center',
+      sam_detection_hint: 'center-1',
       sam_dilation: 0,
       sam_threshold: 0.93,
-      sam_expansion: 0.5,
-      segs_pivot: 'center',
+      sam_bbox_expansion: 0,
+      sam_mask_hint_threshold: 0.7,
+      sam_mask_hint_use_negative: 'False',
+      drop_size: 10,
+      cycle: 1,
     },
   };
 
@@ -164,7 +167,7 @@ export function applyHiresUpscale(
 
   ctx.graph['60'] = {
     class_type: 'UpscaleModelLoader',
-    inputs: { upscale_model: envModel('RUNPOD_UPSCALE_MODEL', '4x-UltraSharp.pth') },
+    inputs: { model_name: envModel('RUNPOD_UPSCALE_MODEL', '4x-UltraSharp.pth') },
   };
   ctx.graph['61'] = {
     class_type: 'ImageUpscaleWithModel',
