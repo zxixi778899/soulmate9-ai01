@@ -1,0 +1,27 @@
+# Dependencies (Vercel installs from lockfile)
+node_modules
+.pnpm-store
+
+# Build output (Vercel builds remotely)
+.next
+
+# LoRA model files (too large for Vercel, live on RunPod volume)
+loras
+
+# IDE / local tooling
+.claude
+.qoder
+
+# Temp & scratch files at project root
+_tmp_*
+_tmp*
+
+# Large model files
+*.safetensors
+
+# Infra / Docker (not needed at runtime)
+infra
+runpod
+Dockerfile
+Dockerfile.dev
+docker-compose.yml
