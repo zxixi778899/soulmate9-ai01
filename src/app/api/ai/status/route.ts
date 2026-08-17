@@ -1,1 +1,1 @@
-export { GET } from '@/app/api/runpod/status/handler';
+export { GET } from '@/lib/runpod-status-handler';
