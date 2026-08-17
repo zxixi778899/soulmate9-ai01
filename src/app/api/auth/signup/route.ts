@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { rateLimitMiddleware, RATE_LIMITS } from '@/lib/rate-limit';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
+import { readLeadSourceFromRequest } from '@/lib/lead-source';
+import { sendCapiEvent } from '@/lib/meta-capi';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.COZE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY;
@@ -30,6 +32,9 @@ export async function POST(request: Request) {
       );
     }
 
+    // 投流归因：middleware 写入的 lead_src Cookie（A 站 subid / utm / fbclid）
+    const leadSource = readLeadSourceFromRequest(request);
+
     // Call Supabase Auth REST API directly (bypass GoTrueClient)
     const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
       method: 'POST',
@@ -40,7 +45,10 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         email,
         password,
-        data: { username: username || email.split('@')[0] },
+        data: {
+          username: username || email.split('@')[0],
+          ...(leadSource ? { lead_source: leadSource } : {}),
+        },
       }),
     });
 
@@ -73,13 +81,32 @@ export async function POST(request: Request) {
       });
     }
 
-    // Return session + set newbie trial
+    // Return session + set newbie trial + 归因落库
     const profileClient = getSupabaseClient();
     const newbieExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour from now
+    const profileUpdate: Record<string, unknown> = { newbie_expires_at: newbieExpiresAt };
+    if (leadSource) profileUpdate.lead_source = leadSource;
     await profileClient
       .from('profiles')
-      .update({ newbie_expires_at: newbieExpiresAt })
+      .update(profileUpdate)
       .eq('user_id', sessionData.user.id);
+
+    // 服务端 CAPI：注册即 Lead（fire-and-forget，失败不影响注册）
+    void sendCapiEvent({
+      eventName: 'CompleteRegistration',
+      subid: leadSource?.subid,
+      fbclid: leadSource?.fbclid,
+      email,
+      clientIp: ip,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+      landingUrl: request.headers.get('referer') ?? undefined,
+    });
+
+    if (leadSource) {
+      logger.info('[AUTH:SIGNUP] lead attributed', {
+        data: { user_id: sessionData.user.id, lead: leadSource },
+      });
+    }
 
     return NextResponse.json({
       access_token: sessionData.access_token,
