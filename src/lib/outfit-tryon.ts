@@ -162,6 +162,7 @@ export async function tryOnOutfit(input: TryOnInput): Promise<TryOnResult> {
       animeRenderStyle: gf.anime_render_style,
       visualStyle: gf.visual_style,
       appearanceStyle: gf.appearance_style,
+      tags: gf.tags,
     }),
     nsfwIntensity: 2,
   });

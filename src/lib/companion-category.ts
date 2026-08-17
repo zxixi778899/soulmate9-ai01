@@ -90,9 +90,24 @@ export function normalizeCompanionRenderStyle(input: {
   animeRenderStyle?: unknown;
   visualStyle?: unknown;
   appearanceStyle?: unknown;
+  /** Tag array from girlfriend row — used as last-resort 2D/anime signal. */
+  tags?: unknown;
 }): CompanionRenderStyle {
-  return exactStyle(input.renderStyle)
+  const explicit =
+    exactStyle(input.renderStyle)
     || exactStyle(input.animeRenderStyle)
     || exactStyle(input.visualStyle)
-    || exactStyle(input.appearanceStyle)
-    || 'realistic';}
+    || exactStyle(input.appearanceStyle);
+  if (explicit) return explicit;
+
+  // ── Tag-based fallback: anime / 2d / manga tags → 2D ──
+  if (Array.isArray(input.tags)) {
+    const animeTags = ['anime', '2d', 'manga', 'cel-shaded', 'celshaded', 'illustration', 'cartoon'];
+    const hasAnimeTag = input.tags.some((tag) =>
+      animeTags.includes(String(tag).trim().toLowerCase()),
+    );
+    if (hasAnimeTag) return '2d';
+  }
+
+  return 'realistic';
+}

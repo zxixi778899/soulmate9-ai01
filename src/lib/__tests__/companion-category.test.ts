@@ -14,6 +14,17 @@ describe('companion categories', () => {
     expect(normalizeCompanionRenderStyle({ renderStyle: 'realistic', appearanceStyle: 'anime' })).toBe('realistic');
   });
 
+  it('falls back to tag-based anime detection when no explicit style is set', () => {
+    expect(normalizeCompanionRenderStyle({ tags: ['anime', 'female'] })).toBe('2d');
+    expect(normalizeCompanionRenderStyle({ tags: ['2d'] })).toBe('2d');
+    expect(normalizeCompanionRenderStyle({ tags: ['manga'] })).toBe('2d');
+    expect(normalizeCompanionRenderStyle({ tags: ['realistic', 'photoreal'] })).toBe('realistic');
+    expect(normalizeCompanionRenderStyle({ tags: ['female'] })).toBe('realistic');
+    // Explicit style wins over tags
+    expect(normalizeCompanionRenderStyle({ renderStyle: 'realistic', tags: ['anime'] })).toBe('realistic');
+    expect(normalizeCompanionRenderStyle({ animeRenderStyle: '3d', tags: ['anime'] })).toBe('3d');
+  });
+
   it('detects transgender and male rows', () => {
     expect(normalizeCompanionCategory({ gender: 'Transgender' })).toBe('transgender');
     expect(normalizeCompanionCategory({ gender: 'Male' })).toBe('male');

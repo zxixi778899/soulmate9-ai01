@@ -325,6 +325,7 @@ export async function POST(request: NextRequest) {
       visualStyle: body.visual_style,
       renderStyle: body.render_style,
       animeRenderStyle: body.anime_render_style,
+      tags: body.tags,
     });
     // 捏脸系统取消 NSFW 锁定：支持 1-5 全部级别（默认 1 = SFW，传 nsfw_level/intensity 可生成任意级别）
     const nsfwLevel = Math.max(1, Math.min(5, Math.round(Number(body.nsfw_level ?? body.intensity) || 1)));

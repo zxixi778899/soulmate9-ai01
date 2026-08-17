@@ -119,6 +119,7 @@ async function generateMilestonePortrait(
     animeRenderStyle: rec.anime_render_style,
     visualStyle: rec.visual_style,
     appearanceStyle: rec.appearance_style,
+    tags: rec.tags,
   });
   const route = resolveImageGenerationRoute({
     surface: 'companion',

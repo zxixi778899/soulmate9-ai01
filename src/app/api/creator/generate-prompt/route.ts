@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
       visualStyle,
       renderStyle: body.render_style,
       animeRenderStyle: body.anime_render_style,
+      tags: body.tags,
     });
 
     const config = await loadComfyConfig();

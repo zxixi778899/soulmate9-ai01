@@ -346,6 +346,16 @@ export async function POST(request: NextRequest) {
       animeRenderStyle: gfRecord.anime_render_style || metadata.anime_render_style,
       visualStyle: gfRecord.visual_style || metadata.visual_style || cardAppearance.render_style,
       appearanceStyle: gfRecord.appearance_style,
+      tags: gfRecord.tags,
+    });
+    logger.info('[Chat Generate Image] resolved render style', {
+      girlfriendId: girlfriend_id,
+      animeStyle,
+      rawRenderStyle: gfRecord.render_style || null,
+      rawAnimeRenderStyle: gfRecord.anime_render_style || null,
+      rawVisualStyle: gfRecord.visual_style || null,
+      rawAppearanceStyle: gfRecord.appearance_style || null,
+      tags: Array.isArray(gfRecord.tags) ? gfRecord.tags.slice(0, 10) : null,
     });
     const sceneSemantics = classifyImageScene(
       [userRequest, ...chatContext.map((message) => message.content), poseTag, envTag].filter(Boolean).join(' '),
