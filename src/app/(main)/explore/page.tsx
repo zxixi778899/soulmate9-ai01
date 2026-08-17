@@ -399,7 +399,7 @@ export default function ExplorePage() {
             {addedCompanion.portrait && (
               <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-purple-500/50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={toAvatarPreviewUrl(addedCompanion.portrait, 128)} alt="" className="h-full w-full object-contain" />
+                <img src={toAvatarPreviewUrl(addedCompanion.portrait, 128)} alt="" className="h-full w-full object-cover object-top" />
               </div>
             )}
             <h3 className="text-lg font-bold text-white mb-1">{t('explore.addedToFriends', { name: addedCompanion.name })}</h3>

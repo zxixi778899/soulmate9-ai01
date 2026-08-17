@@ -110,7 +110,7 @@ export default function VoicePage() {
                   {c.avatar_url ? (
                     <div className="shrink-0 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]">
                       {/* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */}
-                      <img src={c.avatar_url} alt={c.name} className="h-12 w-12 rounded-full object-contain" />
+                      <img src={c.avatar_url} alt={c.name} className="h-12 w-12 rounded-full object-cover object-top" />
                     </div>
                   ) : (
                     <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center">

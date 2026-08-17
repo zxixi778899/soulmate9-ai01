@@ -112,7 +112,7 @@ export function LeaderboardRail() {
                       src={e.avatar}
                       alt={e.name}
                       loading="lazy"
-                      className="h-[84px] w-[84px] sm:h-[92px] sm:w-[92px] rounded-full object-contain"
+                      className="h-[84px] w-[84px] sm:h-[92px] sm:w-[92px] rounded-full object-cover object-top"
                     />
                   ) : (
                     <div className="h-[84px] w-[84px] sm:h-[92px] sm:w-[92px] rounded-full bg-gradient-to-br from-[#FF2D78]/40 to-[#8b5cf6]/40 flex items-center justify-center">

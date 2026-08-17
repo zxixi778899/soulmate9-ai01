@@ -292,7 +292,7 @@ export default function AdminLeaderboardPage() {
                   {p.avatar ? (
                     <div className="shrink-0 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.avatar} alt="" className="h-7 w-7 rounded-full object-contain" />
+                      <img src={p.avatar} alt="" className="h-7 w-7 rounded-full object-cover object-top" />
                     </div>
                   ) : (
                     <div className="h-7 w-7 rounded-full bg-slate-700 shrink-0" />
@@ -325,7 +325,7 @@ export default function AdminLeaderboardPage() {
                 {e.avatar_url ? (
                   <div className="shrink-0 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={e.avatar_url} alt="" className="h-12 w-12 rounded-full object-contain" />
+                    <img src={e.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover object-top" />
                   </div>
                 ) : (
                   <div className="h-12 w-12 rounded-full bg-gradient-to-br from-pink-600/50 to-purple-600/50 flex items-center justify-center text-white font-bold shrink-0">
@@ -507,7 +507,7 @@ export default function AdminLeaderboardPage() {
                           <img
                             src={(c.portrait_url || c.avatar_url) as string}
                             alt=""
-                            className="h-8 w-8 rounded-full object-contain shrink-0"
+                            className="h-8 w-8 rounded-full object-cover object-top shrink-0"
                           />
                         ) : (
                           <div className="h-8 w-8 rounded-full bg-slate-700 shrink-0" />

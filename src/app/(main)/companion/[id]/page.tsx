@@ -319,7 +319,7 @@ export default function CompanionProfilePage() {
                   src={avatar}
                   size="thumb"
                   alt={name}
-                  className="h-full w-full rounded-full object-contain"
+                  className="h-full w-full rounded-full object-cover object-top"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center rounded-full bg-[#1a1024]">

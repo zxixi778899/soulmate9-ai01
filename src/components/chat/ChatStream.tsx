@@ -451,7 +451,7 @@ function ChatStreamInner(props: {
               {girlfriend?.avatar_url && (
                 <div className="shrink-0 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={girlfriend.avatar_url} alt="" className="h-6 w-6 rounded-full object-contain" />
+                  <img src={girlfriend.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover object-top" />
                 </div>
               )}
               <div className="flex gap-1 rounded-2xl bg-white/[0.06] backdrop-blur-sm px-4 py-3 border border-white/[0.08]">

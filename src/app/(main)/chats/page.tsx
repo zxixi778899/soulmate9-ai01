@@ -196,7 +196,7 @@ function FriendRow({ friend, lastMsg, score, selected, deleting, submitting, tic
           {/* 会话列表头像：全站标准金→粉→紫渐变环 + 1:1 圆形裁切，立绘图源 object-top 保头部，视网膜档 224px */}
           <Avatar className="h-14 w-14 shadow-[0_0_16px_rgba(255,45,120,0.28)]">
             {friend.avatar_url
-              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 224)} alt={friend.name} className="object-top" />
+              ? <AvatarImage src={toAvatarPreviewUrl(friend.avatar_url, 224)} alt={friend.name} />
               : <AvatarFallback className="bg-gradient-to-br from-[#ff2e88]/40 to-[#c026d3]/30 text-[#ff6ba6] font-bold">{friend.name?.charAt(0) || '?'}</AvatarFallback>}
           </Avatar>
           <span className="absolute -bottom-0.5 -right-0.5 text-sm drop-shadow" title={mood.label}>{mood.emoji}</span>

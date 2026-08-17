@@ -673,7 +673,7 @@ export default function HomePage() {
               >
                 <span className="relative block h-16 w-16 rounded-full p-[2px] bg-gradient-to-br from-[#ff2e88] to-[#c026d3] shadow-[0_0_14px_rgba(255,46,136,0.35)] transition-transform group-active:scale-95">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={g.avatar || g.portrait} alt="" className="h-full w-full rounded-full object-cover ring-2 ring-[#0a0712]" loading="lazy" decoding="async" draggable={false} />
+                  <img src={g.avatar || g.portrait} alt="" className="h-full w-full rounded-full object-cover object-top ring-2 ring-[#0a0712]" loading="lazy" decoding="async" draggable={false} />
                   <span className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-[#0a0712]" />
                 </span>
                 <span className="w-full truncate text-center text-[11px] text-white/75">{g.name}</span>
@@ -1001,7 +1001,7 @@ export default function HomePage() {
             {addedCompanion.portrait && (
               <div className="w-16 h-16 mx-auto mb-3 rounded-full p-[2.5px] bg-gradient-to-br from-[#ffd700] via-[#ff2e88] to-[#c026d3]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={addedCompanion.portrait} alt="" className="h-full w-full rounded-full object-contain" />
+                <img src={addedCompanion.portrait} alt="" className="h-full w-full rounded-full object-cover object-top" />
               </div>
             )}
             <h3 className="text-lg font-bold text-white mb-1">{t('explore.addedToFriends', { name: addedCompanion.name })}</h3>
