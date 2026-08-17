@@ -87,3 +87,11 @@ _tmp_16_*
 vercel-env-out.txt
 _tmp_db_probe.mjs
 _tmp_apply_0036.mjs
+
+# debug screenshots & temp files
+_tmp_*
+verify-*.png
+cms-test-*.png
+
+# downloaded model binaries
+loras/
