@@ -122,7 +122,7 @@ export const INITIAL_STATE: StudioState = {
   imageCount: 1,
   fastPreview: true,
   selectedLoras: [],
-  assetRole: 'scene',
+  assetRole: 'avatar-closeup',
   generating: false,
   generationStage: 'idle',
   lastResult: [],
