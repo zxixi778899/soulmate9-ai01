@@ -113,6 +113,8 @@ export function PromptPresets() {
   const [newLabel, setNewLabel] = useState('');
   const [newValue, setNewValue] = useState('');
   const [newNsfw, setNewNsfw] = useState<number[]>([1, 2, 3, 4, 5]);
+  // Track applied preset per category so same-category selects REPLACE rather than append
+  const [appliedByCategory, setAppliedByCategory] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setCustomPresets(loadCustomPresets());
@@ -141,11 +143,47 @@ export function PromptPresets() {
     });
   }, [allPresets, activeCategory, currentNsfw]);
 
+  // Determine which category a preset belongs to
+  const getPresetCategory = (preset: PresetItem): string => {
+    if (preset.id.startsWith('st-')) return 'style';
+    if (preset.id.startsWith('f-')) return 'framing';
+    if (preset.id.startsWith('c-')) return 'camera';
+    if (preset.id.startsWith('s-')) return 'scene';
+    if (preset.id.startsWith('p-')) return 'pose';
+    if (preset.id.startsWith('l-')) return 'lighting';
+    return 'custom';
+  };
+
   const applyPreset = useCallback((preset: PresetItem) => {
+    const cat = getPresetCategory(preset);
     const current = state.prompt.trim();
-    const separator = current && !current.endsWith(', ') && !current.endsWith(',') ? ', ' : current ? ' ' : '';
-    dispatch({ type: 'SET_PROMPT', text: current + separator + preset.value });
-  }, [state.prompt, dispatch]);
+    const oldValue = appliedByCategory[cat];
+
+    let newPrompt: string;
+    if (oldValue && current.includes(oldValue)) {
+      // Replace: remove old value from same category, then append new
+      newPrompt = current
+        .replace(new RegExp(',?\\s*' + oldValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '')
+        .replace(new RegExp(oldValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*,?', 'i'), '')
+        .trim()
+        .replace(/,\s*$/, '');
+    } else {
+      newPrompt = current;
+    }
+
+    // Append new value
+    const separator = newPrompt && !newPrompt.endsWith(', ') && !newPrompt.endsWith(',') ? ', ' : newPrompt ? ' ' : '';
+    newPrompt = newPrompt + separator + preset.value;
+
+    dispatch({ type: 'SET_PROMPT', text: newPrompt });
+    setAppliedByCategory((prev) => ({ ...prev, [cat]: preset.value }));
+  }, [state.prompt, dispatch, appliedByCategory]);
+
+  // Check if a preset is currently the active one in its category
+  const isActive = (preset: PresetItem): boolean => {
+    const cat = getPresetCategory(preset);
+    return appliedByCategory[cat] === preset.value;
+  };
 
   const deletePreset = useCallback((preset: PresetItem) => {
     if (!preset.custom) return; // can only delete custom presets
@@ -235,7 +273,12 @@ export function PromptPresets() {
               <button
                 key={preset.id}
                 onClick={() => applyPreset(preset)}
-                className="group relative rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-slate-300 transition hover:border-violet-500/30 hover:bg-violet-500/10 hover:text-white"
+                className={cn(
+                  'group relative rounded-md border px-2 py-1 text-[10px] transition',
+                  isActive(preset)
+                    ? 'border-violet-500/40 bg-violet-500/15 text-violet-200 font-semibold'
+                    : 'border-white/10 bg-white/[0.04] text-slate-300 hover:border-violet-500/30 hover:bg-violet-500/10 hover:text-white',
+                )}
               >
                 {preset.label}
                 {/* Delete button for custom presets */}
