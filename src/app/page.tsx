@@ -42,7 +42,7 @@ import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
 import { useAuth } from '@/components/AuthProvider';
 import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
-import { useSiteSettings, useSiteAds } from '@/hooks/useSiteSettings';
+import { useSiteSettings, useSiteAds, useSiteCopy } from '@/hooks/useSiteSettings';
 import { useGridPreviewSize } from '@/hooks/useGridPreviewSize';
 import { HomeAdBanners } from '@/components/ads/HomeAdBanners';
 import { HomeLayoutAdmin } from '@/components/home/HomeLayoutAdmin';
@@ -265,6 +265,7 @@ export default function HomePage() {
   const { user } = useAuth();
   const friendStatus = useFriendStatus();
   const { settings: siteSettings } = useSiteSettings();
+  const { copyOr } = useSiteCopy();
   const { ads: bannerAds } = useSiteAds('banner');
   const gridPreviewSize = useGridPreviewSize();
   // 管理员板块布局（顺序/显隐/图片覆盖）：公开配置 + 管理面板实时覆盖
@@ -627,16 +628,16 @@ export default function HomePage() {
           </div>
           {user ? (
             <h1 className="text-xl sm:text-4xl font-black tracking-tight leading-tight">
-              {t('home.chooseYour')}
+              {copyOr('heroTitleLead', t('home.chooseYour'))}
               <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
-                {' '}{t('home.obsession')}
+                {' '}{copyOr('heroTitleRest', t('home.obsession'))}
               </span>
             </h1>
           ) : (
             <h1 className="text-xl sm:text-3xl font-black tracking-tight leading-tight">
-              {t('home.heroTaglineLead')}
+              {copyOr('heroTaglineLead', t('home.heroTaglineLead'))}
               <span className="bg-gradient-to-r from-[#ff6ba6] via-[#ff2e88] to-[#c026d3] bg-clip-text text-transparent">
-                {' — '}{t('home.heroTaglineRest')}
+                {' — '}{copyOr('heroTaglineRest', t('home.heroTaglineRest'))}
               </span>
             </h1>
           )}
@@ -660,7 +661,7 @@ export default function HomePage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ff2e88] opacity-60" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-[#ff2e88]" />
             </span>
-            <span className="text-xs font-bold tracking-wide text-white/70">{t('home.liveNow')}</span>
+            <span className="text-xs font-bold tracking-wide text-white/70">{copyOr('liveTitle', t('home.liveNow'))}</span>
           </div>
           <div className="flex gap-3.5 overflow-x-auto pb-2 scrollbar-hide">
             {liveGirls.map((g) => (
@@ -688,8 +689,8 @@ export default function HomePage() {
         {!user && (
           <div className="flex items-center gap-3 rounded-2xl border border-[#ff2e88]/30 bg-gradient-to-r from-[#FF2D78]/[0.16] via-transparent to-[#C026D3]/[0.16] px-4 py-3">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold truncate">{t('home.guestTitle')}</p>
-              <p className="text-[11px] text-white/50 truncate">{t('home.guestCta')}</p>
+              <p className="text-sm font-bold truncate">{copyOr('guestTitle', t('home.guestTitle'))}</p>
+              <p className="text-[11px] text-white/50 truncate">{copyOr('guestCta', t('home.guestCta'))}</p>
             </div>
             <button
               type="button"
@@ -729,7 +730,7 @@ export default function HomePage() {
             <div className="game-chip mb-1">
               <Flame className="h-3 w-3" /> HOT
             </div>
-            <h3 className="text-xl sm:text-2xl font-black">{t('home.hotTitle')}</h3>
+            <h3 className="text-xl sm:text-2xl font-black">{copyOr('hotTitle', t('home.hotTitle'))}</h3>
             <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5">
@@ -784,7 +785,7 @@ export default function HomePage() {
         <section>
           <div className="flex flex-col items-center text-center mb-3">
             <div className="game-chip mb-1">HUB · 2 ROWS</div>
-            <h3 className="text-xl sm:text-2xl font-black">{t('home.modulesTitle')}</h3>
+            <h3 className="text-xl sm:text-2xl font-black">{copyOr('modulesTitle', t('home.modulesTitle'))}</h3>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
             {modules.map((m) => {
@@ -834,7 +835,7 @@ export default function HomePage() {
             badgeClass="text-[#ffd700]"
             icon={<Coins className="h-5 w-5 text-black" />}
             iconBg="from-[#ffd700] to-[#f59e0b]"
-            title={locale === 'en' ? (siteSettings?.recharge_banner_title || t('home.promoTopup')) : t('home.promoTopup')}
+            title={copyOr('promoTopupTitle', locale === 'en' ? (siteSettings?.recharge_banner_title || t('home.promoTopup')) : t('home.promoTopup'))}
             desc={locale === 'en' ? (siteSettings?.recharge_banner_desc || t('home.promoTopupDesc')) : t('home.promoTopupDesc')}
             glow="from-amber-500/20"
           />
@@ -844,7 +845,7 @@ export default function HomePage() {
             badgeClass="text-[#ff6ba6]"
             icon={<Trophy className="h-5 w-5 text-white" />}
             iconBg="from-[#ff2e88] to-[#c026d3]"
-            title={locale === 'en' ? (siteSettings?.achievement_banner_title || t('home.promoQuest')) : t('home.promoQuest')}
+            title={copyOr('promoQuestTitle', locale === 'en' ? (siteSettings?.achievement_banner_title || t('home.promoQuest')) : t('home.promoQuest'))}
             desc={locale === 'en' ? (siteSettings?.achievement_banner_desc || t('home.promoQuestDesc')) : t('home.promoQuestDesc')}
             glow="from-[#ff2e88]/20"
           />

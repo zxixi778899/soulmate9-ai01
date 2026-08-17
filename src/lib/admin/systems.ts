@@ -75,6 +75,8 @@ export const ADMIN_SYSTEMS: readonly AdminSystemDefinition[] = [
       { label: '页面管理', href: '/admin/pages' },
       { label: '站点设置', href: '/admin/settings' },
       { label: '广告位', href: '/admin/ads' },
+      { label: '文案管理', href: '/admin/copywriting' },
+      { label: '图片资源库', href: '/admin/site-assets' },
     ],
   },
 ] as const;

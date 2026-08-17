@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { readResponseJson } from '@/lib/safe-json';
 import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
+import { useSiteCopy } from '@/hooks/useSiteSettings';
 
 interface RankEntry {
   kind: 'user' | 'virtual';
@@ -42,6 +43,7 @@ function formatCount(n: number): string {
 export function LeaderboardRail() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { copyOr } = useSiteCopy();
   const [entries, setEntries] = useState<RankEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -77,7 +79,7 @@ export function LeaderboardRail() {
           <Trophy className="h-3 w-3" /> {t('community.rankingTop15')}
         </div>
         <h3 className="text-xl sm:text-2xl font-black">
-          {t('community.topCreatorRanking')}
+          {copyOr('leaderboardTitle', t('community.topCreatorRanking'))}
         </h3>
         <p className="text-[11px] text-white/40 mt-0.5">
           {t('community.rankingDesc')}

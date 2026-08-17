@@ -102,7 +102,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: '/admin/homepage',
         icon: Settings,
         hint: '页面、导航、广告和全站配置',
-        aliases: ['/admin/pages', '/admin/navigation', '/admin/ads', '/admin/settings'],
+        aliases: ['/admin/pages', '/admin/navigation', '/admin/ads', '/admin/settings', '/admin/copywriting', '/admin/site-assets'],
       },
     ],
   },

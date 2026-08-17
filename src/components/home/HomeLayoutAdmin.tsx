@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import {
   LayoutGrid, X, GripVertical, Eye, EyeOff, Image as ImageIcon,
-  Trash2, RotateCcw, Loader2, ChevronUp, ChevronDown,
+  Trash2, RotateCcw, Loader2, ChevronUp, ChevronDown, Type, FolderOpen, Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authedFetch } from '@/lib/supabase';
@@ -20,12 +20,32 @@ import { useTranslation } from '@/lib/i18n/context';
 import type { TranslationKey } from '@/lib/i18n/types';
 import { cn } from '@/lib/utils';
 import type { HomeLayoutConfig, HomeSectionConfig, HomeSectionId } from '@/lib/home-layout-store';
+import type { CopyKey } from '@/lib/copy-store';
+import { COPY_META } from '@/lib/copy-store';
+import type { AssetItem } from '@/lib/asset-library-store';
+import { invalidateSettingsCache } from '@/hooks/useSiteSettings';
 
 const IMAGE_SECTIONS: readonly HomeSectionId[] = ['adsBanner', 'hero', 'promo'];
+
+/** Section → editable site-copy keys (hero owns four fields). */
+const SECTION_COPY_KEYS: Partial<Record<HomeSectionId, CopyKey[]>> = {
+  hero: ['heroTitleLead', 'heroTitleRest', 'heroTaglineLead', 'heroTaglineRest'],
+  announcement: [],
+  liveRail: ['liveTitle'],
+  guestStrip: ['guestTitle', 'guestCta'],
+  hotGrid: ['hotTitle'],
+  leaderboard: ['leaderboardTitle'],
+  modules: ['modulesTitle'],
+  promo: ['promoTopupTitle', 'promoQuestTitle'],
+};
 
 interface LayoutResponse {
   layout?: HomeLayoutConfig;
   image?: string;
+}
+
+interface CopyResponse {
+  copy?: Partial<Record<CopyKey, string>>;
 }
 
 export function HomeLayoutAdmin({
@@ -43,6 +63,14 @@ export function HomeLayoutAdmin({
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<HomeSectionId | null>(null);
+  // In-place copy editing state
+  const [copyKey, setCopyKey] = useState<CopyKey | null>(null);
+  const [copyDrafts, setCopyDrafts] = useState<Record<string, string>>({});
+  const [copySaved, setCopySaved] = useState<Record<string, string>>({});
+  // Asset library picker state
+  const [pickerTarget, setPickerTarget] = useState<HomeSectionId | null>(null);
+  const [assets, setAssets] = useState<AssetItem[]>([]);
+  const [assetsLoading, setAssetsLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -186,6 +214,140 @@ export function HomeLayoutAdmin({
     }
   }, [applyLayout, t]);
 
+  // ── In-place copy editing ────────────────────────────
+  const openCopyEditor = useCallback(async (id: HomeSectionId) => {
+    const keys = SECTION_COPY_KEYS[id] || [];
+    if (!keys.length) return;
+    setBusy(`copy:${id}`);
+    try {
+      const res = await authedFetch('/api/admin/copy');
+      const data = await readResponseJson<CopyResponse>(res);
+      if (!res.ok) throw new Error((data as unknown as { error?: string })?.error || 'load failed');
+      const copy = data.copy || {};
+      const drafts: Record<string, string> = {};
+      const saved: Record<string, string> = {};
+      for (const k of keys) {
+        drafts[k] = copy[k] || '';
+        saved[k] = copy[k] || '';
+      }
+      setCopyDrafts(drafts);
+      setCopySaved(saved);
+      setCopyKey(keys[0]);
+    } catch {
+      toast.error(t('homeLayout.saveFailed'));
+    } finally {
+      setBusy(null);
+    }
+  }, [t]);
+
+  const saveCopyDrafts = useCallback(async () => {
+    const keys = Object.keys(copyDrafts);
+    if (!keys.length) return;
+    setBusy('__copy');
+    try {
+      for (const key of keys) {
+        const res = await authedFetch('/api/admin/copy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value: (copyDrafts[key] || '').trim() }),
+        });
+        const data = await readResponseJson<CopyResponse>(res);
+        if (!res.ok) throw new Error((data as unknown as { error?: string })?.error || 'save failed');
+      }
+      invalidateSettingsCache();
+      setCopyKey(null);
+      toast.success(t('homeLayout.saved'));
+    } catch {
+      toast.error(t('homeLayout.saveFailed'));
+    } finally {
+      setBusy(null);
+    }
+  }, [copyDrafts, t]);
+
+  const restoreCopyDefaults = useCallback(async () => {
+    const keys = Object.keys(copyDrafts);
+    if (!keys.length) return;
+    setBusy('__copyReset');
+    try {
+      for (const key of keys) {
+        const res = await authedFetch(`/api/admin/copy?key=${key}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('reset failed');
+      }
+      invalidateSettingsCache();
+      setCopyDrafts({});
+      setCopySaved({});
+      setCopyKey(null);
+      toast.success(t('homeLayout.resetDone'));
+    } catch {
+      toast.error(t('homeLayout.saveFailed'));
+    } finally {
+      setBusy(null);
+    }
+  }, [copyDrafts, t]);
+
+  // ── Asset library picker ─────────────────────────────
+  const openPicker = useCallback(async (id: HomeSectionId) => {
+    setPickerTarget(id);
+    setAssetsLoading(true);
+    try {
+      const res = await authedFetch('/api/admin/asset-library');
+      const data = await readResponseJson<{ items?: AssetItem[] }>(res);
+      if (!res.ok) throw new Error((data as { error?: string })?.error || 'load failed');
+      setAssets(data.items || []);
+    } catch {
+      toast.error(t('homeLayout.saveFailed'));
+      setPickerTarget(null);
+    } finally {
+      setAssetsLoading(false);
+    }
+  }, [t]);
+
+  const applyLibraryImage = useCallback(
+    async (url: string) => {
+      const target = pickerTarget;
+      if (!target || !url) return;
+      setBusy(target);
+      setPickerTarget(null);
+      try {
+        if (target === 'adsBanner') {
+          // Banner artwork lives in admin_ads — swap the first banner row.
+          const listRes = await authedFetch('/api/admin/ads');
+          const listData = await readResponseJson<{ ads?: { id: string; position: string }[] }>(listRes);
+          const first = (listData.ads || []).find((a) => a.position === 'banner');
+          if (first) {
+            const res = await authedFetch('/api/admin/ads', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: first.id, image_url: url }),
+            });
+            if (!res.ok) throw new Error('banner update failed');
+          }
+          setBannerImage(url);
+          invalidateSettingsCache();
+        } else {
+          const res = await authedFetch('/api/admin/home-layout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sections: sections.map((s) =>
+                s.id === target ? { ...s, image: url } : s,
+              ),
+            }),
+          });
+          const data = await readResponseJson<LayoutResponse>(res);
+          if (!res.ok) throw new Error((data as { error?: string })?.error || 'save failed');
+          applyLayout(data.layout);
+        }
+        toast.success(t('homeLayout.saved'));
+      } catch {
+        toast.error(t('homeLayout.saveFailed'));
+      } finally {
+        setBusy(null);
+      }
+    },
+    [pickerTarget, sections, applyLayout, t],
+  );
+
   if (!isAdmin) return null;
 
   const thumbnailOf = (s: HomeSectionConfig): string =>
@@ -249,6 +411,7 @@ export function HomeLayoutAdmin({
                 const label = t(`homeLayout.section.${s.id}` as TranslationKey);
                 const thumb = thumbnailOf(s);
                 const canImage = IMAGE_SECTIONS.includes(s.id);
+                const copyKeys = SECTION_COPY_KEYS[s.id] || [];
                 const rowBusy = busy === s.id;
                 return (
                   <div
@@ -331,6 +494,30 @@ export function HomeLayoutAdmin({
                             <Trash2 className="h-3.5 w-3.5" />
                           </RowBtn>
                         )}
+                        {canImage && (
+                          <RowBtn
+                            title={t('homeLayout.pickFromLibrary')}
+                            disabled={rowBusy || assetsLoading}
+                            onClick={() => void openPicker(s.id)}
+                            hoverAccent
+                          >
+                            <FolderOpen className="h-3.5 w-3.5" />
+                          </RowBtn>
+                        )}
+                        {copyKeys.length > 0 && (
+                          <RowBtn
+                            title={t('homeLayout.editCopy')}
+                            disabled={busy === `copy:${s.id}`}
+                            onClick={() => void openCopyEditor(s.id)}
+                            hoverAccent
+                          >
+                            {busy === `copy:${s.id}` ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Type className="h-3.5 w-3.5" />
+                            )}
+                          </RowBtn>
+                        )}
                         <RowBtn
                           title={s.visible ? t('homeLayout.visible') : t('homeLayout.hidden')}
                           onClick={() => toggleVisible(s.id)}
@@ -356,6 +543,140 @@ export function HomeLayoutAdmin({
             className="hidden"
             onChange={(e) => void handleFile(e)}
           />
+
+          {/* In-place copy editor */}
+          {copyKey !== null && (
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+              onClick={() => setCopyKey(null)}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0d0a14] p-4 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-label={t('homeLayout.editCopy')}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Type className="h-4 w-4 text-[#ff6ba6]" />
+                    <h3 className="text-sm font-black">{t('homeLayout.editCopy')}</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCopyKey(null)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-white/60 hover:bg-white/10 hover:text-white"
+                    aria-label={t('homeLayout.close')}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {(Object.keys(copyDrafts) as CopyKey[]).map((key) => (
+                    <label key={key} className="block">
+                      <span className="mb-1 block text-[11px] text-white/55">
+                        {COPY_META[key]?.label || key}
+                      </span>
+                      <input
+                        value={copyDrafts[key] || ''}
+                        onChange={(e) =>
+                          setCopyDrafts((prev) => ({ ...prev, [key]: e.target.value }))
+                        }
+                        placeholder={t('homeLayout.copyPlaceholder')}
+                        className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#ff2e88]/60"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void restoreCopyDefaults()}
+                    disabled={busy !== null || !Object.values(copySaved).some(Boolean)}
+                    className="flex h-8 items-center gap-1 rounded-full border border-white/15 px-2.5 text-[11px] text-white/70 transition-colors hover:border-white/30 hover:text-white disabled:opacity-40"
+                  >
+                    {busy === '__copyReset' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3 w-3" />
+                    )}
+                    {t('homeLayout.reset')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void saveCopyDrafts()}
+                    disabled={busy !== null}
+                    className="flex h-8 items-center gap-1 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-4 text-[11px] font-bold text-white disabled:opacity-50"
+                  >
+                    {busy === '__copy' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Check className="h-3 w-3" />
+                    )}
+                    {t('homeLayout.save')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Asset library picker */}
+          {pickerTarget !== null && (
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+              onClick={() => setPickerTarget(null)}
+            >
+              <div
+                className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-2xl border border-white/10 bg-[#0d0a14] p-4 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-label={t('homeLayout.pickFromLibrary')}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FolderOpen className="h-4 w-4 text-[#ff6ba6]" />
+                    <h3 className="text-sm font-black">{t('homeLayout.pickFromLibrary')}</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPickerTarget(null)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-white/60 hover:bg-white/10 hover:text-white"
+                    aria-label={t('homeLayout.close')}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {assetsLoading ? (
+                  <div className="flex h-40 items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-white/50" />
+                  </div>
+                ) : assets.length === 0 ? (
+                  <p className="py-10 text-center text-xs text-white/45">
+                    {t('homeLayout.libraryEmpty')}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2.5 overflow-y-auto sm:grid-cols-4">
+                    {assets.map((asset) => (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        title={asset.name}
+                        onClick={() => void applyLibraryImage(asset.url)}
+                        className="group relative aspect-[3/4] overflow-hidden rounded-xl ring-1 ring-white/10 transition-all hover:ring-2 hover:ring-[#ff2e88]"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- admin asset thumbnail */}
+                        <img
+                          src={asset.url}
+                          alt={asset.name}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </>

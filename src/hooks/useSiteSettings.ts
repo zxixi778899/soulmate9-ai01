@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { SiteCopy } from '@/lib/copy-store';
 
 export type SiteSettings = {
   site_name: string;
@@ -32,6 +33,7 @@ export type AdItem = {
 
 let settingsCache: SiteSettings | null = null;
 let adsCache: AdItem[] | null = null;
+let copyCache: SiteCopy | null = null;
 
 /**
  * Fetch site settings from the public API.
@@ -104,9 +106,44 @@ export function useSiteAds(position?: string) {
 }
 
 /**
+ * Fetch admin text overrides (site copy) from the public API.
+ * Empty object means "use built-in i18n translations".
+ */
+export function useSiteCopy() {
+  const [copy, setCopy] = useState<SiteCopy>(copyCache || {});
+
+  useEffect(() => {
+    if (copyCache) {
+      setCopy(copyCache);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/creator/copy')
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        copyCache = (data.copy || {}) as SiteCopy;
+        setCopy(copyCache);
+      })
+      .catch(() => {
+        /* fallback: empty overrides → i18n defaults */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** copy[key] when set, otherwise the i18n fallback. */
+  const copyOr = (key: keyof SiteCopy, fallback: string): string => copy[key] || fallback;
+
+  return { copy, copyOr };
+}
+
+/**
  * Invalidate caches (call after admin saves).
  */
 export function invalidateSettingsCache() {
   settingsCache = null;
   adsCache = null;
+  copyCache = null;
 }
