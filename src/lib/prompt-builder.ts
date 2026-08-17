@@ -16,6 +16,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { retrieveMilestones } from '@/lib/milestone-retriever';
 import { detectCompanionMood } from '@/lib/mood-detector';
 import { logger } from '@/lib/logger';
+import type { ToneType } from '@/lib/tone-distribution';
+import { getToneInstruction, getToneLengthHint, getToneEmojiHint } from '@/lib/tone-distribution';
 
 interface BuildPromptInput {
   userId: string;
@@ -28,6 +30,8 @@ interface BuildPromptInput {
   };
   mode?: 'daily_chat' | 'roleplay' | 'voice_call' | 'fantasy';
   client?: SupabaseClient;
+  /** V2: Tone for this message turn */
+  tone?: ToneType;
 }
 
 export interface PersonaPromptLayers {
@@ -213,7 +217,7 @@ export async function buildPersonaPrompt(input: BuildPromptInput): Promise<strin
     layer2: buildRelationshipContext(intimacyScore),
     layer3: buildDynamicState(moodResult, scenarioState, girlfriendData),
     layer4: memories.length > 0 ? buildMemoryFlashbacks(memories) : undefined,
-    layer5: buildSpeakingConstraints(mode)
+    layer5: buildSpeakingConstraints(mode, input.tone)
   };
   
   // Step 3: Combine into final prompt
@@ -451,8 +455,12 @@ ${formatted}`;
 /**
  * Layer 5: Build speaking constraints
  */
-function buildSpeakingConstraints(mode: string): string {
-  const baseRules = `【禁止事项 - 绝对不能用】
+function buildSpeakingConstraints(mode: string, tone?: ToneType): string {
+  // V2: Tone injection section
+  const toneSection = tone
+    ? `\n【本次语气指令】\n${getToneInstruction(tone, true)}\n${getToneLengthHint(tone, true)}\n${getToneEmojiHint(tone, true)}\n请完全贴合这个语气来回复，但不要生硬模仿，用你自己的方式表达。\n`
+    : '';
+  const baseRules = `${toneSection}【禁止事项 - 绝对不能用】
 ❌ 作为一个人工智能/LLM/AI...
 ❌ 让我来为你... / 我可以...
 ❌ 根据我的知识库/数据分析...

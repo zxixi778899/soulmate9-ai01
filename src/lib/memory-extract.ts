@@ -4,6 +4,7 @@
  */
 
 import { generateText } from '@/lib/llm-service';
+import { getMemoryExtractPromptV2 } from '@/lib/memory-write-guard';
 
 export interface ExtractedMemory {
   content: string;
@@ -11,9 +12,9 @@ export interface ExtractedMemory {
   category: 'interest' | 'daily' | 'career' | 'social' | 'emotional' | 'future' | 'health' | 'work' | 'family';
 }
 
-const EXTRACT_PROMPT = `Extract memorable facts, preferences, and context from this chat between an AI girlfriend and her user.
+const EXTRACT_PROMPT_LEGACY = `Extract memorable facts, preferences, and context from this chat between an AI girlfriend and her user.
 
-Return ONLY a JSON array. Each item: { "content": "<one sentence>", "type": "<type>", "category": "<category>" }.
+Return ONLY a JSON array. Each item: { "content": "<one sentence>", "type": "<type>", "category": "<category>" }
 
 Types: interest, event, fact, emotion, preference, intent, physical, social
 Categories: interest, daily, career, social, emotional, future, health, work, family
@@ -28,6 +29,9 @@ Return [] if nothing memorable.
 Messages:
 """%s"""`;
 
+/** Default companion name for V2 prompt when not provided. */
+const DEFAULT_COMPANION_NAME = 'your companion';
+
 const BATCH_SIZE = 6; // last N messages
 
 /** Raw item shape parsed from the LLM's JSON output (fields untrusted). */
@@ -39,11 +43,14 @@ interface RawMemoryItem {
 
 export async function extractMemoriesLLM(
   messages: { role: string; content: string }[],
+  companionName?: string,
 ): Promise<ExtractedMemory[]> {
   if (messages.length === 0) return [];
   const last = messages.slice(-BATCH_SIZE);
   const flat = last.map((m) => `[${m.role}] ${m.content}`).join('\n');
-  const prompt = EXTRACT_PROMPT.replace('%s', flat);
+  // V2: Use identity-aware prompt to prevent companion info leakage
+  const extractPrompt = getMemoryExtractPromptV2(companionName || DEFAULT_COMPANION_NAME);
+  const prompt = extractPrompt.replace('%s', flat);
   try {
     const text = await generateText({ prompt, temperature: 0.3, maxTokens: 512 });
     const match = text.match(/\[[\s\S]*\]/);

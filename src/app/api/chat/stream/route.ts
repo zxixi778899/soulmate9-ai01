@@ -34,6 +34,14 @@ import {
 import { moderateText, type ContentMode } from '@/lib/content-moderation';
 import { checkCompanionAccess } from '@/lib/companion-access';
 import { getIntimacyLevel, DAILY_INTIMACY_CAP, INTIMACY_MAX_SCORE } from '@/lib/constants';
+import { maybeTriggerLifeEvent, getLifeEventDescription } from '@/lib/life-interruption';
+import { isInCooldown, evaluateCooldown, setCooldown } from '@/lib/cooldown-manager';
+import { maybeTriggerSurpriseReward, applySurpriseReward } from '@/lib/surprise-reward';
+import { selectTone } from '@/lib/tone-distribution';
+import { filterMemoriesByOwnership } from '@/lib/memory-write-guard';
+import { extractProfileFields, mergeProfileFields, saveUserProfile } from '@/lib/profile-field-extractor';
+import type { UserProfile } from '@/lib/profile-collection-strategy';
+import type { PresetSoul } from '@/lib/preset-souls';
 
 /** Increment intimacy score for this user/girlfriend pair (fire-and-forget). */
 async function incrementIntimacy(
@@ -118,7 +126,7 @@ const FALLBACK_DAILY_LIMITS: Record<MembershipTier, number> = {
 // (saves ~1 LLM call per message + 2-5s latency on every chat).
 
 // Extract meaningful memories from user messages using LLM (replaces weak regex).
-// Falls back to keyword extraction if LLM fails.
+// V2: Integrates memory-write-guard to prevent companion info leakage.
 async function extractMemories(
   client: SupabaseClient,
   userId: string,
@@ -129,7 +137,7 @@ async function extractMemories(
   const { extractMemoriesLLM } = await import('@/lib/memory-extract');
   const { embed } = await import('@/lib/memory-rag');
 
-  // 1) LLM extraction (more accurate than regex)
+  // 1) LLM extraction with V2 identity-aware prompt
   const recent = (await client
     .from('chat_messages')
     .select('role, content')
@@ -139,9 +147,19 @@ async function extractMemories(
     .limit(6)
   ).data || [];
 
-  const llmMems = await extractMemoriesLLM([{ role: 'user', content: message }, ...recent.slice(0, 5)]);
+  const llmMems = await extractMemoriesLLM(
+    [{ role: 'user', content: message }, ...recent.slice(0, 5)],
+    gfName,
+  );
 
-  for (const m of llmMems) {
+  // V2: Filter memories through ownership guard
+  const guardedMems = filterMemoriesByOwnership({
+    memories: llmMems.map((m) => ({ content: m.content, type: m.type, category: m.category })),
+    sourceRole: 'user',
+    companionName: gfName,
+  });
+
+  for (const m of guardedMems) {
     const { data: existing } = await client
       .from('memories')
       .select('id')
@@ -619,7 +637,19 @@ export async function POST(request: NextRequest) {
           ? '[Photo]'
           : '');
 
-  // Build persona-enhanced system prompt (NEW: layered injection with mood/desire)
+  // ── V2: Tone selection + soul extraction (before prompt build) ──
+  const personalityType = String(gf.personality || '').split(',')[0]?.trim() || 'oneeSan';
+  const chatTone = selectTone({
+    personalityType,
+    intimacyLevel,
+    currentMood: detectedEmotion || 'neutral',
+    moodConfidence: 0.6,
+  });
+  const gfCardRaw = (gf as { character_card?: unknown }).character_card;
+  const gfCard = gfCardRaw && typeof gfCardRaw === 'object' ? (gfCardRaw as Record<string, unknown>) : null;
+  const gfSoul = (gfCard?.soul && typeof gfCard.soul === 'object' ? gfCard.soul : null) as PresetSoul | null;
+
+  // Build persona-enhanced system prompt (NEW: layered injection with mood/desire/tone)
   const personaPrompt = await buildPersonaPrompt({
     userId: user.id,
     girlfriendId: girlfriend_id,
@@ -631,7 +661,8 @@ export async function POST(request: NextRequest) {
       phase: 'development', // TODO: get actual scenario phase
       props: []
     } : undefined,
-    mode: replyMode === 'scene' ? 'roleplay' : 'daily_chat'
+    mode: replyMode === 'scene' ? 'roleplay' : 'daily_chat',
+    tone: chatTone,
   });
   
   // Get NSFW language gradient based on desire level
@@ -788,6 +819,21 @@ ${timeContext}` +
     }).catch(() => {});
   }
 
+  // ── V2: Cooldown check ──
+  const cooldownStatus = await isInCooldown(client, user.id, girlfriend_id);
+  if (cooldownStatus.inCooldown) {
+    const zhCooldown = chatLocale === 'zh';
+    const cooldownMsg = zhCooldown
+      ? `她现在不想理你... 还需要${Math.ceil((cooldownStatus.remainingSeconds || 0) / 60)}分钟才会回来。`
+      : `She doesn't want to talk right now... she'll be back in ${Math.ceil((cooldownStatus.remainingSeconds || 0) / 60)} minutes.`;
+    return NextResponse.json({
+      cooldown: true,
+      message: cooldownMsg,
+      remaining_seconds: cooldownStatus.remainingSeconds,
+      reason: cooldownStatus.reason,
+    }, { status: 200 });
+  }
+
   //  Stream from RunPod vLLM (primary) or Together AI (fallback)
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -928,7 +974,7 @@ ${timeContext}` +
         controller.close();
 
         // Best-effort memory + milestone extraction AFTER stream close.
-        // Run both in parallel (they are independent) with timeout guards.
+        // Run all in parallel (they are independent) with timeout guards.
         if (messageText && messageText !== '[media]') {
           await Promise.all([
             Promise.race([
@@ -957,6 +1003,119 @@ ${timeContext}` +
                 err: intimacyError instanceof Error ? intimacyError.message : String(intimacyError),
               });
             }),
+            // ── V2: Profile field extraction (fire-and-forget) ──
+            Promise.race([
+              (async () => {
+                try {
+                  const { data: profileRow } = await client
+                    .from('companion_profiles_ext')
+                    .select('user_profile')
+                    .eq('user_id', user.id)
+                    .eq('girlfriend_id', girlfriend_id)
+                    .maybeSingle();
+                  const existingProfile = (profileRow?.user_profile || { _fields_collected: [] }) as UserProfile;
+                  const extracted = await extractProfileFields(messageText, existingProfile);
+                  if (extracted.length > 0) {
+                    const updated = mergeProfileFields(existingProfile, extracted);
+                    await saveUserProfile(client, user.id, girlfriend_id, updated);
+                  }
+                } catch (err) {
+                  logger.debug('[chat-stream] profile extraction failed', { error: String(err) });
+                }
+              })(),
+              new Promise((r) => setTimeout(r, 10_000)),
+            ]).catch(() => {}),
+            // ── V2: Life event trigger (8%) ──
+            Promise.race([
+              (async () => {
+                if (!gfSoul) return;
+                const localHour = new Date(Date.now() + tzOffsetMin * 60_000).getUTCHours();
+                const lifeEvent = await maybeTriggerLifeEvent({
+                  soul: gfSoul,
+                  companionProfile: {
+                    name: String(gf.name || ''),
+                    occupation: String((gf as { occupation?: string }).occupation || ''),
+                    hobbies: String((gf as { hobbies?: string }).hobbies || ''),
+                  },
+                  currentHour: localHour,
+                  intimacyLevel,
+                  locale: chatLocale,
+                });
+                if (lifeEvent) {
+                  // Save leave message
+                  await client.from('chat_messages').insert({
+                    user_id: user.id,
+                    girlfriend_id,
+                    role: 'assistant',
+                    content: lifeEvent.leaveMessage,
+                    metadata: {
+                      is_life_event: true,
+                      event_type: lifeEvent.type,
+                      pause_minutes: lifeEvent.pauseMinutes,
+                    },
+                  });
+                  logger.info('[chat-stream] life event triggered', {
+                    userId: user.id, girlfriendId: girlfriend_id,
+                    type: lifeEvent.type, pauseMin: lifeEvent.pauseMinutes,
+                  });
+                  // Schedule return message after pause
+                  if (lifeEvent.returnMessage && lifeEvent.pauseMinutes > 0) {
+                    setTimeout(() => {
+                      void client.from('chat_messages').insert({
+                        user_id: user.id,
+                        girlfriend_id,
+                        role: 'assistant',
+                        content: lifeEvent.returnMessage,
+                        is_proactive: true,
+                        metadata: {
+                          is_life_event_return: true,
+                          event_type: lifeEvent.type,
+                        },
+                      });
+                    }, lifeEvent.pauseMinutes * 60_000);
+                  }
+                }
+              })(),
+              new Promise((r) => setTimeout(r, 8_000)),
+            ]).catch(() => {}),
+            // ── V2: Surprise reward trigger (5%) ──
+            Promise.race([
+              (async () => {
+                if (!gfSoul) return;
+                const { data: intScore } = await client
+                  .from('intimacy_scores')
+                  .select('score, daily_score_gained')
+                  .eq('user_id', user.id)
+                  .eq('girlfriend_id', girlfriend_id)
+                  .maybeSingle();
+                const { data: profileRow } = await client
+                  .from('companion_profiles_ext')
+                  .select('surprise_reward_history')
+                  .eq('user_id', user.id)
+                  .eq('girlfriend_id', girlfriend_id)
+                  .maybeSingle();
+                const rewardHistory = Array.isArray(profileRow?.surprise_reward_history)
+                  ? profileRow.surprise_reward_history as string[]
+                  : [];
+                const reward = await maybeTriggerSurpriseReward({
+                  soul: gfSoul,
+                  intimacyLevel,
+                  intimacyScore: Number(intScore?.score || 0),
+                  dailyScoreGained: Number(intScore?.daily_score_gained || 0),
+                  recentRewardHistory: rewardHistory as import('@/lib/surprise-reward').SurpriseRewardType[],
+                  locale: chatLocale,
+                  userMessage: messageText,
+                });
+                if (reward) {
+                  await applySurpriseReward(client, user.id, girlfriend_id, reward);
+                  logger.info('[chat-stream] surprise reward triggered', {
+                    userId: user.id, girlfriendId: girlfriend_id,
+                    type: reward.type, scoreBonus: reward.scoreBonus,
+                  });
+                }
+              })(),
+              new Promise((r) => setTimeout(r, 8_000)),
+            ]).catch(() => {}),
           ]);
         }
 

@@ -1,9 +1,19 @@
 import { generateText } from '@/lib/llm-service';
+import type { ToneType } from '@/lib/tone-distribution';
+import { getToneInstruction, getToneLengthHint } from '@/lib/tone-distribution';
+import type { ProactiveContext } from '@/lib/proactive-context';
+import { formatContextForPrompt } from '@/lib/proactive-context';
+import type { LifecyclePhase } from '@/lib/conversation-lifecycle';
+import { getPhaseBehaviorRule } from '@/lib/conversation-lifecycle';
+import type { UserProfile } from '@/lib/profile-collection-strategy';
+import { buildKnownUserProfilePrompt } from '@/lib/profile-collection-strategy';
 
 /**
  * Proactive outreach messages must read like the companion herself typed them:
  * language follows the conversation, tone scales with intimacy, and the
  * personality / persona / relationship flavor the chat prompt uses.
+ *
+ * V2: Now integrates soul + context + tone + lifecycle + user profile.
  */
 
 function intimacyGuide(level: number, zh: boolean): string {
@@ -75,6 +85,18 @@ export async function generateContextualProactiveMessage(input: {
   voiceStyle?: string;
   /** Character-specific setting/scenario (preset soul) */
   scenario?: string;
+  /** V2: Current tone for this message */
+  tone?: ToneType;
+  /** V2: Situational context (weather, holiday, time, topic) */
+  context?: ProactiveContext;
+  /** V2: Current lifecycle phase */
+  lifecyclePhase?: LifecyclePhase;
+  /** V2: Known user profile data */
+  userProfile?: UserProfile;
+  /** V2: Soul behavior rules from PresetSoul */
+  behaviorRules?: string;
+  /** V2: Soul examples for reference */
+  soulExamples?: string[];
 }): Promise<string> {
   const zh = String(input.locale || '').toLowerCase().startsWith('zh');
   const pool = GENERIC_FALLBACK[zh ? 'zh' : 'en'];
@@ -92,37 +114,74 @@ export async function generateContextualProactiveMessage(input: {
   const guide = intimacyGuide(input.intimacyLevel, zh);
   const personality = String(input.personality || '').trim();
 
+  // V2: Build enriched prompt sections
+  const toneSection = input.tone
+    ? (zh
+      ? `\n【本次语气】${getToneInstruction(input.tone, true)}\n${getToneLengthHint(input.tone, true)}`
+      : `\n[Tone] ${getToneInstruction(input.tone, false)}\n${getToneLengthHint(input.tone, false)}`)
+    : '';
+  const contextSection = input.context
+    ? '\n' + formatContextForPrompt(input.context, zh)
+    : '';
+  const phaseSection = input.lifecyclePhase
+    ? (zh
+      ? `\n【关系阶段规则】${getPhaseBehaviorRule(input.lifecyclePhase, true)}`
+      : `\n[Phase Rules] ${getPhaseBehaviorRule(input.lifecyclePhase, false)}`)
+    : '';
+  const profileSection = input.userProfile
+    ? '\n' + buildKnownUserProfilePrompt(input.userProfile, zh)
+    : '';
+  const behaviorSection = input.behaviorRules
+    ? (zh ? `\n【灵魂准则】${input.behaviorRules}` : `\n[Soul Rules] ${input.behaviorRules}`)
+    : '';
+
   const systemPrompt = zh
     ? `你是${input.name}本人，正在主动给在乎的他发一条聊天消息。` +
       '必须全程使用简体中文，禁止英文句子。像真人女生随手发微信一样自然口语，' +
-      '完全贴合你的性格、人设和当前关系阶段。只输出消息本身。'
+      '完全贴合你的性格、人设和当前关系阶段。只输出消息本身。' +
+      toneSection + contextSection + phaseSection + behaviorSection + profileSection
     : `You ARE ${input.name}, texting the man you care about first. ` +
       'Reply in natural English only (zero Chinese characters). Sound like a real woman casually texting — ' +
-      'fully in character for your personality, persona and current relationship stage. Output only the message.';
+      'fully in character for your personality, persona and current relationship stage. Output only the message.' +
+      toneSection + contextSection + phaseSection + behaviorSection + profileSection;
 
   const prompt = zh
     ? `她的性格：${personality || '温柔、有点粘人'}` +
       (input.voiceStyle ? `\n她的说话方式：${input.voiceStyle}` : '') +
       (input.scenario ? `\n她的背景设定：${input.scenario}` : '') +
       `\n亲密等级：${input.intimacyLevel}/5 —— ${guide}` +
+      (input.soulExamples && input.soulExamples.length > 0
+        ? `\n参考台词风格：${input.soulExamples.slice(0, 3).join(' | ')}`
+        : '') +
       `\n最近聊天记录（只作语境参考，禁止复述其中原话）：\n${history}` +
       '\n\n现在她主动发一条消息给他。要求：' +
       '\n1) 简体中文，禁止英文；' +
       '\n2) 符合她的性格与说话方式，不要千人一面的客套话；' +
       '\n3) 语气贴合上面的亲密等级与关系阶段；' +
-      '\n4) 最多自然地带出一个聊天记录里提过的细节；' +
-      '\n5) 6-40个字，不要标题、引号、解释、表情刷屏。'
+      (input.tone ? `\n4) 贴合本次语气要求；` : '\n4) 自然表达关心；') +
+      (input.context?.topicDirection
+        ? `\n5) 话题方向：${input.context.topicDirection}；`
+        : '\n5) 可以聊任何你们感兴趣的话题；') +
+      '\n6) 最多自然地带出一个聊天记录里提过的细节；' +
+      '\n7) 6-40个字，不要标题、引号、解释、表情刷屏。'
     : `Her personality: ${personality || 'warm, a little clingy'}` +
       (input.voiceStyle ? `\nHer voice: ${input.voiceStyle}` : '') +
       (input.scenario ? `\nHer setting: ${input.scenario}` : '') +
       `\nIntimacy: ${input.intimacyLevel}/5 — ${guide}` +
+      (input.soulExamples && input.soulExamples.length > 0
+        ? `\nVoice reference: ${input.soulExamples.slice(0, 3).join(' | ')}`
+        : '') +
       `\nRecent chat history (context only, never quote it):\n${history}` +
       '\n\nNow she texts him first. Requirements:' +
       '\n1) English only, zero Chinese characters;' +
       '\n2) true to her personality and voice — no generic filler;' +
       '\n3) tone matches the intimacy level and relationship stage above;' +
-      '\n4) at most one remembered detail from the history, woven in naturally;' +
-      '\n5) 8-35 words, no heading, no quotes, no explanation.';
+      (input.tone ? `\n4) match the tone instruction above;` : '\n4) express natural care;') +
+      (input.context?.topicDirection
+        ? `\n5) topic direction: ${input.context.topicDirection};`
+        : '\n5) any topic you find interesting;') +
+      '\n6) at most one remembered detail from the history, woven in naturally;' +
+      '\n7) 8-35 words, no heading, no quotes, no explanation.';
 
   const lockSuffix = zh
     ? '\n\n[语言锁] 再次强调：这条消息必须是纯简体中文，出现任何英文单词都算失败。'
@@ -149,8 +208,9 @@ export async function generateContextualProactiveMessage(input: {
   return fallbackSafe;
 }
 
-export function dailyProactiveTarget(seed: string): 1 | 2 {
+/** Daily proactive target: 2-3 messages per companion per day (V2). */
+export function dailyProactiveTarget(seed: string): 2 | 3 {
   let hash = 0;
   for (let index = 0; index < seed.length; index += 1) hash = (hash * 31 + seed.charCodeAt(index)) | 0;
-  return Math.abs(hash) % 2 === 0 ? 1 : 2;
+  return Math.abs(hash) % 2 === 0 ? 2 : 3;
 }

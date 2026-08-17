@@ -1,9 +1,9 @@
 /**
  * Cron: proactive messages from befriended companions only.
- * Runs once daily at 10:00 UTC (= 18:00 UTC+8); per-user local time check
- * ensures the 18:00-24:00 evening window. (Hobby plan allows daily crons only.)
- * Max 2 per companion per day. Stops after 3 consecutive days without user reply.
- * Content: LLM-generated contextual messages, non-repetitive.
+ * V2: Runs at 10:00 UTC (= 18:00 UTC+8) and 14:00 UTC (= 22:00 UTC+8).
+ * Per-user local time check ensures the 20:00-24:00 evening window.
+ * Max 2-3 per companion per day. Stops after 3 consecutive days without user reply.
+ * Content: LLM-generated soul-driven messages with tone/context/lifecycle integration.
  * Secure with CRON_SECRET Bearer token.
  */
 
@@ -17,6 +17,11 @@ import {
 } from '@/lib/proactive-templates';
 import { resolveReplyLocale } from '@/lib/chat-locale';
 import { dailyProactiveTarget, generateContextualProactiveMessage } from '@/lib/proactive-generation';
+import { selectTone } from '@/lib/tone-distribution';
+import { buildProactiveContext } from '@/lib/proactive-context';
+import { resolveLifecyclePhase, getPhaseBehaviorRule } from '@/lib/conversation-lifecycle';
+import type { LifecyclePhase } from '@/lib/conversation-lifecycle';
+import type { UserProfile } from '@/lib/profile-collection-strategy';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -88,11 +93,11 @@ export async function GET(req: NextRequest) {
     }
 
     for (const pair of pairs.values()) {
-      // ── Per-user timezone check: only send during 18:00-24:00 user local time ──
+      // ── Per-user timezone check: only send during 20:00-24:00 user local time (V2) ──
       const tzOffset = tzMap.get(pair.user_id) ?? -480; // minutes (JS convention)
       const localMs = Date.now() - tzOffset * 60_000;
       const localHour = new Date(localMs).getUTCHours();
-      if (localHour < 18 || localHour >= 24) {
+      if (localHour < 20 || localHour >= 24) {
         skipped++;
         continue;
       }
@@ -176,7 +181,7 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      const [{ data: girlfriend }, { data: historyRows }, { data: scoreRow }, { data: recentProactive }] = await Promise.all([
+      const [{ data: girlfriend }, { data: historyRows }, { data: scoreRow }, { data: recentProactive }, { data: profileExt }] = await Promise.all([
         sb.from('girlfriends').select('name, personality, character_card').eq('id', pair.girlfriend_id).maybeSingle(),
         sb.from('chat_messages')
           .select('role, content')
@@ -197,6 +202,12 @@ export async function GET(req: NextRequest) {
           .eq('is_proactive', true)
           .gte('created_at', new Date(Date.now() - 3 * 86_400_000).toISOString())
           .limit(30),
+        // V2: companion profile extension for lifecycle/tone/profile data
+        sb.from('companion_profiles_ext')
+          .select('lifecycle_phase, user_profile, consecutive_silence_days')
+          .eq('user_id', pair.user_id)
+          .eq('girlfriend_id', pair.girlfriend_id)
+          .maybeSingle(),
       ]);
       const history = (historyRows || []).slice().reverse();
       // Conversation language wins; brand-new pairs without history default to English.
@@ -246,6 +257,37 @@ export async function GET(req: NextRequest) {
         })
         .filter(Boolean);
 
+      // ── V2: Resolve lifecycle phase ──
+      const intimacyLevel = Number(scoreRow?.level) || 1;
+      const daysSinceAdd = Math.floor(
+        (Date.now() - new Date((pair as { last_at?: string }).last_at || Date.now()).getTime()) / 86_400_000,
+      );
+      const currentPhase: LifecyclePhase = resolveLifecyclePhase({
+        currentPhase: (profileExt as { lifecycle_phase?: string } | null)?.lifecycle_phase,
+        intimacyLevel,
+        daysSinceFirstAdd: daysSinceAdd,
+        openingMessageSent: true,
+      });
+
+      // ── V2: Select tone ──
+      const personalityType = String((girlfriend as { personality?: string } | null)?.personality || '').split(',')[0]?.trim() || 'oneeSan';
+      const tone = selectTone({
+        personalityType,
+        intimacyLevel,
+        currentMood: 'neutral',
+        moodConfidence: 0.3,
+      });
+
+      // ── V2: Build situational context ──
+      const proactiveCtx = await buildProactiveContext(tzOffset, locale);
+
+      // ── V2: User profile ──
+      const userProfile = ((profileExt as { user_profile?: UserProfile } | null)?.user_profile || { _fields_collected: [] }) as UserProfile;
+
+      // ── V2: Soul behavior rules + examples ──
+      const behaviorRule = getPhaseBehaviorRule(currentPhase, locale === 'zh');
+      const soulExamples = soulProactivePool.slice(0, 3);
+
       for (const pick of picks) {
         const freshSoulPool = soulProactivePool.filter((c) => !excludeContents.includes(c));
         const soulPool = freshSoulPool.length ? freshSoulPool : soulProactivePool;
@@ -255,12 +297,18 @@ export async function GET(req: NextRequest) {
         const content = await generateContextualProactiveMessage({
           name: String(girlfriend?.name || 'Your companion'),
           personality: String(girlfriend?.personality || ''),
-          intimacyLevel: Number(scoreRow?.level) || 1,
+          intimacyLevel,
           locale,
           history,
           fallback: fallbackContent,
           voiceStyle: soulVoice || undefined,
           scenario: soulScenario || undefined,
+          tone,
+          context: proactiveCtx,
+          lifecyclePhase: currentPhase,
+          userProfile,
+          behaviorRules: behaviorRule,
+          soulExamples,
         });
         const { data: msg, error } = await sb
           .from('chat_messages')

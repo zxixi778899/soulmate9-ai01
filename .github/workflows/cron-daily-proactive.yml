@@ -1,9 +1,10 @@
-# Schedule: 0 8,14,20 * * *   (3x per day at 08:00 / 14:00 / 20:00 UTC)
+# Schedule: 0 10,14 * * *   (2x per day at 10:00 / 14:00 UTC = 18:00 / 22:00 UTC+8)
+# V2: Two runs cover 20:00-24:00 local time window for 2-3 messages per day
 name: cron-daily-proactive
 
 on:
   schedule:
-    - cron: '0 8,14,20 * * *'
+    - cron: '0 10,14 * * *'
   workflow_dispatch:
 
 jobs:
