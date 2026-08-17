@@ -6,6 +6,9 @@ site_settings so runs are observable without pod logs.
 Job input:
   {"cmd": "download"}  -> install the bundle (idempotent)
   {"cmd": "inventory"} -> list model files with sizes (verification)
+  {"cmd": "files", "subdir": "loras",
+   "files": [{"name": ..., "versionId": ..., "sha256": ...}]} 
+                       -> download arbitrary Civitai files (strict hash check)
   anything else         -> no-op ping
 """
 import hashlib
@@ -211,6 +214,37 @@ def run_inventory():
     return {"files": files, "count": len(files), "manifest": manifest_lines}
 
 
+def run_files(inp):
+    """Download caller-specified Civitai files with strict SHA256 verification.
+    Existing files with matching hashes are skipped (idempotent reruns)."""
+    token = os.environ.get("CIVITAI_API_TOKEN", "")
+    if not token or "RUNPOD_SECRET" in token:
+        return {"rc": 22, "error": "CIVITAI_API_TOKEN secret was not resolved"}
+    items = inp.get("files") or []
+    if not isinstance(items, list) or not items:
+        return {"rc": 2, "error": "files list required"}
+    subdir = str(inp.get("subdir") or "loras")
+    if "/" in subdir or subdir.startswith("."):
+        return {"rc": 2, "error": "invalid subdir"}
+    os.makedirs(os.path.join(ROOT, subdir), exist_ok=True)
+    os.makedirs(STATE, exist_ok=True)
+    results = []
+    for item in items:
+        name = str(item.get("name") or "")
+        vid = str(item.get("versionId") or "")
+        want = str(item.get("sha256") or "").upper()
+        if not name.endswith(".safetensors") or "/" in name or not vid or len(want) != 64:
+            results.append(f"invalid-spec|{name}")
+            continue
+        results.append(fetch_civitai(token, subdir, name, vid, want))
+        beacon({"phase": "files", "last": results[-1]})
+    with open(os.path.join(STATE, "custom-files.status"), "w") as f:
+        f.write("\n".join(results) + "\n")
+    rc = 0 if all(r.startswith(("installed", "verified-existing")) for r in results) else 1
+    beacon({"phase": "files-done", "rc": rc})
+    return {"rc": rc, "results": results}
+
+
 def handler(job):
     inp = job.get("input", {}) or {}
     cmd = inp.get("cmd")
@@ -218,6 +252,8 @@ def handler(job):
         return run_download()
     if cmd == "inventory":
         return run_inventory()
+    if cmd == "files":
+        return run_files(inp)
     return {"pong": True, "volume_mounted": os.path.isdir("/runpod-volume")}
 
 
