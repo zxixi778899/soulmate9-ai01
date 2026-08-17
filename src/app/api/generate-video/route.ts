@@ -388,17 +388,40 @@ export async function POST(request: NextRequest) {
           await writeCache(videoCacheKey, 'video', persistedOssKey).catch(() => {});
         }
 
-        // Save to chat_media
+        // Persist video to chat_messages + chat_media so it survives page refresh.
+        let chatMessageId: string | null = null;
         if (girlfriendId) {
-          await client.from('chat_media').insert({
-            user_id: user.id,
-            girlfriend_id: girlfriendId,
-            media_type: 'video',
-            url: finalUrl,
-            metadata: { job_id: jobId, motion_bucket_id: motionBucketId, fps, num_frames: numFrames },
-          }).then(({ error: insErr }) => {
-            if (insErr) logger.warn('[generate-video] chat_media insert failed', { err: insErr.message });
-          });
+          try {
+            const caption = "Here's a little video just for you~ see me move \ud83d\udc95";
+            const { data: msgRow, error: msgErr } = await client
+              .from('chat_messages')
+              .insert({
+                user_id: user.id,
+                girlfriend_id: girlfriendId,
+                role: 'assistant',
+                content: caption,
+                media_url: finalUrl,
+                media_type: 'video',
+              })
+              .select('id')
+              .maybeSingle();
+            if (msgErr) {
+              logger.warn('[generate-video] chat_messages insert failed', { err: msgErr.message });
+            } else {
+              chatMessageId = msgRow?.id || null;
+            }
+
+            await client.from('chat_media').insert({
+              user_id: user.id,
+              girlfriend_id: girlfriendId,
+              message_id: chatMessageId,
+              media_type: 'video',
+              url: finalUrl,
+              metadata: { job_id: jobId, motion_bucket_id: motionBucketId, fps, num_frames: numFrames },
+            });
+          } catch (persistErr) {
+            logger.warn('[generate-video] chat persist failed', { err: String(persistErr) });
+          }
           // Re-evaluate achievements (video milestones) — fire and forget
           void checkAchievements(client as unknown as SupabaseLike, user.id);
         }
@@ -409,7 +432,7 @@ export async function POST(request: NextRequest) {
             provider_job_id: jobId,
           });
         }
-        return NextResponse.json({ video_url: finalUrl, job_id: jobId, latency_ms: Date.now() - started });
+        return NextResponse.json({ video_url: finalUrl, job_id: jobId, latency_ms: Date.now() - started, message_id: chatMessageId });
       }
 
       if (status.status === 'FAILED') {

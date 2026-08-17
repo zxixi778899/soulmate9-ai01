@@ -101,6 +101,7 @@ async function handleVideoStatus(
       }
     }
     // Persist once to the album when girlfriend context is provided.
+    let videoMessageId: string | null = null;
     if (params.girlfriendId && params.client) {
       const { data: existingMedia } = await params.client
         .from('chat_media')
@@ -111,9 +112,31 @@ async function handleVideoStatus(
         .limit(1)
         .maybeSingle();
       if (!existingMedia) {
+        // Insert chat_messages row first so the video survives page refresh.
+        let chatMessageId: string | null = null;
+        try {
+          const caption = "Here's a little video just for you~ see me move \ud83d\udc95";
+          const { data: msgRow, error: msgErr } = await params.client
+            .from('chat_messages')
+            .insert({
+              user_id: params.userId,
+              girlfriend_id: params.girlfriendId,
+              role: 'assistant',
+              content: caption,
+              media_url: videoUrl,
+              media_type: 'video',
+            })
+            .select('id')
+            .maybeSingle();
+          if (!msgErr && msgRow?.id) { chatMessageId = msgRow.id; videoMessageId = msgRow.id; }
+        } catch (e) {
+          logger.warn('[runpod/status] video chat_messages insert failed', { err: e instanceof Error ? e.message : String(e) });
+        }
+
         const { error: mediaError } = await params.client.from('chat_media').insert({
           user_id: params.userId,
           girlfriend_id: params.girlfriendId,
+          message_id: chatMessageId,
           media_type: 'video',
           url: videoUrl,
           metadata: { job_id: params.jobId, source: 'video_status_poll' },
@@ -127,7 +150,7 @@ async function handleVideoStatus(
         result: { video_url: videoUrl, job_id: params.jobId },
       });
     }
-    return NextResponse.json({ status: 'COMPLETED', video_url: videoUrl, job_id: params.jobId });
+    return NextResponse.json({ status: 'COMPLETED', video_url: videoUrl, job_id: params.jobId, message_id: videoMessageId });
   }
 
   if (status.status === 'FAILED') {

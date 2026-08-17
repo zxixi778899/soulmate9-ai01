@@ -1348,7 +1348,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           queue: true,
         }),
       });
-      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; status?: string; job_id?: string; provider_job_id?: string; endpoint_id?: string; cost?: number; cost_tokens?: number; error?: string; code?: string }>(vidRes);
+      const vidData = await readResponseJson<{ video_url?: string; pending?: boolean; status?: string; job_id?: string; provider_job_id?: string; endpoint_id?: string; cost?: number; cost_tokens?: number; error?: string; code?: string; message_id?: string }>(vidRes);
       if (!vidRes.ok) {
         if (vidData.code === 'gpu_busy') {
           throw new Error(t('chat.gpuBusyTryLater'));
@@ -1357,6 +1357,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       }
 
       let videoUrl = vidData.video_url;
+      let videoMessageId = vidData.message_id || null;
       // Queued/pending video — poll the unified video-aware status route.
       // provider_job_id is the RunPod id; job_id falls back to it for legacy
       // pending responses without the queue envelope.
@@ -1385,8 +1386,8 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
             } : m));
           }
           const pollRes = await authedFetch(`/api/ai/status?job_id=${encodeURIComponent(videoProviderJobId)}&kind=video${vidData.endpoint_id ? `&endpoint_id=${encodeURIComponent(vidData.endpoint_id)}` : ''}${id ? `&girlfriend_id=${encodeURIComponent(id)}` : ''}${videoCost ? `&cost=${encodeURIComponent(String(videoCost))}` : ''}`);
-          const pollData = await readResponseJson<{ status?: string; video_url?: string; error?: string; refunded?: boolean }>(pollRes);
-          if (pollData.status === 'COMPLETED' && pollData.video_url) { videoUrl = pollData.video_url; break; }
+          const pollData = await readResponseJson<{ status?: string; video_url?: string; error?: string; refunded?: boolean; message_id?: string }>(pollRes);
+          if (pollData.status === 'COMPLETED' && pollData.video_url) { videoUrl = pollData.video_url; if (pollData.message_id) videoMessageId = pollData.message_id; break; }
           if (pollData.status === 'FAILED') {
             throw new Error(
               pollData.refunded
@@ -1402,7 +1403,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       const caption = t('chat.videoReady');
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== waitId),
-        { id: `video-${Date.now()}`, role: 'assistant', content: caption, created_at: new Date().toISOString(), media_url: videoUrl, media_type: 'video' },
+        { id: videoMessageId || `video-${Date.now()}`, role: 'assistant', content: caption, created_at: new Date().toISOString(), media_url: videoUrl, media_type: 'video' },
       ]);
       setActiveGenJobId(null);
     } catch (err) {
