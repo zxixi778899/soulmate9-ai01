@@ -137,7 +137,7 @@ export function ChatAppBar(props: {
         </button>
         <button
           type="button"
-          onClick={onSelfie}
+          onClick={() => onSelfie()}
           disabled={isGenerating}
           className="inline-flex items-center justify-center gap-1 h-11 w-11 sm:w-auto sm:px-3.5 rounded-full text-xs font-medium text-white glass active:scale-95 disabled:opacity-50 transition-all touch-manipulation"
           aria-label={t('chat.selfie')}

@@ -858,8 +858,8 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
     }
     cancelGenRef.current = false;
     const session = ++genSessionRef.current;
-    setIsGenerating(true);
-    const req = (userRequest || 'send me a sexy selfie').trim();
+    // Defensive: onClick handlers may leak a SyntheticEvent as userRequest.
+    const req = (typeof userRequest === 'string' ? userRequest : 'send me a sexy selfie').trim();
     lastSelfieReqRef.current = req;
     const waitId = `selfie-wait-${Date.now()}`;
     setMessages((prev) => [
@@ -872,6 +872,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       },
     ]);
     setIsTyping(true);
+    setIsGenerating(true);
     try {
       const fromState = messages
         .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -996,9 +997,10 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
     }
     cancelGenRef.current = false;
     const session = ++genSessionRef.current;
-    setIsGenerating(true);
-    const req = (userRequest || 'send me a sexy selfie').trim();
+    // Defensive: onClick handlers may leak a SyntheticEvent as userRequest.
+    const req = (typeof userRequest === 'string' ? userRequest : 'send me a sexy selfie').trim();
     lastSelfieReqRef.current = req;
+    setIsGenerating(true);
 
     // Girlfriend "I'm taking a photo" wait message
     const waitText = t('chat.takingNewPhotoForYou');
@@ -1286,8 +1288,9 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           created_at: new Date().toISOString(),
         },
       ]);
+    } finally {
+      setIsGenerating(false);
     }
-    setIsGenerating(false);
   };
 
   /** Generate a short video: first create an image, then animate it via RunPod SVD */
@@ -1298,8 +1301,10 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
     }
     cancelGenRef.current = false;
     const session = ++genSessionRef.current;
+    // Defensive: ensure userRequest is always a string (onClick may leak SyntheticEvent).
+    const videoReq = typeof userRequest === 'string' ? userRequest : 'send me a selfie';
+    lastVideoReqRef.current = videoReq;
     setIsGenerating(true);
-    lastVideoReqRef.current = userRequest || 'send me a selfie';
     const waitText = t('chat.makingVideoForYou');
     const waitId = `video-wait-${Date.now()}`;
     setMessages((prev) => [...prev, { id: waitId, role: 'assistant', content: waitText, created_at: new Date().toISOString() }]);
@@ -1309,7 +1314,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       const imgRes = await authedFetch('/api/chat/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ girlfriend_id: id, user_request: userRequest || 'send me a selfie', locale }),
+        body: JSON.stringify({ girlfriend_id: id, user_request: videoReq, locale }),
       });
       const imgData = await readResponseJson<{ image_url?: string; imageUrl?: string; pending?: boolean; job_id?: string; endpoint_id?: string; error?: string }>(imgRes);
       if (!imgRes.ok) throw new Error(imgData.error || 'Image generation failed');
@@ -1415,8 +1420,9 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         content: t('chat.videoFailed', { detail: failText }),
         created_at: new Date().toISOString(),
       }]);
+    } finally {
+      setIsGenerating(false);
     }
-    setIsGenerating(false);
   };
 
   const sendMessage = async (

@@ -57,7 +57,7 @@ export function AttachmentsSheet(props: {
             {
               icon: isGenerating ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageIcon className="h-6 w-6" />,
               label: 'Her photo',
-              onClick: onSelfie,
+              onClick: () => onSelfie(),
               color: '#FF6BA6',
               disabled: isGenerating,
             },
