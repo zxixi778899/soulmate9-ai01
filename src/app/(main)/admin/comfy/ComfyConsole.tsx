@@ -1271,9 +1271,15 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     num_images: imageCount,
     seed,
     denoise: genMode === 'img2img' || inputImage ? denoise : undefined,
-    input_image: genMode === 'img2img' || inputImage.trim() || identityConsistencyActive
-      ? inputImage.trim() || identityReferenceUrl || undefined
+    
+    // ✅ img2img base image only - separated from identity locking
+    // Prevent composition freeze when identityConsistencyActive but user wants new framing
+    input_image: (genMode === 'img2img' && inputImage.trim())
+      ? inputImage.trim()
       : undefined,
+    
+    // ✅ Character consistency controls IP-Adapter separately
+    // Identity reference URL is passed via character_consistency mechanism
     character_consistency: (overrides?.assetRole || assetRole) !== 'avatar-closeup' && identityConsistencyActive,
     reference_controls: {
       enabled: (overrides?.assetRole || assetRole) !== 'avatar-closeup' && identityConsistencyActive,
@@ -1325,7 +1331,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     jobId: string,
     images: string[],
     overrides?: { girlfriendId?: string; prompt?: string; negative?: string; assetRole?: CharacterAssetRole },
-  ): Promise<Any[] | null> => {
+  ): Promise<Any[]> => {
     try {
       const res = await authedFetch('/api/admin/comfy', {
         method: 'POST',
@@ -1338,11 +1344,27 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         }),
       });
       const data = await readResponseJson(res).catch(() => ({} as Any));
-      if (res.ok && Array.isArray(data.assets) && data.assets.length > 0) {
+      
+      if (!res.ok) {
+        throw new Error(`Finalize API error: ${data.error || res.statusText}`);
+      }
+      
+      if (Array.isArray(data.assets) && data.assets.length > 0) {
         return data.assets as Any[];
       }
-    } catch { /* 保存失败不影响预览 */ }
-    return null;
+      
+      // ⚠️ No assets returned is still an error
+      throw new Error('Finalize returned no assets');
+      
+    } catch (error) {
+      logger.error('[finalizeAssets] Failed to register asset', {
+        jobId,
+        imagesCount: images.length,
+        error: error instanceof Error ? error.message : String(error),
+        overrides,
+      });
+      throw error; // Re-throw to caller instead of swallowing
+    }
   };
 
   const runBatchGeneration = async (
@@ -1370,16 +1392,26 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       const preset = getCharacterProductionPreset(role);
       const id = String(girlfriend.id);
       const isIdentityAsset = role === 'avatar-closeup' || role.startsWith('identity-');
+          
+      // Get identity reference image for this specific asset role
+      const identityAsset = companionAssets.find((item) => 
+        item.meta?.asset_role === preset.referenceRole
+      );
+      const identityImageUrl = String(identityAsset?.url || '');
+      const wantsIdentityRef = !isIdentityAsset && preset.consistency;
+      const hasIdentityRef = wantsIdentityRef && identityImageUrl.length > 0;
+          
       const assembled = buildCompanionGenerationPrompt(girlfriend as Record<string, unknown>, {
         action: `${preset.scene}. ${styleProductionHint(animeRenderStyle)}`,
         adult: isIdentityAsset ? false : nsfwIntensity >= 3,
         intensity: isIdentityAsset ? 1 : nsfwIntensity,
       });
-      // 身份资产用精简提示词（场景+数据库简报），与服务端一致，避免 1200+ 长提示词
+      // 身份资产用精简提示词（场景 + 数据库简报），与服务端一致，避免 1200+ 长提示词
       const promptForRole = isIdentityAsset
         ? `${preset.scene}, ${buildCompanionIdentityBrief(girlfriend as Record<string, unknown>)}`
         : assembled.positive;
       const overrides = { girlfriendId: id, prompt: promptForRole, negative: assembled.negative, assetRole: role };
+          
       const res = await authedFetch('/api/admin/comfy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1389,7 +1421,14 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           width: preset.width,
           height: preset.height,
           num_images: 1,
-          input_image: undefined,
+              
+          // ✅ img2img base image - only when identity reference exists and required
+          input_image: hasIdentityRef ? identityImageUrl : undefined,
+              
+          // ✅ Explicit IP-Adapter reference for FLUX models
+          ...(hasIdentityRef && {
+            ip_adapter_image: identityImageUrl,
+          }),
         }),
       });
       const data = await readResponseJson(res).catch(() => ({} as Any));
@@ -1407,15 +1446,34 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${overrides?.girlfriendId ? `&girlfriend_id=${encodeURIComponent(overrides.girlfriendId)}` : ''}&asset_role=${encodeURIComponent(String(overrides?.assetRole || assetRole))}`);
           const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
           if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
-            const saved = Array.isArray(pollData.assets) && pollData.assets.length
-              ? pollData.assets as Any[]
-              : await finalizeAssets(jobId, pollData.images, executedOverrides);
-            if (!saved?.length) throw new Error(`${preset.label} asset catalog registration failed`);
+            let saved: Any[] = [];
+                  
+            // 优先使用 API 返回的 assets
+            if (Array.isArray(pollData.assets) && pollData.assets.length > 0) {
+              saved = pollData.assets as Any[];
+            } else if (jobId && pollData.images.length > 0) {
+              // 否则调用 finalize 保存
+              try {
+                saved = await finalizeAssets(jobId, pollData.images, executedOverrides);
+              } catch (finalizeError) {
+                logger.warn('[runProductionTask] Finalize failed, continuing without DB update', {
+                  jobId,
+                  error: finalizeError instanceof Error ? finalizeError.message : String(finalizeError),
+                });
+                setLastResult(generatedAssets);
+                return;
+              }
+            }
+                  
+            if (!saved?.length) {
+              throw new Error(`${preset.label} asset catalog registration failed - no images saved`);
+            }
+                  
             generatedAssets.push(...saved);
             done = true;
             break;
           }
-          if (pollData.status === 'FAILED') throw new Error(pollData.error || `${preset.label}任务失败`);
+          if (pollData.status === 'FAILED') throw new Error(pollData.error || `${preset.label} 任务失败`);
         }
         if (!done) throw new Error(`${preset.label} GPU 排队超时`);
       } else {
@@ -1760,15 +1818,25 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       // Handle async pending response — poll until job completes
       if (data.pending && data.job_id) {
         setGenerationStage('queued');
-        toast.message('GPU 排队中，等待出图…');
         const jobId = String(data.job_id);
-        const maxPolls = 24; // status endpoint long-polls up to 8s; about 3 minutes total
+        const maxPolls = 48; // status endpoint long-polls up to 8s; ~48×8s = ~6 minutes total for GPU queue
         let completed = false;
+        let waitedMs = 0;
         for (let i = 0; i < maxPolls; i++) {
           try {
             const activeGfId = productionGirlfriendId || girlfriendId || '';
+            const startPoll = Date.now();
             const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${activeGfId ? `&girlfriend_id=${encodeURIComponent(activeGfId)}` : ''}&asset_role=${encodeURIComponent(String(assetRole))}`);
             const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
+            const elapsedMs = Date.now() - startPoll;
+            waitedMs += elapsedMs;
+            
+            // Show real-time progress toast every 10 polls (~80s)
+            if ((i + 1) % 10 === 0) {
+              const waitedMin = Math.floor(waitedMs / 60000);
+              const remainingSec = Math.max(0, Math.ceil((maxPolls * 8000 - waitedMs) / 1000));
+              toast.info(`仍在 GPU 队列中 · 已等待 ${waitedMin}分${Math.floor((waitedMs % 60000) / 1000)}秒 · 预计还需 ${remainingSec}秒`);
+            }
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
               setGenerationStage('finalizing');
               const saved = Array.isArray(pollData.assets) && pollData.assets.length
@@ -1798,7 +1866,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           }
         }
         if (!completed) {
-          throw new Error('GPU 排队超时（3 分钟），请稍后重试');
+          const waitedMin = Math.floor(waitedMs / 60000);
+          const waitedSec = Math.floor((waitedMs % 60000) / 1000);
+          throw new Error(`GPU 排队超时（已等待${waitedMin}分${waitedSec}秒）,RunPod GPU 资源紧张，请检查终端点配置或稍后重试`);
         }
         return;
       }
