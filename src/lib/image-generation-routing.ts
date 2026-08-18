@@ -275,10 +275,10 @@ export function resolveImageGenerationRoute(input: {
       return fluxRoute({
         surface: input.surface,
         checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
-        steps: nsfw ? 28 : 24,
+        steps: nsfw ? 32 : 28,  // ✅ Increased from 28/24
         fluxGuidance: nsfw ? 4.0 : 3.5,
-        width: 832,
-        height: 1216,
+        width: 1024,              // ✅ Increased from 832
+        height: 1536,             // ✅ Increased from 1216
         presetId: 'flux-matrix-failopen',
         reason: 'SDXL matrix gate open but no SDXL endpoint — fail-open to FLUX.',
       }, category, renderStyle, nsfw);
@@ -298,10 +298,10 @@ export function resolveImageGenerationRoute(input: {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: 8,
+      steps: 8,                 // Keep turbo steps for speed
       fluxGuidance: 2.5,
-      width: 832,
-      height: 1216,
+      width: 640,               // Keep small for preview
+      height: 960,
       presetId: 'flux-turbo',
       reason: 'Turbo preview: minimal steps for a fast companion draft.',
     }, category, renderStyle, nsfw);
@@ -314,10 +314,10 @@ export function resolveImageGenerationRoute(input: {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: nsfw ? 28 : 26,
+      steps: nsfw ? 32 : 28,    // ✅ Increased from 28/26
       fluxGuidance: nsfw ? 4.0 : 3.5,
-      width: 832,
-      height: 1216,
+      width: 1024,              // ✅ Increased from 832
+      height: 1536,             // ✅ Increased from 1216
       presetId: complexScene ? 'flux-2d-multi-control' : 'flux-2d-portrait',
       reason: complexScene
         ? 'Multi-character 2D art uses the high-step FLUX anime preset.'
@@ -330,10 +330,10 @@ export function resolveImageGenerationRoute(input: {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: nsfw ? 28 : 26,
+      steps: nsfw ? 32 : 28,    // ✅ Increased from 28/26
       fluxGuidance: nsfw ? 4.0 : 3.5,
-      width: 896,
-      height: 1152,
+      width: 1152,              // ✅ Increased from 896
+      height: 1472,             // ✅ Increased from 1152
       presetId: complexScene ? 'flux-3d-multi-control' : 'flux-3d-portrait',
       reason: '3D companion rendering uses FLUX with the 3D render LoRA.',
     }, category, renderStyle, nsfw);
@@ -346,10 +346,10 @@ export function resolveImageGenerationRoute(input: {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: nsfw ? 28 : 24,
+      steps: nsfw ? 32 : 28,    // ✅ Increased from 28/24
       fluxGuidance: nsfw ? 4.0 : 3.5,
-      width: 896,
-      height: 1152,
+      width: 1024,              // ✅ Increased from 896
+      height: 1472,             // ✅ Increased from 1152
       presetId: nsfw
         ? complexScene ? 'flux-trans-composition' : 'flux-trans-adult'
         : 'flux-trans-portrait',
@@ -363,10 +363,10 @@ export function resolveImageGenerationRoute(input: {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: complexScene ? 30 : 28,
+      steps: complexScene ? 32 : 30,  // ✅ Increased from 30/28
       fluxGuidance: 4.0,
-      width: 896,
-      height: 1152,
+      width: 1024,               // ✅ Increased from 896
+      height: 1472,              // ✅ Increased from 1152
       presetId: highControl ? 'flux-adult-composition-control' : complexScene ? 'flux-adult-pair' : 'flux-adult-portrait',
       reason: 'Explicit adult anatomy uses the high-step FLUX pipeline with NSFW LoRAs.',
     }, category, renderStyle, nsfw);
@@ -376,10 +376,10 @@ export function resolveImageGenerationRoute(input: {
   return fluxRoute({
     surface: input.surface,
     checkpoint,
-    steps: 24,
+    steps: 28,                   // ✅ Increased from 24
     fluxGuidance: 3.5,
-    width: input.surface === 'companion' ? 832 : 1024,
-    height: input.surface === 'companion' ? 1216 : 1024,
+    width: input.surface === 'companion' ? 1024 : 1024,  // ✅ Increased from 832
+    height: input.surface === 'companion' ? 1536 : 1024, // ✅ Increased from 1216
     presetId: input.surface === 'companion' ? 'flux-portrait-sfw' : `flux-${input.surface}-product`,
     reason: `${input.surface} generation uses the unified FLUX pipeline.`,
   }, category, renderStyle, nsfw);

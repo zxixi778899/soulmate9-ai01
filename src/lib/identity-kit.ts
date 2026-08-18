@@ -433,12 +433,17 @@ export function resolveIpAdapterWeight(
   assetRole: string,
   studioTask?: string,
   modelFamily?: string,
+  /** Prioritize variety over strict identity lock (for initial generations) */
+  prioritizeVariety?: boolean,
 ): number {
   if (modelFamily !== 'flux') return 0.65; // Non-FLUX fallback
 
-  // Identity reference sheets: strong lock
-  if (assetRole.startsWith('identity-')) return 0.85;
-  if (assetRole === 'avatar-closeup') return 0.78;
+  // Lower weights when variety is prioritized
+  const varietyMultiplier = prioritizeVariety ? 0.75 : 1.0;
+  
+  // Identity reference sheets: strong lock (but adjustable)
+  if (assetRole.startsWith('identity-')) return Math.round((0.85 * varietyMultiplier) * 100) / 100;
+  if (assetRole === 'avatar-closeup') return Math.round((0.78 * varietyMultiplier) * 100) / 100;
 
   // Final products: balanced (identity + creative freedom)
   if (assetRole === 'character-art') return 0.72;

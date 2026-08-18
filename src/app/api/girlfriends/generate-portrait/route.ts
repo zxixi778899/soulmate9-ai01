@@ -24,6 +24,7 @@ import { buildAutoLoraStack, buildKeywordLoras } from '@/lib/auto-lora';
 import { sanitizeLoraForVolume, getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
 import { translatePromptToEnglish } from '@/lib/prompt-translate';
 import { forwardLegacyGeneration } from '@/lib/gen-hub';
+import { resolveIdentityKit, resolveIpAdapterWeight } from '@/lib/identity-kit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -141,6 +142,9 @@ async function generateImage(input: {
   seed?: number;
   /** 自动 LoRA 栈（已按运行卷校验） */
   loras?: Array<{ name: string; strength_model: number; strength_clip: number }>;
+  /** IP-Adapter identity reference */
+  ipAdapterImage?: string;
+  ipAdapterWeight?: number;
 }): Promise<{ image?: string; jobId?: string; endpointId?: string; pending?: boolean }> {
   const nsfwLevel = Math.max(1, Math.min(5, Math.round(Number(input.nsfwLevel) || 1)));
   const route = resolveImageGenerationRoute({
@@ -157,8 +161,8 @@ async function generateImage(input: {
     num_inference_steps: route.steps,
     guidance_scale: route.cfg,
     seed: input.seed,
-    ip_adapter_image: input.referenceImage,
-    ip_adapter_weight: input.referenceImage ? 0.65 : undefined,
+    ip_adapter_image: input.ipAdapterImage || input.referenceImage || undefined,
+    ip_adapter_weight: input.ipAdapterWeight ?? (input.referenceImage ? 0.65 : undefined),
     ckpt_name: route.checkpoint,
     sampler_name: route.sampler,
     scheduler: route.scheduler,
@@ -197,7 +201,7 @@ export async function POST(request: NextRequest) {
       const forwarded = await forwardLegacyGeneration({
         request,
         kind: 'portrait',
-        client,
+        client: client as any,
         userId: user.id,
         handler: POST,
         routePath: '/api/girlfriends/generate-portrait',
@@ -343,6 +347,7 @@ export async function POST(request: NextRequest) {
     const customPrompt = typeof body.custom_prompt === 'string' ? body.custom_prompt.trim() : '';
     let naturalPrompt: string;
     let finalIdentity: string;
+    let identityKit: Awaited<ReturnType<typeof resolveIdentityKit>> | null = null;
 
     if (customPrompt) {
       // Pre-built prompt from the creator wizard — skip internal prompt building
@@ -352,14 +357,25 @@ export async function POST(request: NextRequest) {
         name, promptLen: customPrompt.length,
       });
     } else {
-      // Original prompt building pipeline
+      // First resolve identity kit for ANY branch (custom or not)
+      const sb = getSupabaseClient();
+      identityKit = await resolveIdentityKit(
+        gfIdForRef,
+        sb as any,
+        body as Record<string, unknown>
+      ).catch((err) => {
+        logger.warn('[Generate Portrait] resolveIdentityKit failed', { err: err instanceof Error ? err.message : String(err) });
+        return null;
+      });
+
       const referencePlan = buildReferenceGenerationPlan({
         surface: 'companion',
         category,
         renderStyle,
         modelFamily: route.modelFamily,
+        companionId: gfIdForRef,
         nsfwLevel,
-        allowIdentity: false,
+        allowIdentity: true,
         controls: config.reference_control,
         assets: config.reference_assets || [],
       });
@@ -414,7 +430,13 @@ export async function POST(request: NextRequest) {
     if (count > 1) {
       logger.info('[Generate Portrait] Batch generating', {
         name, count, category, renderStyle, promptLen: naturalPrompt.length,
+        identityReference: identityKit?.anchorImageUrl ? 'enabled' : 'disabled',
+        prioritizeVariety: true,  // ✅ Enable variety for initial generations
       });
+      const identityReferenceUrl = identityKit?.anchorImageUrl || '';
+      // Prioritize variety on first generation, then balance with identity
+      const identityWeight = identityKit ? resolveIpAdapterWeight('avatar-closeup', undefined, 'flux', true) : 0;
+      
       const jobs = await Promise.all(
         Array.from({ length: count }, () =>
           generateImage({
@@ -427,6 +449,8 @@ export async function POST(request: NextRequest) {
             // 每张图独立随机种子：拉高随机值，避免 4 张完全相同
             seed: Math.floor(Math.random() * 2_147_483_647),
             loras: normalizedLoras.length ? normalizedLoras : undefined,
+            ipAdapterImage: identityReferenceUrl,
+            ipAdapterWeight: identityWeight,
           }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
         ),
       );
@@ -471,6 +495,7 @@ export async function POST(request: NextRequest) {
       renderStyle,
       promptLen: naturalPrompt.length,
       customPromptUsed: !!customPrompt,
+      identityReference: identityKit?.anchorImageUrl ? 'enabled' : 'disabled',
     });
     const result = await generateImage({
       prompt: naturalPrompt,
@@ -481,6 +506,8 @@ export async function POST(request: NextRequest) {
       nsfwLevel,
       seed: Math.floor(Math.random() * 2_147_483_647),
       loras: normalizedLoras.length ? normalizedLoras : undefined,
+      ipAdapterImage: identityKit?.anchorImageUrl || '',
+      ipAdapterWeight: identityKit ? resolveIpAdapterWeight('avatar-closeup', undefined, 'flux', true) : 0,
     });
 
     // If still pending, return job_id for client-side polling

@@ -168,10 +168,10 @@ export function buildFluxWorkflow(opts: {
 }): Record<string, unknown> {
   const modelFamily = opts.model_family || 'flux';
   const isFlux = modelFamily === 'flux';
-  const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 32);
-  const width = opts.width ?? 832;
-  const height = opts.height ?? 1216;
-  const steps = Math.max(opts.steps ?? 8, 8);
+  const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 31);
+  const width = opts.width ?? 1024;        // ✅ Increased from 832 for better quality
+  const height = opts.height ?? 1536;      // ✅ Increased from 1216
+  const steps = Math.max(opts.steps ?? 28, 8);  // ✅ Default 28 instead of 8
   // Keep the final caller-supplied Flux guidance. The two FLUX profiles use
   // different values; hard-coding 1 here silently discards the admin setting.
   const guidance = isFlux
