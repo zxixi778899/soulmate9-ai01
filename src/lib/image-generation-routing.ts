@@ -247,6 +247,13 @@ export function resolveImageGenerationRoute(input: {
    * 由服务端随响应下发）。未提供时回读 RUNPOD_ENDPOINT_ID_SDXL。
    */
   sdxlEndpointId?: string;
+  /**
+   * 显式模型族（Studio 手动模型选择）。指定后绕过自动题材路由：
+   *  - 'flux'        → 跳过 SDXL 矩阵，强制 FLUX 精品层分支
+   *  - 'pony'        → 强制 SDXL·ponyRealism（矩阵总闸/端点缺失时 fail-open 回 FLUX）
+   *  - 'illustrious' → 强制 SDXL·Illustrious（同上）
+   */
+  familyOverride?: ImageModelFamily;
 }): ImageGenerationRoute {
   const renderStyle = input.renderStyle || 'realistic';
   const intensity = input.nsfwIntensity || 1;
@@ -258,18 +265,24 @@ export function resolveImageGenerationRoute(input: {
   // ─── SDXL 模型矩阵（RUNPOD_SDXL_MODELS_READY 总闸） ───────────────────────
   // 总闸关闭 / 端点未配置 / premium / turbo / 3D / 产品资产时 plan 自动落回
   // 'runpod-flux'，继续走下方保留的 FLUX 分支（行为与重构前一致）。
+  // familyOverride='flux' 时整个矩阵分支跳过（手动锁定 FLUX）；
+  // 'pony'/'illustrious' 时用对应 renderStyle 强制矩阵计划（turbo 一并忽略，
+  // 否则 resolveModelPlan 会把显式选择打回 FLUX 快速路径）。
+  const forceFamily = input.familyOverride;
   const matrixActive = input.matrixActive ?? input.specialistModelsReady;
   const sdxlEndpointId = input.sdxlEndpointId?.trim() || env('RUNPOD_ENDPOINT_ID_SDXL', '');
-  const matrixPlan = resolveModelPlan({
-    surface: input.surface,
-    category,
-    renderStyle,
-    nsfwLevel: intensity,
-    turbo: input.turbo,
-    sceneComplex: complexScene,
-    matrixActive,
-  });
-  if (matrixPlan.endpointKey === 'runpod-sdxl-pro') {
+  const matrixPlan = forceFamily === 'flux'
+    ? null
+    : resolveModelPlan({
+        surface: input.surface,
+        category,
+        renderStyle: forceFamily === 'illustrious' ? '2d' : forceFamily === 'pony' ? 'realistic' : renderStyle,
+        nsfwLevel: intensity,
+        turbo: forceFamily ? false : input.turbo,
+        sceneComplex: complexScene,
+        matrixActive,
+      });
+  if (matrixPlan?.endpointKey === 'runpod-sdxl-pro') {
     // 端点缺失时 fail-open 回 FLUX（与 env 总闸语义一致）。
     if (!sdxlEndpointId) {
       return fluxRoute({

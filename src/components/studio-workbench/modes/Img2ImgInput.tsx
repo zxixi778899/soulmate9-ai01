@@ -15,7 +15,10 @@ export function Img2ImgInput() {
       {/* Denoise slider */}
       <div>
         <div className="flex items-center justify-between">
-          <Label className="text-[10px] text-slate-500">变换强度</Label>
+          <div>
+            <Label className="text-[10px] text-slate-500">变换强度</Label>
+            <p className="text-[9px] text-slate-600">控制参控图的重绘幅度</p>
+          </div>
           <span className="rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] text-violet-300">
             {state.denoise.toFixed(2)}
           </span>
@@ -62,7 +65,10 @@ export function Img2ImgInput() {
           ) : (
             <ShieldOff className="h-3.5 w-3.5 text-slate-600" />
           )}
-          <Label className="text-[10px] text-slate-400">身份一致性</Label>
+          <div>
+            <Label className="text-[10px] text-slate-400">身份一致性</Label>
+            <p className="text-[9px] text-slate-600">IP-Adapter 锁脸，与参控图无关</p>
+          </div>
         </div>
         <button
           type="button"

@@ -4,10 +4,13 @@ import { useStudio } from '../StudioContext';
 import { X } from 'lucide-react';
 
 export function LoraStack() {
-  const { state, dispatch } = useStudio();
+  const { state, dispatch, generationRoute } = useStudio();
 
   // Get lora metadata from config
   const allLoras: Array<Record<string, unknown>> = state.config?.loras || [];
+
+  // 只展示与当前模型族匹配的 LoRA（禁止跨族混用）
+  const familyLoras = allLoras.filter((l) => String(l.family || '').toLowerCase() === generationRoute.modelFamily);
 
   if (state.selectedLoras.length === 0 && !state.advancedMode) return null;
 
@@ -64,14 +67,17 @@ export function LoraStack() {
         </div>
       )}
 
-      {/* Quick add from available LoRAs (advanced mode) */}
+      {/* Quick add from available LoRAs (advanced mode, 按当前模型族过滤) */}
       {state.advancedMode && state.selectedLoras.length < 4 && (
         <details className="mt-2">
           <summary className="cursor-pointer text-[10px] text-violet-400 hover:text-violet-300">
-            + 添加 LoRA
+            + 添加 LoRA（{generationRoute.modelFamily.toUpperCase()}）
           </summary>
           <div className="mt-2 max-h-40 overflow-y-auto space-y-1">
-            {allLoras
+            {familyLoras.length === 0 && (
+              <p className="px-2 py-1 text-[10px] text-slate-600">当前模型族暂无可用 LoRA</p>
+            )}
+            {familyLoras
               .filter((l) => l.id && l.id !== 'none' && !state.selectedLoras.some((s) => s.id === l.id))
               .slice(0, 20)
               .map((lora) => (

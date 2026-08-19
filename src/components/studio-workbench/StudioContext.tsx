@@ -6,17 +6,18 @@ import { readResponseJson } from '@/lib/safe-json';
 import { toast } from 'sonner';
 import {
   resolveImageGenerationRoute,
+  TASK_DENOISE_DEFAULTS,
 } from '@/lib/image-generation-routing';
 import {
   resolveCreativeGenerationPreset,
 } from '@/lib/creative-generation-presets';
 import { buildStudioTaskPrompt } from '@/lib/comfy-console/studio-task-prompt';
 import { compactFluxPrompt } from '@/lib/comfy-console/studio-profile';
-import { buildIdentityPrompt } from '@/lib/identity-kit';
 import {
   INITIAL_STATE,
   type StudioState,
   type StudioAction,
+  type StudioTask,
   type Any,
 } from './StudioWorkbench.types';
 
@@ -35,7 +36,8 @@ function studioReducer(state: StudioState, action: StudioAction): StudioState {
     case 'SET_SURFACE':
       return { ...state, generationSurface: action.surface };
     case 'SET_IDENTITY_CONSISTENCY':
-      return { ...state, identityConsistency: action.value };
+      // 身份一致性 = IP-Adapter 锁脸：与 IP 开关保持同步，与参控图无关。
+      return { ...state, identityConsistency: action.value, ipAdapter: action.value };
     case 'SET_PROMPT':
       return { ...state, prompt: action.text };
     case 'SET_NEGATIVE':
@@ -47,7 +49,7 @@ function studioReducer(state: StudioState, action: StudioAction): StudioState {
     case 'SET_NSFW':
       return { ...state, nsfwIntensity: action.intensity };
     case 'SET_PARAMS':
-      return { ...state, ...action.patch };
+      return { ...state, ...action.patch, paramsTouched: true };
     case 'SET_LORAS':
       return { ...state, selectedLoras: action.loras };
     case 'ADD_LORA':
@@ -60,6 +62,19 @@ function studioReducer(state: StudioState, action: StudioAction): StudioState {
       return { ...state, selectedLoras: state.selectedLoras.map((l) => l.id === action.id ? { ...l, strength: action.strength } : l) };
     case 'SET_ASSET_ROLE':
       return { ...state, assetRole: action.role };
+    case 'SET_MODEL_OVERRIDE':
+      return { ...state, modelOverride: action.value };
+    case 'SET_IPADAPTER':
+      return { ...state, ipAdapter: action.value, identityConsistency: action.value };
+    case 'SET_ENHANCER':
+      return { ...state, enhancers: { ...state.enhancers, [action.key]: action.value } };
+    case 'SET_ENHANCER_STATUSES':
+      return { ...state, enhancerStatuses: action.statuses };
+    case 'PATCH_COMPANION':
+      return {
+        ...state,
+        scopedGirlfriend: state.scopedGirlfriend ? { ...state.scopedGirlfriend, ...action.patch } : action.patch,
+      };
     case 'SET_GENERATING':
       return { ...state, generating: action.value, generationStage: action.stage || (action.value ? 'submitting' : 'idle') };
     case 'SET_RESULT':
@@ -77,7 +92,14 @@ function studioReducer(state: StudioState, action: StudioAction): StudioState {
         studioTask: action.kind,
         generationSurface: 'companion',
         identityConsistency: true,
-        denoise: action.kind === 'pose' ? 0.52 : 0.44,
+        // 服务端对 avatar-closeup/最终产品角色会丢弃 img2img 输入图，
+        // 用 identity-half 才能保留参考图重绘。
+        assetRole: 'identity-half',
+        denoise: action.kind === 'pose'
+          ? TASK_DENOISE_DEFAULTS.pose
+          : action.kind === 'background'
+            ? TASK_DENOISE_DEFAULTS.background
+            : TASK_DENOISE_DEFAULTS.outfit,
         prompt: '',
       };
     default:
@@ -94,6 +116,12 @@ interface StudioContextValue {
   generate: () => Promise<void>;
   /** Load config from API */
   loadConfig: () => Promise<void>;
+  /** Refresh companion assets (library + generated) */
+  refreshAssets: (id?: string) => Promise<void>;
+  /** 当前生效的生图路由（供 LoRA 过滤等展示用） */
+  generationRoute: ReturnType<typeof resolveImageGenerationRoute>;
+  /** 推荐参数预设（未手动改参时生效） */
+  recommendedPreset: ReturnType<typeof resolveCreativeGenerationPreset>;
   /** Optimize prompt with AI */
   optimizePrompt: () => Promise<void>;
   /** Upload reference image */
@@ -117,23 +145,55 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
 
   const loadConfig = useCallback(async () => {
     try {
-      const res = await authedFetch('/api/admin/comfy?view=config');
+      const [res, volRes, enhRes] = await Promise.all([
+        authedFetch('/api/admin/comfy?view=config'),
+        authedFetch('/api/admin/comfy?view=volume'),
+        authedFetch('/api/admin/comfy?view=enhancers'),
+      ]);
       const data = await readResponseJson(res).catch(() => ({} as Any));
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       const config = data.config || null;
 
-      const volRes = await authedFetch('/api/admin/comfy?view=volume');
       const volData = await readResponseJson(volRes).catch(() => ({} as Any));
       const volumeInfo = volRes.ok ? volData : null;
       const installedLoras = Array.isArray(volData.installed_loras) ? volData.installed_loras : [];
 
+      const enhData = await readResponseJson(enhRes).catch(() => ({} as Any));
+      const enhancerStatuses = Array.isArray(enhData.enhancers) ? enhData.enhancers : [];
+
       dispatch({ type: 'SET_CONFIG', config, volumeInfo, installedLoras });
+      dispatch({ type: 'SET_ENHANCER_STATUSES', statuses: enhancerStatuses });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Config load failed');
     }
   }, []);
 
-  // Derived: generation route
+  // Refresh companion assets: library assets + generated assets merged
+  const refreshAssets = useCallback(async (id?: string) => {
+    const companionId = id || state.companionId;
+    if (!companionId) return;
+    try {
+      const params = new URLSearchParams({ view: 'assets', girlfriend_id: companionId, limit: '120' });
+      const [libraryRes, generatedRes] = await Promise.all([
+        authedFetch(`/api/companion/${encodeURIComponent(companionId)}/assets`),
+        authedFetch(`/api/admin/comfy?${params.toString()}`),
+      ]);
+      const libraryData = await readResponseJson(libraryRes).catch(() => ({} as Any));
+      const generatedData = await readResponseJson(generatedRes).catch(() => ({} as Any));
+      const libraryAssets: Any[] = Array.isArray(libraryData.assets) ? libraryData.assets : [];
+      const generatedAssets: Any[] = Array.isArray(generatedData.assets) ? generatedData.assets : [];
+      const knownUrls = new Set(libraryAssets.map((a) => String(a.url || '')));
+      const merged = [
+        ...libraryAssets,
+        ...generatedAssets.filter((a) => a.url && !knownUrls.has(String(a.url))),
+      ].filter((item, idx, all) =>
+        all.findIndex((c) => String(c.id || c.url) === String(item.id || item.url)) === idx,
+      );
+      dispatch({ type: 'SET_COMPANION_ASSETS', assets: merged });
+    } catch { /* ignore */ }
+  }, [state.companionId]);
+
+  // Derived: generation route（含 Studio 手动模型覆盖）
   const generationRoute = useMemo(() => resolveImageGenerationRoute({
     surface: state.generationSurface,
     category: state.companionCategory,
@@ -142,7 +202,8 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
     turbo: state.fastPreview && state.genMode !== 'img2video',
     specialistModelsReady: state.volumeInfo?.sdxl_models_ready === true,
     sdxlEndpointId: state.volumeInfo?.endpoint_id_sdxl || undefined,
-  }), [state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.fastPreview, state.genMode, state.volumeInfo]);
+    familyOverride: state.modelOverride === 'auto' ? undefined : state.modelOverride,
+  }), [state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.fastPreview, state.genMode, state.volumeInfo, state.modelOverride]);
 
   // Derived: recommended preset
   const recommendedPreset = useMemo(() => resolveCreativeGenerationPreset({
@@ -159,6 +220,15 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
     sdxlEndpointId: state.volumeInfo?.endpoint_id_sdxl || undefined,
   }), [state.genMode, state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.assetRole, state.prompt, state.identityConsistency, state.fastPreview, state.volumeInfo]);
 
+  // Derived: effective task（身份系角色走 identity 提示词合约，其余默认 portrait）
+  const effectiveTask: StudioTask = useMemo(() => {
+    if (state.genMode === 'img2video') return 'video';
+    if (state.studioTask === 'outfit' || state.studioTask === 'pose' || state.studioTask === 'background') {
+      return state.studioTask;
+    }
+    return state.assetRole.startsWith('identity') ? 'identity' : 'portrait';
+  }, [state.genMode, state.studioTask, state.assetRole]);
+
   // Derived: resolved task prompt
   const resolvedPrompt = useMemo(() => {
     const loraTriggers = state.selectedLoras.flatMap((sel) => {
@@ -166,8 +236,14 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
       const lora = allLoras.find((l) => l.id === sel.id);
       return Array.isArray(lora?.trigger_words) ? lora.trigger_words.map(String) : [];
     });
+    // 身份一致性靠 IP-Adapter（身份锚点/头像/卡图），与 img2img 参控图无关。
+    const roleOf = (asset: Any): string => String(asset.asset_role || asset.meta?.asset_role || asset.role || '');
+    const gf = state.scopedGirlfriend as Any | null;
+    const hasIdentityAnchor =
+      state.companionAssets.some((asset) => ['identity-anchor', 'avatar-closeup'].includes(roleOf(asset)) && Boolean(asset.url)) ||
+      Boolean(gf?.avatar_url || gf?.portrait_url);
     return buildStudioTaskPrompt({
-      task: state.studioTask,
+      task: effectiveTask,
       modelFamily: state.genMode === 'img2video' ? 'wan22' : generationRoute.modelFamily,
       companion: state.scopedGirlfriend as Record<string, unknown> | null,
       scene: state.prompt,
@@ -175,9 +251,9 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
       loraTriggers,
       category: state.companionCategory,
       renderStyle: state.animeRenderStyle,
-      hasIdentityReference: state.identityConsistency && Boolean(state.inputImage),
+      hasIdentityReference: state.identityConsistency && hasIdentityAnchor,
     });
-  }, [state.studioTask, state.genMode, state.scopedGirlfriend, state.prompt, state.selectedLoras, state.config, state.companionCategory, state.animeRenderStyle, state.identityConsistency, state.inputImage, generationRoute]);
+  }, [effectiveTask, state.genMode, state.scopedGirlfriend, state.prompt, state.selectedLoras, state.config, state.companionCategory, state.animeRenderStyle, state.identityConsistency, state.companionAssets, generationRoute]);
 
   const generate = useCallback(async () => {
     const taskPrompt = resolvedPrompt.trim();
@@ -248,18 +324,23 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
       }
 
       // Image generation (txt2img / img2img)
+      // 服务端对 avatar-closeup/最终产品角色会丢弃 img2img 输入图，改用 identity-half
+      const isFinalProductRole = state.assetRole === 'character-art' || state.assetRole === 'album' || state.assetRole === 'scene';
+      const effectiveAssetRole = state.genMode === 'img2img' && (state.assetRole === 'avatar-closeup' || isFinalProductRole)
+        ? 'identity-half'
+        : state.assetRole;
       const body: Any = {
         action: 'generate',
         girlfriend_id: state.companionId || undefined,
         prompt: compactFluxPrompt(taskPrompt),
         negative: state.negative.trim() || generationRoute.negativePrompt,
         ckpt_id: recommendedPreset.checkpoint,
-        sampler_name: recommendedPreset.sampler,
-        scheduler: recommendedPreset.scheduler,
-        steps: recommendedPreset.steps,
-        cfg: recommendedPreset.cfg,
-        width: recommendedPreset.width,
-        height: recommendedPreset.height,
+        sampler_name: state.paramsTouched ? state.sampler : recommendedPreset.sampler,
+        scheduler: state.paramsTouched ? state.scheduler : recommendedPreset.scheduler,
+        steps: state.paramsTouched ? state.steps : recommendedPreset.steps,
+        cfg: state.paramsTouched ? state.cfg : recommendedPreset.cfg,
+        width: state.width,
+        height: state.height,
         loras: state.selectedLoras,
         num_images: state.imageCount,
         seed: state.seed,
@@ -270,12 +351,16 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
         anime_render_style: state.animeRenderStyle,
         nsfw_intensity: state.nsfwIntensity,
         fast_preview: state.fastPreview,
-        asset_role: state.assetRole,
+        asset_role: effectiveAssetRole,
+        // Studio 手动控件：模型族覆盖 + IP-Adapter 开关 + 增强器
+        model_family_override: state.modelOverride === 'auto' ? undefined : state.modelOverride,
+        ip_adapter_enabled: state.ipAdapter,
+        enhancers: state.enhancers,
         prompt_contract: {
-          task: state.studioTask,
+          task: effectiveTask,
           modelFamily: generationRoute.modelFamily,
-          identityFromText: state.studioTask === 'identity',
-          identityFromReference: state.studioTask !== 'identity',
+          identityFromText: effectiveTask === 'identity',
+          identityFromReference: effectiveTask === 'portrait',
           loraTriggers: state.selectedLoras.flatMap((sel) => {
             const allLoras: Any[] = state.config?.loras || [];
             const lora = allLoras.find((l) => l.id === sel.id);
@@ -284,25 +369,23 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
         },
       };
 
+      const isTransformTask = effectiveTask === 'outfit' || effectiveTask === 'pose' || effectiveTask === 'background';
       if (state.genMode === 'img2img' || state.inputImage.trim()) {
         body.input_image = state.inputImage.trim() || undefined;
-        body.denoise = recommendedPreset.denoise ?? state.denoise;
+        // 变换强度直接控制参控图的重绘幅度；变换任务始终发送当前滑杆值。
+        body.denoise = state.paramsTouched || isTransformTask ? state.denoise : (recommendedPreset.denoise ?? state.denoise);
         body.character_consistency = state.identityConsistency;
       }
 
-      // Inject identity kit anchor image for IP-Adapter when available
-      if (state.identityKit && state.identityConsistency) {
-        const kit = state.identityKit;
-        if (kit.faceCropUrl || kit.anchorImageUrl) {
-          body.ip_adapter_image = kit.faceCropUrl || kit.anchorImageUrl;
-        }
-        // Inject identity spec prompt prefix for FLUX consistency
-        if (kit.identitySpec) {
-          const identityText = buildIdentityPrompt(kit.identitySpec);
-          if (identityText && typeof body.prompt === 'string') {
-            body.prompt = compactFluxPrompt(`${identityText} ${body.prompt}`);
-          }
-        }
+      // IP-Adapter 参考图解析：identity-anchor 资产 > avatar-closeup 资产 >
+      // girlfriend.avatar_url > portrait_url（服务端无显式参考图时也会同序回退）
+      if (state.ipAdapter) {
+        const assetRoleOf = (a: Any): string => String(a.asset_role || a.meta?.asset_role || a.role || '');
+        const anchorAsset = state.companionAssets.find((a) => assetRoleOf(a) === 'identity-anchor' && a.url);
+        const avatarAsset = state.companionAssets.find((a) => assetRoleOf(a) === 'avatar-closeup' && a.url);
+        const gf = state.scopedGirlfriend as Any | null;
+        const ipImage = String(anchorAsset?.url || avatarAsset?.url || gf?.avatar_url || gf?.portrait_url || '');
+        if (ipImage) body.ip_adapter_image = ipImage;
       }
 
       const res = await authedFetch('/api/admin/comfy', {
@@ -324,13 +407,14 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
         let lastPollError = '';
         for (let i = 0; i < 24; i++) {
           try {
-            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${state.companionId ? `&girlfriend_id=${encodeURIComponent(state.companionId)}` : ''}&asset_role=${encodeURIComponent(state.assetRole)}`);
+            const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${state.companionId ? `&girlfriend_id=${encodeURIComponent(state.companionId)}` : ''}&asset_role=${encodeURIComponent(effectiveAssetRole)}`);
             const pollData = await readResponseJson(pollRes).catch(() => ({} as Any));
             if (pollData.status === 'COMPLETED' && Array.isArray(pollData.images) && pollData.images.length > 0) {
               dispatch({ type: 'SET_GENERATING', value: true, stage: 'finalizing' });
               const assets = Array.isArray(pollData.assets) && pollData.assets.length ? pollData.assets : [];
               dispatch({ type: 'SET_RESULT', assets, trace: data.generation_trace });
               toast.success(`生成成功 ${assets.length} 张`);
+              void refreshAssets(state.companionId || undefined);
               return;
             }
             if (pollData.status === 'FAILED') throw new Error(`RunPod 任务失败: ${pollData.error || '未知错误'}`);
@@ -351,13 +435,14 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
       const assets = (data.assets || data.images || []).filter(Boolean);
       dispatch({ type: 'SET_RESULT', assets, trace: data.generation_trace });
       toast.success(`生成成功 ${assets.length} 张`);
+      void refreshAssets(state.companionId || undefined);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '生成失败';
       toast.error(/avatar reference/i.test(msg) ? '需要头像参考图：请先生成半身头像或上传人设图' : msg);
     } finally {
       dispatch({ type: 'SET_GENERATING', value: false });
     }
-  }, [resolvedPrompt, state, recommendedPreset, generationRoute]);
+  }, [resolvedPrompt, state, recommendedPreset, generationRoute, effectiveTask, refreshAssets]);
 
   const optimizePrompt = useCallback(async () => {
     if (!state.prompt.trim()) { toast.error('请先输入提示词'); return; }
@@ -407,9 +492,12 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
     resolvedPrompt,
     generate,
     loadConfig,
+    refreshAssets,
+    generationRoute,
+    recommendedPreset,
     optimizePrompt,
     uploadReferenceImage,
-  }), [state, resolvedPrompt, generate, loadConfig, optimizePrompt, uploadReferenceImage]);
+  }), [state, resolvedPrompt, generate, loadConfig, refreshAssets, generationRoute, recommendedPreset, optimizePrompt, uploadReferenceImage]);
 
   return <StudioContext.Provider value={value}>{children}</StudioContext.Provider>;
 }

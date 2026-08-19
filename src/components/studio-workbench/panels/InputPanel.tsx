@@ -22,6 +22,9 @@ export function InputPanel() {
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Companion asset carousel (置顶：形象下方，实时跟随新图) */}
+      {state.companionId && <AssetCarousel />}
+
       {/* Reference image uploader (img2img / img2video) */}
       {(state.genMode === 'img2img' || state.genMode === 'img2video') && (
         <ReferenceUploader />
@@ -39,7 +42,10 @@ export function InputPanel() {
       {/* Prompt composer */}
       <PromptComposer />
 
-      {/* LoRA stack */}
+      {/* Model / asset role / IP-Adapter / enhancers / advanced params */}
+      <ParameterDrawer />
+
+      {/* LoRA stack（模型选择下方，按当前模型族过滤） */}
       <LoraStack />
 
       {/* LoRA selector toggle */}
@@ -52,14 +58,8 @@ export function InputPanel() {
       </button>
       {showLoraSelector && <LoraSelector />}
 
-      {/* Companion asset carousel */}
-      {state.companionId && <AssetCarousel />}
-
       {/* Aspect ratio */}
       <AspectRatioBar />
-
-      {/* Advanced parameters */}
-      {state.advancedMode && <ParameterDrawer />}
 
       {/* Generate button */}
       <Button

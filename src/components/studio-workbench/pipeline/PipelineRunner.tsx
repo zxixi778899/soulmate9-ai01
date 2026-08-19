@@ -206,17 +206,15 @@ export function PipelineRunner({ companionId, companion, animeStyle, nsfwIntensi
     if (localAssets['avatar-closeup']) {
       try {
         // Save as identity-anchor for IP-Adapter priority lookup
-        await authedFetch('/api/admin/comfy', {
+        await authedFetch(`/api/companion/${encodeURIComponent(companionId)}/assets`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action: 'save_companion_asset',
-            girlfriend_id: companionId,
+            category: 'id_reference',
             url: localAssets['avatar-closeup'],
-            asset_role: 'identity-anchor',
             meta: { asset_role: 'identity-anchor', quality_score: 85, source: 'pipeline-auto-select' },
           }),
-        }).catch(() => { /* non-critical if endpoint doesn't support this action */ });
+        }).catch(() => { /* non-critical */ });
         // Also update girlfriend avatar_url
         await authedFetch('/api/admin/girlfriends', {
           method: 'PATCH',

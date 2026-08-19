@@ -1,7 +1,7 @@
 import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import type { CreativeGenerationMode } from '@/lib/creative-generation-presets';
-import type { ImageSurface } from '@/lib/image-generation-routing';
+import type { ImageModelFamily, ImageSurface } from '@/lib/image-generation-routing';
 import type { CharacterAssetRole } from '@/lib/character-asset-production';
 import type { IdentityKit } from '@/lib/identity-kit';
 
@@ -11,6 +11,17 @@ export type Any = Record<string, any>;
 export type StudioTask = 'identity' | 'portrait' | 'outfit' | 'pose' | 'background' | 'video';
 
 export type GenerationStage = 'idle' | 'submitting' | 'queued' | 'finalizing';
+
+/** Studio 手动模型选择（'auto' = 跟随题材自动路由） */
+export type StudioModelOverride = 'auto' | ImageModelFamily;
+
+export type StudioEnhancerKey = 'controlnet' | 'adetailer' | 'upscale';
+
+export interface StudioEnhancerState {
+  controlnet: boolean;
+  adetailer: boolean;
+  upscale: boolean;
+}
 
 export interface LoraSelection {
   id: string;
@@ -60,6 +71,12 @@ export interface StudioState {
   selectedLoras: LoraSelection[];
   assetRole: CharacterAssetRole;
 
+  // Model / enhancers (manual controls)
+  modelOverride: StudioModelOverride;
+  ipAdapter: boolean;
+  enhancers: StudioEnhancerState;
+  enhancerStatuses: Any[];
+
   // Output
   generating: boolean;
   generationStage: GenerationStage;
@@ -71,6 +88,8 @@ export interface StudioState {
 
   // UI
   advancedMode: boolean;
+  /** 用户是否手动改过采样参数（改过则不再被推荐预设覆盖） */
+  paramsTouched: boolean;
 }
 
 export type StudioAction =
@@ -92,6 +111,11 @@ export type StudioAction =
   | { type: 'REMOVE_LORA'; id: string }
   | { type: 'SET_LORA_STRENGTH'; id: string; strength: number }
   | { type: 'SET_ASSET_ROLE'; role: CharacterAssetRole }
+  | { type: 'SET_MODEL_OVERRIDE'; value: StudioModelOverride }
+  | { type: 'SET_IPADAPTER'; value: boolean }
+  | { type: 'SET_ENHANCER'; key: StudioEnhancerKey; value: boolean }
+  | { type: 'SET_ENHANCER_STATUSES'; statuses: Any[] }
+  | { type: 'PATCH_COMPANION'; patch: Any }
   | { type: 'SET_GENERATING'; value: boolean; stage?: GenerationStage }
   | { type: 'SET_RESULT'; assets: Any[]; trace?: Any | null }
   | { type: 'SET_IDENTITY_KIT'; kit: IdentityKit | null }
@@ -127,11 +151,16 @@ export const INITIAL_STATE: StudioState = {
   imageCount: 1,
   fastPreview: true,
   selectedLoras: [],
-  assetRole: 'avatar-closeup',
+  assetRole: 'album',
+  modelOverride: 'auto',
+  ipAdapter: true,
+  enhancers: { controlnet: false, adetailer: true, upscale: false },
+  enhancerStatuses: [],
   generating: false,
   generationStage: 'idle',
   lastResult: [],
   lastGenerationTrace: null,
   identityKit: null,
   advancedMode: false,
+  paramsTouched: false,
 };

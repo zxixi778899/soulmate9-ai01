@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useStudio } from '../StudioContext';
 import { cn } from '@/lib/utils';
 import { Search, Plus, Minus, AlertTriangle } from 'lucide-react';
@@ -16,12 +16,17 @@ const FAMILY_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export function LoraSelector() {
-  const { state, dispatch } = useStudio();
+  const { state, dispatch, generationRoute } = useStudio();
   const [filter, setFilter] = useState('');
   const [activeCategory, setActiveCategory] = useState<LoraCategory>('全部');
   const [activeFamily, setActiveFamily] = useState<string>('全部');
 
   const allLoras = useMemo<Any[]>(() => state.config?.loras || [], [state.config?.loras]);
+
+  // 模型族切换（含手动模型覆盖）时同步 LoRA 库筛选，避免跨族误选
+  useEffect(() => {
+    setActiveFamily(generationRoute.modelFamily);
+  }, [generationRoute.modelFamily]);
 
   // Extract unique families from lora list
   const families = useMemo(() => {

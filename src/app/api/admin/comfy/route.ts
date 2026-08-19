@@ -1251,7 +1251,14 @@ if (body.action === 'verify_loras') {
     const configuredLevelDescription = String(nsfwDescriptions[String(generationIntensity)] || '').trim();
     if (configuredLevelDescription) prompt = [prompt.trim(), configuredLevelDescription].filter(Boolean).join(', ');
     const sceneSemantics = classifyImageScene(prompt, category);
-    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics, turbo: body.fast_preview === true });
+    // Studio 手动模型选择（'flux' | 'pony' | 'illustrious'）：显式指定时绕过
+    // 自动题材路由；非法值静默回退自动路由。
+    const modelFamilyOverride = body.model_family_override === 'flux'
+      || body.model_family_override === 'pony'
+      || body.model_family_override === 'illustrious'
+      ? body.model_family_override
+      : undefined;
+    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics, turbo: body.fast_preview === true, familyOverride: modelFamilyOverride });
     if (body.width == null) width = generationRoute.width;
     if (body.height == null) height = generationRoute.height;
     // Identity assets have fixed production dimensions — the avatar is a portrait
@@ -1366,9 +1373,24 @@ if (body.action === 'verify_loras') {
           modelFamily: generationRoute.modelFamily,
         })
       : [];
+    const promptContract = body.prompt_contract && typeof body.prompt_contract === 'object'
+      ? body.prompt_contract as Record<string, unknown>
+      : {};
+    // Studio task sent by ComfyConsole (identity/portrait/outfit/pose/background/video)
+    const studioTask = String(promptContract.task || '').trim();
+    // 变换任务（换装/换姿势/换背景）：参考图是 img2img 参控源（ControlNet 式职责），
+    // 不是身份参考；人物一致性只由 IP-Adapter 负责，两者不得混用。
+    const isTransformTask = studioTask === 'outfit' || studioTask === 'pose' || studioTask === 'background';
+    const transformControlRole = studioTask === 'outfit'
+      ? 'outfit'
+      : studioTask === 'pose'
+        ? 'pose'
+        : studioTask === 'background'
+          ? 'environment'
+          : null;
     const requestedManualRole = body.reference_role === 'pose' || body.reference_role === 'style' || body.reference_role === 'composition'
       ? body.reference_role
-      : 'identity';
+      : transformControlRole ?? 'identity';
     const manualAssets: ReferenceAsset[] = suppliedReference
       ? [{
           id: 'manual-reference',
@@ -1410,37 +1432,48 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     const resolvedReferenceImage =
       referencePlan.primaryIdentity?.url ||
       referencePlan.selected.find((asset) => asset.id === 'manual-reference')?.url;
+    // 身份参考 URL（不含变换任务的参控图）：仅供 IP-Adapter 身份锚定使用。
+    const identityReferenceUrl = referencePlan.primaryIdentity?.url;
     // IP-Adapter keeps identity without copying the portrait composition. The
     // avatar is generated without any reference; every other identity asset uses
     // the avatar as its IP-Adapter anchor.
     // Explicit top-level identity references must also affect the first ID
     // portrait. Automatic avatar production remains pure txt2img; uploading a
     // reference intentionally opts this stage into IP-Adapter identity control.
-    const promptContract = body.prompt_contract && typeof body.prompt_contract === 'object'
-      ? body.prompt_contract as Record<string, unknown>
-      : {};
-    // Studio task sent by ComfyConsole (identity/portrait/outfit/pose/background/video)
-    const studioTask = String(promptContract.task || '').trim();
+    // 客户端显式 IP-Adapter 开关（Studio 开关）：true/false 覆盖自动规则，
+    // 未传时保持原行为（非头像资产或有显式参考图时自动启用）。
+    const ipAdapterFlag = body.ip_adapter_enabled === true
+      ? true
+      : body.ip_adapter_enabled === false
+        ? false
+        : null;
     const ipAdapterEnabled =
       process.env.RUNPOD_IPADAPTER_INSTALLED === '1' &&
-      (assetRole !== 'avatar-closeup' || Boolean(suppliedReference));
+      (ipAdapterFlag ?? (assetRole !== 'avatar-closeup' || Boolean(suppliedReference)));
     // Final products (character-art/album/scene) are txt2img + IP-Adapter: the
     // avatar locks the face, the prompt controls composition. Feeding the avatar
     // as an img2img base dragged the output back into a portrait crop, so it is
     // intentionally omitted. Legacy identity-* sheets keep the img2img path.
-    const effectiveInputImage = (assetRole === 'avatar-closeup' || isFinalProductAsset)
-      ? undefined
-      : resolvedReferenceImage;
+    // 变换任务：参控图直接驱动 img2img，不能被身份参考替换。
+    const effectiveInputImage = isTransformTask && suppliedReference
+      ? suppliedReference
+      : (assetRole === 'avatar-closeup' || isFinalProductAsset)
+        ? undefined
+        : resolvedReferenceImage;
     // 换装/换姿势/换背景任务用路由表的任务级 denoise；客户端显式传入优先。
     const taskDenoise = TASK_DENOISE_DEFAULTS[studioTask as keyof typeof TASK_DENOISE_DEFAULTS];
     const effectiveDenoise = effectiveInputImage
-      ? characterConsistency
-        ? identityTurnaroundDenoise(assetRole, taskDenoise ?? denoise)
-        : body.denoise != null || body.denoising_strength != null
-          ? Math.min(0.95, Math.max(0.5, denoise))
-          : taskDenoise ?? Math.min(0.95, Math.max(0.5, denoise))
+      ? isTransformTask
+        // 变换强度直接控制参控图的重绘幅度，不被身份三视图逻辑钳制。
+        ? Math.min(0.95, Math.max(0.1, body.denoise != null || body.denoising_strength != null ? denoise : (taskDenoise ?? denoise)))
+        : characterConsistency
+          ? identityTurnaroundDenoise(assetRole, taskDenoise ?? denoise)
+          : body.denoise != null || body.denoising_strength != null
+            ? Math.min(0.95, Math.max(0.5, denoise))
+            : taskDenoise ?? Math.min(0.95, Math.max(0.5, denoise))
       : undefined;
-    const requiresIdentityReference = assetRole !== 'avatar-closeup' && (
+    // 变换任务只需参控图；身份一致性由 IP-Adapter 可选提供，不强制拦截生成。
+    const requiresIdentityReference = !isTransformTask && assetRole !== 'avatar-closeup' && (
       assetRole.startsWith('identity-') ||
       assetRole === 'character-art' ||
       assetRole === 'album' ||
@@ -1461,12 +1494,13 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
     }
     // IP-Adapter: identity reference without composition lock (request or auto-resolved avatar).
     // Priority: explicit request > identity-anchor (best-of-4) > avatar-closeup > card image > reference plan
+    // IP-Adapter 只用身份参考（显式传入/头像/卡图），不得回退到变换任务的参控图。
     const ipAdapterImage = ipAdapterEnabled
       ? (
           suppliedIpAdapterImage ||
           storedAvatarUrl ||
           consistencyReference ||
-          resolvedReferenceImage
+          (isTransformTask ? identityReferenceUrl : resolvedReferenceImage)
         )
       : undefined;
     // Dynamic IP-Adapter weight based on asset role and studio task.

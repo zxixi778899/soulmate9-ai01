@@ -14,7 +14,7 @@ import { BatchGenerator } from './pipeline/BatchGenerator';
 import type { Any } from './StudioWorkbench.types';
 
 function StudioInner({ girlfriendId }: { girlfriendId?: string }) {
-  const { state, dispatch, loadConfig } = useStudio();
+  const { state, dispatch, loadConfig, refreshAssets } = useStudio();
   const [girlfriends, setGirlfriends] = useState<Any[]>([]);
 
   // Load config on mount
@@ -39,7 +39,7 @@ function StudioInner({ girlfriendId }: { girlfriendId?: string }) {
             dispatch({ type: 'SET_PROMPT', text: brief });
           } catch { /* ignore */ }
           // Load companion assets
-          void loadCompanionAssets(girlfriendId);
+          void refreshAssets(girlfriendId);
         }
       }
     } catch { /* ignore */ }
@@ -47,29 +47,6 @@ function StudioInner({ girlfriendId }: { girlfriendId?: string }) {
   }, []);
 
   useEffect(() => { void loadGirlfriends(); }, [loadGirlfriends]);
-
-  const loadCompanionAssets = useCallback(async (id: string) => {
-    if (!id) return;
-    try {
-      const params = new URLSearchParams({ view: 'assets', girlfriend_id: id, limit: '120' });
-      const [libraryRes, generatedRes] = await Promise.all([
-        authedFetch(`/api/companion/${encodeURIComponent(id)}/assets`),
-        authedFetch(`/api/admin/comfy?${params.toString()}`),
-      ]);
-      const libraryData = await readResponseJson(libraryRes).catch(() => ({} as Any));
-      const generatedData = await readResponseJson(generatedRes).catch(() => ({} as Any));
-      const libraryAssets: Any[] = Array.isArray(libraryData.assets) ? libraryData.assets : [];
-      const generatedAssets: Any[] = Array.isArray(generatedData.assets) ? generatedData.assets : [];
-      const knownUrls = new Set(libraryAssets.map((a) => String(a.url || '')));
-      const merged = [
-        ...libraryAssets,
-        ...generatedAssets.filter((a) => a.url && !knownUrls.has(String(a.url))),
-      ].filter((item, idx, all) =>
-        all.findIndex((c) => String(c.id || c.url) === String(item.id || item.url)) === idx,
-      );
-      dispatch({ type: 'SET_COMPANION_ASSETS', assets: merged });
-    } catch { /* ignore */ }
-  }, [dispatch]);
 
   const selectCompanion = useCallback((id: string) => {
     const gf = girlfriends.find((g) => String(g.id) === id) || null;
@@ -81,8 +58,8 @@ function StudioInner({ girlfriendId }: { girlfriendId?: string }) {
         dispatch({ type: 'SET_PROMPT', text: brief });
       } catch { /* fallback: leave prompt empty */ }
     }
-    void loadCompanionAssets(id);
-  }, [dispatch, girlfriends, loadCompanionAssets]);
+    void refreshAssets(id);
+  }, [dispatch, girlfriends, refreshAssets]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-slate-100">
@@ -113,7 +90,7 @@ function StudioInner({ girlfriendId }: { girlfriendId?: string }) {
               companion={state.scopedGirlfriend}
               animeStyle={state.animeRenderStyle}
               nsfwIntensity={state.nsfwIntensity}
-              onComplete={() => { /* refresh assets if needed */ }}
+              onComplete={() => { void refreshAssets(); }}
             />
             {girlfriends.length > 0 && <BatchGenerator girlfriends={girlfriends} />}
           </div>

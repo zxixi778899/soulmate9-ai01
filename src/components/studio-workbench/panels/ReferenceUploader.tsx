@@ -23,8 +23,13 @@ export function ReferenceUploader() {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-        {state.genMode === 'img2video' ? '视频源图' : '参考图'}
+        {state.genMode === 'img2video' ? '视频源图' : state.genMode === 'img2img' ? '参控图' : '参考图'}
       </label>
+      <p className="-mt-1 mb-1.5 text-[9px] leading-relaxed text-slate-600">
+        {state.genMode === 'img2img'
+          ? '驱动换装/姿势/背景变换；人物一致性由 IP-Adapter 独立控制'
+          : '上传后进入图生图；人物一致性由 IP-Adapter 控制'}
+      </p>
 
       {state.inputImage ? (
         <div className="relative group">
