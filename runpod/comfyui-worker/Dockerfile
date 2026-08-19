@@ -1,13 +1,25 @@
 # SoulMate9 ComfyUI Serverless worker
 # Models are supplied by the attached RunPod network volume at /runpod-volume/models.
-FROM runpod/worker-comfyui:5.8.6-base
+#
+# IMPORTANT: use the FULL variant, not *-base. The published 5.8.6-base image
+# ships a stripped handler that does NOT support the 'images' base64 upload
+# protocol (input.images -> POST /upload/image), so every img2img / IP-Adapter
+# reference job fails on LoadImage. The full variant carries the complete
+# handler.py (upload_images) plus the flux1-dev-fp8 checkpoint in-image.
+FROM runpod/worker-comfyui:5.8.6-flux1-dev-fp8
 
 USER root
+
+# The full variant installs ComfyUI deps into a uv venv at /opt/venv and puts
+# it on PATH; make sure it stays active for every pip invocation below.
+ENV PATH="/opt/venv/bin:${PATH}"
+ENV PIP_NO_INPUT=1
 
 RUN git clone --depth 1 https://github.com/Shakker-Labs/ComfyUI-IPAdapter-Flux.git \
       /comfyui/custom_nodes/comfyui-ipadapter-flux \
     && python -m pip install --no-cache-dir \
-      -r /comfyui/custom_nodes/comfyui-ipadapter-flux/requirements.txt
+      -r /comfyui/custom_nodes/comfyui-ipadapter-flux/requirements.txt \
+    && python -m pip install --no-cache-dir "transformers>=4.50.3,<5" "huggingface-hub<1.0"
 
 # Fix Shakker node incompatibility with current ComfyUI: the upstream FLUX
 # DoubleStreamBlock no longer exposes 'flipped_img_txt', so the direct attribute
