@@ -18,17 +18,35 @@ export async function GET(request: NextRequest) {
   const GF_FIELDS_CORE =
     'id, name, slug, avatar_url, portrait_url, personality, short_description, review_status, is_public, age, tags, character_card, submitted_at, rejection_reason';
   // voice_promo_url ships with migration 0036; DBs without it must not 500.
-  const { error: voiceProbeErr } = await client
+  // The probe, the user_friends link query and the owned-companion query are
+  // independent — run them in parallel to cut three round trips down to one.
+  // The owned query uses '*' (like GET /api/girlfriends) so it never fails on
+  // the missing voice column and stays probe-independent.
+  const voiceProbe = client
     .from('girlfriends')
     .select('voice_promo_url')
     .limit(1);
-  const GF_FIELDS = voiceProbeErr ? GF_FIELDS_CORE : GF_FIELDS_FULL;
-
-  const { data: rows, error } = await client
+  const linksQuery = client
     .from('user_friends')
     .select('id, girlfriend_id, source, created_at')
     .eq('user_id', user.id);
+  const ownedQuery = client
+    .from('girlfriends')
+    .select('*, created_at, is_pinned, pinned_at')
+    .eq('user_id', user.id)
+    .neq('review_status', 'removed')
+    .order('is_pinned', { ascending: false })
+    .order('pinned_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
 
+  const [probeRes, linksRes, ownedRes] = await Promise.all([
+    voiceProbe,
+    linksQuery,
+    ownedQuery,
+  ]);
+  const GF_FIELDS = probeRes.error ? GF_FIELDS_CORE : GF_FIELDS_FULL;
+
+  const { data: rows, error } = linksRes;
   if (error) {
     logger.error('[friends] list failed', { error: error.message });
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -50,14 +68,7 @@ export async function GET(request: NextRequest) {
    * the companion approved with no row). Union owned active companions in so
    * both surfaces always return the same set.
    */
-  const { data: ownedRows, error: ownedErr } = await client
-    .from('girlfriends')
-    .select(`${GF_FIELDS}, created_at, is_pinned, pinned_at`)
-    .eq('user_id', user.id)
-    .neq('review_status', 'removed')
-    .order('is_pinned', { ascending: false })
-    .order('pinned_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false });
+  const { data: ownedRows, error: ownedErr } = ownedRes;
 
   if (ownedErr) {
     logger.error('[friends] owned list failed', { error: ownedErr.message });

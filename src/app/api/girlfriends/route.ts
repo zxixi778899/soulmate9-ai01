@@ -104,7 +104,19 @@ export async function GET(req: NextRequest) {
     query = query.in('review_status', ['draft', 'pending', 'rejected']);
   }
 
-  const { data: girlfriends, error } = await query;
+  // The owned-companion query and the user_friends link query are independent
+  // — fire both at once instead of chaining two round trips.
+  const friendLinksPromise = !filter
+    ? client
+        .from('user_friends')
+        .select('girlfriend_id, source, created_at')
+        .eq('user_id', user.id)
+    : null;
+
+  const [{ data: girlfriends, error }, friendLinksRes] = await Promise.all([
+    query,
+    friendLinksPromise,
+  ]);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -121,11 +133,8 @@ export async function GET(req: NextRequest) {
    */
   let addedFriends: Row[] = [];
   const sourceByGfId = new Map<string, string>();
-  if (!filter) {
-    const { data: friendLinks } = await client
-      .from('user_friends')
-      .select('girlfriend_id, source, created_at')
-      .eq('user_id', user.id);
+  if (friendLinksRes) {
+    const { data: friendLinks } = friendLinksRes;
 
     const ownedIds = new Set(rows.map((r) => String(r.id)));
     const links: Array<{ girlfriend_id: string; source: string; created_at: string }> =
