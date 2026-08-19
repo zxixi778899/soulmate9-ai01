@@ -33,7 +33,7 @@ import { isLoraAllowedForContext } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, compactFluxPrompt, ensureStudioFluxPrompt, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
-import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief, buildIdentityAnchorPrompt } from '@/lib/companion-generation';
+import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief } from '@/lib/companion-generation';
 import { resolveIpAdapterWeight, resolveIpAdapterSchedule } from '@/lib/identity-kit';
 import { resolveGenerationProfile } from '@/lib/comfy-console/generation-profiles';
 import { assertEnhancersReady, getEnhancerStatuses, type EnhancerId } from '@/lib/comfy-console/enhancer-config';
@@ -1595,12 +1595,17 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       const missingTriggers = compatibleLoraPlan.triggerWords.filter((word) => !promptLower.includes(word.toLowerCase()));
       if (missingTriggers.length > 0) prompt = `${missingTriggers.join(', ')}. ${prompt}`;
     }
-    // Identity anchor prompt injection: prepend 30-dim identity spec for
-    // non-identity FLUX assets to maintain face consistency across generations
-    if (!isIdentityAsset && databaseCompanion && generationRoute.modelFamily === 'flux') {
-      const identityAnchorText = buildIdentityAnchorPrompt(databaseCompanion);
-      if (identityAnchorText) {
-        prompt = `${identityAnchorText} ${prompt}`;
+    // Identity anchor prompt injection: only when IP-Adapter is NOT carrying the
+    // identity. The 30-dim spec (~700+ chars) used to be prepended and then
+    // truncated by compactFluxPrompt (650 chars), silently dropping the authored
+    // scene — FLUX rendered the identity text's static portrait instead of the
+    // requested composition. With IP-Adapter active the reference image owns
+    // consistency, so the prompt stays 100% authored scene. Without it, append
+    // the SHORT brief after the scene so truncation never eats the composition.
+    if (!isIdentityAsset && databaseCompanion && generationRoute.modelFamily === 'flux' && !(ipAdapterEnabled && ipAdapterImage)) {
+      const briefIdentity = buildCompanionIdentityBrief(databaseCompanion);
+      if (briefIdentity) {
+        prompt = [prompt, briefIdentity].filter(Boolean).join(', ');
       }
     }
     prompt = generationRoute.modelFamily === 'flux' ? compactFluxPrompt(prompt) : compactTagPrompt(prompt);

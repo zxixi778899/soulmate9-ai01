@@ -128,6 +128,28 @@ export type StudioPromptSections = {
   quality: string;
 };
 
+// Authored framing cues win over the intensity-default composition. The old
+// unconditional "medium shot, chest and face clearly visible" prefix fought
+// user-authored full-body/standing-pose scenes and dragged FLUX back into a
+// half-body crop. Only explicit shot language matches — quality boilerplate
+// like "full body clearly illuminated" must NOT trigger a framing override.
+const AUTHORED_FRAMING_CUES: Array<{ pattern: RegExp; cue: string }> = [
+  { pattern: /(close-?up|headshot|face only|extreme close|特写)/i, cue: 'close-up portrait, face and shoulders visible' },
+  { pattern: /(half[- ]body|upper body|waist up|waist-up|bust shot|半身)/i, cue: 'half-body shot, waist up visible' },
+  { pattern: /(head to knees|thighs? up|medium full[- ]body)/i, cue: 'medium full-body shot, head to knees visible' },
+  { pattern: /(full[- ]body shot|full[- ]body view|full[- ]body portrait|head to toe|head-to-toe|whole body|entire body|全身|立绘)/i, cue: 'full-body shot, head to toe visible' },
+  { pattern: /(wide shot|long shot|distant view|full scene|远景)/i, cue: 'wide long shot, subject fully in frame with environment' },
+];
+
+export function detectAuthoredFraming(scene?: string): string {
+  const value = String(scene || '');
+  if (!value) return '';
+  for (const { pattern, cue } of AUTHORED_FRAMING_CUES) {
+    if (pattern.test(value)) return cue;
+  }
+  return '';
+}
+
 export function buildStudioPromptSections(input: {
   category: CompanionCategory;
   intensity: NsfwIntensity;
@@ -136,7 +158,9 @@ export function buildStudioPromptSections(input: {
   identity?: string;
   framing?: string;
 }): StudioPromptSections {
-  const composition = input.framing || (input.intensity >= 3 ? 'medium full-body shot, head to knees visible' : 'medium shot, chest and face clearly visible in a relaxed natural framing');
+  const composition = input.framing ||
+    detectAuthoredFraming(input.scene) ||
+    (input.intensity >= 3 ? 'medium full-body shot, head to knees visible' : 'medium shot, chest and face clearly visible in a relaxed natural framing');
   return {
     identity: input.identity
       ? `${CATEGORY_SUBJECTS[input.category]}${compactIdentity(input.identity)}`
