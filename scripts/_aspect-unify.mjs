@@ -24,7 +24,6 @@ const targets = [
   'src/components/admin/AdminPresetLibraryContent.tsx',
   'src/components/admin/CreatorPreviewsAdminContent.tsx',
   'src/components/chat/ChatStream.tsx',
-  'src/components/chat/ChatView.tsx',
   'src/components/creator/CreateSuccessModal.tsx',
   'src/components/discover/CompanionDetailModal.tsx',
   'src/components/discover/GirlfriendCard.tsx',

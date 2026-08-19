@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
@@ -13,7 +13,6 @@ import {
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
   const { t } = useTranslation();
   const { settings } = useSiteSettings();
@@ -22,8 +21,6 @@ export default function BottomNav() {
   if (pathname?.startsWith('/admin')) return null;
   if (pathname?.startsWith('/chat/')) return null;
   if (pathname?.startsWith('/create')) return null;
-  // Hide bottom nav when companion page is in chat tab (immersive mode)
-  if (pathname?.startsWith('/companion/') && searchParams.get('tab') === 'chat') return null;
 
   const isLoggedIn = !!user;
 

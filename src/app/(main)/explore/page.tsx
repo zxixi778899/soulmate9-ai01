@@ -406,7 +406,7 @@ export default function ExplorePage() {
             <p className="text-sm text-gray-400 mb-5">{addedCompanion.name} is now in your companion list</p>
             <div className="space-y-2">
               <button
-                onClick={() => { router.push(`/companion/${addedCompanion.id}?tab=chat`); setAddedCompanion(null); }}
+                onClick={() => { router.push(`/chats?friend=${encodeURIComponent(addedCompanion.id)}`); setAddedCompanion(null); }}
                 className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white text-sm font-bold hover:opacity-90 transition"
               >
                 💬 {t('explore.goToMessages')}

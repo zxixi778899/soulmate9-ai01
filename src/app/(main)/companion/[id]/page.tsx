@@ -23,7 +23,6 @@ import {
   CompanionAssetLibrary,
   type GroupedAssets,
 } from '@/components/companion/CompanionAssetLibrary';
-import ChatView from '@/components/chat/ChatView';
 import { OptimizedImg } from '@/components/OptimizedImg';
 
 interface ProfileData {
@@ -40,7 +39,7 @@ interface ProfileData {
   counts: { id_reference: number; photo: number; video: number };
 }
 
-type TabKey = 'profile' | 'album' | 'video' | 'id_reference' | 'chat';
+type TabKey = 'profile' | 'album' | 'video' | 'id_reference';
 
 export default function CompanionProfilePage() {
   const params = useParams<{ id: string }>();
@@ -55,7 +54,7 @@ export default function CompanionProfilePage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>(() => {
     const urlTab = searchParams.get('tab');
-    if (urlTab === 'chat' || urlTab === 'profile' || urlTab === 'album' || urlTab === 'video' || urlTab === 'id_reference') {
+    if (urlTab === 'profile' || urlTab === 'album' || urlTab === 'video' || urlTab === 'id_reference') {
       return urlTab as TabKey;
     }
     return 'album';
@@ -153,18 +152,18 @@ export default function CompanionProfilePage() {
   const reviewStatus = String(g.review_status || 'draft');
   const rejectionReason = String(g.rejection_reason || '');
 
-  // Switch to chat tab — handles friend check/add automatically
+  // Open the unified chats page (friend list + conversation)
   const handleChat = async () => {
     if (!user) {
       router.push(`/login?next=${encodeURIComponent(`/companion/${id}`)}`);
       return;
     }
-    // Already friends — go straight to chat tab
+    // Already friends — go straight to the conversation
     if (access.friendId) {
-      handleTabChange('chat');
+      router.push(`/chats?friend=${encodeURIComponent(access.friendId)}`);
       return;
     }
-    // Add friend first, then switch to chat
+    // Add friend first, then open the conversation
     setAdding(true);
     try {
       const res = await authedFetch('/api/friends', {
@@ -178,11 +177,7 @@ export default function CompanionProfilePage() {
         (json as { girlfriend?: { id: string } }).girlfriend;
       if (res.ok && friend?.id) {
         setAdded(true);
-        // Update access so chat tab has the friendId
-        setData((prev) =>
-          prev ? { ...prev, access: { ...prev.access, friendId: friend.id } } : prev,
-        );
-        handleTabChange('chat');
+        router.push(`/chats?friend=${encodeURIComponent(friend.id)}`);
         return;
       }
       const code = (json as { code?: string }).code;
@@ -252,14 +247,6 @@ export default function CompanionProfilePage() {
       count: data.counts.id_reference,
     });
   }
-  // Chat tab — only show for non-owners who are friends (or owners themselves for testing)
-  if (access.friendId || access.isOwner) {
-    tabs.push({
-      key: 'chat',
-      label: t('companion.chat') || 'Chat',
-    });
-  }
-
   const onAssetsChanged = (next: GroupedAssets) => {
     setData((prev) =>
       prev
@@ -281,16 +268,6 @@ export default function CompanionProfilePage() {
     { label: t('companion.relationship'), value: String(g.relationship || '') },
     { label: t('companion.hobbies'), value: String(g.hobbies || '') },
   ].filter((r) => r.value.trim()) as { label: string; value: string }[];
-
-  // ── Chat tab: full-viewport immersive chat experience ──
-  if (tab === 'chat' && (access.friendId || access.isOwner)) {
-    return (
-      <ChatView
-        companionId={id}
-        onBack={() => handleTabChange('album')}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
