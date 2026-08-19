@@ -10,7 +10,6 @@ import { LoraStack } from '../lora/LoraStack';
 import { LoraSelector } from '../lora/LoraSelector';
 import { Img2ImgInput } from '../modes/Img2ImgInput';
 import { Img2VideoInput } from '../modes/Img2VideoInput';
-import { AssetCarousel } from '../companion/AssetCarousel';
 import { Button } from '@/components/ui/button';
 import { Loader2, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,9 +21,6 @@ export function InputPanel() {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Companion asset carousel (置顶：形象下方，实时跟随新图) */}
-      {state.companionId && <AssetCarousel />}
-
       {/* Reference image uploader (img2img / img2video) */}
       {(state.genMode === 'img2img' || state.genMode === 'img2video') && (
         <ReferenceUploader />

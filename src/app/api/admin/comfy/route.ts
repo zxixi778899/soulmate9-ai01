@@ -29,7 +29,7 @@ import { COMPANION_CATEGORIES, normalizeCompanionCategory, type CompanionCategor
 import { resolveImageGenerationRoute, specialistModelsReadyFromEnv, TASK_DENOISE_DEFAULTS, type ImageSurface } from '@/lib/image-generation-routing';
 import { classifyImageScene, normalizeLlmImageScene } from '@/lib/image-scene-semantics';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
-import { isLoraAllowedForContext } from '@/lib/lora-scope';
+import { isLoraAllowedForContext, inferFamily } from '@/lib/lora-scope';
 import { buildStudioPromptEnhancement, compactFluxPrompt, ensureStudioFluxPrompt, recommendedStudioLoras, studioLoraStrengthScale, studioNegativePrompt, type AnimeRenderStyle, type NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
@@ -92,10 +92,11 @@ function mergeInstalledLoras(config: ComfyConsoleConfig): ComfyConsoleConfig {
       return { ...known, label: `[运行卷已验证] ${known.label}`, source: 'runpod-volume' };
     }
     const registry = registryByFile.get(file);
-    const stem = file.replace(/\.safetensors$/i, '');
+    // Assign family field for LoraSelector (catalog known & synthetic entries)
+    const inferredFamily = inferFamily({ filename: file });
     return {
-      id: `volume:${stem.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()}`,
-      label: `[运行卷已验证] ${registry?.label || stem}`,
+      id: `volume:${file.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()}`,
+      label: `[运行卷已验证] ${registry?.label || file}`,
       filename: file,
       default_strength: registry?.strength ?? 0.35,
       category: registry?.category === 'pose' ? 'action' : registry?.category || 'style',
@@ -104,6 +105,7 @@ function mergeInstalledLoras(config: ComfyConsoleConfig): ComfyConsoleConfig {
       trigger_words: registry?.trigger_words || [],
       workflows: ['wf-girlfriend'],
       source: 'runpod-volume',
+      family: inferredFamily,
     };
   });
   return { ...config, loras: [none, ...verifiedLoras] };
@@ -1692,6 +1694,11 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
         ip_adapter_start: ipSchedule.start,
         ip_adapter_end: ipSchedule.end,
         enhancers: requestedEnhancers,
+        // Map enhancers to actual workflow controls (t3)
+        face_detailer: requestedEnhancers.adetailer === true,
+        upscale_factor: requestedEnhancers.upscale ? 2 : undefined,
+        control_image: requestedEnhancers.controlnet && suppliedReference ? suppliedReference : undefined,
+        control_strength: 0.7,
         endpoint_id: body.endpoint_id || endpointId || generationRoute.endpointId,
         submit_only: true,
       };

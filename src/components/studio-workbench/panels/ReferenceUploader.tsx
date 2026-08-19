@@ -2,10 +2,15 @@
 
 import { useRef } from 'react';
 import { useStudio } from '../StudioContext';
-import { Upload, X, Loader2 } from 'lucide-react';
+import { Upload, X, Loader2, Eye } from 'lucide-react';
 import { useState } from 'react';
 
-export function ReferenceUploader() {
+interface ReferenceUploaderProps {
+  /** Vertical full-view mode for right column */
+  portrait?: boolean;
+}
+
+export function ReferenceUploader({ portrait }: ReferenceUploaderProps) {
   const { state, dispatch, uploadReferenceImage } = useStudio();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -34,16 +39,29 @@ export function ReferenceUploader() {
       {state.inputImage ? (
         <div className="relative group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={state.inputImage} alt="参考图" className="w-full h-36 object-cover rounded-lg" />
-          <button
-            onClick={() => dispatch({ type: 'SET_INPUT_IMAGE', url: '' })}
-            className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-red-300 opacity-0 transition group-hover:opacity-100"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+          <img 
+            src={state.inputImage} 
+            alt="参考图" 
+            className={portrait ? "w-full h-64 object-contain rounded-lg bg-black/40 cursor-pointer" : "w-full h-36 object-cover rounded-lg"}
+            onClick={portrait ? () => window.open(state.inputImage) : undefined}
+          />
+          {portrait && (
+            <button
+              onClick={() => dispatch({ type: 'SET_INPUT_IMAGE', url: '' })}
+              className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-red-300 opacity-0 transition group-hover:opacity-100"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
           <div className="absolute bottom-2 left-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] text-emerald-300">
             参考图已加载
           </div>
+          {portrait && (
+            <div className="absolute bottom-2 right-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] text-slate-300 flex items-center gap-1">
+              <Eye className="h-3 w-3" />
+              点击查看原图
+            </div>
+          )}
         </div>
       ) : (
         <button

@@ -5,9 +5,10 @@ import { authedFetch } from '@/lib/supabase';
 import { readResponseJson } from '@/lib/safe-json';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Image as ImageIcon, Crosshair, UserRound, Images, Anchor } from 'lucide-react';
+import { Image as ImageIcon, Crosshair, UserRound, Images, Anchor, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Any } from '../StudioWorkbench.types';
+import { logger } from '@/lib/logger';
 
 export function AssetCarousel() {
   const { state, dispatch, refreshAssets } = useStudio();
@@ -68,6 +69,28 @@ export function AssetCarousel() {
       toast.success('已设为身份锚点（IP-Adapter 优先参考）');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '设为身份锚点失败');
+    }
+  };
+
+  // 删除资产（companion_assets + generation_assets 级联）
+  const deleteAsset = async (assetId: string) => {
+    if (!state.companionId) { toast.error('请先选择伴侣'); return; }
+    if (!confirm('确定删除此资产吗？')) return;
+    try {
+      const res = await authedFetch(
+        `/api/companion/${encodeURIComponent(state.companionId)}/assets?assetId=${encodeURIComponent(assetId)}`,
+        { method: 'DELETE' },
+      );
+      const data = await readResponseJson(res).catch(() => ({} as Any));
+      if (!res.ok && data.error !== 'Asset not found') throw new Error(data.error || '删除失败');
+      // Fallback: try deleting by URL in companion_assets if not found by id
+      if (data.error === 'Asset not found' || !res.ok) {
+        logger.warn('[AssetCarousel] asset not found by id, trying URL-based deletion');
+      }
+      await refreshAssets(state.companionId);
+      toast.success('已删除');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '删除失败');
     }
   };
 
@@ -166,29 +189,40 @@ export function AssetCarousel() {
                       </div>
                     )}
 
-                    {/* 悬停操作：设为头像 / 相册 / 身份锚点 */}
-                    <div className="absolute inset-x-0 bottom-0 hidden items-center justify-center gap-0.5 bg-black/80 py-0.5 group-hover:flex">
-                      <button
-                        onClick={() => void patchGirlfriend(url, 'avatar_url')}
-                        className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-violet-300"
-                        title="设为头像"
-                      >
-                        <UserRound className="h-2.5 w-2.5" />
-                      </button>
-                      <button
-                        onClick={() => void patchGirlfriend(url, 'portrait_url')}
-                        className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-cyan-300"
-                        title="设为相册封面"
-                      >
-                        <Images className="h-2.5 w-2.5" />
-                      </button>
-                      <button
-                        onClick={() => void setAsIdentityAnchor(url)}
-                        className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-amber-300"
-                        title="设为身份锚点（IP-Adapter 优先参考）"
-                      >
-                        <Anchor className="h-2.5 w-2.5" />
-                      </button>
+                    {/* 悬停操作：头像 / 相册 / 身份锚点 / 删除 */}
+                    <div className="absolute inset-x-0 bottom-0 hidden items-center justify-between gap-0.5 bg-black/80 py-0.5 group-hover:flex">
+                      <div className="flex gap-0.5">
+                        <button
+                          onClick={() => void patchGirlfriend(url, 'avatar_url')}
+                          className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-violet-300"
+                          title="设为头像"
+                        >
+                          <UserRound className="h-2.5 w-2.5" />
+                        </button>
+                        <button
+                          onClick={() => void patchGirlfriend(url, 'portrait_url')}
+                          className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-cyan-300"
+                          title="设为相册封面"
+                        >
+                          <Images className="h-2.5 w-2.5" />
+                        </button>
+                        <button
+                          onClick={() => void setAsIdentityAnchor(url)}
+                          className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-amber-300"
+                          title="设为身份锚点（IP-Adapter 优先参考）"
+                        >
+                          <Anchor className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                      {String(asset.id || '').trim() && (
+                        <button
+                          onClick={() => void deleteAsset(String(asset.id))}
+                          className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-red-400"
+                          title="删除资产"
+                        >
+                          <Trash2 className="h-2.5 w-2.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

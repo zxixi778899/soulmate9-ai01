@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useStudio } from '../StudioContext';
 import { OutputGrid } from '../output/OutputGrid';
 import { GenerationTrace } from '../output/GenerationTrace';
+import { AssetCarousel } from '../companion/AssetCarousel';
+import { ReferenceUploader } from './ReferenceUploader';
 import { Loader2 } from 'lucide-react';
 
 // Stage-based progress simulation
@@ -37,6 +39,8 @@ export function OutputPanel() {
     return () => clearInterval(timer);
   }, [state.generating]);
 
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
   // Progress bar: ramp up based on stage + time
   useEffect(() => {
     if (!state.generating) return;
@@ -59,10 +63,21 @@ export function OutputPanel() {
     }
   }, [state.generating, state.lastResult]);
 
-  const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-
   return (
     <div className="flex flex-col gap-3">
+      {/* Companion assets + reference uploader: grid layout */}
+      {state.companionId && (
+        <div className="grid gap-3 xl:grid-cols-[1fr_240px]">
+          <AssetCarousel />
+          {/* Vertical reference image card, full view */}
+          {(state.genMode === 'img2img' || state.genMode === 'img2video') && (
+            <div>
+              <ReferenceUploader portrait />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Generation progress bar */}
       {state.generating && (
         <div className="space-y-2 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-4 py-3">

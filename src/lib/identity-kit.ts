@@ -461,10 +461,10 @@ export function resolveIpAdapterWeight(
   if (assetRole.startsWith('identity-')) return Math.round((0.85 * varietyMultiplier) * 100) / 100;
   if (assetRole === 'avatar-closeup') return Math.round((0.78 * varietyMultiplier) * 100) / 100;
 
-  // Final products: balanced (identity + creative freedom)
-  if (assetRole === 'character-art') return 0.72;
-  if (assetRole === 'album') return 0.68;
-  if (assetRole === 'scene') return 0.65;
+  // Final products: raise from 0.72→0.8, 0.68→0.8, 0.65→0.72 for better consistency
+  if (assetRole === 'character-art') return 0.8;
+  if (assetRole === 'album') return 0.8;
+  if (assetRole === 'scene') return 0.72;
 
   // Task-based adjustments
   if (studioTask === 'outfit') return 0.78; // Lock face, free wardrobe
@@ -484,9 +484,9 @@ export function resolveIpAdapterSchedule(assetRole: string): { start: number; en
   if (assetRole.startsWith('identity-') || assetRole === 'avatar-closeup') {
     return { start: 0.02, end: 0.90 };
   }
-  // Final products: skip early noise, release late for creative composition
+  // Final products: extend to 0.90 for stronger face anchor at detail steps
   if (assetRole === 'character-art' || assetRole === 'album' || assetRole === 'scene') {
-    return { start: 0.05, end: 0.82 };
+    return { start: 0.05, end: 0.90 };
   }
   // Default: balanced
   return { start: 0.05, end: 0.85 };

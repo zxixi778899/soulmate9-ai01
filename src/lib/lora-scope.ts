@@ -8,7 +8,7 @@ export type ScopedLora = {
   base_model?: string;
 };
 
-function inferFamily(lora: ScopedLora): ImageModelFamily {
+export function inferFamily(lora: ScopedLora): ImageModelFamily {
   const value = `${lora.base_model || ''} ${lora.filename || ''}`.toLowerCase();
   if (value.includes('illustrious')) return 'illustrious';
   if (value.includes('pony')) return 'pony';

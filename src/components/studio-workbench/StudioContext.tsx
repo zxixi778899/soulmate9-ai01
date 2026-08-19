@@ -63,7 +63,9 @@ function studioReducer(state: StudioState, action: StudioAction): StudioState {
     case 'SET_ASSET_ROLE':
       return { ...state, assetRole: action.role };
     case 'SET_MODEL_OVERRIDE':
-      return { ...state, modelOverride: action.value };
+      // 切换模型族时重置手动参数：FLUX 与 SDXL 的采样器/CFG/步数完全不同，
+      // 保留上一族的手调值会把 euler/simple/CFG1 发给 SDXL。
+      return { ...state, modelOverride: action.value, paramsTouched: false };
     case 'SET_IPADAPTER':
       return { ...state, ipAdapter: action.value, identityConsistency: action.value };
     case 'SET_ENHANCER':
@@ -205,7 +207,7 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
     familyOverride: state.modelOverride === 'auto' ? undefined : state.modelOverride,
   }), [state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.fastPreview, state.genMode, state.volumeInfo, state.modelOverride]);
 
-  // Derived: recommended preset
+  // Derived: recommended preset（必须感知手动模型族覆盖，否则选 SDXL 仍显示 FLUX 参数）
   const recommendedPreset = useMemo(() => resolveCreativeGenerationPreset({
     mode: state.genMode,
     surface: state.generationSurface,
@@ -218,7 +220,8 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
     turbo: state.fastPreview && state.genMode !== 'img2video',
     specialistModelsReady: state.volumeInfo?.sdxl_models_ready === true,
     sdxlEndpointId: state.volumeInfo?.endpoint_id_sdxl || undefined,
-  }), [state.genMode, state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.assetRole, state.prompt, state.identityConsistency, state.fastPreview, state.volumeInfo]);
+    familyOverride: state.modelOverride === 'auto' ? undefined : state.modelOverride,
+  }), [state.genMode, state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.assetRole, state.prompt, state.identityConsistency, state.fastPreview, state.volumeInfo, state.modelOverride]);
 
   // Derived: effective task（身份系角色走 identity 提示词合约，其余默认 portrait）
   const effectiveTask: StudioTask = useMemo(() => {

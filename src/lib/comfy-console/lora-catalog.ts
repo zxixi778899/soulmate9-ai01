@@ -93,6 +93,7 @@ export function catalogToLoraAssets(): Array<{
   search_keywords?: string;
   workflows?: string[];
   base_model?: 'FLUX.1' | 'Pony' | 'Illustrious' | 'SDXL';
+  family?: string; // pony / illustrious / flux
 }> {
   const none = {
     id: 'none',
@@ -121,6 +122,7 @@ export function catalogToLoraAssets(): Array<{
     search_keywords: l.search_keywords,
     workflows: l.workflows,
     base_model: /illustrious/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'Illustrious' as const : /pony/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'Pony' as const : /sdxl/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'SDXL' as const : 'FLUX.1' as const,
+    family: /illustrious/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'illustrious' : /pony/i.test(l.base_model || l.family || LORA_CATALOG.base_model || '') ? 'pony' : 'flux',
   }));
 
   return [none, ...items];

@@ -199,7 +199,8 @@ export function buildCompleteImg2ImgWorkflow(opts: {
   const clipRef: [string, number] = useSplitLoader ? ['22', 0] : [lastLoraNodeId, 1];
 
   if (ipAdapterImage && ipAdapterWeight) {
-    const ipWeight = Math.min(0.5, Math.max(0.15, ipAdapterWeight));
+    // Accept weights from identity-kit resolver (0.65-0.85), clamp to [0.3, 0.9]
+    const ipWeight = Math.min(0.9, Math.max(0.3, ipAdapterWeight));
     const ipModel = 'ip-adapter.bin';
     const clipVision = 'google/siglip-so400m-patch14-384';
 

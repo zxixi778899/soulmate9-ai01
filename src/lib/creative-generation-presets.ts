@@ -45,6 +45,8 @@ export function resolveCreativeGenerationPreset(input: {
   specialistModelsReady?: boolean;
   /** SDXL 端点 override（客户端 env 不可见，由服务端随响应下发）。 */
   sdxlEndpointId?: string;
+  /** Studio 手动模型族覆盖：推荐参数必须跟随所选家族（FLUX/SDXL 采样参数不同）。 */
+  familyOverride?: ImageModelFamily;
 }): CreativeGenerationPreset {
   if (input.mode === 'img2video') {
     const explicitMotion = input.intensity >= 4;
@@ -77,6 +79,7 @@ export function resolveCreativeGenerationPreset(input: {
     turbo: input.turbo,
     specialistModelsReady: input.specialistModelsReady,
     sdxlEndpointId: input.sdxlEndpointId,
+    familyOverride: input.familyOverride,
   });
   const isIdentityAsset = input.assetRole === 'avatar-closeup' || (input.assetRole?.startsWith('identity-') ?? false);
   const denoise = input.mode === 'img2img'

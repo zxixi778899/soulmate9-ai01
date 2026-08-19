@@ -1,4 +1,4 @@
-export type EnhancerId = 'controlnet' | 'adetailer' | 'upscale';
+export type EnhancerId = 'controlnet' | 'adetailer' | 'upscale' | 'ipadapter';
 
 export type EnhancerStatus = {
   id: EnhancerId;
@@ -12,6 +12,13 @@ const envFlag = (name: string): boolean => process.env[name]?.trim().toLowerCase
 
 export function getEnhancerStatuses(): EnhancerStatus[] {
   return [
+    {
+      id: 'ipadapter',
+      enabled: envFlag('RUNPOD_IPADAPTER_INSTALLED'),
+      nodePackage: 'Shakker-Labs/ComfyUI-IPAdapter-Flux',
+      model: process.env.RUNPOD_IPADAPTER_MODEL || 'ip-adapter.bin',
+      configured: Boolean(process.env.RUNPOD_IPADAPTER_MODEL?.trim()),
+    },
     {
       id: 'controlnet',
       enabled: envFlag('RUNPOD_CONTROLNET_READY'),

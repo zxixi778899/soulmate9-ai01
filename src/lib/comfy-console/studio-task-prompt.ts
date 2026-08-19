@@ -113,18 +113,25 @@ export function buildStudioTaskPrompt(input: PromptInput): string {
     });
   }
 
-  // ── FLUX 家族：自然语言协议（含 authored scene 保护规则） ──
-  // An authored prompt is the source of truth for composition. Do not append
-  // task templates or random scene language; only append model quality cues
-  // that never fight the authored scene.
+  // ── FLUX 家族：自然语言协议（用户提示词为主轴）──
+  // 用户输入的 scene 是生图指令的唯一来源，仅附加模型质量词 / LoRA 触发词。
+  // 禁止叠加任务模板句 / 随机场景片段，防止提示词被"锁死"在硬编码文本上。
   if (scene) {
-    return [framing, scene, input.hasIdentityReference ? 'use the ID reference for identity only, do not copy its framing or crop' : '', qualityForModel(input.modelFamily, input.renderStyle), input.modelFamily === 'flux' ? triggers.join(', ') : '']
-      .filter(Boolean).join(', ').replace(/\s+/g, ' ').replace(/,\s*,/g, ',').trim().slice(0, 520);
+    const quality = qualityForModel(input.modelFamily, input.renderStyle);
+    const loraTags = input.modelFamily === 'flux' && triggers.length > 0 ? triggers.join(', ') : '';
+    const identityNote = input.hasIdentityReference
+      ? 'use the ID reference for identity only, do not copy its framing or crop'
+      : '';
+    // 严格遵循：scene → quality/lora → identity-note，总长度≤520 字符
+    return [scene, quality, loraTags, identityNote]
+      .filter(Boolean)
+      .join(', ')
+      .replace(/\s+/g, ' ')
+      .replace(/,\s*,/g, ',')
+      .trim()
+      .slice(0, 520);
   }
   const parts = [
-    framing || (scene ? '' : 'medium shot'),
-    scene,
-    input.hasIdentityReference ? 'use the ID reference for identity only' : '',
     identity,
     qualityForModel(input.modelFamily, input.renderStyle),
     input.modelFamily === 'flux' ? triggers.join(', ') : '',
