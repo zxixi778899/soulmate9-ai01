@@ -27,7 +27,7 @@ export const maxDuration = 180;
 const GEN_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 };
 
 function comfyEndpoint(): string {
-  return process.env.RUNPOD_ENDPOINT_ID || 'wozrrlcdipyl3p';
+  return process.env.RUNPOD_ENDPOINT_ID || 'e40cgshtouocg8';
 }
 function wanEndpoint(): string {
   return process.env.RUNPOD_WAN_VIDEO_ENDPOINT || 'vb3mqlf5cleuvq';

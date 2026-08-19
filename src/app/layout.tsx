@@ -99,8 +99,38 @@ export default function RootLayout({
   const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" className="dark notranslate" translate="no" suppressHydrationWarning>
       <body className="antialiased relative font-sans">
+        {/* Recover from DOM corrupted by browser translation / autofill injectors:
+            React's commit-phase removeChild throws "node is not a child" and
+            escapes error boundaries, so watch for it globally and auto-reload
+            once per session before React hydrates. */}
+        <Script id="dom-recovery" strategy="beforeInteractive">{`
+          (function () {
+            try {
+              var KEY = '__dom_recovery_reload';
+              window.addEventListener('error', function (event) {
+                var msg = (event && event.message) || '';
+                var err = event && event.error;
+                var text = msg || (err && err.message) || '';
+                var isDomMutation =
+                  err instanceof DOMException &&
+                  (err.name === 'NotFoundError' || err.name === 'HierarchyRequestError') &&
+                  /removeChild|insertBefore|replaceChild/.test(text);
+                if (!isDomMutation) return;
+                try {
+                  if (window.sessionStorage.getItem(KEY)) return;
+                  window.sessionStorage.setItem(KEY, '1');
+                } catch (e) {}
+                event.preventDefault();
+                window.location.reload();
+              }, true);
+              window.addEventListener('load', function () {
+                try { window.sessionStorage.removeItem(KEY); } catch (e) {}
+              });
+            } catch (e) {}
+          })();
+        `}</Script>
         {/* Starry night background  global, behind all content */}
         <div className="starry-bg" aria-hidden="true">
           <div className="stars-sm" />

@@ -42,6 +42,14 @@ export type SeatStatus = {
   canAdd: boolean;
 };
 
+/** Values a caller may have already fetched — skips the matching round-trips. */
+export type SeatPreload = {
+  tier?: string;
+  bonusSeats?: number;
+  used?: number;
+  createdCount?: number;
+};
+
 export function packageById(id: string) {
   return COMPANION_SEAT_PACKAGES.find((p) => p.id === id) || null;
 }
@@ -95,30 +103,37 @@ export async function countCreatedCompanions(client: SeatClient, userId: string)
   return count || 0;
 }
 
-export async function getSeatStatus(client: SeatClient, userId: string): Promise<SeatStatus> {
-  let tier = 'free';
-  try {
-    const { data, error } = await client
-      .from('profiles')
-      .select('membership_tier')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (!error) {
-      tier = (data as { membership_tier?: string } | null)?.membership_tier || 'free';
-    } else {
-      logger.warn('[companion-seats] read tier failed', { error: error.message });
+export async function getSeatStatus(
+  client: SeatClient,
+  userId: string,
+  preload?: SeatPreload,
+): Promise<SeatStatus> {
+  let tier = preload?.tier;
+  if (tier === undefined) {
+    tier = 'free';
+    try {
+      const { data, error } = await client
+        .from('profiles')
+        .select('membership_tier')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!error) {
+        tier = (data as { membership_tier?: string } | null)?.membership_tier || 'free';
+      } else {
+        logger.warn('[companion-seats] read tier failed', { error: error.message });
+      }
+    } catch {
+      // keep default tier
     }
-  } catch {
-    // keep default tier
   }
   // Bonus seats live in an optional column; read separately so a missing
   // column never corrupts the tier read above (which would downgrade the user
   // to 'free' and falsely trigger SEAT_LIMIT).
-  const bonus = await getBonusSeats(client, userId);
+  const bonus = preload?.bonusSeats ?? (await getBonusSeats(client, userId));
   const baseLimit = baseCompanionSeatLimit(tier);
   const [used, createdCount] = await Promise.all([
-    countOwnedCompanions(client, userId),
-    countCreatedCompanions(client, userId),
+    preload?.used ?? countOwnedCompanions(client, userId),
+    preload?.createdCount ?? countCreatedCompanions(client, userId),
   ]);
   if (baseLimit < 0) {
     return {

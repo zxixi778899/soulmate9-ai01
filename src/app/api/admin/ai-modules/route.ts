@@ -10,6 +10,7 @@ import {
   type AiModulesConfig,
   type MembershipTier,
 } from '@/lib/ai-modules';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 
 
@@ -69,15 +70,21 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/admin/ai-modules
  *   ?preview=1&tier=pro&message=hi&intimacy=4&scene=chat_selfie
- * Returns full module config + optional resolve preview.
+ *   ?usage=1&period=24h|7d|30d → usage stats from ai_model_usage_logs
+ * Returns full module config + optional resolve preview / usage stats.
  */
 export async function GET(request: NextRequest) {
   const admin = await requireAdmin(request);
   if (admin.error) return admin.error;
 
   try {
-    const config = await loadAiModules(); // Use default cache/file path, ignore unused param
     const { searchParams } = new URL(request.url);
+
+    if (searchParams.get('usage') === '1') {
+      return NextResponse.json({ usage: await buildUsageStats(searchParams.get('period') || '24h') });
+    }
+
+    const config = await loadAiModules(); // Use default cache/file path, ignore unused param
 
         const payload: Record<string, unknown> = {
       config,
@@ -116,6 +123,119 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+interface UsageLogRow {
+  model_id: string;
+  provider: string;
+  task_type: string;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  latency_ms: number | null;
+  cost_usd: number | string | null;
+  success: boolean;
+  created_at: string;
+}
+
+/** Aggregate ai_model_usage_logs into per-model stats + hourly buckets + totals. */
+async function buildUsageStats(period: string) {
+  const periodMs =
+    period === '30d'
+      ? 30 * 24 * 60 * 60 * 1000
+      : period === '7d'
+        ? 7 * 24 * 60 * 60 * 1000
+        : 24 * 60 * 60 * 1000;
+  const since = new Date(Date.now() - periodMs).toISOString();
+
+  const supabase = getSupabaseClient();
+  const { data: logs, error } = await supabase
+    .from('ai_model_usage_logs')
+    .select('model_id, provider, task_type, input_tokens, output_tokens, latency_ms, cost_usd, success, created_at')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(5000);
+
+  if (error) {
+    logger.error('admin/ai-modules usage fetch failed', { error });
+    return { stats: [], hourly: [], totals: null, period, since, error: error.message };
+  }
+
+  const byModel: Record<string, {
+    model_id: string;
+    provider: string;
+    total_calls: number;
+    success_calls: number;
+    error_calls: number;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_cost_usd: number;
+    avg_latency_ms: number;
+    task_types: Record<string, number>;
+  }> = {};
+
+  for (const log of ((logs || []) as unknown as UsageLogRow[])) {
+    const key = log.model_id;
+    if (!byModel[key]) {
+      byModel[key] = {
+        model_id: log.model_id,
+        provider: log.provider,
+        total_calls: 0,
+        success_calls: 0,
+        error_calls: 0,
+        total_input_tokens: 0,
+        total_output_tokens: 0,
+        total_cost_usd: 0,
+        avg_latency_ms: 0,
+        task_types: {},
+      };
+    }
+    const m = byModel[key];
+    m.total_calls++;
+    if (log.success) m.success_calls++;
+    else m.error_calls++;
+    m.total_input_tokens += log.input_tokens || 0;
+    m.total_output_tokens += log.output_tokens || 0;
+    m.total_cost_usd += Number(log.cost_usd) || 0;
+    m.avg_latency_ms += log.latency_ms || 0;
+    m.task_types[log.task_type] = (m.task_types[log.task_type] || 0) + 1;
+  }
+
+  const stats = Object.values(byModel)
+    .map((m) => ({
+      ...m,
+      avg_latency_ms: m.total_calls > 0 ? Math.round(m.avg_latency_ms / m.total_calls) : 0,
+      success_rate: m.total_calls > 0 ? Math.round((m.success_calls / m.total_calls) * 100) : 0,
+    }))
+    .sort((a, b) => b.total_calls - a.total_calls);
+
+  const hourly: Record<string, { hour: string; calls: number; cost: number; errors: number }> = {};
+  for (const log of ((logs || []) as unknown as UsageLogRow[])) {
+    const h = new Date(log.created_at).toISOString().slice(0, 13) + ':00';
+    if (!hourly[h]) hourly[h] = { hour: h, calls: 0, cost: 0, errors: 0 };
+    hourly[h].calls++;
+    hourly[h].cost += Number(log.cost_usd) || 0;
+    if (!log.success) hourly[h].errors++;
+  }
+
+  const totals = {
+    total_calls: stats.reduce((s, m) => s + m.total_calls, 0),
+    total_cost_usd: stats.reduce((s, m) => s + m.total_cost_usd, 0),
+    total_tokens: stats.reduce((s, m) => s + m.total_input_tokens + m.total_output_tokens, 0),
+    avg_latency_ms: stats.length > 0
+      ? Math.round(stats.reduce((s, m) => s + m.avg_latency_ms, 0) / stats.length)
+      : 0,
+    avg_success_rate: stats.length > 0
+      ? Math.round(stats.reduce((s, m) => s + m.success_rate, 0) / stats.length)
+      : 0,
+  };
+
+  return {
+    stats,
+    hourly: Object.values(hourly).sort((a, b) => a.hour.localeCompare(b.hour)),
+    totals,
+    period,
+    since,
+  };
 }
 
 /**
@@ -230,9 +350,8 @@ export async function PATCH(request: NextRequest) {
 
 /**
  * POST /api/admin/ai-modules
- * Body: { action: 'reset' | 'seed_models' }
+ * Body: { action: 'reset' }
  * reset → factory defaults
- * seed_models → upsert endpoints into ai_model_configs table
  */
 export async function POST(request: NextRequest) {
   const admin = await requireAdmin(request, 'admin');
@@ -247,55 +366,6 @@ export async function POST(request: NextRequest) {
       const { source } = await saveAiModules(defaults); // Use default file path
       invalidateAiModulesCache();
       return NextResponse.json({ success: true, action: 'reset', source, config: defaults });
-    }
-
-    if (action === 'seed_models') {
-      const config = await loadAiModules(); // Use default cache/file path
-      const rows = config.endpoints
-        .filter((e) => e.provider !== 'runpod' || e.model_id.includes('llama') || e.max_tokens > 0)
-        .map((e, i) => ({
-          provider: e.provider,
-          model_id: e.model_id,
-          display_name: e.label,
-          task_type: e.nsfw_capable ? 'nsfw_chat' : e.id.includes('emotion') ? 'emotion' : 'chat',
-          is_active: true,
-          api_base_url: e.api_base_url || null,
-          api_key_env: e.api_key_env || null,
-          temperature: e.temperature,
-          max_tokens: e.max_tokens || 1024,
-          cost_per_1k_input: e.cost_per_1k_input,
-          cost_per_1k_output: e.cost_per_1k_output,
-          priority: 100 - i * 10,
-          nsfw_capable: e.nsfw_capable,
-          min_tier: e.nsfw_capable ? 'pro' : 'free',
-          notes: e.notes || `seeded from ai_modules:${e.id}`,
-        }));
-
-      let inserted = 0;
-      for (const row of rows) {
-        try {
-          const { error } = await admin.supabase.from('ai_model_configs').upsert(row, {
-            onConflict: 'provider,model_id',
-            ignoreDuplicates: false,
-          });
-          // if unique constraint different, try insert only
-          if (error) {
-            const ins = await admin.supabase.from('ai_model_configs').insert(row);
-            if (!ins.error) inserted++;
-          } else {
-            inserted++;
-          }
-        } catch {
-          /* skip */
-        }
-      }
-
-      return NextResponse.json({
-        success: true,
-        action: 'seed_models',
-        attempted: rows.length,
-        inserted,
-      });
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });

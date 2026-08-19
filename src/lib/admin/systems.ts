@@ -36,11 +36,10 @@ export const ADMIN_SYSTEMS: readonly AdminSystemDefinition[] = [
     id: 'conversations',
     name: '对话与 AI',
     description: '模型、提示词、路由与服务健康',
-    manageHref: '/admin/models',
+    manageHref: '/admin/ai',
     relatedHrefs: [
-      { label: 'AI 方案', href: '/admin/ai-modules' },
       { label: '服务状态', href: '/admin/ai-hub' },
-      { label: '路由线路', href: '/admin/provider-routes' },
+      { label: '图片路由', href: '/admin/provider-routes' },
     ],
   },
   {

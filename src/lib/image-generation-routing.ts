@@ -28,7 +28,7 @@ export type ImageModelFamily = 'flux' | 'pony' | 'illustrious';
  * LoRAs are auto-selected downstream by resolveModelLoraPlan() from the
  * curated FLUX_SCENARIO_PLANS based on category + render style + intensity.
  */
-export const UNIFIED_COMFY_ENDPOINT = 'wozrrlcdipyl3p';
+export const UNIFIED_COMFY_ENDPOINT = 'e40cgshtouocg8';
 
 export type ImageGenerationRoute = {
   surface: ImageSurface;

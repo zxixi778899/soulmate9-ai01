@@ -133,17 +133,10 @@ export default function ProfilePage() {
 
   const load = useCallback(async () => {
     try {
-      const [memRes, communityRes, friendsRes, worksRes, backpackRes, cardsRes, achRes] =
-        await Promise.all([
-          authedFetch('/api/membership').then((r) => r.json()).catch(() => ({})),
-          authedFetch('/api/community/me').then((r) => r.json()).catch(() => ({})),
-          authedFetch('/api/friends').then((r) => r.json()).catch(() => ({ friends: [] })),
-          authedFetch('/api/girlfriends').then((r) => r.json()).catch(() => ({ girlfriends: [] })),
-          authedFetch('/api/backpack').then((r) => r.json()).catch(() => ({ items: [] })),
-          authedFetch('/api/creator/cards').then((r) => r.json()).catch(() => ({})),
-          authedFetch('/api/v2/user/achievements').then((r) => r.json()).catch(() => ({})),
-        ]);
-
+      // Progressive loading: membership first, then other data
+      const memRes = await authedFetch('/api/membership').then((r) => r.json()).catch(() => ({}));
+      const c = await authedFetch('/api/community/me').then((r) => r.json()).catch(() => ({}));
+      
       const m = memRes as Partial<MembershipData>;
       setMem({
         tier: m.tier || 'free',
@@ -160,22 +153,33 @@ export default function ProfilePage() {
       setAvatarUrl(m.avatar_url || user?.user_metadata?.avatar_url || '');
       setGender(String(user?.user_metadata?.gender || ''));
 
-      const c = communityRes as Partial<CommunityStats>;
       setStats({
-        fans: c.fans || 0,
-        following: c.following || 0,
-        published: c.published || 0,
-        total: c.total || 0,
-        interaction: c.interaction || 0,
+        fans: (c as Partial<CommunityStats>).fans || 0,
+        following: (c as Partial<CommunityStats>).following || 0,
+        published: (c as Partial<CommunityStats>).published || 0,
+        total: (c as Partial<CommunityStats>).total || 0,
+        interaction: (c as Partial<CommunityStats>).interaction || 0,
       });
+      setLoading(false); // Show basic UI ASAP
 
-      setFriends(((friendsRes.friends || []) as FriendCompanion[]));
-      setWorks(((worksRes.girlfriends || []) as MyWork[]));
-      setBackpack(((backpackRes.items || []) as BackpackItem[]));
-      setCardBalance(typeof cardsRes.cards === 'number' ? cardsRes.cards : null);
-      setUnlocked(typeof achRes.total_unlocked === 'number' ? achRes.total_unlocked : null);
+      // Background load remaining data without blocking initial render
+      Promise.all([
+        authedFetch('/api/friends').then((r) => r.json()).catch(() => ({ friends: [] })),
+        authedFetch('/api/girlfriends').then((r) => r.json()).catch(() => ({ girlfriends: [] })),
+        authedFetch('/api/backpack').then((r) => r.json()).catch(() => ({ items: [] })),
+        authedFetch('/api/creator/cards').then((r) => r.json()).catch(() => ({})),
+        authedFetch('/api/v2/user/achievements').then((r) => r.json()).catch(() => ({})),
+      ]).then(([friendsRes, worksRes, backpackRes, cardsRes, achRes]) => {
+        setFriends(((friendsRes.friends || []) as FriendCompanion[]));
+        setWorks(((worksRes.girlfriends || []) as MyWork[]));
+        setBackpack(((backpackRes.items || []) as BackpackItem[]));
+        setCardBalance(typeof cardsRes.cards === 'number' ? cardsRes.cards : null);
+        setUnlocked(typeof achRes.total_unlocked === 'number' ? achRes.total_unlocked : null);
+      }).catch(() => {
+        // Silent fail for background loads
+      });
     } finally {
-      setLoading(false);
+      // Final setLoading already done above
     }
   }, [user]);
 

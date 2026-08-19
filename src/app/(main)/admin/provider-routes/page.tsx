@@ -102,16 +102,10 @@ function providerBadge(provider: string) {
   return <Badge variant="outline" className={cls}>{provider}</Badge>;
 }
 
-function channelBadge(channel: string) {
-  if (channel === 'nsfw') return <Badge variant="outline" className="bg-pink-500/15 text-pink-400 border-pink-500/30">NSFW</Badge>;
-  if (channel === 'sfw') return <Badge variant="outline" className="bg-sky-500/15 text-sky-400 border-sky-500/30">SFW</Badge>;
-  return <Badge variant="outline" className="bg-violet-500/15 text-violet-400 border-violet-500/30">Both</Badge>;
-}
-
 // ─── Main Page ───────────────────────────────────────────────
 
 export default function AdminProviderRoutesPage() {
-  const [tab, setTab] = useState<'image' | 'llm' | 'settings'>('image');
+  const [tab, setTab] = useState<'image' | 'settings'>('image');
   const [config, setConfig] = useState<ProviderRoutesConfig | null>(null);
   const [imageHealth, setImageHealth] = useState<ImageHealth[]>([]);
   const [envStatus, setEnvStatus] = useState<EnvStatus>({});
@@ -215,22 +209,33 @@ export default function AdminProviderRoutesPage() {
   if (!config) return null;
 
   const sortedImage = [...config.image_routes].sort((a, b) => a.priority - b.priority);
-  const sortedLlm = [...config.llm_routes].sort((a, b) => a.priority - b.priority);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">路由线路管理</h1>
+          <h1 className="text-xl font-bold text-white">图片路由线路</h1>
           <p className="text-sm text-gray-400 mt-1">
-            图片/LLM 多供应商路由 · 自动故障转移 · 熔断器 · 按需计费
+            图片多供应商路由 · 自动故障转移 · 熔断器 · 按需计费
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={load}>
           <RefreshCw className="w-4 h-4 mr-1" /> 刷新
         </Button>
       </div>
+
+      {/* LLM routing moved to unified AI page */}
+      <a
+        href="/admin/ai"
+        className="flex items-center justify-between rounded-xl border border-blue-500/25 bg-blue-500/[0.06] px-4 py-3 hover:bg-blue-500/[0.10] transition-colors"
+      >
+        <div>
+          <p className="text-sm font-medium text-blue-300">聊天 LLM 模型与路由</p>
+          <p className="text-xs text-gray-500">模型端点 · 套餐路由策略 · 用量统计已合并到统一 AI 管理页</p>
+        </div>
+        <span className="text-blue-400 text-sm">进入 →</span>
+      </a>
 
       {/* Env Status */}
       <Card className="bg-[#16161f] border-gray-800">
@@ -258,7 +263,7 @@ export default function AdminProviderRoutesPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-[#16161f] rounded-lg p-1 w-fit">
-        {([['image', '图片路由'], ['llm', 'LLM 路由'], ['settings', '全局设置']] as const).map(([key, label]) => (
+        {([['image', '图片路由'], ['settings', '全局设置']] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -373,84 +378,6 @@ export default function AdminProviderRoutesPage() {
               </Card>
             );
           })}
-        </div>
-      )}
-
-      {/* LLM Routes Tab */}
-      {tab === 'llm' && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-400">
-              按 tier + channel 路由 · NSFW 走自托管 · SFW 走 Together · 自动降级
-            </p>
-            <Button size="sm" onClick={() => setEditDialog({ type: 'llm', route: null })}>
-              <Plus className="w-4 h-4 mr-1" /> 添加 LLM 路由
-            </Button>
-          </div>
-
-          {sortedLlm.map((route, idx) => (
-            <Card key={route.id} className={`bg-[#16161f] border-gray-800 ${!route.enabled ? 'opacity-50' : ''}`}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col gap-0.5">
-                    <button
-                      className="text-gray-600 hover:text-gray-300 disabled:opacity-30"
-                      disabled={idx === 0}
-                      onClick={() => moveRoute('llm', sortedLlm, idx, idx - 1)}
-                    >
-                      <ArrowUpDown className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <GripVertical className="w-4 h-4 text-gray-600" />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-white">{route.label}</span>
-                      {providerBadge(route.provider)}
-                      {channelBadge(route.channel)}
-                      {route.nsfw_capable && <Badge variant="outline" className="bg-pink-500/10 text-pink-400 border-pink-500/30 text-xs">NSFW</Badge>}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                      <span className="font-mono">{route.model_id}</span>
-                      <span>优先级: {route.priority}</span>
-                      <span>超时: {(route.timeout_ms / 1000).toFixed(0)}s</span>
-                      <span>Tiers: {route.tiers.join(', ')}</span>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost" size="icon" className="h-7 w-7"
-                      onClick={() => testRoute('llm', route.id)}
-                      disabled={testing === route.id}
-                    >
-                      {testing === route.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                    </Button>
-                    <Button
-                      variant="ghost" size="icon" className="h-7 w-7"
-                      onClick={() => setEditDialog({ type: 'llm', route })}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-300"
-                      onClick={() => removeRoute('llm', route.id)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                    <Switch
-                      checked={route.enabled}
-                      onCheckedChange={(v) => toggleRoute('llm', route.id, v)}
-                    />
-                  </div>
-                </div>
-                {route.notes && (
-                  <p className="text-xs text-gray-600 mt-2 ml-10">{route.notes}</p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
         </div>
       )}
 

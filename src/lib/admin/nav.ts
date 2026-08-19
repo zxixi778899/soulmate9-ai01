@@ -62,10 +62,10 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       },
       {
         label: '对话与 AI',
-        href: '/admin/models',
+        href: '/admin/ai',
         icon: Brain,
-        hint: '模型、方案、路由和服务状态',
-        aliases: ['/admin/ai-modules', '/admin/ai-hub', '/admin/provider-routes'],
+        hint: '模型端点、路由策略、用量与服务状态',
+        aliases: ['/admin/models', '/admin/ai-modules', '/admin/ai-hub', '/admin/provider-routes'],
       },
       {
         label: '创建与素材',

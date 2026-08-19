@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     await Promise.all([
       client
         .from('profiles')
-        .select('membership_tier, credits_remaining, display_name, avatar_url, bio')
+        .select('membership_tier, credits_remaining, display_name, avatar_url, bio, extra_girlfriend_slots')
         .eq('user_id', user.id)
         .single(),
       client
@@ -66,7 +66,6 @@ export async function GET(req: NextRequest) {
   // Legacy tier no longer sold — grandfather basic into pro.
   // 'premium' is a current paid tier (kept as-is).
   const tier = rawTier === 'basic' ? 'pro' : rawTier;
-
   // Quotas aligned with MEMBERSHIP_TIERS (unified Credits model).
   const plans = {
     free: {
@@ -178,7 +177,21 @@ export async function GET(req: NextRequest) {
   };
 
   const currentPlan = plans[tier as keyof typeof plans] || plans.free;
-  const seats = await getSeatStatus(client as unknown as SeatClient, user.id);
+  
+  // Preload seat-related values so getSeatStatus can skip duplicate queries.
+  const [used, createdCount] = await Promise.all([
+    totalGirlfriendsResult.count ?? 0,
+    createdCompanionsResult.count ?? 0,
+  ]);
+  
+  // Get bonus seats first from profiles read we already did
+  const bonusSeats = (profile as { extra_girlfriend_slots?: number } | null)?.extra_girlfriend_slots || 0;
+  const seats = await getSeatStatus(client as unknown as SeatClient, user.id, {
+    tier,
+    bonusSeats,
+    used,
+    createdCount,
+  });
 
   return NextResponse.json({
     tier,
