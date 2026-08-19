@@ -3,8 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useStudio } from '../StudioContext';
 import { cn } from '@/lib/utils';
-import { Plus, X, ChevronDown, ChevronUp, Bookmark, Tag } from 'lucide-react';
-import type { NsfwIntensity } from '@/lib/comfy-console/studio-profile';
+import { Plus, ChevronDown, ChevronUp, Bookmark, Tag } from 'lucide-react';
 
 // ─── Preset categories ───────────────────────────────────────────────────────
 

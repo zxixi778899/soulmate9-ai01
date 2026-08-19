@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
 
     // Verify the endpoint is configured BEFORE charging — users must never
     // lose credits to a 503 not_configured response.
-    const apiKey = process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
+    const apiKey = process.env.RUNPOD_WAN_API_KEY || process.env.RUNPOD_API_KEY || process.env.RUNPOD_COMFYUI_API_KEY || '';
     const videoEndpointId = videoRoute.endpointId;
     if (!apiKey || !videoEndpointId) {
       return NextResponse.json(

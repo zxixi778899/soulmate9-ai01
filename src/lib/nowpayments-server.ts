@@ -158,19 +158,29 @@ export type NowPaymentsCurrency = (typeof NOWPAYMENTS_CURRENCIES)[number]['id'];
  */
 export function getNowPaymentsPriceCents(plan: string, billing: string): number {
   const basePrices: Record<string, number> = {
-    basic: 999,
-    pro: 1999,
-    unlimited: 2999,
+    pro: 999,
+    premium: 2499,
+    unlimited: 3499,
   };
   const base = basePrices[plan] ?? 0;
   if (base === 0) return 0;
 
   const discounts: Record<string, { multiplier: number; discount: number }> = {
     monthly: { multiplier: 1, discount: 1.0 },
-    quarterly: { multiplier: 3, discount: 0.85 },
-    yearly: { multiplier: 12, discount: 0.70 },
+    yearly: { multiplier: 12, discount: 0.85 }, // Pro 17% off; Premium/Unlimited 20% off (see YEARLY_PRICES)
   };
   const cycle = discounts[billing] ?? discounts.monthly;
+  
+  // For yearly billing, use exact values from crypto-config
+  if (billing === 'yearly') {
+    const yearlyMap: Record<string, number> = {
+      pro: 9999,
+      premium: 19999,
+      unlimited: 29999,
+    };
+    return yearlyMap[plan] ?? 0;
+  }
+  
   return Math.round(base * cycle.multiplier * cycle.discount);
 }
 

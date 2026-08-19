@@ -10,10 +10,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ─── Exchange Rate ───────────────────────────────────────────────────────────
+// Unified pricing model for all GPU media (image / video / TTS)
+// Base rate: 1000 credits = $9.99 USD  →  1 credit ≈ $0.00999
+// Pricing formula: cost * 200 = credits
 
 export const CREDIT_EXCHANGE = {
   credits: 1000,
-  usd_cents: 990, // $9.90
+  usd_cents: 999, // $9.99
 } as const;
 
 /** Convert credits to USD cents */
@@ -33,19 +36,20 @@ export const DAILY_CHECKIN_REWARD = 10; // flat 10 credits per day
 // ─── Feature Costs (credits) ─────────────────────────────────────────────────
 // Text chat is covered by subscription; Credits are for GPU media only.
 // Failed / timed-out / rejected generations are auto-refunded.
+// Pricing formula: base_cost * 200 = credits
 
 export const CREDIT_COSTS = {
-  /** Normal image generation */
-  image_gen: 10,
-  /** HD or multi-image generation */
-  image_gen_hd: 10,
-  /** Voice message (1–3 credits depending on length) */
-  tts: 2,
-  /** 3-second quick video */
+  /** Normal image generation - estimated cost: $0.045 */
+  image_gen: 10, // Round number for cleaner UX
+  /** HD or multi-image generation - estimated cost: $0.09 */
+  image_gen_hd: 20, // Round number
+  /** Voice message (1–3 credits depending on length) - estimated cost: $0.005 */
+  tts: 1,
+  /** 3-second quick video - estimated cost: $0.15 */
   video_3s: 30,
-  /** 5-second video */
+  /** 5-second video - estimated cost: $0.25 */
   video_5s: 50,
-  /** 10-second video */
+  /** 10-second video - estimated cost: $0.50 */
   video_10s: 100,
 } as const;
 
@@ -75,11 +79,16 @@ export const GIFT_CREDIT_COSTS: Record<string, number> = {
 };
 
 // ─── Credit Packages ─────────────────────────────────────────────────────────
+// Base rate: 1000 credits = $9.99 (see CREDIT_EXCHANGE). Smaller packs carry a
+// small premium; larger packs get volume discounts.
+// NOTE: live prices are DB-driven (products / token_packages via admin shop);
+// this list is the canonical reference + code fallback only.
 
 export const TOKEN_PACKAGES = [
-  { id: 'credits-100', name: 'Starter', token_count: 100, bonus_tokens: 0, price_cents: 499, sort_order: 1 },
-  { id: 'credits-500', name: 'Popular', token_count: 500, bonus_tokens: 0, price_cents: 1999, sort_order: 2 },
-  { id: 'credits-1200', name: 'Power User', token_count: 1200, bonus_tokens: 0, price_cents: 2999, sort_order: 3 },
+  { id: 'credits-500', name: 'Starter', token_count: 500, bonus_tokens: 0, price_cents: 599, sort_order: 1 },
+  { id: 'credits-1000', name: 'Popular', token_count: 1000, bonus_tokens: 0, price_cents: 999, sort_order: 2 }, // Base rate: $9.99 / 1000
+  { id: 'credits-2500', name: 'Best Value', token_count: 2500, bonus_tokens: 0, price_cents: 2299, sort_order: 3 }, // Save ~8%
+  { id: 'credits-5000', name: 'Power User', token_count: 5000, bonus_tokens: 0, price_cents: 3999, sort_order: 4 }, // Save ~20%
 ] as const;
 
 // ─── Ledger Reasons ──────────────────────────────────────────────────────────

@@ -2,7 +2,6 @@
 
 import { useRef } from 'react';
 import { useStudio } from '../StudioContext';
-import { Button } from '@/components/ui/button';
 import { Upload, X, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 

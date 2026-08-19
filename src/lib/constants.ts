@@ -11,12 +11,13 @@ export const PRIVACY_EMAIL = 'privacy@oxmate-ai.com';
 /**
  * Membership tiers — unified Credits model for all GPU media (image / video / TTS).
  *
- * Free: one-time starter pack (50 Credits) + basic chat, no monthly credit refill.
- * Pro ($9.99/mo): 200 msgs/day, 500 Credits/mo, deep memory, all 4 proactive slots.
- * Unlimited ($29.99/mo): fair-use unlimited chat, 1500 Credits/mo, infinite memory, 2x quest rewards.
+ * FREE: one-time starter pack (100 Credits) + basic chat, no monthly credit refill.
+ * PRO ($9.99/mo): 200 msgs/day, 1500 Credits/mo (gifted), deep memory, ideal for casual users.
+ * PREMIUM ($24.99/mo): NEW tier! 500 msgs/day, 4000 Credits/mo, best value for heavy users.
+ * UNLIMITED ($34.99/mo): fair-use unlimited chat, 6000 Credits/mo, maximum freedom.
  *
  * Prices tax-exclusive; customer pays tax at checkout.
- * Billing: monthly or yearly only. Yearly discount: Pro 15%, Unlimited 20%.
+ * Billing: monthly or yearly only. Yearly discounts: Pro 17%, Premium 20%, Unlimited 20%.
  */
 export const MEMBERSHIP_TIERS = {
   free: {
@@ -29,36 +30,51 @@ export const MEMBERSHIP_TIERS = {
     outfit_access: 'basic' as const,
     context_window: 8192,
     monthly_credits: 0,
-    starter_credits: 50, // one-time welcome gift (enough for ~5 images or ~10 voice msgs)
-    video_gen: false,
+    starter_credits: 100, // one-time welcome gift
+    video_gen: true, // video access via Credits
     proactive_slots: 1, // night-only (good night message)
     quest_reward_multiplier: 1,
   },
   pro: {
     name: 'Pro',
     price_cents: 999,
-    yearly_price_cents: 10188, // $101.88/yr = 15% off 12 x $9.99 ($8.49/mo equivalent)
+    yearly_price_cents: 9999, // $99.99/yr = 17% off 12 x $9.99 ($8.33/mo equivalent)
     messages_per_day: 200,
     memory_depth: 'deep' as const,
     max_girlfriends: 20,
     outfit_access: 'premium' as const,
     context_window: 16384,
-    monthly_credits: 500,
+    monthly_credits: 1500, // gifted monthly credits for image/TTS/video usage
     starter_credits: 0,
     video_gen: true, // video access via Credits
     proactive_slots: 4, // all time slots
     quest_reward_multiplier: 1.5,
   },
+  premium: {
+    name: 'Premium',
+    price_cents: 2499,
+    yearly_price_cents: 19999, // $199.99/yr = 20% off 12 x $24.99 ($16.66/mo equivalent)
+    messages_per_day: 500,
+    memory_depth: 'deep' as const,
+    max_girlfriends: 50,
+    outfit_access: 'all' as const,
+    context_window: 24576,
+    monthly_credits: 4000, // gifted monthly credits for image/TTS/video usage
+    starter_credits: 0,
+    video_gen: true, // video access via Credits
+    proactive_slots: 4, // all time slots + priority queue
+    quest_reward_multiplier: 1.75,
+  },
   unlimited: {
     name: 'Unlimited',
-    price_cents: 2999,
-    yearly_price_cents: 28788, // $287.88/yr = 20% off 12 x $29.99 ($23.99/mo equivalent)
+    price_cents: 3499,
+    yearly_price_cents: 29999, // $299.99/yr = 20% off 12 x $34.99 ($24.99/mo equivalent)
     messages_per_day: -1, // fair-use unlimited
     memory_depth: 'infinite' as const,
     max_girlfriends: -1,
     outfit_access: 'all' as const,
     context_window: 32768,
-    monthly_credits: 1500,
+    monthly_credits: 6000, // gifted monthly credits for image/TTS/video usage
     starter_credits: 0,
     video_gen: true, // video access via Credits
     proactive_slots: 4, // all time slots + AI-personalized generation
@@ -84,10 +100,13 @@ export function getPriceCents(tier: keyof typeof MEMBERSHIP_TIERS, billing: Bill
 
 export function baseCompanionSeatLimit(tier: string): number {
   if (tier === 'unlimited' || tier === 'admin') return -1;
-  // Legacy 'basic'/'premium' users are grandfathered to the Pro limit
+  // Legacy 'basic' users are grandfathered to the Pro limit
   // (same normalization as /api/membership).
-  if (tier === 'pro' || tier === 'basic' || tier === 'premium') {
+  if (tier === 'pro' || tier === 'basic') {
     return MEMBERSHIP_TIERS.pro.max_girlfriends;
+  }
+  if (tier === 'premium') {
+    return MEMBERSHIP_TIERS.premium.max_girlfriends;
   }
   return MEMBERSHIP_TIERS.free.max_girlfriends;
 }
@@ -161,6 +180,12 @@ export const DEFAULT_PROACTIVE_TEMPLATES = [
 ] as const;
 
 export const API_BASE = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
+
+/** Generation timeout configurations */
+export const ENDPOINT_TIMEOUT_MS = 300000;        // 5 minutes for general endpoints
+export const SDXL_TIMEOUT_MS = 300000;            // 5 minutes for SDXL generation
+export const CLOUD_TIMEOUT_MS = 180000;           // 3 minutes for cloud fallback
+export const IMAGE_CACHE_MINUTES = 7;             // 7 days TTL for image cache
 
 export const STRIPE_PRICE_IDS = {
   pro: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || '',

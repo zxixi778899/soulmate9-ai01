@@ -14,11 +14,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { grantTopUpCredits } from '@/lib/credit-system';
 
-/** Membership tier credit grants (subscription path only) */
+/** Membership tier credit grants (subscription path only) — synced with MEMBERSHIP_TIERS.monthly_credits */
 const TIER_CREDITS: Record<string, number> = {
-  basic: 200,
-  pro: 500,
-  unlimited: 9999,
+  basic: 500,     // legacy grandfathered tier
+  pro: 1500,
+  premium: 4000,
+  unlimited: 6000,
 };
 
 export interface GrantResult {
@@ -122,7 +123,7 @@ export async function grantCryptoPayment(
   const membershipTier = payment.plan_id;
   const credits = TIER_CREDITS[membershipTier] ?? 0;
 
-  if (!['basic', 'pro', 'unlimited'].includes(membershipTier)) {
+  if (!['basic', 'pro', 'premium', 'unlimited'].includes(membershipTier)) {
     return { ok: false, error: `Unknown tier: ${membershipTier}` };
   }
 

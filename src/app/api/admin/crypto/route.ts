@@ -88,7 +88,7 @@ export async function PATCH(request: Request) {
       if (updateErr) throw updateErr;
 
       // Determine payment type and grant rewards via shared logic
-      const paymentType = ['pro', 'unlimited', 'basic'].includes(payment.plan_id)
+      const paymentType = ['pro', 'premium', 'unlimited', 'basic'].includes(payment.plan_id)
         ? 'subscription' as const
         : 'tokens' as const;
 

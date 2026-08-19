@@ -43,6 +43,16 @@ export interface ModelEndpoint {
   health_status?: 'healthy' | 'degraded' | 'disabled';
   quality_tier?: QualityTier;
   notes?: string;
+  /** Shown in the in-chat model picker so users can pick it explicitly. */
+  user_selectable?: boolean;
+  /** Credits charged per message when the user explicitly selects this model. */
+  credit_cost?: number;
+  /** Minimum membership tier allowed to select this model. */
+  min_tier?: 'free' | 'basic' | 'pro' | 'unlimited';
+  /** User-facing display name in the model picker. */
+  public_label?: string;
+  /** User-facing one-line description in the model picker. */
+  public_description?: string;
 }
 
 export interface TierChatRoute {
@@ -159,6 +169,8 @@ export interface ResolveChatContext {
   contextMessageCount?: number;
   dailyCostUsd?: number;
   adultCharacterVerified?: boolean;
+  /** Endpoint id explicitly chosen by the user in the model picker. */
+  preferredEndpointId?: string;
 }
 
 export interface ResolvedChatCall {

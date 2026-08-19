@@ -6,7 +6,7 @@ import { readResponseJson } from '@/lib/safe-json';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Play, Square, RotateCcw, Loader2 } from 'lucide-react';
+import { Play, Square, RotateCcw } from 'lucide-react';
 import { PipelineStageCard } from './PipelineStageCard';
 import {
   CHARACTER_PIPELINE_STAGES,
@@ -31,7 +31,8 @@ interface Props {
 export function PipelineRunner({ companionId, companion, animeStyle, nsfwIntensity, onComplete }: Props) {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<PipelineStageResult[]>([]);
-  const [assets, setAssets] = useState<Record<string, string>>({});
+  // 镜像 localAssets 供后续 UI 扩展使用（当前阶段仅用于跟踪）
+  const [, setAssets] = useState<Record<string, string>>({});
   const cancelRef = useRef(false);
 
   const run = useCallback(async () => {

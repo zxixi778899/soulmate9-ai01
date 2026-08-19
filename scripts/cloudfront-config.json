@@ -1,0 +1,37 @@
+﻿{
+  "CallerReference": "soulmate-s3-cdn-20260818",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [{
+      "Id": "soulmate-s3-origin",
+      "DomainName": "soulmate-images-production.s3.cn-north-1.amazonaws.com.cn",
+      "S3OriginConfig": { "OriginAccessIdentity": "" },
+      "CustomHeaders": { "Quantity": 0 }
+    }]
+  },
+  "DefaultCachePolicy": {
+    "Comment": "CachingOptimized for images",
+    "DefaultTTL": 86400,
+    "MaxTTL": 31536000,
+    "MinTTL": 0,
+    "ParametersInCookiePolicy": "none",
+    "QueryStringBehavior": "all"
+  },
+  "DefaultBehavior": {
+    "TargetOriginId": "soulmate-s3-origin",
+    "CachePolicyId": "658327ea-f88d-4fde-b0a8-aa53b6f9c0e9",
+    "AllowedMethods": {
+      "Quantity": 2,
+      "Items": ["GET", "HEAD"],
+      "CachedMethods": { "Quantity": 2, "Items": ["GET", "HEAD"] }
+    },
+    "ViewerProtocolPolicy": "https-only",
+    "Compress": true,
+    "OriginRequestPolicyId": "4d925d8c-e67a-4810-a7e9-51b22ebf065d"
+  },
+  "Comment": "SoulMate AI S3 Image CDN",
+  "Enabled": true,
+  "HttpVersion": "http1and11",
+  "PriceClass": "PriceClass_All",
+  "IPv6Enabled": true
+}

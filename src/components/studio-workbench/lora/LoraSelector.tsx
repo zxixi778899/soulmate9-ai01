@@ -21,7 +21,7 @@ export function LoraSelector() {
   const [activeCategory, setActiveCategory] = useState<LoraCategory>('全部');
   const [activeFamily, setActiveFamily] = useState<string>('全部');
 
-  const allLoras: Any[] = state.config?.loras || [];
+  const allLoras = useMemo<Any[]>(() => state.config?.loras || [], [state.config?.loras]);
 
   // Extract unique families from lora list
   const families = useMemo(() => {

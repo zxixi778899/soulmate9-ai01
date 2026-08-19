@@ -37,6 +37,7 @@ import { ChatAppBar } from '@/components/chat/ChatAppBar';
 import { ChatStream } from '@/components/chat/ChatStream';
 import { ChatInputBar, type PendingMedia } from '@/components/chat/ChatInputBar';
 import type { PickedPreset } from '@/components/chat/PresetPicker';
+import type { ChatModelOption } from '@/lib/chat-models';
 import type { ChatMessage as Message, ChatGirlfriend as Girlfriend, IntimacyData } from '@/components/chat/types';
 import { loadChatCache, saveChatCache, mergeMessages, deriveMood } from '@/lib/chat-cache';
 import { parseChatImageIntent, parseVideoIntent } from '@/lib/chat-image-intent';
@@ -104,6 +105,9 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
   const [activeGenJobId, setActiveGenJobId] = useState<string | null>(null);
   const [aiChannel, setAiChannel] = useState<'sfw' | 'nsfw' | null>(null);
   const [aiModel, setAiModel] = useState<string | null>(null);
+  // User-selectable chat models (explicit pick charges credits per message)
+  const [chatModels, setChatModels] = useState<ChatModelOption[]>([]);
+  const [selectedChatModel, setSelectedChatModel] = useState<string | null>(null);
   const [loadingMemories, setLoadingMemories] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -198,6 +202,16 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
     }
   };
 
+  const handleSelectChatModel = (modelId: string | null) => {
+    setSelectedChatModel(modelId);
+    try {
+      if (modelId) localStorage.setItem('soulmate_chat_model', modelId);
+      else localStorage.removeItem('soulmate_chat_model');
+    } catch {
+      /* ignore */
+    }
+  };
+
   // Membership & usage banner
   const membership = useMembership();
   const [usageBannerDismissed, setUsageBannerDismissed] = useState(false);
@@ -231,6 +245,24 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
       .then((r) => r.json().catch(() => ({})))
       .then((d: { gifts?: ChatGift[] }) => {
         if (Array.isArray(d.gifts) && d.gifts.length > 0) setGifts(d.gifts);
+      })
+      .catch(() => {});
+    // Chat model picker catalog (5 user-selectable LLMs + lock state)
+    authedFetch('/api/chat/models')
+      .then((r) => readResponseJson(r).catch(() => ({})))
+      .then((d) => {
+        const list = Array.isArray((d as { models?: ChatModelOption[] }).models)
+          ? ((d as { models: ChatModelOption[] }).models)
+          : [];
+        setChatModels(list);
+        try {
+          const saved = localStorage.getItem('soulmate_chat_model');
+          if (saved && list.some((m) => m.id === saved && m.available)) {
+            setSelectedChatModel(saved);
+          }
+        } catch {
+          /* ignore */
+        }
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1502,6 +1534,7 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
           locale,
           reply_mode: replyMode,
           nsfw_intensity: nsfwIntensity,
+          ...(selectedChatModel ? { chat_model: selectedChatModel } : {}),
           ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}),
         }),
       });
@@ -1515,6 +1548,11 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         if (errBody.code === 'daily_message_limit') {
           setUpgradeReason('message_limit');
           setUpgradeOpen(true);
+        }
+        if (errBody.code === 'insufficient_credits') {
+          toast.error(errBody.localized_error || t('chat.modelInsufficientCredits'), {
+            description: t('chat.buyMoreCredits'),
+          });
         }
         throw new Error(
           typeof errBody?.localized_error === 'string'
@@ -2325,6 +2363,9 @@ export default function ChatView({ companionId, onBack }: ChatViewProps) {
         girlfriendId={id}
         selectedPreset={selectedPreset}
         onSelectPreset={setSelectedPreset}
+        chatModels={chatModels}
+        selectedChatModel={selectedChatModel}
+        onSelectChatModel={handleSelectChatModel}
       />
       </div>
 

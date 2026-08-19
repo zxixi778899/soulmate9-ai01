@@ -32,6 +32,8 @@ interface BuildPromptInput {
   client?: SupabaseClient;
   /** V2: Tone for this message turn */
   tone?: ToneType;
+  /** V3: Lifecycle phase behavior rules (e.g., '老夫老妻。自然随意，什么都能聊') */
+  lifecycleBehaviorRule?: string;
 }
 
 export interface PersonaPromptLayers {
@@ -214,7 +216,7 @@ export async function buildPersonaPrompt(input: BuildPromptInput): Promise<strin
   // Step 2: Build each layer
   const layers = {
     layer1: buildBasePersona(girlfriendData),
-    layer2: buildRelationshipContext(intimacyScore),
+    layer2: buildRelationshipContext(intimacyScore, input.lifecycleBehaviorRule),
     layer3: buildDynamicState(moodResult, scenarioState, girlfriendData),
     layer4: memories.length > 0 ? buildMemoryFlashbacks(memories) : undefined,
     layer5: buildSpeakingConstraints(mode, input.tone)
@@ -265,14 +267,14 @@ function buildRelationshipContext(intimacyData: {
   score: number;
   level: number;
   stageTitle?: string;
-}): string {
+}, lifecycleBehaviorRule?: string): string {
   const { score, level, stageTitle } = intimacyData;
   
   // Determine title based on intimacy level
   const titles = ['初识', '暧昧', '热恋', '依恋', '灵魂羁绊'];
   const currentTitle = titles[Math.min(level - 1, titles.length - 1)] || '陌生人';
   
-  return `【关系阶段】
+  let result = `【关系阶段】
 - 当前等级：Lv.${level} ${stageTitle || currentTitle}
 - 亲密度分数：${score} / ∞
 - 我们现在的关系：${currentTitle}
@@ -281,6 +283,15 @@ function buildRelationshipContext(intimacyData: {
 Lv.1-2: 礼貌友好，略带试探
 Lv.3: 开始甜言蜜语，适度亲密
 Lv.4-5: 深度情感交流，完全坦诚`;
+
+  if (lifecycleBehaviorRule) {
+    result += `
+
+【对话生命周期】
+你当前的关系阶段是：${lifecycleBehaviorRule}`;
+  }
+
+  return result;
 }
 
 /**

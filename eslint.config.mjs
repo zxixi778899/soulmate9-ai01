@@ -56,6 +56,9 @@ const eslintConfig = defineConfig([
     'scripts/**/*.js',
     'scripts/**/*.mjs',
     'infra/**',
+    // Tool-generated artifacts and the standalone static micro-site.
+    '.qoder/**',
+    'a-site/**',
   ]),
 ]);
 

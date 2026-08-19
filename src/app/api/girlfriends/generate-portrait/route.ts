@@ -24,7 +24,7 @@ import { buildAutoLoraStack, buildKeywordLoras } from '@/lib/auto-lora';
 import { sanitizeLoraForVolume, getVerifiedInstalledLoraSet } from '@/lib/runpod-loras';
 import { translatePromptToEnglish } from '@/lib/prompt-translate';
 import { forwardLegacyGeneration } from '@/lib/gen-hub';
-import { resolveIdentityKit, resolveIpAdapterWeight } from '@/lib/identity-kit';
+import { resolveIdentityKit, resolveIpAdapterWeight, type IdentityKitSupabaseClient } from '@/lib/identity-kit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
       const forwarded = await forwardLegacyGeneration({
         request,
         kind: 'portrait',
-        client: client as any,
+        client,
         userId: user.id,
         handler: POST,
         routePath: '/api/girlfriends/generate-portrait',
@@ -361,7 +361,7 @@ export async function POST(request: NextRequest) {
       const sb = getSupabaseClient();
       identityKit = await resolveIdentityKit(
         gfIdForRef,
-        sb as any,
+        sb as unknown as IdentityKitSupabaseClient,
         body as Record<string, unknown>
       ).catch((err) => {
         logger.warn('[Generate Portrait] resolveIdentityKit failed', { err: err instanceof Error ? err.message : String(err) });

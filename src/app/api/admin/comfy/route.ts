@@ -34,7 +34,7 @@ import { buildStudioPromptEnhancement, compactFluxPrompt, ensureStudioFluxPrompt
 import { buildReferenceGenerationPlan, companionIdentityAssets, type ReferenceAsset, type ReferenceControlSettings } from '@/lib/reference-generation-plan';
 import { getCharacterProductionPreset, identityReferenceRolePriority, identityTurnaroundDenoise, normalizeCharacterAssetRole } from '@/lib/character-asset-production';
 import { buildCompanionAgeNegativePrompt, buildCompanionIdentityBrief, buildIdentityAnchorPrompt } from '@/lib/companion-generation';
-import { resolveIpAdapterWeight, resolveIpAdapterSchedule, resolveIdentityKit } from '@/lib/identity-kit';
+import { resolveIpAdapterWeight, resolveIpAdapterSchedule } from '@/lib/identity-kit';
 import { resolveGenerationProfile } from '@/lib/comfy-console/generation-profiles';
 import { assertEnhancersReady, getEnhancerStatuses, type EnhancerId } from '@/lib/comfy-console/enhancer-config';
 

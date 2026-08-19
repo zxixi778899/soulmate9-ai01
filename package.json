@@ -10,6 +10,7 @@
     "lint:build": "eslint . --quiet --max-warnings=0",
     "start": "sh ./scripts/start.sh",
     "start:dev": "bash ./scripts/start.sh",
+    "test:e2e-ipadapter": "node scripts/test-ipadapter-e2e.js",
     "typegen": "next typegen",
     "ts-check": "pnpm run typegen && tsc -p tsconfig.json",
     "smoke": "node scripts/post-deploy-smoke.mjs",

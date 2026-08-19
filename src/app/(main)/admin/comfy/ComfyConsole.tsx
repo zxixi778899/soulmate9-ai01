@@ -1214,6 +1214,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         upscale: generationRoute.qualityEnhancers.upscale,
       }));
     }
+    // 依赖故意不含 genMode/fastPreview/assetRole：本 effect 只在路由/清单变化时
+    // 同步参数，加入这些状态会在用户切换模式时重置其手动选择。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animeRenderStyle, checkpoints, companionCategory, generationRoute.cfg, generationRoute.checkpoint, generationRoute.modelFamily, generationRoute.qualityEnhancers.adetailer, generationRoute.qualityEnhancers.upscale, generationRoute.sampler, generationRoute.scheduler, generationRoute.steps, loras]);
 
   const filteredBatchGirlfriends = useMemo(() => {
@@ -1357,7 +1360,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       throw new Error('Finalize returned no assets');
       
     } catch (error) {
-      logger.error('[finalizeAssets] Failed to register asset', {
+      // Client-side: use console.error instead of logger (not available in browsers)
+      console.error('[finalizeAssets] Failed to register asset', {
         jobId,
         imagesCount: images.length,
         error: error instanceof Error ? error.message : String(error),
@@ -1456,7 +1460,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               try {
                 saved = await finalizeAssets(jobId, pollData.images, executedOverrides);
               } catch (finalizeError) {
-                logger.warn('[runProductionTask] Finalize failed, continuing without DB update', {
+                // Client-side: use console.warn instead of logger (not available in browsers)
+                console.warn('[runProductionTask] Finalize failed, continuing without DB update', {
                   jobId,
                   error: finalizeError instanceof Error ? finalizeError.message : String(finalizeError),
                 });

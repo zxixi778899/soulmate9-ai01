@@ -46,9 +46,9 @@ describe('image scene semantics', () => {
       modelFamily: 'flux',
       presetId: 'flux-adult-composition-control',
       sampler: 'euler',
-      steps: 30,
-      width: 896,
-      height: 1152,
+      steps: 32,
+      width: 1024,
+      height: 1472,
     });
   });
 });

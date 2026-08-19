@@ -268,7 +268,6 @@ function NsfwLevelCard({ lv, label, active, preview, onClick, adminSlot }: { lv:
 export default function CreatePage() {
   const router = useRouter();
   const { t, locale } = useTranslation();
-  const zh = locale === 'zh';
 
   // Steps: 四步向导 风格 → 面部/身材 → 人设+内容级别 → 立绘
   const [step, setStep] = useState<CreateStep>('style');
@@ -359,6 +358,7 @@ export default function CreatePage() {
   const [appearancePrompt, setAppearancePrompt] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>(['Romantic', 'Playful']);
   const [occupation, setOccupation] = useState('Student');
+  const [selectedCompanionId, setSelectedCompanionId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [age, setAge] = useState(22);
   const [shortDescription, setShortDescription] = useState('');
@@ -438,6 +438,67 @@ export default function CreatePage() {
     return genome;
   }, [parts, hairStyle, hairColor, faceShape, bodyType, skinTone, eyeColor]);
 
+
+  // ─── Select companion as template — pre-fill form with her appearance & persona ──
+  const handleSelectCompanion = useCallback((gf: Record<string, unknown>) => {
+    const gfId = String(gf.id || '');
+    setSelectedCompanionId((prev) => (prev === gfId ? null : gfId));
+
+    const s = (v: unknown): string => (v != null && v !== 'null' ? String(v) : '');
+
+    // Identity
+    const n = s(gf.name);
+    if (n) setName(n);
+    const a = Number(gf.age);
+    if (a >= 18 && a <= 120) setAge(a);
+    const sd = s(gf.short_description);
+    if (sd) setShortDescription(sd);
+
+    // Personality tags
+    const pRaw = s(gf.personality);
+    if (pRaw) {
+      setSelectedTags(pRaw.split(',').map((t) => t.trim()).filter(Boolean));
+    }
+    const occ = s(gf.occupation);
+    if (occ) setOccupation(occ);
+
+    // Appearance (direct columns from girlfriends table)
+    const hair = s(gf.appearance_hair);
+    if (hair) setHairStyle(hair);
+    const hairCol = s(gf.appearance_hair_color);
+    if (hairCol) setHairColor(hairCol);
+    const eyes = s(gf.appearance_eyes);
+    if (eyes) setEyeColor(eyes);
+    const body = s(gf.appearance_body);
+    if (body) setBodyType(body);
+    const fash = s(gf.appearance_style);
+    if (fash) setFashionStyle(fash);
+    const race = s(gf.appearance_race);
+    if (race) setEthnicity(race);
+    const face = s(gf.appearance_face);
+    if (face) setFaceShape(face);
+    const skin = s(gf.appearance_skin);
+    if (skin) setSkinTone(skin);
+
+    // Meta fallback
+    const meta = (gf.meta && typeof gf.meta === 'object' ? gf.meta : {}) as Record<string, unknown>;
+    const vs = s(meta.visual_style);
+    if (vs) setVisualStyle(vs);
+    const g = s(meta.gender);
+    if (g) setGender(g);
+
+    // Voice
+    const voice = s(gf.voice_timbre_id);
+    if (voice) setSelectedVoice(voice);
+
+    // Relationship
+    const rel = s(gf.relationship);
+    if (rel) {
+      const relOpts = options['relationship'] || [];
+      const match = relOpts.find((r) => r.value === rel || r.label_en === rel);
+      if (match) setRelationship(match.value);
+    }
+  }, [options]);
 
   const toggleTag = useCallback((tag: string) => {
     setSelectedTags((prev) =>
@@ -1007,7 +1068,7 @@ export default function CreatePage() {
                 ) : (
                   <>
                     {/* Companions rail — show user's existing companions */}
-                    {(step === 'style' || step === 'appearance') && companions.length > 0 && (
+                    {isFormStep && companions.length > 0 && (
                       <Panel
                         title={t('create.yourCompanions')}
                         hint={t('create.yourCompanionsHint')}
@@ -1020,9 +1081,15 @@ export default function CreatePage() {
                             return (
                               <div
                                 key={String(gf.id)}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => handleSelectCompanion(gf)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelectCompanion(gf); }}
                                 className={cn(
-                                  'group relative aspect-[3/4] w-36 shrink-0 overflow-hidden rounded-[22px] border text-left transition-all duration-300 sm:w-40',
-                                  'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)]',
+                                  'group relative aspect-[3/4] w-36 shrink-0 cursor-pointer overflow-hidden rounded-[22px] border text-left transition-all duration-300 sm:w-40',
+                                  selectedCompanionId === String(gf.id)
+                                    ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_24px_rgba(255,45,120,0.4)] scale-[1.03]'
+                                    : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-[#FF2D78]/40 hover:shadow-[0_0_16px_rgba(255,45,120,0.15)]',
                                 )}
                               >
                                 {gfPortrait && gfPortrait !== 'null' ? (
@@ -1053,6 +1120,17 @@ export default function CreatePage() {
                                   </span>
                                 )}
 
+                                {/* Selected check */}
+                                {selectedCompanionId === String(gf.id) && (
+                                  <motion.span
+                                    className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                                  >
+                                    <Check className="h-3.5 w-3.5 text-white" />
+                                  </motion.span>
+                                )}
                                 {/* Bottom gradient overlay: name */}
                                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-2.5 pb-2.5 pt-10">
                                   <div className="truncate text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
@@ -1063,6 +1141,9 @@ export default function CreatePage() {
                             );
                           })}
                         </div>
+                        <p className="mt-1.5 text-[10px] text-white/25">
+                          {t('create.tapToPrefill')}
+                        </p>
                       </Panel>
                     )}
 

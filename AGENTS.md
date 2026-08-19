@@ -2,7 +2,7 @@
 
 ## 项目概述
 AI 女友独立站（欧美市场 · 高 NSFW · 精神陪伴）
-- **技术栈**：Next.js 16 (App Router) / React 19 / TypeScript 5 / Tailwind CSS 4 / shadcn/ui
+- **技术栈**：Next.js 15.5 (App Router) / React 19 / TypeScript 5 / Tailwind CSS 4 / shadcn/ui
 - **后端**：Supabase (Auth + PostgreSQL + Storage)
 - **支付**：Stripe
 - **部署**：Vercel
@@ -93,10 +93,50 @@ Free限制(50条/日+Lv3上限) → 充值 → 完整功能
 | `/api/chat/[id]` | GET | 聊天历史 | 需要 |
 | `/api/proactive/check` | POST | 主动问候检查 | 需要 |
 
+## 图像生成管线 (CRITICAL)
+
+此区域是 30 天最活跃变更面（comfy/route.ts、ComfyConsole.tsx、runpod.ts、generate-image、image-generation-routing、studio-profile）。改动前务必理解以下约束。
+
+### 核心文件
+- `src/app/api/admin/comfy/route.ts` — ComfyUI 操作台 API（GET/POST/PATCH 多 action 分支，全部需 `requireAdmin`）
+- `src/app/(main)/admin/comfy/ComfyConsole.tsx` — 操作台前端
+- `src/lib/comfy-console/` — store / defaults / lora-catalog / studio-profile / generation-profiles / enhancer-config
+- `src/lib/runpod.ts` — RunPod 客户端（`runpodClient`，端点调度）
+- `src/lib/image-generation-routing.ts` — 路由决策（`resolveImageGenerationRoute`）
+- `src/lib/model-matrix.ts` / `src/lib/model-lora-routing.ts` — 模型矩阵与 LoRA 计划
+- `data/lora-catalog.json` — LoRA 目录
+
+### 单底模策略（全站 FLUX）
+- 统一 ComfyUI 端点 `UNIFIED_COMFY_ENDPOINT`（`wozrrlcdipyl3p`），所有生图走此端点
+- 底模 flux1-dev-fp8；KSampler cfg 恒为 1，条件引导 flux_guidance：SFW 3.5 / NSFW 4.0
+- 步数：SFW 24 / NSFW 28 / 复杂多人 30 / turbo 草稿 8
+
+### SDXL 模型矩阵与 fail-open 总闸
+- 总闸 `RUNPOD_SDXL_MODELS_READY=true` 且 `RUNPOD_ENDPOINT_ID_SDXL` 已配置时矩阵才生效
+- 路由规则：写实 → SDXL·Pony Realism；2D 动漫 → SDXL·Illustrious；3D 与产品资产 → FLUX
+- 总闸关闭或端点缺失 → 全链路 fail-open 回 FLUX（`presetId: flux-matrix-failopen`），行为与重构前一致
+
+### LoRA 路由约束
+- `loraPolicy.failClosed: true` — LoRA 清单缺失时 fail-closed（与矩阵的 fail-open 语义相反）
+- FLUX：maxLoras=3、maxCombinedStrength=1.65；清单 env `RUNPOD_INSTALLED_LORAS_FLUX` / `RUNPOD_INSTALLED_LORAS`
+- 提示词协议禁止跨族混用：flux-natural / pony-tags / illustrious-tags
+
+### img2img denoise 默认（studio 任务）
+- 换装 outfit 0.72 / 换姿势 pose 0.62 / 换背景 background 0.5 / portrait 0.55（见 `TASK_DENOISE_DEFAULTS`）
+
+### IP-Adapter / 身份一致性
+- `resolveIpAdapterWeight` / `resolveIpAdapterSchedule` / `resolveIdentityKit`（`src/lib/identity-kit.ts`）
+- 参考图计划 `buildReferenceGenerationPlan`，角色生产预设 `getCharacterProductionPreset`
+
 ## 开发规范
 
 ### 包管理
 - **仅限 pnpm**，禁止 npm/yarn
+
+### 编辑后验证 (CRITICAL)
+- 完成代码变更后，**必须**运行 `pnpm validate`（= `ts-check` 含 `next typegen` + `lint:build`）或至少 `pnpm lint && pnpm test` 验证变更，确认通过后再提交或交付
+- 涉及路由处理器签名变更时额外运行 `pnpm ts-check`，确保 App Router 路由类型通过
+- 禁止在未运行任何验证命令的情况下交付变更；CI 质量门是最后一道防线，不能替代编辑时验证
 
 ### 编码规范
 - TypeScript strict 模式

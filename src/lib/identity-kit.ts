@@ -304,12 +304,28 @@ export function buildIdentityPrompt(spec: IdentitySpecification): string {
 // ─── Identity Kit Resolution ──────────────────────────────────────────────────
 
 /**
+ * Minimal Supabase-like client shape required by identity kit queries.
+ * Kept structural so both the Coze proxy client and test doubles work.
+ */
+export type IdentityKitSupabaseClient = {
+  from: (table: string) => {
+    select: (cols: string) => {
+      eq: (col: string, val: string) => {
+        order: (col: string, opts: { ascending: boolean }) => {
+          limit: (n: number) => Promise<{ data: unknown[] | null; error: { message: string } | null }>;
+        };
+      };
+    };
+  };
+};
+
+/**
  * Resolve or build an Identity Kit for a companion.
  * Queries the database for the best existing anchor image, or builds from attributes.
  */
 export async function resolveIdentityKit(
   companionId: string,
-  supabase: { from: (table: string) => { select: (cols: string) => { eq: (col: string, val: string) => { order: (col: string, opts: { ascending: boolean }) => { limit: (n: number) => Promise<{ data: unknown[] | null; error: { message: string } | null }> } } } } },
+  supabase: IdentityKitSupabaseClient,
   companion: Record<string, unknown>,
 ): Promise<IdentityKit | null> {
   const identitySpec = buildIdentitySpec(companion);

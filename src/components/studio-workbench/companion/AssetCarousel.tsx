@@ -2,7 +2,7 @@
 
 import { useStudio } from '../StudioContext';
 import { cn } from '@/lib/utils';
-import { Image, User, Crosshair } from 'lucide-react';
+import { Image as ImageIcon, Crosshair } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Any } from '../StudioWorkbench.types';
 
@@ -67,6 +67,8 @@ export function AssetCarousel() {
                     )}
                   >
                     {url ? (
+                      // 资产缩略图 URL 为动态签名链接，不走 next/image 优化
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={url}
                         alt=""
@@ -75,7 +77,7 @@ export function AssetCarousel() {
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-white/[0.03]">
-                        <Image className="h-3 w-3 text-slate-700" />
+                        <ImageIcon className="h-3 w-3 text-slate-700" />
                       </div>
                     )}
                     {isActive && (

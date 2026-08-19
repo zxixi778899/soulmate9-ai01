@@ -7,8 +7,8 @@ describe('dailyProactiveTarget', () => {
     expect(dailyProactiveTarget(seed)).toBe(dailyProactiveTarget(seed));
   });
 
-  it('only returns one or two messages', () => {
+  it('returns two or three messages', () => {
     const values = Array.from({ length: 50 }, (_, index) => dailyProactiveTarget(`pair:${index}`));
-    expect(new Set(values)).toEqual(new Set([1, 2]));
+    expect(new Set(values)).toEqual(new Set([2, 3]));
   });
 });

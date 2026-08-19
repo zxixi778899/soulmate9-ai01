@@ -15,7 +15,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, Wallet, AlertCircle } from 'lucide-react';
+import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, Wallet, AlertCircle, Diamond } from 'lucide-react';
 import { QRCode } from '@/components/QRCode';
 import { toast } from 'sonner';
 import { useMembership } from '@/hooks/useMembership';
@@ -25,8 +25,8 @@ type BillingCycle = 'monthly' | 'yearly';
 
 /**
  * Membership is purchased with USDT (TRC-20) only.
- * Yearly prices include the real yearly discount (Pro 15% off, Unlimited 20% off)
- * and must stay in sync with src/lib/constants.ts + src/lib/crypto-config.ts.
+ * Prices must stay in sync with src/lib/constants.ts + src/lib/crypto-config.ts
+ * (crypto-config is the source of truth for what /api/crypto/initiate charges).
  */
 const PLANS = [
   {
@@ -41,7 +41,7 @@ const PLANS = [
     features: [
       '40 messages per day',
       '5 companions',
-      '50 starter Credits (one-time)',
+      '100 starter Credits (one-time)',
       '8k context window',
       'Shallow memory (7 days)',
       'Intimacy up to Level 3',
@@ -54,18 +54,18 @@ const PLANS = [
     name: 'Pro',
     priceMonthly: '$9.99',
     originalMonthly: '$19.99', // pre-beta anchor — beta sale is −50%
-    priceYearly: '$101.88',
-    originalYearly: '$239.88',
+    priceYearly: '$99.99',
+    originalYearly: '$199.98',
     periodMonthly: '/month',
     periodYearly: '/year',
-    yearlyNote: 'Save 15% · $8.49/mo equivalent',
+    yearlyNote: 'Save 17% · $8.33/mo equivalent',
     color: 'text-purple-400',
     border: 'border-purple-500/30',
     popular: true,
     features: [
       '200 messages per day',
       '20 companions',
-      '500 Credits / month',
+      '1,500 Credits / month',
       '16k context window',
       'Deep memory (90 days)',
       'All 5 intimacy levels + NSFW',
@@ -76,21 +76,46 @@ const PLANS = [
     ],
   },
   {
-    id: 'unlimited',
-    name: 'Unlimited',
-    priceMonthly: '$29.99',
-    originalMonthly: '$59.99', // pre-beta anchor — beta sale is −50%
-    priceYearly: '$287.88',
-    originalYearly: '$719.88',
+    id: 'premium',
+    name: 'Premium',
+    priceMonthly: '$24.99',
+    originalMonthly: '$49.98', // pre-beta anchor — beta sale is −50%
+    priceYearly: '$199.99',
+    originalYearly: '$399.98',
     periodMonthly: '/month',
     periodYearly: '/year',
-    yearlyNote: 'Save 20% · $23.99/mo equivalent',
+    yearlyNote: 'Save 20% · $16.66/mo equivalent',
+    color: 'text-fuchsia-400',
+    border: 'border-fuchsia-500/30',
+    features: [
+      '500 messages per day',
+      '50 companions',
+      '4,000 Credits / month',
+      '24k context window',
+      'Deep memory (90 days)',
+      'All 5 intimacy levels + NSFW',
+      'All 4 proactive time slots',
+      '1.75x daily quest rewards',
+      'All outfits + Studio',
+      'Priority support',
+    ],
+  },
+  {
+    id: 'unlimited',
+    name: 'Unlimited',
+    priceMonthly: '$34.99',
+    originalMonthly: '$69.98', // pre-beta anchor — beta sale is −50%
+    priceYearly: '$299.99',
+    originalYearly: '$599.98',
+    periodMonthly: '/month',
+    periodYearly: '/year',
+    yearlyNote: 'Save 20% · $24.99/mo equivalent',
     color: 'text-amber-400',
     border: 'border-amber-500/30',
     features: [
       'Unlimited messages (fair use)',
       'Unlimited companions',
-      '1500 Credits / month',
+      '6,000 Credits / month',
       '32k context window',
       'Infinite permanent memory',
       'AI-personalized proactive messages',
@@ -127,7 +152,7 @@ function PricingContent() {
 
   const { tier, subscriptionEnd } = useMembership();
   const { user } = useAuth();
-  const TIER_ORDER: Record<string, number> = { free: 0, pro: 1, unlimited: 2, admin: 3 };
+  const TIER_ORDER: Record<string, number> = { free: 0, pro: 1, premium: 2, unlimited: 3, admin: 4 };
   const currentRank = TIER_ORDER[tier] ?? 0;
 
   const resetCrypto = () => {
@@ -277,7 +302,7 @@ function PricingContent() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
           {PLANS.map((plan) => (
             <Card
               key={plan.id}
@@ -306,6 +331,7 @@ function PricingContent() {
                   <div className="flex items-center gap-2">
                     {plan.id === 'free' && <Heart className="h-4 w-4" />}
                     {plan.id === 'pro' && <Crown className="h-4 w-4" />}
+                    {plan.id === 'premium' && <Diamond className="h-4 w-4" />}
                     {plan.id === 'unlimited' && <Star className="h-4 w-4" />}
                     {plan.name}
                   </div>
@@ -332,8 +358,9 @@ function PricingContent() {
                   <p className="text-[11px] text-emerald-400 mt-1">{plan.yearlyNote}</p>
                 )}
                 <CardDescription className="text-xs text-muted-foreground/60">
-                  {plan.id === 'free' && 'Explore with 50 free Credits'}
+                  {plan.id === 'free' && 'Explore with 100 free Credits'}
                   {plan.id === 'pro' && 'Best value for regular users'}
+                  {plan.id === 'premium' && 'Most Credits for heavy users'}
                   {plan.id === 'unlimited' && 'Maximum freedom & creativity'}
                 </CardDescription>
               </CardHeader>
@@ -343,6 +370,7 @@ function PricingContent() {
                   <div key={feature} className="flex items-start gap-2 text-sm">
                     <Check className={`h-4 w-4 shrink-0 mt-0.5 ${
                       plan.id === 'pro' ? 'text-purple-400' :
+                      plan.id === 'premium' ? 'text-fuchsia-400' :
                       plan.id === 'unlimited' ? 'text-amber-400' :
                       'text-muted-foreground'
                     }`} />
@@ -366,6 +394,8 @@ function PricingContent() {
                     className={`w-full h-11 text-sm font-medium gap-1.5 ${
                       plan.id === 'pro'
                         ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white hover:opacity-90'
+                        : plan.id === 'premium'
+                        ? 'bg-gradient-to-r from-fuchsia-500 to-pink-600 text-white hover:opacity-90'
                         : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-90'
                     }`}
                     variant={plan.id === tier || (TIER_ORDER[plan.id] ?? 0) <= currentRank ? 'outline' : 'default'}

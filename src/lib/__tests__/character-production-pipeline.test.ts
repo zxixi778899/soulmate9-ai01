@@ -54,7 +54,7 @@ describe('character production reference routing', () => {
     expect(params.input_image).toBeUndefined();
     expect(params.denoising_strength).toBeUndefined();
     expect(params.ip_adapter_image).toBe('https://example.com/avatar.png');
-    expect(params.ip_adapter_weight).toBe(0.62);
+    expect(params.ip_adapter_weight).toBe(0.72);
     expect(params.character_consistency).toBe(true);
     expect(params.width).toBe(832);
     expect(params.height).toBe(1216);

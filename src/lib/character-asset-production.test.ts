@@ -31,16 +31,17 @@ describe('character asset production', () => {
     expect(getCharacterProductionPreset('character-art').consistency).toBe(true);
   });
 
-  it('anchors every downstream asset to the avatar reference', () => {
-    // Final products and legacy sheets all resolve the avatar first.
-    expect(identityReferenceRolePriority('character-art')[0]).toBe('avatar-closeup');
-    expect(identityReferenceRolePriority('album')[0]).toBe('avatar-closeup');
-    expect(identityReferenceRolePriority('scene')[0]).toBe('avatar-closeup');
-    expect(identityReferenceRolePriority('identity-turnaround')[0]).toBe('avatar-closeup');
-    // Legacy identity sheets keep their chained fallbacks for existing DB assets.
-    expect(identityReferenceRolePriority('identity-front')).toEqual(['avatar-closeup']);
-    expect(identityReferenceRolePriority('identity-profile')).toEqual(['identity-front', 'avatar-closeup']);
-    expect(identityReferenceRolePriority('identity-back')).toEqual(['identity-profile', 'identity-front', 'avatar-closeup']);
+  it('anchors every downstream asset to the identity anchor', () => {
+    // Final products and legacy sheets all resolve the identity-anchor first
+    // (best-of-4 avatar selection), with avatar-closeup as the fallback.
+    expect(identityReferenceRolePriority('character-art')[0]).toBe('identity-anchor');
+    expect(identityReferenceRolePriority('album')[0]).toBe('identity-anchor');
+    expect(identityReferenceRolePriority('scene')[0]).toBe('identity-anchor');
+    expect(identityReferenceRolePriority('identity-turnaround')[0]).toBe('identity-anchor');
+    // Legacy identity sheets chain through the identity-anchor for existing DB assets.
+    expect(identityReferenceRolePriority('identity-front')).toEqual(['identity-anchor', 'avatar-closeup']);
+    expect(identityReferenceRolePriority('identity-profile')).toEqual(['identity-anchor', 'identity-front', 'avatar-closeup']);
+    expect(identityReferenceRolePriority('identity-back')).toEqual(['identity-anchor', 'identity-profile', 'identity-front', 'avatar-closeup']);
   });
 
   it('allows enough composition change for final products', () => {

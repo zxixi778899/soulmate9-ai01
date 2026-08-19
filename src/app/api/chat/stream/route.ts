@@ -14,6 +14,12 @@ import {
   invokeChatAsSseStream,
   type MembershipTier,
 } from '@/lib/ai-modules';
+import {
+  findSelectableEndpoint,
+  resolveMembershipTier,
+  tierRank,
+} from '@/lib/chat-models';
+import { deductCredits } from '@/lib/credit-system';
 import { buildPersonaPrompt } from '@/lib/prompt-builder';
 import { calculateDesireLevel, getDesireLanguageGradient } from '@/lib/desire-calculator';
 import {
@@ -34,14 +40,15 @@ import {
 import { moderateText, type ContentMode } from '@/lib/content-moderation';
 import { checkCompanionAccess } from '@/lib/companion-access';
 import { getIntimacyLevel, DAILY_INTIMACY_CAP, INTIMACY_MAX_SCORE } from '@/lib/constants';
-import { maybeTriggerLifeEvent, getLifeEventDescription } from '@/lib/life-interruption';
-import { isInCooldown, evaluateCooldown, setCooldown } from '@/lib/cooldown-manager';
+import { maybeTriggerLifeEvent } from '@/lib/life-interruption';
+import { isInCooldown } from '@/lib/cooldown-manager';
 import { maybeTriggerSurpriseReward, applySurpriseReward } from '@/lib/surprise-reward';
 import { selectTone } from '@/lib/tone-distribution';
 import { filterMemoriesByOwnership } from '@/lib/memory-write-guard';
 import { extractProfileFields, mergeProfileFields, saveUserProfile } from '@/lib/profile-field-extractor';
 import type { UserProfile } from '@/lib/profile-collection-strategy';
 import type { PresetSoul } from '@/lib/preset-souls';
+import { resolveLifecyclePhase, LifecyclePhase, evaluatePhaseTransition, updateLifecyclePhase, getPhaseBehaviorRule } from '@/lib/conversation-lifecycle';
 
 /** Increment intimacy score for this user/girlfriend pair (fire-and-forget). */
 async function incrementIntimacy(
@@ -362,6 +369,7 @@ export async function POST(request: NextRequest) {
     media_url: rawMediaUrl,
     media_type: rawMediaType,
     reply_mode: rawReplyMode,
+    chat_model: rawChatModel,
   } = body as {
     message?: string;
     girlfriend_id?: string;
@@ -372,6 +380,7 @@ export async function POST(request: NextRequest) {
     media_url?: string;
     media_type?: string;
     reply_mode?: string;
+    chat_model?: string;
   };
   const replyMode = rawReplyMode === 'dialogue' ? 'dialogue' : 'scene';
 
@@ -424,14 +433,7 @@ export async function POST(request: NextRequest) {
   // AI modules config (chat / language routing)
   const aiModules = await loadAiModules();
   const profileAny = profile as Record<string, unknown> | null;
-  const membershipRaw = String(
-    profileAny?.membership_tier || profileAny?.subscription_tier || profileAny?.plan || 'free',
-  ).toLowerCase();
-  let membershipTier: MembershipTier = 'free';
-  if (membershipRaw.includes('unlimit') || membershipRaw === 'admin') membershipTier = 'unlimited';
-  else if (membershipRaw.includes('pro') || membershipRaw.includes('plus') || membershipRaw.includes('premium'))
-    membershipTier = 'pro';
-  else if (membershipRaw.includes('basic') || membershipRaw.includes('starter')) membershipTier = 'basic';
+  const membershipTier: MembershipTier = resolveMembershipTier(profileAny || null);
 
   // Legacy router kept for task logging / image intent
   const routing = analyzeAndRoute(String(message || ''), {
@@ -519,11 +521,26 @@ export async function POST(request: NextRequest) {
     contextMessages: historyChronological,
   });
 
+  // ── User-selected chat model (paid picker) ─────────────────────────────
+  // Validate the explicit pick against the catalog, the caller's tier and
+  // the NSFW channel; credits are charged right after the daily-limit gate.
+  const selectedModelId = typeof rawChatModel === 'string' ? rawChatModel.trim() : '';
+  const selectedModel = selectedModelId
+    ? findSelectableEndpoint(aiModules, selectedModelId)
+    : null;
+  if (selectedModelId && !selectedModel) {
+    return NextResponse.json(
+      { error: 'Unknown chat model', code: 'unknown_chat_model' },
+      { status: 400 },
+    );
+  }
+
   let chatResolved = resolveChatCall(aiModules, {
     tier: membershipTier,
     intimacyLevel,
     message: messageText,
     locale: chatLocale,
+    preferredEndpointId: selectedModel?.id,
   });
 
   // Daily message limit — single enforcement point (the legacy "soft limit"
@@ -536,6 +553,34 @@ export async function POST(request: NextRequest) {
     tierRoute.daily_message_limit != null
       ? tierRoute.daily_message_limit
       : FALLBACK_DAILY_LIMITS[membershipTier] ?? 40;
+
+  if (selectedModel) {
+    const minTier = selectedModel.min_tier || 'free';
+    if (tierRank(membershipTier) < tierRank(minTier)) {
+      return NextResponse.json(
+        {
+          error: 'This model requires a higher membership plan.',
+          localized_error: chatLocale === 'zh'
+            ? '该模型需要更高级的会员套餐才能使用。'
+            : 'This model requires a higher membership plan.',
+          code: 'model_tier_locked',
+        },
+        { status: 403 },
+      );
+    }
+    if (selectedModel.nsfw_capable && !tierRoute.allow_nsfw) {
+      return NextResponse.json(
+        {
+          error: 'This model is unlocked with the adult channel (Pro+).',
+          localized_error: chatLocale === 'zh'
+            ? '该模型随成人内容通道解锁（Pro 及以上）。'
+            : 'This model unlocks with the adult channel (Pro+).',
+          code: 'model_nsfw_locked',
+        },
+        { status: 403 },
+      );
+    }
+  }
   if (!isNewbieTrial && effectiveDailyLimit >= 0) {
     const today = new Date().toISOString().split('T')[0];
     const { count } = await client
@@ -555,6 +600,33 @@ export async function POST(request: NextRequest) {
         },
         { status: 403 },
       );
+    }
+  }
+
+  // Charge per-message credits for an explicitly selected model. Auto
+  // routing stays covered by the subscription (no credits).
+  if (selectedModel) {
+    const modelCost = Math.max(0, Math.round(selectedModel.credit_cost ?? 0));
+    if (modelCost > 0) {
+      const deducted = await deductCredits(
+        client,
+        user.id,
+        modelCost,
+        'chat_extra',
+        girlfriend_id,
+      );
+      if (!deducted.ok) {
+        return NextResponse.json(
+          {
+            error: `Not enough credits for this model (${modelCost}/message).`,
+            localized_error: chatLocale === 'zh'
+              ? `积分不足：该模型每条消息 ${modelCost} 积分，请充值后再使用。`
+              : `Not enough credits: this model costs ${modelCost} credits per message. Top up to continue.`,
+            code: 'insufficient_credits',
+          },
+          { status: 402 },
+        );
+      }
     }
   }
 
@@ -588,6 +660,7 @@ export async function POST(request: NextRequest) {
     memoryCount: memories.length, contextMessageCount: recentMessages.length, dailyCostUsd,
     recentMessages: recentMessages.slice(0, 3).map((item) => String(item.content || '')),
     adultCharacterVerified: Number((gf as { age?: number | string } | null)?.age || 18) >= 18,
+    preferredEndpointId: selectedModel?.id,
   });
 
   // Emotion: keyword-only (never block chat on a second LLM round-trip)
@@ -649,6 +722,73 @@ export async function POST(request: NextRequest) {
   const gfCard = gfCardRaw && typeof gfCardRaw === 'object' ? (gfCardRaw as Record<string, unknown>) : null;
   const gfSoul = (gfCard?.soul && typeof gfCard.soul === 'object' ? gfCard.soul : null) as PresetSoul | null;
 
+  // ── V3: Lifecycle detection (before prompt build) ──
+  let lifecyclePhase: LifecyclePhase = 'intro_phase';
+  try {
+    const dbData = await client
+      .from('companion_profiles_ext')
+      .select('lifecycle_phase, opening_message_sent, created_at')
+      .eq('user_id', user.id)
+      .eq('girlfriend_id', girlfriend_id)
+      .maybeSingle();
+    
+    if (dbData.data) {
+      const createdAt = dbData.data.created_at ? new Date(dbData.data.created_at) : new Date();
+      const daysSinceFirstAdd = Math.floor(
+        (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      const resolved = resolveLifecyclePhase({
+        currentPhase: dbData.data.lifecycle_phase,
+        intimacyLevel,
+        daysSinceFirstAdd,
+        openingMessageSent: dbData.data.opening_message_sent ?? false,
+      });
+      lifecyclePhase = resolved;
+
+      // Evaluate transition and update DB (fire-and-forget)
+      const transitionResult = evaluatePhaseTransition({
+        currentPhase: resolved,
+        intimacyLevel,
+        daysSinceFirstAdd,
+      });
+      if (transitionResult.shouldTransition) {
+        void updateLifecyclePhase(client, user.id, girlfriend_id, transitionResult.newPhase);
+        logger.info('[lifecycle] phase transition', {
+          userId: user.id,
+          girlfriendId: girlfriend_id,
+          from: resolved,
+          to: transitionResult.newPhase,
+          intimacyLevel,
+          daysSinceFirstAdd,
+        });
+      }
+    } else {
+      // No DB record yet — infer from scratch
+      const daysSinceFirstAdd = 0;
+      lifecyclePhase = resolveLifecyclePhase({
+        intimacyLevel,
+        daysSinceFirstAdd,
+        openingMessageSent: false,
+      });
+      // Create initial DB record
+      await client.from('companion_profiles_ext').insert({
+        user_id: user.id,
+        girlfriend_id: girlfriend_id,
+        lifecycle_phase: lifecyclePhase,
+        opening_message_sent: false,
+      });
+    }
+  } catch (err) {
+    logger.warn('[lifecycle] resolution failed for companion', {
+      error: err instanceof Error ? err.message : String(err),
+      fallback: lifecyclePhase,
+    });
+  }
+
+  const zhLifecycle = chatLocale === 'zh';
+  const phaseBehaviorRule = getPhaseBehaviorRule(lifecyclePhase, zhLifecycle);
+  logger.debug('[lifecycle] phase determined', { userId: user.id, girlfriendId: girlfriend_id, phase: lifecyclePhase });
+
   // Build persona-enhanced system prompt (NEW: layered injection with mood/desire/tone)
   const personaPrompt = await buildPersonaPrompt({
     userId: user.id,
@@ -663,6 +803,7 @@ export async function POST(request: NextRequest) {
     } : undefined,
     mode: replyMode === 'scene' ? 'roleplay' : 'daily_chat',
     tone: chatTone,
+    lifecycleBehaviorRule: phaseBehaviorRule, // V3: Inject lifecycle behavior rules
   });
   
   // Get NSFW language gradient based on desire level
@@ -947,6 +1088,7 @@ ${timeContext}` +
               reply_mode: replyMode,
               nsfw_intensity: effectiveIntensity,
               scene_state: fullResponse.slice(0, 120),
+              ...(selectedModel ? { chat_model: selectedModel.id } : {}),
               ...(scenarioRecap ? { scenario_recap: scenarioRecap } : {}),
             },
           });

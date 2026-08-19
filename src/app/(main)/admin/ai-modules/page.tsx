@@ -790,6 +790,7 @@ export default function AdminAiModulesPage() {
                   <div className="flex gap-1">
                     <Badge className="text-[10px]">{ep.provider}</Badge>
                     {ep.nsfw_capable && <Badge className="text-[10px] bg-rose-500/20 text-rose-300">NSFW</Badge>}
+                    {ep.user_selectable && <Badge className="text-[10px] bg-sky-500/20 text-sky-300">用户可选</Badge>}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -842,6 +843,71 @@ export default function AdminAiModulesPage() {
                         markDirtyConfig({ ...config, endpoints });
                       }}
                     />
+                  </div>
+                  <div className="col-span-2 border-t border-white/10 pt-2 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="flex items-center gap-2 text-[11px] text-[#94A3B8]">
+                        <Switch
+                          checked={!!ep.user_selectable}
+                          onCheckedChange={(v) => {
+                            const endpoints = [...config.endpoints];
+                            endpoints[idx] = { ...ep, user_selectable: v };
+                            markDirtyConfig({ ...config, endpoints });
+                          }}
+                        />
+                        前端模型选择器可见
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[10px] text-[#94A3B8]">最低等级</Label>
+                        <Select
+                          value={ep.min_tier || 'free'}
+                          onValueChange={(v) => {
+                            const endpoints = [...config.endpoints];
+                            endpoints[idx] = { ...ep, min_tier: v };
+                            markDirtyConfig({ ...config, endpoints });
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-28 text-[11px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="free">free</SelectItem>
+                            <SelectItem value="basic">basic</SelectItem>
+                            <SelectItem value="pro">pro</SelectItem>
+                            <SelectItem value="unlimited">unlimited</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[10px] text-[#94A3B8]">积分/条</Label>
+                        <Input type="number" min={0} className="h-8 w-20" value={ep.credit_cost ?? 0}
+                          onChange={(e) => {
+                            const endpoints = [...config.endpoints];
+                            endpoints[idx] = { ...ep, credit_cost: Math.max(0, Math.round(Number(e.target.value) || 0)) };
+                            markDirtyConfig({ ...config, endpoints });
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-[#94A3B8]">展示名称 (public_label)</Label>
+                      <Input className="h-8 text-[11px]" value={ep.public_label || ''} placeholder={String(ep.label || '')}
+                        onChange={(e) => {
+                          const endpoints = [...config.endpoints];
+                          endpoints[idx] = { ...ep, public_label: e.target.value };
+                          markDirtyConfig({ ...config, endpoints });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-[#94A3B8]">展示说明 (public_description)</Label>
+                      <Textarea className="min-h-[44px] text-[11px]" value={ep.public_description || ''}
+                        placeholder="面向用户的一句话说明，如 Fast, light everyday chat"
+                        onChange={(e) => {
+                          const endpoints = [...config.endpoints];
+                          endpoints[idx] = { ...ep, public_description: e.target.value };
+                          markDirtyConfig({ ...config, endpoints });
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
               </CardContent>

@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useStudio } from '../StudioContext';
 import { cn } from '@/lib/utils';
-import { Copy, Check, ImagePlay, Video, Trash2, Maximize2, Anchor } from 'lucide-react';
+import { Copy, Check, ImagePlay, Video, Maximize2, Anchor } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Any } from '../StudioWorkbench.types';
 

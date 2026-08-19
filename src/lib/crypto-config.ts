@@ -133,18 +133,20 @@ export async function getCryptoAmountLive(usdCents: number, currencyId: string):
  */
 export const PLAN_PRICES: Record<string, number> = {
   pro: 999,        // $9.99
-  unlimited: 2999, // $29.99
+  premium: 2499,   // $24.99 (NEW tier)
+  unlimited: 3499, // $34.99
 };
 
 export const BILLING_MULTIPLIER: Record<string, { multiplier: number; discount: number }> = {
   monthly: { multiplier: 1, discount: 1.0 },
-  yearly: { multiplier: 12, discount: 0.85 }, // Pro 15% off; Unlimited 20% off (see YEARLY_PRICES)
+  yearly: { multiplier: 12, discount: 0.85 }, // Pro 17% off; Premium/Unlimited 20% off (see YEARLY_PRICES)
 };
 
 /** Yearly prices in cents (hardcoded for accuracy — real yearly discount applied) */
 export const YEARLY_PRICES: Record<string, number> = {
-  pro: 10188,       // $101.88/yr (save 15% vs 12 x $9.99)
-  unlimited: 28788, // $287.88/yr (save 20% vs 12 x $29.99)
+  pro: 9999,       // $99.99/yr (save 17% vs 12 x $9.99)
+  premium: 19999,  // $199.99/yr (save 20% vs 12 x $24.99)
+  unlimited: 29999, // $299.99/yr (save 20% vs 12 x $34.99)
 };
 
 export function getPlanPriceCents(plan: string, billing: string): number {

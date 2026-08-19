@@ -12,23 +12,6 @@ export interface ExtractedMemory {
   category: 'interest' | 'daily' | 'career' | 'social' | 'emotional' | 'future' | 'health' | 'work' | 'family';
 }
 
-const EXTRACT_PROMPT_LEGACY = `Extract memorable facts, preferences, and context from this chat between an AI girlfriend and her user.
-
-Return ONLY a JSON array. Each item: { "content": "<one sentence>", "type": "<type>", "category": "<category>" }
-
-Types: interest, event, fact, emotion, preference, intent, physical, social
-Categories: interest, daily, career, social, emotional, future, health, work, family
-
-Only extract things that:
-- Are about the user (their job, hobbies, family, preferences, plans, health)
-- Would be useful to remember in future conversations
-- Are stated as facts, not transient chat
-
-Return [] if nothing memorable.
-
-Messages:
-"""%s"""`;
-
 /** Default companion name for V2 prompt when not provided. */
 const DEFAULT_COMPANION_NAME = 'your companion';
 

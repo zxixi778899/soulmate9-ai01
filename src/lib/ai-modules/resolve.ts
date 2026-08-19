@@ -55,6 +55,11 @@ export function resolveChatCall(input: AiModulesConfig | null | undefined, ctx: 
   const locale = (ctx.locale || cfg.language.default_locale) as AppLocale;
   const language = cfg.language.enabled && cfg.language.force_reply_language ? cfg.language.reply_instructions[locale] || cfg.language.reply_instructions[cfg.language.fallback_locale] || '' : '';
   const suffix = [cfg.chat.global_system_suffix, language].filter(Boolean).join('\n');
+  // User explicitly picked a model in the chat picker — it leads the chain
+  // (credits were already validated/charged by the API layer).
+  const preferred = ctx.preferredEndpointId ? endpoint(cfg, ctx.preferredEndpointId) : null;
+  const preferredIds: string[] = preferred && preferred.health_status !== 'disabled' ? [preferred.id] : [];
+  const preferredReason = preferredIds.length ? 'user_selected_model' : '';
   const wantsAdult = ctx.preferNsfw === true || (cfg.chat.nsfw_detection === 'keywords' && (
     detectNsfwIntent(ctx.message) || hasRecentNsfwContext(ctx.recentMessages)
   ));
@@ -62,13 +67,14 @@ export function resolveChatCall(input: AiModulesConfig | null | undefined, ctx: 
   const softBudget = route.daily_cost_soft_limit_usd; const overBudget = softBudget !== undefined && (ctx.dailyCostUsd || 0) >= softBudget;
   if (!cfg.chat.enabled) return resolved(cfg, ctx, [cfg.chat.fallback_endpoint_id], 'sfw', 'module_disabled', suffix, false, 'chat_module_disabled');
   if (wantsAdult) {
-    if (!route.allow_nsfw || !route.nsfw_endpoint_id) return resolved(cfg, ctx, [route.default_endpoint_id || route.sfw_endpoint_id, ...fallbackIds], 'sfw', 'nsfw_tier_downgrade', `${suffix}\nKeep the reply romantic and suggestive, but fade to black.`, false, 'tier_no_nsfw');
-    if ((ctx.intimacyLevel || 1) < cfg.chat.nsfw_min_intimacy) return resolved(cfg, ctx, [route.default_endpoint_id || route.sfw_endpoint_id, ...fallbackIds], 'sfw', 'nsfw_intimacy_downgrade', `${suffix}\nKeep the reply teasing but not explicit until intimacy unlocks.`, false, 'intimacy_locked');
-    if (ctx.adultCharacterVerified === false) return resolved(cfg, ctx, [route.default_endpoint_id || route.sfw_endpoint_id, ...fallbackIds], 'sfw', 'adult_verification_failed', suffix, false, 'adult_character_not_verified');
-    return resolved(cfg, ctx, [route.nsfw_endpoint_id, ...fallbackIds], 'nsfw', 'adult_isolated_runpod', suffix, true);
+    if (!route.allow_nsfw || !route.nsfw_endpoint_id) return resolved(cfg, ctx, [...preferredIds, route.default_endpoint_id || route.sfw_endpoint_id, ...fallbackIds], 'sfw', preferredReason || 'nsfw_tier_downgrade', `${suffix}\nKeep the reply romantic and suggestive, but fade to black.`, false, 'tier_no_nsfw');
+    if ((ctx.intimacyLevel || 1) < cfg.chat.nsfw_min_intimacy) return resolved(cfg, ctx, [...preferredIds, route.default_endpoint_id || route.sfw_endpoint_id, ...fallbackIds], 'sfw', preferredReason || 'nsfw_intimacy_downgrade', `${suffix}\nKeep the reply teasing but not explicit until intimacy unlocks.`, false, 'intimacy_locked');
+    if (ctx.adultCharacterVerified === false) return resolved(cfg, ctx, [...preferredIds, route.default_endpoint_id || route.sfw_endpoint_id, ...fallbackIds], 'sfw', preferredReason || 'adult_verification_failed', suffix, false, 'adult_character_not_verified');
+    return resolved(cfg, ctx, [...preferredIds, route.nsfw_endpoint_id, ...fallbackIds], 'nsfw', preferredReason || 'adult_isolated_runpod', suffix, true);
   }
-  const preferred = overBudget ? route.default_endpoint_id || route.sfw_endpoint_id : complexity >= threshold ? route.complex_endpoint_id || route.sfw_endpoint_id : route.default_endpoint_id || route.sfw_endpoint_id;
-  return resolved(cfg, ctx, [preferred, ...fallbackIds, cfg.chat.fallback_endpoint_id], 'sfw', overBudget ? 'daily_cost_soft_limit_downgrade' : complexity >= threshold ? 'complex_or_memory_upgrade' : 'standard_chat', suffix, route.allow_nsfw);
+  const autoPick = overBudget ? route.default_endpoint_id || route.sfw_endpoint_id : complexity >= threshold ? route.complex_endpoint_id || route.sfw_endpoint_id : route.default_endpoint_id || route.sfw_endpoint_id;
+  const reason = preferredReason || (overBudget ? 'daily_cost_soft_limit_downgrade' : complexity >= threshold ? 'complex_or_memory_upgrade' : 'standard_chat');
+  return resolved(cfg, ctx, [...preferredIds, autoPick, ...fallbackIds, cfg.chat.fallback_endpoint_id], 'sfw', reason, suffix, route.allow_nsfw);
 }
 export function resolveImageCall(input: AiModulesConfig | null | undefined, ctx: ResolveImageContext): ResolvedImageCall {
   const cfg = input || createDefaultAiModules(); const tier = tierOf(ctx.tier); const scene = ctx.scene in cfg.image.scenes ? ctx.scene : 'girlfriend_portrait'; const item = cfg.image.scenes[scene];

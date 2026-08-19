@@ -73,6 +73,8 @@ export function PipelineStageCard({ result }: Props) {
               playsInline
             />
           ) : result.imageUrl ? (
+            // 阶段产物预览：动态签名 URL，不走 next/image 优化
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={result.imageUrl}
               alt={result.stageId}

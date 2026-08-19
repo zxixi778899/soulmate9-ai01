@@ -169,8 +169,8 @@ export function buildFluxWorkflow(opts: {
   const modelFamily = opts.model_family || 'flux';
   const isFlux = modelFamily === 'flux';
   const seed = opts.seed ?? Math.floor(Math.random() * 2 ** 31);
-  const width = opts.width ?? 1024;        // ✅ Increased from 832 for better quality
-  const height = opts.height ?? 1536;      // ✅ Increased from 1216
+  const width = opts.width ?? 1024;        // Default 1024 for character portraits
+  const height = opts.height ?? 1280;      // Default 1280 (3:4 ratio) for full-body to knee shots
   const steps = Math.max(opts.steps ?? 28, 8);  // ✅ Default 28 instead of 8
   // Keep the final caller-supplied Flux guidance. The two FLUX profiles use
   // different values; hard-coding 1 here silently discards the admin setting.

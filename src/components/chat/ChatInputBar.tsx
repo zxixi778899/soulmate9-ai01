@@ -12,7 +12,10 @@ import { CHAT_ENVS, CHAT_MOODS, CHAT_POSES } from './types';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
 import type { ChatGift } from '@/lib/gifts/catalog';
+import type { ChatModelOption } from '@/lib/chat-models';
+import { ModelPicker } from './ModelPicker';
 import { PresetPicker, type PickedPreset } from './PresetPicker';
+import { useVoiceTranscription } from './ChatVoiceRecorder';
 
 export type PendingMedia = {
   kind: 'image' | 'audio';
@@ -109,6 +112,10 @@ export function ChatInputBar(props: {
   girlfriendId?: string;
   selectedPreset?: PickedPreset | null;
   onSelectPreset?: (preset: PickedPreset | null) => void;
+  /** User-selectable chat models (null = auto routing) */
+  chatModels?: ChatModelOption[];
+  selectedChatModel?: string | null;
+  onSelectChatModel?: (id: string | null) => void;
 }) {
   const {
     input,
@@ -155,10 +162,29 @@ export function ChatInputBar(props: {
     girlfriendId,
     selectedPreset,
     onSelectPreset,
+    chatModels = [],
+    selectedChatModel = null,
+    onSelectChatModel,
   } = props;
 
   const { t, locale } = useTranslation();
   const isZh = String(locale || '').toLowerCase().startsWith('zh');
+
+  /** Voice-to-text (Whisper STT): transcript is appended to the draft input. */
+  const [voiceInputError, setVoiceInputError] = useState<string | null>(null);
+  const voiceToText = useVoiceTranscription(
+    (text) => {
+      setInput(input ? `${input} ${text}` : text);
+      setVoiceInputError(null);
+    },
+    (message) => setVoiceInputError(message),
+  );
+  // Auto-dismiss the transcription error notice.
+  useEffect(() => {
+    if (!voiceInputError) return;
+    const timer = setTimeout(() => setVoiceInputError(null), 4000);
+    return () => clearTimeout(timer);
+  }, [voiceInputError]);
   const presetRows: Array<{
     key: string;
     labelZh: string;
@@ -514,7 +540,38 @@ export function ChatInputBar(props: {
               label={t('chat.memory')}
               accent="#fb7185"
             />
+            <ToolButton
+              onClick={() => {
+                if (!voiceToText.isRecording) {
+                  setMoreOpen(false);
+                  closeTray();
+                }
+                voiceToText.toggle();
+              }}
+              active={voiceToText.isRecording}
+              disabled={voiceToText.isTranscribing}
+              icon={
+                voiceToText.isTranscribing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : voiceToText.isRecording ? (
+                  <Square className="h-4 w-4" fill="currentColor" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )
+              }
+              label={
+                voiceToText.isTranscribing
+                  ? t('voiceInput.transcribing')
+                  : voiceToText.isRecording
+                    ? t('voiceInput.recording')
+                    : t('voiceInput.start')
+              }
+              accent="#22d3ee"
+            />
           </div>
+          {voiceInputError && (
+            <p className="mt-1 px-1 text-[11px] text-rose-400">{voiceInputError}</p>
+          )}
         </div>
       )}
 
@@ -857,6 +914,13 @@ export function ChatInputBar(props: {
           <MessageSquareText className="h-3 w-3" />
           {t('chat.modeDialogue')}
         </button>
+        {chatModels.length > 0 && onSelectChatModel && (
+          <ModelPicker
+            models={chatModels}
+            selectedId={selectedChatModel}
+            onSelect={onSelectChatModel}
+          />
+        )}
       </div>
 
       {/* Input row */}

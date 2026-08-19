@@ -7,7 +7,7 @@ import { logger } from '@/lib/logger';
 
 /** Determine if a crypto payment is for a membership or token purchase */
 function detectPaymentType(planId: string): 'subscription' | 'tokens' {
-  if (['pro', 'unlimited', 'basic'].includes(planId)) return 'subscription';
+  if (['pro', 'premium', 'unlimited', 'basic'].includes(planId)) return 'subscription';
   return 'tokens';
 }
 

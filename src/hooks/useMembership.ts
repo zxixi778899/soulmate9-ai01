@@ -5,10 +5,10 @@ import { authedFetch } from '@/lib/supabase';
 
 /**
  * Membership tier used across UI + checkout flows.
- * Canonical names: free / pro / unlimited / admin
+ * Canonical names: free / pro / premium / unlimited / admin
  * Legacy 'basic' is normalized to 'pro' (grandfathered users).
  */
-export type MembershipTier = 'free' | 'pro' | 'unlimited' | 'admin';
+export type MembershipTier = 'free' | 'pro' | 'premium' | 'unlimited' | 'admin';
 
 /**
  * Soft limits surfaced in UI. Hard enforcement lives on the server
@@ -21,7 +21,7 @@ export const MEMBERSHIP_LIMITS = {
     maxIntimacyLevel: 3,
     maxGirlfriends: 5,
     canUsePremiumOutfits: false,
-    videoGen: false,
+    videoGen: true, // Updated: video access via credits
     proactiveSlots: 1,
     questMultiplier: 1,
   },
@@ -33,6 +33,15 @@ export const MEMBERSHIP_LIMITS = {
     videoGen: true,
     proactiveSlots: 4,
     questMultiplier: 1.5,
+  },
+  premium: {
+    dailyMessageLimit: 500,
+    maxIntimacyLevel: 5,
+    maxGirlfriends: 50,
+    canUsePremiumOutfits: true,
+    videoGen: true,
+    proactiveSlots: 4,
+    questMultiplier: 1.75,
   },
   unlimited: {
     dailyMessageLimit: Number.POSITIVE_INFINITY,
@@ -66,11 +75,12 @@ export interface MembershipState {
   refresh: () => Promise<void>;
 }
 
-const VALID_TIERS = new Set<MembershipTier>(['free', 'pro', 'unlimited', 'admin']);
+const VALID_TIERS = new Set<MembershipTier>(['free', 'pro', 'premium', 'unlimited', 'admin']);
 
 function normalizeTier(raw: unknown): MembershipTier {
-  // Legacy 'basic' / 'premium' → normalize to pro (grandfathered).
-  if (raw === 'premium' || raw === 'basic') return 'pro';
+  // Legacy 'basic' → normalize to pro (grandfathered)
+  if (raw === 'basic') return 'pro';
+  // New 'premium' tier is legitimate - don't downgrade!
   if (typeof raw === 'string' && VALID_TIERS.has(raw as MembershipTier)) {
     return raw as MembershipTier;
   }

@@ -1,8 +1,7 @@
 'use client';
 
 import { useStudio } from '../StudioContext';
-import { Button } from '@/components/ui/button';
-import { Sparkles, Wand2 } from 'lucide-react';
+import { Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { PromptPresets } from './PromptPresets';
