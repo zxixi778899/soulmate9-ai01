@@ -1680,12 +1680,17 @@ class RunPodClient {
           adjusted.num_inference_steps = 24;
         }
       }
-      // IP-Adapter: log when image exists but flag is off
-      if (adjusted.ip_adapter_image && process.env.RUNPOD_IPADAPTER_INSTALLED !== '1') {
-        logger.debug('[runpod] ip_adapter_image provided but RUNPOD_IPADAPTER_INSTALLED not enabled, using img2img fallback', {
-          hasIpAdapterImage: true,
+      // IP-Adapter: the FLUX worker must carry Shakker-Labs/ComfyUI-IPAdapter-Flux.
+      // When the flag is off, actually strip ip_adapter_image — otherwise the
+      // workflow builder still injects ApplyIPAdapterFlux and the worker fails
+      // with missing_node_type. Identity keeps flowing through the img2img
+      // anchor + identity-anchor prompt. Non-flux families keep the field
+      // (buildFluxWorkflow downgrades it to an img2img anchor, no custom node).
+      if (adjusted.ip_adapter_image && process.env.RUNPOD_IPADAPTER_INSTALLED !== '1' && adjusted.model_family === 'flux') {
+        logger.warn('[runpod] IP-Adapter flag off, stripping ip_adapter_image for flux family', {
           flagStatus: process.env.RUNPOD_IPADAPTER_INSTALLED || 'not set',
         });
+        adjusted.ip_adapter_image = undefined;
       }
     }
 
