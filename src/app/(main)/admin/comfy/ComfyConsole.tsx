@@ -1479,6 +1479,9 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
             break;
           }
           if (pollData.status === 'FAILED') throw new Error(pollData.error || `${preset.label} 任务失败`);
+          // Pace the loop: without this interval, fast pending responses burn
+          // through all 24 attempts in seconds and mis-report queue timeout.
+          await new Promise((r) => setTimeout(r, 3000));
         }
         if (!done) throw new Error(`${preset.label} GPU 排队超时`);
       } else {
@@ -1862,12 +1865,15 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               break;
             }
             if (pollData.status === 'FAILED') {
-              throw new Error(pollData.error || 'RunPod 任务失败');
+              throw new Error(`RunPod 任务失败: ${pollData.error || '未知错误'}`);
             }
-            // Still pending — continue polling
+            // Still pending — pace the loop so fast responses cannot exhaust
+            // all attempts in seconds (server long-poll alone is not enough).
+            await new Promise((r) => setTimeout(r, 2000));
           } catch (pollErr) {
             if (pollErr instanceof Error && pollErr.message.includes('RunPod')) throw pollErr;
             // Network hiccup — keep polling
+            await new Promise((r) => setTimeout(r, 2000));
           }
         }
         if (!completed) {

@@ -318,6 +318,10 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
         dispatch({ type: 'SET_GENERATING', value: true, stage: 'queued' });
         toast.message('GPU 排队中，等待出图…');
         const jobId = String(data.job_id);
+        // ~24 polls × (3s interval + server long-poll) ≈ 3 minutes total.
+        // The interval is required: without it transient poll failures burn
+        // through all attempts in seconds and mis-report "queue timeout".
+        let lastPollError = '';
         for (let i = 0; i < 24; i++) {
           try {
             const pollRes = await authedFetch(`/api/runpod/status?job_id=${encodeURIComponent(jobId)}${data.endpoint_id ? `&endpoint_id=${encodeURIComponent(String(data.endpoint_id))}` : ''}&admin_source=true${state.companionId ? `&girlfriend_id=${encodeURIComponent(state.companionId)}` : ''}&asset_role=${encodeURIComponent(state.assetRole)}`);
@@ -329,12 +333,18 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
               toast.success(`生成成功 ${assets.length} 张`);
               return;
             }
-            if (pollData.status === 'FAILED') throw new Error(pollData.error || 'RunPod 任务失败');
+            if (pollData.status === 'FAILED') throw new Error(`RunPod 任务失败: ${pollData.error || '未知错误'}`);
+            await new Promise((r) => setTimeout(r, 3000));
           } catch (pollErr) {
             if (pollErr instanceof Error && pollErr.message.includes('RunPod')) throw pollErr;
+            // Transient poll error — remember it and keep polling.
+            lastPollError = pollErr instanceof Error ? pollErr.message : String(pollErr);
+            await new Promise((r) => setTimeout(r, 3000));
           }
         }
-        throw new Error('GPU 排队超时（3 分钟），请稍后重试');
+        throw new Error(lastPollError
+          ? `GPU 排队超时（3 分钟），请稍后重试（最近轮询异常：${lastPollError.slice(0, 120)}）`
+          : 'GPU 排队超时（3 分钟），请稍后重试');
       }
 
       // Synchronous result
