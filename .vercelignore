@@ -20,8 +20,12 @@ _tmp*
 *.safetensors
 
 # Infra / Docker (not needed at runtime)
-infra
-runpod
+# NOTE: anchor with leading '/' — unanchored 'runpod' also matched
+# src/app/api/runpod & src/app/api/v2/runpod, deleting the
+# /api/runpod/status route from production builds (404 -> studio
+# polling never reached the server and mis-reported queue timeout).
+/infra
+/runpod
 Dockerfile
 Dockerfile.dev
 docker-compose.yml
