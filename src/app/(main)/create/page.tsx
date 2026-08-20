@@ -286,6 +286,7 @@ export default function CreatePage() {
     basePrompt,
     generationSettings,
     updateSettings,
+    updateNegativePrompt,
     isSettingsOpen,
     toggleSettings,
     closeSettings,
@@ -734,12 +735,7 @@ export default function CreatePage() {
       setCreatePhase('generating_images');
       setStep('portrait');
       // Pass advanced settings to generation
-      await runBatch(undefined, promptData.prompt, {
-        steps: generationSettings.steps,
-        fluxGuidance: generationSettings.fluxGuidance,
-        seed: generationSettings.randomSeed ? undefined : generationSettings.seed,
-        turbo: generationSettings.turboMode,
-      });
+      await runBatch(undefined, promptData.prompt);
       setCreatePhase('done');
     } catch (e) {
       logger.error(String(e));
@@ -1119,8 +1115,8 @@ export default function CreatePage() {
                         negativePrompt={negativePrompt}
                         basePrompt={basePrompt}
                         triggerWords={loraInfo?.triggerWords || []}
-                        onPositiveChange={(txt) => setGenerationResult({ ...generationSettings, positive: txt })}
-                        onNegativeChange={(txt) => setGenerationResult({ ...generationSettings, negative: txt })}
+                        onPositiveChange={(txt) => setGenerationResult({ meta: modelMeta || { category: 'custom', renderStyle: 'realistic', nsfwLevel: 1, modelFamily: 'flux', checkpoint: 'flux1-dev-fp8', steps: 28, cfg: 1, fluxGuidance: 3.5, sampler: 'euler', scheduler: 'simple', width: 1024, height: 1536, presetId: 'flux-turbo', reason: 'fallback' }, positive: txt })}
+                        onNegativeChange={updateNegativePrompt}
                       />
                     )}
                   </div>

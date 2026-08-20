@@ -55,6 +55,10 @@ export interface CreationState {
   updateSettings: (settings: Partial<GenerationSettings>) => void;
   resetSettings: () => void;
   
+  // Prompt Actions
+  updatePositivePrompt: (prompt: string) => void;
+  updateNegativePrompt: (prompt: string) => void;
+  
   // UI State
   isSettingsOpen: boolean;
   toggleSettings: () => void;
@@ -143,6 +147,13 @@ export const useCreationStore = create<CreationState>()(
           negativePrompt: '',
           basePrompt: '',
         }),
+      
+      // Prompt Actions
+      updatePositivePrompt: (prompt) =>
+        set({ positivePrompt: prompt }),
+      
+      updateNegativePrompt: (prompt) =>
+        set({ negativePrompt: prompt }),
       
       // Settings Actions
       updateSettings: (settings) =>
