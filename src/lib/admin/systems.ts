@@ -51,7 +51,6 @@ export const ADMIN_SYSTEMS: readonly AdminSystemDefinition[] = [
       { label: '生成预设', href: '/admin/presets' },
       { label: '模型与 LoRA', href: '/admin/model-library' },
       { label: '公共资产', href: '/admin/assets' },
-      { label: '捏脸预览', href: '/admin/creator-previews' },
     ],
   },
   {

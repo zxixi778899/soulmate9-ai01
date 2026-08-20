@@ -1721,6 +1721,7 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
           endpoint_id: result.endpoint_id || generationOptions.endpoint_id,
           status: result.status || 'IN_QUEUE',
           message: 'Generation in queue. Poll /api/runpod/status?job_id=' + result.job_id,
+          warning: result.warning,
           generation_trace: {
             category,
             intensity: generationIntensity,
@@ -1766,6 +1767,15 @@ prompt = `${prompt} ${referencePlan.promptHints.join('. ')}`;
       }
 
       const assets: Array<Record<string, unknown>> = [];
+      
+      // Log structured warnings from ComfyUI (e.g., ADetailer/ControlNet node missing)
+      if (result.warning) {
+        logger.warn('[comfy] Generation completed with warning', { warning: result.warning });
+      }
+      if (result.error) {
+        logger.warn('[comfy] Generation completed with structured error', { error: result.error });
+      }
+      
       for (let i = 0; i < result.images.length; i++) {
         const raw = result.images[i];
         const { key, url } = await uploadImageBase64(

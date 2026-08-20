@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Loader2, Search, Shirt, Activity, Map, Sparkles, 
-  Plus, ExternalLink, Grid, List, X
+  Plus, ExternalLink, Grid, List, X, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -38,6 +38,11 @@ type Asset = {
   } | null;
 };
 
+const canDelete = (asset: Asset): boolean => {
+  // Only allow deletion of assets managed by admin
+  return Boolean(asset.id || asset.storage_key);
+};
+
 export default function AssetLibrary() {
   const [activeCategory, setActiveCategory] = useState<AssetLibraryCategoryId | 'all'>('all');
   const [search, setSearch] = useState('');
@@ -46,6 +51,9 @@ export default function AssetLibrary() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [uploading, setUploading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [fileInputRef, setFileInputRef] = useState<HTMLInputElement | null>(null);
   
   // 新文件夹模态框
   const [showFolderModal, setShowFolderModal] = useState(false);
@@ -139,6 +147,119 @@ export default function AssetLibrary() {
     }
   };
 
+  const handleUploadFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    setUploading(true);
+    const successful = [];
+    const failed = [];
+    
+    for (const file of Array.from(files)) {
+      try {
+        if (file.size > 12 * 1024 * 1024) {
+          throw new Error(`文件 ${file.name} 超过 12MB`);
+        }
+        if (!/^image\//.test(file.type)) {
+          throw new Error(`文件 ${file.name} 不是图片格式`);
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folder', 'asset-library');
+        
+        const uploadRes = await authedFetch('/api/upload', { method: 'POST', body: formData });
+        const uploadData = await readResponseJson<{ url?: string; error?: string }>(uploadRes);
+        
+        if (!uploadRes.ok || !uploadData.url) {
+          throw new Error(uploadData.error || '上传失败');
+        }
+        
+        // 注册到资产库
+        const registerRes = await authedFetch('/api/admin/comfy?action=register_asset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: uploadData.url,
+            kind: 'asset-library',
+            name: file.name,
+            library_category: activeCategory === 'all' ? 'outfit' : activeCategory,
+          }),
+        });
+        const registerData = await readResponseJson<{ asset?: any; error?: string }>(registerRes);
+        
+        if (!registerRes.ok) {
+          throw new Error(registerData.error || '注册失败');
+        }
+        
+        successful.push(file.name);
+      } catch (e) {
+        failed.push({ name: file.name, error: e instanceof Error ? e.message : '未知错误' });
+      }
+    }
+    
+    setUploading(false);
+    if (successful.length > 0) {
+      toast.success(`成功上传 ${successful.length} 个文件`);
+      if (failed.length > 0) {
+        toast.warning(`有 ${failed.length} 个文件上传失败`);
+      }
+    } else if (failed.length > 0) {
+      toast.error(`所有文件上传失败`);
+    }
+    
+    await load();
+    if (fileInputRef) fileInputRef.value = '';
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(`确定要删除选中的 ${selected.size} 个资产吗？此操作不可恢复。`)) return;
+    
+    let deleted = 0;
+    let failed = 0;
+    const deleteDelay = 500; // 500ms 延迟，避免触发限流
+    
+    for (const id of selected) {
+      try {
+        const res = await authedFetch(`/api/admin/assets?id=${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+        });
+        const data = await readResponseJson<{ success?: boolean; error?: string }>(res);
+        
+        if (!res.ok) {
+          // Check if it's a rate limit error
+          if (res.status === 429) {
+            toast.error('操作过于频繁，请稍后再试');
+            throw new Error('Rate limit exceeded');
+          }
+          throw new Error(data.error || '删除失败');
+        }
+        deleted++;
+        // 每个删除操作之间添加延迟
+        await new Promise(resolve => setTimeout(resolve, deleteDelay));
+      } catch (e) {
+        console.error(`Failed to delete ${id}:`, e);
+        failed++;
+        // 发生错误时也稍微延迟
+        await new Promise(resolve => setTimeout(resolve, deleteDelay));
+      }
+    }
+    
+    setShowDeleteConfirm(false);
+    setSelected(new Set());
+    
+    if (deleted > 0) {
+      toast.success(`成功删除 ${deleted} 个资产`);
+      if (failed > 0) {
+        toast.warning(`有 ${failed} 个资产删除失败`);
+      }
+    } else if (failed > 0) {
+      toast.error(`所有资产删除失败`);
+    }
+    
+    await load();
+  };
+
   const getCategoryIcon = (categoryId: AssetLibraryCategoryId) => {
     const iconMap = {
       outfit: Shirt,
@@ -161,15 +282,15 @@ export default function AssetLibrary() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-[#0b0b12] text-slate-100">
       <div className="mx-auto max-w-7xl">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="flex items-center gap-3 text-3xl font-bold text-slate-900">
-            <Sparkles className="h-8 w-8 text-violet-600" />
+          <h1 className="flex items-center gap-3 text-3xl font-bold text-white">
+            <Sparkles className="h-8 w-8 text-violet-400" />
             公共资产库
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-slate-400">
             管理服装、动作、场景和广告素材资源库，快速调用换装/换动作/换场景功能
           </p>
         </div>
@@ -180,8 +301,8 @@ export default function AssetLibrary() {
             variant={activeCategory === 'all' ? 'default' : 'outline'}
             onClick={() => setActiveCategory('all')}
             className={cn(
-              'gap-2',
-              activeCategory === 'all' && 'bg-gradient-to-r from-violet-600 to-fuchsia-600'
+              'gap-2 border-white/10 bg-white/5 text-slate-100',
+              activeCategory === 'all' && 'bg-gradient-to-r from-rose-600 to-fuchsia-600 border-rose-500/50'
             )}
           >
             <Grid className="h-4 w-4" />
@@ -197,8 +318,8 @@ export default function AssetLibrary() {
                 variant={isActive ? 'default' : 'outline'}
                 onClick={() => setActiveCategory(category.id)}
                 className={cn(
-                  'gap-2 transition-all',
-                  isActive && getCategoryColor(category.id).replace('bg-', 'from-').replace('-500', '-700') + ' to-' + getCategoryColor(category.id).replace('bg-', '')
+                  'gap-2 border-white/10 bg-white/5 text-slate-100 transition-all',
+                  isActive && 'bg-gradient-to-r from-rose-500 to-fuchsia-500 border-rose-400/50'
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -209,22 +330,45 @@ export default function AssetLibrary() {
         </div>
 
         {/* Controls */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={(ref) => setFileInputRef(ref)}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => void handleUploadFiles(e.target.files)}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef?.click()}
+              disabled={uploading}
+              className="gap-2 border-emerald-400/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20"
+            >
+              {uploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              上传资产
+            </Button>
+            
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索资产..."
-                className="w-64 pl-9"
+                className="w-64 pl-9 border-white/10 bg-black/30 text-slate-100"
               />
             </div>
             
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value as AssetLibraryCategoryRole | 'all')}
-              className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
+              className="h-9 rounded-md border border-white/10 bg-white/[0.03] px-3 text-sm text-slate-100"
             >
               <option value="all">所有类型</option>
               {activeCategory !== 'all' &&
@@ -237,7 +381,7 @@ export default function AssetLibrary() {
               variant="outline"
               size="sm"
               onClick={() => setShowFolderModal(true)}
-              className="gap-2"
+              className="gap-2 border-emerald-400/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20"
             >
               <Plus className="h-4 w-4" />
               新建文件夹
@@ -245,13 +389,26 @@ export default function AssetLibrary() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600">{filteredAssets.length} 项资产</span>
-            <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+            <span className="text-sm text-slate-400">
+              {selected.size > 0 ? `${selected.size} 项已选中` : `${filteredAssets.length} 项资产`}
+            </span>
+            {selected.size > 0 && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="bg-rose-600 hover:bg-rose-500 border-rose-500/50"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                删除选中 ({selected.size})
+              </Button>
+            )}
+            <div className="flex rounded-lg border border-white/10 overflow-hidden bg-white/[0.03]">
               <button
                 onClick={() => setViewMode('grid')}
                 className={cn(
-                  'px-3 py-1.5 text-sm',
-                  viewMode === 'grid' ? 'bg-violet-50 text-violet-600' : 'hover:bg-slate-50'
+                  'px-3 py-1.5 text-sm text-slate-300',
+                  viewMode === 'grid' ? 'bg-rose-500/20 text-rose-100' : 'hover:bg-white/5'
                 )}
               >
                 <Grid className="h-4 w-4" />
@@ -259,8 +416,8 @@ export default function AssetLibrary() {
               <button
                 onClick={() => setViewMode('list')}
                 className={cn(
-                  'px-3 py-1.5 text-sm',
-                  viewMode === 'list' ? 'bg-violet-50 text-violet-600' : 'hover:bg-slate-50'
+                  'px-3 py-1.5 text-sm text-slate-300',
+                  viewMode === 'list' ? 'bg-rose-500/20 text-rose-100' : 'hover:bg-white/5'
                 )}
               >
                 <List className="h-4 w-4" />
@@ -271,9 +428,9 @@ export default function AssetLibrary() {
 
         {/* Content */}
         {loading ? (
-          <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white">
-            <Loader2 className="mr-3 h-5 w-5 animate-spin text-violet-600" />
-            <span className="text-slate-600">加载中...</span>
+          <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/[0.02]">
+            <Loader2 className="mr-3 h-5 w-5 animate-spin text-violet-400" />
+            <span className="text-slate-400">加载中...</span>
           </div>
         ) : (
           <>
@@ -283,10 +440,10 @@ export default function AssetLibrary() {
                   <div
                     key={asset.id || asset.url}
                     className={cn(
-                      'group relative cursor-pointer overflow-hidden rounded-xl border bg-white shadow-sm transition-all hover:shadow-md',
+                      'group relative cursor-pointer overflow-hidden rounded-xl border bg-white/[0.03] shadow-sm transition-all hover:shadow-md',
                       selected.has(String(asset.id || asset.url))
-                        ? 'border-violet-500 ring-2 ring-violet-200'
-                        : 'border-slate-200'
+                        ? 'border-violet-500 ring-2 ring-violet-500/30'
+                        : 'border-white/10 hover:border-violet-400/40 hover:bg-violet-500/5'
                     )}
                     onClick={() => toggle(String(asset.id || asset.url))}
                   >
@@ -296,8 +453,8 @@ export default function AssetLibrary() {
                         className={cn(
                           'flex h-5 w-5 items-center justify-center rounded border transition-colors',
                           selected.has(String(asset.id || asset.url))
-                            ? 'border-violet-600 bg-violet-600'
-                            : 'border-slate-300 hover:border-slate-400'
+                            ? 'border-violet-500 bg-violet-600'
+                            : 'border-white/30 hover:border-violet-400'
                         )}
                       >
                         {selected.has(String(asset.id || asset.url)) && (
@@ -309,7 +466,7 @@ export default function AssetLibrary() {
                     </div>
 
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <div className="aspect-[2/3] bg-slate-100">
+                    <div className="aspect-[2/3] bg-black/40">
                       {asset.url ? (
                         <img
                           src={asset.url}
@@ -317,15 +474,15 @@ export default function AssetLibrary() {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                        <div className="flex h-full items-center justify-center text-xs text-slate-600">
                           无预览
                         </div>
                       )}
                     </div>
 
                     {/* Info */}
-                    <div className="p-3">
-                      <div className="mb-2 truncate text-xs font-medium text-slate-900">
+                    <div className="p-3 border-t border-white/5">
+                      <div className="mb-2 truncate text-xs font-medium text-white">
                         {asset.name || asset.id}
                       </div>
                       
@@ -333,13 +490,13 @@ export default function AssetLibrary() {
                         {asset.meta?.library_category && (
                           <Badge
                             variant="secondary"
-                            className="text-[9px]"
+                            className="text-[9px] bg-violet-500/20 text-violet-100"
                           >
                             {ASSET_LIBRARY_CATEGORIES.find(c => c.id === asset.meta!.library_category)?.label}
                           </Badge>
                         )}
                         {asset.meta?.library_role && (
-                          <Badge variant="outline" className="text-[9px]">
+                          <Badge variant="outline" className="text-[9px] border-white/10 text-slate-300">
                             {asset.meta.library_role}
                           </Badge>
                         )}
@@ -349,12 +506,12 @@ export default function AssetLibrary() {
                     {/* Quick Actions */}
                     <div className="hidden group-hover:flex absolute inset-x-0 bottom-0">
                       {asset.meta?.library_category && (
-                        <div className="flex gap-1 p-2 backdrop-blur-sm bg-black/50">
+                        <div className="flex gap-1 p-2 backdrop-blur-sm bg-black/60">
                           {LIBRARY_QUICK_ACTIONS[asset.meta.library_category as keyof typeof LIBRARY_QUICK_ACTIONS]?.label && (
                             <Button
                               size="sm"
                               variant="secondary"
-                              className="h-6 text-xs"
+                              className="h-6 text-xs bg-white/10 text-white hover:bg-white/20 border border-white/10"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toast.info(`应用 ${LIBRARY_QUICK_ACTIONS[asset.meta!.library_category as keyof typeof LIBRARY_QUICK_ACTIONS].label}`);
@@ -372,6 +529,27 @@ export default function AssetLibrary() {
                           >
                             <ExternalLink className="h-3 w-3" />
                           </a>
+                          {canDelete(asset) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const assetId = asset.id || asset.storage_key;
+                                if (assetId) {
+                                  setSelected((prev) => {
+                                    const n = new Set(prev);
+                                    n.add(String(assetId));
+                                    return n;
+                                  });
+                                  toast.info('已选中该资产');
+                                }
+                              }}
+                              className="flex h-6 w-6 items-center justify-center rounded bg-rose-500/80 text-white hover:bg-rose-500"
+                              title="删除"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -384,10 +562,10 @@ export default function AssetLibrary() {
                   <div
                     key={asset.id || asset.url}
                     className={cn(
-                      'group flex items-center gap-4 rounded-xl border bg-white p-4 shadow-sm transition-all hover:shadow-md',
+                      'group flex items-center gap-4 rounded-xl border bg-white/[0.03] p-4 shadow-sm transition-all hover:shadow-md',
                       selected.has(String(asset.id || asset.url))
-                        ? 'border-violet-500'
-                        : 'border-slate-200'
+                        ? 'border-violet-500 ring-2 ring-violet-500/30'
+                        : 'border-white/10 hover:border-violet-400/40 hover:bg-violet-500/5'
                     )}
                     onClick={() => toggle(String(asset.id || asset.url))}
                   >
@@ -408,12 +586,12 @@ export default function AssetLibrary() {
                     </div>
 
                     {/* Thumbnail */}
-                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-black/40">
                       {asset.url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={asset.url} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                        <div className="flex h-full items-center justify-center text-xs text-slate-600">
                           无预览
                         </div>
                       )}
@@ -421,17 +599,17 @@ export default function AssetLibrary() {
 
                     {/* Info */}
                     <div className="flex-1">
-                      <div className="font-medium text-slate-900">
+                      <div className="font-medium text-white">
                         {asset.name || asset.id}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-1.5">
                         {asset.meta?.library_category && (
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-[10px] bg-violet-500/20 text-violet-100">
                             {ASSET_LIBRARY_CATEGORIES.find(c => c.id === asset.meta!.library_category)?.label}
                           </Badge>
                         )}
                         {asset.meta?.library_role && (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-[10px] border-white/10 text-slate-300">
                             {asset.meta.library_role}
                           </Badge>
                         )}
@@ -445,7 +623,7 @@ export default function AssetLibrary() {
                           href={asset.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-slate-400 hover:text-violet-600"
+                          className="text-slate-400 hover:text-violet-400"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </a>
@@ -457,10 +635,10 @@ export default function AssetLibrary() {
             )}
 
             {filteredAssets.length === 0 && (
-              <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-center">
-                <Search className="mb-3 h-12 w-12 text-slate-300" />
-                <h3 className="text-base font-semibold text-slate-900">暂无资产</h3>
-                <p className="mt-1 text-sm text-slate-600">
+              <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/[0.02] text-center">
+                <Search className="mb-3 h-12 w-12 text-slate-600" />
+                <h3 className="text-base font-semibold text-slate-200">暂无资产</h3>
+                <p className="mt-1 text-sm text-slate-400">
                   {activeCategory === 'all' 
                     ? '切换分类或创建新文件夹以添加资产' 
                     : `此分类下暂无资产`}
@@ -470,15 +648,57 @@ export default function AssetLibrary() {
           </>
         )}
 
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#12121c] p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">确认删除</h3>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-4">
+                  <p className="text-sm text-rose-200">
+                    你确定要删除选中的 <span className="font-bold text-rose-100">{selected.size}</span> 个资产吗？
+                    此操作不可恢复！
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/5"
+                  >
+                    取消
+                  </Button>
+                  <Button 
+                    onClick={handleDeleteSelected} 
+                    className="bg-rose-600 hover:bg-rose-500 border-rose-500/50"
+                  >
+                    确认删除
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Create Folder Modal */}
         {showFolderModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#12121c] p-6 shadow-xl">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-900">新建文件夹</h3>
+                <h3 className="text-lg font-semibold text-white">新建文件夹</h3>
                 <button
                   onClick={() => setShowFolderModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-slate-400 hover:text-white"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -486,18 +706,19 @@ export default function AssetLibrary() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-200">
                     文件夹名称
                   </label>
                   <Input
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     placeholder="例如：夏季服装系列"
+                    className="border-white/10 bg-black/30 text-slate-100"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-200">
                     所属分类
                   </label>
                   <div className="grid grid-cols-2 gap-2">
@@ -510,15 +731,15 @@ export default function AssetLibrary() {
                           className={cn(
                             'flex flex-col items-center gap-2 rounded-lg border p-3 transition-all',
                             newFolderCategory === category.id
-                              ? cn('border-violet-500 bg-violet-50', getCategoryColor(category.id).replace('bg-', 'ring-').replace('-500', '-200'))
-                              : 'border-slate-200 hover:border-slate-300'
+                              ? cn('border-violet-500 bg-violet-500/20 ring-2 ring-violet-500/30')
+                              : 'border-white/10 bg-white/[0.03] hover:border-violet-400/40 hover:bg-white/5'
                           )}
                         >
                           <Icon className={cn(
                             'h-6 w-6',
-                            newFolderCategory === category.id ? 'text-violet-600' : 'text-slate-500'
+                            newFolderCategory === category.id ? 'text-violet-400' : 'text-slate-400'
                           )} />
-                          <span className="text-xs font-medium text-slate-700">
+                          <span className="text-xs font-medium text-slate-200">
                             {category.label}
                           </span>
                         </button>
@@ -531,10 +752,11 @@ export default function AssetLibrary() {
                   <Button
                     variant="outline"
                     onClick={() => setShowFolderModal(false)}
+                    className="border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/5"
                   >
                     取消
                   </Button>
-                  <Button onClick={createFolder}>
+                  <Button onClick={createFolder} className="bg-rose-600 hover:bg-rose-500 border-rose-500/50">
                     创建文件夹
                   </Button>
                 </div>

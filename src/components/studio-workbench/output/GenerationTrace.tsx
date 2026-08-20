@@ -34,8 +34,14 @@ export function GenerationTrace() {
         {trace.cfg && (
           <span className="text-[10px] font-mono text-slate-500">CFG {String(trace.cfg)}</span>
         )}
+        {trace.fluxGuidance !== undefined && trace.fluxGuidance !== null && (
+          <span className="text-[10px] font-mono text-slate-500">FLUX Guidance {String(trace.fluxGuidance)}</span>
+        )}
         {trace.sampler && (
           <span className="text-[10px] font-mono text-slate-500">{String(trace.sampler)}</span>
+        )}
+        {trace.scheduler && (
+          <span className="text-[10px] font-mono text-slate-500">{String(trace.scheduler)}</span>
         )}
         {trace.endpoint && (
           <span className="text-[10px] font-mono text-slate-600">{String(trace.endpoint)}</span>
@@ -46,11 +52,6 @@ export function GenerationTrace() {
           </Badge>
         )}
       </div>
-      {trace.prompt && (
-        <p className="mt-1.5 max-h-16 overflow-y-auto font-mono text-[10px] text-slate-600 line-clamp-3">
-          {String(trace.prompt)}
-        </p>
-      )}
     </details>
   );
 }

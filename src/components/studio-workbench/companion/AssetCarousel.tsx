@@ -102,17 +102,6 @@ export function AssetCarousel() {
     grouped[role].push(asset);
   }
 
-  const ROLE_LABELS: Record<string, string> = {
-    'identity-anchor': '身份锚点',
-    'avatar-closeup': '半身头像',
-    character_art: '立绘',
-    'character-art': '立绘',
-    album: '相册',
-    scene: '场景',
-    portrait: '立绘',
-    other: '其他',
-  };
-
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <div className="flex items-center justify-between">
@@ -131,105 +120,125 @@ export function AssetCarousel() {
         </div>
       </div>
 
-      <p className="mt-1 text-[9px] text-slate-600">点击设为参考图；悬停可设为头像 / 相册 / 身份锚点</p>
+      <p className="mt-1 text-[9px] text-slate-600">点击设为参考图；悬停可见操作按钮</p>
 
-      <div className="mt-2 max-h-44 space-y-2.5 overflow-y-auto pr-1">
-        {Object.entries(grouped).map(([role, items]) => (
-          <div key={role}>
-            <p className="mb-1 text-[9px] font-medium uppercase text-slate-600">
-              {ROLE_LABELS[role] || role}
-            </p>
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {items.slice(0, 16).map((asset) => {
-                const url = String(asset.url || '');
-                const isActive = state.inputImage === url;
-                const isAvatar = currentAvatar && url === currentAvatar;
-                const isPortrait = currentPortrait && url === currentPortrait;
-                const isIpRef = ipAdapterRef && url === ipAdapterRef;
-                return (
-                  <div key={String(asset.id || url)} className="group relative h-14 w-11 shrink-0">
-                    <button
-                      onClick={() => setAsReference(url)}
-                      className={cn(
-                        'relative h-full w-full overflow-hidden rounded-md border transition',
-                        isActive
-                          ? 'border-violet-500 ring-1 ring-violet-500/30'
-                          : isIpRef
-                            ? 'border-violet-500/50'
-                            : 'border-white/10 hover:border-white/20',
-                      )}
-                    >
-                      {url ? (
-                        // 资产缩略图 URL 为动态签名链接，不走 next/image 优化
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={url}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-white/[0.03]">
-                          <ImageIcon className="h-3 w-3 text-slate-700" />
-                        </div>
-                      )}
-                      {isActive && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-violet-900/40">
-                          <Crosshair className="h-3 w-3 text-violet-300" />
-                        </div>
-                      )}
-                    </button>
-
-                    {/* 状态标记 */}
-                    {(isAvatar || isPortrait || isIpRef) && (
-                      <div className="absolute left-0.5 top-0.5 flex gap-0.5">
-                        {isAvatar && <span className="rounded bg-violet-500 px-0.5 text-[7px] font-bold text-white">头像</span>}
-                        {isPortrait && <span className="rounded bg-cyan-500 px-0.5 text-[7px] font-bold text-white">相册</span>}
-                        {!isAvatar && isIpRef && <span className="rounded bg-fuchsia-500 px-0.5 text-[7px] font-bold text-white">IP</span>}
+      {/* 横向滚动容器 - 移除垂直滚动 */}
+      <div className="mt-2 space-y-3">
+        {Object.entries(grouped).map(([role, items]) => {
+          // 只显示身份锚点和相册两个分类
+          if (!["identity-anchor", "album"].includes(role)) return null;
+          
+          const LABELS: Record<string, string> = {
+            'identity-anchor': '身份锚点（IP-Adapter 优先参考）',
+            'album': '相册封面',
+          };
+          
+          return (
+            <div key={role}>
+              <p className="mb-1.5 text-[9px] font-medium uppercase text-slate-600">
+                {LABELS[role] || role}
+              </p>
+              {/* 横向滚动区域 */}
+              <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin">
+                {items.map((asset) => {
+                  const url = String(asset.url || '');
+                  const isActive = state.inputImage === url;
+                  const isAvatar = currentAvatar && url === currentAvatar;
+                  const isPortrait = currentPortrait && url === currentPortrait;
+                  const isIpRef = ipAdapterRef && url === ipAdapterRef;
+                  
+                  return (
+                    <div key={String(asset.id || url)} className="group relative shrink-0">
+                      {/* 图片容器 */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setAsReference(url)}
+                          className={cn(
+                            'relative h-[168px] w-[144px] overflow-hidden rounded-lg border transition',
+                            isActive
+                              ? 'border-violet-500 ring-2 ring-violet-500/30'
+                              : isIpRef
+                                ? 'border-violet-500/50'
+                                : 'border-white/10 hover:border-white/20',
+                          )}
+                        >
+                          {url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-white/[0.03]">
+                              <ImageIcon className="h-9 w-9 text-slate-700" />
+                            </div>
+                          )}
+                          {isActive && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-violet-900/40 backdrop-blur-sm">
+                              <Crosshair className="h-12 w-12 text-violet-300" />
+                            </div>
+                          )}
+                        </button>
+                        
+                        {/* 顶部状态标签 */}
+                        {(isAvatar || isPortrait || isIpRef) && (
+                          <div className="absolute left-2 top-2 flex gap-1.5">
+                            {isAvatar && <span className="rounded bg-violet-500 px-2 text-[10px] font-bold text-white shadow">头像</span>}
+                            {isPortrait && <span className="rounded bg-cyan-500 px-2 text-[10px] font-bold text-white shadow">相册</span>}
+                            {!isAvatar && isIpRef && <span className="rounded bg-fuchsia-500 px-2 text-[10px] font-bold text-white shadow">IP</span>}
+                          </div>
+                        )}
                       </div>
-                    )}
-
-                    {/* 悬停操作：头像 / 相册 / 身份锚点 / 删除 */}
-                    <div className="absolute inset-x-0 bottom-0 hidden items-center justify-between gap-0.5 bg-black/80 py-0.5 group-hover:flex">
-                      <div className="flex gap-0.5">
+                      
+                      {/* 底部固定功能栏 - 仅悬停显示 */}
+                      <div className="mt-2 hidden items-center justify-center gap-1 rounded bg-black/80 py-1.5 px-2 group-hover:flex overflow-hidden">
                         <button
                           onClick={() => void patchGirlfriend(url, 'avatar_url')}
-                          className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-violet-300"
+                          className="flex flex-col items-center gap-0.5 rounded p-1 text-white/70 hover:bg-white/10 hover:text-violet-300 transition min-w-[0]"
                           title="设为头像"
                         >
-                          <UserRound className="h-2.5 w-2.5" />
+                          <UserRound className="h-3.5 w-3.5" />
+                          <span className="truncate text-[7px] font-medium">头像</span>
                         </button>
                         <button
                           onClick={() => void patchGirlfriend(url, 'portrait_url')}
-                          className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-cyan-300"
+                          className="flex flex-col items-center gap-0.5 rounded p-1 text-white/70 hover:bg-white/10 hover:text-cyan-300 transition min-w-[0]"
                           title="设为相册封面"
                         >
-                          <Images className="h-2.5 w-2.5" />
+                          <Images className="h-3.5 w-3.5" />
+                          <span className="truncate text-[7px] font-medium">相册</span>
                         </button>
                         <button
                           onClick={() => void setAsIdentityAnchor(url)}
-                          className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-amber-300"
-                          title="设为身份锚点（IP-Adapter 优先参考）"
+                          className="flex flex-col items-center gap-0.5 rounded p-1 text-white/70 hover:bg-white/10 hover:text-amber-300 transition min-w-[0]"
+                          title="设为身份锚点"
                         >
-                          <Anchor className="h-2.5 w-2.5" />
+                          <Anchor className="h-3.5 w-3.5" />
+                          <span className="truncate text-[7px] font-medium">锚点</span>
                         </button>
+                        {String(asset.id || '').trim() && (
+                          <>
+                            <div className="h-3 w-px bg-white/20 shrink-0" />
+                            <button
+                              onClick={() => void deleteAsset(String(asset.id))}
+                              className="flex flex-col items-center gap-0.5 rounded p-1 text-white/70 hover:bg-white/10 hover:text-red-400 transition min-w-[0]"
+                              title="删除资产"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span className="truncate text-[7px] font-medium">删除</span>
+                            </button>
+                          </>
+                        )}
                       </div>
-                      {String(asset.id || '').trim() && (
-                        <button
-                          onClick={() => void deleteAsset(String(asset.id))}
-                          className="rounded p-0.5 text-white/70 hover:bg-white/10 hover:text-red-400"
-                          title="删除资产"
-                        >
-                          <Trash2 className="h-2.5 w-2.5" />
-                        </button>
-                      )}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

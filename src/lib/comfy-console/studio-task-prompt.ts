@@ -26,38 +26,21 @@ export function buildStudioSceneDraft(input: {
   renderStyle: AnimeRenderStyle;
 }): string {
   const existing = text(input.currentPrompt).replace(/[,.\s]+$/, '');
-  const levelScene: Record<NsfwIntensity, string> = {
-    1: 'wearing a complete stylish everyday outfit with nipples and genitals fully covered, confident natural expression',
-    2: 'wearing coordinated adult lingerie with realistic fabric detail, sensual posing, nipples and genitals covered, no sexual act',
-    3: 'unmistakably adult nude portrait with natural anatomy clearly visible, nonsexual presentation, no sexual act',
-    4: 'unmistakably adult explicit solo scene with clearly visible self-touch, anatomically coherent action and purposeful hands',
-    5: 'unmistakably consenting adult explicit partner scene with clearly readable sexual interaction, coherent anatomy and physical contact',
-  };
-  const taskScene: Record<StudioPromptTask, string> = {
-    identity: 'canonical identity portrait against a clean neutral background, relaxed symmetrical posture',
-    portrait: 'complete editorial character portrait with a readable environment, intentional pose, wardrobe and camera composition',
-    outfit: 'wardrobe-focused image preserving the established person while clearly presenting the requested clothing',
-    pose: 'pose-focused image with balanced weight, clear limb placement, purposeful hands and readable gesture',
-    background: 'environment-focused image with consistent perspective, contact shadows and subject-matched lighting',
-    video: 'natural five-second motion preserving the exact person, clothing, background and camera position',
-  };
-  const modelNote = input.modelFamily === 'wan22'
-    ? 'stable temporal continuity, no morphing and no scene cut'
-    : input.modelFamily === 'pony'
-      ? 'Pony SDXL scene written as concrete subject/action tags plus short camera and light tags'
-      : input.modelFamily === 'illustrious'
-        ? 'Illustrious anime scene written as danbooru tags plus short camera and light tags'
-        : 'FLUX-ready natural-language scene with concrete camera, materials and physical relationships';
-  const lighting = 'bright soft key light, balanced frontal fill light, correct exposure, face and body clearly illuminated, visible shadow detail, no crushed shadows';
-  const existingLower = existing.toLowerCase();
-  const randomScene = input.modelFamily === 'flux' && !existing
+  
+  // ⚠️ CRITICAL FIX: Never inject hard-coded scene templates into user's prompt.
+  // User input is the absolute source of truth for image generation.
+  // This function should only provide suggestions when currentPrompt is empty.
+  if (existing) {
+    // Return user's original input unchanged - do NOT append any templates
+    return existing;
+  }
+  
+  // Only generate random draft when user has NO input yet
+  const randomScene = input.modelFamily === 'flux' 
     ? randomFluxPrompt({ category: 'female', style: input.renderStyle, intensity: input.intensity })
     : '';
-  return [existing || randomScene, taskScene[input.task], levelScene[input.intensity], modelNote, lighting]
-    .filter((part, index) => Boolean(part) && (index === 0 || !existingLower.includes(part.toLowerCase())))
-    .join(', ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  
+  return randomScene;
 }
 
 const text = (value: unknown): string => String(value || '').trim();

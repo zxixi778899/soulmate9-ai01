@@ -77,7 +77,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
           '/admin/generate-cards',
           '/admin/model-library',
           '/admin/assets',
-          '/admin/creator-previews',
           '/admin/presets',
           '/admin/preset-library',
           '/admin/comfyui',

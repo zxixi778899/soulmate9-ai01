@@ -82,6 +82,12 @@ export function BatchGenerator({ girlfriends }: Props) {
             steps: 28,
             num_images: 1,
             asset_role: 'avatar-closeup',
+            // ⚠️ 禁用增强器以避免 FaceDetailer 缺失错误
+            enhancers: {
+              controlnet: false,
+              adetailer: false,
+              upscale: false,
+            },
           }),
         });
         const data = await readResponseJson(res).catch(() => ({} as Any));

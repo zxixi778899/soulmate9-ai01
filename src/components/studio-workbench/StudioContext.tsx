@@ -104,6 +104,33 @@ function studioReducer(state: StudioState, action: StudioAction): StudioState {
             : TASK_DENOISE_DEFAULTS.outfit,
         prompt: '',
       };
+    // Node control actions
+    case 'SET_CONTROLNET_TYPE':
+      return { ...state, controlnetType: action.value };
+    case 'SET_CONTROLNET_PREPROCESSOR':
+      return { ...state, controlnetPreprocessor: action.value };
+    case 'SET_CONTROLNET_STRENGTH':
+      return { ...state, controlnetStrength: action.value };
+    case 'SET_CONTROLNET_GUIDANCE':
+      return { ...state, controlnetGuidance: action.value };
+    case 'SET_ADETAILER_MODEL':
+      return { ...state, adetailerModel: action.value };
+    case 'SET_ADETAILER_CONFIDENCE':
+      return { ...state, adetailerConfidence: action.value };
+    case 'SET_ADETAILER_DENOISE':
+      return { ...state, adetailerDenoise: action.value };
+    case 'SET_ADETAILER_AREA':
+      return { ...state, adetailerArea: action.value };
+    case 'SET_UPSCALER_MODEL':
+      return { ...state, upscaleModel: action.value };
+    case 'SET_UPSCALE_FACTOR':
+      return { ...state, upscaleFactor: action.value };
+    case 'SET_TILE_SIZE':
+      return { ...state, tileSize: action.value };
+    case 'SET_UPSCALE_DENOISE':
+      return { ...state, upscaleDenoise: action.value };
+    case 'SET_ACTIVE_NODE_CONTROL_TAB':
+      return { ...state, activeNodeControlTab: action.value };
     default:
       return state;
   }

@@ -1,0 +1,89 @@
+# SoulMate AI - SDXL Multi-Model Worker Dockerfile (v2.0)
+# For RTX 3090 endpoints (Pony Realism + Illustrious)
+# Standalone build - no dependency on external base image
+
+FROM ubuntu:22.04
+
+USER root
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/opt/venv/bin:${PATH}"
+ENV PIP_NO_INPUT=1
+ENV GIT_TERMINAL_PROMPT=0
+
+# ============================================
+# System Dependencies
+# ============================================
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    python3.10 \
+    python3.10-venv \
+    python3-pip \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libhdf5-serial-dev \
+    libhdf5-openmpi-dev \
+    libopenblas-base \
+    zlib1g-dev \
+    libssl-dev \
+    ffmpeg \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -s /bin/bash comfyui \
+    && mkdir -p /comfyui /runpod-volume/models \
+    && chown -R comfyui:comfyui /comfyui
+
+USER comfyui
+
+WORKDIR /comfyui
+
+# ============================================
+# Install Python Virtual Environment
+# ============================================
+RUN python3.10 -m venv /opt/venv
+RUN . /opt/venv/bin/activate && pip install --upgrade pip
+
+# ============================================
+# Install PyTorch (CUDA 12.1)
+# ============================================
+RUN . /opt/venv/bin/activate && pip install torch torchvision torchaudio xformers==0.0.23 --index-url https://download.pytorch.org/whl/cu121
+
+# ============================================
+# Install ComfyUI Core
+# ============================================
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git .
+
+RUN . /opt/venv/bin/activate && pip install diffusers transformers accelerate opencv-python-headless==4.8.0.74 Pillow einops==0.7.0 numpy>=1.24,<2.0
+
+# ============================================
+# Install Custom Nodes
+# ============================================
+RUN cd custom_nodes \
+    && git clone --depth 1 https://github.com/Mikubill/sd-webui-controlnet.git \
+    && git clone --depth 1 https://github.com/Gourieff/ComfyUI-ADetailer.git \
+    && cd ..
+
+# ============================================
+# Install Additional Python Packages for ControlNet & ADetailer
+# ============================================
+RUN . /opt/venv/bin/activate && pip install ultralytics==8.3.0 onnxruntime-gpu==1.18.0
+
+# ============================================
+# Set Up Model Directories with Network Volume Symlinks
+# ============================================
+RUN mkdir -p models/controlnet/preprocessors \
+    && ln -s /runpod-volume/models/controlnet/preprocessors models/controlnet/preprocessors \
+    && mkdir -p models/adetailer/checkpoints \
+    && ln -s /runpod-volume/models/adetailer/checkpoints models/adetailer/checkpoints \
+    && mkdir -p models/checkpoints \
+    && ln -s /runpod-volume/models/checkpoints models/checkpoints
+
+# ============================================
+# Entry Point
+# ============================================
+CMD ["python", "main.py"]

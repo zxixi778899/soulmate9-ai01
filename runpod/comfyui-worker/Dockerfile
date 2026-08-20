@@ -47,7 +47,33 @@ RUN sed -i 's/^    control=None,$/    control=None,\n    timestep_zero_index=Non
 RUN mkdir -p /comfyui/models/clip_vision \
     && ln -s /runpod-volume/models/ipadapter-flux /comfyui/models/ipadapter-flux \
     && ln -s /runpod-volume/models/clip_vision/siglip-so400m-patch14-384 \
-      /comfyui/models/clip_vision/siglip-so400m-patch14-384
+      /comfyui/models/clip_vision/siglip-so400m-patch14-384 \
+    && mkdir -p /comfyui/models/controlnet \
+    && ln -s /runpod-volume/models/controlnet/preprocessors \
+      /comfyui/models/controlnet/preprocessors \
+    && mkdir -p /comfyui/models/adetailer \
+    && ln -s /runpod-volume/models/adetailer/checkpoints \
+      /comfyui/models/adetailer/checkpoints \
+    && mkdir -p /comfyui/models/upscale \
+    && ln -s /runpod-volume/models/upscale/models \
+      /comfyui/models/upscale/models
+
+# ============================================
+# Install ControlNet & Preprocessors
+# ============================================
+RUN git clone --branch v2 https://github.com/Mikubill/sd-webui-controlnet.git \
+      /comfyui/custom_nodes/sd-webui-controlnet \
+    && git clone https://github.com/Gourieff/ComfyUI-ADetailer.git \
+      /comfyui/custom_nodes/ComfyUI-ADetailer \
+    && python -m pip install --no-cache-dir \
+      torch-sampler==1.0.3 \
+      opencv-python-headless==4.8.0.74 \
+      Pillow==10.2.0 \
+      einops==0.7.0 \
+      numpy>=1.24,<2.0 \
+      onnxruntime-gpu==1.18.0 \
+      ultralytics==8.3.0 \
+      --quiet
 
 # Keep the upstream entrypoint/CMD. The official worker automatically discovers
 # models under /runpod-volume/models when the endpoint has a network volume.

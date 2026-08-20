@@ -120,34 +120,35 @@ export function ParameterDrawer() {
         <ToggleSwitch checked={state.ipAdapter} onChange={(v) => dispatch({ type: 'SET_IPADAPTER', value: v })} />
       </div>
 
-      {/* 增强器开关 */}
-      <div className="space-y-1.5">
-        <Label className="text-[10px] text-slate-500">图像增强</Label>
-        <div className="grid grid-cols-3 gap-1.5">
-          {ENHANCER_OPTIONS.map((opt) => {
-            const ready = enhancerReady(opt.key);
-            const checked = state.enhancers[opt.key] && ready;
-            return (
-              <div
-                key={opt.key}
-                className={cn(
-                  'flex items-center justify-between rounded-md border px-2 py-1.5',
-                  checked ? 'border-violet-500/40 bg-violet-500/10' : 'border-white/10 bg-white/[0.02]',
-                )}
-              >
-                <div className="min-w-0">
-                  <p className={cn('text-[10px] font-medium', checked ? 'text-violet-200' : 'text-slate-400')}>{opt.label}</p>
-                  {!ready && <p className="text-[8px] text-slate-600">未安装</p>}
-                </div>
-                <ToggleSwitch
-                  checked={checked}
-                  disabled={!ready}
-                  onChange={(v) => dispatch({ type: 'SET_ENHANCER', key: opt.key, value: v })}
-                />
-              </div>
-            );
-          })}
+      {/* 增强器快速开关 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <Label className="text-[10px] text-slate-500">图像增强</Label>
+          <p className="text-[9px] text-slate-600">点击左侧按钮查看详情与参数</p>
         </div>
+        {ENHANCER_OPTIONS.map((opt) => {
+          const ready = enhancerReady(opt.key);
+          const checked = state.enhancers[opt.key] && ready;
+          return (
+            <button
+              key={opt.key}
+              onClick={() => dispatch({ type: 'SET_ENHANCER', key: opt.key, value: !checked })}
+              disabled={!ready}
+              className={cn(
+                'relative h-4 w-7 shrink-0 rounded-full transition',
+                checked ? 'bg-violet-500' : 'bg-white/10',
+                (!ready || !checked) ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
+              )}
+            >
+              <span
+                className={cn(
+                  'absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all',
+                  checked ? 'left-3.5' : 'left-0.5',
+                )}
+              />
+            </button>
+          );
+        })}
       </div>
 
       {/* 生成数量 */}

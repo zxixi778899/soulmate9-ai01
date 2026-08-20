@@ -77,6 +77,20 @@ export interface StudioState {
   enhancers: StudioEnhancerState;
   enhancerStatuses: Any[];
 
+  // Node control states
+  controlnetType: 'openpose' | 'depth' | 'canny' | 'normal';
+  controlnetPreprocessor: string;
+  controlnetStrength?: number;
+  controlnetGuidance: number;
+  adetailerModel: string;
+  adetailerConfidence: number;
+  adetailerDenoise?: number;
+  adetailerArea: 'face' | 'head' | 'nose_only';
+  upscaleModel: string;
+  upscaleFactor: 2 | 3 | 4;
+  tileSize?: number;
+  upscaleDenoise?: number;
+
   // Output
   generating: boolean;
   generationStage: GenerationStage;
@@ -88,6 +102,7 @@ export interface StudioState {
 
   // UI
   advancedMode: boolean;
+  activeNodeControlTab: StudioEnhancerKey;
   /** 用户是否手动改过采样参数（改过则不再被推荐预设覆盖） */
   paramsTouched: boolean;
 }
@@ -121,7 +136,21 @@ export type StudioAction =
   | { type: 'SET_IDENTITY_KIT'; kit: IdentityKit | null }
   | { type: 'SET_ADVANCED'; value: boolean }
   | { type: 'SET_FAST_PREVIEW'; value: boolean }
-  | { type: 'APPLY_TRANSFORM'; kind: 'outfit' | 'pose' | 'background' };
+  | { type: 'APPLY_TRANSFORM'; kind: 'outfit' | 'pose' | 'background' }
+  // Node control actions
+  | { type: 'SET_CONTROLNET_TYPE'; value: 'openpose' | 'depth' | 'canny' | 'normal' }
+  | { type: 'SET_CONTROLNET_PREPROCESSOR'; value: string }
+  | { type: 'SET_CONTROLNET_STRENGTH'; value: number }
+  | { type: 'SET_CONTROLNET_GUIDANCE'; value: number }
+  | { type: 'SET_ADETAILER_MODEL'; value: string }
+  | { type: 'SET_ADETAILER_CONFIDENCE'; value: number }
+  | { type: 'SET_ADETAILER_DENOISE'; value: number }
+  | { type: 'SET_ADETAILER_AREA'; value: 'face' | 'head' | 'nose_only' }
+  | { type: 'SET_UPSCALER_MODEL'; value: string }
+  | { type: 'SET_UPSCALE_FACTOR'; value: 2 | 3 | 4 }
+  | { type: 'SET_TILE_SIZE'; value: number }
+  | { type: 'SET_UPSCALE_DENOISE'; value: number }
+  | { type: 'SET_ACTIVE_NODE_CONTROL_TAB'; value: StudioEnhancerKey };
 
 export const INITIAL_STATE: StudioState = {
   config: null,
@@ -156,11 +185,27 @@ export const INITIAL_STATE: StudioState = {
   ipAdapter: true,
   enhancers: { controlnet: false, adetailer: true, upscale: false },
   enhancerStatuses: [],
+
+  // Node control initial states
+  controlnetType: 'openpose',
+  controlnetPreprocessor: 'none',
+  controlnetStrength: undefined,
+  controlnetGuidance: 6,
+  adetailerModel: 'nothing_v2',
+  adetailerConfidence: 0.6,
+  adetailerDenoise: undefined,
+  adetailerArea: 'face',
+  upscaleModel: '4x_UltraSharp',
+  upscaleFactor: 2,
+  tileSize: 512,
+  upscaleDenoise: undefined,
+
   generating: false,
   generationStage: 'idle',
   lastResult: [],
   lastGenerationTrace: null,
   identityKit: null,
   advancedMode: false,
+  activeNodeControlTab: 'controlnet',
   paramsTouched: false,
 };

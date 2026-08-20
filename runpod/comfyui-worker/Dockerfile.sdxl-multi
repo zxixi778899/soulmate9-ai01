@@ -1,0 +1,45 @@
+# SoulMate AI - SDXL Multi-Model Worker Dockerfile
+# For RTX 3090 endpoints (Pony Realism + Illustrious)
+# Shared image supports both checkpoints via environment override
+
+FROM runpod/base-cuda:12.1-runtime
+
+USER root
+
+ENV PATH="/opt/venv/bin:${PATH}"
+ENV PIP_NO_INPUT=1
+
+# ============================================
+# Install ComfyUI core + SDXL dependencies
+# ============================================
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git /comfyui \
+    && cd /comfyui \
+    && pip install torch torchvision torchaudio xformers==0.0.23 \
+       diffusers transformers accelerate --upgrade
+
+# ============================================
+# Install ControlNet & Custom Nodes
+# ============================================
+RUN cd /comfyui/custom_nodes \
+    && git clone --branch v2 https://github.com/Mikubill/sd-webui-controlnet.git \
+    && git clone https://github.com/Gourieff/ComfyUI-ADetailer.git \
+    && pip install opencv-python-headless==4.8.0.74 ultralytics==8.3.0 \
+       Pillow==10.2.0 einops==0.7.0 onnxruntime-gpu==1.18.0 --quiet
+
+# ============================================
+# Link model directories to network volume
+# ============================================
+RUN mkdir -p /comfyui/models/controlnet/preprocessors \
+    && ln -s /runpod-volume/models/controlnet/preprocessors \
+      /comfyui/models/controlnet/preprocessors \
+    && mkdir -p /comfyui/models/adetailer/checkpoints \
+    && ln -s /runpod-volume/models/adetailer/checkpoints \
+      /comfyui/models/adetailer/checkpoints \
+    && mkdir -p /comfyui/models/checkpoints \
+    && ln -s /runpod-volume/models/checkpoints \
+      /comfyui/models/checkpoints
+
+# ============================================
+# Entry point
+# ============================================
+CMD ["python", "/comfyui/main.py"]

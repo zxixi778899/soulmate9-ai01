@@ -11,24 +11,43 @@ import {
 } from '@/lib/prompt/prompt-protocols';
 
 export type ImageSurface = 'companion' | 'outfit' | 'prop' | 'advert';
-/**
- * Model families of the generation matrix:
- *  - 'flux'        — FLUX 精品层（premium / turbo / 3D / 产品资产 / 矩阵总闸关闭时的回退）
- *  - 'pony'        — ponyRealism 写实旗舰（女/男/跨靠 LoRA slider 分化）
- *  - 'illustrious' — waiMatureIllustrious 二次元旗舰（danbooru tags）
- */
 export type ImageModelFamily = 'flux' | 'pony' | 'illustrious';
 
+const env = (name: string, fallback: string): string => process.env[name]?.trim() || fallback;
+
 /**
- * Single unified ComfyUI endpoint — ALL image generation goes through here.
- * 单底模策略（全站 FLUX 重构）：
- *  - 所有场景统一 flux1-dev-fp8 完整底模（CheckpointLoaderSimple 加载）
- *  - KSampler cfg 恒为 1；条件引导 flux_guidance：SFW 3.5 / NSFW 4.0
- *  - 步数：SFW 24 / NSFW 28 / 复杂多人 30 / turbo 草稿 8
- * LoRAs are auto-selected downstream by resolveModelLoraPlan() from the
- * curated FLUX_SCENARIO_PLANS based on category + render style + intensity.
+ * FLUX Premium endpoint (RTX 4090) - High quality portrait SFW/NSFW
  */
-export const UNIFIED_COMFY_ENDPOINT = 'e40cgshtouocg8';
+export const FLUX_ENDPOINT_ID = env('RUNPOD_ENDPOINT_ID_FLUX', 'wozrrlcdipyl3p');
+
+/**
+ * SDXL Pony endpoint (RTX 3090) - Fast anime & western realistic
+ */
+export const SDXL_PONY_ENDPOINT_ID = env('RUNPOD_ENDPOINT_ID_SDXL_PONY', '');
+
+/**
+ * SDXL Illustrious endpoint (RTX 3090) - Illustration & fantasy art
+ */
+export const SDXL_ILLUSTRIOUS_ENDPOINT_ID = env('RUNPOD_ENDPOINT_ID_SDXL_ILLUSTRIOUS', '');
+
+/** Active SDXL gate - both endpoints must be configured for matrix to work. */
+export function sdxlMatrixReady(): boolean {
+  return process.env.RUNPOD_SDXL_MODELS_READY?.trim().toLowerCase() === 'true';
+}
+
+/** All SDXL checkpoints available (env var list from model library). */
+export function sdxlCheckpointInventory(): Set<string> | null {
+  const raw = process.env.RUNPOD_SDXL_CHECKPOINTS?.trim();
+  if (!raw) return null;
+  return new Set(raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
+}
+
+/** True when checkpoint exists in SDXL inventory. */
+export function isSdxlCheckpointAvailable(name: string): boolean {
+  const inventory = sdxlCheckpointInventory();
+  if (!inventory) return true;
+  return inventory.has(name.trim().toLowerCase());
+}
 
 export type ImageGenerationRoute = {
   surface: ImageSurface;
@@ -92,8 +111,6 @@ export const TASK_DENOISE_DEFAULTS: Record<'outfit' | 'pose' | 'background' | 'p
   portrait: 0.55,
 };
 
-const env = (name: string, fallback: string): string => process.env[name]?.trim() || fallback;
-
 /**
  * SDXL 模型矩阵总闸（RUNPOD_SDXL_MODELS_READY）。开启且
  * RUNPOD_ENDPOINT_ID_SDXL 已配置时，resolveImageGenerationRoute 委托
@@ -144,7 +161,7 @@ function fluxRoute(
     promptProtocol: PROMPT_PROTOCOL_BY_FAMILY.flux,
     negativePrompt: familyNegativePrompt('flux', subject, nsfw),
     qualityEnhancers: familyQualityEnhancers('flux', subject),
-    endpointId: env('RUNPOD_ENDPOINT_ID', UNIFIED_COMFY_ENDPOINT),
+    endpointId: FLUX_ENDPOINT_ID,
     sampler: 'euler',
     scheduler: 'simple',
     cfg: 1,

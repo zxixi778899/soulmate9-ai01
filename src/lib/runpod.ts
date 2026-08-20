@@ -420,9 +420,14 @@ export function buildFluxWorkflow(opts: {
     }
 
     if (opts.face_detailer) {
-      if (!enhancerFlag('RUNPOD_ADETAILER_READY')) {
-        logger.warn('[runpod] face_detailer requested but RUNPOD_ADETAILER_READY is off — skipping');
+      // Only apply if RUNPOD_ADETAILER_READY is explicitly enabled
+      // This env flag should be set only after confirming Impact Pack is installed
+      const adetailerReady = enhancerFlag('RUNPOD_ADETAILER_READY');
+      
+      if (!adetailerReady) {
+        logger.warn('[runpod] face_detailer requested but RUNPOD_ADETAILER_READY=false — skipping ADetailer enhancement');
       } else {
+        // RunPod endpoint confirmed to have Impact Pack installed
         Object.assign(graph, {
           '51': {
             class_type: 'UltralyticsDetectorProvider',
@@ -695,6 +700,15 @@ export interface RunPodGenerateResult {
   endpoint_id?: string;
   waited_ms?: number;
   strategy?: string;
+  /** Optional warning (e.g. "ADetailer skipped") — images still returned */
+  warning?: string;
+  /** Structured error object from ComfyUI (node_errors, etc.) */
+  error?: {
+    type?: string;
+    message?: string;
+    details?: string;
+    node_errors?: Record<string, unknown>;
+  };
 }
 
 export class RunPodPendingError extends Error {
@@ -925,6 +939,37 @@ class RunPodClient {
               JSON.stringify(shape).slice(0, 280),
           );
         }
+        
+        // Extract structured error info from ComfyUI response (e.g., FaceDetailer node missing)
+        let structuredError: RunPodGenerateResult['error'] = undefined;
+        let warning: string | undefined = undefined;
+        
+        if (status.output) {
+          const out = status.output as Record<string, unknown>;
+          // Check for node_errors in output
+          if (out.node_errors && typeof out.node_errors === 'object') {
+            const nodeErr = out.node_errors as Record<string, unknown>;
+            const firstNodeId = Object.keys(nodeErr)[0];
+            const firstErr = firstNodeId ? nodeErr[firstNodeId] : undefined;
+            if (firstErr && typeof firstErr === 'object' && 'error' in firstErr) {
+              const errObj = firstErr as { error?: string; type?: string };
+              structuredError = {
+                type: errObj.type || 'missing_node_type',
+                message: errObj.error || 'Unknown node error',
+              };
+              
+              // Generate user-friendly warning message
+              if (structuredError.message?.includes('FaceDetailer')) {
+                warning = 'ADetailer 增强器未安装（RunPod 缺少 Impact Pack），已跳过面部精修步骤，基础图像已保留';
+              } else if (structuredError.message?.includes('ControlNet')) {
+                warning = 'ControlNet 增强器未安装，已跳过姿态控制步骤';
+              } else {
+                warning = `增强器警告：${structuredError.message}`;
+              }
+            }
+          }
+        }
+        
         return {
           images,
           execution_time: status.execution_time,
@@ -934,6 +979,8 @@ class RunPodClient {
           endpoint_id: endpointId,
           waited_ms: Date.now() - started,
           strategy: opts.strategy,
+          ...(warning && { warning }),
+          ...(structuredError && { error: structuredError }),
         };
       }
 

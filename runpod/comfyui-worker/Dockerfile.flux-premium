@@ -1,0 +1,75 @@
+# SoulMate AI - FLUX Premium Worker Dockerfile
+# For RTX 4090 endpoint - High quality portrait generation
+
+FROM runpod/worker-comfyui:5.8.6-flux1-dev-fp8
+
+USER root
+
+# Enable uv venv from base image
+ENV PATH="/opt/venv/bin:${PATH}"
+ENV PIP_NO_INPUT=1
+
+# Configure Git to avoid interactive prompts during clone
+RUN git config --global user.email "build@somemate.ai" && \
+    git config --global user.name "Build Bot" && \
+    export GIT_TERMINAL_PROMPT=0
+
+# ============================================
+# Install IP-Adapter Flux (Shakker Labs)
+# ============================================
+RUN git clone --depth 1 https://github.com/Shakker-Labs/ComfyUI-IPAdapter-Flux.git \
+      /comfyui/custom_nodes/comfyui-ipadapter-flux \
+    && python -m pip install --no-cache-dir \
+      -r /comfyui/custom_nodes/comfyui-ipadapter-flux/requirements.txt \
+    && python -m pip install --no-cache-dir "transformers>=4.50.3,<5" "huggingface-hub<1.0"
+
+# ============================================
+# Compatibility patches for ComfyUI 5.8.6
+# ============================================
+
+# Patch 1: Add getattr fallback for flipped_img_txt attribute
+RUN sed -i "s/self.flipped_img_txt = original_block.flipped_img_txt/self.flipped_img_txt = getattr(original_block, 'flipped_img_txt', False)/" \
+      /comfyui/custom_nodes/comfyui-ipadapter-flux/flux/layers.py
+
+# Patch 2: Add timestep_zero_index parameter to forward_orig_ipa signature
+RUN sed -i 's/^    control=None,$/    control=None,\n    timestep_zero_index=None,/' \
+      /comfyui/custom_nodes/comfyui-ipadapter-flux/utils.py
+
+# ============================================
+# Link model directories to network volume
+# ============================================
+RUN mkdir -p /comfyui/models/ipadapter-flux \
+    && ln -s /runpod-volume/models/ipadapter-flux /comfyui/models/ipadapter-flux \
+    && mkdir -p /comfyui/models/clip_vision \
+    && ln -s /runpod-volume/models/clip_vision/siglip-so400m-patch14-384 \
+      /comfyui/models/clip_vision/siglip-so400m-patch14-384 \
+    && mkdir -p /comfyui/models/controlnet/preprocessors \
+    && ln -s /runpod-volume/models/controlnet/preprocessors \
+      /comfyui/models/controlnet/preprocessors \
+    && mkdir -p /comfyui/models/adetailer/checkpoints \
+    && ln -s /runpod-volume/models/adetailer/checkpoints \
+      /comfyui/models/adetailer/checkpoints
+
+# ============================================
+# Install ControlNet & ADetailer nodes
+# ============================================
+RUN git clone --depth 1 https://github.com/Mikubill/sd-webui-controlnet.git \
+      /comfyui/custom_nodes/sd-webui-controlnet \
+    && git clone --depth 1 https://github.com/Gourieff/ComfyUI-ADetailer.git \
+      /comfyui/custom_nodes/ComfyUI-ADetailer
+
+# Install Python dependencies
+RUN python -m pip install --no-cache-dir \
+      torch-sampler==1.0.3 \
+      opencv-python-headless==4.8.0.74 \
+      ultralytics==8.3.0 \
+      Pillow==10.2.0 \
+      einops==0.7.0 \
+      numpy>=1.24,<2.0 \
+      onnxruntime-gpu==1.18.0 \
+      --quiet
+
+# ============================================
+# Entry point (inherited from base image)
+# ============================================
+CMD ["python", "main.py"]

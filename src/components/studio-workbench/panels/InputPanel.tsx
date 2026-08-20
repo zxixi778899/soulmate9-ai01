@@ -4,6 +4,7 @@ import { useStudio } from '../StudioContext';
 import { PromptComposer } from './PromptComposer';
 import { AspectRatioBar } from './AspectRatioBar';
 import { ParameterDrawer } from './ParameterDrawer';
+import { NodeControls, type StudioEnhancerKey } from '../node-controls';
 import { QuickTransformBar } from '../tasks/QuickTransformBar';
 import { ReferenceUploader } from './ReferenceUploader';
 import { LoraStack } from '../lora/LoraStack';
@@ -18,6 +19,12 @@ import { useState } from 'react';
 export function InputPanel() {
   const { state, generate } = useStudio();
   const [showLoraSelector, setShowLoraSelector] = useState(false);
+  const [activeNodeTab, setActiveNodeTab] = useState<StudioEnhancerKey>(state.activeNodeControlTab);
+
+  // Sync active tab with state
+  if (activeNodeTab !== state.activeNodeControlTab) {
+    setActiveNodeTab(state.activeNodeControlTab);
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -38,8 +45,11 @@ export function InputPanel() {
       {/* Prompt composer */}
       <PromptComposer />
 
-      {/* Model / asset role / IP-Adapter / enhancers / advanced params */}
+      {/* Model / asset role / IP-Adapter (simplified) */}
       <ParameterDrawer />
+
+      {/* Node controls */}
+      <NodeControls activeTab={activeNodeTab} setActiveTab={setActiveNodeTab} />
 
       {/* LoRA stack（模型选择下方，按当前模型族过滤） */}
       <LoraStack />

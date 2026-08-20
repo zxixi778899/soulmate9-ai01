@@ -1082,6 +1082,9 @@ function AdminGirlfriendsMediaPageInner() {
                         <p className="truncate text-[10px] text-slate-300">
                           {g.age || '—'}岁 · {g.occupation || '—'} · {String(g.rarity || 'R').toUpperCase()}
                         </p>
+                        <p className="truncate text-[9px] text-violet-200/90">
+                          {g.appearance_style || '—'}
+                        </p>
                         <p className="truncate text-[9px] text-rose-200/80">
                           热{Number(g.base_desire || 0)} · 开{Number(g.base_development || 0)} · 变
                           {Number(g.base_kink || 0)}
