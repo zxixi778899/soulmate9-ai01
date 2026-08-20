@@ -9,6 +9,8 @@ import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { buildReferenceGenerationPlan } from '@/lib/reference-generation-plan';
 import { loadComfyConfig } from '@/lib/comfy-console/store';
 import { translatePromptToEnglish } from '@/lib/prompt-translate';
+import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
+import type { ImageSurface } from '@/lib/image-generation-routing';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -19,6 +21,12 @@ export const maxDuration = 60;
  * Accepts creator form data and returns an LLM-enhanced image generation prompt.
  * This endpoint does NOT generate images — it only crafts the prompt.
  * Used by the creator wizard to show users the prompt before starting image generation.
+ *
+ * Response includes structured metadata for UI transparency panel:
+ * - prompt, negative_prompt: editable text fields
+ * - model_info: checkpoint, family, parameters (steps, cfg, sampler)
+ * - lora_stack: selected LoRAs with strengths and trigger words
+ * - route_reason: why this model was chosen (for user education)
  */
 
 function hairColorName(hexOrName: string): string {
@@ -195,6 +203,16 @@ export async function POST(request: NextRequest) {
       ].join('. '),
     });
 
+    // Enhanced: Resolve LoRA plan for UI display
+    const loraInput = {
+      modelFamily: route.modelFamily,
+      category,
+      intensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
+      animeStyle: renderStyle,
+      surface: 'companion' as ImageSurface,
+    };
+    const loraPlan = resolveModelLoraPlan(loraInput);
+    
     const negativePrompt = studioNegativePrompt(category, renderStyle);
 
     logger.info('[creator/generate-prompt] Prompt generated', {
@@ -204,6 +222,8 @@ export async function POST(request: NextRequest) {
       renderStyle,
       nsfwLevel,
       promptLength: enhancedPrompt.length,
+      loraCount: loraPlan.selected.length,
+      checkpoint: route.checkpoint,
     });
 
     return NextResponse.json({
@@ -217,6 +237,26 @@ export async function POST(request: NextRequest) {
         nsfwLevel,
         modelFamily: route.modelFamily,
         checkpoint: route.checkpoint,
+        steps: route.steps,
+        cfg: route.cfg,
+        fluxGuidance: route.fluxGuidance,
+        sampler: route.sampler,
+        scheduler: route.scheduler,
+        width: route.width,
+        height: route.height,
+        presetId: route.presetId,
+        reason: route.reason,
+      },
+      lora_info: {
+        selected: loraPlan.selected.map(l => ({
+          name: l.name,
+          strength_model: l.strength_model,
+          strength_clip: l.strength_clip,
+        })),
+        configured: loraPlan.configured,
+        missing: loraPlan.missing,
+        inventorySource: loraPlan.inventorySource,
+        triggerWords: loraPlan.triggerWords,
       },
     });
   } catch (error) {

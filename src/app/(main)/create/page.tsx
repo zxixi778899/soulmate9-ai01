@@ -23,7 +23,7 @@ import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { notifyDataChange } from '@/hooks/useDataSync';
 import {
   ArrowLeft, ArrowRight, Wand2, Loader2, Sparkles, Check, User2,
-  CreditCard, RefreshCw, ImagePlus, RotateCcw, Trash2,
+  CreditCard, RefreshCw, ImagePlus, RotateCcw, Trash2, Settings,
 } from 'lucide-react';
 import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
@@ -45,6 +45,12 @@ import { CreateSuccessModal, type CreatedCompanionReveal } from '@/components/cr
 
 import { VOICE_TIMBRES } from '@/lib/voice-timbres';
 import type { CharacterPart } from '@/lib/character-parts';
+
+// ─── Integration: New components & store ────────────────────────────────────
+import { useCreationStore } from '@/components/creator/useCreationStore';
+import { ModelInfoCard } from '@/components/creator/ModelInfoCard';
+import { PromptEditor } from '@/components/creator/PromptEditor';
+import { GenerationSettings } from '@/components/creator/GenerationSettings';
 
 type CreateStep = 'style' | 'appearance' | 'general' | 'portrait';
 const CREATE_STEPS: CreateStep[] = ['style', 'appearance', 'general', 'portrait'];
@@ -269,7 +275,40 @@ export default function CreatePage() {
   const router = useRouter();
   const { t, locale } = useTranslation();
 
-  // Steps: 四步向导 风格 → 面部/身材 → 人设+内容级别 → 立绘
+  // ─── Integration: Zustand store for creation state ────────────────────────
+  const {
+    formData,
+    setFormData,
+    modelMeta,
+    loraInfo,
+    positivePrompt,
+    negativePrompt,
+    basePrompt,
+    generationSettings,
+    updateSettings,
+    isSettingsOpen,
+    toggleSettings,
+    closeSettings,
+    setGenerationResult,
+    saveDraftToLocalStorage,
+    loadDraftFromLocalStorage,
+  } = useCreationStore();
+
+  // Load draft on mount
+  useEffect(() => {
+    loadDraftFromLocalStorage();
+  }, [loadDraftFromLocalStorage]);
+
+  // Auto-save drafts every 2 seconds (debounced)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      saveDraftToLocalStorage();
+    }, 2000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [formData, saveDraftToLocalStorage]);
+
+  // Steps: 四步向导 风格 → 面部/身材 → 人设 + 内容级别 → 立绘
   const [step, setStep] = useState<CreateStep>('style');
   /** 立绘内容级别：1-5 全部支持（默认 1 = SFW，捏脸不锁定 NSFW） */
   const [nsfwLevel, setNsfwLevel] = useState(1);
@@ -663,19 +702,44 @@ export default function CreatePage() {
           nsfw_level: nsfwLevel,
         }),
       });
-      const promptData = await readResponseJson<{ success?: boolean; prompt?: string; error?: string }>(promptRes);
+      const promptData = await readResponseJson<{
+        success?: boolean; 
+        prompt?: string;
+        error?: string;
+        meta?: any;
+        lora_info?: any;
+        negative_prompt?: string;
+        base_prompt?: string;
+      }>(promptRes);
+      
       if (!promptRes.ok || !promptData.success || !promptData.prompt) {
         setError(promptData.error || t('create.genFailed'));
         setCreating(false);
         setCreatePhase('idle');
         return;
       }
+      
+      // Store metadata for UI panels
+      setGenerationResult({
+        meta: promptData.meta || null,
+        lora: promptData.lora_info || null,
+        positive: promptData.prompt || '',
+        negative: promptData.negative_prompt || '',
+        base: promptData.base_prompt || promptData.prompt,
+      });
+      
       setGeneratedPrompt(promptData.prompt);
 
       // Phase 3: Start image generation (text-to-image mode)
       setCreatePhase('generating_images');
       setStep('portrait');
-      await runBatch(undefined, promptData.prompt);
+      // Pass advanced settings to generation
+      await runBatch(undefined, promptData.prompt, {
+        steps: generationSettings.steps,
+        fluxGuidance: generationSettings.fluxGuidance,
+        seed: generationSettings.randomSeed ? undefined : generationSettings.seed,
+        turbo: generationSettings.turboMode,
+      });
       setCreatePhase('done');
     } catch (e) {
       logger.error(String(e));
@@ -976,79 +1040,91 @@ export default function CreatePage() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.97 }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
-                className="flex min-h-[60vh] flex-col items-center justify-center gap-6 py-12"
+                className="flex min-h-[60vh] flex-col gap-6 py-12"
               >
-                {/* Animated glow orb */}
-                <div className="relative">
-                  <motion.div
-                    className="h-24 w-24 rounded-full bg-gradient-to-br from-[#FF2D78]/30 to-[#8b5cf6]/30 blur-2xl"
-                    animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }}
-                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                  />
-                  <motion.div
-                    className="absolute inset-0 flex items-center justify-center"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-                  >
-                    <Sparkles className="h-10 w-10 text-[#FF2D78]/80 drop-shadow-[0_0_12px_rgba(255,45,120,0.5)]" />
-                  </motion.div>
-                </div>
+                {/* ─── Three-panel layout: center progress + right info panels ──── */}
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6 items-start">
+                  {/* Center: generating progress */}
+                  <div className="flex min-h-[400px] flex-col items-center justify-center gap-6">
+                    {/* Animated glow orb */}
+                    <div className="relative">
+                      <motion.div
+                        className="h-24 w-24 rounded-full bg-gradient-to-br from-[#FF2D78]/30 to-[#8b5cf6]/30 blur-2xl"
+                        animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                      />
+                      <motion.div
+                        className="absolute inset-0 flex items-center justify-center"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+                      >
+                        <Sparkles className="h-10 w-10 text-[#FF2D78]/80 drop-shadow-[0_0_12px_rgba(255,45,120,0.5)]" />
+                      </motion.div>
+                    </div>
 
-                {/* Phase progress messages */}
-                <div className="text-center">
-                  <motion.p
-                    key={createPhase}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-lg font-bold text-white/90"
-                  >
-                    {createPhase === 'consuming_card' && t('create.cardConsumed')}
-                    {createPhase === 'crafting_prompt' && t('create.craftingPrompt')}
-                    {createPhase === 'generating_images' && t('create.generatingImages')}
-                    {createPhase === 'done' && t('create.promptReady')}
-                  </motion.p>
-                  <motion.p
-                    className="mt-2 text-xs text-white/40"
-                    animate={{ opacity: [0.4, 0.7, 0.4] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    {createPhase !== 'done' && t('create.almostDone')}
-                  </motion.p>
-                </div>
+                    {/* Phase progress messages */}
+                    <div className="text-center">
+                      <motion.p
+                        key={createPhase}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-lg font-bold text-white/90"
+                      >
+                        {createPhase === 'consuming_card' && t('create.cardConsumed')}
+                        {createPhase === 'crafting_prompt' && t('create.craftingPrompt')}
+                        {createPhase === 'generating_images' && t('create.generatingImages')}
+                        {createPhase === 'done' && t('create.promptReady')}
+                      </motion.p>
+                      <motion.p
+                        className="mt-2 text-xs text-white/40"
+                        animate={{ opacity: [0.4, 0.7, 0.4] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      >
+                        {createPhase !== 'done' && t('create.almostDone')}
+                      </motion.p>
+                    </div>
 
-                {/* Progress bar */}
-                <div className="w-full max-w-xs">
-                  <div className="h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
-                    <motion.div
-                      className="h-full rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6]"
-                      initial={{ width: '0%' }}
-                      animate={{
-                        width:
-                          createPhase === 'consuming_card' ? '15%' :
-                          createPhase === 'crafting_prompt' ? '45%' :
-                          createPhase === 'generating_images' ? '75%' : '100%',
-                      }}
-                      transition={{ duration: 0.8, ease: 'easeOut' }}
-                    />
+                    {/* Progress bar */}
+                    <div className="w-full max-w-xs">
+                      <div className="h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                        <motion.div
+                          className="h-full rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6]"
+                          initial={{ width: '0%' }}
+                          animate={{
+                            width:
+                              createPhase === 'consuming_card' ? '15%' :
+                              createPhase === 'crafting_prompt' ? '45%' :
+                              createPhase === 'generating_images' ? '75%' : '100%',
+                          }}
+                          transition={{ duration: 0.8, ease: 'easeOut' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right panel stack */}
+                  <div className="flex flex-col gap-4 w-full max-w-none">
+                    {/* Model Info Card */}
+                    {modelMeta && (
+                      <ModelInfoCard
+                        modelMeta={modelMeta}
+                        loraInfo={loraInfo}
+                      />
+                    )}
+                    
+                    {/* Prompt Editor */}
+                    {(positivePrompt || negativePrompt) && (
+                      <PromptEditor
+                        positivePrompt={positivePrompt}
+                        negativePrompt={negativePrompt}
+                        basePrompt={basePrompt}
+                        triggerWords={loraInfo?.triggerWords || []}
+                        onPositiveChange={(txt) => setGenerationResult({ ...generationSettings, positive: txt })}
+                        onNegativeChange={(txt) => setGenerationResult({ ...generationSettings, negative: txt })}
+                      />
+                    )}
                   </div>
                 </div>
-
-                {/* Generated prompt preview (shown once ready) */}
-                {generatedPrompt && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="w-full max-w-md rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 backdrop-blur-sm"
-                  >
-                    <div className="mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-[#FF2D78]/70">
-                      <Wand2 className="h-3 w-3" />
-                      {t('create.promptPreview')}
-                    </div>
-                    <p className="text-[11px] leading-relaxed text-white/50 line-clamp-4">
-                      {generatedPrompt}
-                    </p>
-                  </motion.div>
-                )}
               </motion.div>
             )}
 
@@ -1771,6 +1847,18 @@ export default function CreatePage() {
             </GamePrimaryButton>
           </div>
         )}
+        
+        {/* ─── Integration: Settings button for advanced controls ──────────── */}
+        {step === 'portrait' && (
+          <button
+            type="button"
+            onClick={toggleSettings}
+            className="h-11 w-11 flex items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.035] text-white/60 hover:border-[#FF2D78]/40 hover:text-[#FF2D78] transition-all touch-manipulation"
+            title={'Advanced Settings'}
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Admin 就地管理：隐藏文件选择器（风格/性别/预设共用） */}
@@ -1787,6 +1875,27 @@ export default function CreatePage() {
         companion={reveal}
         onGoChat={handleGoChat}
         onCreateAnother={handleCreateAnother}
+      />
+
+      {/* ─── Integration: Advanced Settings Modal ──────────────────────────── */}
+      <GenerationSettings
+        isOpen={isSettingsOpen}
+        onClose={closeSettings}
+        steps={generationSettings.steps}
+        cfg={generationSettings.cfg}
+        fluxGuidance={generationSettings.fluxGuidance}
+        width={generationSettings.width}
+        height={generationSettings.height}
+        aspectRatio={generationSettings.aspectRatio}
+        sampler={generationSettings.sampler}
+        scheduler={generationSettings.scheduler}
+        seed={generationSettings.seed}
+        turboMode={generationSettings.turboMode}
+        randomSeed={generationSettings.randomSeed}
+        onSettingsChange={(newSettings) => {
+          updateSettings(newSettings);
+          saveDraftToLocalStorage(); // Auto-save changes
+        }}
       />
     </GameShell>
   );
