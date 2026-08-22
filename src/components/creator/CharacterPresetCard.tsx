@@ -44,9 +44,10 @@ export function CharacterPresetCard({
   cardVariant = 'standard',
   renderAdminOverlay,
 }: CharacterPresetCardProps) {
-  const heightClass =
+  // large 版面固定竖版比例 3:4（不随宽度变化），其余档位固定高度
+  const sizeClass =
     cardVariant === 'large'
-      ? 'h-72'
+      ? 'aspect-[3/4]'
       : cardVariant === 'standard'
         ? 'h-64'
         : 'h-48';
@@ -75,7 +76,7 @@ export function CharacterPresetCard({
               selected === option.value
                 ? 'border-[#FF2D78] bg-[#FF2D78]/10 shadow-[0_0_20px_rgba(255,45,120,0.3)] scale-[1.02]'
                 : 'border-white/[0.09] bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]',
-              heightClass
+              sizeClass,
             )}
           >
             {/* Image/Visual */}

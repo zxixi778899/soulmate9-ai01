@@ -16,21 +16,28 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
 import { useGenJob } from '@/hooks/useGenJob';
 import { GenJobProgress } from '@/components/common/GenJobProgress';
+import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 import { ConsoleDrawer } from './ConsoleDrawer';
 import { CompanionGrid } from './CompanionGrid';
 import { WorksGallery } from './WorksGallery';
 import { PresetSlotPicker } from './PresetSlotPicker';
 import {
+  girlAvatarUrl,
   girlIdentityUrl,
+  isCustomPresetSlug,
   type Candidate,
+  type GenCustomPresetItem,
   type Girl,
   type GalleryFilter,
   type HistoryJob,
   type OutfitOption,
+  type PersonalWork,
   type SlotKind,
   type WorkbenchMode,
   type WorkbenchPreset,
@@ -52,7 +59,12 @@ function loadLikedIds(): Set<string> {
 
 export default function GenerateWorkbench() {
   const { t, locale } = useTranslation();
+  const router = useRouter();
   const isZh = String(locale || '').toLowerCase().startsWith('zh');
+
+  // ── Membership (Pro+ gate for the whole workbench) ──
+  const [tier, setTier] = useState<string | null>(null);
+  const proLocked = tier !== null && !['pro', 'premium', 'unlimited'].includes(tier);
 
   // ── Companions ──
   const [girls, setGirls] = useState<Girl[]>([]);
@@ -84,6 +96,10 @@ export default function GenerateWorkbench() {
   const [slotPicker, setSlotPicker] = useState<SlotKind | null>(null);
   const [lockedHint, setLockedHint] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Admin-managed custom presets (pose / outfit / scene) ──
+  const [customPresets, setCustomPresets] = useState<GenCustomPresetItem[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // ── Edit / video base image ──
   const [baseImage, setBaseImage] = useState<string | null>(null);
@@ -145,21 +161,26 @@ export default function GenerateWorkbench() {
         setOutfits(Array.isArray(data?.outfits) ? data.outfits : []);
       })
       .catch(() => {});
+    authedFetch('/api/membership', { signal: ctrl.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (ctrl.signal.aborted) return;
+        const memberTier = typeof data?.tier === 'string' ? data.tier : '';
+        if (memberTier) setTier(memberTier);
+      })
+      .catch(() => {});
     setLikedIds(loadLikedIds());
     return () => ctrl.abort();
   }, []);
 
-  // Pose + scene preset catalogs, re-scoped per companion (intimacy-gated).
+  // Pose + scene preset catalogs. Companion is optional now — without one we
+  // still load the base catalog (intimacy-gated scoping only with a girl).
   useEffect(() => {
-    if (!selectedGirlId) {
-      setPosePresets([]);
-      setScenePresets([]);
-      return;
-    }
     const ctrl = new AbortController();
     setPresetsLoading(true);
     const fetchCategory = async (category: 'pose' | 'scene') => {
-      const qs = new URLSearchParams({ category, girlfriend_id: selectedGirlId });
+      const qs = new URLSearchParams({ category });
+      if (selectedGirlId) qs.set('girlfriend_id', selectedGirlId);
       const res = await authedFetch(`/api/gen-presets?${qs.toString()}`, { signal: ctrl.signal });
       const data = (await res.json().catch(() => null)) as { presets?: WorkbenchPreset[] } | null;
       return res.ok && Array.isArray(data?.presets) ? data.presets : [];
@@ -169,8 +190,8 @@ export default function GenerateWorkbench() {
         if (ctrl.signal.aborted) return;
         setPosePresets(pose);
         setScenePresets(scene);
-        setSelectedPose(null);
-        setSelectedScene(null);
+        setSelectedPose((prev) => (prev && !isCustomPresetSlug(prev.slug) ? null : prev));
+        setSelectedScene((prev) => (prev && !isCustomPresetSlug(prev.slug) ? null : prev));
         setPresetsLoading(false);
       })
       .catch(() => {
@@ -178,6 +199,116 @@ export default function GenerateWorkbench() {
       });
     return () => ctrl.abort();
   }, [selectedGirlId]);
+
+  // Custom presets: public read for everyone; admin probe enables add/delete UI.
+  const loadCustomPresets = useCallback(async (viaAdmin: boolean) => {
+    try {
+      const res = await authedFetch(
+        viaAdmin ? '/api/admin/gen-custom-presets' : '/api/creator/gen-custom-presets',
+      );
+      if (!res.ok) return;
+      if (viaAdmin) setIsAdmin(true);
+      const data = (await res.json().catch(() => null)) as {
+        presets?: Partial<Record<'pose' | 'outfit' | 'scene', GenCustomPresetItem[]>>;
+      } | null;
+      const merged: GenCustomPresetItem[] = [];
+      for (const cat of ['pose', 'outfit', 'scene'] as const) {
+        const list = data?.presets?.[cat];
+        if (Array.isArray(list)) merged.push(...list);
+      }
+      setCustomPresets(merged);
+    } catch {
+      // keep whatever we had
+    }
+  }, []);
+
+  useEffect(() => {
+    // Probe the admin endpoint first; fall back to the public one for non-admins.
+    void loadCustomPresets(true);
+    void loadCustomPresets(false);
+  }, [loadCustomPresets]);
+
+  // Merge admin custom presets into the slot catalogs (custom- slug prefix).
+  const customToPreset = useCallback(
+    (c: GenCustomPresetItem): WorkbenchPreset => ({
+      category: c.category,
+      slug: c.slug,
+      label_en: c.label_en,
+      label_zh: c.label_zh,
+      preview_url: c.preview_url,
+      nsfw_level: 0,
+      tier: 'free',
+      locked: false,
+      pose_reference: null,
+      prompt_hint: c.prompt_hint,
+    }),
+    [],
+  );
+
+  const allPosePresets = useMemo(
+    () => [...posePresets, ...customPresets.filter((c) => c.category === 'pose').map(customToPreset)],
+    [posePresets, customPresets, customToPreset],
+  );
+  const allScenePresets = useMemo(
+    () => [...scenePresets, ...customPresets.filter((c) => c.category === 'scene').map(customToPreset)],
+    [scenePresets, customPresets, customToPreset],
+  );
+  const allOutfits = useMemo(
+    () => [
+      ...outfits,
+      ...customPresets
+        .filter((c) => c.category === 'outfit')
+        .map((c): OutfitOption => ({
+          id: c.slug,
+          name: isZh ? c.label_zh || c.label_en : c.label_en,
+          tier: 'free',
+          category: 'custom',
+          wear_prompt: c.prompt_hint,
+          preview_url: c.preview_url,
+        })),
+    ],
+    [outfits, customPresets, isZh],
+  );
+
+  // Admin create / delete for custom presets (picker overlay).
+  const adminCreatePreset = useCallback(
+    async (category: SlotKind, input: { label_en: string; label_zh: string; prompt_hint: string; file: File | null }) => {
+      try {
+        const form = new FormData();
+        form.append('category', category);
+        form.append('label_en', input.label_en);
+        form.append('label_zh', input.label_zh);
+        form.append('prompt_hint', input.prompt_hint);
+        if (input.file) form.append('file', input.file);
+        const res = await authedFetch('/api/admin/gen-custom-presets', { method: 'POST', body: form });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as { error?: string } | null;
+          logger.warn('[generate] admin preset create failed', { err: data?.error || String(res.status) });
+          return;
+        }
+        await loadCustomPresets(true);
+      } catch (e) {
+        logger.warn('[generate] admin preset create failed', { err: String(e) });
+      }
+    },
+    [loadCustomPresets],
+  );
+
+  const adminDeletePreset = useCallback(
+    async (category: SlotKind, slug: string) => {
+      try {
+        const res = await authedFetch(
+          `/api/admin/gen-custom-presets?category=${encodeURIComponent(category)}&slug=${encodeURIComponent(slug)}`,
+          { method: 'DELETE' },
+        );
+        if (!res.ok) return;
+        await loadCustomPresets(true);
+      } catch (e) {
+        logger.warn('[generate] admin preset delete failed', { err: String(e) });
+      }
+    },
+    [loadCustomPresets],
+  );
 
   // Initial works feed load.
   useEffect(() => {
@@ -254,7 +385,12 @@ export default function GenerateWorkbench() {
   };
 
   const generate = async () => {
-    if (busy || !selectedGirlId) return;
+    if (busy) return;
+    // Pro+ gate: non-members go to the pricing page instead of generating.
+    if (proLocked) {
+      router.push('/pricing');
+      return;
+    }
     if (mode === 'video' && !baseImage && !resultImage) {
       setSubmitError(t('generate.videoNeedsImage'));
       return;
@@ -269,11 +405,12 @@ export default function GenerateWorkbench() {
 
     try {
       const body: Record<string, unknown> = {
-        girlfriend_id: selectedGirlId,
         locale,
         source: 'generate',
         idempotency_key: `generate-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       };
+      // Companion is optional — without one the pipeline creates a brand-new character.
+      if (selectedGirlId) body.girlfriend_id = selectedGirlId;
 
       if (mode === 'video') {
         body.kind = 'video';
@@ -284,11 +421,16 @@ export default function GenerateWorkbench() {
         if (prompt.trim()) body.user_request = prompt.trim();
       } else {
         body.kind = 'image';
-        const requestParts = [prompt.trim(), selectedOutfit?.wear_prompt || ''].filter(Boolean);
-        body.user_request = requestParts.join(', ') || 'a beautiful portrait';
         // One structured preset slot resolves server-side (scene wins over pose).
+        // Admin custom presets carry no catalog slug — inject their prompt hint instead.
         const primary = selectedScene || selectedPose;
-        if (primary) {
+        const requestParts = [
+          prompt.trim(),
+          selectedOutfit?.wear_prompt || '',
+          primary && isCustomPresetSlug(primary.slug) ? primary.prompt_hint || '' : '',
+        ].filter(Boolean);
+        body.user_request = requestParts.join(', ') || 'a beautiful portrait';
+        if (primary && !isCustomPresetSlug(primary.slug)) {
           body.preset_category = primary.category;
           body.preset_slug = primary.slug;
         }
@@ -356,6 +498,27 @@ export default function GenerateWorkbench() {
     [history, selectedGirlId],
   );
 
+  // Personal library: latest finished images across all companions (and stand-alone ones).
+  const personalWorks = useMemo<PersonalWork[]>(() => {
+    const items: PersonalWork[] = [];
+    for (const job of history) {
+      if (job.status !== 'completed' || !job.result || job.kind === 'video') continue;
+      const url = typeof job.result.image_url === 'string' ? job.result.image_url : '';
+      if (url) {
+        items.push({ jobId: job.id, url });
+        continue;
+      }
+      const cands = job.result.candidates;
+      if (Array.isArray(cands)) {
+        for (const c of cands as Array<{ image_url?: unknown }>) {
+          if (typeof c?.image_url === 'string' && c.image_url) items.push({ jobId: job.id, url: c.image_url });
+        }
+      }
+      if (items.length >= 12) break;
+    }
+    return items.slice(0, 12);
+  }, [history]);
+
   return (
     <div className="min-h-screen text-white" style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}>
       {/* ══ Left console drawer (fixed on xl, inline below) ══ */}
@@ -371,6 +534,7 @@ export default function GenerateWorkbench() {
           girl={selectedGirl}
           girls={girls}
           onSelectGirl={setSelectedGirlId}
+          onClearGirl={() => setSelectedGirlId('')}
           selectedPose={selectedPose}
           selectedScene={selectedScene}
           selectedOutfit={selectedOutfit}
@@ -397,10 +561,17 @@ export default function GenerateWorkbench() {
           onClearBase={() => setBaseImage(null)}
           credits={credits}
           busy={busy || jobActive}
+          proLocked={proLocked}
           onGenerate={() => void generate()}
           submitError={submitError}
           activeJobId={activeJobId}
           isZh={isZh}
+          personalWorks={personalWorks}
+          onPickWork={(url) => {
+            setBaseImage(url);
+            setMode('image');
+            setSubMode('edit');
+          }}
         />
       </div>
 
@@ -408,6 +579,41 @@ export default function GenerateWorkbench() {
       <div className="px-4 sm:px-6 pt-4 pb-16 xl:pl-[648px] xl:pr-8">
         {selectedGirl ? (
           <>
+            {/* Companion switch bar — stay on this page, swap companions anytime */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-4 -mx-1 px-1">
+              <button
+                type="button"
+                onClick={() => setSelectedGirlId('')}
+                className="shrink-0 h-8 px-3 rounded-full border border-white/15 text-[11px] font-semibold text-white/70 hover:text-white hover:border-white/30 transition-all"
+              >
+                {t('generate.allCompanions')}
+              </button>
+              {girls.map((g) => {
+                const active = g.id === selectedGirl.id;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setSelectedGirlId(g.id)}
+                    className={cn(
+                      'shrink-0 inline-flex items-center gap-1.5 h-8 pl-1 pr-3 rounded-full border text-[11px] font-semibold transition-all',
+                      active
+                        ? 'border-[#FD5FC2]/70 bg-[#FD5FC2]/15 text-white'
+                        : 'border-white/10 text-white/60 hover:text-white hover:border-white/25',
+                    )}
+                  >
+                    <span className="h-6 w-6 overflow-hidden rounded-full bg-white/[0.06]">
+                      {girlAvatarUrl(g) ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- dynamic companion avatar
+                        <img src={girlAvatarUrl(g) || ''} alt={g.name} className="h-full w-full object-cover" />
+                      ) : null}
+                    </span>
+                    {g.name}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Live generation canvas */}
             {(busy || jobActive || resultImage || videoUrl || candidates.length > 0) && (
               <section className="rounded-2xl border border-white/[0.08] bg-[#121212] p-4 mb-6">
@@ -471,6 +677,7 @@ export default function GenerateWorkbench() {
                 setSubMode('edit');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
+              onRefresh={refreshHistory}
               isZh={isZh}
             />
           </>
@@ -483,9 +690,9 @@ export default function GenerateWorkbench() {
       {slotPicker && (
         <PresetSlotPicker
           slot={slotPicker}
-          posePresets={posePresets}
-          scenePresets={scenePresets}
-          outfits={outfits}
+          posePresets={allPosePresets}
+          scenePresets={allScenePresets}
+          outfits={allOutfits}
           selectedPose={selectedPose}
           selectedScene={selectedScene}
           selectedOutfit={selectedOutfit}
@@ -493,6 +700,9 @@ export default function GenerateWorkbench() {
           onPickScene={setSelectedScene}
           onPickOutfit={setSelectedOutfit}
           onLocked={handleLockedPick}
+          isAdmin={isAdmin}
+          onAdminCreate={adminCreatePreset}
+          onAdminDelete={adminDeletePreset}
           onClose={() => setSlotPicker(null)}
           isZh={isZh}
         />

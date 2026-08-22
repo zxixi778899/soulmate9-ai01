@@ -3,13 +3,15 @@
 /**
  * WorksGallery — the selected companion's works feed with All / Images /
  * Videos / Liked filters and a lightbox viewer (like / download / reuse as
- * edit base). Every job row carries girlfriend_id, so works always stay
- * attached to the companion that created them.
+ * edit base / publish for review). Every job row carries girlfriend_id, so
+ * works always stay attached to the companion that created them. Works stay
+ * private until an admin approves a publish submission.
  */
 
 import { useMemo, useState } from 'react';
-import { Download, Film, Heart, Wand2, X } from 'lucide-react';
+import { Download, Film, Globe, Heart, Hourglass, Loader2, Wand2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { authedFetch } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/context';
 import type { GalleryFilter, Girl, HistoryJob } from './types';
 
@@ -49,12 +51,49 @@ export function WorksGallery(props: {
   likedIds: Set<string>;
   onToggleLike: (jobId: string) => void;
   onUseAsBase: (url: string) => void;
+  onRefresh: () => void;
   isZh: boolean;
 }) {
   const { t } = useTranslation();
   const [viewer, setViewer] = useState<MediaItem | null>(null);
+  const [publishBusy, setPublishBusy] = useState(false);
 
   const media = useMemo(() => props.works.flatMap(jobToMedia), [props.works]);
+
+  // jobId → publish_status (private until approved).
+  const publishByJob = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const job of props.works) {
+      map.set(job.id, job.publish_status || 'none');
+    }
+    return map;
+  }, [props.works]);
+
+  const publishWork = async (jobId: string) => {
+    setPublishBusy(true);
+    try {
+      const res = await authedFetch('/api/gen/publish', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId }),
+      });
+      if (res.ok) props.onRefresh();
+    } finally {
+      setPublishBusy(false);
+    }
+  };
+
+  const withdrawWork = async (jobId: string) => {
+    setPublishBusy(true);
+    try {
+      const res = await authedFetch(`/api/gen/publish?job_id=${encodeURIComponent(jobId)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) props.onRefresh();
+    } finally {
+      setPublishBusy(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     switch (props.filter) {
@@ -112,6 +151,7 @@ export function WorksGallery(props: {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           {filtered.map((item, idx) => {
             const liked = props.likedIds.has(item.jobId);
+            const pubStatus = publishByJob.get(item.jobId) || 'none';
             return (
               <div
                 key={`${item.jobId}-${item.url}-${idx}`}
@@ -136,6 +176,16 @@ export function WorksGallery(props: {
                     />
                   )}
                 </button>
+                {item.kind === 'image' && pubStatus !== 'none' && pubStatus !== 'rejected' && (
+                  <span
+                    className={cn(
+                      'absolute bottom-1.5 left-1.5 rounded px-1.5 py-px text-[8px] uppercase tracking-wide backdrop-blur',
+                      pubStatus === 'approved' ? 'bg-emerald-500/70 text-white' : 'bg-amber-500/70 text-white',
+                    )}
+                  >
+                    {pubStatus === 'approved' ? t('generate.published') : t('generate.pendingReview')}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => props.onToggleLike(item.jobId)}
@@ -203,6 +253,41 @@ export function WorksGallery(props: {
                   <Wand2 className="h-4 w-4" /> {t('generate.useAsBase')}
                 </button>
               )}
+              {/* Publish for review — works stay private until approved */}
+              {viewer.kind === 'image' && (() => {
+                const status = publishByJob.get(viewer.jobId) || 'none';
+                if (status === 'approved') {
+                  return (
+                    <span className="h-10 px-4 rounded-full inline-flex items-center gap-2 text-xs font-semibold border border-emerald-400/40 bg-emerald-400/10 text-emerald-300">
+                      <Globe className="h-4 w-4" /> {t('generate.published')}
+                    </span>
+                  );
+                }
+                if (status === 'pending') {
+                  return (
+                    <button
+                      type="button"
+                      disabled={publishBusy}
+                      onClick={() => void withdrawWork(viewer.jobId)}
+                      className="h-10 px-4 rounded-full inline-flex items-center gap-2 text-xs font-semibold border border-amber-400/40 bg-amber-400/10 text-amber-200 hover:text-white transition-all disabled:opacity-50"
+                    >
+                      {publishBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Hourglass className="h-4 w-4" />}
+                      {t('generate.pendingReview')}
+                    </button>
+                  );
+                }
+                return (
+                  <button
+                    type="button"
+                    disabled={publishBusy}
+                    onClick={() => void publishWork(viewer.jobId)}
+                    className="h-10 px-4 rounded-full inline-flex items-center gap-2 text-xs font-semibold border border-white/15 text-white/70 hover:text-white transition-all disabled:opacity-50"
+                  >
+                    {publishBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                    {t('generate.publish')}
+                  </button>
+                );
+              })()}
               <button
                 type="button"
                 onClick={() => setViewer(null)}

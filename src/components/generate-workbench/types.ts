@@ -20,6 +20,8 @@ export interface WorkbenchPreset {
   tier: string;
   locked: boolean;
   pose_reference?: string | null;
+  /** Admin custom presets carry a free-form prompt hint instead of a catalog slug. */
+  prompt_hint?: string;
 }
 
 export interface OutfitOption {
@@ -29,6 +31,7 @@ export interface OutfitOption {
   category: string;
   wear_prompt: string;
   emoji?: string;
+  preview_url?: string | null;
 }
 
 export interface HistoryJob {
@@ -39,6 +42,23 @@ export interface HistoryJob {
   error: string | null;
   result: Record<string, unknown> | null;
   created_at: string;
+  publish_status?: 'none' | 'pending' | 'approved' | 'rejected';
+}
+
+/** Admin-managed custom preset card (pose / outfit / scene) from site_settings. */
+export interface GenCustomPresetItem {
+  slug: string;
+  category: 'pose' | 'outfit' | 'scene';
+  label_en: string;
+  label_zh: string;
+  preview_url: string;
+  prompt_hint: string;
+}
+
+/** Personal library entry — one finished image flattened from history jobs. */
+export interface PersonalWork {
+  jobId: string;
+  url: string;
 }
 
 export interface Candidate {
@@ -50,6 +70,11 @@ export interface Candidate {
 export type WorkbenchMode = 'image' | 'video';
 export type WorkbenchSubMode = 'create' | 'edit';
 export type SlotKind = 'pose' | 'outfit' | 'scene';
+
+/** Custom presets created by admins use the custom- slug prefix. */
+export function isCustomPresetSlug(slug: string): boolean {
+  return slug.startsWith('custom-');
+}
 export type GalleryFilter = 'all' | 'images' | 'videos' | 'liked';
 
 export const IMAGE_KINDS = new Set(['image', 'chat_image', 'portrait', 'tryon']);

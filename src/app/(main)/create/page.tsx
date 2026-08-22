@@ -1328,20 +1328,38 @@ export default function CreatePage() {
   }, [isAdmin, t]);
 
   // 预设卡（种族/发型/体型/穿搭）管理员就地上传/删除覆盖层
+  // 预览版面性别：男性独立版面；女性/跨性别共用女性版面
+  const previewBoardGender: 'female' | 'male' = gender === 'Male' ? 'male' : 'female';
+
+  /** 预览图查找：男性版面用 male/<value> 独立槽位（缺失时回退共享图），女性版面用现有槽位 */
+  const presetPreviewImage = useCallback(
+    (category: string, value: string): string | undefined => {
+      const bucket = presetPreviews[category];
+      if (!bucket) return undefined;
+      if (previewBoardGender === 'male') return bucket[`male/${value}`] ?? bucket[value];
+      return bucket[value];
+    },
+    [presetPreviews, previewBoardGender],
+  );
+
   const presetAdminOverlay = useCallback(
     (category: string) =>
       isAdmin
-        ? (o: { value: string }) => (
-            <AdminCardButtons
-              busy={assetBusy === `preset:${category}:${o.value}`}
-              onUpload={() => pickAssetImage('preset', `${category}:${o.value}`)}
-              onClear={() => void clearAssetImage('preset', `${category}:${o.value}`)}
-              clearTitle={t('create.adminDeleteImage')}
-              clearIcon="trash"
-            />
-          )
+        ? (o: { value: string }) => {
+            // 男性版面上传/删除写入 male/ 前缀的独立槽位
+            const optKey = previewBoardGender === 'male' ? `male/${o.value}` : o.value;
+            return (
+              <AdminCardButtons
+                busy={assetBusy === `preset:${category}:${optKey}`}
+                onUpload={() => pickAssetImage('preset', `${category}:${optKey}`)}
+                onClear={() => void clearAssetImage('preset', `${category}:${optKey}`)}
+                clearTitle={t('create.adminDeleteImage')}
+                clearIcon="trash"
+              />
+            );
+          }
         : undefined,
-    [isAdmin, assetBusy, pickAssetImage, clearAssetImage, t],
+    [isAdmin, assetBusy, pickAssetImage, clearAssetImage, t, previewBoardGender],
   );
 
   // ─── Derived UI bits ─────────────────────────────────────────────────────
@@ -1885,7 +1903,7 @@ export default function CreatePage() {
                               value: o.value,
                               label: getLabel(o, locale),
                               description: getExtra(o, 'desc', locale),
-                              image: presetPreviews['ethnicity']?.[o.value],
+                              image: presetPreviewImage('ethnicity', o.value),
                               imagePlaceholder: '🌍',
                             }));
                             return options.length > 0 && (
@@ -1908,7 +1926,7 @@ export default function CreatePage() {
                               value: o.value,
                               label: getLabel(o, locale),
                               description: getExtra(o, 'desc', locale),
-                              image: presetPreviews['hair_style']?.[o.value],
+                              image: presetPreviewImage('hair_style', o.value),
                               imagePlaceholder: '💇️',
                             }));
                             return options.length > 0 && (
@@ -1960,7 +1978,7 @@ export default function CreatePage() {
                               value: o.value,
                               label: getLabel(o, locale),
                               description: getExtra(o, 'desc', locale),
-                              image: presetPreviews['body_type']?.[o.value],
+                              image: presetPreviewImage('body_type', o.value),
                               imagePlaceholder: '💪',
                             }));
                             return options.length > 0 && (
@@ -1983,7 +2001,7 @@ export default function CreatePage() {
                               value: o.value,
                               label: getLabel(o, locale),
                               description: getExtra(o, 'desc', locale),
-                              image: presetPreviews['fashion_style']?.[o.value],
+                              image: presetPreviewImage('fashion_style', o.value),
                               imagePlaceholder: '👗',
                             }));
                             return options.length > 0 && (

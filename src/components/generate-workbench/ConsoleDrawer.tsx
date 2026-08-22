@@ -9,13 +9,13 @@
 
 import { useRef, useState } from 'react';
 import {
-  ChevronDown, Coins, Film, Image as ImageIcon, Loader2, Lock,
+  Coins, Film, Image as ImageIcon, Loader2, Lock,
   Settings2, Sparkles, User, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
 import { GenJobProgress } from '@/components/common/GenJobProgress';
-import { girlAvatarUrl, type Girl, type OutfitOption, type SlotKind, type WorkbenchMode, type WorkbenchPreset, type WorkbenchSubMode } from './types';
+import { girlAvatarUrl, type Girl, type OutfitOption, type PersonalWork, type SlotKind, type WorkbenchMode, type WorkbenchPreset, type WorkbenchSubMode } from './types';
 
 const COUNT_OPTIONS = [1, 2, 4];
 const UPSCALE_OPTIONS = [0, 2, 4];
@@ -28,6 +28,7 @@ export interface ConsoleDrawerProps {
   girl: Girl | null;
   girls: Girl[];
   onSelectGirl: (id: string) => void;
+  onClearGirl: () => void;
   selectedPose: WorkbenchPreset | null;
   selectedScene: WorkbenchPreset | null;
   selectedOutfit: OutfitOption | null;
@@ -54,10 +55,13 @@ export interface ConsoleDrawerProps {
   onClearBase: () => void;
   credits: number | null;
   busy: boolean;
+  proLocked: boolean;
   onGenerate: () => void;
   submitError: string | null;
   activeJobId: string | null;
   isZh: boolean;
+  personalWorks: PersonalWork[];
+  onPickWork: (url: string) => void;
 }
 
 export function ConsoleDrawer(props: ConsoleDrawerProps) {
@@ -181,13 +185,13 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {/* Character slot — companion picker */}
+            {/* Character slot — companion picker (optional: empty = brand-new character) */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setGirlPickerOpen((v) => !v)}
                 className={cn(
-                  'relative w-full aspect-[159/120] rounded-xl overflow-hidden border text-left transition-all',
+                  'relative w-full aspect-[2/3] rounded-xl overflow-hidden border text-left transition-all',
                   props.girl ? 'border-[#FD5FC2]/50' : 'border-dashed border-white/20 hover:border-[#FD5FC2]/50',
                 )}
               >
@@ -202,10 +206,20 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
                 <span className="absolute inset-x-0 bottom-0 px-2 py-1 text-[10px] font-semibold text-white bg-gradient-to-t from-black/80 to-transparent truncate">
                   {props.girl ? props.girl.name : t('generate.slotCharacter')}
                 </span>
-                <span className="absolute top-1 left-1 rounded bg-[#FF1CAC]/80 px-1 py-px text-[8px] uppercase tracking-wide text-white">
-                  {t('generate.required')}
+                <span className="absolute top-1 left-1 rounded bg-white/15 px-1 py-px text-[8px] uppercase tracking-wide text-white/70">
+                  {t('generate.optional')}
                 </span>
               </button>
+              {props.girl && (
+                <button
+                  type="button"
+                  onClick={props.onClearGirl}
+                  className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 flex items-center justify-center text-white/70 hover:text-red-300"
+                  aria-label={`Clear ${t('generate.slotCharacter')}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
               {girlPickerOpen && (
                 <>
                   <button type="button" aria-hidden className="fixed inset-0 z-10 cursor-default" onClick={() => setGirlPickerOpen(false)} />
@@ -288,6 +302,26 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
 
         {props.submitError && <p className="text-xs text-red-300">{props.submitError}</p>}
         {props.busy && props.activeJobId && <GenJobProgress jobId={props.activeJobId} compact />}
+
+        {/* ── Personal works library (all companions) ── */}
+        {props.personalWorks.length > 0 && (
+          <div>
+            <div className={cn(slotLabel, 'mb-2')}>{t('generate.personalLibrary')}</div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {props.personalWorks.map((work) => (
+                <button
+                  key={`${work.jobId}-${work.url}`}
+                  type="button"
+                  onClick={() => props.onPickWork(work.url)}
+                  className="relative aspect-[2/3] rounded-lg overflow-hidden border border-white/10 hover:border-[#FD5FC2]/60 transition-all"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- dynamic work thumbnail */}
+                  <img src={work.url} alt="Work" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Bottom bar: quantity / settings / generate ── */}
@@ -398,7 +432,7 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
           <button
             type="button"
             onClick={props.onGenerate}
-            disabled={props.busy || !props.girl}
+            disabled={props.busy}
             className="flex-1 h-11 rounded-full font-bold tracking-wide text-sm text-white inline-flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-[0.98]"
             style={{
               background: 'linear-gradient(0deg, #FF1CAC, #FD5FC2 50%, #FF79D1)',
@@ -412,16 +446,24 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
               </>
             ) : (
               <>
-                <Sparkles className="h-4 w-4" />
+                {props.proLocked ? <Lock className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
                 {t('generate.generate')}
                 {props.mode === 'image' && props.count > 1 ? ` ×${props.count}` : ''}
+                {props.proLocked ? (
+                  <span className="rounded bg-black/25 px-1.5 py-px text-[9px] uppercase tracking-wider">Pro</span>
+                ) : null}
               </>
             )}
           </button>
         </div>
         {!props.girl && (
           <p className="mt-2 text-center text-[10px] text-white/35">
-            <ChevronDown className="inline h-3 w-3" /> {t('generate.companionHint')}
+            {t('generate.newCharacterHint')}
+          </p>
+        )}
+        {props.proLocked && (
+          <p className="mt-2 text-center text-[10px] text-[#ffb3cd]">
+            <Lock className="inline h-3 w-3" /> {t('generate.proOnly')}
           </p>
         )}
       </div>
@@ -444,7 +486,7 @@ function SlotCard(props: {
         type="button"
         onClick={props.onClick}
         className={cn(
-          'relative w-full aspect-[159/120] rounded-xl overflow-hidden border text-left transition-all',
+          'relative w-full aspect-[2/3] rounded-xl overflow-hidden border text-left transition-all',
           props.selectedLabel
             ? 'border-[#FD5FC2]/50'
             : 'border-dashed border-white/20 hover:border-[#FD5FC2]/50',

@@ -42,6 +42,8 @@ export interface GenerationJob {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  /** Companion-album publish/review status (0045 migration; 'none' pre-migration). */
+  publish_status: 'none' | 'pending' | 'approved' | 'rejected';
 }
 
 /** Defensive row → GenerationJob mapping (missing columns degrade gracefully). */
@@ -69,6 +71,11 @@ export function jobFromRow(row: unknown): GenerationJob | null {
     created_at: String(r.created_at || ''),
     updated_at: String(r.updated_at || ''),
     completed_at: r.completed_at != null ? String(r.completed_at) : null,
+    publish_status: (
+      ['none', 'pending', 'approved', 'rejected'].includes(String(r.publish_status || ''))
+        ? String(r.publish_status)
+        : 'none'
+    ) as GenerationJob['publish_status'],
   };
 }
 
@@ -99,5 +106,6 @@ export function publicJobView(job: GenerationJob) {
     result: job.result,
     created_at: job.created_at,
     completed_at: job.completed_at,
+    publish_status: job.publish_status,
   };
 }
