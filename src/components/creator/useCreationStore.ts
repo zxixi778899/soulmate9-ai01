@@ -35,6 +35,13 @@ export interface CreationState {
   setFormData: (data: Partial<CreateFormData>) => void;
   resetFormData: () => void;
   
+  // Preview Mode
+  previewMode: 'disabled' | 'turbo' | 'final';
+  enablePreview: (mode: 'turbo' | 'final') => void;
+  disablePreview: () => void;
+  lastPreviewTime: number;
+  previewCooldownMs: number; // 防抖间隔
+  
   // Generation State
   modelMeta: ModelMeta | null;
   loraInfo: ModelLoraInfo | null;
@@ -42,8 +49,8 @@ export interface CreationState {
   negativePrompt: string;
   basePrompt: string;
   setGenerationResult: (result: { 
-    meta: ModelMeta, 
-    lora?: ModelLoraInfo, 
+    meta: ModelMeta | null, 
+    lora?: ModelLoraInfo | null, 
     positive: string, 
     negative?: string,
     base?: string
@@ -68,6 +75,10 @@ export interface CreationState {
   saveDraftToLocalStorage: () => void;
   loadDraftFromLocalStorage: () => void;
   clearDraft: () => void;
+  
+  // Parameter Updates
+  updateParam: (category: string, value: unknown) => void;
+  resetParams: () => void;
 }
 
 const initialFormData: CreateFormData = {
@@ -105,6 +116,12 @@ const initialSettings: GenerationSettings = {
   randomSeed: true,
 };
 
+const initialPreviewState = {
+  previewMode: 'disabled' as const,
+  lastPreviewTime: 0,
+  previewCooldownMs: 800, // 800ms debounce
+};
+
 export const useCreationStore = create<CreationState>()(
   persist(
     (set, get) => ({
@@ -117,6 +134,7 @@ export const useCreationStore = create<CreationState>()(
       basePrompt: '',
       generationSettings: initialSettings,
       isSettingsOpen: false,
+      ...initialPreviewState,
       
       // Form Actions
       setFormData: (data) =>
@@ -204,6 +222,71 @@ export const useCreationStore = create<CreationState>()(
         localStorage.removeItem('creator_draft');
         set({ formData: initialFormData, generationSettings: initialSettings });
       },
+      
+      // Preview Mode Actions
+      enablePreview: (mode) =>
+        set({ 
+          previewMode: mode, 
+          lastPreviewTime: Date.now() 
+        }),
+      
+      disablePreview: () =>
+        set({ previewMode: 'disabled' }),
+      
+      // Parameter Update Actions
+      updateParam: (category, value) => {
+        set((state) => {
+          const newData = { ...state.formData };
+          
+          // Map category to form field
+          switch(category) {
+            case 'visual_style':
+              newData.visualStyle = String(value);
+              break;
+            case 'gender':
+              newData.gender = String(value);
+              break;
+            case 'ethnicity':
+              newData.ethnicity = String(value);
+              break;
+            case 'face_shape':
+              newData.faceShape = String(value);
+              break;
+            case 'hair_style':
+              newData.hairStyle = String(value);
+              break;
+            case 'eye_color':
+              newData.eyeColor = String(value);
+              break;
+            case 'body_type':
+              newData.bodyType = String(value);
+              break;
+            case 'fashion_style':
+              newData.fashionStyle = String(value);
+              break;
+            case 'nsfw_level':
+              newData.nsfwLevel = Number(value);
+              break;
+            case 'age':
+              newData.age = Number(value);
+              break;
+            default:
+              // For unrecognized categories, try to match with form data keys
+              const key = Object.keys(newData).find(k => k === category) as keyof typeof newData | undefined;
+              if (key) {
+                newData[key] = value as never;
+              }
+          }
+          
+          return { formData: newData };
+        });
+      },
+      
+      resetParams: () =>
+        set({ 
+          formData: initialFormData, 
+          ...initialPreviewState 
+        }),
     }),
     {
       name: 'creator-draft-storage',

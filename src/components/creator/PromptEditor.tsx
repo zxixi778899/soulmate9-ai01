@@ -8,8 +8,7 @@
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
-import type { TranslationKey } from '@/lib/i18n/types';
-import { Wand2, Copy, Check, RefreshCw, Sparkles } from 'lucide-react';
+import { Copy, Check, RefreshCw, Sparkles } from 'lucide-react';
 
 interface PromptEditorProps {
   positivePrompt?: string | null;

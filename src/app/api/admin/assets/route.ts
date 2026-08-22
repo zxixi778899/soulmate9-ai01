@@ -47,7 +47,8 @@ export async function DELETE(request: NextRequest) {
 
   try {
     // Delete from generation_assets table
-    const supabase = admin.supabase as unknown as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = admin.supabase as unknown as { from: (table: string) => any };
     const { error } = await supabase
       .from('generation_assets')
       .delete()

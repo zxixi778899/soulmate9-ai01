@@ -7,8 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { useTranslation } from '@/lib/i18n/context';
-import { Settings, Sliders, X, Minimize2 } from 'lucide-react';
+import { Settings, Sliders, X } from 'lucide-react';
 
 type AspectRatio = '1:1' | '2:3' | '3:2' | '9:16' | '16:9' | 'custom';
 
@@ -76,18 +75,18 @@ export function GenerationSettings({
   fluxGuidance,
   width, 
   height, 
-  aspectRatio,
+  aspectRatio: _aspectRatio,
   sampler, 
   scheduler, 
-  seed,
-  turboMode,
-  randomSeed,
+  seed: _seed,
+  turboMode: _turboMode,
+  randomSeed: _randomSeed,
   onSettingsChange,
   isOpen,
   onClose,
   className,
 }: GenerationSettingsPropsWithOpen) {
-  const { t } = useTranslation();
+  void _aspectRatio; void _seed; void _turboMode; void _randomSeed;
   const [localSettings, setLocalSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
@@ -179,7 +178,7 @@ export function GenerationSettings({
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => applyPreset(p.id as any)}
+                  onClick={() => applyPreset(p.id as 'fast' | 'balanced' | 'quality' | 'ultra')}
                   className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2 text-left hover:border-[#FF2D78]/40"
                 >
                   <div className="text-xs font-semibold text-white/80">{p.label}</div>

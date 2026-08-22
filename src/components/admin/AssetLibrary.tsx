@@ -135,7 +135,7 @@ export default function AssetLibrary() {
         }),
       });
       
-      const data = await readResponseJson<{ error?: string; folder?: any }>(res);
+      const data = await readResponseJson<{ error?: string; folder?: Record<string, unknown> }>(res);
       if (!res.ok) throw new Error(data.error || '创建失败');
       
       toast.success('文件夹创建成功');
@@ -185,7 +185,7 @@ export default function AssetLibrary() {
             library_category: activeCategory === 'all' ? 'outfit' : activeCategory,
           }),
         });
-        const registerData = await readResponseJson<{ asset?: any; error?: string }>(registerRes);
+        const registerData = await readResponseJson<{ asset?: Record<string, unknown>; error?: string }>(registerRes);
         
         if (!registerRes.ok) {
           throw new Error(registerData.error || '注册失败');
@@ -269,16 +269,6 @@ export default function AssetLibrary() {
     };
     const Icon = iconMap[categoryId];
     return Icon || Sparkles;
-  };
-
-  const getCategoryColor = (categoryId: AssetLibraryCategoryId) => {
-    const colorMap = {
-      outfit: 'bg-violet-500',
-      action: 'bg-emerald-500',
-      scene: 'bg-cyan-500',
-      advertising: 'bg-amber-500',
-    };
-    return colorMap[categoryId];
   };
 
   return (
@@ -465,9 +455,9 @@ export default function AssetLibrary() {
                       </div>
                     </div>
 
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <div className="aspect-[2/3] bg-black/40">
                       {asset.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={asset.url}
                           alt={asset.name || 'Asset'}

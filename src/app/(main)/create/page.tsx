@@ -49,8 +49,10 @@ import type { CharacterPart } from '@/lib/character-parts';
 // ─── Integration: New components & store ────────────────────────────────────
 import { useCreationStore } from '@/components/creator/useCreationStore';
 import { ModelInfoCard } from '@/components/creator/ModelInfoCard';
+import type { ModelMeta, ModelLoraInfo } from '@/components/creator/ModelInfoCard';
 import { PromptEditor } from '@/components/creator/PromptEditor';
 import { GenerationSettings } from '@/components/creator/GenerationSettings';
+import { CharacterPresetCard } from '@/components/creator/CharacterPresetCard';
 
 type CreateStep = 'style' | 'appearance' | 'general' | 'portrait';
 const CREATE_STEPS: CreateStep[] = ['style', 'appearance', 'general', 'portrait'];
@@ -234,41 +236,6 @@ const NSFW_LEVEL_PREVIEWS: Record<string, string> = {
   5: 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/nsfw-previews/level-5.png',
 };
 
-/** 内容级别选择卡：预览图 + 级别名；管理员可就地上传/恢复默认 */
-function NsfwLevelCard({ lv, label, active, preview, onClick, adminSlot }: { lv: number; label: string; active: boolean; preview: string; onClick: () => void; adminSlot?: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      className={cn(
-        'group relative aspect-[3/4] overflow-hidden rounded-xl border text-left transition-all duration-300 touch-manipulation',
-        active
-          ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_22px_rgba(255,45,120,0.4)]'
-          : 'border-white/[0.09] shadow-[0_4px_14px_rgba(0,0,0,0.3)] hover:border-[#FF2D78]/50',
-      )}
-    >
-      {/* imgproxy 压缩失败自动回退原图，永不中断 */}
-      <OptimizedImg
-        src={preview}
-        size="card"
-        alt={label}
-        aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.06]"
-      />
-      {adminSlot}
-      {active && (
-        <span className="absolute right-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_10px_rgba(255,45,120,0.6)]">
-          <Check className="h-3 w-3 text-white" />
-        </span>
-      )}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-1 pb-1.5 pt-5 text-center">
-        <span className="text-[10px] font-semibold text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{lv} · {label}</span>
-      </div>
-    </button>
-  );
-}
-
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function CreatePage() {
@@ -278,7 +245,6 @@ export default function CreatePage() {
   // ─── Integration: Zustand store for creation state ────────────────────────
   const {
     formData,
-    setFormData,
     modelMeta,
     loraInfo,
     positivePrompt,
@@ -326,6 +292,7 @@ export default function CreatePage() {
   // 性别示例图（site_settings creator_gender_previews），空 = 符号占位，管理员可上传/删除
   const [genderPreviews, setGenderPreviews] = useState<Record<string, string>>({});
   // 内容级别示例图（site_settings creator_nsfw_previews），缺省用内置默认图，管理员可上传/恢复默认
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [nsfwPreviews, setNsfwPreviews] = useState<Record<string, string>>(NSFW_LEVEL_PREVIEWS);
   // 管理员身份探测：admin API 可访问 → 在创建页显示就地上传/删除入口
   const [isAdmin, setIsAdmin] = useState(false);
@@ -404,6 +371,11 @@ export default function CreatePage() {
   const [shortDescription, setShortDescription] = useState('');
   const [relationship, setRelationship] = useState('girlfriend');
   const [selectedVoice, setSelectedVoice] = useState<string>(''); // empty = default (warm-caring)
+
+  // Voice welcome message generator
+  const [generatingWelcome, setGeneratingWelcome] = useState(false);
+  const [welcomeMessage, setWelcomeMessage] = useState('');
+  const [messageLocale, setMessageLocale] = useState('en');
 
   // Portrait slots
   const [slots, setSlots] = useState<PortraitSlot[]>(EMPTY_SLOTS);
@@ -707,8 +679,8 @@ export default function CreatePage() {
         success?: boolean; 
         prompt?: string;
         error?: string;
-        meta?: any;
-        lora_info?: any;
+        meta?: ModelMeta | null;
+        lora_info?: ModelLoraInfo | null;
         negative_prompt?: string;
         base_prompt?: string;
       }>(promptRes);
@@ -744,7 +716,7 @@ export default function CreatePage() {
     } finally {
       setCreating(false);
     }
-  }, [infoValid, creating, name, t, cardStatus, portraitRequestBody, nsfwLevel, runBatch]);
+  }, [infoValid, creating, name, t, cardStatus, portraitRequestBody, nsfwLevel, runBatch, setGenerationResult]);
 
   const startPortraitStep = handleStartCreation;
 
@@ -931,14 +903,6 @@ export default function CreatePage() {
         const data = await readResponseJson<{ error?: string }>(res);
         if (!res.ok) throw new Error(data.error || 'delete failed');
         setGenderPreviews((prev) => ({ ...prev, [key]: '' }));
-      } else if (kind === 'nsfw') {
-        const res = await authedFetch(`/api/admin/nsfw-previews?level=${encodeURIComponent(key)}`, { method: 'DELETE' });
-        const data = await readResponseJson<{ previews?: Record<string, string>; error?: string }>(res);
-        if (!res.ok) throw new Error(data.error || 'reset failed');
-        if (data.previews) {
-          const patch = data.previews;
-          setNsfwPreviews((prev) => ({ ...prev, ...patch }));
-        }
       }
     } catch (err) {
       logger.warn('[creator] admin asset delete failed', { error: String(err) });
@@ -1452,41 +1416,53 @@ export default function CreatePage() {
                         </Panel>
                         )}
 
-                        {/* ── 面部/身材步：种族 / 脸型 / 发型 / 眸色 / 肤色 / 发色 ── */}
+                        {/* ── 面部/身材步：种族 / 发型 / 发色 / 身材 / 穿搭风格 (可视化卡片) ── */}
                         {step === 'appearance' && (
                         <Panel title={t('create.stepFace')}>
-                          {/* Pill groups */}
-                          {[
-                            { key: 'ethnicity', title: t('create.ethnicity'), items: getOpts('ethnicity'), value: ethnicity, set: setEthnicity },
-                            { key: 'face_shape', title: t('create.faceShape'), items: getOpts('face_shape'), value: faceShape, set: setFaceShape },
-                            { key: 'hair_style', title: t('create.hairStyle'), items: getOpts('hair_style'), value: hairStyle, set: setHairStyle },
-                            { key: 'eye_color', title: t('create.eyeColor'), items: getOpts('eye_color'), value: eyeColor, set: setEyeColor },
-                          ].map((group) => group.items.length > 0 && (
-                            <div key={group.key} className="mb-3">
-                              <div className="mb-1.5 text-[11px] text-white/40">{group.title}</div>
-                              <div className="flex flex-wrap gap-2">
-                                {group.items.map((o) => (
-                                  <Pill key={o.value} active={group.value === o.value} onClick={() => group.set(o.value)}>
-                                    {getLabel(o, locale)}
-                                  </Pill>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
+                          {/* Ethnicity Cards - 8 options max */}
+                          {(() => {
+                            const options = getOpts('ethnicity').map((o) => ({
+                              value: o.value,
+                              label: getLabel(o, locale),
+                              description: getExtra(o, 'desc', locale),
+                              imagePlaceholder: '🌍',
+                            }));
+                            return options.length > 0 && (
+                              <CharacterPresetCard
+                                options={options.slice(0, 8)}
+                                selected={ethnicity}
+                                onSelect={setEthnicity}
+                                title={t('create.ethnicity')}
+                                columns={4}
+                                showDescription
+                                cardVariant="large"
+                              />
+                            );
+                          })()}                        
+                          
+                          {/* Hair Style Cards - 8 options max */}
+                          {(() => {
+                            const options = getOpts('hair_style').map((o) => ({
+                              value: o.value,
+                              label: getLabel(o, locale),
+                              description: getExtra(o, 'desc', locale),
+                              imagePlaceholder: '💇️',
+                            }));
+                            return options.length > 0 && (
+                              <CharacterPresetCard
+                                options={options.slice(0, 8)}
+                                selected={hairStyle}
+                                onSelect={setHairStyle}
+                                title={t('create.hairStyle')}
+                                columns={4}
+                                showDescription
+                                cardVariant="large"
+                              />
+                            );
+                          })()}
+                        
+                          {/* Eye Color Cards */}
 
-                          {/* Skin tone from parts library */}
-                          {(parts['skin_tone'] || []).length > 0 && (
-                            <div className="mb-3">
-                              <div className="mb-1.5 text-[11px] text-white/40">{t('create.skinTone')}</div>
-                              <div className="flex flex-wrap gap-2">
-                                {(parts['skin_tone'] || []).map((p) => (
-                                  <Pill key={p.slug} active={skinTone === p.value} onClick={() => setSkinTone(p.value)}>
-                                    {locale === 'zh' ? p.name_zh : p.name_en}
-                                  </Pill>
-                                ))}
-                              </div>
-                            </div>
-                          )}
 
                           {/* Hair color swatches */}
                           <div className="mb-3">
@@ -1511,27 +1487,53 @@ export default function CreatePage() {
                         </Panel>
                         )}
 
-                        {/* ── 面部/身材步（续）：体型 / 穿搭风格 / 额外备注 ── */}
+                        {/* ── 面部/身材步（续）：体型 / 穿搭风格 / 额外备注 (可视化卡片) ── */}
                         {step === 'appearance' && (
                         <Panel title={t('create.stepBody')}>
-                          {[
-                            { key: 'body_type', title: t('create.bodyType'), items: getOpts('body_type'), value: bodyType, set: setBodyType },
-                            { key: 'fashion_style', title: t('create.fashionStyle'), items: getOpts('fashion_style'), value: fashionStyle, set: setFashionStyle },
-                          ].map((group) => group.items.length > 0 && (
-                            <div key={group.key} className="mb-3">
-                              <div className="mb-1.5 text-[11px] text-white/40">{group.title}</div>
-                              <div className="flex flex-wrap gap-2">
-                                {group.items.map((o) => (
-                                  <Pill key={o.value} active={group.value === o.value} onClick={() => group.set(o.value)}>
-                                    {getLabel(o, locale)}
-                                  </Pill>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-
+                          {/* Body Type Cards - 8 options max */}
+                          {(() => {
+                            const options = getOpts('body_type').map((o) => ({
+                              value: o.value,
+                              label: getLabel(o, locale),
+                              description: getExtra(o, 'desc', locale),
+                              imagePlaceholder: '💪',
+                            }));
+                            return options.length > 0 && (
+                              <CharacterPresetCard
+                                options={options.slice(0, 8)}
+                                selected={bodyType}
+                                onSelect={setBodyType}
+                                title={t('create.bodyType')}
+                                columns={4}
+                                showDescription
+                                cardVariant="large"
+                              />
+                            );
+                          })()}
+                        
+                          {/* Fashion Style Cards - 8 options max */}
+                          {(() => {
+                            const options = getOpts('fashion_style').map((o) => ({
+                              value: o.value,
+                              label: getLabel(o, locale),
+                              description: getExtra(o, 'desc', locale),
+                              imagePlaceholder: '👗',
+                            }));
+                            return options.length > 0 && (
+                              <CharacterPresetCard
+                                options={options.slice(0, 8)}
+                                selected={fashionStyle}
+                                onSelect={setFashionStyle}
+                                title={t('create.fashionStyle')}
+                                columns={4}
+                                showDescription
+                                cardVariant="large"
+                              />
+                            );
+                          })()}
+                        
                           {/* Extra notes */}
-                          <div>
+                          <div className="mt-3">
                             <div className="mb-1.5 text-[11px] text-white/40">
                               {t('create.extraNotes')}
                             </div>
@@ -1599,9 +1601,82 @@ export default function CreatePage() {
 
                         {/* ── Voice ── */}
                         <Panel title={t('create.voiceTitle')}>
-                          <div className="mb-1.5 text-[11px] text-white/40">
-                            {t('create.voiceSubtitle')}
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <div className="text-[11px] text-white/40">
+                              {t('create.voiceSubtitle')}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!selectedVoice) {
+                                  setError(t('create.selectVoiceFirst'));
+                                  return;
+                                }
+                                const timbre = VOICE_TIMBRES.find(t => t.id === selectedVoice);
+                                if (!timbre) return;
+                                
+                                setGeneratingWelcome(true);
+                                try {
+                                  const response = await authedFetch('/api/creator/generate-welcome', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ timbreId: selectedVoice }),
+                                  });
+                                  
+                                  if (!response.ok) throw new Error('Failed');
+                                  
+                                  const data = await response.json();
+                                  setWelcomeMessage(data.message || '');
+                                  setMessageLocale(locale === 'zh' ? 'zh' : 'en');
+                                } catch (error) {
+                                  console.error('Generate welcome message failed:', error);
+                                  setError(t('create.genWelcomeFailed'));
+                                } finally {
+                                  setGeneratingWelcome(false);
+                                }
+                              }}
+                              disabled={generatingWelcome}
+                              className="flex items-center gap-1 rounded-full border border-[#FF2D78]/30 bg-[#FF2D78]/10 px-3 py-1.5 text-[11px] font-medium text-[#FF2D78] transition-colors hover:bg-[#FF2D78]/20 disabled:opacity-50"
+                            >
+                              {generatingWelcome ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Wand2 className="h-3 w-3" />
+                              )}
+                              {t('create.generateWelcome')}
+                            </button>
                           </div>
+                          
+                          {/* Welcome message display */}
+                          {welcomeMessage && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mb-3 rounded-xl border border-[#FF2D78]/30 bg-gradient-to-br from-[#FF2D78]/5 to-transparent p-3"
+                            >
+                              <div className="flex items-start gap-2">
+                                <span className="mt-0.5 text-lg">💬</span>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-white leading-relaxed">
+                                    {welcomeMessage}
+                                  </p>
+                                  <div className="mt-1.5 flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => navigator.clipboard.writeText(welcomeMessage)}
+                                      className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-[9px] text-white/50 hover:border-[#FF2D78]/40 hover:text-white"
+                                    >
+                                      {t('common.copy')}
+                                    </button>
+                                    <span className="text-[9px] text-white/30">
+                                      {locale === 'zh' ? '中文' : 'English'} · {messageLocale}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                          
                           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                             {VOICE_TIMBRES.map(timbre => (
                               <button
@@ -1630,30 +1705,7 @@ export default function CreatePage() {
                           </div>
                         </Panel>
 
-                        {/* ── 内容级别（NSFW 1-5）：预设预览图选择，选完即可生图 ── */}
-                        <Panel title={t('create.contentLevel')} hint={t('create.nsfwLevelHint')}>
-                          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                            {[1, 2, 3, 4, 5].map((lv) => (
-                              <NsfwLevelCard
-                                key={lv}
-                                lv={lv}
-                                label={t(CONTENT_LEVEL_KEYS[lv])}
-                                active={nsfwLevel === lv}
-                                preview={nsfwPreviews[String(lv)] || NSFW_LEVEL_PREVIEWS[String(lv)]}
-                                onClick={() => setNsfwLevel(lv)}
-                                adminSlot={isAdmin ? (
-                                  <AdminCardButtons
-                                    busy={assetBusy === `nsfw:${lv}`}
-                                    onUpload={() => pickAssetImage('nsfw', String(lv))}
-                                    onClear={() => void clearAssetImage('nsfw', String(lv))}
-                                    clearTitle={t('create.adminResetDefault')}
-                                    clearIcon="reset"
-                                  />
-                                ) : undefined}
-                              />
-                            ))}
-                          </div>
-                        </Panel>
+
                         </>
                         )}
                       </div>

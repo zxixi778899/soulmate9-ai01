@@ -405,7 +405,7 @@ export const EXAMPLE_HIGH_QUALITY = {
   },
 };
 
-export default {
+const nodeConfig = {
   CONTROLNET_CONFIG,
   ADETAILER_MODELS,
   ADETAILER_PARAMS,
@@ -413,3 +413,5 @@ export default {
   UPSCALER_PARAMS,
   NODE_WORKFLOWS,
 };
+
+export default nodeConfig;

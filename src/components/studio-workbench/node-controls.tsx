@@ -3,7 +3,7 @@
 import { useStudio } from './StudioContext';
 import { cn } from '@/lib/utils';
 import type { StudioEnhancerKey } from './StudioWorkbench.types';
-import { Sliders, GripVertical, Image as ImageIcon, ScanSearch, ZoomIn } from 'lucide-react';
+import { Sliders, Image as ImageIcon, ScanSearch, ZoomIn } from 'lucide-react';
 
 // ─── Node control interfaces ──────────────────────────────────────────────────
 
