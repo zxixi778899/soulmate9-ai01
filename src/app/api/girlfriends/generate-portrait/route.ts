@@ -94,7 +94,7 @@ function buildPortraitPrompt(input: {
 
   const medium =
     visual === '2d' || visual === 'anime'
-      ? 'a polished 2D anime character portrait with clean line art and deliberate cel shading'
+      ? 'a polished 2D anime character portrait with fully rendered colors and deliberate cel shading'
       : visual === '3d'
         ? 'a polished 3D animated character portrait with coherent materials and studio character lighting'
         : 'a natural editorial photograph with believable skin texture and soft directional light';
@@ -156,8 +156,10 @@ async function generateImage(input: {
   const result = await routeImageGeneration({
     prompt: input.prompt,
     negative_prompt: input.negativePrompt,
-    width: 768,
-    height: 1024,
+    // 高清立绘：基础分辨率 1024×1344（3:4）+ FaceDetailer 修脸 + 1.5× 超分（4x-UltraSharp，
+    // 终态约 1536×2016）；增强通道由 worker 端 env 门控（RUNPOD_ADETAILER_READY / RUNPOD_UPSCALE_READY），未就绪时 fail-open 跳过
+    width: 1024,
+    height: 1344,
     num_inference_steps: route.steps,
     guidance_scale: route.cfg,
     seed: input.seed,
@@ -172,6 +174,8 @@ async function generateImage(input: {
     endpoint_id: input.endpointId || route.endpointId || undefined,
     nsfw: nsfwLevel >= 3,
     loras: input.loras?.length ? input.loras : undefined,
+    face_detailer: true,
+    upscale_factor: 1.5,
   });
   if (result.pending) {
     return { jobId: result.job_id, endpointId: input.endpointId || route.endpointId || undefined, pending: true };
@@ -223,7 +227,7 @@ export async function POST(request: NextRequest) {
     const framing: IdFraming = body.framing === 'close-up' ? 'close-up' : 'waist-up';
     const gfIdForRef = String(body.girlfriend_id || body.girlfriendId || '').trim();
 
-    // Batch generation (creator v3 generates 4 candidate portraits at once).
+    // Batch generation (creator v4 generates 2 HD candidate portraits at once).
     // Each extra image consumes one rate-limit slot of the same hourly budget.
     const count = Math.max(1, Math.min(4, Math.round(Number(body.count) || 1)));
     for (let i = 1; i < count; i++) {
@@ -432,6 +436,7 @@ export async function POST(request: NextRequest) {
         name, count, category, renderStyle, promptLen: naturalPrompt.length,
         identityReference: identityKit?.anchorImageUrl ? 'enabled' : 'disabled',
         prioritizeVariety: true,  // ✅ Enable variety for initial generations
+        hd: '1024x1344 + faceDetailer + upscale1.5',
       });
       const identityReferenceUrl = identityKit?.anchorImageUrl || '';
       // Prioritize variety on first generation, then balance with identity

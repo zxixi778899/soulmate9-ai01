@@ -70,7 +70,7 @@ function qualityForModel(modelFamily: PromptInput['modelFamily'], renderStyle: A
     return '';
   }
   if (renderStyle === '2d') {
-    return '2D anime illustration, clean line art, cel shading';
+    return '2D anime illustration, fully colored finished artwork, vibrant cel shading';
   }
   if (renderStyle === '3d') {
     return '3D character render, PBR materials, natural materials';

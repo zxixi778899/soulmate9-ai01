@@ -1,7 +1,8 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
+import { OptimizedImg } from '@/components/OptimizedImg';
 
 export interface PresetCardOption {
   value: string;
@@ -20,6 +21,8 @@ interface CharacterPresetCardProps {
   columns?: number;
   showDescription?: boolean;
   cardVariant?: 'compact' | 'standard' | 'large';
+  /** Admin-only overlay rendered inside each card's image area (upload/delete buttons). */
+  renderAdminOverlay?: (option: PresetCardOption) => ReactNode;
 }
 
 /**
@@ -39,6 +42,7 @@ export function CharacterPresetCard({
   columns = 4,
   showDescription = true,
   cardVariant = 'standard',
+  renderAdminOverlay,
 }: CharacterPresetCardProps) {
   const heightClass =
     cardVariant === 'large'
@@ -78,23 +82,13 @@ export function CharacterPresetCard({
             <div className="relative h-3/4 w-full overflow-hidden">
               {option.image ? (
                 <>
-                  {option.image.startsWith('http') ? (
-                    <Image
-                      src={option.image}
-                      alt={option.label}
-                      fill
-                      className="object-cover"
-                      priority
-                    />
-                  ) : (
-                    <div
-                      className="flex h-full w-full items-center justify-center text-4xl"
-                      style={{ background: '#1a1a2e' }}
-                    >
-                      {option.imagePlaceholder || '🎨'}
-                    </div>
-                  )}
-                  
+                  <OptimizedImg
+                    src={option.image}
+                    size="card"
+                    alt={option.label}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+
                   {/* Overlay on hover */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                 </>
@@ -108,6 +102,9 @@ export function CharacterPresetCard({
                   {option.imagePlaceholder || '✨'}
                 </div>
               )}
+
+              {/* Admin 就地管理：上传/删除（仅管理员） */}
+              {renderAdminOverlay?.(option)}
 
               {/* Selected indicator */}
               {selected === option.value && (

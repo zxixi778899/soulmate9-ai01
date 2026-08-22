@@ -48,7 +48,7 @@ const CATEGORY_SUBJECTS: Record<CompanionCategory, string> = {
 
 const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
   'realistic': 'real camera photograph, neutral skin tone, natural skin, practical soft light, relaxed posture, natural hands',
-  '2d': '2D anime illustration, clean line art, cel shading',
+  '2d': '2D anime illustration, fully colored finished artwork, vibrant cel shading',
   '3d': '3D character render, PBR materials',
 };
 
@@ -214,7 +214,7 @@ export function studioNegativePrompt(category: CompanionCategory, animeStyle: An
         ? 'man, penis, testicles, transgender woman, masculine face'
         : 'broken pelvis';
   const style = animeStyle === '2d'
-    ? 'photorealistic, photograph, 3d render, plastic CGI, muddy line art'
+    ? 'photorealistic, photograph, 3d render, plastic CGI, muddy line art, line art only, sketch only, unfinished sketch, monochrome, grayscale, coloring book'
     : animeStyle === '3d'
       ? 'flat 2d drawing, sketch, broken mesh, wax figure, low-poly model'
       : 'illustration, anime, cartoon, CGI, 3d render';

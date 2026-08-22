@@ -108,10 +108,10 @@ describe('studio generation profiles', () => {
       intensity: 5,
       animeStyle: '3d',
     });
-    expect(twoD).toContain('clean line art');
+    expect(twoD).toContain('fully colored finished artwork');
     expect(twoD).not.toContain('PBR materials');
     expect(threeD).toContain('PBR materials');
-    expect(threeD).not.toContain('clean line art');
+    expect(threeD).not.toContain('fully colored finished artwork');
   });
 
   it('recommends category-specific practical LoRAs based on new fluxScenarioPlan', () => {

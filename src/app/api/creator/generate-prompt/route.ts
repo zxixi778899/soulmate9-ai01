@@ -84,12 +84,20 @@ function buildBasePrompt(input: {
   const heightFrag = sanitizeBlurKeywords(String(input.height || '').trim());
   const genomeExtra = sanitizeBlurKeywords(String(input.genome_prompt || '').trim());
 
-  const medium =
-    visual === '2d' || visual === 'anime'
-      ? 'a polished 2D anime character portrait with clean line art and deliberate cel shading'
-      : visual === '3d'
-        ? 'a polished 3D animated character portrait with coherent materials and studio character lighting'
-        : 'a natural editorial photograph with believable skin texture and soft directional light';
+  // 风格化提示词优化：写实/二次元/3D 的提示词特征不同，
+  // medium 定画面媒介，styleQuality 注入该风格的质感/光影/镜头关键词。
+  const isAnime = visual === '2d' || visual === 'anime';
+  const is3d = visual === '3d';
+  const medium = isAnime
+    ? 'a polished 2D anime character portrait with fully rendered colors and deliberate cel shading'
+    : is3d
+      ? 'a polished 3D animated character portrait with coherent materials and studio character lighting'
+      : 'a natural editorial photograph with believable skin texture and soft directional light';
+  const styleQuality = isAnime
+    ? 'fully colored finished anime illustration, vibrant saturated cel shading, expressive detailed anime eyes, smooth clean color fills, high-fidelity illustration finish'
+    : is3d
+      ? 'stylized 3D character render, subsurface scattering skin, soft global illumination, Pixar-grade material fidelity'
+      : 'natural skin texture with visible pores, shallow depth of field, 85mm portrait lens, professional photography lighting';
   const category = normalizeCompanionCategory({ gender });
   const bodyDescription = category === 'male'
     ? `${bodyType} adult masculine build with broad shoulders and a defined torso`
@@ -99,6 +107,7 @@ function buildBasePrompt(input: {
 
   const parts = [
     medium,
+    styleQuality,
     `gorgeous young adult ${gender.toLowerCase()} age 22-28 named ${name}`,
     `${ethnicity} features, ${face} face shape${skinTone ? `, ${skinTone}` : ''}`,
     `${hairStyle} ${hairColor} hair`,

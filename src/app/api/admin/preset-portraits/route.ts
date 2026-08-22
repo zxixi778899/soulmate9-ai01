@@ -80,7 +80,7 @@ function buildPresetPortraitPrompt(preset: CreatorPreset): string {
         : `${preset.body_type} adult feminine figure with natural proportions`;
   const medium =
     visual === '2d' || visual === 'anime'
-      ? 'a polished 2D anime character portrait with clean line art and deliberate cel shading'
+      ? 'a polished 2D anime character portrait with fully rendered colors and deliberate cel shading'
       : visual === '3d'
         ? 'a polished 3D animated character portrait with coherent materials and studio character lighting'
         : 'a natural editorial photograph with believable skin texture and soft directional light';

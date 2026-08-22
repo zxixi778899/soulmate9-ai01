@@ -7,7 +7,7 @@ import { useTranslation } from '@/lib/i18n/context';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { cn } from '@/lib/utils';
 import {
-  Compass, Heart, Users, Wand2, Shirt, Trophy, User, Crown, Sparkles, LogIn,
+  Compass, Heart, Users, Wand2, Shirt, Trophy, User, Crown, Sparkles, LogIn, Images,
 } from 'lucide-react';
 
 /**
@@ -35,6 +35,7 @@ export default function DesktopSidebar() {
         { href: '/explore', label: t('nav.pool'), icon: Heart },
         { href: '/chats', label: t('nav.friends'), icon: Users, badge: unreadTotal },
         { href: '/create', label: t('nav.create'), icon: Wand2 },
+        { href: '/generate', label: t('nav.generate'), icon: Images },
         { href: '/wardrobe', label: t('nav.wardrobe'), icon: Shirt },
         { href: '/achievements', label: t('nav.achievements'), icon: Trophy },
         { href: '/profile', label: t('nav.profile'), icon: User },

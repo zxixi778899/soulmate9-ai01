@@ -27,7 +27,7 @@ export function resolveImageGenerationProfile(gender: GenderStyle, adult: boolea
     cartoon: {
       checkpoint: env('RUNPOD_CARTOON_CHECKPOINT', sfwCheckpoint),
       loras: process.env.RUNPOD_CARTOON_LORA?.trim() ? [{ name: process.env.RUNPOD_CARTOON_LORA.trim(), strength_model: 0.7, strength_clip: 0.7 }] : [],
-      promptSuffix: 'young adult character, polished 2D illustration, clean line art, expressive eyes, cel shading',
+      promptSuffix: 'young adult character, polished 2D illustration, fully colored finished artwork, expressive eyes, vibrant cel shading',
       negativePrompt: `photograph, photorealistic, 3d render, low quality, ${BLOCKED}`,
       steps: 24,
       guidance: 1,

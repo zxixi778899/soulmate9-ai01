@@ -27,7 +27,7 @@ const AUTO_MATRIX: Record<string, LoraAutoPick[]> = {
     { id: 'flux-femboy-v1', strength: 0.32 },
     { id: 'flux-detail-skin-nplastic-v1', strength: 0.2 },
   ],
-  anime: [{ id: 'flux-anime-v1', strength: 0.45 }],
+  anime: [{ id: 'flux-anime-v1', strength: 0.6 }],
   '3d': [{ id: 'flux-3d-render-v1', strength: 0.45 }],
 };
 

@@ -92,6 +92,8 @@ _tmp_apply_0036.mjs
 _tmp_*
 verify-*.png
 cms-test-*.png
+eslint-output.txt
+ourdream-*.png
 
 # downloaded model binaries
 loras/

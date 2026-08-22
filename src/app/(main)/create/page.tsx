@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Character Creator v4 — 四步向导（风格 → 面部/身材 → 人设+内容级别 → 立绘）。
+ * Character Creator v4 — 四步向导（风格 → 面部/身材 → 人设 → 立绘）。
  *
  * Steps 风格/面部身材/人设：左侧档案卡预览 + 右侧分步选项面板；
- * Step 人设：身份档案 + 性格灵魂 + 声音 + NSFW 内容级别（5 级预览图）；
- * Step 立绘：4 张 AI 立绘并排生成，选一张完成。
+ * Step 人设：身份档案 + 性格灵魂 + 声音；
+ * Step 立绘：2 张高清 AI 立绘并排生成，2 选 1 完成（选中自动设为头像与伴侣立绘）。
  * On success a gacha-style reveal modal shows the rolled score / rarity.
  *
  * Rarity rule (site-wide, see src/lib/rarity.ts):
@@ -24,6 +24,7 @@ import { notifyDataChange } from '@/hooks/useDataSync';
 import {
   ArrowLeft, ArrowRight, Wand2, Loader2, Sparkles, Check, User2,
   CreditCard, RefreshCw, ImagePlus, RotateCcw, Trash2, Settings,
+  Plus, X, Coins,
 } from 'lucide-react';
 import { GameShell, GamePrimaryButton } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
@@ -32,14 +33,6 @@ import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
 import type { TranslationKey } from '@/lib/i18n/types';
 
-/** 捏脸立绘内容级别 1-5（SFW → NSFW）对应的 i18n key */
-const CONTENT_LEVEL_KEYS: Record<number, TranslationKey> = {
-  1: 'create.contentLevel1',
-  2: 'create.contentLevel2',
-  3: 'create.contentLevel3',
-  4: 'create.contentLevel4',
-  5: 'create.contentLevel5',
-};
 import { companionScore, type Rarity } from '@/lib/rarity';
 import { CreateSuccessModal, type CreatedCompanionReveal } from '@/components/creator/CreateSuccessModal';
 
@@ -102,10 +95,330 @@ interface PortraitBatchResponse {
   endpoint_id?: string;
 }
 
-const SLOT_COUNT = 4;
+const SLOT_COUNT = 2;
 const EMPTY_SLOTS: PortraitSlot[] = Array.from({ length: SLOT_COUNT }, () => ({ status: 'idle' as const }));
 
+/**
+ * 立绘槽位动态生成进度：后端状态接口仅返回粗粒度状态（IN_PROGRESS/COMPLETED），
+ * 这里按耗时驱动的渐进曲线模拟进度（起步快、后段慢，渐近逼近 96%），
+ * 并分三阶段展示：排队 → AI 绘制 → 高清精修。
+ */
+function PortraitLoadingProgress({ label }: { label: string }) {
+  const { t } = useTranslation();
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setProgress((p) => {
+        const next = p + Math.max(0.2, (96 - p) * 0.03);
+        return next >= 96 ? 96 : next;
+      });
+    }, 400);
+    return () => clearInterval(timer);
+  }, []);
+  const pct = Math.round(progress);
+  const phaseKey: TranslationKey =
+    pct < 20 ? 'create.progressQueued' : pct < 82 ? 'create.progressDrawing' : 'create.progressEnhance';
+  return (
+    <div className="relative flex h-full w-full flex-col items-center justify-center gap-2.5 overflow-hidden px-6">
+      {/* shimmer sweep */}
+      <motion.div
+        className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent"
+        animate={{ x: ['-100%', '300%'] }}
+        transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
+      />
+      <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]/60" />
+      <span className="text-[10px] font-medium text-white/40">
+        {label} · {t(phaseKey)} {pct}%
+      </span>
+      <div className="h-1 w-full max-w-[130px] overflow-hidden rounded-full bg-white/[0.06]">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** 风格 → LoRA 预览（与 auto-lora.ts / fluxScenarioPlan 的 SFW 组合保持一致，仅用于 UI 展示） */
+const STYLE_LORA_PREVIEW: Record<string, string[]> = {
+  realistic: ['flux_style_photoreal_v1', 'flux_detail_skin_v1'],
+  anime: ['rdanimefluxv1rapid'],
+  '3d': ['flux_3d_render_v1'],
+};
+
+/**
+ * 性别差异化预选项：男性/女性的发型、身材集合不同（值与 creator_option_pool 种子一致）。
+ * 跨性别展示并集（即不过滤）。
+ */
+const GENDER_OPTION_SETS: Record<string, Partial<Record<string, string[]>>> = {
+  Female: {
+    hair_style: ['Straight', 'Wavy', 'Curly', 'Bob', 'Pixie Cut', 'Long Flowing', 'Ponytail', 'Twin Tails', 'Braided'],
+    body_type: ['Petite', 'Slim', 'Athletic', 'Curvy', 'Busty', 'Voluptuous', 'Tall'],
+  },
+  Male: {
+    hair_style: ['Short Crop', 'Undercut', 'Buzz Cut', 'Slicked Back', 'Man Bun', 'Pixie Cut'],
+    body_type: ['Slim', 'Athletic', 'Tall', 'Lean', 'Muscular', 'Broad'],
+  },
+};
+
+/** 关系选项的性别倾向：切换性别时随动到对应默认值 */
+const FEMALE_ONLY_RELATIONSHIPS = ['girlfriend', 'wife', 'maid', 'princess'];
+const MALE_ONLY_RELATIONSHIPS = ['boyfriend', 'husband'];
+
+interface CardProductItem {
+  id: string;
+  name: string;
+  price_credits: number;
+  cardAmount: number;
+  rarity: string;
+  imageUrl: string;
+  videoUrl: string;
+}
+
+/** 卡包媒体：按视频原生比例渲染（竖排完整展示、无裁切、无黑框）；视频加载失败回退封面图 */
+function CardMedia({
+  imageUrl, videoUrl, name, rarity, cardAmount,
+}: {
+  imageUrl: string;
+  videoUrl: string;
+  name: string;
+  rarity: string;
+  cardAmount: number;
+}) {
+  const [videoFailed, setVideoFailed] = useState(false);
+  const showVideo = !!videoUrl && !videoFailed;
+  return (
+    <div className="relative w-full overflow-hidden">
+      {showVideo ? (
+        <video
+          src={videoUrl}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          poster={imageUrl || undefined}
+          className="block h-auto w-full"
+          onError={() => setVideoFailed(true)}
+        />
+      ) : imageUrl ? (
+        /* eslint-disable-next-line @next/next/no-img-element -- dynamic external storage URL */
+        <img src={imageUrl} alt={name} loading="lazy" className="block h-auto w-full" />
+      ) : (
+        <div className="flex aspect-[9/16] w-full items-center justify-center bg-white/[0.04] text-2xl">💳</div>
+      )}
+      <span
+        className={cn(
+          'absolute bottom-1.5 right-1.5 rounded px-2 py-0.5 text-xs font-black',
+          rarity === 'epic' && 'bg-gradient-to-br from-amber-300 to-yellow-500 text-amber-950',
+          rarity === 'rare' && 'bg-violet-500 text-white',
+          (rarity === 'common' || (rarity !== 'epic' && rarity !== 'rare')) && 'bg-[#FF2D78] text-white',
+        )}
+      >
+        ×{cardAmount}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 创建卡购买弹窗：从商城商品（virtual_meta.kind='creation_card'）拉取卡包，
+ * 用积分走 /api/shop/v2/purchase 原子购买（RPC 自动加 profiles.creation_cards）。
+ */
+function BuyCardsModal({
+  open,
+  onClose,
+  onPurchased,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPurchased: () => void;
+}) {
+  const { t } = useTranslation();
+  const [products, setProducts] = useState<CardProductItem[]>([]);
+  const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [buyingId, setBuyingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+    Promise.all([
+      fetch('/api/shop/v2/products?limit=60').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      authedFetch('/api/shop/v2/credits').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ])
+      .then(([prodData, creditsData]) => {
+        const rows = ((prodData?.products ?? []) as Array<Record<string, unknown>>)
+          .filter((p) => {
+            const meta = (p.virtual_meta ?? {}) as Record<string, unknown>;
+            return meta.kind === 'creation_card' && Number(meta.card_amount ?? 0) > 0;
+          })
+          .map((p) => {
+            const meta = (p.virtual_meta ?? {}) as Record<string, unknown>;
+            return {
+              id: String(p.id ?? ''),
+              name: String(p.name ?? ''),
+              price_credits: Number(p.price_credits ?? 0),
+              cardAmount: Number(meta.card_amount ?? 1),
+              rarity: String(p.rarity ?? 'common'),
+              imageUrl: String(p.preview_url ?? ''),
+              videoUrl: String(meta.video_url ?? ''),
+            };
+          })
+          .sort((a, b) => a.cardAmount - b.cardAmount);
+        setProducts(rows);
+        setBalance(Number((creditsData as { balance?: number } | null)?.balance ?? 0));
+      })
+      .finally(() => setLoading(false));
+  }, [open]);
+
+  const handleBuy = useCallback(async (product: CardProductItem) => {
+    if (buyingId) return;
+    setBuyingId(product.id);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await authedFetch('/api/shop/v2/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: product.id }),
+      });
+      const data = await readResponseJson<{ success?: boolean; error?: string; new_credits_balance?: number }>(res);
+      if (!res.ok || !data.success) {
+        setError(res.status === 402 ? t('create.insufficientCredits') : (data.error || t('create.createFailed')));
+        return;
+      }
+      if (typeof data.new_credits_balance === 'number') setBalance(data.new_credits_balance);
+      setSuccess(t('create.cardsAdded', { n: product.cardAmount }));
+      onPurchased();
+    } catch (e) {
+      setError(errorMessageFromUnknown(e, t('common.networkError')));
+    } finally {
+      setBuyingId(null);
+    }
+  }, [buyingId, onPurchased, t]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <motion.div
+            className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/[0.09] bg-[#120a1a] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2 border-b border-white/[0.07] bg-gradient-to-r from-[#FF2D78]/10 to-[#8b5cf6]/10 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-[#FF2D78]" />
+                <span className="text-sm font-bold text-white/90">{t('create.buyCards')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-semibold text-amber-300">
+                  <Coins className="h-3 w-3" /> {t('create.creditsBalance', { n: balance })}
+                </span>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="max-h-[82vh] overflow-y-auto p-4">
+              <p className="mb-3 text-[11px] text-white/40">{t('create.buyCardsDesc')}</p>
+              {loading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-7 w-7 animate-spin text-white/30" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {products.map((p) => {
+                    const affordable = balance >= p.price_credits;
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex flex-col overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03]"
+                      >
+                        {/* 竖排媒体区：视频原生比例完整展示，无黑框 */}
+                        <CardMedia
+                          imageUrl={p.imageUrl}
+                          videoUrl={p.videoUrl}
+                          name={p.name}
+                          rarity={p.rarity}
+                          cardAmount={p.cardAmount}
+                        />
+                        <div className="flex flex-1 flex-col justify-between gap-2 p-2.5">
+                          <span className="truncate text-center text-sm font-semibold text-white/85">{p.name}</span>
+                          <button
+                            type="button"
+                            disabled={buyingId !== null}
+                            onClick={() => void handleBuy(p)}
+                            className={cn(
+                              'flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold transition-all touch-manipulation',
+                              affordable
+                                ? 'bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white shadow-[0_0_14px_rgba(255,45,120,0.35)] hover:opacity-90'
+                                : 'bg-white/[0.06] text-white/35',
+                              buyingId !== null && 'opacity-50',
+                            )}
+                          >
+                            {buyingId === p.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Coins className="h-3.5 w-3.5" />
+                            )}
+                            {t('create.buyFor', { n: p.price_credits })}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {products.length === 0 && !loading && (
+                    <p className="col-span-full py-6 text-center text-xs text-white/30">{t('common.networkError')}</p>
+                  )}
+                </div>
+              )}
+
+              {success && (
+                <motion.p
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-center text-xs font-semibold text-emerald-300"
+                >
+                  {success}
+                </motion.p>
+              )}
+              {error && (
+                <p className="mt-3 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-center text-xs font-semibold text-red-300">
+                  {error}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
 
 function getLabel(opt: OptionItem, locale: string): string {
   if (locale === 'zh' && opt.label_zh) return opt.label_zh;
@@ -275,10 +588,10 @@ export default function CreatePage() {
     return () => clearTimeout(timeoutId);
   }, [formData, saveDraftToLocalStorage]);
 
-  // Steps: 四步向导 风格 → 面部/身材 → 人设 + 内容级别 → 立绘
+  // Steps: 四步向导 风格 → 面部/身材 → 人设 → 立绘
   const [step, setStep] = useState<CreateStep>('style');
-  /** 立绘内容级别：1-5 全部支持（默认 1 = SFW，捏脸不锁定 NSFW） */
-  const [nsfwLevel, setNsfwLevel] = useState(1);
+  /** 立绘内容级别：UI 已移除，固定默认 1（SFW）随生图请求提交 */
+  const [nsfwLevel] = useState(1);
 
   // Data from backend
   const [options, setOptions] = useState<Record<string, OptionItem[]>>({});
@@ -286,11 +599,15 @@ export default function CreatePage() {
   const [parts, setParts] = useState<Record<string, CharacterPart[]>>({});
   const [cardStatus, setCardStatus] = useState<CardStatus | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  // 创建卡购买弹窗（顶部「+」按钮触发）
+  const [buyCardsOpen, setBuyCardsOpen] = useState(false);
 
   // 风格示例图可在后台「预设库管理」更换（site_settings creator_style_previews），缺省用内置默认图
   const [stylePreviews, setStylePreviews] = useState<Record<string, string>>(DEFAULT_STYLE_PREVIEWS);
   // 性别示例图（site_settings creator_gender_previews），空 = 符号占位，管理员可上传/删除
   const [genderPreviews, setGenderPreviews] = useState<Record<string, string>>({});
+  // 预设卡示例图（种族/发型/体型/穿搭，site_settings creator_preset_previews），空 = emoji 占位，管理员可上传/删除
+  const [presetPreviews, setPresetPreviews] = useState<Record<string, Record<string, string>>>({});
   // 内容级别示例图（site_settings creator_nsfw_previews），缺省用内置默认图，管理员可上传/恢复默认
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [nsfwPreviews, setNsfwPreviews] = useState<Record<string, string>>(NSFW_LEVEL_PREVIEWS);
@@ -307,6 +624,25 @@ export default function CreatePage() {
         if (typeof v === 'string' && v.trim()) patchUrls[k] = v;
       }
       if (Object.keys(patchUrls).length) set((prev) => ({ ...prev, ...patchUrls }));
+    };
+    const mergePresetPatch = (raw: unknown) => {
+      const p = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+      const patch: Record<string, Record<string, string>> = {};
+      for (const [cat, bucket] of Object.entries(p)) {
+        if (cat === 'updated_at' || !bucket || typeof bucket !== 'object' || Array.isArray(bucket)) continue;
+        const urls: Record<string, string> = {};
+        for (const [k, v] of Object.entries(bucket as Record<string, unknown>)) {
+          if (typeof v === 'string' && v.trim()) urls[k] = v;
+        }
+        if (Object.keys(urls).length) patch[cat] = urls;
+      }
+      if (Object.keys(patch).length) {
+        setPresetPreviews((prev) => {
+          const next = { ...prev };
+          for (const [cat, urls] of Object.entries(patch)) next[cat] = { ...(next[cat] || {}), ...urls };
+          return next;
+        });
+      }
     };
     fetch('/api/creator/style-previews')
       .then((r) => (r.ok ? r.json() : null))
@@ -326,15 +662,22 @@ export default function CreatePage() {
       .catch(() => {
         /* keep defaults */
       });
+    fetch('/api/creator/preset-previews')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => mergePresetPatch(data?.previews))
+      .catch(() => {
+        /* keep placeholders */
+      });
     // 管理员探测：非管理员返回 401/403，静默跳过；成功则顺带取最新配置
     authedFetch('/api/admin/style-previews')
       .then(async (r) => {
         if (!r.ok) return null;
         setIsAdmin(true);
-        const [styleData, genderRes, nsfwRes] = await Promise.all([
+        const [styleData, genderRes, nsfwRes, presetRes] = await Promise.all([
           readResponseJson<{ previews?: Record<string, unknown> }>(r),
           authedFetch('/api/admin/gender-previews'),
           authedFetch('/api/admin/nsfw-previews'),
+          authedFetch('/api/admin/preset-previews'),
         ]);
         mergePatch(setStylePreviews, styleData.previews);
         if (genderRes.ok) {
@@ -344,6 +687,10 @@ export default function CreatePage() {
         if (nsfwRes.ok) {
           const nsfwData = await readResponseJson<{ previews?: Record<string, unknown> }>(nsfwRes);
           mergePatch(setNsfwPreviews, nsfwData.previews);
+        }
+        if (presetRes.ok) {
+          const presetData = await readResponseJson<{ previews?: Record<string, unknown> }>(presetRes);
+          mergePresetPatch(presetData.previews);
         }
       })
       .catch(() => {
@@ -430,6 +777,44 @@ export default function CreatePage() {
   // ─── Option helpers ──────────────────────────────────────────────────────
 
   const getOpts = useCallback((category: string): OptionItem[] => options[category] || [], [options]);
+
+  /**
+   * 性别差异化选项：发型/身材按所选性别过滤（跨性别 = 并集不过滤）；
+   * 选项池缺性别种子时（过滤结果为空）回退全集，避免空面板。
+   */
+  const genderFilteredOpts = useCallback((category: string): OptionItem[] => {
+    const all = getOpts(category);
+    const set = GENDER_OPTION_SETS[gender]?.[category];
+    if (!set) return all;
+    const filtered = all.filter((o) => set.includes(o.value));
+    return filtered.length > 0 ? filtered : all;
+  }, [getOpts, gender]);
+
+  // 切换性别 → 预选项随动：当前发型/身材不在新性别集合内则重置；关系跟随性别切换
+  useEffect(() => {
+    const sets = GENDER_OPTION_SETS[gender];
+    if (sets) {
+      if (sets.hair_style && !sets.hair_style.includes(hairStyle) && sets.hair_style.length > 0) {
+        setHairStyle(sets.hair_style[0]);
+      }
+      if (sets.body_type && !sets.body_type.includes(bodyType) && sets.body_type.length > 0) {
+        setBodyType(sets.body_type[0]);
+      }
+    }
+    if (gender === 'Male' && FEMALE_ONLY_RELATIONSHIPS.includes(relationship)) setRelationship('boyfriend');
+    else if (gender === 'Female' && MALE_ONLY_RELATIONSHIPS.includes(relationship)) setRelationship('girlfriend');
+  }, [gender, hairStyle, bodyType, relationship]);
+
+  /** 购买成功后重拉创建卡状态（RPC 已入账 profiles.creation_cards） */
+  const refreshCards = useCallback(async () => {
+    try {
+      const res = await authedFetch('/api/creator/cards');
+      const data = await readResponseJson<CardStatus>(res);
+      if (data) setCardStatus(data);
+    } catch {
+      /* 静默：下次页面刷新会重拉 */
+    }
+  }, []);
 
   const partPrompt = useCallback((cat: string, value: string): string => {
     return (parts[cat] || []).find((p) => p.value.toLowerCase() === value.toLowerCase())?.prompt_en || '';
@@ -839,7 +1224,7 @@ export default function CreatePage() {
 
   // ─── Admin 就地管理：风格/性别/预设 示例图上传与删除 ────────────────────
 
-  type UploadTarget = { kind: 'style' | 'gender' | 'nsfw'; key: string };
+  type UploadTarget = { kind: 'style' | 'gender' | 'nsfw' | 'preset'; key: string };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [assetBusy, setAssetBusy] = useState<string | null>(null);
@@ -856,7 +1241,22 @@ export default function CreatePage() {
     if (!file || !target || !isAdmin) return;
     setAssetBusy(`${target.kind}:${target.key}`);
     try {
-      if (target.kind === 'style' || target.kind === 'gender' || target.kind === 'nsfw') {
+      if (target.kind === 'preset') {
+        const sep = target.key.indexOf(':');
+        const category = sep > 0 ? target.key.slice(0, sep) : '';
+        const optKey = sep > 0 ? target.key.slice(sep + 1) : target.key;
+        const fd = new FormData();
+        fd.append('category', category);
+        fd.append('key', optKey);
+        fd.append('file', file);
+        const res = await authedFetch('/api/admin/preset-previews', { method: 'POST', body: fd });
+        const data = await readResponseJson<{ previews?: Record<string, Record<string, string>>; error?: string }>(res);
+        if (!res.ok) throw new Error(data.error || 'upload failed');
+        const bucket = data.previews?.[category];
+        if (bucket) {
+          setPresetPreviews((prev) => ({ ...prev, [category]: { ...(prev[category] || {}), ...bucket } }));
+        }
+      } else if (target.kind === 'style' || target.kind === 'gender' || target.kind === 'nsfw') {
         const fd = new FormData();
         fd.append(target.kind === 'nsfw' ? 'level' : target.kind, target.key);
         fd.append('file', file);
@@ -890,7 +1290,22 @@ export default function CreatePage() {
     if (!isAdmin) return;
     setAssetBusy(`${kind}:${key}`);
     try {
-      if (kind === 'style') {
+      if (kind === 'preset') {
+        const sep = key.indexOf(':');
+        const category = sep > 0 ? key.slice(0, sep) : '';
+        const optKey = sep > 0 ? key.slice(sep + 1) : key;
+        const res = await authedFetch(
+          `/api/admin/preset-previews?category=${encodeURIComponent(category)}&key=${encodeURIComponent(optKey)}`,
+          { method: 'DELETE' },
+        );
+        const data = await readResponseJson<{ error?: string }>(res);
+        if (!res.ok) throw new Error(data.error || 'delete failed');
+        setPresetPreviews((prev) => {
+          const bucket = { ...(prev[category] || {}) };
+          delete bucket[optKey];
+          return { ...prev, [category]: bucket };
+        });
+      } else if (kind === 'style') {
         const res = await authedFetch(`/api/admin/style-previews?style=${encodeURIComponent(key)}`, { method: 'DELETE' });
         const data = await readResponseJson<{ previews?: Record<string, string>; error?: string }>(res);
         if (!res.ok) throw new Error(data.error || 'delete failed');
@@ -911,6 +1326,23 @@ export default function CreatePage() {
       setAssetBusy(null);
     }
   }, [isAdmin, t]);
+
+  // 预设卡（种族/发型/体型/穿搭）管理员就地上传/删除覆盖层
+  const presetAdminOverlay = useCallback(
+    (category: string) =>
+      isAdmin
+        ? (o: { value: string }) => (
+            <AdminCardButtons
+              busy={assetBusy === `preset:${category}:${o.value}`}
+              onUpload={() => pickAssetImage('preset', `${category}:${o.value}`)}
+              onClear={() => void clearAssetImage('preset', `${category}:${o.value}`)}
+              clearTitle={t('create.adminDeleteImage')}
+              clearIcon="trash"
+            />
+          )
+        : undefined,
+    [isAdmin, assetBusy, pickAssetImage, clearAssetImage, t],
+  );
 
   // ─── Derived UI bits ─────────────────────────────────────────────────────
 
@@ -958,6 +1390,15 @@ export default function CreatePage() {
             {cardStatus.monthlyQuota > 0 && (
               <span className="text-white/30">/{cardStatus.monthlyQuota}{t('create.perMonth')}</span>
             )}
+            {/* 「+」快捷充值入口：弹窗用积分购买创建卡 */}
+            <button
+              type="button"
+              onClick={() => setBuyCardsOpen(true)}
+              title={t('create.buyCards')}
+              className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] text-white shadow-[0_0_10px_rgba(255,45,120,0.45)] transition-transform hover:scale-110 touch-manipulation"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
           </div>
         )}
 
@@ -1413,18 +1854,38 @@ export default function CreatePage() {
                             </div>
                             ) : null;
                           })()}
+                          {/* 风格 LoRA 预览：不同风格生图时自动挂载对应 LoRA（后端 auto-lora 同源） */}
+                          {(() => {
+                            const loras = STYLE_LORA_PREVIEW[visualStyle];
+                            return loras && loras.length > 0 ? (
+                              <div className="mt-3">
+                                <div className="mb-1.5 text-[11px] text-white/40">{t('create.styleLoraStack')}</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {loras.map((l) => (
+                                    <span
+                                      key={l}
+                                      className="rounded-full border border-[#8b5cf6]/35 bg-[#8b5cf6]/10 px-2.5 py-1 text-[10px] font-medium text-violet-200"
+                                    >
+                                      {l}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
                         </Panel>
                         )}
 
                         {/* ── 面部/身材步：种族 / 发型 / 发色 / 身材 / 穿搭风格 (可视化卡片) ── */}
                         {step === 'appearance' && (
-                        <Panel title={t('create.stepFace')}>
+                        <Panel title={t('create.stepFace')} hint={t('create.genderTailored')}>
                           {/* Ethnicity Cards - 8 options max */}
                           {(() => {
                             const options = getOpts('ethnicity').map((o) => ({
                               value: o.value,
                               label: getLabel(o, locale),
                               description: getExtra(o, 'desc', locale),
+                              image: presetPreviews['ethnicity']?.[o.value],
                               imagePlaceholder: '🌍',
                             }));
                             return options.length > 0 && (
@@ -1436,16 +1897,18 @@ export default function CreatePage() {
                                 columns={4}
                                 showDescription
                                 cardVariant="large"
+                                renderAdminOverlay={presetAdminOverlay('ethnicity')}
                               />
                             );
                           })()}                        
                           
-                          {/* Hair Style Cards - 8 options max */}
+                          {/* Hair Style Cards - 8 options max（按性别过滤） */}
                           {(() => {
-                            const options = getOpts('hair_style').map((o) => ({
+                            const options = genderFilteredOpts('hair_style').map((o) => ({
                               value: o.value,
                               label: getLabel(o, locale),
                               description: getExtra(o, 'desc', locale),
+                              image: presetPreviews['hair_style']?.[o.value],
                               imagePlaceholder: '💇️',
                             }));
                             return options.length > 0 && (
@@ -1457,6 +1920,7 @@ export default function CreatePage() {
                                 columns={4}
                                 showDescription
                                 cardVariant="large"
+                                renderAdminOverlay={presetAdminOverlay('hair_style')}
                               />
                             );
                           })()}
@@ -1489,13 +1953,14 @@ export default function CreatePage() {
 
                         {/* ── 面部/身材步（续）：体型 / 穿搭风格 / 额外备注 (可视化卡片) ── */}
                         {step === 'appearance' && (
-                        <Panel title={t('create.stepBody')}>
-                          {/* Body Type Cards - 8 options max */}
+                        <Panel title={t('create.stepBody')} hint={t('create.genderTailored')}>
+                          {/* Body Type Cards - 8 options max（按性别过滤） */}
                           {(() => {
-                            const options = getOpts('body_type').map((o) => ({
+                            const options = genderFilteredOpts('body_type').map((o) => ({
                               value: o.value,
                               label: getLabel(o, locale),
                               description: getExtra(o, 'desc', locale),
+                              image: presetPreviews['body_type']?.[o.value],
                               imagePlaceholder: '💪',
                             }));
                             return options.length > 0 && (
@@ -1507,6 +1972,7 @@ export default function CreatePage() {
                                 columns={4}
                                 showDescription
                                 cardVariant="large"
+                                renderAdminOverlay={presetAdminOverlay('body_type')}
                               />
                             );
                           })()}
@@ -1517,6 +1983,7 @@ export default function CreatePage() {
                               value: o.value,
                               label: getLabel(o, locale),
                               description: getExtra(o, 'desc', locale),
+                              image: presetPreviews['fashion_style']?.[o.value],
                               imagePlaceholder: '👗',
                             }));
                             return options.length > 0 && (
@@ -1528,6 +1995,7 @@ export default function CreatePage() {
                                 columns={4}
                                 showDescription
                                 cardVariant="large"
+                                renderAdminOverlay={presetAdminOverlay('fashion_style')}
                               />
                             );
                           })()}
@@ -1736,32 +2204,10 @@ export default function CreatePage() {
                   </p>
                 </div>
 
-                {/* 内容级别 1-5：SFW → NSFW 全部支持（默认 1 = SFW） */}
-                <div className="mb-4 flex flex-wrap items-center justify-center gap-1.5">
-                  <span className="text-[11px] font-medium text-white/40">{t('create.contentLevel')}</span>
-                  {[1, 2, 3, 4, 5].map((lv) => (
-                    <button
-                      key={lv}
-                      type="button"
-                      disabled={batchRunning}
-                      onClick={() => {
-                        setNsfwLevel(lv);
-                        if (slots.some((s) => s.status === 'ready' || s.status === 'error')) void runBatch(lv);
-                      }}
-                      className={cn(
-                        'rounded-full border px-2.5 py-1 text-[11px] transition disabled:opacity-40',
-                        nsfwLevel === lv
-                          ? 'border-[#FF2D78]/60 bg-[#FF2D78]/15 text-white shadow-[0_0_12px_rgba(255,45,120,0.25)]'
-                          : 'border-white/10 bg-white/[0.04] text-white/50 hover:text-white',
-                      )}
-                    >
-                      {lv} · {t(CONTENT_LEVEL_KEYS[lv])}
-                    </button>
-                  ))}
-                </div>
+                {/* 内容级别选择已移除：固定默认级别随请求提交 */}
 
-                {/* 4 portrait cards — first row side by side on desktop */}
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {/* 2 portrait cards — 2 选 1 */}
+                <div className="grid grid-cols-2 gap-3">
                   {slots.map((slot, idx) => (
                     <button
                       key={idx}
@@ -1781,18 +2227,9 @@ export default function CreatePage() {
                         // 选片网格按需压缩（512px 宽），压缩失败自动回退原图
                         <OptimizedImg src={slot.url} size="card" alt={`portrait-${idx + 1}`} className="h-full w-full object-cover" />
                       ) : slot.status === 'loading' ? (
-                        <div className="relative flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden">
-                          {/* shimmer sweep */}
-                          <motion.div
-                            className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent"
-                            animate={{ x: ['-100%', '300%'] }}
-                            transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
-                          />
-                          <Loader2 className="h-6 w-6 animate-spin text-[#FF2D78]/60" />
-                          <span className="text-[10px] text-white/30">
-                            {t('create.generatingN', { n: `${idx + 1}/4` })}
-                          </span>
-                        </div>
+                        <PortraitLoadingProgress
+                          label={t('create.generatingN', { n: `${idx + 1}/${SLOT_COUNT}` })}
+                        />
                       ) : slot.status === 'error' ? (
                         <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
                           <span className="text-[11px] text-red-400/80">{slot.error || (t('create.genFailed'))}</span>
@@ -1817,6 +2254,16 @@ export default function CreatePage() {
                               transition={{ type: 'spring', stiffness: 320, damping: 18 }}
                             >
                               <Check className="h-4 w-4 text-white" />
+                            </motion.div>
+                          )}
+                          {/* 选中即定位：该图将作为伴侣头像(ID)与立绘随创建提交 */}
+                          {selectedSlot === idx && (
+                            <motion.div
+                              className="pointer-events-none absolute bottom-2 right-2.5 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] px-2 py-0.5 text-[9px] font-bold text-white shadow-[0_0_10px_rgba(255,45,120,0.5)]"
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                            >
+                              {t('create.setAsAvatarPortrait')}
                             </motion.div>
                           )}
                         </>
@@ -1923,6 +2370,13 @@ export default function CreatePage() {
         companion={reveal}
         onGoChat={handleGoChat}
         onCreateAnother={handleCreateAnother}
+      />
+
+      {/* 创建卡购买弹窗（顶部「+」触发） */}
+      <BuyCardsModal
+        open={buyCardsOpen}
+        onClose={() => setBuyCardsOpen(false)}
+        onPurchased={() => void refreshCards()}
       />
 
       {/* ─── Integration: Advanced Settings Modal ──────────────────────────── */}

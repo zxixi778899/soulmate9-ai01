@@ -427,11 +427,13 @@ export function buildFluxWorkflow(opts: {
       if (!adetailerReady) {
         logger.warn('[runpod] face_detailer requested but RUNPOD_ADETAILER_READY=false — skipping ADetailer enhancement');
       } else {
-        // RunPod endpoint confirmed to have Impact Pack installed
+        // RunPod endpoint confirmed to have Impact Pack installed.
+        // 新版 Impact Pack schema（与 comfy-builders/enhance-blocks.ts 对齐）：
+        // 模型名带 bbox/ 前缀；feather/wildcard/cycle/drop_size 等为必填输入。
         Object.assign(graph, {
           '51': {
             class_type: 'UltralyticsDetectorProvider',
-            inputs: { model_name: process.env.RUNPOD_ADETAILER_MODEL?.trim() || 'face_yolov8m.pt' },
+            inputs: { model_name: process.env.RUNPOD_ADETAILER_MODEL?.trim() || 'bbox/face_yolov8m.pt' },
           },
           '50': {
             class_type: 'FaceDetailer',
@@ -451,22 +453,25 @@ export function buildFluxWorkflow(opts: {
               // Conservative face repair: lower denoise preserves identity,
               // higher feather blends the repaired face naturally.
               denoise: 0.35,
-              feather_mask: 8,
+              feather: 8,
               noise_mask: true,
               force_inpaint: true,
-              wildcard_opt: '',
+              wildcard: '',
               guide_size: 512,
               guide_size_for: true,
               max_size: 1024,
               bbox_threshold: 0.5,
               bbox_dilation: 0,
               bbox_crop_factor: 3,
-              sam_detection_hint: 'center',
+              sam_detection_hint: 'center-1',
               sam_dilation: 0,
               sam_threshold: 0.93,
               // Larger expansion covers forehead + hairline for consistent skin
-              sam_expansion: 0.6,
-              segs_pivot: 'center',
+              sam_bbox_expansion: 0.6,
+              sam_mask_hint_threshold: 0.7,
+              sam_mask_hint_use_negative: 'False',
+              drop_size: 10,
+              cycle: 1,
             },
           },
         });
@@ -486,7 +491,7 @@ export function buildFluxWorkflow(opts: {
         Object.assign(graph, {
           '60': {
             class_type: 'UpscaleModelLoader',
-            inputs: { upscale_model: process.env.RUNPOD_UPSCALE_MODEL?.trim() || '4x-UltraSharp.pth' },
+            inputs: { model_name: process.env.RUNPOD_UPSCALE_MODEL?.trim() || '4x-UltraSharp.pth' },
           },
           '61': {
             class_type: 'ImageUpscaleWithModel',
@@ -498,6 +503,9 @@ export function buildFluxWorkflow(opts: {
               upscale_method: 'lanczos',
               image: ['61', 0],
               megapixels: Number(megapixels.toFixed(2)),
+              // Newer ComfyUI makes resolution_steps a required input (used
+              // to pick the resample filter); mirror the base step budget.
+              resolution_steps: 20,
             },
           },
         });

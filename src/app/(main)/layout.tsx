@@ -16,6 +16,7 @@ const AUTH_REQUIRED_PREFIXES = [
   '/chats',
   '/create',
   '/studio',
+  '/generate',
   '/wallet',
   '/wardrobe',
   '/memories',

@@ -8,7 +8,7 @@ import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { cn } from '@/lib/utils';
 import {
-  Heart, MessageCircle, User, Compass, LogIn, Wand2, ShoppingBag, Sparkles,
+  Heart, MessageCircle, User, Compass, LogIn, Wand2, ShoppingBag, Sparkles, Images,
 } from 'lucide-react';
 
 export default function BottomNav() {
@@ -30,6 +30,7 @@ export default function BottomNav() {
     ? [
         { href: '/', label: t('nav.explore'), icon: Compass },
         { href: '/explore', label: t('nav.pool'), icon: Heart },
+        { href: '/generate', label: t('nav.generate'), icon: Images },
       ]
     : [
         { href: '/', label: t('nav.explore'), icon: Compass },
