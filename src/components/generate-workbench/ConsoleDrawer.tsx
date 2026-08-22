@@ -7,10 +7,10 @@
  * custom prompt, quantity / settings popovers and the gradient Generate pill.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Coins, Film, Image as ImageIcon, Loader2, Lock,
-  Settings2, Sparkles, User, X,
+  Coins, Film, Flame, Image as ImageIcon, Loader2, Lock,
+  Minus, Plus, Settings2, Sparkles, User, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
@@ -19,6 +19,10 @@ import { girlAvatarUrl, type Girl, type OutfitOption, type PersonalWork, type Sl
 
 const COUNT_OPTIONS = [1, 2, 4];
 const UPSCALE_OPTIONS = [0, 2, 4];
+
+/** Preset slot visibility is user-managed and persisted locally. */
+const SLOT_STORAGE_KEY = 'generate-console-visible-slots';
+const ALL_SLOTS: SlotKind[] = ['pose', 'outfit', 'scene'];
 
 export interface ConsoleDrawerProps {
   mode: WorkbenchMode;
@@ -49,6 +53,10 @@ export interface ConsoleDrawerProps {
   onFaceFixChange: (value: boolean) => void;
   upscale: number;
   onUpscaleChange: (value: number) => void;
+  /** Quick tools under the prompt box (image mode only). */
+  undressOn: boolean;
+  onUndressToggle: () => void;
+  onHdToggle: () => void;
   identityOn: boolean;
   onIdentityChange: (value: boolean) => void;
   identityAvailable: boolean;
@@ -74,9 +82,73 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const baseInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Preset slots can be added / removed; the layout survives reloads.
+  const [visibleSlots, setVisibleSlots] = useState<SlotKind[]>(ALL_SLOTS);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SLOT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter((s): s is SlotKind => ALL_SLOTS.includes(s as SlotKind));
+          if (valid.length > 0) setVisibleSlots(valid);
+        }
+      }
+    } catch {
+      // Private mode / corrupt entry — keep the default layout.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SLOT_STORAGE_KEY, JSON.stringify(visibleSlots));
+    } catch {
+      // Storage full / private mode — visibility stays in-memory only.
+    }
+  }, [visibleSlots]);
+
+  const hiddenSlots = ALL_SLOTS.filter((s) => !visibleSlots.includes(s));
+
   const slotLabel = 'text-[10px] uppercase tracking-[0.14em] text-white/40';
   const pillBase =
     'flex-1 h-9 inline-flex items-center justify-center gap-1.5 rounded-full text-xs font-semibold transition-all';
+
+  /** Render config per preset slot — drives the dynamic add/remove grid. */
+  const slotDefs: Record<SlotKind, {
+    label: string;
+    selectedLabel: string | null;
+    previewUrl: string | null;
+    loading: boolean;
+    onClick: () => void;
+    onClear?: () => void;
+  }> = {
+    pose: {
+      label: t('generate.slotPose'),
+      selectedLabel: props.selectedPose ? (props.isZh ? props.selectedPose.label_zh || props.selectedPose.label_en : props.selectedPose.label_en) : null,
+      previewUrl: props.selectedPose?.preview_url || null,
+      loading: props.presetsLoading,
+      onClick: () => props.onOpenSlot('pose'),
+      onClear: props.selectedPose ? props.onClearPose : undefined,
+    },
+    outfit: {
+      label: t('generate.slotOutfit'),
+      selectedLabel: props.selectedOutfit ? `${props.selectedOutfit.emoji || ''} ${props.selectedOutfit.name}` : null,
+      previewUrl: null,
+      loading: false,
+      onClick: () => props.onOpenSlot('outfit'),
+      onClear: props.selectedOutfit ? props.onClearOutfit : undefined,
+    },
+    scene: {
+      label: t('generate.slotScene'),
+      selectedLabel: props.selectedScene ? (props.isZh ? props.selectedScene.label_zh || props.selectedScene.label_en : props.selectedScene.label_en) : null,
+      previewUrl: props.selectedScene?.preview_url || null,
+      loading: props.presetsLoading,
+      onClick: () => props.onOpenSlot('scene'),
+      onClear: props.selectedScene ? props.onClearScene : undefined,
+    },
+  };
 
   return (
     <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-[#121212] shadow-[0_16px_48px_rgba(0,0,0,0.5)] overflow-hidden">
@@ -267,33 +339,58 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
               )}
             </div>
 
-            {/* Pose slot */}
-            <SlotCard
-              label={t('generate.slotPose')}
-              selectedLabel={props.selectedPose ? (props.isZh ? props.selectedPose.label_zh || props.selectedPose.label_en : props.selectedPose.label_en) : null}
-              previewUrl={props.selectedPose?.preview_url || null}
-              loading={props.presetsLoading}
-              onClick={() => props.onOpenSlot('pose')}
-              onClear={props.selectedPose ? props.onClearPose : undefined}
-            />
-            {/* Outfit slot */}
-            <SlotCard
-              label={t('generate.slotOutfit')}
-              selectedLabel={props.selectedOutfit ? `${props.selectedOutfit.emoji || ''} ${props.selectedOutfit.name}` : null}
-              previewUrl={null}
-              loading={false}
-              onClick={() => props.onOpenSlot('outfit')}
-              onClear={props.selectedOutfit ? props.onClearOutfit : undefined}
-            />
-            {/* Scene slot */}
-            <SlotCard
-              label={t('generate.slotScene')}
-              selectedLabel={props.selectedScene ? (props.isZh ? props.selectedScene.label_zh || props.selectedScene.label_en : props.selectedScene.label_en) : null}
-              previewUrl={props.selectedScene?.preview_url || null}
-              loading={props.presetsLoading}
-              onClick={() => props.onOpenSlot('scene')}
-              onClear={props.selectedScene ? props.onClearScene : undefined}
-            />
+            {/* Dynamic preset slots — user can add / remove (persisted locally) */}
+            {visibleSlots.map((kind) => {
+              const def = slotDefs[kind];
+              return (
+                <SlotCard
+                  key={kind}
+                  label={def.label}
+                  selectedLabel={def.selectedLabel}
+                  previewUrl={def.previewUrl}
+                  loading={def.loading}
+                  onClick={def.onClick}
+                  onClear={def.onClear}
+                  onRemove={() => setVisibleSlots((prev) => prev.filter((s) => s !== kind))}
+                />
+              );
+            })}
+
+            {/* Add-slot tile — restores a hidden preset slot */}
+            {hiddenSlots.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAddMenuOpen((v) => !v)}
+                  className="flex w-full aspect-[2/3] items-center justify-center rounded-xl border border-dashed border-white/15 text-white/35 hover:border-[#FD5FC2]/50 hover:text-white transition-all"
+                >
+                  <span className="flex flex-col items-center gap-1">
+                    <Plus className="h-4 w-4" />
+                    <span className="text-[9px] uppercase tracking-wide">{t('generate.addSlot')}</span>
+                  </span>
+                </button>
+                {addMenuOpen && (
+                  <>
+                    <button type="button" aria-hidden className="fixed inset-0 z-10 cursor-default" onClick={() => setAddMenuOpen(false)} />
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-white/10 bg-[#1D1D1D] p-1 shadow-xl">
+                      {hiddenSlots.map((kind) => (
+                        <button
+                          key={kind}
+                          type="button"
+                          onClick={() => {
+                            setVisibleSlots((prev) => [...prev, kind]);
+                            setAddMenuOpen(false);
+                          }}
+                          className="flex w-full items-center rounded-lg px-2 py-1.5 text-left text-xs text-white/85 hover:bg-white/[0.06] transition-colors"
+                        >
+                          {slotDefs[kind].label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -311,6 +408,35 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
             placeholder={t('generate.promptPlaceholder')}
             className="w-full h-24 p-3 rounded-xl bg-[#1D1D1D] border border-white/[0.08] text-sm text-white placeholder-white/25 focus:border-[#FD5FC2]/50 outline-none resize-none"
           />
+          {/* Quick tools: one-tap prompt / quality helpers (image mode only) */}
+          {props.mode === 'image' && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={props.onUndressToggle}
+                className={cn(
+                  'inline-flex h-6 items-center gap-1 rounded-full border px-2.5 text-[10px] font-medium transition-all',
+                  props.undressOn
+                    ? 'border-[#FD5FC2]/60 bg-[#FD5FC2]/15 text-white'
+                    : 'border-white/10 text-white/45 hover:text-white',
+                )}
+              >
+                <Flame className="h-3 w-3" /> {t('generate.toolUndress')}
+              </button>
+              <button
+                type="button"
+                onClick={props.onHdToggle}
+                className={cn(
+                  'inline-flex h-6 items-center gap-1 rounded-full border px-2.5 text-[10px] font-medium transition-all',
+                  props.upscale > 0
+                    ? 'border-[#FD5FC2]/60 bg-[#FD5FC2]/15 text-white'
+                    : 'border-white/10 text-white/45 hover:text-white',
+                )}
+              >
+                <Sparkles className="h-3 w-3" /> {t('generate.toolHd')}
+              </button>
+            </div>
+          )}
         </div>
 
         {props.submitError && <p className="text-xs text-red-300">{props.submitError}</p>}
@@ -492,7 +618,10 @@ function SlotCard(props: {
   loading: boolean;
   onClick: () => void;
   onClear?: () => void;
+  /** Hides this slot from the console (user-managed layout). */
+  onRemove?: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="relative">
       <button
@@ -530,6 +659,17 @@ function SlotCard(props: {
           aria-label={`Clear ${props.label}`}
         >
           <X className="h-3 w-3" />
+        </button>
+      )}
+      {props.onRemove && (
+        <button
+          type="button"
+          onClick={props.onRemove}
+          className="absolute bottom-1.5 right-1.5 h-5 w-5 rounded-full bg-black/60 flex items-center justify-center text-white/60 hover:text-red-300"
+          aria-label={`Remove ${props.label}`}
+          title={t('generate.removeSlot')}
+        >
+          <Minus className="h-3 w-3" />
         </button>
       )}
     </div>

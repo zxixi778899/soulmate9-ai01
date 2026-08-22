@@ -47,6 +47,13 @@ import {
 
 const LIKED_STORAGE_KEY = 'generate-workbench-liked';
 
+/**
+ * Quick-tool fragment for the one-tap undress helper. It injects explicit
+ * intent into the free-text request; the pipeline still caps intensity by
+ * the companion's intimacy policy server-side.
+ */
+const UNDRESS_FRAGMENT = 'she takes off all her clothes, fully nude';
+
 function loadLikedIds(): Set<string> {
   if (typeof window === 'undefined') return new Set();
   try {
@@ -85,6 +92,7 @@ export default function GenerateWorkbench() {
   const [count, setCount] = useState(1);
   const [faceFix, setFaceFix] = useState(true);
   const [upscale, setUpscale] = useState(0);
+  const [undressOn, setUndressOn] = useState(false);
   const [identityOn, setIdentityOn] = useState(true);
   const [credits, setCredits] = useState<number | null>(null);
 
@@ -381,6 +389,16 @@ export default function GenerateWorkbench() {
     setSlotPicker(slot);
   };
 
+  // Quick tool: one-tap HD — 4x upscale (+ face fix on) or back to plain.
+  const handleHdToggle = () => {
+    if (upscale > 0) {
+      setUpscale(0);
+    } else {
+      setUpscale(4);
+      setFaceFix(true);
+    }
+  };
+
   const handleLockedPick = () => {
     setLockedHint(true);
     if (hintTimer.current) clearTimeout(hintTimer.current);
@@ -434,7 +452,9 @@ export default function GenerateWorkbench() {
         const primary = selectedScene || selectedPose;
         const requestParts = [
           prompt.trim(),
-          selectedOutfit?.wear_prompt || '',
+          // Undress intent contradicts an outfit prompt — the tool wins.
+          undressOn ? '' : selectedOutfit?.wear_prompt || '',
+          undressOn ? UNDRESS_FRAGMENT : '',
           primary && isCustomPresetSlug(primary.slug) ? primary.prompt_hint || '' : '',
         ].filter(Boolean);
         body.user_request = requestParts.join(', ') || 'a beautiful portrait';
@@ -597,6 +617,9 @@ export default function GenerateWorkbench() {
           onFaceFixChange={setFaceFix}
           upscale={upscale}
           onUpscaleChange={setUpscale}
+          undressOn={undressOn}
+          onUndressToggle={() => setUndressOn((v) => !v)}
+          onHdToggle={handleHdToggle}
           identityOn={identityOn}
           onIdentityChange={setIdentityOn}
           identityAvailable={Boolean(girlIdentityUrl(selectedGirl))}
