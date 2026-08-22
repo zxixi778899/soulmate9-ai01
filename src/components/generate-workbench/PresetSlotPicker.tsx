@@ -1,18 +1,26 @@
 'use client';
 
 /**
- * PresetSlotPicker — full-screen modal listing the pose / outfit / scene
- * options for one console slot. All three categories share the same 2:3
- * portrait card layout. Locked presets stay visible (blur + lock) and trigger
- * the intimacy hint instead of selecting. Admins can create new preview cards
- * (upload image + bilingual label + prompt hint) and delete custom ones.
+ * PresetSlotPicker — inline right-canvas preset browser (same layout as the
+ * "choose your companion" hero): centered gradient title, category pills,
+ * companion-card style grid. Replaces the old modal. Locked presets stay
+ * visible (blur + lock) and trigger the intimacy hint instead of selecting.
+ * Admins can create new preview cards (upload image + bilingual label +
+ * prompt hint) and delete custom ones.
  */
 
 import { useRef, useState } from 'react';
-import { Loader2, Lock, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Lock, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
+import type { TranslationKey } from '@/lib/i18n/types';
 import { isCustomPresetSlug, type OutfitOption, type SlotKind, type WorkbenchPreset } from './types';
+
+const SLOT_TABS: { id: SlotKind; key: TranslationKey }[] = [
+  { id: 'pose', key: 'generate.slotPose' },
+  { id: 'outfit', key: 'generate.slotOutfit' },
+  { id: 'scene', key: 'generate.slotScene' },
+];
 
 export function PresetSlotPicker(props: {
   slot: SlotKind;
@@ -32,6 +40,7 @@ export function PresetSlotPicker(props: {
     input: { label_en: string; label_zh: string; prompt_hint: string; file: File | null },
   ) => Promise<void>;
   onAdminDelete?: (category: SlotKind, slug: string) => Promise<void>;
+  onSwitchSlot: (slot: SlotKind) => void;
   onClose: () => void;
   isZh: boolean;
 }) {
@@ -96,40 +105,52 @@ export function PresetSlotPicker(props: {
     'w-full h-9 px-3 rounded-lg bg-[#1D1D1D] border border-white/[0.08] text-xs text-white placeholder-white/25 focus:border-[#FD5FC2]/50 outline-none';
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center">
-      <button
-        type="button"
-        aria-hidden
-        onClick={props.onClose}
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm cursor-default"
-      />
-      <div className="relative w-full sm:max-w-2xl max-h-[80vh] overflow-hidden rounded-t-2xl sm:rounded-2xl border border-white/10 bg-[#121212] shadow-2xl flex flex-col">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10">
-          <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-white">{title}</h3>
-          <div className="flex items-center gap-2">
-            {props.isAdmin && props.onAdminCreate && !formOpen && (
-              <button
-                type="button"
-                onClick={() => setFormOpen(true)}
-                className="h-8 px-3 rounded-full border border-[#FD5FC2]/50 text-[11px] font-semibold text-[#ffb3dc] hover:bg-[#FD5FC2]/10 inline-flex items-center gap-1.5 transition-all"
-              >
-                <Plus className="h-3.5 w-3.5" /> {t('generate.adminNew')}
-              </button>
+    <section className="mx-auto max-w-4xl pt-6">
+      {/* Header row: back + category pills + admin create */}
+      <div className="flex items-center justify-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={props.onClose}
+          className="inline-flex h-8 items-center gap-1.5 px-3 rounded-full border border-white/10 text-[11px] font-semibold text-white/60 hover:text-white hover:border-white/25 transition-all"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> {t('generate.allCompanions')}
+        </button>
+        {SLOT_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => props.onSwitchSlot(tab.id)}
+            className={cn(
+              'h-8 px-4 rounded-full border text-[11px] font-semibold transition-all',
+              props.slot === tab.id
+                ? 'border-[#FD5FC2]/70 bg-[#FD5FC2]/15 text-white'
+                : 'border-white/10 text-white/55 hover:text-white hover:border-white/25',
             )}
-            <button
-              type="button"
-              onClick={props.onClose}
-              className="h-8 w-8 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06]"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+          >
+            {t(tab.key)}
+          </button>
+        ))}
+        {props.isAdmin && props.onAdminCreate && !formOpen && (
+          <button
+            type="button"
+            onClick={() => setFormOpen(true)}
+            className="h-8 px-3 rounded-full border border-[#FD5FC2]/50 text-[11px] font-semibold text-[#ffb3dc] hover:bg-[#FD5FC2]/10 inline-flex items-center gap-1.5 transition-all"
+          >
+            <Plus className="h-3.5 w-3.5" /> {t('generate.adminNew')}
+          </button>
+        )}
+      </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4">
-          {/* Admin create form */}
-          {props.isAdmin && formOpen && (
-            <div className="mb-4 rounded-xl border border-[#FD5FC2]/30 bg-[#FD5FC2]/[0.05] p-3 space-y-2">
+      <h1 className="mt-5 text-center text-3xl sm:text-4xl font-extrabold uppercase tracking-tight">
+        <span className="bg-gradient-to-r from-[#FF1CAC] via-[#FD5FC2] to-[#FF79D1] bg-clip-text text-transparent">
+          {title}
+        </span>
+      </h1>
+
+      <div className="mt-6">
+        {/* Admin create form */}
+        {props.isAdmin && formOpen && (
+          <div className="mb-4 rounded-xl border border-[#FD5FC2]/30 bg-[#FD5FC2]/[0.05] p-3 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <input
                   value={labelEn}
@@ -191,7 +212,7 @@ export function PresetSlotPicker(props: {
           )}
 
           {props.slot === 'outfit' ? (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {props.outfits.map((outfit) => {
                 const active = props.selectedOutfit?.id === outfit.id;
                 const custom = isCustomPresetSlug(outfit.id);
@@ -204,7 +225,7 @@ export function PresetSlotPicker(props: {
                         props.onClose();
                       }}
                       className={cn(
-                        'relative w-full aspect-[2/3] rounded-lg overflow-hidden border transition-all active:scale-95 text-left',
+                        'relative w-full aspect-[172/214] rounded-lg overflow-hidden border transition-all active:scale-[0.98] text-left',
                         active
                           ? 'border-[#FD5FC2] ring-1 ring-[#FD5FC2]/60 shadow-[0_0_16px_rgba(253,95,194,0.35)]'
                           : 'border-white/10 hover:border-[#FD5FC2]/45',
@@ -246,7 +267,7 @@ export function PresetSlotPicker(props: {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {presets.map((preset) => {
                 const active = isPresetSelected(preset);
                 const label = props.isZh ? preset.label_zh || preset.label_en : preset.label_en || preset.label_zh;
@@ -257,7 +278,7 @@ export function PresetSlotPicker(props: {
                       type="button"
                       onClick={() => pickPreset(preset)}
                       className={cn(
-                        'relative w-full aspect-[2/3] rounded-lg overflow-hidden border transition-all active:scale-95 text-left',
+                        'relative w-full aspect-[172/214] rounded-lg overflow-hidden border transition-all active:scale-[0.98] text-left',
                         active
                           ? 'border-[#FD5FC2] ring-1 ring-[#FD5FC2]/60 shadow-[0_0_16px_rgba(253,95,194,0.35)]'
                           : 'border-white/10 hover:border-[#FD5FC2]/45',
@@ -312,8 +333,7 @@ export function PresetSlotPicker(props: {
               )}
             </div>
           )}
-        </div>
       </div>
-    </div>
+    </section>
   );
 }

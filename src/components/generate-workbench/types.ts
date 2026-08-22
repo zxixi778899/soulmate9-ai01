@@ -8,6 +8,31 @@ export interface Girl {
   portrait_url: string | null;
   avatar_url: string | null;
   image_url: string | null;
+  /** Optional — present when /api/girlfriends returns full rows (select *). */
+  gender?: string | null;
+  /** realistic | anime | 3d — powers the 2D/anime filter tab. */
+  appearance_style?: string | null;
+}
+
+/** Companion picker category tabs (all / male / female / trans / anime). */
+export type CompanionCategory = 'all' | 'male' | 'female' | 'trans' | 'anime';
+
+export function girlMatchesCategory(girl: Girl, category: CompanionCategory): boolean {
+  const gender = String(girl.gender || '').toLowerCase();
+  switch (category) {
+    case 'all':
+      return true;
+    case 'male':
+      return gender === 'male';
+    case 'female':
+      return gender === 'female' || gender === '';
+    case 'trans':
+      return gender === 'transgender' || gender === 'trans';
+    case 'anime':
+      return String(girl.appearance_style || '').toLowerCase() === 'anime';
+    default:
+      return true;
+  }
 }
 
 export interface WorkbenchPreset {

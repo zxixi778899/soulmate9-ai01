@@ -159,8 +159,8 @@ const GENDER_OPTION_SETS: Record<string, Partial<Record<string, string[]>>> = {
     body_type: ['Petite', 'Slim', 'Athletic', 'Curvy', 'Busty', 'Voluptuous', 'Tall'],
   },
   Male: {
-    hair_style: ['Buzz Cut', 'Short Crop', 'Undercut', 'Textured Fringe', 'Slicked Back', 'Pompadour', 'Curly Top', 'Man Bun'],
-    body_type: ['Slim', 'Lean', 'Toned', 'Athletic', 'Muscular', 'Bodybuilder', 'Broad', 'Stocky'],
+    hair_style: ['Buzz Cut', 'Bald', 'Undercut', 'Textured Fringe', 'Slicked Back', 'Pompadour', 'Curly Top', 'Long Hair'],
+    body_type: ['Balanced', 'Twink', 'Lean', 'Muscular', 'Stocky', 'Bodybuilder', 'Dad Bod', 'Bear'],
   },
 };
 

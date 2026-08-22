@@ -577,7 +577,28 @@ export default function GenerateWorkbench() {
 
       {/* ══ Main canvas ══ */}
       <div className="px-4 sm:px-6 pt-4 pb-16 xl:pl-[648px] xl:pr-8">
-        {selectedGirl ? (
+        {slotPicker ? (
+          /* Preset browser — inline right-canvas view, same layout as the companion hero */
+          <PresetSlotPicker
+            slot={slotPicker}
+            posePresets={allPosePresets}
+            scenePresets={allScenePresets}
+            outfits={allOutfits}
+            selectedPose={selectedPose}
+            selectedScene={selectedScene}
+            selectedOutfit={selectedOutfit}
+            onPickPose={setSelectedPose}
+            onPickScene={setSelectedScene}
+            onPickOutfit={setSelectedOutfit}
+            onLocked={handleLockedPick}
+            isAdmin={isAdmin}
+            onAdminCreate={adminCreatePreset}
+            onAdminDelete={adminDeletePreset}
+            onSwitchSlot={setSlotPicker}
+            onClose={() => setSlotPicker(null)}
+            isZh={isZh}
+          />
+        ) : selectedGirl ? (
           <>
             {/* Companion switch bar — stay on this page, swap companions anytime */}
             <div className="flex items-center gap-2 overflow-x-auto pb-4 -mx-1 px-1">
@@ -685,28 +706,6 @@ export default function GenerateWorkbench() {
           <CompanionGrid girls={girls} loading={girlsLoading} onSelect={setSelectedGirlId} />
         )}
       </div>
-
-      {/* ══ Preset slot picker modal ══ */}
-      {slotPicker && (
-        <PresetSlotPicker
-          slot={slotPicker}
-          posePresets={allPosePresets}
-          scenePresets={allScenePresets}
-          outfits={allOutfits}
-          selectedPose={selectedPose}
-          selectedScene={selectedScene}
-          selectedOutfit={selectedOutfit}
-          onPickPose={setSelectedPose}
-          onPickScene={setSelectedScene}
-          onPickOutfit={setSelectedOutfit}
-          onLocked={handleLockedPick}
-          isAdmin={isAdmin}
-          onAdminCreate={adminCreatePreset}
-          onAdminDelete={adminDeletePreset}
-          onClose={() => setSlotPicker(null)}
-          isZh={isZh}
-        />
-      )}
     </div>
   );
 }

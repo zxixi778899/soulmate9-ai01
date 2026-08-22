@@ -2,13 +2,30 @@
 
 /**
  * CompanionGrid — "pick your character" hero shown before a companion is
- * selected. ourdream-style full-bleed cards with uppercase display names.
+ * selected. ourdream-style full-bleed cards with uppercase display names,
+ * plus category tabs (All / Female / Male / Trans / Anime).
  */
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, Plus } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/context';
-import { girlAvatarUrl, type Girl } from './types';
+import type { TranslationKey } from '@/lib/i18n/types';
+import { cn } from '@/lib/utils';
+import {
+  girlAvatarUrl,
+  girlMatchesCategory,
+  type CompanionCategory,
+  type Girl,
+} from './types';
+
+const CATEGORY_TABS: { id: CompanionCategory; key: TranslationKey }[] = [
+  { id: 'all', key: 'generate.allCompanions' },
+  { id: 'female', key: 'studio.genderFemale' },
+  { id: 'male', key: 'studio.genderMale' },
+  { id: 'trans', key: 'studio.genderTrans' },
+  { id: 'anime', key: 'studio.styleAnime' },
+];
 
 export function CompanionGrid(props: {
   girls: Girl[];
@@ -16,6 +33,12 @@ export function CompanionGrid(props: {
   onSelect: (id: string) => void;
 }) {
   const { t } = useTranslation();
+  const [category, setCategory] = useState<CompanionCategory>('all');
+
+  const visibleGirls = useMemo(
+    () => props.girls.filter((g) => girlMatchesCategory(g, category)),
+    [props.girls, category],
+  );
 
   return (
     <section className="mx-auto max-w-4xl pt-6">
@@ -25,6 +48,25 @@ export function CompanionGrid(props: {
         </span>
       </h1>
       <p className="mt-2 text-center text-sm text-white/45">{t('generate.companionHint')}</p>
+
+      {/* Category tabs */}
+      <div className="mt-5 flex items-center justify-center gap-2 flex-wrap">
+        {CATEGORY_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setCategory(tab.id)}
+            className={cn(
+              'h-8 px-4 rounded-full border text-[11px] font-semibold transition-all',
+              category === tab.id
+                ? 'border-[#FD5FC2]/70 bg-[#FD5FC2]/15 text-white'
+                : 'border-white/10 text-white/55 hover:text-white hover:border-white/25',
+            )}
+          >
+            {t(tab.key)}
+          </button>
+        ))}
+      </div>
 
       {props.loading ? (
         <div className="flex items-center justify-center py-24">
@@ -44,9 +86,23 @@ export function CompanionGrid(props: {
             <Plus className="h-4 w-4" /> {t('generate.goCreate')}
           </Link>
         </div>
+      ) : visibleGirls.length === 0 ? (
+        <div className="mt-16 flex flex-col items-center gap-4 text-center">
+          <p className="text-sm text-white/45">{t('generate.noCompanions')}</p>
+          <Link
+            href="/create"
+            className="inline-flex items-center gap-2 rounded-full px-6 h-11 text-sm font-bold text-white"
+            style={{
+              background: 'linear-gradient(0deg, #FF1CAC, #FD5FC2 50%, #FF79D1)',
+              boxShadow: '0 0 24px rgba(253,95,194,0.35)',
+            }}
+          >
+            <Plus className="h-4 w-4" /> {t('generate.goCreate')}
+          </Link>
+        </div>
       ) : (
         <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {props.girls.map((girl) => (
+          {visibleGirls.map((girl) => (
             <button
               key={girl.id}
               type="button"
