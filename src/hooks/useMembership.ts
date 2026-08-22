@@ -12,34 +12,38 @@ export type MembershipTier = 'free' | 'pro' | 'premium' | 'unlimited' | 'admin';
 
 /**
  * Soft limits surfaced in UI. Hard enforcement lives on the server
- * (chat/stream, generate-image, etc.).
- * Media generation (image/video/TTS) is gated by Credits balance, not tier.
+ * (chat/stream, generate-image, gen/start, generate-video, ai/voice).
+ * Media generation (image/video/TTS) is gated by Credits balance for paid
+ * tiers; free tier has no generation access at all (upgrade-guided).
  */
 export const MEMBERSHIP_LIMITS = {
   free: {
-    dailyMessageLimit: 40,
+    dailyMessageLimit: 20,
     maxIntimacyLevel: 3,
     maxGirlfriends: 5,
     canUsePremiumOutfits: false,
-    videoGen: true, // Updated: video access via credits
+    videoGen: false, // video requires Premium+
+    monthlyCreations: 0, // chat-only tier
     proactiveSlots: 1,
     questMultiplier: 1,
   },
   pro: {
-    dailyMessageLimit: 200,
+    dailyMessageLimit: 100,
     maxIntimacyLevel: 5,
     maxGirlfriends: 20,
     canUsePremiumOutfits: true,
-    videoGen: true,
+    videoGen: false, // video requires Premium+
+    monthlyCreations: 3,
     proactiveSlots: 4,
     questMultiplier: 1.5,
   },
   premium: {
-    dailyMessageLimit: 500,
+    dailyMessageLimit: 300,
     maxIntimacyLevel: 5,
     maxGirlfriends: 50,
     canUsePremiumOutfits: true,
     videoGen: true,
+    monthlyCreations: 6,
     proactiveSlots: 4,
     questMultiplier: 1.75,
   },
@@ -49,6 +53,7 @@ export const MEMBERSHIP_LIMITS = {
     maxGirlfriends: Number.POSITIVE_INFINITY,
     canUsePremiumOutfits: true,
     videoGen: true,
+    monthlyCreations: 10,
     proactiveSlots: 4,
     questMultiplier: 2,
   },
@@ -58,10 +63,18 @@ export const MEMBERSHIP_LIMITS = {
     maxGirlfriends: Number.POSITIVE_INFINITY,
     canUsePremiumOutfits: true,
     videoGen: true,
+    monthlyCreations: 10,
     proactiveSlots: 4,
     questMultiplier: 1,
   },
 } as const;
+
+export interface CreationQuota {
+  limit: number;
+  remaining: number;
+  used: number;
+  nextRefillAt: string | null;
+}
 
 export interface MembershipState {
   tier: MembershipTier;
@@ -71,6 +84,8 @@ export interface MembershipState {
   canSendMessage: boolean;
   remainingFreeMessages: number;
   subscriptionEnd: string | null;
+  creationQuota: CreationQuota | null;
+  videoAccess: boolean;
   capabilities: (typeof MEMBERSHIP_LIMITS)[MembershipTier];
   refresh: () => Promise<void>;
 }
@@ -98,6 +113,8 @@ export function useMembership(): MembershipState {
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [todayCount, setTodayCount] = useState(0);
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
+  const [creationQuota, setCreationQuota] = useState<CreationQuota | null>(null);
+  const [videoAccess, setVideoAccess] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchState = useCallback(async () => {
@@ -119,6 +136,20 @@ export function useMembership(): MembershipState {
         0;
       setTodayCount(Number(sentToday) || 0);
       setSubscriptionEnd(data.subscription_end || null);
+      const quota = data.creation_quota as
+        | { limit?: number; remaining?: number; used?: number; next_refill_at?: string | null }
+        | undefined;
+      setCreationQuota(
+        quota
+          ? {
+              limit: Number(quota.limit) || 0,
+              remaining: Number(quota.remaining) || 0,
+              used: Number(quota.used) || 0,
+              nextRefillAt: quota.next_refill_at || null,
+            }
+          : null,
+      );
+      setVideoAccess(Boolean(data.video_access));
     } catch {
       // keep last known state
     } finally {
@@ -169,6 +200,8 @@ export function useMembership(): MembershipState {
     canSendMessage,
     remainingFreeMessages,
     subscriptionEnd,
+    creationQuota,
+    videoAccess,
     capabilities,
     refresh: fetchState,
   };

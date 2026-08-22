@@ -241,10 +241,18 @@ export async function POST(request: NextRequest) {
   // Consume a creation card
   const cardResult = await consumeCreationCard(client as unknown as CardClient, user.id);
   if (!cardResult.ok) {
+    // Membership redesign: forbidden surfaces guide to upgrade, never a bare
+    // failure. Free users must join a plan; paid users hit the monthly quota
+    // (top up cards in the shop or upgrade for a bigger quota).
+    const isFree = cardResult.tier === 'free' || cardResult.tier === '';
     return NextResponse.json(
       {
-        error: 'No creation cards remaining. Purchase more in the shop.',
-        code: 'NO_CARDS',
+        error: isFree
+          ? 'Creating companions is available on membership plans.'
+          : 'Monthly creation quota reached. Upgrade for more, or buy extra cards in the shop.',
+        code: isFree ? 'membership_required' : 'creation_quota_exceeded',
+        upgrade_url: '/pricing',
+        shop_url: isFree ? undefined : '/shop',
       },
       { status: 403 },
     );

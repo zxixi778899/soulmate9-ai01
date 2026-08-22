@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
@@ -65,6 +66,8 @@ export default function GenerateWorkbench() {
   // ── Membership (Pro+ gate for the whole workbench) ──
   const [tier, setTier] = useState<string | null>(null);
   const proLocked = tier !== null && !['pro', 'premium', 'unlimited'].includes(tier);
+  // Video is a Premium/Unlimited surface — Pro members see a locked tab.
+  const videoLocked = tier !== null && !['premium', 'unlimited', 'admin'].includes(tier);
 
   // ── Companions ──
   const [girls, setGirls] = useState<Girl[]>([]);
@@ -391,6 +394,11 @@ export default function GenerateWorkbench() {
       router.push('/pricing');
       return;
     }
+    // Video gate: Premium/Unlimited only — guide Pro members to upgrade.
+    if (mode === 'video' && videoLocked) {
+      router.push('/pricing');
+      return;
+    }
     if (mode === 'video' && !baseImage && !resultImage) {
       setSubmitError(t('generate.videoNeedsImage'));
       return;
@@ -461,8 +469,21 @@ export default function GenerateWorkbench() {
         candidates?: Candidate[];
         error?: string;
         localized_error?: string;
+        code?: string;
       } | null;
       if (!res.ok || !data) {
+        // Membership-gated failures redirect to the upgrade page instead of
+        // surfacing a raw error; credit shortfalls point to the shop.
+        if (data?.code === 'membership_required' || data?.code === 'video_requires_premium') {
+          router.push('/pricing');
+          setBusy(false);
+          return;
+        }
+        if (data?.code === 'insufficient_credits') {
+          setSubmitError(t('generate.insufficientCreditsHint'));
+          setBusy(false);
+          return;
+        }
         setSubmitError(data?.localized_error || data?.error || t('generate.failed'));
         setBusy(false);
         return;
@@ -521,6 +542,28 @@ export default function GenerateWorkbench() {
 
   return (
     <div className="min-h-screen text-white" style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}>
+      {proLocked ? (
+        /* Membership redesign: free users get an upgrade wall instead of the
+           workbench — forbidden surfaces guide to membership, never fail. */
+        <div className="flex min-h-[80vh] items-center justify-center px-6">
+          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-8 text-center shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#FD5FC2]/60 to-transparent" />
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#FD5FC2] to-[#8b5cf6] shadow-[0_0_28px_rgba(253,95,194,0.5)]">
+              <Sparkles className="h-8 w-8 text-white" />
+            </div>
+            <h2 className="mb-2 text-xl font-bold">{t('generate.freeWallTitle')}</h2>
+            <p className="mb-6 text-sm leading-relaxed text-white/60">{t('generate.freeWallDesc')}</p>
+            <button
+              type="button"
+              onClick={() => router.push('/pricing')}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#FD5FC2] to-[#8b5cf6] text-sm font-semibold text-white shadow-[0_0_24px_rgba(253,95,194,0.35)] transition-transform hover:scale-[1.02]"
+            >
+              {t('create.upgradeNow')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* ══ Left console drawer (fixed on xl, inline below) ══ */}
       <div className="xl:fixed xl:left-[264px] xl:top-4 xl:bottom-4 xl:z-30 xl:w-[360px] px-3 pt-4 xl:p-0">
         <ConsoleDrawer
@@ -529,6 +572,8 @@ export default function GenerateWorkbench() {
             setMode(m);
             setSubmitError(null);
           }}
+          videoLocked={videoLocked}
+          onVideoLocked={() => router.push('/pricing')}
           subMode={subMode}
           onSubModeChange={setSubMode}
           girl={selectedGirl}
@@ -706,6 +751,8 @@ export default function GenerateWorkbench() {
           <CompanionGrid girls={girls} loading={girlsLoading} onSelect={setSelectedGirlId} />
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

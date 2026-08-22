@@ -85,6 +85,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
   }
 
+  // Membership redesign: video is a Premium/Unlimited surface. Responses carry
+  // structured codes so the frontend renders an upgrade guide, not a failure.
+  const { data: tierProfile } = await client
+    .from('profiles')
+    .select('membership_tier')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const tier = String((tierProfile as { membership_tier?: string | null } | null)?.membership_tier || 'free');
+  if (tier !== 'premium' && tier !== 'unlimited' && tier !== 'admin') {
+    return NextResponse.json(
+      {
+        error: 'Video generation is available on Premium and Unlimited plans.',
+        code: tier === 'free' ? 'membership_required' : 'video_requires_premium',
+        upgrade_url: '/pricing',
+      },
+      { status: 403 },
+    );
+  }
+
   const rl = await checkRateLimitAsync(`gen-video:${user.id}`, VIDEO_LIMIT);
   if (!rl.allowed) {
     return NextResponse.json(

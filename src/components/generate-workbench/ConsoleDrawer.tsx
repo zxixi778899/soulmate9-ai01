@@ -23,6 +23,9 @@ const UPSCALE_OPTIONS = [0, 2, 4];
 export interface ConsoleDrawerProps {
   mode: WorkbenchMode;
   onModeChange: (mode: WorkbenchMode) => void;
+  /** Video is Premium/Unlimited only — locked tab guides to upgrade. */
+  videoLocked: boolean;
+  onVideoLocked: () => void;
   subMode: WorkbenchSubMode;
   onSubModeChange: (mode: WorkbenchSubMode) => void;
   girl: Girl | null;
@@ -90,24 +93,34 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 space-y-4">
-        {/* ── Mode toggle: Image / Video ── */}
+        {/* ── Mode toggle: Image / Video (video locked for Pro and below) ── */}
         <div className="flex rounded-full border border-white/10 bg-[#0D0D0D] p-1">
-          {(['image', 'video'] as const).map((m) => (
+          {(['image', 'video'] as const).map((m) => {
+            const locked = m === 'video' && props.videoLocked;
+            return (
             <button
               key={m}
               type="button"
-              onClick={() => props.onModeChange(m)}
+              onClick={() => (locked ? props.onVideoLocked() : props.onModeChange(m))}
+              title={locked ? t('generate.videoPremiumOnly') : undefined}
               className={cn(
                 pillBase,
                 props.mode === m
                   ? 'bg-white text-black shadow'
                   : 'text-[#AAAAAA] hover:text-white',
+                locked && 'opacity-80',
               )}
             >
-              {m === 'image' ? <ImageIcon className="h-3.5 w-3.5" /> : <Film className="h-3.5 w-3.5" />}
+              {m === 'image' ? <ImageIcon className="h-3.5 w-3.5" /> : locked ? <Lock className="h-3.5 w-3.5" /> : <Film className="h-3.5 w-3.5" />}
               {m === 'image' ? t('generate.imageMode') : t('generate.videoMode')}
+              {locked && (
+                <span className="rounded bg-[#FD5FC2]/20 px-1 py-px text-[9px] font-semibold uppercase tracking-wider text-[#FD5FC2]">
+                  Premium
+                </span>
+              )}
             </button>
-          ))}
+            );
+          })}
         </div>
 
         {/* ── Sub-mode: Create / Edit (image only) ── */}

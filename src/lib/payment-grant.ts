@@ -16,10 +16,10 @@ import { grantTopUpCredits } from '@/lib/credit-system';
 
 /** Membership tier credit grants (subscription path only) — synced with MEMBERSHIP_TIERS.monthly_credits */
 const TIER_CREDITS: Record<string, number> = {
-  basic: 500,     // legacy grandfathered tier
-  pro: 1500,
-  premium: 4000,
-  unlimited: 6000,
+  basic: 1000,    // legacy grandfathered tier — folded into pro quota
+  pro: 1000,
+  premium: 2500,
+  unlimited: 3500,
 };
 
 export interface GrantResult {

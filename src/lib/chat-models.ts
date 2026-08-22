@@ -28,8 +28,9 @@ const TIER_RANK: Record<MembershipTier, number> = {
   free: 0,
   basic: 1,
   pro: 2,
-  unlimited: 3,
-  admin: 3,
+  premium: 3,
+  unlimited: 4,
+  admin: 4,
 };
 
 export function tierRank(tier: MembershipTier): number {
@@ -45,7 +46,8 @@ export function resolveMembershipTier(profile: Record<string, unknown> | null): 
     profile?.membership_tier || profile?.subscription_tier || profile?.plan || 'free',
   ).toLowerCase();
   if (raw.includes('unlimit') || raw === 'admin') return 'unlimited';
-  if (raw.includes('pro') || raw.includes('plus') || raw.includes('premium')) return 'pro';
+  if (raw.includes('premium')) return 'premium';
+  if (raw.includes('pro') || raw.includes('plus')) return 'pro';
   if (raw.includes('basic') || raw.includes('starter')) return 'basic';
   return 'free';
 }

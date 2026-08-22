@@ -88,6 +88,19 @@ export async function POST(request: NextRequest) {
     const tier = membershipFromProfile(profile);
     const resolved = resolveImageCall(aiModules, { scene, tier });
 
+    // Membership redesign: generation surfaces are paid-tier only — free users
+    // get a structured code so the frontend shows an upgrade guide.
+    if (tier === 'free') {
+      return NextResponse.json(
+        {
+          error: 'Image generation requires a membership plan.',
+          code: 'membership_required',
+          upgrade_url: '/pricing',
+        },
+        { status: 403 },
+      );
+    }
+
     if (!resolved.enabled) {
       const msg =
         resolved.blockedReason === 'image_module_disabled'
@@ -99,15 +112,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (resolved.dailyLimit != null) {
-      // Timezone-aware local day boundary (profiles.timezone_offset).
+    const sceneCfg = resolved.config;
+    const surface: ImageSurface = body.generation_surface === 'advert'
+      ? 'advert'
+      : body.generation_surface === 'prop' || scene === 'shop_item'
+        ? 'prop'
+        : body.generation_surface === 'outfit' || scene === 'outfit_prop'
+          ? 'outfit'
+          : 'companion';
+
+    if (surface === 'companion') {
+      // Membership redesign: companion image generation always consumes credits
+      // (no daily free quota). Admin asset surfaces keep the legacy quota path.
+      const cost = CREDIT_COSTS.image_gen;
+      const balance = Number(profile?.credits_remaining) || 0;
+      if (balance < cost) {
+        return NextResponse.json(
+          {
+            error: 'Insufficient credits (need ' + cost + '). Buy credits to keep generating!',
+            code: 'insufficient_credits',
+            required: cost,
+            balance,
+            upgrade_url: '/pricing',
+          },
+          { status: 403 },
+        );
+      }
+      const deductResult = await deductCredits(client, user.id, cost, 'image_gen_extra');
+      if (!deductResult.ok) {
+        return NextResponse.json(
+          { error: 'Failed to deduct credits.', code: 'credit_deduct_failed' },
+          { status: 500 },
+        );
+      }
+    } else if (resolved.dailyLimit != null) {
+      // Legacy daily quota for admin asset surfaces (advert/prop/outfit).
       const usage = await countTodayImageUsage(
         client,
         user.id,
         timezoneOffsetFromProfile(profile),
       );
       if (usage.used >= resolved.dailyLimit) {
-        // Over daily limit -> deduct credits instead of blocking
         const cost = CREDIT_COSTS.image_gen;
         const balance = Number(profile?.credits_remaining) || 0;
         if (balance < cost) {
@@ -130,15 +175,6 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-
-    const sceneCfg = resolved.config;
-    const surface: ImageSurface = body.generation_surface === 'advert'
-      ? 'advert'
-      : body.generation_surface === 'prop' || scene === 'shop_item'
-        ? 'prop'
-        : body.generation_surface === 'outfit' || scene === 'outfit_prop'
-          ? 'outfit'
-          : 'companion';
     const requestedCategory = String(body.companion_category || 'female') as CompanionCategory;
     const category: CompanionCategory = requestedCategory === 'anime' ? 'female' : requestedCategory;
     const sceneSemantics = classifyImageScene(prompt, category);

@@ -3,7 +3,8 @@ import type Stripe from 'stripe';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStripe } from '@/lib/stripe-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { grantTopUpCredits } from '@/lib/credit-system';
+import { grantCredits, grantTopUpCredits } from '@/lib/credit-system';
+import { MEMBERSHIP_TIERS } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from '@/lib/analytics';
 import { checkAchievements, type SupabaseLike } from '@/lib/achievement-checker';
@@ -14,6 +15,13 @@ type DatabaseError = { message: string; code?: string } | null;
 type ClaimResult = { claimed: boolean; attempts: number };
 type SeatResult = { applied: boolean; total_bonus_seats: number };
 const WEBHOOK_EVENT_LIMIT = { maxRequests: 20, windowMs: 60 * 60 * 1000 };
+
+/** Monthly credit grant per tier — synced with MEMBERSHIP_TIERS.monthly_credits. */
+function tierMonthlyCredits(tier: 'basic' | 'pro' | 'premium' | 'unlimited'): number {
+  if (tier === 'unlimited') return MEMBERSHIP_TIERS.unlimited.monthly_credits;
+  if (tier === 'premium') return MEMBERSHIP_TIERS.premium.monthly_credits;
+  return MEMBERSHIP_TIERS.pro.monthly_credits; // basic is folded into pro quota
+}
 
 function assertDatabaseSuccess(error: DatabaseError, operation: string): void {
   if (error) throw new Error(`${operation}: ${error.message}`);
@@ -168,14 +176,16 @@ async function handleCheckoutCompleted(
 
   const plan = session.metadata?.plan || 'pro';
   const billing = session.metadata?.billing || 'monthly';
-  const tierMap: Record<string, 'basic' | 'pro' | 'unlimited'> = {
+  const tierMap: Record<string, 'basic' | 'pro' | 'premium' | 'unlimited'> = {
     basic: 'basic',
     basic_quarterly: 'basic',
     basic_yearly: 'basic',
     pro: 'pro',
     pro_quarterly: 'pro',
     pro_yearly: 'pro',
-    premium: 'pro',
+    premium: 'premium',
+    premium_quarterly: 'premium',
+    premium_yearly: 'premium',
     unlimited: 'unlimited',
     unlimited_quarterly: 'unlimited',
     unlimited_yearly: 'unlimited',
@@ -215,6 +225,17 @@ async function handleCheckoutCompleted(
     { onConflict: 'stripe_subscription_id' },
   );
   assertDatabaseSuccess(subscriptionError, 'upsert subscription');
+
+  // Membership redesign: grant the tier's monthly credits on checkout so
+  // subscribers can use image/TTS/video immediately. Ledger reason keeps the
+  // grant auditable; event claiming above makes this idempotent.
+  const monthlyCredits = tierMonthlyCredits(tier);
+  if (monthlyCredits > 0) {
+    const grant = await grantCredits(admin, userId, monthlyCredits, 'subscription_grant', session.id);
+    if (!grant.ok) {
+      logger.error('stripe-webhook: subscription credit grant failed', { userId, tier, error: grant.error });
+    }
+  }
 
   await recordPurchase(admin, event.id, {
     user_id: userId,
@@ -283,12 +304,77 @@ async function handlePaymentFailed(admin: SupabaseClient, event: Stripe.Event): 
   });
 }
 
-function tierFromSubscription(subscription: Stripe.Subscription): 'basic' | 'pro' | 'unlimited' {
+/**
+ * Renewal fulfillment: each paid subscription_cycle invoice re-grants the
+ * tier's monthly credits. The first invoice arrives with
+ * checkout.session.completed (already grants there), so it is skipped.
+ */
+async function handleInvoicePaid(admin: SupabaseClient, event: Stripe.Event): Promise<void> {
+  const invoice = event.data.object as Stripe.Invoice;
+  if (invoice.billing_reason !== 'subscription_cycle') return;
+
+  const customerId = stripeId(invoice.customer);
+  const userId = await resolveSubscriptionUser(admin, invoice.metadata?.user_id, customerId);
+  if (!userId) {
+    logger.warn('stripe-webhook: renewal invoice could not resolve user', {
+      customerId,
+      invoiceId: invoice.id,
+    });
+    return;
+  }
+
+  // Resolve the tier from the live subscription (falls back to the stored
+  // profile tier if the subscription object is not attached).
+  let tier: 'basic' | 'pro' | 'premium' | 'unlimited' = 'pro';
+  const subscriptionId = stripeId(
+    typeof invoice.subscription === 'object' ? invoice.subscription : { id: invoice.subscription || '' },
+  );
+  if (subscriptionId) {
+    try {
+      const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+      tier = tierFromSubscription(subscription);
+    } catch (err) {
+      logger.warn('stripe-webhook: renewal subscription lookup failed, using profile tier', {
+        subscriptionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      const { data: profile } = await admin
+        .from('profiles')
+        .select('membership_tier')
+        .eq('user_id', userId)
+        .maybeSingle();
+      const stored = String(profile?.membership_tier || 'pro');
+      tier = stored === 'unlimited' || stored === 'premium' || stored === 'basic' ? stored : 'pro';
+    }
+  }
+
+  const monthlyCredits = tierMonthlyCredits(tier);
+  if (monthlyCredits > 0) {
+    const grant = await grantCredits(admin, userId, monthlyCredits, 'subscription_grant', invoice.id);
+    if (!grant.ok) {
+      logger.error('stripe-webhook: renewal credit grant failed', { userId, tier, error: grant.error });
+      return;
+    }
+  }
+  logger.info('stripe-webhook: renewal credits granted', {
+    userId,
+    tier,
+    credits: monthlyCredits,
+    invoiceId: invoice.id,
+  });
+}
+
+function tierFromSubscription(subscription: Stripe.Subscription): 'basic' | 'pro' | 'premium' | 'unlimited' {
   const price = subscription.items.data[0]?.price;
   const configuredUnlimited = new Set([
     process.env.STRIPE_UNLIMITED_PRICE_ID,
     process.env.STRIPE_UNLIMITED_YEARLY_PRICE_ID,
     process.env.NEXT_PUBLIC_STRIPE_UNLIMITED_PRICE_ID,
+  ].filter((value): value is string => Boolean(value)));
+  const configuredPremium = new Set([
+    process.env.STRIPE_PREMIUM_PRICE_ID,
+    process.env.STRIPE_PREMIUM_YEARLY_PRICE_ID,
+    process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID,
   ].filter((value): value is string => Boolean(value)));
   const configuredBasic = new Set([
     process.env.STRIPE_BASIC_PRICE_ID,
@@ -297,6 +383,7 @@ function tierFromSubscription(subscription: Stripe.Subscription): 'basic' | 'pro
   ].filter((value): value is string => Boolean(value)));
   const planHint = `${subscription.metadata?.plan || ''} ${price?.lookup_key || ''}`.toLowerCase();
   if (configuredUnlimited.has(price?.id || '') || planHint.includes('unlimited')) return 'unlimited';
+  if (configuredPremium.has(price?.id || '') || planHint.includes('premium')) return 'premium';
   if (configuredBasic.has(price?.id || '') || planHint.includes('basic')) return 'basic';
   return 'pro';
 }
@@ -378,6 +465,9 @@ async function processEvent(admin: SupabaseClient, event: Stripe.Event): Promise
       break;
     case 'invoice.payment_failed':
       await handlePaymentFailed(admin, event);
+      break;
+    case 'invoice.payment_succeeded':
+      await handleInvoicePaid(admin, event);
       break;
     case 'customer.subscription.updated':
       await handleSubscriptionUpdated(admin, event);

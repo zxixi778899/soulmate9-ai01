@@ -39,14 +39,13 @@ const PLANS = [
     color: 'text-muted-foreground',
     border: 'border-border/40',
     features: [
-      '40 messages per day',
-      '5 companions',
-      '100 starter Credits (one-time)',
+      '20 messages per day',
+      'Chat with official companions',
+      '50 starter Credits (one-time)',
       '8k context window',
       'Shallow memory (7 days)',
       'Intimacy up to Level 3',
       'Good Night proactive message',
-      'Basic outfits',
     ],
   },
   {
@@ -63,14 +62,14 @@ const PLANS = [
     border: 'border-purple-500/30',
     popular: true,
     features: [
-      '200 messages per day',
+      '100 messages per day',
+      '1,000 Credits / month',
+      '3 companion creations / month',
       '20 companions',
-      '1,500 Credits / month',
       '16k context window',
       'Deep memory (90 days)',
       'All 5 intimacy levels + NSFW',
-      'All 4 proactive time slots',
-      '1.5x daily quest rewards',
+      'Image generation & voice messages',
       'Premium outfits + Studio',
       'Priority support',
     ],
@@ -88,14 +87,14 @@ const PLANS = [
     color: 'text-fuchsia-400',
     border: 'border-fuchsia-500/30',
     features: [
-      '500 messages per day',
+      '300 messages per day',
+      '2,500 Credits / month',
+      '6 companion creations / month',
       '50 companions',
-      '4,000 Credits / month',
+      'Video generation unlocked',
       '24k context window',
       'Deep memory (90 days)',
       'All 5 intimacy levels + NSFW',
-      'All 4 proactive time slots',
-      '1.75x daily quest rewards',
       'All outfits + Studio',
       'Priority support',
     ],
@@ -114,12 +113,13 @@ const PLANS = [
     border: 'border-amber-500/30',
     features: [
       'Unlimited messages (fair use)',
+      '3,500 Credits / month',
+      '10 companion creations / month',
       'Unlimited companions',
-      '6,000 Credits / month',
+      'Video generation unlocked',
       '32k context window',
       'Infinite permanent memory',
       'AI-personalized proactive messages',
-      '2x daily quest rewards',
       'All outfits unlocked',
       'Studio + early access',
       'Priority support',
@@ -358,9 +358,9 @@ function PricingContent() {
                   <p className="text-[11px] text-emerald-400 mt-1">{plan.yearlyNote}</p>
                 )}
                 <CardDescription className="text-xs text-muted-foreground/60">
-                  {plan.id === 'free' && 'Explore with 100 free Credits'}
-                  {plan.id === 'pro' && 'Best value for regular users'}
-                  {plan.id === 'premium' && 'Most Credits for heavy users'}
+                  {plan.id === 'free' && 'Chat-only plan · 50 starter Credits'}
+                  {plan.id === 'pro' && 'Create companions & generate images'}
+                  {plan.id === 'premium' && 'Video generation + more Credits'}
                   {plan.id === 'unlimited' && 'Maximum freedom & creativity'}
                 </CardDescription>
               </CardHeader>

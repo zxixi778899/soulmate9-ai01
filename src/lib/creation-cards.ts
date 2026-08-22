@@ -1,10 +1,10 @@
 /**
  * Creation card economy — quota management for creating girlfriends.
  *
- * Quota rules:
- * - Free tier: 1 free card (one-time, claimed on first registration)
- * - Basic tier: 3 cards per month (auto-refill on first access each month)
- * - Pro tier: 5 cards per month (auto-refill on first access each month)
+ * Quota rules (membership redesign — 0/3/6/10 per month):
+ * - Free tier: 0 cards (chat-only tier, official preset companions only)
+ * - Pro tier (incl. legacy basic): 3 cards per month (auto-refill on first access each month)
+ * - Premium tier: 6 cards per month (auto-refill on first access each month)
  * - Unlimited tier: 10 cards per month (auto-refill on first access each month)
  *
  * Cards can also be purchased from the shop.
@@ -43,12 +43,12 @@ export type CreationCardStatus = {
   nextRefillAt: string | null;
 };
 
-/** Get the monthly quota based on membership tier. */
+/** Get the monthly quota based on membership tier (0/3/6/10 redesign). */
 function getMonthlyQuota(tier: string): number {
-  if (tier === 'unlimited') return 10;
-  if (tier === 'pro') return 5;
-  if (tier === 'basic') return 3;
-  return 0; // free tier only gets the one-time free card
+  if (tier === 'unlimited' || tier === 'admin') return 10;
+  if (tier === 'premium') return 6;
+  if (tier === 'pro' || tier === 'basic') return 3;
+  return 0; // free tier is chat-only — no creation cards
 }
 
 /**
@@ -60,7 +60,7 @@ export async function getCreationCardStatus(
   userId: string,
 ): Promise<CreationCardStatus> {
   let tier = 'free';
-  let cards = 1;
+  let cards = 0;
   let lastRefill: string | null = null;
 
   try {
@@ -72,7 +72,7 @@ export async function getCreationCardStatus(
 
     if (data) {
       tier = data.membership_tier || 'free';
-      cards = data.creation_cards ?? 1;
+      cards = data.creation_cards ?? 0;
       lastRefill = data.creation_card_last_refill as string | null;
     }
   } catch (err) {
@@ -125,15 +125,17 @@ export async function getCreationCardStatus(
 }
 
 /**
- * Consume one creation card. Returns false if no cards available.
+ * Consume one creation card. Returns ok=false if no cards available, with the
+ * caller's tier so API routes can respond with the right upgrade guidance
+ * (free → membership_required, paid → creation_quota_exceeded).
  */
 export async function consumeCreationCard(
   client: CardClient,
   userId: string,
-): Promise<{ ok: boolean; remaining: number }> {
+): Promise<{ ok: boolean; remaining: number; tier: string }> {
   const status = await getCreationCardStatus(client, userId);
   if (status.cards <= 0) {
-    return { ok: false, remaining: 0 };
+    return { ok: false, remaining: 0, tier: status.tier };
   }
 
   const newCards = status.cards - 1;
@@ -145,12 +147,12 @@ export async function consumeCreationCard(
 
     if (error) {
       logger.error('[creation-cards] consume failed', { error: error.message, userId });
-      return { ok: false, remaining: status.cards };
+      return { ok: false, remaining: status.cards, tier: status.tier };
     }
-    return { ok: true, remaining: newCards };
+    return { ok: true, remaining: newCards, tier: status.tier };
   } catch (err) {
     logger.error('[creation-cards] consume error', { err: String(err) });
-    return { ok: false, remaining: status.cards };
+    return { ok: false, remaining: status.cards, tier: status.tier };
   }
 }
 

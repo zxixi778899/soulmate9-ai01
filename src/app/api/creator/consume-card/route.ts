@@ -18,8 +18,18 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await consumeCreationCard(client as any, user.id);
     if (!result.ok) {
+      // Membership redesign: guide to upgrade instead of a bare failure.
+      const isFree = result.tier === 'free' || result.tier === '';
       return NextResponse.json(
-        { error: 'No creation cards remaining', code: 'NO_CARDS', remaining: result.remaining },
+        {
+          error: isFree
+            ? 'Creating companions is available on membership plans.'
+            : 'Monthly creation quota reached. Upgrade for more, or buy extra cards in the shop.',
+          code: isFree ? 'membership_required' : 'creation_quota_exceeded',
+          upgrade_url: '/pricing',
+          shop_url: isFree ? undefined : '/shop',
+          remaining: result.remaining,
+        },
         { status: 403 },
       );
     }

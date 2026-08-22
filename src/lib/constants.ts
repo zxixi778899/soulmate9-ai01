@@ -11,11 +11,13 @@ export const PRIVACY_EMAIL = 'privacy@oxmate-ai.com';
 /**
  * Membership tiers — unified Credits model for all GPU media (image / video / TTS).
  *
- * FREE: one-time starter pack (100 Credits) + basic chat, no monthly credit refill.
- * PRO ($9.99/mo): 200 msgs/day, 1500 Credits/mo (gifted), deep memory, ideal for casual users.
- * PREMIUM ($24.99/mo): NEW tier! 500 msgs/day, 4000 Credits/mo, best value for heavy users.
- * UNLIMITED ($34.99/mo): fair-use unlimited chat, 6000 Credits/mo, maximum freedom.
+ * FREE: chat-only tier (20 msgs/day) + one-time 50-credit trial pack.
+ *       No creation, no generation — official preset companions only.
+ * PRO ($9.99/mo): 100 msgs/day, 1000 Credits/mo, 3 creations/mo, no video.
+ * PREMIUM ($24.99/mo): 300 msgs/day, 2500 Credits/mo, 6 creations/mo, video unlocked.
+ * UNLIMITED ($34.99/mo): fair-use unlimited chat, 3500 Credits/mo, 10 creations/mo, video.
  *
+ * All media generation (image/TTS/NSFW/video) consumes Credits for every paid tier.
  * Prices tax-exclusive; customer pays tax at checkout.
  * Billing: monthly or yearly only. Yearly discounts: Pro 17%, Premium 20%, Unlimited 20%.
  */
@@ -24,14 +26,15 @@ export const MEMBERSHIP_TIERS = {
     name: 'Free',
     price_cents: 0,
     yearly_price_cents: 0,
-    messages_per_day: 40,
+    messages_per_day: 20,
     memory_depth: 'shallow' as const,
     max_girlfriends: 5,
     outfit_access: 'basic' as const,
     context_window: 8192,
     monthly_credits: 0,
-    starter_credits: 100, // one-time welcome gift
-    video_gen: true, // video access via Credits
+    starter_credits: 50, // one-time trial pack
+    monthly_creations: 0, // chat-only tier — no companion creation
+    video_gen: false, // video requires Premium+
     proactive_slots: 1, // night-only (good night message)
     quest_reward_multiplier: 1,
   },
@@ -39,14 +42,15 @@ export const MEMBERSHIP_TIERS = {
     name: 'Pro',
     price_cents: 999,
     yearly_price_cents: 9999, // $99.99/yr = 17% off 12 x $9.99 ($8.33/mo equivalent)
-    messages_per_day: 200,
+    messages_per_day: 100,
     memory_depth: 'deep' as const,
     max_girlfriends: 20,
     outfit_access: 'premium' as const,
     context_window: 16384,
-    monthly_credits: 1500, // gifted monthly credits for image/TTS/video usage
+    monthly_credits: 1000, // gifted monthly credits for image/TTS usage
     starter_credits: 0,
-    video_gen: true, // video access via Credits
+    monthly_creations: 3,
+    video_gen: false, // video requires Premium+
     proactive_slots: 4, // all time slots
     quest_reward_multiplier: 1.5,
   },
@@ -54,13 +58,14 @@ export const MEMBERSHIP_TIERS = {
     name: 'Premium',
     price_cents: 2499,
     yearly_price_cents: 19999, // $199.99/yr = 20% off 12 x $24.99 ($16.66/mo equivalent)
-    messages_per_day: 500,
+    messages_per_day: 300,
     memory_depth: 'deep' as const,
     max_girlfriends: 50,
     outfit_access: 'all' as const,
     context_window: 24576,
-    monthly_credits: 4000, // gifted monthly credits for image/TTS/video usage
+    monthly_credits: 2500, // gifted monthly credits for image/TTS/video usage
     starter_credits: 0,
+    monthly_creations: 6,
     video_gen: true, // video access via Credits
     proactive_slots: 4, // all time slots + priority queue
     quest_reward_multiplier: 1.75,
@@ -74,13 +79,32 @@ export const MEMBERSHIP_TIERS = {
     max_girlfriends: -1,
     outfit_access: 'all' as const,
     context_window: 32768,
-    monthly_credits: 6000, // gifted monthly credits for image/TTS/video usage
+    monthly_credits: 3500, // gifted monthly credits for image/TTS/video usage
     starter_credits: 0,
+    monthly_creations: 10,
     video_gen: true, // video access via Credits
     proactive_slots: 4, // all time slots + AI-personalized generation
     quest_reward_multiplier: 2,
   },
 } as const;
+
+/** Companion creation monthly quota by tier (legacy basic → pro). */
+export function monthlyCreationLimit(tier: string): number {
+  if (tier === 'unlimited' || tier === 'admin') return MEMBERSHIP_TIERS.unlimited.monthly_creations;
+  if (tier === 'premium') return MEMBERSHIP_TIERS.premium.monthly_creations;
+  if (tier === 'pro' || tier === 'basic') return MEMBERSHIP_TIERS.pro.monthly_creations;
+  return 0;
+}
+
+/** Paid tiers that can generate video (credits still apply). */
+export function canGenerateVideo(tier: string): boolean {
+  return tier === 'premium' || tier === 'unlimited' || tier === 'admin';
+}
+
+/** Whether the tier may create companions / use generation surfaces at all. */
+export function canAccessGeneration(tier: string): boolean {
+  return tier !== 'free';
+}
 
 /** Billing cycle discount rates (yearly discount varies by tier — see yearly_price_cents) */
 export const BILLING_DISCOUNTS = {

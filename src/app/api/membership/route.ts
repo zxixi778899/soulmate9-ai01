@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { getSeatStatus, type SeatClient } from '@/lib/companion-seats';
+import { getCreationCardStatus, type CardClient } from '@/lib/creation-cards';
 
 export async function GET(req: NextRequest) {
   const { user, client } = await getAuthUser(req);
@@ -66,54 +67,55 @@ export async function GET(req: NextRequest) {
   // Legacy tier no longer sold — grandfather basic into pro.
   // 'premium' is a current paid tier (kept as-is).
   const tier = rawTier === 'basic' ? 'pro' : rawTier;
-  // Quotas aligned with MEMBERSHIP_TIERS (unified Credits model).
+  // Quotas aligned with MEMBERSHIP_TIERS (membership redesign 2026).
   const plans = {
     free: {
       name: 'Free',
       price_cents: 0,
-      messages_per_day: 40,
+      messages_per_day: 20,
       max_intimacy_level: 3,
       max_girlfriends: 5,
       monthly_credits: 0,
-      starter_credits: 100,
+      starter_credits: 50,
+      monthly_creations: 0,
       memory_depth: 'shallow',
       context_window: 8192,
       proactive_slots: 1,
       quest_reward_multiplier: 1,
-      video_gen: true,
+      video_gen: false,
       features: [
-        '40 messages/day',
-        '100 starter Credits (one-time)',
-        'Up to 5 companions',
+        '20 messages/day',
+        '50 starter Credits (one-time)',
+        'Chat with official companions',
         '8k context window',
         'Shallow memory (7 days)',
         'Intimacy up to Level 3',
         'Good Night proactive message',
-        'Basic outfits',
       ],
     },
     pro: {
       name: 'Pro',
       price_cents: 999,
-      messages_per_day: 200,
+      messages_per_day: 100,
       max_intimacy_level: 5,
       max_girlfriends: 20,
-      monthly_credits: 1500,
+      monthly_credits: 1000,
       starter_credits: 0,
+      monthly_creations: 3,
       memory_depth: 'deep',
       context_window: 16384,
       proactive_slots: 4,
       quest_reward_multiplier: 1.5,
-      video_gen: true,
+      video_gen: false,
       features: [
-        '200 messages/day',
-        '1,500 Credits / month',
+        '100 messages/day',
+        '1,000 Credits / month',
+        '3 companion creations / month',
         'Up to 20 companions',
         '16k context window',
         'Deep memory (90 days)',
         'All 5 intimacy levels + NSFW',
-        'All 4 proactive time slots',
-        '1.5x daily quest rewards',
+        'Image generation & voice messages',
         'Premium outfits',
         'Studio access',
         'Priority support',
@@ -122,25 +124,26 @@ export async function GET(req: NextRequest) {
     premium: {
       name: 'Premium',
       price_cents: 2499,
-      messages_per_day: 500,
+      messages_per_day: 300,
       max_intimacy_level: 5,
       max_girlfriends: 50,
-      monthly_credits: 4000,
+      monthly_credits: 2500,
       starter_credits: 0,
+      monthly_creations: 6,
       memory_depth: 'deep',
       context_window: 24576,
       proactive_slots: 4,
       quest_reward_multiplier: 1.75,
       video_gen: true,
       features: [
-        '500 messages/day',
-        '4,000 Credits / month',
+        '300 messages/day',
+        '2,500 Credits / month',
+        '6 companion creations / month',
         'Up to 50 companions',
         '24k context window',
         'Deep memory (90 days)',
         'All 5 intimacy levels + NSFW',
-        'All 4 proactive time slots',
-        '1.75x daily quest rewards',
+        'Video generation unlocked',
         'All outfits unlocked',
         'Studio access',
         'Priority support',
@@ -152,8 +155,9 @@ export async function GET(req: NextRequest) {
       messages_per_day: -1,
       max_intimacy_level: 5,
       max_girlfriends: -1,
-      monthly_credits: 6000,
+      monthly_credits: 3500,
       starter_credits: 0,
+      monthly_creations: 10,
       memory_depth: 'infinite',
       context_window: 32768,
       proactive_slots: 4,
@@ -161,11 +165,13 @@ export async function GET(req: NextRequest) {
       video_gen: true,
       features: [
         'Unlimited messages (fair use)',
-        '6,000 Credits / month',
+        '3,500 Credits / month',
+        '10 companion creations / month',
         'Unlimited companions',
         '32k context window',
         'Infinite permanent memory',
         'All 5 intimacy levels + NSFW',
+        'Video generation unlocked',
         'AI-personalized proactive messages',
         '2x daily quest rewards',
         'All outfits unlocked',
@@ -193,6 +199,9 @@ export async function GET(req: NextRequest) {
     createdCount,
   });
 
+  // Creation-card quota (membership redesign: 0/3/6/10 per month).
+  const cardStatus = await getCreationCardStatus(client as unknown as CardClient, user.id);
+
   return NextResponse.json({
     tier,
     credits_remaining: profile?.credits_remaining || 0,
@@ -202,6 +211,13 @@ export async function GET(req: NextRequest) {
     ...currentPlan,
     max_girlfriends: seats.effectiveLimit,
     seats,
+    creation_quota: {
+      limit: cardStatus.monthlyQuota,
+      remaining: cardStatus.cards,
+      used: Math.max(0, cardStatus.monthlyQuota - cardStatus.cards),
+      next_refill_at: cardStatus.nextRefillAt,
+    },
+    video_access: Boolean(currentPlan.video_gen),
     subscription_end: subscription?.current_period_end || null,
     subscription_status: subscription?.status || null,
     billing_interval: subscription?.billing_interval || null,
@@ -223,9 +239,9 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { plan } = body; // 'pro' | 'unlimited'
+  const { plan } = body; // 'pro' | 'premium' | 'unlimited'
 
-  if (!plan || !['pro', 'unlimited'].includes(plan)) {
+  if (!plan || !['pro', 'premium', 'unlimited'].includes(plan)) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
   }
 

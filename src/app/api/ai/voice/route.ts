@@ -34,6 +34,25 @@ export async function POST(req: NextRequest) {
     }
     const { user, client } = auth;
 
+    // Membership redesign: TTS consumes credits and is a paid-tier surface.
+    // Free users get a structured code so the UI shows an upgrade guide.
+    const { data: tierProfile } = await client
+      .from('profiles')
+      .select('membership_tier')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const tier = String((tierProfile as { membership_tier?: string | null } | null)?.membership_tier || 'free');
+    if (tier === 'free') {
+      return NextResponse.json(
+        {
+          error: 'Voice messages are available on membership plans.',
+          code: 'membership_required',
+          upgrade_url: '/pricing',
+        },
+        { status: 403 },
+      );
+    }
+
     const rl = await checkRateLimitAsync(`voice-tts:${user.id}`, VOICE_RATE_LIMIT);
     if (!rl.allowed) {
       return NextResponse.json(
@@ -41,8 +60,6 @@ export async function POST(req: NextRequest) {
         { status: 429, headers: rateLimitHeaders(rl, VOICE_RATE_LIMIT) },
       );
     }
-
-    // TTS is always available now (Edge TTS fallback)
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const text = String(body.text || '').trim();

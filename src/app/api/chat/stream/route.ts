@@ -122,9 +122,10 @@ export const dynamic = 'force-dynamic';
 // Hard-coded daily message limits, used only when the admin-configured AI
 // module does not define one for the tier. -1 = unlimited.
 const FALLBACK_DAILY_LIMITS: Record<MembershipTier, number> = {
-  free: 40,
-  basic: 150,
-  pro: 300,
+  free: 20,
+  basic: 100,
+  pro: 100,
+  premium: 300,
   unlimited: -1,
   admin: -1,
 };
@@ -547,7 +548,7 @@ export async function POST(request: NextRequest) {
   // block never blocked and wasted an extra count query per message).
   // Admin-configured per-tier value wins; hard-coded fallback otherwise.
   const tierRoute = aiModules.chat.tiers[
-    membershipTier === 'unlimited' ? 'unlimited' : membershipTier === 'pro' ? 'pro' : membershipTier === 'basic' ? 'basic' : 'free'
+    membershipTier === 'unlimited' ? 'unlimited' : membershipTier === 'premium' ? 'premium' : membershipTier === 'pro' ? 'pro' : membershipTier === 'basic' ? 'basic' : 'free'
   ];
   const effectiveDailyLimit =
     tierRoute.daily_message_limit != null
@@ -564,6 +565,7 @@ export async function POST(request: NextRequest) {
             ? '该模型需要更高级的会员套餐才能使用。'
             : 'This model requires a higher membership plan.',
           code: 'model_tier_locked',
+          upgrade_url: '/pricing',
         },
         { status: 403 },
       );
@@ -597,6 +599,7 @@ export async function POST(request: NextRequest) {
             ? `今日消息次数已用完（${effectiveDailyLimit} 条），请升级套餐后继续聊天。`
             : `You've reached your daily message limit (${effectiveDailyLimit}). Upgrade for more chats!`,
           code: 'daily_message_limit',
+          upgrade_url: '/pricing',
         },
         { status: 403 },
       );

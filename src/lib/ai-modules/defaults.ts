@@ -242,13 +242,13 @@ export function createDefaultAiModules(): AiModulesConfig {
           sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: null,
           default_endpoint_id: 'together-qwen35-9b', complex_endpoint_id: 'together-qwen35-9b',
           fallback_endpoint_ids: ['together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.08,
-          max_tokens: 512, context_messages: 10, daily_message_limit: 40, allow_nsfw: false,
+          max_tokens: 512, context_messages: 10, daily_message_limit: 20, allow_nsfw: false,
         },
         basic: {
           sfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw', nsfw_endpoint_id: null,
           default_endpoint_id: 'runpod-qwen3-8b-pro-nsfw', complex_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
           fallback_endpoint_ids: ['together-qwen35-9b', 'together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.15,
-          max_tokens: 768, context_messages: 16, daily_message_limit: 150, allow_nsfw: false,
+          max_tokens: 768, context_messages: 16, daily_message_limit: 100, allow_nsfw: false,
         },
         pro: {
           sfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
@@ -257,7 +257,17 @@ export function createDefaultAiModules(): AiModulesConfig {
           fallback_endpoint_ids: ['runpod-qwen3-8b-pro-nsfw', 'openrouter-lumimaid-9b', 'together-qwen3-235b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 0.75,
           max_tokens: 1024,
           context_messages: 24,
-          // Competitor-aligned Pro chat cap (not marketing "unlimited")
+          // Cost-modeled Pro chat cap (see membership redesign cost analysis)
+          daily_message_limit: 100,
+          allow_nsfw: true,
+        },
+        premium: {
+          sfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
+          nsfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
+          default_endpoint_id: 'runpod-qwen3-8b-pro-nsfw', complex_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
+          fallback_endpoint_ids: ['runpod-qwen3-8b-pro-nsfw', 'openrouter-lumimaid-9b', 'together-qwen3-235b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 1.2,
+          max_tokens: 1024,
+          context_messages: 28,
           daily_message_limit: 300,
           allow_nsfw: true,
         },

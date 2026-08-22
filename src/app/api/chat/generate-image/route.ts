@@ -42,12 +42,11 @@ import {
 } from '@/lib/image-prompt-llm';
 import { buildContentOnlyPrompt } from '@/lib/companion-prompt-pipeline';
 import { detectAdultMention } from '@/lib/content-rating';
+import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
 import { forwardLegacyGeneration } from '@/lib/gen-hub';
 import {
   IMAGE_GEN_RATE_KEY,
-  countTodayImageUsage,
   membershipFromProfile,
-  timezoneOffsetFromProfile,
 } from '@/lib/ai-quota';
 
 export const runtime = 'nodejs';
@@ -156,6 +155,19 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle();
     const tier = membershipFromProfile((profile as Record<string, unknown>) || null);
+    // Membership redesign: image generation is a paid-tier surface. Free users
+    // are guided to upgrade instead of seeing a hard failure.
+    if (tier === 'free') {
+      return NextResponse.json(
+        {
+          error: 'Image generation requires a membership plan.',
+          localized_error: zh ? '图片生成需要会员套餐，升级后即可解锁。' : 'Image generation requires a membership plan.',
+          code: 'membership_required',
+          upgrade_url: '/pricing',
+        },
+        { status: 403 },
+      );
+    }
     // Unified content-rating layer — no per-route regex allowed.
     const adultRequested = detectAdultMention(userRequest);
     const { data: intimacyRow } = await client
@@ -211,23 +223,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (resolved.dailyLimit != null) {
-      // Timezone-aware local day boundary (profiles.timezone_offset).
-      const usage = await countTodayImageUsage(
-        client,
-        user.id,
-        timezoneOffsetFromProfile((profile as Record<string, unknown>) || null),
-      );
-      if (usage.used >= resolved.dailyLimit) {
+    // Membership redesign: every image generation consumes credits (no daily
+    // free quota). Failed generations are refunded downstream by gen-hub.
+    {
+      const cost = CREDIT_COSTS.image_gen;
+      const deducted = await deductCredits(client, user.id, cost, 'image_gen_extra', girlfriend_id);
+      if (!deducted.ok) {
+        const { data: balProfile } = await client
+          .from('profiles')
+          .select('credits_remaining')
+          .eq('id', user.id)
+          .maybeSingle();
+        const balance = Number((balProfile as { credits_remaining?: unknown } | null)?.credits_remaining) || 0;
         return NextResponse.json(
           {
-            error: `Daily image limit reached (${resolved.dailyLimit}). Upgrade or try again tomorrow.`,
+            error: `Insufficient credits. Need ${cost}, have ${balance}.`,
             localized_error: zh
-              ? `今日图片生成次数已用完（${resolved.dailyLimit} 次），请升级套餐或明天再试。`
-              : `Daily image limit reached (${resolved.dailyLimit}). Upgrade or try again tomorrow.`,
-            code: 'daily_limit',
-            limit: resolved.dailyLimit,
-            used: usage.used,
+              ? `积分不足：需要 ${cost}，当前 ${balance}。充值积分即可继续生成。`
+              : `Insufficient credits. Need ${cost}, have ${balance}.`,
+            code: 'insufficient_credits',
+            required: cost,
+            balance,
+            upgrade_url: '/pricing',
           },
           { status: 403 },
         );

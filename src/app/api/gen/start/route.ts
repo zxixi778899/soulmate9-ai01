@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { canAccessGeneration, canGenerateVideo } from '@/lib/constants';
 import { detectRequestedNsfwLevel } from '@/lib/content-rating';
 import { getIntimacyGenerationPolicy } from '@/lib/intimacy-policy';
 import { runGenerationJob, type GenDelegate } from '@/lib/gen-hub';
@@ -57,6 +58,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: `Invalid kind. Expected one of: ${VALID_KINDS.join(', ')}` },
       { status: 400 },
+    );
+  }
+
+  // Membership redesign: generation surfaces are paid-tier only. Responses
+  // carry structured codes so the frontend renders an upgrade guide instead
+  // of a raw error.
+  const { data: tierProfile } = await client
+    .from('profiles')
+    .select('membership_tier')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const memberTier = String((tierProfile as { membership_tier?: unknown } | null)?.membership_tier || 'free');
+  if (!canAccessGeneration(memberTier)) {
+    return NextResponse.json(
+      {
+        error: 'Generation requires a membership plan.',
+        code: 'membership_required',
+        upgrade_url: '/pricing',
+      },
+      { status: 403 },
+    );
+  }
+  if (kind === 'video' && !canGenerateVideo(memberTier)) {
+    return NextResponse.json(
+      {
+        error: 'Video generation requires Premium or Unlimited.',
+        code: 'video_requires_premium',
+        upgrade_url: '/pricing',
+      },
+      { status: 403 },
     );
   }
 

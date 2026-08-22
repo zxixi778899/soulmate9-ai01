@@ -389,6 +389,7 @@ function mergeConfig(base: AiModulesConfig, patch: Partial<AiModulesConfig>): Ai
         free: { ...base.chat.tiers.free, ...(patch.chat.tiers?.free || {}) },
         basic: { ...base.chat.tiers.basic, ...(patch.chat.tiers?.basic || {}) },
         pro: { ...base.chat.tiers.pro, ...(patch.chat.tiers?.pro || {}) },
+        premium: { ...base.chat.tiers.premium, ...(patch.chat.tiers?.premium || {}) },
         unlimited: { ...base.chat.tiers.unlimited, ...(patch.chat.tiers?.unlimited || {}) },
       },
     };

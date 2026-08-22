@@ -3,7 +3,7 @@
  * Persisted under site_settings.key = 'ai_modules' (JSON) with file fallback.
  */
 
-export type MembershipTier = 'free' | 'basic' | 'pro' | 'unlimited' | 'admin';
+export type MembershipTier = 'free' | 'basic' | 'pro' | 'premium' | 'unlimited' | 'admin';
 
 export type ChatChannel = 'sfw' | 'nsfw';
 export type QualityTier = 'economy' | 'standard' | 'premium';
@@ -79,7 +79,7 @@ export interface ChatModuleConfig {
   /** Keyword / heuristic threshold label */
   nsfw_detection: 'keywords' | 'off';
   fallback_endpoint_id: string;
-  tiers: Record<'free' | 'basic' | 'pro' | 'unlimited', TierChatRoute>;
+  tiers: Record<'free' | 'basic' | 'pro' | 'premium' | 'unlimited', TierChatRoute>;
   /** Extra system rules appended to every chat */
   global_system_suffix: string;
 }
@@ -94,8 +94,8 @@ export interface ImageSceneConfig {
   token_cost: number;
   use_consistency_default: boolean;
   allow_llm_prompt_polish: boolean;
-  tier_endpoint_ids?: Partial<Record<'free' | 'pro' | 'unlimited', string>>;
-  adult_endpoint_ids?: Partial<Record<'pro' | 'unlimited', string>>;
+  tier_endpoint_ids?: Partial<Record<'free' | 'basic' | 'pro' | 'premium' | 'unlimited', string>>;
+  adult_endpoint_ids?: Partial<Record<'pro' | 'premium' | 'unlimited', string>>;
   fallback_endpoint_ids?: string[];
   quality_tier?: QualityTier;
   reference_mode?: 'none' | 'single' | 'multi';

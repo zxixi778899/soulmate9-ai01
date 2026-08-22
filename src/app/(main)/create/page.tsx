@@ -1040,7 +1040,20 @@ export default function CreatePage() {
       const cardRes = await authedFetch('/api/creator/consume-card', { method: 'POST' });
       const cardData = await readResponseJson<{ ok?: boolean; remaining?: number; error?: string; code?: string }>(cardRes);
       if (!cardRes.ok || !cardData.ok) {
-        setError(cardData.code === 'NO_CARDS' ? t('create.noCardsRetry') : (cardData.error || t('create.createFailed')));
+        // Upgrade-guided failures: jump to pricing instead of erroring out.
+        if (cardData.code === 'membership_required') {
+          router.push('/pricing');
+          setCreating(false);
+          setCreatePhase('idle');
+          return;
+        }
+        setError(
+          cardData.code === 'creation_quota_exceeded'
+            ? t('create.quotaReachedDesc')
+            : cardData.code === 'NO_CARDS'
+              ? t('create.noCardsRetry')
+              : (cardData.error || t('create.createFailed')),
+        );
         setCreating(false);
         setCreatePhase('idle');
         return;
@@ -1101,7 +1114,7 @@ export default function CreatePage() {
     } finally {
       setCreating(false);
     }
-  }, [infoValid, creating, name, t, cardStatus, portraitRequestBody, nsfwLevel, runBatch, setGenerationResult]);
+  }, [infoValid, creating, name, t, cardStatus, portraitRequestBody, nsfwLevel, runBatch, setGenerationResult, router]);
 
   const startPortraitStep = handleStartCreation;
 
@@ -1169,6 +1182,14 @@ export default function CreatePage() {
           setError(t('create.seatLimitDesc'));
           return;
         }
+        if (data.code === 'membership_required') {
+          router.push('/pricing');
+          return;
+        }
+        if (data.code === 'creation_quota_exceeded') {
+          setError(t('create.quotaReachedDesc'));
+          return;
+        }
         if (data.code === 'NO_CARDS') {
           setError(t('create.noCardsBuyMore'));
           return;
@@ -1200,7 +1221,7 @@ export default function CreatePage() {
     } finally {
       setSaving(false);
     }
-  }, [slots, selectedSlot, saving, getOpts, relationship, locale, visualStyle, gender, faceShape, ethnicity, occupation, shortDescription, name, age, selectedTags, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, skinTone, buildGenome, selectedVoice, appearancePrompt, cardStatus, t]);
+  }, [slots, selectedSlot, saving, getOpts, relationship, locale, visualStyle, gender, faceShape, ethnicity, occupation, shortDescription, name, age, selectedTags, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, skinTone, buildGenome, selectedVoice, appearancePrompt, cardStatus, t, router]);
 
   // ─── Reveal actions ──────────────────────────────────────────────────────
 
@@ -1382,6 +1403,38 @@ export default function CreatePage() {
     const idx = CREATE_STEPS.indexOf(step);
     if (idx >= 0 && idx < CREATE_STEPS.length - 1) setStep(CREATE_STEPS[idx + 1]);
   }, [step]);
+
+  // Membership redesign: free tier is chat-only. Show an upgrade wall instead
+  // of the creator — forbidden surfaces guide to membership, never fail.
+  const isFreeTier = Boolean(cardStatus && (cardStatus.tier === 'free' || cardStatus.tier === ''));
+  if (!loadingData && isFreeTier) {
+    return (
+      <GameShell className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden" innerClassName="flex flex-1 flex-col min-h-0">
+        <PageHeader
+          eyebrow="CREATOR"
+          title={t('create.createCompanion')}
+          subtitle={t('create.stepDesc')}
+          backHref="/"
+          sticky={false}
+          className="shrink-0"
+        />
+        <div className="flex flex-1 items-center justify-center px-6">
+          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-8 text-center shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#FF2D78]/60 to-transparent" />
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_28px_rgba(255,45,120,0.5)]">
+              <Sparkles className="h-8 w-8 text-white" />
+            </div>
+            <h2 className="mb-2 text-xl font-bold text-white">{t('create.freeWallTitle')}</h2>
+            <p className="mb-6 text-sm leading-relaxed text-white/60">{t('create.freeWallDesc')}</p>
+            <GamePrimaryButton className="h-11 w-full" onClick={() => router.push('/pricing')}>
+              {t('create.upgradeNow')}
+              <ArrowRight className="h-4 w-4" />
+            </GamePrimaryButton>
+          </div>
+        </div>
+      </GameShell>
+    );
+  }
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
