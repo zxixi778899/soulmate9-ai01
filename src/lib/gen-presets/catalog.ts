@@ -161,6 +161,33 @@ function titleFromSlug(slug: string): string {
 let legacyCatalogCache: GenPreset[] | null = null;
 
 /**
+ * 内置姿势批次（LLM 精选）：legacy 来源中没有 'pose' 类目，
+ * 此批次保证工作台的姿势槽位选择器开箱即用；
+ * 后台往 gen_preset_catalog 插入同类目行后自动接管覆盖。
+ */
+const BUILTIN_POSE_PRESETS: Array<{
+  slug: string;
+  en: string;
+  zh: string;
+  prompt: string;
+  nsfw: number;
+  tier: GenPresetTier;
+}> = [
+  { slug: 'pose-over-shoulder', en: 'Over-shoulder Glance', zh: '回眸一瞥', prompt: 'looking back over shoulder, soft candid glance, relaxed natural posture', nsfw: 0, tier: 'free' },
+  { slug: 'pose-window-lean', en: 'Window Lean', zh: '倚窗而立', prompt: 'leaning against the window frame, arms loosely crossed, soft daylight on face', nsfw: 0, tier: 'free' },
+  { slug: 'pose-coffee-sip', en: 'Coffee Sip', zh: '轻啜咖啡', prompt: 'seated with a coffee cup near lips, gentle eyes-up gaze, cozy cafe posture', nsfw: 0, tier: 'free' },
+  { slug: 'pose-morning-stretch', en: 'Morning Stretch', zh: '清晨伸展', prompt: 'stretching arms overhead, eyes half closed, relaxed morning yawn posture', nsfw: 0, tier: 'free' },
+  { slug: 'pose-crossed-sit', en: 'Elegant Sit', zh: '优雅端坐', prompt: 'sitting with legs crossed, hands resting on knee, upright confident posture', nsfw: 0, tier: 'free' },
+  { slug: 'pose-hair-flip', en: 'Hair Flip', zh: '撩发瞬间', prompt: 'one hand flipping hair, dynamic motion, playful half-smile', nsfw: 0, tier: 'free' },
+  { slug: 'pose-wall-lean', en: 'Street Wall Lean', zh: '倚墙街拍', prompt: 'back against a wall, one knee slightly bent, casual editorial street pose', nsfw: 0, tier: 'free' },
+  { slug: 'pose-dress-twirl', en: 'Dress Twirl', zh: '旋身裙摆', prompt: 'mid-twirl with dress flowing outward, joyful laughing expression', nsfw: 0, tier: 'free' },
+  { slug: 'pose-bed-lounge', en: 'Bed Lounge', zh: '慵懒卧床', prompt: 'lounging on a soft bed, propped on one elbow, relaxed inviting gaze', nsfw: 2, tier: 'free' },
+  { slug: 'pose-mirror-gaze', en: 'Mirror Gaze', zh: '镜前顾盼', prompt: 'standing before a mirror, one hand on hip, admiring self-reflection pose', nsfw: 2, tier: 'free' },
+  { slug: 'pose-boudoir-recline', en: 'Boudoir Recline', zh: '闺房斜倚', prompt: 'reclined on silk sheets, soft arched back, intimate bedroom posture', nsfw: 3, tier: 'premium' },
+  { slug: 'pose-towel-drop', en: 'Fresh from Shower', zh: '出浴披发', prompt: 'fresh from shower, wet hair over shoulders, towel loosely held, steamy soft light', nsfw: 3, tier: 'premium' },
+];
+
+/**
  * Map all legacy preset files into the catalog shape.
  * - GIRLFRIEND_SCENE_RECIPES      → category 'scene' (SFW)
  * - ADULT_SCENE_PRESETS (lvl 3-5) → category 'scene' (nsfw_level 3/4/5)
@@ -172,6 +199,25 @@ export function buildLegacyCatalog(): GenPreset[] {
   const rows: GenPreset[] = [];
   const push = (row: Omit<GenPreset, 'id'>) =>
     rows.push({ ...row, id: `legacy-${row.category}-${row.slug}` });
+
+  // Built-in pose batch (LLM-curated) — no legacy source covers poses.
+  BUILTIN_POSE_PRESETS.forEach((preset, index) => {
+    push({
+      category: 'pose',
+      slug: preset.slug,
+      label_en: preset.en,
+      label_zh: preset.zh,
+      preview_url: null,
+      prompt_fragment: preset.prompt,
+      negative_fragment: '',
+      lora_hints: [],
+      nsfw_level: preset.nsfw,
+      tier: preset.tier,
+      model_family: null,
+      sort_order: index * 10,
+      is_active: true,
+    });
+  });
 
   // SFW scenes from the companion scene recipes.
   GIRLFRIEND_SCENE_RECIPES.forEach((recipe, index) => {

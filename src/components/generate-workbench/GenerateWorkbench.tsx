@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Flame, Loader2, Sparkles, Upload, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
@@ -53,6 +53,10 @@ const LIKED_STORAGE_KEY = 'generate-workbench-liked';
  * the companion's intimacy policy server-side.
  */
 const UNDRESS_FRAGMENT = 'she takes off all her clothes, fully nude';
+
+/** One-tap HD prompt fragment — keep the uploaded photo faithful, only sharpen. */
+const HD_FRAGMENT =
+  'faithful high-resolution enhancement, same person same pose same outfit, crisp fine details';
 
 function loadLikedIds(): Set<string> {
   if (typeof window === 'undefined') return new Set();
@@ -93,6 +97,7 @@ export default function GenerateWorkbench() {
   const [faceFix, setFaceFix] = useState(true);
   const [upscale, setUpscale] = useState(0);
   const [undressOn, setUndressOn] = useState(false);
+  const [hdOn, setHdOn] = useState(false);
   const [identityOn, setIdentityOn] = useState(true);
   const [credits, setCredits] = useState<number | null>(null);
 
@@ -389,13 +394,28 @@ export default function GenerateWorkbench() {
     setSlotPicker(slot);
   };
 
-  // Quick tool: one-tap HD — 4x upscale (+ face fix on) or back to plain.
-  const handleHdToggle = () => {
-    if (upscale > 0) {
-      setUpscale(0);
+  // Quick tools are upload-driven img2img — enabling one enters image edit
+  // mode so the base-photo upload slot is immediately visible in the drawer.
+  const activateToolContext = (): void => {
+    setMode('image');
+    setSubMode('edit');
+  };
+
+  const handleUndressToggle = (): void => {
+    setUndressOn((v) => {
+      if (!v) activateToolContext();
+      return !v;
+    });
+  };
+
+  // Quick tool: one-tap HD — dedicated 4x upscale pass (+ face fix).
+  const handleHdToggle = (): void => {
+    if (hdOn) {
+      setHdOn(false);
     } else {
-      setUpscale(4);
+      setHdOn(true);
       setFaceFix(true);
+      activateToolContext();
     }
   };
 
@@ -419,6 +439,11 @@ export default function GenerateWorkbench() {
     }
     if (mode === 'video' && !baseImage && !resultImage) {
       setSubmitError(t('generate.videoNeedsImage'));
+      return;
+    }
+    // Quick tools are upload-driven: undress/HD need a source photo first.
+    if (mode === 'image' && (undressOn || hdOn) && !baseImage) {
+      setSubmitError(t('generate.toolNeedsImage'));
       return;
     }
     setBusy(true);
@@ -452,9 +477,10 @@ export default function GenerateWorkbench() {
         const primary = selectedScene || selectedPose;
         const requestParts = [
           prompt.trim(),
-          // Undress intent contradicts an outfit prompt — the tool wins.
-          undressOn ? '' : selectedOutfit?.wear_prompt || '',
+          // Undress/HD intent contradicts an outfit prompt — the tool wins.
+          undressOn || hdOn ? '' : selectedOutfit?.wear_prompt || '',
           undressOn ? UNDRESS_FRAGMENT : '',
+          hdOn ? HD_FRAGMENT : '',
           primary && isCustomPresetSlug(primary.slug) ? primary.prompt_hint || '' : '',
         ].filter(Boolean);
         body.user_request = requestParts.join(', ') || 'a beautiful portrait';
@@ -462,16 +488,22 @@ export default function GenerateWorkbench() {
           body.preset_category = primary.category;
           body.preset_slug = primary.slug;
         }
-        // Edit sub-mode: depth-control keeps the base composition (img2img).
-        if (subMode === 'edit' && baseImage) {
+        // Quick tools are upload-driven img2img and win over edit/pose control.
+        if (undressOn && baseImage) {
+          body.control = { type: 'depth', image: baseImage, strength: 0.62 };
+        } else if (hdOn && baseImage) {
+          body.control = { type: 'depth', image: baseImage, strength: 0.3 };
+        } else if (subMode === 'edit' && baseImage) {
           body.control = { type: 'depth', image: baseImage, strength: 0.65 };
         } else if (selectedPose?.pose_reference) {
           body.control = { type: 'openpose', image: selectedPose.pose_reference, strength: 0.7 };
         }
-        if (faceFix) body.face_fix = true;
-        if (upscale > 1) body.upscale = upscale;
+        if (faceFix || hdOn) body.face_fix = true;
+        if (hdOn) body.upscale = 4;
+        else if (upscale > 1) body.upscale = upscale;
         const identityImage = girlIdentityUrl(selectedGirl);
-        if (identityOn && identityImage) body.identity_image = identityImage;
+        // HD enhances any uploaded photo — a companion identity lock would distort it.
+        if (identityOn && identityImage && !hdOn) body.identity_image = identityImage;
         if (count > 1) {
           body.candidate = true;
           body.count = count;
@@ -618,7 +650,8 @@ export default function GenerateWorkbench() {
           upscale={upscale}
           onUpscaleChange={setUpscale}
           undressOn={undressOn}
-          onUndressToggle={() => setUndressOn((v) => !v)}
+          onUndressToggle={handleUndressToggle}
+          hdOn={hdOn}
           onHdToggle={handleHdToggle}
           identityOn={identityOn}
           onIdentityChange={setIdentityOn}
@@ -645,6 +678,19 @@ export default function GenerateWorkbench() {
 
       {/* ══ Main canvas ══ */}
       <div className="px-4 sm:px-6 pt-4 pb-16 xl:pl-[648px] xl:pr-8">
+        {/* Active quick tool — upload-driven img2img panel on the right canvas */}
+        {!slotPicker && (undressOn || hdOn) && (
+          <ToolUploadPanel
+            tool={undressOn ? 'undress' : 'hd'}
+            baseImage={baseImage}
+            uploading={uploadingBase}
+            onPickFile={(file) => void handleBaseUpload(file)}
+            onClose={() => {
+              if (undressOn) setUndressOn(false);
+              else setHdOn(false);
+            }}
+          />
+        )}
         {slotPicker ? (
           /* Preset browser — inline right-canvas view, same layout as the companion hero */
           <PresetSlotPicker
@@ -777,5 +823,101 @@ export default function GenerateWorkbench() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Right-canvas panel for an active quick tool — both undress and HD are
+ * upload-driven img2img: pick a source photo here (or in the drawer), then
+ * press Generate. Dismissed by toggling the tool off.
+ */
+function ToolUploadPanel({
+  tool,
+  baseImage,
+  uploading,
+  onPickFile,
+  onClose,
+}: {
+  tool: 'undress' | 'hd';
+  baseImage: string | null;
+  uploading: boolean;
+  onPickFile: (file: File) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const isUndress = tool === 'undress';
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
+    const file = event.target.files?.[0];
+    if (file) onPickFile(file);
+    event.target.value = '';
+  };
+
+  return (
+    <section className="mb-6 rounded-2xl border border-[#FD5FC2]/30 bg-gradient-to-r from-[#FD5FC2]/[0.09] via-[#141019] to-[#141019] p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FD5FC2]/20 text-[#ff9ade]">
+            {isUndress ? <Flame className="h-4.5 w-4.5" /> : <Sparkles className="h-4.5 w-4.5" />}
+          </span>
+          <div>
+            <div className="text-sm font-bold text-white">{isUndress ? t('generate.toolUndress') : t('generate.toolHd')}</div>
+            <div className="text-[10px] text-white/40">{isUndress ? t('generate.toolUndressDesc') : t('generate.toolHdDesc')}</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-white/50 hover:text-white hover:bg-white/10 transition-all"
+          aria-label="Close tool"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {baseImage ? (
+        <div className="mt-3 flex max-w-md flex-col gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={baseImage}
+            alt=""
+            className="max-h-64 w-full rounded-xl border border-[#FD5FC2]/45 bg-black/40 object-contain"
+          />
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="self-start rounded-full border border-white/15 px-3 py-1 text-[10px] text-white/60 hover:text-white hover:border-[#FD5FC2]/50 transition-all disabled:opacity-50"
+          >
+            {uploading ? <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> : null}
+            {t('generate.toolUploadCta')}
+          </button>
+          <p className="text-[11px] leading-relaxed text-[#ff9ade]/70">{t('generate.toolReadyHint')}</p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="mt-3 flex h-36 w-full max-w-md items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/15 text-xs text-white/50 hover:border-[#FD5FC2]/50 hover:text-white transition-all disabled:opacity-50"
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          {t('generate.toolUploadCta')}
+        </button>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      <p className="mt-3 max-w-md text-[11px] leading-relaxed text-white/50">
+        {isUndress ? t('generate.toolUndressHow') : t('generate.toolHdHow')}
+      </p>
+    </section>
   );
 }

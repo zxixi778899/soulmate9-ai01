@@ -130,10 +130,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
+    // Optional companion — the generate workbench creates standalone artwork
+    // without a girlfriend; chat surfaces always pass one.
     const girlfriend_id = String((body as { girlfriend_id?: string }).girlfriend_id || '').trim();
-    if (!girlfriend_id) {
-      return NextResponse.json({ error: 'girlfriend_id is required' }, { status: 400 });
-    }
 
     const userRequest = String(
       (body as { user_request?: string; prompt?: string; message?: string }).user_request ||
@@ -170,14 +169,16 @@ export async function POST(request: NextRequest) {
     }
     // Unified content-rating layer — no per-route regex allowed.
     const adultRequested = detectAdultMention(userRequest);
-    const { data: intimacyRow } = await client
-      .from('intimacy_scores')
-      .select('score')
-      .eq('girlfriend_id', girlfriend_id)
-      .eq('user_id', user.id)
-      .order('score', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: intimacyRow } = girlfriend_id
+      ? await client
+          .from('intimacy_scores')
+          .select('score')
+          .eq('girlfriend_id', girlfriend_id)
+          .eq('user_id', user.id)
+          .order('score', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
     const intimacyScore = Number(intimacyRow?.score || 0);
     const basePolicy = getIntimacyGenerationPolicy(intimacyScore);
     // Site-wide NSFW kill switch (admin Generation Control Center → content
@@ -227,7 +228,7 @@ export async function POST(request: NextRequest) {
     // free quota). Failed generations are refunded downstream by gen-hub.
     {
       const cost = CREDIT_COSTS.image_gen;
-      const deducted = await deductCredits(client, user.id, cost, 'image_gen_extra', girlfriend_id);
+      const deducted = await deductCredits(client, user.id, cost, 'image_gen_extra', girlfriend_id || undefined);
       if (!deducted.ok) {
         const { data: balProfile } = await client
           .from('profiles')
@@ -252,26 +253,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Own girlfriend first; allow public approved for deep-link bootstrap
-    let { data: gf } = await client
-      .from('girlfriends')
-      .select('*')
-      .eq('id', girlfriend_id)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (!gf) {
-      const { data: pub } = await client
+    let gf: Record<string, unknown> | null = null;
+    if (girlfriend_id) {
+      const { data: ownRow } = await client
         .from('girlfriends')
         .select('*')
         .eq('id', girlfriend_id)
-        .eq('is_public', true)
-        .eq('review_status', 'approved')
+        .eq('user_id', user.id)
         .maybeSingle();
-      gf = pub;
-    }
+      gf = (ownRow as Record<string, unknown> | null) || null;
 
-    if (!gf) {
-      return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
+      if (!gf) {
+        const { data: pub } = await client
+          .from('girlfriends')
+          .select('*')
+          .eq('id', girlfriend_id)
+          .eq('is_public', true)
+          .eq('review_status', 'approved')
+          .maybeSingle();
+        gf = (pub as Record<string, unknown> | null) || null;
+      }
+
+      if (!gf) {
+        return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
+      }
     }
 
     const mood = (body as { mood?: string }).mood;
@@ -303,7 +308,7 @@ export async function POST(request: NextRequest) {
     });
 
     // If client did not send context, pull last turns from DB
-    if (!chatContext.length) {
+    if (!chatContext.length && girlfriend_id) {
       const { data: recent } = await client
         .from('chat_messages')
         .select('role, content')
@@ -343,7 +348,9 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(', ');
 
-    const gfRecord = gf as Record<string, unknown>;
+    // Standalone generations (no companion) run on an empty record — every
+    // downstream helper treats missing fields as unset defaults.
+    const gfRecord: Record<string, unknown> = gf || {};
     const category = normalizeCompanionCategory({
       gender: gfRecord.gender,
       style: gfRecord.appearance_style,
@@ -463,7 +470,7 @@ export async function POST(request: NextRequest) {
       promptChannel.channel === 'nsfw',
     );
     const loraPlan = buildLoraPlan(
-      subjectFromGirlfriendRow(gf as Record<string, unknown>),
+      subjectFromGirlfriendRow(gfRecord),
       'chat_selfie',
       {
         adult: promptChannel.channel === 'nsfw',
@@ -524,11 +531,11 @@ export async function POST(request: NextRequest) {
     const negativePrompt = `${studioNegativePrompt(category, animeStyle)}, ${baseNegativePrompt}, ${generationProfile.negativePrompt}`;
     // Face / body reference for character consistency
     const refCandidates = [
-      (gf as { face_reference_url?: string }).face_reference_url,
-      (gf as { avatar_url?: string }).avatar_url,
-      (gf as { portrait_url?: string }).portrait_url,
-      (gf as { card_url?: string }).card_url,
-      (gf as { image_url?: string }).image_url,
+      gfRecord.face_reference_url,
+      gfRecord.avatar_url,
+      gfRecord.portrait_url,
+      gfRecord.card_url,
+      gfRecord.image_url,
       typeof cardAppearance.image === 'string' ? (cardAppearance.image as string) : undefined,
       typeof characterCard.image === 'string' ? (characterCard.image as string) : undefined,
     ];
@@ -711,26 +718,29 @@ export async function POST(request: NextRequest) {
       generatedUrl = firstImage;
     } else {
       const dataUrl = `data:image/png;base64,${firstImage}`;
-      const key = await uploadImageAsWebP(dataUrl, `chat_photos/${girlfriend_id}`);
+      const key = await uploadImageAsWebP(dataUrl, `chat_photos/${girlfriend_id || 'standalone'}`);
       generatedUrl = (await resolveImageUrl(key)) || key;
     }
 
     void logModelUsage({
       provider: routerResult.provider, model_id: 'flux-dev',
-      task_type: 'image_generation', user_id: user.id, girlfriend_id,
+      task_type: 'image_generation', user_id: user.id, girlfriend_id: girlfriend_id || undefined,
       latency_ms: Date.now() - started, cost_usd: 0.025, success: true,
     });
 
-    const { error: auditError } = await client.from('ai_generation_audits').insert({
-      user_id: user.id, girlfriend_id, scene: 'chat_selfie', membership_tier: tier,
-      endpoint_id: resolved.logicalEndpointId, model_id: resolved.logicalEndpointId,
-      route_reason: resolved.routeReason, quality_tier: resolved.qualityTier, seed: generationSeed,
-      character_version: String((gf as { updated_at?: string }).updated_at || ''),
-      reference_urls: referencePlan.selected.map((asset) => asset.url), prompt_summary: prompt.slice(0, 500), success: true,
-    });
-    if (auditError) logger.warn('[Chat Generate Image] audit insert failed', { error: auditError.message });
+    // Audit table requires a companion id — standalone jobs skip the insert.
+    if (girlfriend_id) {
+      const { error: auditError } = await client.from('ai_generation_audits').insert({
+        user_id: user.id, girlfriend_id, scene: 'chat_selfie', membership_tier: tier,
+        endpoint_id: resolved.logicalEndpointId, model_id: resolved.logicalEndpointId,
+        route_reason: resolved.routeReason, quality_tier: resolved.qualityTier, seed: generationSeed,
+        character_version: String(gfRecord.updated_at || ''),
+        reference_urls: referencePlan.selected.map((asset) => asset.url), prompt_summary: prompt.slice(0, 500), success: true,
+      });
+      if (auditError) logger.warn('[Chat Generate Image] audit insert failed', { error: auditError.message });
+    }
 
-    const gfName = String((gf as { name?: string }).name || '');
+    const gfName = String(gfRecord.name || '');
     // Cute, flirty captions — randomised to feel fresh each time
     const zhCaptions = [
       `拍好啦～专门给哥哥拍的照片哦 💕`,
@@ -754,40 +764,43 @@ export async function POST(request: NextRequest) {
       : `${nameTag}${zh ? pick(zhCaptions) : pick(enCaptions)}`;
     const finalCaption = caption;
 
-    const { data: savedMessage, error: messageError } = await client.from('chat_messages').insert({
-      user_id: user.id,
-      girlfriend_id,
-      role: 'assistant',
-      content: finalCaption,
-      media_url: generatedUrl,
-      media_type: 'image',
-    }).select('id').maybeSingle();
-    if (messageError) logger.warn('[Chat Generate Image] chat message insert failed', { error: messageError.message });
+    // Chat history belongs to a companion — standalone jobs skip persistence.
+    if (girlfriend_id) {
+      const { data: savedMessage, error: messageError } = await client.from('chat_messages').insert({
+        user_id: user.id,
+        girlfriend_id,
+        role: 'assistant',
+        content: finalCaption,
+        media_url: generatedUrl,
+        media_type: 'image',
+      }).select('id').maybeSingle();
+      if (messageError) logger.warn('[Chat Generate Image] chat message insert failed', { error: messageError.message });
 
-    const { error: mediaError } = await client.from('chat_media').insert({
-      user_id: user.id,
-      girlfriend_id,
-      message_id: savedMessage?.id || null,
-      media_type: 'image',
-      url: generatedUrl,
-      metadata: {
-        source: 'chat_generation',
-        scene: 'chat_character_art',
-        intimacy_level: intimacyPolicy.level,
-        nsfw_intensity: promptPolicy.nsfwIntensity,
-        prompt_engine: promptEngine,
-        prompt_summary: prompt.slice(0, 500),
-        asset_role: 'character-art',
-      },
-    });
-    if (mediaError) logger.warn('[Chat Generate Image] album insert failed', { error: mediaError.message });
+      const { error: mediaError } = await client.from('chat_media').insert({
+        user_id: user.id,
+        girlfriend_id,
+        message_id: savedMessage?.id || null,
+        media_type: 'image',
+        url: generatedUrl,
+        metadata: {
+          source: 'chat_generation',
+          scene: 'chat_character_art',
+          intimacy_level: intimacyPolicy.level,
+          nsfw_intensity: promptPolicy.nsfwIntensity,
+          prompt_engine: promptEngine,
+          prompt_summary: prompt.slice(0, 500),
+          asset_role: 'character-art',
+        },
+      });
+      if (mediaError) logger.warn('[Chat Generate Image] album insert failed', { error: mediaError.message });
+    }
 
     void logModelUsage({
       provider: 'runpod',
       model_id: sceneCfg.endpoint_id || 'flux-chat-selfie',
       task_type: 'image_generation',
       user_id: user.id,
-      girlfriend_id,
+      girlfriend_id: girlfriend_id || undefined,
       latency_ms: Date.now() - started,
       cost_usd: 0,
       success: true,

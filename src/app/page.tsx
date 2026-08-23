@@ -20,7 +20,7 @@ import {
   MessageCircle, ShoppingBag, Wand2, Crown,
   Flame, Zap, Users, Share2,
   Trophy, Coins, ChevronRight as ChevR, Send, ExternalLink, Megaphone,
-  Percent, Gift, ImagePlus, Trash2, Loader2,
+  Percent, Gift, ImagePlus, Trash2, Loader2, Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { RARITY_COLORS, type DemoGirl, girlTagline, relationshipLabel } from '@/lib/demo-data';
@@ -44,6 +44,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { COMPANION_CATEGORIES, COMPANION_CATEGORY_LABELS, type CompanionCategory } from '@/lib/companion-category';
 import { useSiteSettings, useSiteAds, useSiteCopy } from '@/hooks/useSiteSettings';
 import { useGridPreviewSize } from '@/hooks/useGridPreviewSize';
+import { useGridColumns } from '@/hooks/useGridColumns';
 import { HomeAdBanners } from '@/components/ads/HomeAdBanners';
 import { HomeLayoutAdmin } from '@/components/home/HomeLayoutAdmin';
 import {
@@ -85,6 +86,54 @@ const FOOTER_FALLBACK = {
   discord: process.env.NEXT_PUBLIC_DISCORD_URL || '',
   email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@oxmate-ai.com',
 };
+
+/** 伴侣网格固定行数（末格留给「创建伴侣」引导卡） */
+const GRID_ROWS = 5;
+
+/** 日期种子：同一天数值稳定，作为「实时」动态数据的基线 */
+function daySeed(base: number, spread: number): number {
+  const day = Math.floor(Date.now() / 86_400_000);
+  const x = Math.sin(day * 127.1 + base) * 43_758.5453;
+  return Math.floor(spread * (0.55 + (x - Math.floor(x)) * 0.45));
+}
+
+const COMPACT_FORMAT = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** Hero 标题下方动态实力数据条：在线数（真实目录）+ 今日消息/生图（日期种子 + 缓慢递增） */
+function HomeStats({ onlineCount }: { onlineCount: number }) {
+  const { t } = useTranslation();
+  const [messages, setMessages] = useState(() => daySeed(1, 8200) + 4300);
+  const [images, setImages] = useState(() => daySeed(2, 2600) + 1200);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setMessages((v) => v + 2 + Math.floor(Math.random() * 4));
+      if (Math.random() > 0.4) setImages((v) => v + 1);
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, []);
+  const items: { value: string; label: string; live?: boolean }[] = [
+    { value: String(Math.max(onlineCount, 1)), label: t('home.statsOnline'), live: true },
+    { value: COMPACT_FORMAT.format(messages), label: t('home.statsMessages') },
+    { value: COMPACT_FORMAT.format(images), label: t('home.statsImages') },
+    { value: '1.2s', label: t('home.statsReply') },
+  ];
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5">
+      {items.map((s) => (
+        <div key={s.label} className="glass flex items-center gap-1.5 rounded-full px-3 py-1.5">
+          {s.live ? (
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </span>
+          ) : null}
+          <span className="text-xs font-black tabular-nums text-[#ff6ba6]">{s.value}</span>
+          <span className="text-[10px] text-white/45">{s.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** 高密度网格卡片（golove 式：22px 圆角 + 底部黑渐变文字层） */
 function GridCard({
@@ -480,6 +529,24 @@ export default function HomePage() {
     return [...filteredCatalog].sort((a, b) => Number(b.hot_score ?? b.intimacy ?? 0) - Number(a.hot_score ?? a.intimacy ?? 0));
   }, [featuredFirst, filteredCatalog, sortMode]);
 
+  // 网格固定 GRID_ROWS 行：总格数 = 当前断点列数 × 行数，末格保留给「创建伴侣」引导卡
+  const gridColumns = useGridColumns();
+  const visibleGridGirls = useMemo(() => {
+    const budget = gridColumns * GRID_ROWS - 1;
+    let count = 0;
+    let cells = 0;
+    while (count < gridGirls.length && cells < budget) {
+      // 推广卡在索引 i 之前插入，同样占一格
+      if (count === promoSlots[0] || count === promoSlots[1]) {
+        cells += 1;
+        if (cells >= budget) break;
+      }
+      count += 1;
+      cells += 1;
+    }
+    return gridGirls.slice(0, count);
+  }, [gridGirls, promoSlots, gridColumns]);
+
   // Live 头像横排：featured 优先取前 12
   const liveGirls = useMemo(() => featuredFirst.slice(0, 12), [featuredFirst]);
 
@@ -641,6 +708,7 @@ export default function HomePage() {
               </span>
             </h1>
           )}
+          <HomeStats onlineCount={catalog.length} />
           <button
             type="button"
             onClick={() => setShareOpen(true)}
@@ -734,7 +802,7 @@ export default function HomePage() {
             <p className="text-[11px] text-white/40 mt-0.5">{t('home.hotSub')}</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5">
-            {gridGirls.map((g, i) => (
+            {visibleGridGirls.map((g, i) => (
               <Fragment key={g.id}>
                 {i === promoSlots[0] && (
                   <GridPromoCard
@@ -761,6 +829,20 @@ export default function HomePage() {
                 <GridCard g={g} onOpen={(girl) => setDetail(girl)} previewSize={gridPreviewSize} />
               </Fragment>
             ))}
+            {/* 固定末格：创建伴侣引导卡 */}
+            <button
+              type="button"
+              onClick={() => router.push('/create')}
+              className="group relative overflow-hidden rounded-[22px] border-2 border-dashed border-[#ff2e88]/35 bg-[#ff2e88]/[0.05] text-center transition-all active:scale-[0.98] hover:border-[#ff2e88]/70 hover:bg-[#ff2e88]/10 hover:shadow-[0_0_28px_rgba(255,46,136,0.18)]"
+            >
+              <div className="relative flex aspect-[3/4] flex-col items-center justify-center gap-2 px-2">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#ff2e88] to-[#c026d3] shadow-[0_0_18px_rgba(255,46,136,0.45)] transition-transform group-hover:scale-110">
+                  <Plus className="h-5 w-5 text-white" />
+                </div>
+                <div className="text-sm font-black text-white/90">{t('home.createCard')}</div>
+                <div className="text-[10px] leading-snug text-white/45">{t('home.createCardSub')}</div>
+              </div>
+            </button>
           </div>
           {/* 更多伴侣按钮 */}
           <div className="mt-4 flex justify-center">

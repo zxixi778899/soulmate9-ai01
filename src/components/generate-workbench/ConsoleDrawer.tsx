@@ -7,7 +7,7 @@
  * custom prompt, quantity / settings popovers and the gradient Generate pill.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Coins, Film, Flame, Image as ImageIcon, Loader2, Lock,
   Minus, Plus, Settings2, Sparkles, User, X,
@@ -56,6 +56,7 @@ export interface ConsoleDrawerProps {
   /** Quick tools under the prompt box (image mode only). */
   undressOn: boolean;
   onUndressToggle: () => void;
+  hdOn: boolean;
   onHdToggle: () => void;
   identityOn: boolean;
   onIdentityChange: (value: boolean) => void;
@@ -408,33 +409,23 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
             placeholder={t('generate.promptPlaceholder')}
             className="w-full h-24 p-3 rounded-xl bg-[#1D1D1D] border border-white/[0.08] text-sm text-white placeholder-white/25 focus:border-[#FD5FC2]/50 outline-none resize-none"
           />
-          {/* Quick tools: one-tap prompt / quality helpers (image mode only) */}
+          {/* Quick tools — preset-slot style cards (image mode only) */}
           {props.mode === 'image' && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <button
-                type="button"
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <ToolCard
+                active={props.undressOn}
+                icon={<Flame className="h-4 w-4" />}
+                title={t('generate.toolUndress')}
+                desc={t('generate.toolUndressDesc')}
                 onClick={props.onUndressToggle}
-                className={cn(
-                  'inline-flex h-6 items-center gap-1 rounded-full border px-2.5 text-[10px] font-medium transition-all',
-                  props.undressOn
-                    ? 'border-[#FD5FC2]/60 bg-[#FD5FC2]/15 text-white'
-                    : 'border-white/10 text-white/45 hover:text-white',
-                )}
-              >
-                <Flame className="h-3 w-3" /> {t('generate.toolUndress')}
-              </button>
-              <button
-                type="button"
+              />
+              <ToolCard
+                active={props.hdOn}
+                icon={<Sparkles className="h-4 w-4" />}
+                title={t('generate.toolHd')}
+                desc={t('generate.toolHdDesc')}
                 onClick={props.onHdToggle}
-                className={cn(
-                  'inline-flex h-6 items-center gap-1 rounded-full border px-2.5 text-[10px] font-medium transition-all',
-                  props.upscale > 0
-                    ? 'border-[#FD5FC2]/60 bg-[#FD5FC2]/15 text-white'
-                    : 'border-white/10 text-white/45 hover:text-white',
-                )}
-              >
-                <Sparkles className="h-3 w-3" /> {t('generate.toolHd')}
-              </button>
+              />
             </div>
           )}
         </div>
@@ -607,6 +598,49 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
         )}
       </div>
     </div>
+  );
+}
+
+/** Quick-tool tile styled like the preset slot cards above it. */
+function ToolCard(props: {
+  active: boolean;
+  icon: ReactNode;
+  title: string;
+  desc: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      aria-pressed={props.active}
+      className={cn(
+        'relative w-full rounded-xl overflow-hidden border text-left transition-all active:scale-[0.98]',
+        props.active
+          ? 'border-[#FD5FC2]/60 bg-[#FD5FC2]/[0.10] shadow-[0_0_18px_rgba(253,95,194,0.22)]'
+          : 'border-dashed border-white/20 bg-white/[0.03] hover:border-[#FD5FC2]/50',
+      )}
+    >
+      <div className="flex items-start gap-2 p-2.5">
+        <span
+          className={cn(
+            'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors',
+            props.active ? 'bg-[#FD5FC2]/25 text-[#ff9ade]' : 'bg-white/[0.06] text-white/40',
+          )}
+        >
+          {props.icon}
+        </span>
+        <span className="min-w-0">
+          <span className={cn('block text-[11px] font-semibold leading-tight', props.active ? 'text-white' : 'text-white/70')}>
+            {props.title}
+          </span>
+          <span className="mt-0.5 block text-[9px] leading-snug text-white/35">{props.desc}</span>
+        </span>
+      </div>
+      {props.active && (
+        <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#FD5FC2] shadow-[0_0_8px_rgba(253,95,194,0.9)]" />
+      )}
+    </button>
   );
 }
 
