@@ -35,13 +35,6 @@ export interface CreationState {
   setFormData: (data: Partial<CreateFormData>) => void;
   resetFormData: () => void;
   
-  // Preview Mode
-  previewMode: 'disabled' | 'turbo' | 'final';
-  enablePreview: (mode: 'turbo' | 'final') => void;
-  disablePreview: () => void;
-  lastPreviewTime: number;
-  previewCooldownMs: number; // 防抖间隔
-  
   // Generation State
   modelMeta: ModelMeta | null;
   loraInfo: ModelLoraInfo | null;
@@ -112,14 +105,7 @@ const initialSettings: GenerationSettings = {
   sampler: 'euler',
   scheduler: 'simple',
   seed: null,
-  turboMode: false,
   randomSeed: true,
-};
-
-const initialPreviewState = {
-  previewMode: 'disabled' as const,
-  lastPreviewTime: 0,
-  previewCooldownMs: 800, // 800ms debounce
 };
 
 export const useCreationStore = create<CreationState>()(
@@ -134,7 +120,6 @@ export const useCreationStore = create<CreationState>()(
       basePrompt: '',
       generationSettings: initialSettings,
       isSettingsOpen: false,
-      ...initialPreviewState,
       
       // Form Actions
       setFormData: (data) =>
@@ -223,16 +208,6 @@ export const useCreationStore = create<CreationState>()(
         set({ formData: initialFormData, generationSettings: initialSettings });
       },
       
-      // Preview Mode Actions
-      enablePreview: (mode) =>
-        set({ 
-          previewMode: mode, 
-          lastPreviewTime: Date.now() 
-        }),
-      
-      disablePreview: () =>
-        set({ previewMode: 'disabled' }),
-      
       // Parameter Update Actions
       updateParam: (category, value) => {
         set((state) => {
@@ -284,8 +259,7 @@ export const useCreationStore = create<CreationState>()(
       
       resetParams: () =>
         set({ 
-          formData: initialFormData, 
-          ...initialPreviewState 
+          formData: initialFormData,
         }),
     }),
     {

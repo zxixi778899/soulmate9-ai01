@@ -56,6 +56,12 @@ export interface HomeLayoutConfig {
   sections: HomeSectionConfig[];
   /** Background images for the two grid promo cards ('' = gradient default). */
   gridPromo: GridPromoImages;
+  /**
+   * Admin-pinned hot grid order (girlfriend ids). Ids listed here come first
+   * in the homepage hot grid (in this order); the rest fall back to hot_score.
+   * Empty array = pure hot_score sorting.
+   */
+  hotOrder: string[];
   updated_at?: string;
 }
 
@@ -109,9 +115,21 @@ export function normalizeHomeLayout(raw: unknown): HomeLayoutConfig {
     firstTopup: typeof gp.firstTopup === 'string' ? gp.firstTopup.trim() : '',
   };
 
+  const hotOrderRaw = Array.isArray(r.hotOrder) ? r.hotOrder : [];
+  const hotOrder: string[] = [];
+  const seenIds = new Set<string>();
+  for (const item of hotOrderRaw) {
+    if (typeof item !== 'string') continue;
+    const id = item.trim();
+    if (!id || seenIds.has(id)) continue;
+    seenIds.add(id);
+    hotOrder.push(id);
+  }
+
   return {
     sections,
     gridPromo,
+    hotOrder,
     ...(typeof r.updated_at === 'string' ? { updated_at: r.updated_at } : {}),
   };
 }
@@ -155,11 +173,14 @@ export async function saveHomeLayout(
   sections: HomeSectionConfig[],
   supabase: SupabaseLike,
   gridPromo?: GridPromoImages,
+  hotOrder?: string[],
 ): Promise<HomeLayoutConfig> {
-  const current = gridPromo ? null : await loadHomeLayout(supabase);
+  const current =
+    gridPromo !== undefined && hotOrder !== undefined ? null : await loadHomeLayout(supabase);
   const next: HomeLayoutConfig = {
     sections: normalizeHomeLayout({ sections }).sections,
     gridPromo: gridPromo || (current ? current.gridPromo : { ...GRID_PROMO_DEFAULTS }),
+    hotOrder: hotOrder !== undefined ? normalizeHomeLayout({ hotOrder }).hotOrder : current?.hotOrder ?? [],
     updated_at: new Date().toISOString(),
   };
 
@@ -196,6 +217,15 @@ export async function setGridPromoImage(
     ...current.gridPromo,
     [variant]: image,
   });
+}
+
+/** Patch the admin-pinned hot grid order ([] restores hot_score sorting). */
+export async function setHotOrder(
+  ids: string[],
+  supabase: SupabaseLike,
+): Promise<HomeLayoutConfig> {
+  const current = await loadHomeLayout(supabase);
+  return saveHomeLayout(current.sections, supabase, current.gridPromo, ids);
 }
 
 export function invalidateHomeLayoutCache(): void {

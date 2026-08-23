@@ -176,7 +176,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generationStage, setGenerationStage] = useState<'idle' | 'submitting' | 'queued' | 'finalizing'>('idle');
-  const [fastPreview, setFastPreview] = useState(true);
   const [optimizingPrompt, setOptimizingPrompt] = useState(false);
   const [assets, setAssets] = useState<Any[]>([]);
   const [companionAssets, setCompanionAssets] = useState<Any[]>([]);
@@ -390,14 +389,21 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
           intensity: isIdentityAsset ? 1 : nsfwIntensity,
         })
       : null;
-    const roleRoute = resolveImageGenerationRoute({
-      surface: 'companion',
+    const roleRouteArgs = {
+      surface: 'companion' as const,
       category: assembled?.category || companionCategory,
       renderStyle: animeRenderStyle,
       nsfwIntensity: isIdentityAsset ? 1 : nsfwIntensity,
       specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
       sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
-    });
+    };
+    let roleRoute;
+    try {
+      roleRoute = resolveImageGenerationRoute(roleRouteArgs);
+    } catch {
+      // NSFW 硬路由 SDXL 缺失时抛错；此处退回 SFW 路由避免点击处理器崩溃
+      roleRoute = resolveImageGenerationRoute({ ...roleRouteArgs, nsfwIntensity: 2 });
+    }
     const portraitScene = buildStudioSceneDraft({
       task: role === 'character-art' ? 'portrait' : studioTask,
       modelFamily: roleRoute.modelFamily,
@@ -967,7 +973,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   const endpoints: Any[] = useMemo(() => config?.endpoints || [], [config?.endpoints]);
   const checkpoints: Any[] = useMemo(() => config?.checkpoints || [], [config?.checkpoints]);
   const allLoras: Any[] = useMemo(() => config?.loras || [], [config?.loras]);
-  const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity, turbo: fastPreview && genMode !== 'img2video', specialistModelsReady: volumeInfo?.sdxl_models_ready === true, sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined });
+  const generationRoute = resolveImageGenerationRoute({ surface: generationSurface, category: companionCategory, renderStyle: animeRenderStyle, nsfwIntensity, specialistModelsReady: volumeInfo?.sdxl_models_ready === true, sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined });
   // Checkpoint 下拉跟随路由：仅展示当前底模家族的候选（SDXL 时自动带出 Pony/Illustrious 底模）。
   const studioCheckpoints = (() => {
     const routedIds = generationRoute.modelFamily === 'pony'
@@ -992,7 +998,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     assetRole,
     scene: prompt,
     identityConsistency,
-    turbo: fastPreview && genMode !== 'img2video',
     specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
     sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
   });
@@ -1009,7 +1014,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       assetRole,
       scene: prompt,
       identityConsistency,
-      turbo: fastPreview && mode !== 'img2video',
       specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
       sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
     });
@@ -1024,12 +1028,17 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
   };
   const applyNsfwIntensity = (next: NsfwIntensity) => {
     const specialistReady = volumeInfo?.sdxl_models_ready === true;
+    const sdxlEndpoint = volumeInfo?.endpoint_id_sdxl || '';
+    // NSFW 硬路由 SDXL：矩阵不可用时禁止切换，不再降级回 FLUX
+    if (next >= 3 && (!specialistReady || !sdxlEndpoint)) {
+      toast.error('NSFW 生成硬路由 SDXL 矩阵，当前不可用（RUNPOD_SDXL_MODELS_READY / RUNPOD_ENDPOINT_ID_SDXL），无法切换');
+      return;
+    }
     const route = resolveImageGenerationRoute({
       surface: generationSurface,
       category: companionCategory,
       renderStyle: animeRenderStyle,
       nsfwIntensity: next,
-      turbo: false,
       specialistModelsReady: specialistReady,
       sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
     });
@@ -1065,12 +1074,10 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       assetRole,
       scene: nextPrompt,
       identityConsistency,
-      turbo: false,
       specialistModelsReady: specialistReady,
       sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
     });
     setNsfwIntensity(next);
-    setFastPreview(false);
     // Changing the level changes only the model profile and parameters; the
     // authored prompt remains untouched until the user edits it explicitly.
     setActiveAdultPreset(null);
@@ -1088,11 +1095,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
     );
     if (endpointAsset?.id) setEndpointKey(String(endpointAsset.id));
     setWorkflowId('auto');
-    if (next >= 3 && !specialistReady && animeRenderStyle !== '3d') {
-      // resolveImageGenerationRoute already fell back to FLUX (SDXL matrix
-      // branches require the verified RUNPOD_SDXL_MODELS_READY gate) — inform, don't block.
-      toast.warning('SDXL 矩阵总闸未开启（RUNPOD_SDXL_MODELS_READY），按路由规则降级到 FLUX 生成');
-    }
     toast.success(`NSFW ${next}/5：已切换模型参数 profile，保留当前提示词和 LoRA`);
   };
   const installedSet = useMemo(() => new Set(installedLoras), [installedLoras]);
@@ -1172,7 +1174,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       assetRole,
       scene: prompt,
       identityConsistency,
-      turbo: fastPreview && genMode !== 'img2video',
       specialistModelsReady: volumeInfo?.sdxl_models_ready === true,
       sdxlEndpointId: volumeInfo?.endpoint_id_sdxl || undefined,
     });
@@ -1214,7 +1215,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
         upscale: generationRoute.qualityEnhancers.upscale,
       }));
     }
-    // 依赖故意不含 genMode/fastPreview/assetRole：本 effect 只在路由/清单变化时
+    // 依赖故意不含 genMode/assetRole：本 effect 只在路由/清单变化时
     // 同步参数，加入这些状态会在用户切换模式时重置其手动选择。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animeRenderStyle, checkpoints, companionCategory, generationRoute.cfg, generationRoute.checkpoint, generationRoute.modelFamily, generationRoute.qualityEnhancers.adetailer, generationRoute.qualityEnhancers.upscale, generationRoute.sampler, generationRoute.scheduler, generationRoute.steps, loras]);
@@ -1305,7 +1306,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
       identityFromReference: studioTask !== 'identity',
       loraTriggers: activeLoraTriggers,
     },
-    fast_preview: fastPreview && genMode !== 'img2video',
     companion_category: companionCategory,
     anime_render_style: animeRenderStyle,
     nsfw_intensity: nsfwIntensity,
@@ -2813,21 +2813,6 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               </div>
               <div className="mt-1 text-[10px] text-slate-400">{recommendedPreset.reason}</div>
             </div>
-            <button
-              type="button"
-              aria-pressed={fastPreview}
-              onClick={() => {
-                const next = !fastPreview;
-                setFastPreview(next);
-                toast.message(next ? '已开启极速预览：优先快速确认构图' : '已切换完整质量模式');
-              }}
-              className={cn(
-                'rounded-md border px-3 py-2 text-xs font-semibold transition',
-                fastPreview ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-100' : 'border-slate-600 text-slate-300',
-              )}
-            >
-              {fastPreview ? '极速预览 · 开' : '完整质量'}
-            </button>
             <Button type="button" size="sm" variant="outline" className="border-cyan-500/50 text-cyan-100" onClick={() => { const preset = applyRecommendedParameters(); toast.success(`已应用${preset.label}`); }}>
               应用推荐参数
             </Button>

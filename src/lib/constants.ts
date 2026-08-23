@@ -11,15 +11,15 @@ export const PRIVACY_EMAIL = 'privacy@oxmate-ai.com';
 /**
  * Membership tiers — unified Credits model for all GPU media (image / video / TTS).
  *
- * FREE: chat-only tier (20 msgs/day) + one-time 50-credit trial pack.
+ * FREE: chat-only tier (20 msgs/day) + one-time 50-credit trial pack, 3 companions.
  *       No creation, no generation — official preset companions only.
- * PRO ($9.99/mo): 100 msgs/day, 1000 Credits/mo, 3 creations/mo, no video.
- * PREMIUM ($24.99/mo): 300 msgs/day, 2500 Credits/mo, 6 creations/mo, video unlocked.
+ * PRO ($9.99/mo): 100 msgs/day, 1000 Credits/mo, 3 creations/mo, 10 companions, no video.
+ * PREMIUM ($19.99/mo): 200 msgs/day, 2000 Credits/mo, 6 creations/mo, 20 companions, video unlocked.
  * UNLIMITED ($34.99/mo): fair-use unlimited chat, 3500 Credits/mo, 10 creations/mo, video.
  *
  * All media generation (image/TTS/NSFW/video) consumes Credits for every paid tier.
  * Prices tax-exclusive; customer pays tax at checkout.
- * Billing: monthly or yearly only. Yearly discounts: Pro 17%, Premium 20%, Unlimited 20%.
+ * Billing: monthly or yearly only. Yearly discounts: Pro 17%, Premium 17%, Unlimited 20%.
  */
 export const MEMBERSHIP_TIERS = {
   free: {
@@ -28,7 +28,7 @@ export const MEMBERSHIP_TIERS = {
     yearly_price_cents: 0,
     messages_per_day: 20,
     memory_depth: 'shallow' as const,
-    max_girlfriends: 5,
+    max_girlfriends: 3,
     outfit_access: 'basic' as const,
     context_window: 8192,
     monthly_credits: 0,
@@ -44,7 +44,7 @@ export const MEMBERSHIP_TIERS = {
     yearly_price_cents: 9999, // $99.99/yr = 17% off 12 x $9.99 ($8.33/mo equivalent)
     messages_per_day: 100,
     memory_depth: 'deep' as const,
-    max_girlfriends: 20,
+    max_girlfriends: 10,
     outfit_access: 'premium' as const,
     context_window: 16384,
     monthly_credits: 1000, // gifted monthly credits for image/TTS usage
@@ -56,14 +56,14 @@ export const MEMBERSHIP_TIERS = {
   },
   premium: {
     name: 'Premium',
-    price_cents: 2499,
-    yearly_price_cents: 19999, // $199.99/yr = 20% off 12 x $24.99 ($16.66/mo equivalent)
-    messages_per_day: 300,
+    price_cents: 1999,
+    yearly_price_cents: 19999, // $199.99/yr = 17% off 12 x $19.99 ($16.66/mo equivalent)
+    messages_per_day: 200,
     memory_depth: 'deep' as const,
-    max_girlfriends: 50,
+    max_girlfriends: 20,
     outfit_access: 'all' as const,
     context_window: 24576,
-    monthly_credits: 2500, // gifted monthly credits for image/TTS/video usage
+    monthly_credits: 2000, // gifted monthly credits for image/TTS/video usage
     starter_credits: 0,
     monthly_creations: 6,
     video_gen: true, // video access via Credits

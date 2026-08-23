@@ -119,11 +119,10 @@ describe('model matrix — anime (illustrious family)', () => {
   });
 });
 
-describe('model matrix — FLUX retained lanes', () => {
-  it('keeps premium tier, turbo, 3d and product surfaces on FLUX', () => {
+describe('model matrix — FLUX retained lanes (SFW only)', () => {
+  it('keeps premium tier, 3d and product surfaces on FLUX when SFW', () => {
     openGate();
     expect(resolveModelPlan({ surface: 'companion', tier: 'premium' }).endpointKey).toBe('runpod-flux');
-    expect(resolveModelPlan({ surface: 'companion', turbo: true }).endpointKey).toBe('runpod-flux');
     expect(resolveModelPlan({ surface: 'companion', renderStyle: '3d' }).endpointKey).toBe('runpod-flux');
     expect(resolveModelPlan({ surface: 'prop' }).endpointKey).toBe('runpod-flux');
     expect(resolveModelPlan({ surface: 'advert' }).endpointKey).toBe('runpod-flux');
@@ -135,5 +134,26 @@ describe('model matrix — FLUX retained lanes', () => {
     process.env.RUNPOD_ILLUSTRIOUS_CHECKPOINT = 'custom-anime.safetensors';
     expect(resolveModelPlan({ surface: 'companion' }).checkpoint).toBe('custom-realism.safetensors');
     expect(resolveModelPlan({ surface: 'companion', renderStyle: '2d' }).checkpoint).toBe('custom-anime.safetensors');
+  });
+});
+
+describe('model matrix — NSFW hard-routed to SDXL', () => {
+  it('forces premium / 3d / product surfaces onto SDXL when NSFW', () => {
+    openGate();
+    expect(resolveModelPlan({ surface: 'companion', tier: 'premium', nsfwLevel: 4 }).endpointKey).toBe('runpod-sdxl-pro');
+    expect(resolveModelPlan({ surface: 'companion', renderStyle: '3d', nsfwLevel: 5 }).modelFamily).toBe('pony');
+    expect(resolveModelPlan({ surface: 'prop', nsfwLevel: 4 }).endpointKey).toBe('runpod-sdxl-pro');
+  });
+
+  it('routes NSFW 2d to Illustrious and NSFW realistic to pony', () => {
+    openGate();
+    expect(resolveModelPlan({ surface: 'companion', renderStyle: '2d', nsfwLevel: 3 }).modelFamily).toBe('illustrious');
+    expect(resolveModelPlan({ surface: 'companion', renderStyle: 'realistic', nsfwLevel: 3 }).modelFamily).toBe('pony');
+  });
+
+  it('still fails open to FLUX for NSFW while the gate is closed', () => {
+    // 总闸关闭时 resolveModelPlan 不负责 fail-closed，由
+    // resolveImageGenerationRoute 在 NSFW 分支抛错拦截。
+    expect(resolveModelPlan({ surface: 'companion', nsfwLevel: 5 }).endpointKey).toBe('runpod-flux');
   });
 });

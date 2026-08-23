@@ -18,7 +18,7 @@ import { grantTopUpCredits } from '@/lib/credit-system';
 const TIER_CREDITS: Record<string, number> = {
   basic: 1000,    // legacy grandfathered tier — folded into pro quota
   pro: 1000,
-  premium: 2500,
+  premium: 2000,
   unlimited: 3500,
 };
 

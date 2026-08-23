@@ -8,7 +8,7 @@
  *   - refund_job:    { job_id } → one-shot refund via gen-hub
  *   - save_rating:   { nsfw_enabled } → site_settings kill switch
  *   - seed_assets:   upsert the canonical gen_model_assets manifest
- *   - matrix_preview: { category, render_style, nsfw_level, tier, turbo }
+ *   - matrix_preview: { category, render_style, nsfw_level, tier }
  *                     → resolved ModelPlan (checkpoint/LoRA/endpoint)
  */
 
@@ -154,7 +154,6 @@ export async function POST(request: NextRequest) {
           render_style?: string;
           nsfw_level?: number;
           tier?: string;
-          turbo?: boolean;
         };
         const category =
           b.category === 'male' ? 'male' : b.category === 'transgender' ? 'transgender' : 'female';
@@ -167,7 +166,6 @@ export async function POST(request: NextRequest) {
           renderStyle,
           nsfwLevel,
           tier: b.tier === 'premium' ? 'premium' : 'standard',
-          turbo: b.turbo === true,
         });
         return NextResponse.json({ success: true, plan, matrix: { active: isSdxlMatrixActive() } });
       }

@@ -6,7 +6,8 @@
  *
  *   写实女/男/跨 (realistic)  → pony 家族  ponyRealism_V22（LoRA slider 分化三题材）
  *   二次元 (2d)               → illustrious 家族 waiMatureIllustrious_v20（danbooru tags）
- *   精品写实 / turbo / 3D / 产品资产 → FLUX 精品层（保留现状，可降级）
+ *   精品写实 / 3D / 产品资产（仅 SFW） → FLUX 精品层（保留现状，可降级）
+ *   NSFW（强度 ≥3）           → 硬路由 SDXL 双通道，禁止落 FLUX
  *
  * 总闸：`RUNPOD_SDXL_MODELS_READY=true` 且 `RUNPOD_ENDPOINT_ID_SDXL` 已配置
  * 时矩阵生效；任一条件不满足全部 fail-open 回 FLUX，行为与重构前一致。
@@ -115,10 +116,8 @@ export function resolveModelPlan(input: {
   category?: CompanionCategory;
   renderStyle?: AnimeRenderStyle;
   nsfwLevel?: NsfwIntensity;
-  /** premium = FLUX 精品层（差异化定价，上线前确认） */
+  /** premium = FLUX 精品层（仅 SFW；NSFW 硬路由 SDXL） */
   tier?: 'standard' | 'premium';
-  /** 快速草稿（聊天 typing 预览） */
-  turbo?: boolean;
   /** 复杂多人/高控制场景（+2 步采样预算） */
   sceneComplex?: boolean;
   /**
@@ -158,23 +157,26 @@ export function resolveModelPlan(input: {
   if (!matrixActive) {
     return fluxPlan('SDXL matrix gate closed — unified FLUX pipeline.');
   }
-  // ── premium 精品层与 turbo 草稿保留 FLUX ──
-  if (input.tier === 'premium') {
-    return fluxPlan('Premium tier stays on the FLUX boutique layer.');
-  }
-  if (input.turbo) {
-    return fluxPlan('Turbo drafts stay on the FLUX fast path.');
-  }
-  // ── 产品类资产（道具/广告）与 3D 渲染：LoRA 生态只在 FLUX 侧 ──
-  if (input.surface === 'prop' || input.surface === 'advert') {
-    return fluxPlan(`${input.surface} product assets stay on FLUX.`);
-  }
-  if (renderStyle === '3d') {
-    return fluxPlan('3D renders stay on FLUX (3D LoRA only exists there).');
+
+  // ── NSFW 硬路由 SDXL：FLUX NSFW 稳定性差，premium/3D/产品资产也收敛到 ──
+  // ── SDXL 双通道（3D 无 SDXL LoRA 生态时归入写实通道） ──
+  const effectiveStyle: AnimeRenderStyle = nsfw && renderStyle === '3d' ? 'realistic' : renderStyle;
+
+  // ── premium 精品层 / 3D / 产品资产（仅 SFW）保留 FLUX ──
+  if (!nsfw) {
+    if (input.tier === 'premium') {
+      return fluxPlan('Premium tier stays on the FLUX boutique layer.');
+    }
+    if (input.surface === 'prop' || input.surface === 'advert') {
+      return fluxPlan(`${input.surface} product assets stay on FLUX.`);
+    }
+    if (effectiveStyle === '3d') {
+      return fluxPlan('3D renders stay on FLUX (3D LoRA only exists there).');
+    }
   }
 
-  // ── 二次元 → Illustrious 旗舰 ──
-  if (renderStyle === '2d') {
+  // ── 二次元 → Illustrious 旗舰（SFW/NSFW） ──
+  if (effectiveStyle === '2d') {
     return {
       endpointKey: 'runpod-sdxl-pro',
       modelFamily: 'illustrious',
@@ -194,7 +196,7 @@ export function resolveModelPlan(input: {
     };
   }
 
-  // ── 写实女/男/跨（companion / outfit）→ ponyRealism ──
+  // ── 写实女/男/跨（companion / outfit，SFW/NSFW）→ ponyRealism ──
   return {
     endpointKey: 'runpod-sdxl-pro',
     modelFamily: 'pony',

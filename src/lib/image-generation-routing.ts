@@ -16,9 +16,13 @@ export type ImageModelFamily = 'flux' | 'pony' | 'illustrious';
 const env = (name: string, fallback: string): string => process.env[name]?.trim() || fallback;
 
 /**
- * FLUX Premium endpoint (RTX 4090) - High quality portrait SFW/NSFW
+ * FLUX endpoint — 统一 ComfyUI 生图端点（真实生产端点 e40cgshtouocg8）。
+ * 优先 RUNPOD_ENDPOINT_ID_FLUX，回读主端点 RUNPOD_ENDPOINT_ID。
  */
-export const FLUX_ENDPOINT_ID = env('RUNPOD_ENDPOINT_ID_FLUX', 'wozrrlcdipyl3p');
+export const FLUX_ENDPOINT_ID = env('RUNPOD_ENDPOINT_ID_FLUX', env('RUNPOD_ENDPOINT_ID', 'e40cgshtouocg8'));
+
+/** 兼容别名：统一 ComfyUI 端点（旧引用使用此名）。 */
+export const UNIFIED_COMFY_ENDPOINT = FLUX_ENDPOINT_ID;
 
 /**
  * SDXL Pony endpoint (RTX 3090) - Fast anime & western realistic
@@ -237,9 +241,11 @@ function sdxlMatrixRoute(
 /**
  * Resolve generation parameters for the generation model matrix.
  *
- * 矩阵总闸开启（RUNPOD_SDXL_MODELS_READY=true + RUNPOD_ENDPOINT_ID_SDXL）时
- * 委托 resolveModelPlan：写实女/男/跨 → ponyRealism，二次元 → Illustrious；
- * premium/turbo/3D/产品资产及总闸关闭时全部保留 FLUX 精品层分支。
+ * SFW/NSFW 正常方案分离：
+ *  - NSFW（强度 ≥3）硬路由 SDXL（写实→ponyRealism，二次元→Illustrious），
+ *    禁止落 FLUX（FLUX NSFW 稳定性差）；SDXL 端点缺失时直接抛错（fail-closed）。
+ *  - SFW：矩阵总闸开启时写实/二次元走 SDXL，premium/3D/产品资产保留 FLUX；
+ *    总闸关闭时 fail-open 回 FLUX。
  */
 export function resolveImageGenerationRoute(input: {
   surface: ImageSurface;
@@ -248,8 +254,6 @@ export function resolveImageGenerationRoute(input: {
   nsfwIntensity?: NsfwIntensity;
   sceneText?: string;
   sceneSemantics?: ImageSceneSemantics;
-  /** Quick preview mode: minimal steps for fast companion drafts */
-  turbo?: boolean;
   /**
    * 矩阵总闸显式 override。客户端 bundle 读不到服务端 env（非
    * NEXT_PUBLIC_ 变量不会内联），所以服务端 API（如 /api/admin/comfy
@@ -278,16 +282,38 @@ export function resolveImageGenerationRoute(input: {
   const semantics = input.sceneSemantics || classifyImageScene(input.sceneText || '', category);
   const complexScene = isComplexAdultScene(semantics);
   const nsfw = intensity >= 3;
+  const sdxlEndpointId = input.sdxlEndpointId?.trim() || env('RUNPOD_ENDPOINT_ID_SDXL', '');
 
-  // ─── SDXL 模型矩阵（RUNPOD_SDXL_MODELS_READY 总闸） ───────────────────────
-  // 总闸关闭 / 端点未配置 / premium / turbo / 3D / 产品资产时 plan 自动落回
+  // ─── NSFW 硬路由：一律落 SDXL，禁止落 FLUX ──────────────────────────────
+  // FLUX NSFW 稳定性差（裸 flux1-dev-fp8 无 NSFW LoRA 生态），本站 NSFW 统一
+  // 走 SDXL 双通道（写实→ponyRealism / 二次元→Illustrious）。SDXL 端点缺失
+  // 时 fail-closed 抛错，而不是把 NSFW 偷偷降级回 FLUX。
+  if (nsfw) {
+    if (!sdxlEndpointId) {
+      throw new Error(
+        'NSFW generation requires the SDXL endpoint (RUNPOD_ENDPOINT_ID_SDXL). ' +
+        'FLUX fallback for NSFW is disabled by policy.',
+      );
+    }
+    const nsfwPlan = resolveModelPlan({
+      surface: input.surface,
+      category,
+      // NSFW 时 3D/产品资产也收敛到 SDXL 双通道（SDXL 无 3D LoRA 生态）
+      renderStyle: renderStyle === '2d' ? '2d' : 'realistic',
+      nsfwLevel: intensity,
+      sceneComplex: complexScene,
+      matrixActive: true,
+    });
+    return sdxlMatrixRoute(nsfwPlan, input.surface, category, nsfw, sdxlEndpointId);
+  }
+
+  // ─── SDXL 模型矩阵（RUNPOD_SDXL_MODELS_READY 总闸，仅 SFW 到达这里） ─────
+  // 总闸关闭 / 端点未配置 / premium / 3D / 产品资产时 plan 自动落回
   // 'runpod-flux'，继续走下方保留的 FLUX 分支（行为与重构前一致）。
   // familyOverride='flux' 时整个矩阵分支跳过（手动锁定 FLUX）；
-  // 'pony'/'illustrious' 时用对应 renderStyle 强制矩阵计划（turbo 一并忽略，
-  // 否则 resolveModelPlan 会把显式选择打回 FLUX 快速路径）。
+  // 'pony'/'illustrious' 时用对应 renderStyle 强制矩阵计划。
   const forceFamily = input.familyOverride;
   const matrixActive = input.matrixActive ?? input.specialistModelsReady;
-  const sdxlEndpointId = input.sdxlEndpointId?.trim() || env('RUNPOD_ENDPOINT_ID_SDXL', '');
   const matrixPlan = forceFamily === 'flux'
     ? null
     : resolveModelPlan({
@@ -295,7 +321,6 @@ export function resolveImageGenerationRoute(input: {
         category,
         renderStyle: forceFamily === 'illustrious' ? '2d' : forceFamily === 'pony' ? 'realistic' : renderStyle,
         nsfwLevel: intensity,
-        turbo: forceFamily ? false : input.turbo,
         sceneComplex: complexScene,
         matrixActive,
       });
@@ -305,10 +330,10 @@ export function resolveImageGenerationRoute(input: {
       return fluxRoute({
         surface: input.surface,
         checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
-        steps: nsfw ? 32 : 28,  // ✅ Increased from 28/24
-        fluxGuidance: nsfw ? 4.0 : 3.5,
-        width: 1024,              // ✅ Increased from 832
-        height: 1536,             // ✅ Increased from 1216
+        steps: 28,
+        fluxGuidance: 3.5,
+        width: 1024,
+        height: 1536,
         presetId: 'flux-matrix-failopen',
         reason: 'SDXL matrix gate open but no SDXL endpoint — fail-open to FLUX.',
       }, category, renderStyle, nsfw);
@@ -316,38 +341,21 @@ export function resolveImageGenerationRoute(input: {
     return sdxlMatrixRoute(matrixPlan, input.surface, category, nsfw, sdxlEndpointId);
   }
 
-  // Unified FLUX strategy: every scenario uses the same verified dev-fp8
-  // checkpoint. NSFW guidance is controlled by fluxGuidance and step budget,
-  // not by switching to an alternative checkpoint.
+  // Unified FLUX strategy (SFW only — NSFW is hard-routed to SDXL above):
+  // every scenario uses the same verified dev-fp8 checkpoint.
   const checkpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
 
-  // ─── Turbo preview mode ───────────────────────────────────────────────────
-  // Quick draft for companion chat: 8 steps produces a recognizable image in
-  // ~3s instead of ~8s. Used for "typing…" previews and pool warm-up only.
-  if (input.surface === 'companion' && input.turbo && !nsfw && !complexScene) {
-    return fluxRoute({
-      surface: input.surface,
-      checkpoint,
-      steps: 8,                 // Keep turbo steps for speed
-      fluxGuidance: 2.5,
-      width: 640,               // Keep small for preview
-      height: 960,
-      presetId: 'flux-turbo',
-      reason: 'Turbo preview: minimal steps for a fast companion draft.',
-    }, category, renderStyle, nsfw);
-  }
-
-  // ─── 2D / Anime style ─────────────────────────────────────────────────────
+  // ─── 2D / Anime style (SFW) ───────────────────────────────────────────────
   // FLUX + anime LoRA (rdanimefluxv1rapid) downstream; higher steps keep
   // linework and stylized anatomy coherent.
   if (input.surface === 'companion' && renderStyle === '2d') {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: nsfw ? 32 : 28,    // ✅ Increased from 28/26
-      fluxGuidance: nsfw ? 4.0 : 3.5,
-      width: 1024,              // ✅ Increased from 832
-      height: 1536,             // ✅ Increased from 1216
+      steps: 28,
+      fluxGuidance: 3.5,
+      width: 1024,
+      height: 1536,
       presetId: complexScene ? 'flux-2d-multi-control' : 'flux-2d-portrait',
       reason: complexScene
         ? 'Multi-character 2D art uses the high-step FLUX anime preset.'
@@ -355,50 +363,31 @@ export function resolveImageGenerationRoute(input: {
     }, category, renderStyle, nsfw);
   }
 
-  // ─── 3D render style ──────────────────────────────────────────────────────
+  // ─── 3D render style (SFW) ────────────────────────────────────────────────
   if (input.surface === 'companion' && renderStyle === '3d') {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: nsfw ? 32 : 28,    // ✅ Increased from 28/26
-      fluxGuidance: nsfw ? 4.0 : 3.5,
-      width: 1152,              // ✅ Increased from 896
-      height: 1472,             // ✅ Increased from 1152
+      steps: 28,
+      fluxGuidance: 3.5,
+      width: 1152,
+      height: 1472,
       presetId: complexScene ? 'flux-3d-multi-control' : 'flux-3d-portrait',
       reason: '3D companion rendering uses FLUX with the 3D render LoRA.',
     }, category, renderStyle, nsfw);
   }
 
-  // ─── Transgender anatomy ──────────────────────────────────────────────────
-  // Dedicated preset: the MTF LoRA needs stable mixed anatomy, so both SFW
-  // and NSFW get the wider canvas; NSFW adds steps and guidance.
+  // ─── Transgender anatomy (SFW; NSFW trans is hard-routed to SDXL pony) ────
   if (input.surface === 'companion' && category === 'transgender') {
     return fluxRoute({
       surface: input.surface,
       checkpoint,
-      steps: nsfw ? 32 : 28,    // ✅ Increased from 28/24
-      fluxGuidance: nsfw ? 4.0 : 3.5,
-      width: 1024,              // ✅ Increased from 896
-      height: 1472,             // ✅ Increased from 1152
-      presetId: nsfw
-        ? complexScene ? 'flux-trans-composition' : 'flux-trans-adult'
-        : 'flux-trans-portrait',
+      steps: 28,
+      fluxGuidance: 3.5,
+      width: 1024,
+      height: 1472,
+      presetId: 'flux-trans-portrait',
       reason: 'Transgender anatomy uses the FLUX pipeline with the MTF LoRA.',
-    }, category, renderStyle, nsfw);
-  }
-
-  // ─── Adult / NSFW anatomy (realistic female / male) ───────────────────────
-  if (input.surface === 'companion' && nsfw) {
-    const highControl = semantics.powerDynamic === 'sm' || semantics.pairing === 'group_4i';
-    return fluxRoute({
-      surface: input.surface,
-      checkpoint,
-      steps: complexScene ? 32 : 30,  // ✅ Increased from 30/28
-      fluxGuidance: 4.0,
-      width: 1024,               // ✅ Increased from 896
-      height: 1472,              // ✅ Increased from 1152
-      presetId: highControl ? 'flux-adult-composition-control' : complexScene ? 'flux-adult-pair' : 'flux-adult-portrait',
-      reason: 'Explicit adult anatomy uses the high-step FLUX pipeline with NSFW LoRAs.',
     }, category, renderStyle, nsfw);
   }
 
@@ -406,10 +395,10 @@ export function resolveImageGenerationRoute(input: {
   return fluxRoute({
     surface: input.surface,
     checkpoint,
-    steps: 28,                   // ✅ Increased from 24
+    steps: 28,
     fluxGuidance: 3.5,
-    width: input.surface === 'companion' ? 1024 : 1024,  // ✅ Increased from 832
-    height: input.surface === 'companion' ? 1536 : 1024, // ✅ Increased from 1216
+    width: 1024,
+    height: input.surface === 'companion' ? 1536 : 1024,
     presetId: input.surface === 'companion' ? 'flux-portrait-sfw' : `flux-${input.surface}-product`,
     reason: `${input.surface} generation uses the unified FLUX pipeline.`,
   }, category, renderStyle, nsfw);

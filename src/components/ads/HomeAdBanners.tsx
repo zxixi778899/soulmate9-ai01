@@ -13,7 +13,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslation } from '@/lib/i18n/context';
 import type { TranslationKey } from '@/lib/i18n/types';
-import type { AdItem } from '@/hooks/useSiteSettings';
+import { useSiteCopy, type AdItem } from '@/hooks/useSiteSettings';
+import type { SiteCopy } from '@/lib/copy-store';
 import { cn } from '@/lib/utils';
 
 type AdSlot = 'weekly' | 'launch' | 'sale';
@@ -68,9 +69,18 @@ const SLOT_COPY: Record<AdSlot, SlotCopy> = {
 
 export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
   const { t } = useTranslation();
+  const { copy: siteCopy } = useSiteCopy();
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const count = ads.length;
+
+  // 管理员文案覆盖：空值回退到 i18n 默认翻译
+  const chipOverrides: (string | undefined)[] = [
+    siteCopy.bannerChip1,
+    siteCopy.bannerChip2,
+    siteCopy.bannerChip3,
+  ];
+  const overrideOf = (key: keyof SiteCopy): string | undefined => siteCopy[key] || undefined;
 
   // 自动轮播：6s 切换，悬停暂停，标签隐藏时跳过
   useEffect(() => {
@@ -95,7 +105,7 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
     >
       {ads.map((ad, i) => {
         const slot = detectSlot(ad.image_url);
-        const copy = slot ? SLOT_COPY[slot] : null;
+        const slotCopy = slot ? SLOT_COPY[slot] : null;
         const href = ad.link_url || '#';
         const internal = href.startsWith('/');
         const linkClass = cn(
@@ -115,33 +125,33 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
             />
             {/* 均匀暗化：居中排版下整幅文案可读，不偏侧遮人物 */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/30 to-black/50 pointer-events-none" />
-            {copy ? (
+            {slotCopy ? (
               // 文案居中排版：badge → 标题 → chips → CTA 纵向居中
               <div className="relative z-[2] h-full flex flex-col items-center justify-center gap-1 sm:gap-2 px-4 text-center">
                 <span
                   className={cn(
                     'w-fit rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-black tracking-widest ring-1 backdrop-blur',
-                    copy.badgeClass,
+                    slotCopy.badgeClass,
                   )}
                 >
-                  {t(copy.badge)}
+                  {overrideOf('bannerBadge') || t(slotCopy.badge)}
                 </span>
                 <h3 className="text-xl sm:text-3xl font-black tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] leading-tight">
-                  {t(copy.title)}
+                  {overrideOf('bannerTitle') || t(slotCopy.title)}
                 </h3>
-                {copy.sub ? (
+                {slotCopy.sub ? (
                   <p className="text-[11px] sm:text-sm font-semibold text-white/85 drop-shadow">
-                    {t(copy.sub)}
+                    {overrideOf('bannerSub') || t(slotCopy.sub)}
                   </p>
                 ) : null}
-                {copy.chips ? (
+                {slotCopy.chips ? (
                   <div className="flex flex-wrap justify-center gap-1.5 mt-0.5">
-                    {copy.chips.map((chip) => (
+                    {slotCopy.chips.map((chip, chipIdx) => (
                       <span
                         key={chip}
-                        className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1', copy.chipClass)}
+                        className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1', slotCopy.chipClass)}
                       >
-                        {t(chip)}
+                        {chipOverrides[chipIdx] || t(chip)}
                       </span>
                     ))}
                   </div>
@@ -149,10 +159,10 @@ export function HomeAdBanners({ ads }: { ads: AdItem[] }) {
                 <span
                   className={cn(
                     'mt-1 w-fit rounded-full px-4 py-1.5 text-[11px] sm:text-sm font-bold shadow-lg active:scale-95 transition-transform',
-                    copy.ctaClass,
+                    slotCopy.ctaClass,
                   )}
                 >
-                  {t(copy.cta)} →
+                  {overrideOf('bannerCta') || t(slotCopy.cta)} →
                 </span>
               </div>
             ) : null}

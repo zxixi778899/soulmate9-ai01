@@ -27,6 +27,13 @@ export const COPY_KEYS = [
   'promoQuestTitle',
   'guestTitle',
   'guestCta',
+  'bannerBadge',
+  'bannerTitle',
+  'bannerSub',
+  'bannerChip1',
+  'bannerChip2',
+  'bannerChip3',
+  'bannerCta',
 ] as const;
 export type CopyKey = (typeof COPY_KEYS)[number];
 
@@ -44,6 +51,13 @@ export const COPY_META: Record<CopyKey, { label: string; i18nKey: TranslationKey
   promoQuestTitle: { label: '推广横幅 · 任务标题', i18nKey: 'home.promoQuest' },
   guestTitle: { label: '游客条 · 标题', i18nKey: 'home.guestTitle' },
   guestCta: { label: '游客条 · 副文案', i18nKey: 'home.guestCta' },
+  bannerBadge: { label: '广告横幅 · 角标', i18nKey: 'ads.weekly.badge' },
+  bannerTitle: { label: '广告横幅 · 主标题', i18nKey: 'ads.weekly.title' },
+  bannerSub: { label: '广告横幅 · 副标题（无则留空）', i18nKey: 'ads.sale.sub' },
+  bannerChip1: { label: '广告横幅 · 卖点 1', i18nKey: 'ads.weekly.f1' },
+  bannerChip2: { label: '广告横幅 · 卖点 2', i18nKey: 'ads.weekly.f2' },
+  bannerChip3: { label: '广告横幅 · 卖点 3', i18nKey: 'ads.weekly.f3' },
+  bannerCta: { label: '广告横幅 · 按钮文案', i18nKey: 'ads.weekly.cta' },
 };
 
 export type SiteCopy = Partial<Record<CopyKey, string>>;

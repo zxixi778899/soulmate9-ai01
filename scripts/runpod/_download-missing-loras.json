@@ -1,0 +1,16 @@
+{
+  "cmd": "files",
+  "subdir": "loras",
+  "files": [
+    {
+      "name": "AddMicroDetails_Illustrious_v6.safetensors",
+      "versionId": "2832991",
+      "sha256": "CE12AF9C5E510A745618F76F1197C5776CD283E5DDDD707FC0371AFD940B4454"
+    },
+    {
+      "name": "flux_face_ahegao_v1.safetensors",
+      "versionId": "1477302",
+      "sha256": "9CA8FB8B571096EC40643BB90EEAB442FB2A19D3BF880A4671A633D5736859B5"
+    }
+  ]
+}

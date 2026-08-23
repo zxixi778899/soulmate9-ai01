@@ -1033,7 +1033,6 @@ function MatrixTab(props: { gate: MatrixGate | null }) {
   const [renderStyle, setRenderStyle] = useState('realistic');
   const [nsfwLevel, setNsfwLevel] = useState(1);
   const [tier, setTier] = useState('standard');
-  const [turbo, setTurbo] = useState(false);
   const [plan, setPlan] = useState<MatrixPlan | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -1045,7 +1044,7 @@ function MatrixTab(props: { gate: MatrixGate | null }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'matrix_preview',
-          category, render_style: renderStyle, nsfw_level: nsfwLevel, tier, turbo,
+          category, render_style: renderStyle, nsfw_level: nsfwLevel, tier,
         }),
       });
       const data = await res.json();
@@ -1073,7 +1072,7 @@ function MatrixTab(props: { gate: MatrixGate | null }) {
 
       <Card>
         <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <Label>题材</Label>
               <Select value={category} onValueChange={setCategory}>
@@ -1113,15 +1112,9 @@ function MatrixTab(props: { gate: MatrixGate | null }) {
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="standard">标准</SelectItem>
-                  <SelectItem value="premium">精品（FLUX）</SelectItem>
+                  <SelectItem value="premium">精品（FLUX，仅 SFW）</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex items-end pb-1">
-              <div className="flex items-center gap-2">
-                <Switch checked={turbo} onCheckedChange={setTurbo} />
-                <span className="text-xs text-gray-400">turbo 草稿</span>
-              </div>
             </div>
           </div>
           <Button onClick={() => void preview()} disabled={loading}>

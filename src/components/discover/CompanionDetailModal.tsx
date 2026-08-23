@@ -8,11 +8,12 @@
 
 import { useRef, useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'motion/react';
-import { X, Heart, Sparkles, Volume2, MessageCircle, Share2, UserPlus, Loader2 } from 'lucide-react';
+import { X, Heart, Sparkles, Volume2, MessageCircle, Share2, UserPlus, Loader2, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
 import type { DemoGirl } from '@/lib/demo-data';
 import { CardMedia } from '@/components/discover/CardMedia';
+import { LockedPortraitOverlay, lockedImageClass } from '@/components/game/LockedPortrait';
 
 interface Props {
   girl: DemoGirl;
@@ -67,6 +68,8 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
   const safeName = girl.name || 'Companion';
   const portrait = girl.portrait || girl.avatar || '';
   const video = girl.video || girl.avatar_video || '';
+  // Locked companions stay obscured even inside the detail modal — no video playback.
+  const isLocked = Boolean(girl.locked);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8"
@@ -109,10 +112,11 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
               <div className="absolute inset-0" style={{ transform: 'translateZ(40px)' }}>
                 <CardMedia
                   src={portrait}
-                  videoSrc={video || undefined}
+                  videoSrc={isLocked ? undefined : video || undefined}
                   alt={safeName}
-                  forcePlay={Boolean(video)}
-                  showBadge={Boolean(video)}
+                  forcePlay={Boolean(video) && !isLocked}
+                  showBadge={Boolean(video) && !isLocked}
+                  imgClassName={lockedImageClass(isLocked)}
                 />
               </div>
 
@@ -127,6 +131,9 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
                    background:
                      'linear-gradient(135deg, rgba(255, 46, 136, 0.15) 0%, transparent 30%, transparent 70%, rgba(0, 229, 255, 0.15) 100%)',
                  }} />
+
+            {/* Lock overlay for locked companions */}
+            {isLocked && <LockedPortraitOverlay price={girl.unlock_price_tokens} />}
 
             {/* Bottom info */}
             <div className="absolute bottom-6 left-6 right-6">
@@ -274,12 +281,18 @@ export function CompanionDetailModal({ girl, open, onClose, onSelect, busy = fal
               <span className="relative z-10 flex items-center justify-center gap-2">
                 {busy ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isLocked ? (
+                  <Lock className="h-4 w-4" />
                 ) : isFriend ? (
                   <MessageCircle className="h-4 w-4" />
                 ) : (
                   <UserPlus className="h-4 w-4" />
                 )}
-                {isFriend ? '去聊天' : primaryLabel || 'ADD FRIEND'}
+                {isLocked
+                  ? (girl.unlock_price_tokens
+                      ? `${t('explore.unlock')} · ${girl.unlock_price_tokens}`
+                      : t('explore.unlock'))
+                  : isFriend ? t('explore.goToMessages') : primaryLabel || 'ADD FRIEND'}
               </span>
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
             </button>

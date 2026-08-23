@@ -8,6 +8,7 @@ import {
   saveHomeLayout,
   setHomeSectionImage,
   setGridPromoImage,
+  setHotOrder,
   invalidateHomeLayoutCache,
   isHomeSectionId,
   isGridPromoVariant,
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/admin/home-layout
  *  - JSON:     { sections: [{ id, visible, image }] } — save order/visibility/images
+ *  - JSON:     { hotOrder: [girlfriendId, ...] } — save the admin-pinned hot grid order
  *  - multipart:{ section, file } — upload an image for one section.
  *    adsBanner uploads swap the first banner ad's artwork (admin_ads);
  *    hero / promo store an override image in the layout config.
@@ -56,6 +58,19 @@ export async function POST(request: NextRequest) {
 
     if (!contentType.includes('multipart/form-data')) {
       const body = await request.json();
+
+      // Admin-pinned hot grid order (drag & drop on the homepage).
+      if (Array.isArray(body?.hotOrder)) {
+        const ids = (body.hotOrder as unknown[]).filter(
+          (v): v is string => typeof v === 'string' && v.trim().length > 0,
+        );
+        const layout = await setHotOrder(ids, client);
+        invalidateHomeLayoutCache();
+        invalidateHomepage();
+        logger.info('[admin/home-layout] hot order saved', { count: layout.hotOrder.length });
+        return NextResponse.json({ success: true, layout });
+      }
+
       const sections = Array.isArray(body?.sections)
         ? (body.sections as HomeSectionConfig[])
         : null;
@@ -175,7 +190,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     if (searchParams.get('reset') === '1') {
-      const layout = await saveHomeLayout(HOME_LAYOUT_DEFAULTS, client, GRID_PROMO_DEFAULTS);
+      const layout = await saveHomeLayout(HOME_LAYOUT_DEFAULTS, client, GRID_PROMO_DEFAULTS, []);
       invalidateHomeLayoutCache();
       invalidateHomepage();
       logger.info('[admin/home-layout] reset to defaults');

@@ -1,0 +1,1 @@
+{ "command": "ls -la /runpod-volume/models/loras && ls -la /runpod-volume/models/checkpoints" }

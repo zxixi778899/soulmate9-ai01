@@ -41,7 +41,6 @@ export function resolveCreativeGenerationPreset(input: {
   assetRole?: CharacterAssetRole;
   scene?: string;
   identityConsistency?: boolean;
-  turbo?: boolean;
   specialistModelsReady?: boolean;
   /** SDXL 端点 override（客户端 env 不可见，由服务端随响应下发）。 */
   sdxlEndpointId?: string;
@@ -76,7 +75,6 @@ export function resolveCreativeGenerationPreset(input: {
     renderStyle: input.renderStyle,
     nsfwIntensity: input.intensity,
     sceneText: input.scene,
-    turbo: input.turbo,
     specialistModelsReady: input.specialistModelsReady,
     sdxlEndpointId: input.sdxlEndpointId,
     familyOverride: input.familyOverride,

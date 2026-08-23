@@ -65,7 +65,6 @@ export interface StudioState {
   seed: number;
   denoise: number;
   imageCount: number;
-  fastPreview: boolean;
 
   // LoRA
   selectedLoras: LoraSelection[];
@@ -135,7 +134,6 @@ export type StudioAction =
   | { type: 'SET_RESULT'; assets: Any[]; trace?: Any | null }
   | { type: 'SET_IDENTITY_KIT'; kit: IdentityKit | null }
   | { type: 'SET_ADVANCED'; value: boolean }
-  | { type: 'SET_FAST_PREVIEW'; value: boolean }
   | { type: 'APPLY_TRANSFORM'; kind: 'outfit' | 'pose' | 'background' }
   // Node control actions
   | { type: 'SET_CONTROLNET_TYPE'; value: 'openpose' | 'depth' | 'canny' | 'normal' }
@@ -171,14 +169,13 @@ export const INITIAL_STATE: StudioState = {
   nsfwIntensity: 1,
   width: 832,
   height: 1216,
-  steps: 8,
+  steps: 28,
   cfg: 1,
   sampler: 'euler',
   scheduler: 'simple',
   seed: -1,
   denoise: 0.55,
   imageCount: 1,
-  fastPreview: true,
   selectedLoras: [],
   assetRole: 'album',
   modelOverride: 'auto',

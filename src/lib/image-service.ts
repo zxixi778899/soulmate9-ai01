@@ -32,7 +32,6 @@ export interface GenerateOptions {
   width?: number;
   height?: number;
   userId?: string;            // For rate limiting & quota
-  turbo?: boolean;            // Fast preview mode
 }
 
 export interface GenerateResult {

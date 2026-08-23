@@ -15,19 +15,7 @@ function openMatrixGate(): void {
 }
 
 describe('image generation routing — matrix gate closed (FLUX parity)', () => {
-  it('all routes use the unified FLUX pipeline when the gate is closed', () => {
-    expect(resolveImageGenerationRoute({
-      surface: 'companion',
-      category: 'female',
-      renderStyle: 'realistic',
-      nsfwIntensity: 3,
-    }).modelFamily).toBe('flux');
-    expect(resolveImageGenerationRoute({
-      surface: 'companion',
-      category: 'male',
-      renderStyle: 'realistic',
-      nsfwIntensity: 5,
-    }).modelFamily).toBe('flux');
+  it('SFW routes use the unified FLUX pipeline when the gate is closed', () => {
     expect(resolveImageGenerationRoute({
       surface: 'companion',
       category: 'transgender',
@@ -40,12 +28,33 @@ describe('image generation routing — matrix gate closed (FLUX parity)', () => 
     }).modelFamily).toBe('flux');
   });
 
-  it.each(['female', 'male', 'transgender'] as const)('routes %s high NSFW to FLUX with correct parameters', (category) => {
-    const route = resolveImageGenerationRoute({
+  it('NSFW throws (fail-closed) instead of falling back to FLUX', () => {
+    expect(() => resolveImageGenerationRoute({
       surface: 'companion',
-      category,
+      category: 'female',
+      renderStyle: 'realistic',
+      nsfwIntensity: 3,
+    })).toThrow(/NSFW generation requires the SDXL endpoint/);
+    expect(() => resolveImageGenerationRoute({
+      surface: 'companion',
+      category: 'male',
       renderStyle: 'realistic',
       nsfwIntensity: 5,
+    })).toThrow(/NSFW generation requires the SDXL endpoint/);
+  });
+
+  it.each(['outfit', 'prop', 'advert'] as const)('keeps %s assets on FLUX via unified endpoint', (surface) => {
+    const route = resolveImageGenerationRoute({ surface });
+    expect(route.modelFamily).toBe('flux');
+    expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
+  });
+
+  it('gives SFW companions FLUX parameters via the unified endpoint', () => {
+    const route = resolveImageGenerationRoute({
+      surface: 'companion',
+      category: 'female',
+      renderStyle: 'realistic',
+      nsfwIntensity: 1,
     });
     expect(route.modelFamily).toBe('flux');
     expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
@@ -53,15 +62,8 @@ describe('image generation routing — matrix gate closed (FLUX parity)', () => 
     expect(route.sampler).toBe('euler');
     expect(route.scheduler).toBe('simple');
     expect(route.cfg).toBe(1); // FLUX CFG
-    expect(route.steps).toBeGreaterThanOrEqual(28); // NSFW gets 28+
     expect(route.clipSkip).toBe(1);
-    expect(route.fluxGuidance).toBe(4.0); // FLUX guidance for NSFW
-  });
-
-  it.each(['outfit', 'prop', 'advert'] as const)('keeps %s assets on FLUX via unified endpoint', (surface) => {
-    const route = resolveImageGenerationRoute({ surface });
-    expect(route.modelFamily).toBe('flux');
-    expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);
+    expect(route.fluxGuidance).toBe(3.5);
   });
 
   it('returns FLUX model details and LoRA policy metadata', () => {
@@ -120,7 +122,7 @@ describe('image generation routing — SDXL matrix gate open', () => {
     expect(route.loraPolicy.categoryEnv).toContain('RUNPOD_ILLUSTRIOUS');
   });
 
-  it('keeps 3D renders and product surfaces on FLUX even with the gate open', () => {
+  it('keeps SFW 3D renders and product surfaces on FLUX even with the gate open', () => {
     openMatrixGate();
     expect(resolveImageGenerationRoute({
       surface: 'companion', renderStyle: '3d',
@@ -129,24 +131,32 @@ describe('image generation routing — SDXL matrix gate open', () => {
     expect(resolveImageGenerationRoute({ surface: 'advert' }).modelFamily).toBe('flux');
   });
 
-  it('keeps turbo drafts on the FLUX fast path', () => {
+  it('forces NSFW premium / 3d / product surfaces onto SDXL with the gate open', () => {
     openMatrixGate();
-    const route = resolveImageGenerationRoute({
-      surface: 'companion', renderStyle: 'realistic', turbo: true,
-    });
-    expect(route.modelFamily).toBe('flux');
-    expect(route.presetId).toBe('flux-turbo');
-    expect(route.steps).toBe(8);
+    expect(resolveImageGenerationRoute({
+      surface: 'companion', renderStyle: '3d', nsfwIntensity: 4,
+    }).modelFamily).toBe('pony');
+    expect(resolveImageGenerationRoute({
+      surface: 'prop', nsfwIntensity: 4,
+    }).modelFamily).toBe('pony');
   });
 
-  it('fails open to FLUX when the gate is on but the SDXL endpoint is missing', () => {
+  it('NSFW throws when the gate is on but the SDXL endpoint is missing', () => {
+    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
+    delete process.env.RUNPOD_ENDPOINT_ID_SDXL;
+    expect(() => resolveImageGenerationRoute({
+      surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 5,
+    })).toThrow(/NSFW generation requires the SDXL endpoint/);
+    expect(() => resolveImageGenerationRoute({
+      surface: 'companion', renderStyle: '2d', nsfwIntensity: 5,
+    })).toThrow(/NSFW generation requires the SDXL endpoint/);
+  });
+
+  it('fails open to FLUX for SFW when the gate is on but the SDXL endpoint is missing', () => {
     process.env.RUNPOD_SDXL_MODELS_READY = 'true';
     delete process.env.RUNPOD_ENDPOINT_ID_SDXL;
     expect(resolveImageGenerationRoute({
-      surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 5,
-    }).modelFamily).toBe('flux');
-    expect(resolveImageGenerationRoute({
-      surface: 'companion', renderStyle: '2d', nsfwIntensity: 5,
+      surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 1,
     }).modelFamily).toBe('flux');
   });
 
@@ -196,7 +206,7 @@ describe('image generation routing — client-side gate override', () => {
       surface: 'companion',
       category: 'female',
       renderStyle: 'realistic',
-      nsfwIntensity: 3,
+      nsfwIntensity: 1,
       matrixActive: true,
     });
     expect(route.modelFamily).toBe('flux');
@@ -208,7 +218,7 @@ describe('image generation routing — client-side gate override', () => {
       surface: 'companion',
       category: 'female',
       renderStyle: 'realistic',
-      nsfwIntensity: 4,
+      nsfwIntensity: 2,
     });
     expect(route.modelFamily).toBe('flux');
     expect(route.endpointId).toBe(UNIFIED_COMFY_ENDPOINT);

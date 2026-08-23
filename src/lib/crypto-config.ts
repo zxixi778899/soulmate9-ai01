@@ -133,7 +133,7 @@ export async function getCryptoAmountLive(usdCents: number, currencyId: string):
  */
 export const PLAN_PRICES: Record<string, number> = {
   pro: 999,        // $9.99
-  premium: 2499,   // $24.99 (NEW tier)
+  premium: 1999,   // $19.99
   unlimited: 3499, // $34.99
 };
 
@@ -145,7 +145,7 @@ export const BILLING_MULTIPLIER: Record<string, { multiplier: number; discount: 
 /** Yearly prices in cents (hardcoded for accuracy — real yearly discount applied) */
 export const YEARLY_PRICES: Record<string, number> = {
   pro: 9999,       // $99.99/yr (save 17% vs 12 x $9.99)
-  premium: 19999,  // $199.99/yr (save 20% vs 12 x $24.99)
+  premium: 19999,  // $199.99/yr (save 17% vs 12 x $19.99)
   unlimited: 29999, // $299.99/yr (save 20% vs 12 x $34.99)
 };
 

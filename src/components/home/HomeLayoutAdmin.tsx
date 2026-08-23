@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import {
   LayoutGrid, X, GripVertical, Eye, EyeOff, Image as ImageIcon,
-  Trash2, RotateCcw, Loader2, ChevronUp, ChevronDown, Type, FolderOpen, Check,
+  Trash2, RotateCcw, Loader2, ChevronUp, ChevronDown, Type, FolderOpen, Check, Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authedFetch } from '@/lib/supabase';
@@ -27,7 +27,7 @@ import { invalidateSettingsCache } from '@/hooks/useSiteSettings';
 
 const IMAGE_SECTIONS: readonly HomeSectionId[] = ['adsBanner', 'hero', 'promo'];
 
-/** Section → editable site-copy keys (hero owns four fields). */
+/** Section → editable site-copy keys (hero owns four fields, adsBanner owns the overlay copy). */
 const SECTION_COPY_KEYS: Partial<Record<HomeSectionId, CopyKey[]>> = {
   hero: ['heroTitleLead', 'heroTitleRest', 'heroTaglineLead', 'heroTaglineRest'],
   announcement: [],
@@ -37,6 +37,7 @@ const SECTION_COPY_KEYS: Partial<Record<HomeSectionId, CopyKey[]>> = {
   leaderboard: ['leaderboardTitle'],
   modules: ['modulesTitle'],
   promo: ['promoTopupTitle', 'promoQuestTitle'],
+  adsBanner: ['bannerBadge', 'bannerTitle', 'bannerSub', 'bannerChip1', 'bannerChip2', 'bannerChip3', 'bannerCta'],
 };
 
 interface LayoutResponse {
@@ -71,6 +72,10 @@ export function HomeLayoutAdmin({
   const [pickerTarget, setPickerTarget] = useState<HomeSectionId | null>(null);
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
+  // Banner ad link editor state (first banner row in admin_ads)
+  const [bannerAd, setBannerAd] = useState<{ id: string; link_url: string } | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkDraft, setLinkDraft] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -92,10 +97,11 @@ export function HomeLayoutAdmin({
     // Current banner artwork (admin_ads) for the adsBanner row thumbnail.
     fetch('/api/ads?position=banner')
       .then((r) => r.json())
-      .then((data: { ads?: { image_url?: string }[] }) => {
+      .then((data: { ads?: { id?: string; image_url?: string; link_url?: string | null }[] }) => {
         if (cancelled) return;
         const first = (data.ads || [])[0];
         if (first?.image_url) setBannerImage(first.image_url);
+        if (first?.id) setBannerAd({ id: first.id, link_url: first.link_url || '' });
       })
       .catch(() => {});
     return () => {
@@ -348,6 +354,35 @@ export function HomeLayoutAdmin({
     [pickerTarget, sections, applyLayout, t],
   );
 
+  // ── Banner ad link editor ───────────────────────────
+  const openLinkEditor = useCallback(() => {
+    if (!bannerAd) return;
+    setLinkDraft(bannerAd.link_url);
+    setLinkOpen(true);
+  }, [bannerAd]);
+
+  const saveLinkDraft = useCallback(async () => {
+    if (!bannerAd) return;
+    setBusy('__link');
+    try {
+      const res = await authedFetch('/api/admin/ads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: bannerAd.id, link_url: linkDraft.trim() || null }),
+      });
+      const data = await readResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data?.error || 'save failed');
+      setBannerAd({ ...bannerAd, link_url: linkDraft.trim() });
+      invalidateSettingsCache();
+      setLinkOpen(false);
+      toast.success(t('homeLayout.saved'));
+    } catch {
+      toast.error(t('homeLayout.saveFailed'));
+    } finally {
+      setBusy(null);
+    }
+  }, [bannerAd, linkDraft, t]);
+
   if (!isAdmin) return null;
 
   const thumbnailOf = (s: HomeSectionConfig): string =>
@@ -504,6 +539,16 @@ export function HomeLayoutAdmin({
                             <FolderOpen className="h-3.5 w-3.5" />
                           </RowBtn>
                         )}
+                        {s.id === 'adsBanner' && bannerAd && (
+                          <RowBtn
+                            title={t('homeLayout.editLink')}
+                            disabled={busy === '__link'}
+                            onClick={openLinkEditor}
+                            hoverAccent
+                          >
+                            <Link2 className="h-3.5 w-3.5" />
+                          </RowBtn>
+                        )}
                         {copyKeys.length > 0 && (
                           <RowBtn
                             title={t('homeLayout.editCopy')}
@@ -608,6 +653,60 @@ export function HomeLayoutAdmin({
                     className="flex h-8 items-center gap-1 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-4 text-[11px] font-bold text-white disabled:opacity-50"
                   >
                     {busy === '__copy' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Check className="h-3 w-3" />
+                    )}
+                    {t('homeLayout.save')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Banner ad link editor */}
+          {linkOpen && bannerAd && (
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+              onClick={() => setLinkOpen(false)}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0d0a14] p-4 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-label={t('homeLayout.editLink')}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-[#ff6ba6]" />
+                    <h3 className="text-sm font-black">{t('homeLayout.editLink')}</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLinkOpen(false)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-white/60 hover:bg-white/10 hover:text-white"
+                    aria-label={t('homeLayout.close')}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-white/55">{t('homeLayout.linkLabel')}</span>
+                  <input
+                    value={linkDraft}
+                    onChange={(e) => setLinkDraft(e.target.value)}
+                    placeholder={t('homeLayout.linkPlaceholder')}
+                    className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#ff2e88]/60"
+                  />
+                </label>
+                <div className="mt-4 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => void saveLinkDraft()}
+                    disabled={busy !== null}
+                    className="flex h-8 items-center gap-1 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] px-4 text-[11px] font-bold text-white disabled:opacity-50"
+                  >
+                    {busy === '__link' ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
                       <Check className="h-3 w-3" />

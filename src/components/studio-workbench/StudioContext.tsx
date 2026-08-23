@@ -85,8 +85,6 @@ function studioReducer(state: StudioState, action: StudioAction): StudioState {
       return { ...state, identityKit: action.kit };
     case 'SET_ADVANCED':
       return { ...state, advancedMode: action.value };
-    case 'SET_FAST_PREVIEW':
-      return { ...state, fastPreview: action.value };
     case 'APPLY_TRANSFORM':
       return {
         ...state,
@@ -223,32 +221,46 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
   }, [state.companionId]);
 
   // Derived: generation route（含 Studio 手动模型覆盖）
-  const generationRoute = useMemo(() => resolveImageGenerationRoute({
-    surface: state.generationSurface,
-    category: state.companionCategory,
-    renderStyle: state.animeRenderStyle,
-    nsfwIntensity: state.nsfwIntensity,
-    turbo: state.fastPreview && state.genMode !== 'img2video',
-    specialistModelsReady: state.volumeInfo?.sdxl_models_ready === true,
-    sdxlEndpointId: state.volumeInfo?.endpoint_id_sdxl || undefined,
-    familyOverride: state.modelOverride === 'auto' ? undefined : state.modelOverride,
-  }), [state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.fastPreview, state.genMode, state.volumeInfo, state.modelOverride]);
+  const generationRoute = useMemo(() => {
+    const args = {
+      surface: state.generationSurface,
+      category: state.companionCategory,
+      renderStyle: state.animeRenderStyle,
+      nsfwIntensity: state.nsfwIntensity,
+      specialistModelsReady: state.volumeInfo?.sdxl_models_ready === true,
+      sdxlEndpointId: state.volumeInfo?.endpoint_id_sdxl || undefined,
+      familyOverride: state.modelOverride === 'auto' ? undefined : state.modelOverride,
+    };
+    try {
+      return resolveImageGenerationRoute(args);
+    } catch {
+      // NSFW 硬路由 SDXL 矩阵缺失时抛错；渲染层退回 SFW 路由避免页面崩溃，
+      // 实际生成请求仍会被服务端 fail-closed 拦截并给出明确错误。
+      return resolveImageGenerationRoute({ ...args, nsfwIntensity: 2 });
+    }
+  }, [state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.volumeInfo, state.modelOverride]);
 
   // Derived: recommended preset（必须感知手动模型族覆盖，否则选 SDXL 仍显示 FLUX 参数）
-  const recommendedPreset = useMemo(() => resolveCreativeGenerationPreset({
-    mode: state.genMode,
-    surface: state.generationSurface,
-    category: state.companionCategory,
-    renderStyle: state.animeRenderStyle,
-    intensity: state.nsfwIntensity,
-    assetRole: state.assetRole,
-    scene: state.prompt,
-    identityConsistency: state.identityConsistency,
-    turbo: state.fastPreview && state.genMode !== 'img2video',
-    specialistModelsReady: state.volumeInfo?.sdxl_models_ready === true,
-    sdxlEndpointId: state.volumeInfo?.endpoint_id_sdxl || undefined,
-    familyOverride: state.modelOverride === 'auto' ? undefined : state.modelOverride,
-  }), [state.genMode, state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.assetRole, state.prompt, state.identityConsistency, state.fastPreview, state.volumeInfo, state.modelOverride]);
+  const recommendedPreset = useMemo(() => {
+    const args = {
+      mode: state.genMode,
+      surface: state.generationSurface,
+      category: state.companionCategory,
+      renderStyle: state.animeRenderStyle,
+      intensity: state.nsfwIntensity,
+      assetRole: state.assetRole,
+      scene: state.prompt,
+      identityConsistency: state.identityConsistency,
+      specialistModelsReady: state.volumeInfo?.sdxl_models_ready === true,
+      sdxlEndpointId: state.volumeInfo?.endpoint_id_sdxl || undefined,
+      familyOverride: state.modelOverride === 'auto' ? undefined : state.modelOverride,
+    };
+    try {
+      return resolveCreativeGenerationPreset(args);
+    } catch {
+      return resolveCreativeGenerationPreset({ ...args, intensity: 2 });
+    }
+  }, [state.genMode, state.generationSurface, state.companionCategory, state.animeRenderStyle, state.nsfwIntensity, state.assetRole, state.prompt, state.identityConsistency, state.volumeInfo, state.modelOverride]);
 
   // Derived: effective task（身份系角色走 identity 提示词合约，其余默认 portrait）
   const effectiveTask: StudioTask = useMemo(() => {
@@ -380,7 +392,6 @@ export function StudioProvider({ children, girlfriendId }: { children: ReactNode
         companion_category: state.companionCategory,
         anime_render_style: state.animeRenderStyle,
         nsfw_intensity: state.nsfwIntensity,
-        fast_preview: state.fastPreview,
         asset_role: effectiveAssetRole,
         // Studio 手动控件：模型族覆盖 + IP-Adapter 开关 + 增强器
         model_family_override: state.modelOverride === 'auto' ? undefined : state.modelOverride,

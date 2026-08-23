@@ -1591,7 +1591,7 @@ export default function CreatePage() {
                         negativePrompt={negativePrompt}
                         basePrompt={basePrompt}
                         triggerWords={loraInfo?.triggerWords || []}
-                        onPositiveChange={(txt) => setGenerationResult({ meta: modelMeta || { category: 'custom', renderStyle: 'realistic', nsfwLevel: 1, modelFamily: 'flux', checkpoint: 'flux1-dev-fp8', steps: 28, cfg: 1, fluxGuidance: 3.5, sampler: 'euler', scheduler: 'simple', width: 1024, height: 1536, presetId: 'flux-turbo', reason: 'fallback' }, positive: txt })}
+                        onPositiveChange={(txt) => setGenerationResult({ meta: modelMeta || { category: 'custom', renderStyle: 'realistic', nsfwLevel: 1, modelFamily: 'flux', checkpoint: 'flux1-dev-fp8', steps: 28, cfg: 1, fluxGuidance: 3.5, sampler: 'euler', scheduler: 'simple', width: 1024, height: 1536, presetId: 'flux-portrait-sfw', reason: 'fallback' }, positive: txt })}
                         onNegativeChange={updateNegativePrompt}
                       />
                     )}
@@ -2463,7 +2463,6 @@ export default function CreatePage() {
         sampler={generationSettings.sampler}
         scheduler={generationSettings.scheduler}
         seed={generationSettings.seed}
-        turboMode={generationSettings.turboMode}
         randomSeed={generationSettings.randomSeed}
         onSettingsChange={(newSettings) => {
           updateSettings(newSettings);

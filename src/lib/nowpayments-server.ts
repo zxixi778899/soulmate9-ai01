@@ -159,7 +159,7 @@ export type NowPaymentsCurrency = (typeof NOWPAYMENTS_CURRENCIES)[number]['id'];
 export function getNowPaymentsPriceCents(plan: string, billing: string): number {
   const basePrices: Record<string, number> = {
     pro: 999,
-    premium: 2499,
+    premium: 1999,
     unlimited: 3499,
   };
   const base = basePrices[plan] ?? 0;

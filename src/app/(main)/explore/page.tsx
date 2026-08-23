@@ -123,7 +123,14 @@ export default function ExplorePage() {
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
-            toast.error((data as { error?: string }).error || t('explore.unlockFailed'));
+            if (res.status === 402) {
+              toast.error(t('explore.insufficientCredits'), {
+                description: t('explore.insufficientCreditsDesc'),
+                action: { label: t('explore.getCredits'), onClick: () => router.push('/shop') },
+              });
+            } else {
+              toast.error((data as { error?: string }).error || t('explore.unlockFailed'));
+            }
             setSelected(girl);
             return;
           }

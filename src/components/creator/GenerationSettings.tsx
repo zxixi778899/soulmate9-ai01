@@ -33,7 +33,6 @@ export interface GenerationSettings {
   sampler: string;
   scheduler: string;
   seed?: number | null; // Optional custom seed
-  turboMode: boolean;   // Fast preview mode (low steps, low CFG)
   randomSeed: boolean;  // Whether to use random seed each generation
 }
 
@@ -47,7 +46,6 @@ const DEFAULT_SETTINGS: GenerationSettings = {
   sampler: 'euler',
   scheduler: 'simple',
   seed: null,
-  turboMode: false,
   randomSeed: true,
 };
 
@@ -79,14 +77,13 @@ export function GenerationSettings({
   sampler, 
   scheduler, 
   seed: _seed,
-  turboMode: _turboMode,
   randomSeed: _randomSeed,
   onSettingsChange,
   isOpen,
   onClose,
   className,
 }: GenerationSettingsPropsWithOpen) {
-  void _aspectRatio; void _seed; void _turboMode; void _randomSeed;
+  void _aspectRatio; void _seed; void _randomSeed;
   const [localSettings, setLocalSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
@@ -119,12 +116,11 @@ export function GenerationSettings({
     }
   };
 
-  const applyPreset = (preset: 'fast' | 'balanced' | 'quality' | 'ultra') => {
+  const applyPreset = (preset: 'balanced' | 'quality' | 'ultra') => {
     const presets = {
-      fast: { steps: 8, cfg: 1, fluxGuidance: 2.5, turboMode: true },
-      balanced: { steps: 24, cfg: 1, fluxGuidance: 3.5, turboMode: false },
-      quality: { steps: 30, cfg: 1, fluxGuidance: 4.0, turboMode: false },
-      ultra: { steps: 40, cfg: 1, fluxGuidance: 4.5, turboMode: false },
+      balanced: { steps: 24, cfg: 1, fluxGuidance: 3.5 },
+      quality: { steps: 30, cfg: 1, fluxGuidance: 4.0 },
+      ultra: { steps: 40, cfg: 1, fluxGuidance: 4.5 },
     };
     const presetVals = presets[preset];
     Object.entries(presetVals).forEach(([key, val]) => {
@@ -168,9 +164,8 @@ export function GenerationSettings({
               <Sliders className="h-3.5 w-3.5" />
               {'Quality Presets'}
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'fast', label: 'Fast', desc: '8 steps' },
                 { id: 'balanced', label: 'Balanced', desc: '24 steps' },
                 { id: 'quality', label: 'Quality', desc: '30 steps' },
                 { id: 'ultra', label: 'Ultra', desc: '40 steps' },
@@ -178,7 +173,7 @@ export function GenerationSettings({
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => applyPreset(p.id as 'fast' | 'balanced' | 'quality' | 'ultra')}
+                  onClick={() => applyPreset(p.id as 'balanced' | 'quality' | 'ultra')}
                   className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2 text-left hover:border-[#FF2D78]/40"
                 >
                   <div className="text-xs font-semibold text-white/80">{p.label}</div>
@@ -191,7 +186,7 @@ export function GenerationSettings({
           {/* Steps */}
           <div className="mb-4">
             <label className="mb-1.5 block text-xs font-medium text-white/60">
-              {'Steps'} {localSettings.turboMode && `(turbo)`}
+              {'Steps'}
             </label>
             <input
               type="range"
@@ -200,12 +195,10 @@ export function GenerationSettings({
               step="2"
               value={localSettings.steps}
               onChange={e => updateSetting('steps', Number(e.target.value))}
-              disabled={localSettings.turboMode}
               className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[#FF2D78]"
             />
             <div className="mt-1.5 flex items-center justify-between text-xs text-white/40">
               <span>{localSettings.steps}</span>
-              <span className={cn(localSettings.turboMode ? 'text-[#FF2D78]' : '')}>{localSettings.turboMode ? '(turbo locked)' : ''}</span>
             </div>
           </div>
 

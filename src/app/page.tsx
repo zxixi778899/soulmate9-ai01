@@ -97,38 +97,66 @@ function daySeed(base: number, spread: number): number {
   return Math.floor(spread * (0.55 + (x - Math.floor(x)) * 0.45));
 }
 
-const COMPACT_FORMAT = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
-
-/** Hero 标题下方动态实力数据条：在线数（真实目录）+ 今日消息/生图（日期种子 + 缓慢递增） */
+/** Hero 标题下方动态实力数据条：入场计数动画 + 实时递增 + 数值跳动 */
 function HomeStats({ onlineCount }: { onlineCount: number }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [messages, setMessages] = useState(() => daySeed(1, 8200) + 4300);
   const [images, setImages] = useState(() => daySeed(2, 2600) + 1200);
+  const [online, setOnline] = useState(() => Math.max(onlineCount, 1));
+  const [replyMs, setReplyMs] = useState(1200);
+  const [reveal, setReveal] = useState(0); // 入场计数动画进度 0→1
+  const [revealed, setRevealed] = useState(false);
+  const numFmt = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+
+  // 入场：数字从 0 滚动到目标值（easeOutCubic）
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const DUR = 1400;
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / DUR);
+      setReveal(1 - Math.pow(1 - p, 3));
+      if (p < 1) raf = requestAnimationFrame(step);
+      else setRevealed(true);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // 实时增长：消息/生图持续上涨，在线数与回复时间小幅波动
   useEffect(() => {
     const id = window.setInterval(() => {
-      setMessages((v) => v + 2 + Math.floor(Math.random() * 4));
-      if (Math.random() > 0.4) setImages((v) => v + 1);
-    }, 4000);
+      setMessages((v) => v + 2 + Math.floor(Math.random() * 5));
+      if (Math.random() > 0.35) setImages((v) => v + 1 + Math.floor(Math.random() * 2));
+      if (Math.random() > 0.6) setOnline(Math.max(1, onlineCount + Math.floor(Math.random() * 5) - 1));
+      setReplyMs(950 + Math.floor(Math.random() * 500));
+    }, 2000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [onlineCount]);
+
   const items: { value: string; label: string; live?: boolean }[] = [
-    { value: String(Math.max(onlineCount, 1)), label: t('home.statsOnline'), live: true },
-    { value: COMPACT_FORMAT.format(messages), label: t('home.statsMessages') },
-    { value: COMPACT_FORMAT.format(images), label: t('home.statsImages') },
-    { value: '1.2s', label: t('home.statsReply') },
+    { value: numFmt.format(Math.max(1, Math.floor(online * reveal))), label: t('home.statsOnline'), live: true },
+    { value: numFmt.format(Math.floor(messages * reveal)), label: t('home.statsMessages') },
+    { value: numFmt.format(Math.floor(images * reveal)), label: t('home.statsImages') },
+    { value: `${((replyMs / 1000) * (revealed ? 1 : reveal)).toFixed(1)}s`, label: t('home.statsReply') },
   ];
   return (
-    <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5">
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:gap-3.5">
       {items.map((s) => (
-        <div key={s.label} className="glass flex items-center gap-1.5 rounded-full px-3 py-1.5">
+        <div key={s.label} className="glass flex items-center gap-2.5 rounded-full px-5 py-2.5 sm:px-6 sm:py-3">
           {s.live ? (
-            <span className="relative flex h-1.5 w-1.5">
+            <span className="relative flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
             </span>
           ) : null}
-          <span className="text-xs font-black tabular-nums text-[#ff6ba6]">{s.value}</span>
-          <span className="text-[10px] text-white/45">{s.label}</span>
+          <span
+            key={revealed ? s.value : 'reveal'}
+            className="stat-pop inline-block text-base font-black tabular-nums text-[#ff6ba6] sm:text-xl"
+          >
+            {s.value}
+          </span>
+          <span className="text-xs text-white/55 sm:text-sm">{s.label}</span>
         </div>
       ))}
     </div>
@@ -522,12 +550,52 @@ export default function HomePage() {
     return [...head, ...rest];
   }, [filteredCatalog]);
 
-  // 高密度网格：按排序模式排序
+  // 管理员钉住的热门排序（拖拽保存的 hotOrder）：列表内的 id 优先按序排，其余回落 hot_score
+  const hotOrder = layout?.hotOrder;
   const gridGirls = useMemo(() => {
     if (sortMode === 'featured') return featuredFirst;
     if (sortMode === 'new') return [...filteredCatalog].reverse();
-    return [...filteredCatalog].sort((a, b) => Number(b.hot_score ?? b.intimacy ?? 0) - Number(a.hot_score ?? a.intimacy ?? 0));
-  }, [featuredFirst, filteredCatalog, sortMode]);
+    const byHot = [...filteredCatalog].sort((a, b) => Number(b.hot_score ?? b.intimacy ?? 0) - Number(a.hot_score ?? a.intimacy ?? 0));
+    if (!hotOrder?.length) return byHot;
+    const pos = new Map(hotOrder.map((id, i) => [id, i]));
+    return byHot.sort((a, b) => {
+      const pa = pos.get(a.id);
+      const pb = pos.get(b.id);
+      if (pa === undefined && pb === undefined) return 0;
+      if (pa === undefined) return 1;
+      if (pb === undefined) return -1;
+      return pa - pb;
+    });
+  }, [featuredFirst, filteredCatalog, sortMode, hotOrder]);
+
+  // 管理员拖拽调整热门网格顺序（仅热门排序 + 全部分类下启用）
+  const canReorderHot = isAdmin && sortMode === 'hot' && categoryFilter === 'all';
+  const [dragGirlIdx, setDragGirlIdx] = useState<number | null>(null);
+  const [overGirlIdx, setOverGirlIdx] = useState<number | null>(null);
+  const reorderHotGrid = useCallback(
+    (from: number, to: number) => {
+      if (from === to || from < 0 || to < 0) return;
+      const ids = gridGirls.map((g) => g.id);
+      if (from >= ids.length || to >= ids.length) return;
+      const [moved] = ids.splice(from, 1);
+      ids.splice(to, 0, moved);
+      authedFetch('/api/admin/home-layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hotOrder: ids }),
+      })
+        .then(async (r) => {
+          const data = await readResponseJson<{ layout?: HomeLayoutConfig; error?: string }>(r);
+          if (!r.ok) throw new Error(data?.error || 'save failed');
+          applyLayoutResponse(data.layout);
+          toast.success(t('homeLayout.saved'));
+        })
+        .catch(() => {
+          toast.error(t('homeLayout.saveFailed'));
+        });
+    },
+    [gridGirls, applyLayoutResponse, t],
+  );
 
   // 网格固定 GRID_ROWS 行：总格数 = 当前断点列数 × 行数，末格保留给「创建伴侣」引导卡
   const gridColumns = useGridColumns();
@@ -580,7 +648,14 @@ export default function HomePage() {
         });
         const data = await readResponseJson(res).catch(() => ({} as Record<string, unknown>));
         if (!res.ok) {
-          toast.error((data as { error?: string }).error || t('home.unlockFail'));
+          if (res.status === 402) {
+            toast.error(t('explore.insufficientCredits'), {
+              description: t('explore.insufficientCreditsDesc'),
+              action: { label: t('explore.getCredits'), onClick: () => router.push('/shop') },
+            });
+          } else {
+            toast.error((data as { error?: string }).error || t('home.unlockFail'));
+          }
           setDetail(girl);
           return;
         }
@@ -826,7 +901,38 @@ export default function HomePage() {
                     onClear={() => void clearPromoImage('firstTopup')}
                   />
                 )}
-                <GridCard g={g} onOpen={(girl) => setDetail(girl)} previewSize={gridPreviewSize} />
+                {canReorderHot ? (
+                  <div
+                    draggable
+                    onDragStart={(e) => {
+                      setDragGirlIdx(i);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (overGirlIdx !== i) setOverGirlIdx(i);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragGirlIdx !== null) reorderHotGrid(dragGirlIdx, i);
+                      setDragGirlIdx(null);
+                      setOverGirlIdx(null);
+                    }}
+                    onDragEnd={() => {
+                      setDragGirlIdx(null);
+                      setOverGirlIdx(null);
+                    }}
+                    className={cn(
+                      'cursor-grab rounded-[22px] transition-all active:cursor-grabbing',
+                      dragGirlIdx === i && 'opacity-50',
+                      overGirlIdx === i && dragGirlIdx !== null && dragGirlIdx !== i && 'ring-2 ring-[#ff2e88] shadow-[0_0_24px_rgba(255,46,136,0.35)]',
+                    )}
+                  >
+                    <GridCard g={g} onOpen={(girl) => setDetail(girl)} previewSize={gridPreviewSize} />
+                  </div>
+                ) : (
+                  <GridCard g={g} onOpen={(girl) => setDetail(girl)} previewSize={gridPreviewSize} />
+                )}
               </Fragment>
             ))}
             {/* 固定末格：创建伴侣引导卡 */}

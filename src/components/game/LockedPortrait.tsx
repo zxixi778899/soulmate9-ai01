@@ -2,6 +2,7 @@
 
 import { Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/lib/i18n/context';
 
 /**
  * Blur + lock overlay for locked catalog girlfriends.
@@ -10,12 +11,13 @@ import { cn } from '@/lib/utils';
 export function LockedPortraitOverlay({
   className,
   price,
-  label = '锁定',
+  label,
 }: {
   className?: string;
   price?: number;
   label?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -29,10 +31,10 @@ export function LockedPortraitOverlay({
           <Lock className="h-6 w-6 text-white" />
         </div>
         <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-bold tracking-wide text-white">
-          {label}
+          {label ?? t('explore.lockedBadge')}
         </span>
         {typeof price === 'number' && price > 0 && (
-          <span className="text-[11px] text-amber-200/90">{price} 代币解锁</span>
+          <span className="text-[11px] text-amber-200/90">{t('explore.unlockPrice', { price: String(price) })}</span>
         )}
       </div>
     </div>

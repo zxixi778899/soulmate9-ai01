@@ -1260,7 +1260,7 @@ if (body.action === 'verify_loras') {
       || body.model_family_override === 'illustrious'
       ? body.model_family_override
       : undefined;
-    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics, turbo: body.fast_preview === true, familyOverride: modelFamilyOverride });
+    const generationRoute = resolveImageGenerationRoute({ surface, category, renderStyle: animeStyle, nsfwIntensity: generationIntensity, sceneSemantics, familyOverride: modelFamilyOverride });
     if (body.width == null) width = generationRoute.width;
     if (body.height == null) height = generationRoute.height;
     // Identity assets have fixed production dimensions — the avatar is a portrait
