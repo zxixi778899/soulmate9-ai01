@@ -5,6 +5,7 @@ import { sanitizeBlurKeywords } from '@/lib/prompt';
 import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
 import { buildIdReferencePrompt } from '@/lib/companion-prompt-pipeline';
 import { buildStudioPromptEnhancement, studioNegativePrompt } from '@/lib/comfy-console/studio-profile';
+import { encodeFamilyPrompt, resolvePromptSubject } from '@/lib/prompt/prompt-protocols';
 import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { buildReferenceGenerationPlan } from '@/lib/reference-generation-plan';
 import { loadComfyConfig } from '@/lib/comfy-console/store';
@@ -201,16 +202,26 @@ export async function POST(request: NextRequest) {
     const finalBase = translatedPrompt || basePrompt;
 
     // Build enhanced prompt with studio pipeline
-    const enhancedPrompt = buildStudioPromptEnhancement({
-      category,
-      intensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
-      animeStyle: renderStyle,
-      identity: finalBase,
-      scene: [
-        buildIdReferencePrompt('waist-up'),
-        ...referencePlan.promptHints,
-      ].join('. '),
-    });
+    // 家族感知：SDXL 族走原生 tag 协议（qualityPrefix 由 encodeFamilyPrompt 自动追加），
+    // FLUX 保留自然语言组装。
+    const sceneText = [
+      buildIdReferencePrompt('waist-up'),
+      ...referencePlan.promptHints,
+    ].join('. ');
+    const enhancedPrompt = route.modelFamily === 'flux'
+      ? buildStudioPromptEnhancement({
+          category,
+          intensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
+          animeStyle: renderStyle,
+          identity: finalBase,
+          scene: sceneText,
+        })
+      : encodeFamilyPrompt({
+          family: route.modelFamily,
+          subject: resolvePromptSubject(category, renderStyle),
+          identity: finalBase,
+          scene: sceneText,
+        });
 
     // Enhanced: Resolve LoRA plan for UI display
     const loraInput = {
@@ -222,7 +233,8 @@ export async function POST(request: NextRequest) {
     };
     const loraPlan = resolveModelLoraPlan(loraInput);
     
-    const negativePrompt = studioNegativePrompt(category, renderStyle);
+    // 族原生负向（pony score_1/score_2、illustrious worst quality 等）+ 通用解剖/风格守卫
+    const negativePrompt = `${route.negativePrompt}, ${studioNegativePrompt(category, renderStyle)}`;
 
     logger.info('[creator/generate-prompt] Prompt generated', {
       userId: user.id,

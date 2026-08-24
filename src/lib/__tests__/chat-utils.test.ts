@@ -21,25 +21,26 @@ describe('formatBubbleTime', () => {
 });
 
 describe('dateGroupLabel', () => {
-  const now = new Date('2024-03-15T15:00:00Z');
+  // dayKey/dateGroupLabel 按本地时区分日，测试用本地时间构造日期避免 TZ 漂移
+  const now = new Date(2024, 2, 15, 15, 0, 0);
   it('returns Today for same day', () => {
-    const today = new Date('2024-03-15T08:00:00Z').toISOString();
+    const today = new Date(2024, 2, 15, 8, 0, 0).toISOString();
     expect(dateGroupLabel(today, now)).toBe('Today');
   });
 
   it('returns Yesterday for previous day', () => {
-    const yesterday = new Date('2024-03-14T20:00:00Z').toISOString();
+    const yesterday = new Date(2024, 2, 14, 20, 0, 0).toISOString();
     expect(dateGroupLabel(yesterday, now)).toBe('Yesterday');
   });
 
   it('returns weekday name for 2-7 days ago', () => {
-    const threeDaysAgo = new Date('2024-03-12T10:00:00Z').toISOString();
+    const threeDaysAgo = new Date(2024, 2, 12, 10, 0, 0).toISOString();
     const result = dateGroupLabel(threeDaysAgo, now);
     expect(result).toMatch(/Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday/);
   });
 
   it('returns full date for > 7 days ago', () => {
-    const longAgo = new Date('2024-01-01T10:00:00Z').toISOString();
+    const longAgo = new Date(2024, 0, 1, 10, 0, 0).toISOString();
     const result = dateGroupLabel(longAgo, now);
     expect(result).toMatch(/\d{4}/);
   });
@@ -47,13 +48,15 @@ describe('dateGroupLabel', () => {
 
 describe('dayKey', () => {
   it('produces same key for same day', () => {
-    const morning = dayKey('2024-03-15T08:00:00Z');
-    const evening = dayKey('2024-03-15T22:00:00Z');
+    const morning = dayKey(new Date(2024, 2, 15, 8, 0, 0).toISOString());
+    const evening = dayKey(new Date(2024, 2, 15, 22, 0, 0).toISOString());
     expect(morning).toBe(evening);
   });
 
   it('produces different keys for different days', () => {
-    expect(dayKey('2024-03-15T08:00:00Z')).not.toBe(dayKey('2024-03-16T08:00:00Z'));
+    expect(dayKey(new Date(2024, 2, 15, 8, 0, 0).toISOString())).not.toBe(
+      dayKey(new Date(2024, 2, 16, 8, 0, 0).toISOString()),
+    );
   });
 });
 
@@ -78,11 +81,17 @@ describe('shouldShowDateSeparator', () => {
   });
 
   it('does not show separator on same day', () => {
-    expect(shouldShowDateSeparator('2024-03-15T08:00:00Z', '2024-03-15T22:00:00Z')).toBe(false);
+    expect(shouldShowDateSeparator(
+      new Date(2024, 2, 15, 8, 0, 0).toISOString(),
+      new Date(2024, 2, 15, 22, 0, 0).toISOString(),
+    )).toBe(false);
   });
 
   it('shows separator on different days', () => {
-    expect(shouldShowDateSeparator('2024-03-15T22:00:00Z', '2024-03-16T08:00:00Z')).toBe(true);
+    expect(shouldShowDateSeparator(
+      new Date(2024, 2, 15, 22, 0, 0).toISOString(),
+      new Date(2024, 2, 16, 8, 0, 0).toISOString(),
+    )).toBe(true);
   });
 });
 

@@ -54,7 +54,7 @@ describe('character production reference routing', () => {
     expect(params.input_image).toBeUndefined();
     expect(params.denoising_strength).toBeUndefined();
     expect(params.ip_adapter_image).toBe('https://example.com/avatar.png');
-    expect(params.ip_adapter_weight).toBe(0.72);
+    expect(params.ip_adapter_weight).toBe(0.8); // identity-kit: character-art 0.72→0.8（更强面部一致性）
     expect(params.character_consistency).toBe(true);
     expect(params.width).toBe(832);
     expect(params.height).toBe(1216);

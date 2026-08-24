@@ -116,6 +116,10 @@ export function ChatInputBar(props: {
   chatModels?: ChatModelOption[];
   selectedChatModel?: string | null;
   onSelectChatModel?: (id: string | null) => void;
+  /** Explicit NSFW channel switch (auto LLM switch happens server-side) */
+  nsfwMode?: boolean;
+  onNsfwModeChange?: (on: boolean) => void;
+  nsfwAvailable?: boolean;
 }) {
   const {
     input,
@@ -165,6 +169,9 @@ export function ChatInputBar(props: {
     chatModels = [],
     selectedChatModel = null,
     onSelectChatModel,
+    nsfwMode = false,
+    onNsfwModeChange,
+    nsfwAvailable = false,
   } = props;
 
   const { t, locale } = useTranslation();
@@ -920,6 +927,23 @@ export function ChatInputBar(props: {
             selectedId={selectedChatModel}
             onSelect={onSelectChatModel}
           />
+        )}
+        {nsfwAvailable && onNsfwModeChange && (
+          <button
+            type="button"
+            onClick={() => onNsfwModeChange(!nsfwMode)}
+            className={cn(
+              'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] font-medium transition-all active:scale-95',
+              nsfwMode
+                ? 'border-rose-400/60 bg-gradient-to-r from-rose-500/25 to-[#FF2D78]/25 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.25)]'
+                : 'border-white/10 bg-white/[0.04] text-white/45 hover:text-white/80',
+            )}
+            aria-pressed={nsfwMode}
+            title={nsfwMode ? t('chat.nsfwOnHint') : t('chat.nsfwOffHint')}
+          >
+            <Flame className="h-3 w-3" />
+            {nsfwMode ? t('chat.nsfwOn') : t('chat.nsfwOff')}
+          </button>
         )}
       </div>
 

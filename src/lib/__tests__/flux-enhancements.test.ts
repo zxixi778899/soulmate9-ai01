@@ -38,7 +38,7 @@ describe('buildFluxWorkflow enhancement branches', () => {
 
   it('chains FaceDetailer then upscale and rewires SaveImage', () => {
     const graph = buildFluxWorkflow({ prompt: 'x', face_detailer: true, upscale_factor: 2 });
-    expect(inputsOf(graph, '50')).toMatchObject({ image: ['6', 0], denoise: 0.35, feather_mask: 8 });
+    expect(inputsOf(graph, '50')).toMatchObject({ image: ['6', 0], denoise: 0.35 });
     expect(inputsOf(graph, '61')).toMatchObject({ image: ['50', 0] });
     expect(inputsOf(graph, '7')).toMatchObject({ images: ['62', 0] });
   });

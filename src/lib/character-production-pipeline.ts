@@ -113,7 +113,7 @@ export const CHARACTER_PIPELINE_STAGES: PipelineStageConfig[] = [
     height: 1216,
     steps: 28,
     guidance: 3.0,
-    // 0.72 from identity-kit resolver: balanced identity + creative freedom
+    // 0.8 from identity-kit resolver: raised from 0.72 for better face consistency
     ipAdapterWeight: resolveIpAdapterWeight('character-art', undefined, 'flux'),
     referenceStages: ['avatar'],
   },

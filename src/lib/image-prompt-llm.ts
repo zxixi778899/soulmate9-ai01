@@ -21,6 +21,7 @@ import { isEndpointConfigured } from '@/lib/ai-modules/resolve';
 import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle, NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { compactFluxPrompt } from '@/lib/comfy-console/studio-profile';
+import type { PromptFamily } from '@/lib/prompt/prompt-protocols';
 import type { ChatContextLine } from '@/lib/chat-image-intent';
 import {
   buildSceneCastPrompt,
@@ -177,6 +178,8 @@ export function buildImagePromptMessages(input: {
   moodTag?: string;
   poseTag?: string;
   envTag?: string;
+  /** 目标底模家族：决定提示词协议（flux 自然语言 / pony·illustrious tag 化） */
+  modelFamily?: PromptFamily;
 }): Array<{ role: 'system' | 'user'; content: string }> {
   const ctx =
     (input.chatContext || [])
@@ -184,15 +187,27 @@ export function buildImagePromptMessages(input: {
       .map((line) => `${line.role === 'assistant' ? 'She' : 'He'}: ${line.content.slice(0, 240)}`)
       .join('\n') || '(conversation just started)';
   const boundary = channelBoundary(input);
+  // 三族提示词协议禁止混用：FLUX 自然语言长句；pony/illustrious 逗号 tag。
+  const familyInstruction =
+    input.modelFamily === 'pony'
+      ? 'You are the prompt engineer for an SDXL Pony-based companion portrait generator. Your ONLY output is ONE line of comma-separated short tags (subject, pose, outfit, scene, lighting, mood, framing) written in tag style (e.g. "looking_at_viewer, soft_window_light, bedroom"), not full sentences.'
+      : input.modelFamily === 'illustrious'
+        ? 'You are the prompt engineer for an SDXL Illustrious-based anime portrait generator. Your ONLY output is ONE line of comma-separated danbooru tags (subject, pose, outfit, scene, lighting, mood, framing), not full sentences.'
+        : 'You are the prompt engineer for a companion portrait generator (FLUX-based). Your ONLY output is ONE English image prompt: a single paragraph of comma-separated descriptive clauses (subject, pose, outfit, scene, lighting, mood, framing).';
+  const qualityBoilerplate =
+    input.modelFamily === 'pony'
+      ? '- Do not add score/quality tags (score_9 / score_8_up etc. are added automatically).'
+      : input.modelFamily === 'illustrious'
+        ? '- Do not add quality tags (masterpiece / best quality / absurdres are added automatically).'
+        : '- Do not add generic quality boilerplate (masterpiece / best quality are added automatically).';
   const system = [
-    'You are the prompt engineer for a companion portrait generator (FLUX-based).',
-    'Your ONLY output is ONE English image prompt: a single paragraph of comma-separated descriptive clauses (subject, pose, outfit, scene, lighting, mood, framing).',
+    familyInstruction,
     'NEVER output markdown fences, labels, explanations, or anything but the prompt itself.',
     '',
     'HARD CONSTRAINTS:',
     '- The person in the image MUST be the exact same woman described in CHARACTER below. Never change her face, hair, eyes, body, skin, or style.',
     '- The CONTENT BOUNDARY is absolute; never write anything past it.',
-    '- Do not add generic quality boilerplate (masterpiece / best quality are added automatically).',
+    qualityBoilerplate,
   ].join('\n');
   const user = [
     'CHARACTER (identity must stay identical):',
@@ -250,6 +265,7 @@ export async function generateImagePromptWithLlm(input: {
   poseTag?: string;
   envTag?: string;
   tier?: MembershipTier;
+  modelFamily?: PromptFamily;
   userId?: string;
   girlfriendId?: string;
   timeoutMs?: number;
@@ -277,6 +293,7 @@ export async function generateImagePromptWithLlm(input: {
     moodTag: input.moodTag,
     poseTag: input.poseTag,
     envTag: input.envTag,
+    modelFamily: input.modelFamily,
   });
   const started = Date.now();
   try {

@@ -34,21 +34,23 @@ describe('image scene semantics', () => {
     });
   });
 
-  it('selects a higher-control preset for complex adult compositions', () => {
+  it('selects a higher-control SDXL preset for complex adult compositions', () => {
+    // NSFW 硬路由 SDXL（禁止落 FLUX）：复杂成人场景在 pony 计划上 +2 步增强控制
     const route = resolveImageGenerationRoute({
       surface: 'companion',
       category: 'male',
       renderStyle: 'realistic',
       nsfwIntensity: 4, // NSFW scene with SM and group dynamics requires high control
       sceneText: '4i SM with four consenting adults',
+      sdxlEndpointId: 'test-sdxl-endpoint',
     });
     expect(route).toMatchObject({
-      modelFamily: 'flux',
-      presetId: 'flux-adult-composition-control',
-      sampler: 'euler',
+      modelFamily: 'pony',
+      presetId: 'sdxl-pony-adult',
+      sampler: 'dpmpp_2m_sde',
       steps: 32,
-      width: 1024,
-      height: 1472,
+      width: 832,
+      height: 1216,
     });
   });
 });

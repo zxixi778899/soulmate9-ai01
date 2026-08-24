@@ -17,11 +17,13 @@ describe('ai-modules resolve', () => {
       'RUNPOD_UNLIMITED_CHAT_URL',
       'RUNPOD_VLLM_API_KEY',
       'RUNPOD_API_KEY',
+      'DASHSCOPE_API_KEY',
     ]) {
       envBackup[k] = process.env[k];
     }
-    // Simulate local .env: RunPod present, Together absent
+    // Simulate local .env: RunPod + DashScope present, Together absent
     delete process.env.TOGETHER_API_KEY;
+    process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
     process.env.RUNPOD_VLLM_URL = 'https://api.runpod.ai/v2/test';
     process.env.RUNPOD_PRO_CHAT_URL = 'https://api.runpod.ai/v2/pro/openai/v1';
     process.env.RUNPOD_UNLIMITED_CHAT_URL = 'https://api.runpod.ai/v2/unlimited/openai/v1';
@@ -82,13 +84,39 @@ describe('ai-modules resolve', () => {
     expect(r.endpoint.id).toBe('runpod-qwen3-8b-pro-nsfw');
   });
 
-  it('routes unlimited chat to the dedicated 30B endpoint', () => {
+  it('keeps unlimited long-memory SFW chat on the third-party chain', () => {
+    // v3: SFW stays on instant third-party APIs; RunPod is NSFW-only.
     const result = resolveChatCall(createDefaultAiModules(), {
       tier: 'unlimited',
       intimacyLevel: 5,
       message: 'continue our long story and remember the relationship details',
     });
-    expect(result.endpoint.id).toBe('runpod-qwen3-30b-roleplay');
+    expect(result.channel).toBe('sfw');
+    expect(result.endpoint.provider).not.toBe('runpod');
+  });
+
+  it('keeps paid SFW chat on third-party APIs (no RunPod cold start)', () => {
+    const cfg = createDefaultAiModules();
+    const pro = resolveChatCall(cfg, { tier: 'pro', message: 'how was your day?', rolloutPercent: 100 });
+    expect(pro.channel).toBe('sfw');
+    expect(pro.endpoint.provider).toBe('dashscope');
+    const unlimited = resolveChatCall(cfg, { tier: 'unlimited', message: 'good morning', rolloutPercent: 100 });
+    expect(unlimited.channel).toBe('sfw');
+    expect(unlimited.endpoint.provider).toBe('dashscope');
+  });
+
+  it('forces the NSFW channel via the explicit preferNsfw switch', () => {
+    const cfg = createDefaultAiModules();
+    const r = resolveChatCall(cfg, {
+      tier: 'pro',
+      intimacyLevel: cfg.chat.nsfw_min_intimacy,
+      message: 'tell me about your day',
+      preferNsfw: true,
+      rolloutPercent: 100,
+    });
+    expect(r.channel).toBe('nsfw');
+    expect(r.routeReason).toBe('adult_isolated_runpod');
+    expect(r.endpoint.id).toBe('runpod-qwen3-8b-pro-nsfw');
   });
 
   it('continues an adult route from the last three messages', () => {

@@ -7,12 +7,9 @@ import { loadAiModules, resolveImageCall } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
 import {
   buildLoraPlan,
-  detectGenderStyle,
-  GIRLFRIEND_NEGATIVE_FLUX,
   planToLorasArray,
   subjectFromGirlfriendRow,
 } from '@/lib/prompt/girlfriend';
-import { resolveImageGenerationProfile } from '@/lib/image-generation-profile';
 import { routeImageGeneration, type ImageProvider } from '@/lib/image-router';
 import {
   buildImageActionFromChat,
@@ -25,9 +22,11 @@ import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib
 import {
   buildStudioPromptEnhancement,
   resolveCategoryLoraControls,
+  studioIntensityDirection,
   studioNegativePrompt,
   type AnimeRenderStyle,
 } from '@/lib/comfy-console/studio-profile';
+import { encodeFamilyPrompt, resolvePromptSubject } from '@/lib/prompt/prompt-protocols';
 import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { buildSceneCastPrompt, classifyImageScene } from '@/lib/image-scene-semantics';
 import { resolveModelLoraPlan } from '@/lib/model-lora-routing';
@@ -411,16 +410,29 @@ export async function POST(request: NextRequest) {
     const conversationClause = chatContext.length
       ? `reflecting the chat: ${chatContext.slice(-3).map((line) => `${line.role === 'assistant' ? 'she' : 'he'} said "${line.content.slice(0, 80)}"`).join(', ')}`
       : '';
-    let prompt = buildStudioPromptEnhancement({
-      category,
-      intensity: promptPolicy.nsfwIntensity,
-      animeStyle,
-      scene: buildContentOnlyPrompt(
+    // 家族感知提示词组装：SDXL 走族原生 tag 协议（pony score / illustrious danbooru，
+    // qualityPrefix 由 encodeFamilyPrompt 自动追加），FLUX 保留自然语言。
+    const assembleFamilyPrompt = (sceneText: string): string =>
+      generationRoute.modelFamily === 'flux'
+        ? buildStudioPromptEnhancement({
+            category,
+            intensity: promptPolicy.nsfwIntensity,
+            animeStyle,
+            scene: sceneText,
+            identity,
+          })
+        : encodeFamilyPrompt({
+            family: generationRoute.modelFamily,
+            subject: resolvePromptSubject(category, animeStyle),
+            identity,
+            scene: `${sceneText}, ${studioIntensityDirection(category, promptPolicy.nsfwIntensity)}`,
+          });
+    let prompt = assembleFamilyPrompt(
+      buildContentOnlyPrompt(
         `${sceneBits}. ${buildSceneCastPrompt(sceneSemantics)}${conversationClause ? `. ${conversationClause}` : ''}`,
         { style: animeStyle === '2d' ? '2d' : animeStyle === '3d' ? '3d' : 'realistic' },
       ),
-      identity,
-    });
+    );
 
     // Hidden LLM prompt: routed by content (SFW vs NSFW). Only the final image
     // is exposed to the client; the prompt itself stays internal.
@@ -441,6 +453,7 @@ export async function POST(request: NextRequest) {
         poseTag,
         envTag,
         tier,
+        modelFamily: generationRoute.modelFamily,
         userId: user.id,
         girlfriendId: girlfriend_id,
         timeoutMs: 15_000,
@@ -453,22 +466,10 @@ export async function POST(request: NextRequest) {
         promptSummary: prompt.slice(0, 200),
       });
       if (llmResult.usedLlm && llmResult.prompt) {
-        prompt = buildStudioPromptEnhancement({
-          category,
-          intensity: promptPolicy.nsfwIntensity,
-          animeStyle,
-          scene: llmResult.prompt,
-          identity,
-        });
+        prompt = assembleFamilyPrompt(llmResult.prompt);
         promptEngine = 'llm';
       }
     }
-
-    const genderStyle = detectGenderStyle(gfRecord);
-    const generationProfile = resolveImageGenerationProfile(
-      genderStyle,
-      promptChannel.channel === 'nsfw',
-    );
     const loraPlan = buildLoraPlan(
       subjectFromGirlfriendRow(gfRecord),
       'chat_selfie',
@@ -522,13 +523,17 @@ export async function POST(request: NextRequest) {
     if (allLoraTriggers.length > 0) {
       prompt = `${allLoraTriggers.join(', ')}. ${prompt}`;
     }
-    const baseNegativePrompt =
-      typeof (body as { negative_prompt?: string }).negative_prompt === 'string' &&
-      (body as { negative_prompt: string }).negative_prompt.trim()
-        ? (body as { negative_prompt: string }).negative_prompt
-        : resolved.defaultNegative || GIRLFRIEND_NEGATIVE_FLUX;
-
-    const negativePrompt = `${studioNegativePrompt(category, animeStyle)}, ${baseNegativePrompt}, ${generationProfile.negativePrompt}`;
+    const userNegative =
+      typeof (body as { negative_prompt?: string }).negative_prompt === 'string'
+        ? (body as { negative_prompt: string }).negative_prompt.trim()
+        : '';
+    // SDXL 靠反向提示词控图：族原生负向（score/worst-quality + NSFW 去打码）+
+    // 解剖/风格守卫；FLUX 同样用族原生短负向。用户传入负向追加在后。
+    const negativePrompt = [
+      generationRoute.negativePrompt,
+      studioNegativePrompt(category, animeStyle),
+      userNegative,
+    ].filter(Boolean).join(', ');
     // Face / body reference for character consistency
     const refCandidates = [
       gfRecord.face_reference_url,

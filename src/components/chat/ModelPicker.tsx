@@ -4,7 +4,17 @@ import { useEffect, useRef, useState } from 'react';
 import { Brain, Check, Coins, Crown, Flame, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
+import type { TranslationKey } from '@/lib/i18n/types';
 import type { ChatModelOption } from '@/lib/chat-models';
+
+/** Localized per-model description; falls back to the config's English copy. */
+const MODEL_DESC_KEYS: Record<string, TranslationKey> = {
+  'together-gpt-oss-20b': 'chat.modelDescSwift',
+  'together-qwen3-235b': 'chat.modelDescWit',
+  'runpod-qwen3-8b-pro-nsfw': 'chat.modelDescPassion',
+  'together-kimi-k26': 'chat.modelDescMuse',
+  'openrouter-noromaid-20b': 'chat.modelDescDevotion',
+};
 
 /**
  * In-chat model picker.
@@ -90,6 +100,8 @@ export function ModelPicker(props: {
 
           {models.map((m) => {
             const active = m.id === selectedId;
+            const descKey = MODEL_DESC_KEYS[m.id];
+            const description = descKey ? t(descKey) : m.description;
             return (
               <button
                 key={m.id}
@@ -142,8 +154,8 @@ export function ModelPicker(props: {
                     </span>
                   </span>
                 </div>
-                {m.description && (
-                  <p className="mt-0.5 text-[10px] leading-snug text-[#8B8BA3]">{m.description}</p>
+                {description && (
+                  <p className="mt-0.5 text-[10px] leading-snug text-[#8B8BA3]">{description}</p>
                 )}
               </button>
             );

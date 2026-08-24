@@ -48,6 +48,7 @@ import { loadChatCache, saveChatCache, mergeMessages, deriveMood, deleteChatCach
 import { parseChatImageIntent } from '@/lib/chat-image-intent';
 import { sanitizeAssistantReply } from '@/lib/chat-reply-sanitize';
 import { DEFAULT_CHAT_GIFTS, type ChatGift } from '@/lib/gifts/catalog';
+import type { ChatModelOption } from '@/lib/chat-models';
 import { companionScore, rarityFromScore } from '@/lib/rarity';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -341,6 +342,61 @@ export default function ChatsPage() {
 
   // Chat reply mode: scene (current style) vs dialogue (spoken words only)
   const [replyMode, setReplyMode] = useState<'scene' | 'dialogue'>('scene');
+
+  // ── AI model picker + NSFW channel switch ─────────────────────────────
+  // Catalog comes from /api/chat/models; selection is persisted globally,
+  // the NSFW toggle per companion. Auto routing (null) stays free.
+  const [chatModels, setChatModels] = useState<ChatModelOption[]>([]);
+  const [selectedChatModel, setSelectedChatModel] = useState<string | null>(null);
+  const [nsfwMode, setNsfwMode] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    authedFetch('/api/chat/models')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { models?: ChatModelOption[] } | null) => {
+        if (cancelled || !Array.isArray(data?.models)) return;
+        const models = data.models;
+        setChatModels(models);
+        // Drop a persisted pick that is gone or locked for this user.
+        setSelectedChatModel((prev) => {
+          if (prev && !models.some((m) => m.id === prev && m.available)) {
+            try { localStorage.removeItem('soulmate_chat_model'); } catch { /* ignore */ }
+            return null;
+          }
+          return prev;
+        });
+      })
+      .catch(() => { /* picker stays hidden on failure */ });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+  useEffect(() => {
+    try {
+      const savedModel = localStorage.getItem('soulmate_chat_model');
+      if (savedModel) setSelectedChatModel(savedModel);
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    if (!selectedId) return;
+    try {
+      setNsfwMode(localStorage.getItem(`soulmate_nsfw_mode_${selectedId}`) === '1');
+    } catch { setNsfwMode(false); }
+  }, [selectedId]);
+  const handleSelectChatModel = (id: string | null) => {
+    setSelectedChatModel(id);
+    try {
+      if (id) localStorage.setItem('soulmate_chat_model', id);
+      else localStorage.removeItem('soulmate_chat_model');
+    } catch { /* ignore */ }
+  };
+  const handleNsfwModeChange = (on: boolean) => {
+    setNsfwMode(on);
+    try {
+      if (selectedId) localStorage.setItem(`soulmate_nsfw_mode_${selectedId}`, on ? '1' : '0');
+    } catch { /* ignore */ }
+  };
+  // Show the switch only when the caller's tier route allows NSFW
+  // (catalog marks NSFW models locked otherwise — doubles as upgrade bait).
+  const nsfwAvailable = chatModels.some((m) => m.nsfw && m.available);
   useEffect(() => {
     if (!selectedId) return;
     try {
@@ -881,7 +937,7 @@ export default function ChatsPage() {
     try {
       const res = await authedFetch('/api/ai/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text || displayText, girlfriend_id: selectedId, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale, reply_mode: replyMode, ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}) }),
+        body: JSON.stringify({ message: text || displayText, girlfriend_id: selectedId, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale, reply_mode: replyMode, prefer_nsfw: nsfwMode, ...(selectedChatModel ? { chat_model: selectedChatModel } : {}), ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}) }),
       });
       if (!res.ok) {
         const errBody = (await readResponseJson(res).catch(() => ({}))) as { error?: string; localized_error?: string; code?: string };
@@ -1231,6 +1287,12 @@ export default function ChatsPage() {
                 onMemories={() => setShowMemories(true)}
                 replyMode={replyMode}
                 onReplyModeChange={handleReplyModeChange}
+                chatModels={chatModels}
+                selectedChatModel={selectedChatModel}
+                onSelectChatModel={handleSelectChatModel}
+                nsfwMode={nsfwMode}
+                onNsfwModeChange={handleNsfwModeChange}
+                nsfwAvailable={nsfwAvailable}
               />
             </div>
           </div>

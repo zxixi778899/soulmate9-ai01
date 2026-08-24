@@ -10,7 +10,7 @@ export function createDefaultAiModules(): AiModulesConfig {
   const now = new Date().toISOString();
 
   return {
-    version: 2,
+    version: 3,
     updated_at: now,
     endpoints: [
       {
@@ -237,24 +237,27 @@ export function createDefaultAiModules(): AiModulesConfig {
       fallback_endpoint_id: 'together-gpt-oss-20b',
       global_system_suffix:
         'Stay in character as the girlfriend. Never break role. Never claim to be an AI assistant. When the intimate/NSFW channel is active, lean into consensual adult desire with sensory detail and end replies with a hook that invites the next message. Refuse underage content. Match language rules (English sessions: English only, no Chinese).',
+      // v3 routing redesign: SFW chat always goes to instant third-party
+      // APIs (DashScope / Together) to avoid RunPod vLLM cold starts;
+      // self-hosted RunPod endpoints are reserved for the NSFW channel.
       tiers: {
         free: {
           sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: null,
-          default_endpoint_id: 'together-qwen35-9b', complex_endpoint_id: 'together-qwen35-9b',
+          default_endpoint_id: 'together-qwen35-9b', complex_endpoint_id: 'together-qwen3-235b',
           fallback_endpoint_ids: ['together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.08,
           max_tokens: 512, context_messages: 10, daily_message_limit: 20, allow_nsfw: false,
         },
         basic: {
-          sfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw', nsfw_endpoint_id: null,
-          default_endpoint_id: 'runpod-qwen3-8b-pro-nsfw', complex_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
-          fallback_endpoint_ids: ['together-qwen35-9b', 'together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.15,
+          sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: null,
+          default_endpoint_id: 'together-qwen35-9b', complex_endpoint_id: 'together-qwen3-235b',
+          fallback_endpoint_ids: ['together-gpt-oss-120b', 'together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.15,
           max_tokens: 768, context_messages: 16, daily_message_limit: 100, allow_nsfw: false,
         },
         pro: {
-          sfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
+          sfw_endpoint_id: 'dashscope-qwen-plus',
           nsfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
-          default_endpoint_id: 'runpod-qwen3-8b-pro-nsfw', complex_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
-          fallback_endpoint_ids: ['runpod-qwen3-8b-pro-nsfw', 'openrouter-lumimaid-9b', 'together-qwen3-235b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 0.75,
+          default_endpoint_id: 'dashscope-qwen-plus', complex_endpoint_id: 'together-qwen3-235b',
+          fallback_endpoint_ids: ['together-qwen35-9b', 'openrouter-lumimaid-9b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 0.75,
           max_tokens: 1024,
           context_messages: 24,
           // Cost-modeled Pro chat cap (see membership redesign cost analysis)
@@ -262,20 +265,20 @@ export function createDefaultAiModules(): AiModulesConfig {
           allow_nsfw: true,
         },
         premium: {
-          sfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
+          sfw_endpoint_id: 'dashscope-qwen-plus',
           nsfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
-          default_endpoint_id: 'runpod-qwen3-8b-pro-nsfw', complex_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
-          fallback_endpoint_ids: ['runpod-qwen3-8b-pro-nsfw', 'openrouter-lumimaid-9b', 'together-qwen3-235b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 1.2,
+          default_endpoint_id: 'dashscope-qwen-plus', complex_endpoint_id: 'together-qwen3-235b',
+          fallback_endpoint_ids: ['together-qwen35-9b', 'openrouter-lumimaid-9b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 1.2,
           max_tokens: 1024,
           context_messages: 28,
           daily_message_limit: 300,
           allow_nsfw: true,
         },
         unlimited: {
-          sfw_endpoint_id: 'runpod-qwen3-30b-roleplay',
+          sfw_endpoint_id: 'dashscope-qwen-plus',
           nsfw_endpoint_id: 'runpod-qwen3-30b-roleplay',
-          default_endpoint_id: 'runpod-qwen3-30b-roleplay', complex_endpoint_id: 'together-kimi-k26',
-          fallback_endpoint_ids: ['runpod-qwen3-30b-roleplay', 'runpod-qwen3-8b-pro-nsfw', 'openrouter-noromaid-20b', 'together-qwen3-235b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
+          default_endpoint_id: 'dashscope-qwen-plus', complex_endpoint_id: 'together-kimi-k26',
+          fallback_endpoint_ids: ['runpod-qwen3-8b-pro-nsfw', 'openrouter-noromaid-20b', 'together-qwen3-235b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
           max_tokens: 1536,
           context_messages: 40,
           // Unlimited chat (null = no daily cap); images/TTS remain cost levers

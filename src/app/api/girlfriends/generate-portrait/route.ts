@@ -7,6 +7,7 @@ import { sanitizeBlurKeywords } from '@/lib/prompt';
 import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
 import { buildIdReferencePrompt, type IdFraming } from '@/lib/companion-prompt-pipeline';
 import { buildStudioPromptEnhancement, studioNegativePrompt } from '@/lib/comfy-console/studio-profile';
+import { encodeFamilyPrompt, resolvePromptSubject } from '@/lib/prompt/prompt-protocols';
 import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { routeImageGeneration } from '@/lib/image-router';
 import { loadComfyConfig } from '@/lib/comfy-console/store';
@@ -344,7 +345,7 @@ export async function POST(request: NextRequest) {
       renderStyle,
       nsfwIntensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
     });
-    const negativePrompt = studioNegativePrompt(category, renderStyle);
+    const negativePrompt = `${route.negativePrompt}, ${studioNegativePrompt(category, renderStyle)}`;
 
     // ── Custom prompt bypass: if client already generated a prompt via
     //    /api/creator/generate-prompt, use it directly (text-to-image mode). ──
@@ -401,6 +402,16 @@ export async function POST(request: NextRequest) {
           buildIdReferencePrompt(framing),
           ...referencePlan.promptHints,
         ].join('. '),
+      });
+    }
+
+    // SDXL 族原生协议：质量 tag 前缀 + tag 化身份（FLUX 保留自然语言）
+    if (route.modelFamily !== 'flux') {
+      naturalPrompt = encodeFamilyPrompt({
+        family: route.modelFamily,
+        subject: resolvePromptSubject(category, renderStyle),
+        identity: naturalPrompt,
+        framing: nsfwLevel >= 3 ? 'medium full-body shot' : 'medium shot',
       });
     }
 

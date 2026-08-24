@@ -505,11 +505,26 @@ export async function POST(req: NextRequest) {
     const optimizationInstruction = currentPrompt
       ? 'Polish the supplied prompt without replacing its subject, scene, wardrobe, action, framing, or intent. Improve clarity, physical coherence, camera language, and model readability only.'
       : 'No prompt was supplied. Create one task-appropriate scene for the selected asset role and generation mode.';
-    const systemPrompt = `You are the final prompt editor for a photorealistic adult companion image system. Return strict JSON only with keys: "scene", "negative", "pairing", "protagonist", "power_dynamic", "tags".
+    // 预路由：在 LLM 调用前确定目标模型家族，使 system prompt 下发对应协议指令
+    const preRouteSemantics = classifyImageScene(`${currentPrompt} ${profile}`, category);
+    const preRoute = resolveImageGenerationRoute({
+      surface: 'companion', category, renderStyle: animeStyle, nsfwIntensity: intensity, sceneSemantics: preRouteSemantics,
+    });
+    const familyProtocol = preRoute.modelFamily === 'pony'
+      ? 'Target model is SDXL Pony. Write the scene field as ONE line of comma-separated short tags in tag style (subject, pose, outfit, scene, lighting, mood, framing), not full sentences. Do not add score/quality tags (score_9 / score_8_up are added automatically).'
+      : preRoute.modelFamily === 'illustrious'
+        ? 'Target model is SDXL Illustrious. Write the scene field as ONE line of comma-separated danbooru tags (subject, pose, outfit, scene, lighting, mood, framing), not full sentences. Do not add quality tags (masterpiece / best quality / absurdres are added automatically).'
+        : 'Target model is FLUX. Write the scene field as natural descriptive language with concrete camera and lighting detail.';
+    const realismGuidance = preRoute.modelFamily === 'flux'
+      ? 'For realistic images, make the result feel like a real person photographed during a real event: choose a plausible location, available light source, neutral skin-preserving color, ordinary environmental evidence, a physically achievable action with preparation and follow-through, stable center of gravity, purposeful hands, contact pressure, material response, a spontaneous micro-expression, and a believable 35mm or 50mm camera position. Avoid generic beauty language, symmetrical mannequin posing, neon wash on skin, cinematic teal-orange grading, luxury-set clichés and excessive bokeh.'
+      : 'Keep tag vocabulary consistent with the target model family; do not mix FLUX natural-language camera phrasing into tag prompts.';
+    const systemPrompt = `You are the final prompt editor for an adult companion image system. Return strict JSON only with keys: "scene", "negative", "pairing", "protagonist", "power_dynamic", "tags".
 
 ${optimizationInstruction}
 
-For realistic images, make the result feel like a real person photographed during a real event: choose a plausible location, available light source, neutral skin-preserving color, ordinary environmental evidence, a physically achievable action with preparation and follow-through, stable center of gravity, purposeful hands, contact pressure, material response, a spontaneous micro-expression, and a believable 35mm or 50mm camera position. Avoid generic beauty language, symmetrical mannequin posing, neon wash on skin, cinematic teal-orange grading, luxury-set clichés and excessive bokeh.
+${familyProtocol}
+
+${realismGuidance}
 
 The server applies the exact NSFW level contract after your response. Never weaken, reinterpret, or replace it: 1=everyday sexy clothing with nipples and genitals covered; 2=lingerie, nightwear, or adult fantasy clothing with genitals covered and no sexual act; 3=full nudity with breasts and/or genitals clearly visible and no sexual act; 4=clearly visible solo masturbation before climax; 5=clearly visible consensual sex between unmistakably adult partners through climax, including requested sexual fluids. All characters are unmistakably adults and all interaction is consensual.
 
@@ -524,7 +539,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
       `Authoritative companion profile: ${profile}`,
       `Current prompt: ${currentPrompt || 'none'}`,
       `Recent prompts that must not be repeated: ${previousPrompts.length ? JSON.stringify(previousPrompts) : 'none'}`,
-      `Mandatory negative concepts: ${studioNegativePrompt(category, animeStyle)}`,
+      `Mandatory negative concepts: ${preRoute.negativePrompt}, ${studioNegativePrompt(category, animeStyle)}`,
       currentPrompt
         ? 'Return a polished scene field that preserves every concrete choice in the current prompt. Do not invent a different scene.'
         : 'Write a new variable scene field in 20-35 words for the selected function. Use concrete nouns and verbs without headings.',
@@ -612,7 +627,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
         scene_semantics: sceneSemantics,
         generation_preset: generationRoute,
         prompt: optimizedPrompt,
-        negative: studioNegativePrompt(category, animeStyle),
+        negative: `${generationRoute.negativePrompt}, ${studioNegativePrompt(category, animeStyle)}`,
         loras,
         pipeline: {
           identitySource: identity ? 'companion_record' : 'manual_prompt',
@@ -655,7 +670,7 @@ For txt2img, include only the supplied identity facts needed to preserve this sp
         scene_semantics: fallbackSemantics,
         generation_preset: generationRoute,
         prompt: fallbackPrompt,
-        negative: studioNegativePrompt(category, animeStyle),
+        negative: `${generationRoute.negativePrompt}, ${studioNegativePrompt(category, animeStyle)}`,
         loras,
         pipeline: {
           identitySource: identity ? 'companion_record' : 'manual_prompt',

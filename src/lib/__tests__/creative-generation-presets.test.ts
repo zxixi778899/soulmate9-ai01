@@ -19,7 +19,7 @@ describe('creative generation presets', () => {
     expect(preset.modelFamily).toBe('flux');
   });
 
-  it('routes high-NSFW realistic art to verified FLUX with full steps', () => {
+  it('routes high-NSFW realistic art to SDXL pony (FLUX NSFW disabled by policy)', () => {
     const preset = resolveCreativeGenerationPreset({
       mode: 'img2img',
       surface: 'companion',
@@ -27,11 +27,14 @@ describe('creative generation presets', () => {
       renderStyle: 'realistic',
       intensity: 5,
       assetRole: 'character-art',
+      // NSFW 硬路由 SDXL：测试环境显式提供端点，避免依赖 env
+      sdxlEndpointId: 'test-sdxl-endpoint',
     });
-    expect(preset.modelFamily).toBe('flux');
-    expect(preset.sampler).toBe('euler');
-    expect(preset.scheduler).toBe('simple');
-    expect(preset.steps).toBeGreaterThanOrEqual(28); // NSFW gets 28+ steps on flux1-dev-fp8
+    expect(preset.modelFamily).toBe('pony');
+    expect(preset.sampler).toBe('dpmpp_2m_sde');
+    expect(preset.scheduler).toBe('karras');
+    expect(preset.steps).toBeGreaterThanOrEqual(30); // NSFW pony gets 30+ steps
+    expect(preset.cfg).toBe(6.5);
   });
 
   it('uses the five-second Wan2.2 image-to-video preset', () => {

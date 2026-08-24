@@ -371,6 +371,7 @@ export async function POST(request: NextRequest) {
     media_type: rawMediaType,
     reply_mode: rawReplyMode,
     chat_model: rawChatModel,
+    prefer_nsfw: rawPreferNsfw,
   } = body as {
     message?: string;
     girlfriend_id?: string;
@@ -382,8 +383,11 @@ export async function POST(request: NextRequest) {
     media_type?: string;
     reply_mode?: string;
     chat_model?: string;
+    prefer_nsfw?: boolean;
   };
   const replyMode = rawReplyMode === 'dialogue' ? 'dialogue' : 'scene';
+  // Explicit in-chat NSFW switch: undefined = keyword auto-detection only.
+  const preferNsfw = typeof rawPreferNsfw === 'boolean' ? rawPreferNsfw : undefined;
 
   const mediaUrl =
     typeof rawMediaUrl === 'string' && rawMediaUrl.trim().startsWith('http')
@@ -541,6 +545,7 @@ export async function POST(request: NextRequest) {
     intimacyLevel,
     message: messageText,
     locale: chatLocale,
+    preferNsfw,
     preferredEndpointId: selectedModel?.id,
   });
 
@@ -660,6 +665,7 @@ export async function POST(request: NextRequest) {
   chatResolved = resolveChatCall(aiModules, {
     tier: membershipTier, userId: user.id,
     rolloutPercent: Number(process.env.AI_GATEWAY_V2_ROLLOUT_PERCENT || 10), intimacyLevel, message: messageText, locale: chatLocale,
+    preferNsfw,
     memoryCount: memories.length, contextMessageCount: recentMessages.length, dailyCostUsd,
     recentMessages: recentMessages.slice(0, 3).map((item) => String(item.content || '')),
     adultCharacterVerified: Number((gf as { age?: number | string } | null)?.age || 18) >= 18,
