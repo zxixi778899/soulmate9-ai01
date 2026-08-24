@@ -84,6 +84,8 @@ echo ""
 
 export PATH="/opt/venv/bin:$PATH"
 export PIP_NO_INPUT=1
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=/bin/true
 
 install_node() {
     local repo_url="$1"
@@ -153,8 +155,8 @@ fi
 # 4. KJNodes - 可能有
 install_node "https://github.com/kijai/ComfyUI-KJNodes.git" "ComfyUI-KJNodes"
 
-# 5. Image Mosaic - 可能有
-install_node "https://github.com/city96/ComfyUI-Image-Mosaic.git" "ComfyUI-Image-Mosaic"
+# 5. Image Mosaic - 使用 1038lab/ComfyUI-Mosaic 替代
+install_node "https://github.com/1038lab/ComfyUI-Mosaic.git" "ComfyUI-Mosaic"
 
 # 6. Flex Lora Manager - 可能有
 install_node "https://github.com/shiimizu/ComfyUI-Flex-Lora-Manager.git" "ComfyUI-Flex-Lora-Manager"
