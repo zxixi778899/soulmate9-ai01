@@ -30,7 +30,7 @@ export function getEnhancerStatuses(): EnhancerStatus[] {
       id: 'adetailer',
       enabled: envFlag('RUNPOD_ADETAILER_READY'),
       nodePackage: 'ltdrdata/ComfyUI-Impact-Pack (ADetailer-compatible detail pass)',
-      model: process.env.RUNPOD_ADETAILER_MODEL || 'face_yolov8m.pt',
+      model: process.env.RUNPOD_ADETAILER_MODEL || 'bbox/face_yolov8m.pt',
       configured: Boolean(process.env.RUNPOD_ADETAILER_MODEL?.trim()),
     },
     {
