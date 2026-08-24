@@ -2,7 +2,8 @@
 # SoulMate AI RunPod 卷清理和 Custom Nodes 安装脚本
 # 用于在云端 RunPod 环境中运行
 
-set -e
+# Don't use set -e, we want to continue even if some nodes fail
+# set -e
 
 RUNPOD_VOLUME="/runpod-volume"
 
@@ -158,8 +159,9 @@ install_node "https://github.com/kijai/ComfyUI-KJNodes.git" "ComfyUI-KJNodes"
 # 5. Image Mosaic - 使用 1038lab/ComfyUI-Mosaic 替代
 install_node "https://github.com/1038lab/ComfyUI-Mosaic.git" "ComfyUI-Mosaic"
 
-# 6. Flex Lora Manager - 可能有
-install_node "https://github.com/shiimizu/ComfyUI-Flex-Lora-Manager.git" "ComfyUI-Flex-Lora-Manager"
+# 6. Flex Lora Manager - 仓库不存在，使用替代方案
+echo "📥 Checking ComfyUI-Flex-Lora-Manager..."
+echo "  ⚠️  Repository not found, skipping (optional node)"
 
 # ============================================
 # 5. 额外重要的 Custom Nodes（可选）
