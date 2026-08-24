@@ -6,6 +6,8 @@ beforeEach(() => {
   // Deterministic gate state per test; .env.local values must not leak in.
   delete process.env.RUNPOD_SDXL_MODELS_READY;
   delete process.env.RUNPOD_ENDPOINT_ID_SDXL;
+  delete process.env.RUNPOD_ENDPOINT_ID_SDXL_PONY;
+  delete process.env.RUNPOD_ENDPOINT_ID_SDXL_ILLUSTRIOUS;
 });
 afterEach(() => { process.env = { ...ORIGINAL_ENV }; });
 
@@ -169,6 +171,22 @@ describe('image generation routing — SDXL matrix gate open', () => {
     expect(route.width).toBe(896);
     expect(route.height).toBe(1152);
     expect(route.presetId).toBe('sdxl-pony-portrait');
+  });
+
+  it('routes each SDXL family to its dedicated endpoint when configured', () => {
+    process.env.RUNPOD_SDXL_MODELS_READY = 'true';
+    process.env.RUNPOD_ENDPOINT_ID_SDXL_PONY = 'pony-endpoint';
+    process.env.RUNPOD_ENDPOINT_ID_SDXL_ILLUSTRIOUS = 'illustrious-endpoint';
+    const pony = resolveImageGenerationRoute({
+      surface: 'companion', category: 'female', renderStyle: 'realistic', nsfwIntensity: 4,
+    });
+    expect(pony.modelFamily).toBe('pony');
+    expect(pony.endpointId).toBe('pony-endpoint');
+    const illustrious = resolveImageGenerationRoute({
+      surface: 'companion', renderStyle: '2d', nsfwIntensity: 4,
+    });
+    expect(illustrious.modelFamily).toBe('illustrious');
+    expect(illustrious.endpointId).toBe('illustrious-endpoint');
   });
 });
 

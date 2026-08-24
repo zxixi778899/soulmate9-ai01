@@ -57,9 +57,13 @@ export function isSdxlMatrixReady(): boolean {
   return process.env.RUNPOD_SDXL_MODELS_READY?.trim().toLowerCase() === 'true';
 }
 
-/** SDXL 生产端点已配置（RUNPOD_ENDPOINT_ID_SDXL）。 */
+/** SDXL 生产端点已配置（通用 RUNPOD_ENDPOINT_ID_SDXL 或家族专用 PONY/ILLUSTRIOUS 任一）。 */
 export function isSdxlMatrixEndpointConfigured(): boolean {
-  return Boolean(process.env.RUNPOD_ENDPOINT_ID_SDXL?.trim());
+  return Boolean(
+    process.env.RUNPOD_ENDPOINT_ID_SDXL?.trim() ||
+    process.env.RUNPOD_ENDPOINT_ID_SDXL_PONY?.trim() ||
+    process.env.RUNPOD_ENDPOINT_ID_SDXL_ILLUSTRIOUS?.trim(),
+  );
 }
 
 /** 矩阵实际生效 = 总闸开启 且 端点已配置；否则全链路 fail-open 回 FLUX。 */

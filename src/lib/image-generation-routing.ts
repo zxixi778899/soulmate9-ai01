@@ -34,6 +34,23 @@ export const SDXL_PONY_ENDPOINT_ID = env('RUNPOD_ENDPOINT_ID_SDXL_PONY', '');
  */
 export const SDXL_ILLUSTRIOUS_ENDPOINT_ID = env('RUNPOD_ENDPOINT_ID_SDXL_ILLUSTRIOUS', '');
 
+/**
+ * Per-family SDXL endpoint resolution (read at call time so tests / env
+ * overrides stay effective): prefer the family-specific env, fall back to
+ * the legacy generic RUNPOD_ENDPOINT_ID_SDXL (single-endpoint deployments).
+ */
+export function resolveSdxlEndpoint(family: 'pony' | 'illustrious'): string {
+  const specific = family === 'pony'
+    ? (process.env.RUNPOD_ENDPOINT_ID_SDXL_PONY?.trim() || '')
+    : (process.env.RUNPOD_ENDPOINT_ID_SDXL_ILLUSTRIOUS?.trim() || '');
+  return specific || env('RUNPOD_ENDPOINT_ID_SDXL', '');
+}
+
+/** Any SDXL production endpoint configured (NSFW hard-route gate). */
+export function anySdxlEndpointConfigured(): boolean {
+  return Boolean(resolveSdxlEndpoint('pony') || resolveSdxlEndpoint('illustrious'));
+}
+
 /** Active SDXL gate - both endpoints must be configured for matrix to work. */
 export function sdxlMatrixReady(): boolean {
   return process.env.RUNPOD_SDXL_MODELS_READY?.trim().toLowerCase() === 'true';
@@ -282,19 +299,12 @@ export function resolveImageGenerationRoute(input: {
   const semantics = input.sceneSemantics || classifyImageScene(input.sceneText || '', category);
   const complexScene = isComplexAdultScene(semantics);
   const nsfw = intensity >= 3;
-  const sdxlEndpointId = input.sdxlEndpointId?.trim() || env('RUNPOD_ENDPOINT_ID_SDXL', '');
 
   // ─── NSFW 硬路由：一律落 SDXL，禁止落 FLUX ──────────────────────────────
   // FLUX NSFW 稳定性差（裸 flux1-dev-fp8 无 NSFW LoRA 生态），本站 NSFW 统一
   // 走 SDXL 双通道（写实→ponyRealism / 二次元→Illustrious）。SDXL 端点缺失
   // 时 fail-closed 抛错，而不是把 NSFW 偷偷降级回 FLUX。
   if (nsfw) {
-    if (!sdxlEndpointId) {
-      throw new Error(
-        'NSFW generation requires the SDXL endpoint (RUNPOD_ENDPOINT_ID_SDXL). ' +
-        'FLUX fallback for NSFW is disabled by policy.',
-      );
-    }
     const nsfwPlan = resolveModelPlan({
       surface: input.surface,
       category,
@@ -304,7 +314,15 @@ export function resolveImageGenerationRoute(input: {
       sceneComplex: complexScene,
       matrixActive: true,
     });
-    return sdxlMatrixRoute(nsfwPlan, input.surface, category, nsfw, sdxlEndpointId);
+    const familyEndpoint = input.sdxlEndpointId?.trim()
+      || resolveSdxlEndpoint(nsfwPlan.modelFamily === 'illustrious' ? 'illustrious' : 'pony');
+    if (!familyEndpoint) {
+      throw new Error(
+        'NSFW generation requires the SDXL endpoint (RUNPOD_ENDPOINT_ID_SDXL). ' +
+        'FLUX fallback for NSFW is disabled by policy.',
+      );
+    }
+    return sdxlMatrixRoute(nsfwPlan, input.surface, category, nsfw, familyEndpoint);
   }
 
   // ─── SDXL 模型矩阵（RUNPOD_SDXL_MODELS_READY 总闸，仅 SFW 到达这里） ─────
@@ -325,8 +343,10 @@ export function resolveImageGenerationRoute(input: {
         matrixActive,
       });
   if (matrixPlan?.endpointKey === 'runpod-sdxl-pro') {
+    const familyEndpoint = input.sdxlEndpointId?.trim()
+      || resolveSdxlEndpoint(matrixPlan.modelFamily === 'illustrious' ? 'illustrious' : 'pony');
     // 端点缺失时 fail-open 回 FLUX（与 env 总闸语义一致）。
-    if (!sdxlEndpointId) {
+    if (!familyEndpoint) {
       return fluxRoute({
         surface: input.surface,
         checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
@@ -338,7 +358,7 @@ export function resolveImageGenerationRoute(input: {
         reason: 'SDXL matrix gate open but no SDXL endpoint — fail-open to FLUX.',
       }, category, renderStyle, nsfw);
     }
-    return sdxlMatrixRoute(matrixPlan, input.surface, category, nsfw, sdxlEndpointId);
+    return sdxlMatrixRoute(matrixPlan, input.surface, category, nsfw, familyEndpoint);
   }
 
   // Unified FLUX strategy (SFW only — NSFW is hard-routed to SDXL above):
