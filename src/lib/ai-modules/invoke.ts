@@ -24,9 +24,23 @@ function recordFailure(ep: ModelEndpoint, error?: unknown): void {
   circuits.set(ep.id, state);
 }
 function recordSuccess(ep: ModelEndpoint): void { circuits.delete(ep.id); }
+/**
+ * MiniMax M2.x models always interleave `<think>...</think>` reasoning inside
+ * `content` (thinking cannot be disabled per official docs). Strip the blocks
+ * so users only ever see the companion's actual reply.
+ */
+function stripThinkBlocks(content: string): string {
+  return content
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*$/gi, '') // truncated / unclosed trailing block
+    .trim();
+}
+/** Extra generation budget so MiniMax thinking tokens don't starve the reply. */
+const MINIMAX_THINK_HEADROOM = 1536;
 async function completion(ep: ModelEndpoint, messages: Array<{ role: string; content: string }>, temperature: number, maxTokens: number): Promise<string> {
   const apiBase = base(ep); const apiKey = key(ep); if (!apiBase) throw new Error(`api_base_url missing for ${ep.id}`); if (!apiKey) throw new Error(`API key missing for ${ep.id}`);
-  const doFetch = (thinkingOff: boolean) => fetch(`${apiBase}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: ep.model_id, messages, max_tokens: maxTokens, temperature, ...(thinkingOff ? { enable_thinking: false, chat_template_kwargs: { enable_thinking: false } } : {}) }), signal: AbortSignal.timeout(ep.timeout_ms || 90000) });
+  const isMinimax = ep.provider === 'minimax';
+  const doFetch = (thinkingOff: boolean) => fetch(`${apiBase}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: ep.model_id, messages, max_tokens: maxTokens + (isMinimax ? MINIMAX_THINK_HEADROOM : 0), temperature, ...(isMinimax ? { reasoning_split: true } : {}), ...(thinkingOff ? { enable_thinking: false, chat_template_kwargs: { enable_thinking: false } } : {}) }), signal: AbortSignal.timeout(ep.timeout_ms || 90000) });
   // Qwen3-family models default to thinking mode on vLLM servers; the reasoning
   // trace can eat the whole max_tokens budget and leave `content` empty.
   // DashScope (Bailian) hosts Qwen family only — same guard applies.
@@ -35,11 +49,11 @@ async function completion(ep: ModelEndpoint, messages: Array<{ role: string; con
   if (!response.ok) { const body = await response.text().catch(() => ''); throw new Error(`${ep.provider} HTTP ${response.status}: ${body.slice(0, 160)}`); }
   let data: unknown = await response.json();
   if (!data || typeof data !== 'object' || !('choices' in data)) throw new Error(`${ep.provider} invalid response`);
-  let choices = (data as { choices?: Array<{ message?: { content?: string; reasoning_content?: string; reasoning?: string } }> }).choices;
+  let choices = (data as { choices?: Array<{ message?: { content?: string; reasoning_content?: string; reasoning?: string; reasoning_details?: unknown } }> }).choices;
   let content = choices?.[0]?.message?.content?.trim();
   // Empty content with a reasoning trace → thinking mode consumed the budget.
   // Retry once with thinking explicitly disabled.
-  if (!content && !isQwen3 && (choices?.[0]?.message?.reasoning_content || choices?.[0]?.message?.reasoning)) {
+  if (!content && !isQwen3 && (choices?.[0]?.message?.reasoning_content || choices?.[0]?.message?.reasoning || choices?.[0]?.message?.reasoning_details)) {
     response = await doFetch(true);
     if (!response.ok) { const body = await response.text().catch(() => ''); throw new Error(`${ep.provider} HTTP ${response.status}: ${body.slice(0, 160)}`); }
     data = await response.json();
@@ -47,6 +61,7 @@ async function completion(ep: ModelEndpoint, messages: Array<{ role: string; con
     choices = (data as { choices?: Array<{ message?: { content?: string } }> }).choices;
     content = choices?.[0]?.message?.content?.trim();
   }
+  if (isMinimax && content) content = stripThinkBlocks(content);
   if (!content) throw new Error(`${ep.provider} empty content`); return content;
 }
 async function callWithRetry(ep: ModelEndpoint, opts: InvokeChatOptions): Promise<string> {
@@ -110,16 +125,23 @@ export async function invokeChatStreamReal(opts: InvokeChatOptions): Promise<{ r
     }
 
     const isQwen3 = ep.provider === 'dashscope' || /qwen3/i.test(ep.model_id);
+    const isMinimax = ep.provider === 'minimax';
     const body: Record<string, unknown> = {
       model: ep.model_id,
       messages: opts.messages,
-      max_tokens: opts.maxTokens ?? ep.max_tokens,
+      max_tokens: (opts.maxTokens ?? ep.max_tokens) + (isMinimax ? MINIMAX_THINK_HEADROOM : 0),
       temperature: opts.temperature ?? ep.temperature,
       stream: true,
     };
     if (isQwen3) {
       body.enable_thinking = false;
       body.chat_template_kwargs = { enable_thinking: false };
+    }
+    // MiniMax M2.x thinking cannot be disabled; reasoning_split moves the
+    // <think> stream out of delta.content into reasoning_details, which the
+    // chat UI ignores.
+    if (isMinimax) {
+      body.reasoning_split = true;
     }
 
     const attemptStarted = Date.now();

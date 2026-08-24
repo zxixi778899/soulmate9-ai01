@@ -18,12 +18,14 @@ describe('ai-modules resolve', () => {
       'RUNPOD_VLLM_API_KEY',
       'RUNPOD_API_KEY',
       'DASHSCOPE_API_KEY',
+      'MINIMAX_API_KEY',
     ]) {
       envBackup[k] = process.env[k];
     }
-    // Simulate local .env: RunPod + DashScope present, Together absent
+    // Simulate local .env: RunPod + DashScope + MiniMax present, Together absent
     delete process.env.TOGETHER_API_KEY;
     process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
+    process.env.MINIMAX_API_KEY = 'test-minimax-key';
     process.env.RUNPOD_VLLM_URL = 'https://api.runpod.ai/v2/test';
     process.env.RUNPOD_PRO_CHAT_URL = 'https://api.runpod.ai/v2/pro/openai/v1';
     process.env.RUNPOD_UNLIMITED_CHAT_URL = 'https://api.runpod.ai/v2/unlimited/openai/v1';
@@ -99,10 +101,10 @@ describe('ai-modules resolve', () => {
     const cfg = createDefaultAiModules();
     const pro = resolveChatCall(cfg, { tier: 'pro', message: 'how was your day?', rolloutPercent: 100 });
     expect(pro.channel).toBe('sfw');
-    expect(pro.endpoint.provider).toBe('dashscope');
+    expect(pro.endpoint.provider).toBe('minimax');
     const unlimited = resolveChatCall(cfg, { tier: 'unlimited', message: 'good morning', rolloutPercent: 100 });
     expect(unlimited.channel).toBe('sfw');
-    expect(unlimited.endpoint.provider).toBe('dashscope');
+    expect(unlimited.endpoint.provider).toBe('minimax');
   });
 
   it('forces the NSFW channel via the explicit preferNsfw switch', () => {

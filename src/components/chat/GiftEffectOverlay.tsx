@@ -313,6 +313,7 @@ export function GiftEffectOverlay({
         {useVideoAsset && asset && !useSvga && (
           <video
             key={burstKey}
+            data-no-watermark
             src={asset}
             autoPlay
             muted

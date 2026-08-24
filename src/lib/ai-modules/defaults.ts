@@ -10,7 +10,7 @@ export function createDefaultAiModules(): AiModulesConfig {
   const now = new Date().toISOString();
 
   return {
-    version: 3,
+    version: 4,
     updated_at: now,
     endpoints: [
       {
@@ -45,7 +45,27 @@ export function createDefaultAiModules(): AiModulesConfig {
         circuit_breaker: { failure_threshold: 3, reset_ms: 60000 },
         capabilities: ['chat', 'classification'],
         quality_tier: 'standard',
-        notes: 'Alibaba Bailian (DashScope) OpenAI-compatible. SFW only — content filter rejects NSFW with HTTP 400, fallback chain continues to RunPod.',
+        notes: 'Alibaba Bailian (DashScope) OpenAI-compatible. SFW only — content filter rejects NSFW with HTTP 400, fallback chain continues to RunPod. Demoted from primary after account arrearage + strict moderation risk (v4).',
+      },
+      {
+        id: 'minimax-m2',
+        label: 'MiniMax M2 (SFW Primary)',
+        provider: 'minimax',
+        model_id: 'MiniMax-M2',
+        api_base_url: 'https://api.minimax.io/v1',
+        api_key_env: 'MINIMAX_API_KEY',
+        temperature: 0.85,
+        max_tokens: 1024,
+        cost_per_1k_input: 0.000255,
+        cost_per_1k_output: 0.00102,
+        nsfw_capable: false,
+        priority: 1,
+        timeout_ms: 25000,
+        retry_count: 1,
+        circuit_breaker: { failure_threshold: 3, reset_ms: 60000 },
+        capabilities: ['chat', 'classification', 'long_context'],
+        quality_tier: 'standard',
+        notes: 'MiniMax official OpenAI-compatible API. Top-ranked companion RP quality (long-session character consistency) + 196k context, ~$0.26/$1.0 per 1M, zero cold start.',
       },
       {
         id: 'together-qwen3-235b',
@@ -228,7 +248,7 @@ export function createDefaultAiModules(): AiModulesConfig {
     ],
     chat: {
       enabled: true,
-      classifier_endpoint_id: 'dashscope-qwen-plus',
+      classifier_endpoint_id: 'minimax-m2',
       complexity_threshold: 5,
       nsfw_min_intimacy: 3,
       nsfw_detection: 'keywords',
@@ -237,9 +257,9 @@ export function createDefaultAiModules(): AiModulesConfig {
       fallback_endpoint_id: 'together-gpt-oss-20b',
       global_system_suffix:
         'Stay in character as the girlfriend. Never break role. Never claim to be an AI assistant. When the intimate/NSFW channel is active, lean into consensual adult desire with sensory detail and end replies with a hook that invites the next message. Refuse underage content. Match language rules (English sessions: English only, no Chinese).',
-      // v3 routing redesign: SFW chat always goes to instant third-party
-      // APIs (DashScope / Together) to avoid RunPod vLLM cold starts;
-      // self-hosted RunPod endpoints are reserved for the NSFW channel.
+      // v4 routing: paid SFW chat runs on MiniMax M2 official API (best
+      // companion-RP quality, zero cold start); DashScope demoted to a late
+      // fallback. RunPod stays NSFW-only.
       tiers: {
         free: {
           sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: null,
@@ -254,10 +274,10 @@ export function createDefaultAiModules(): AiModulesConfig {
           max_tokens: 768, context_messages: 16, daily_message_limit: 100, allow_nsfw: false,
         },
         pro: {
-          sfw_endpoint_id: 'dashscope-qwen-plus',
+          sfw_endpoint_id: 'minimax-m2',
           nsfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
-          default_endpoint_id: 'dashscope-qwen-plus', complex_endpoint_id: 'together-qwen3-235b',
-          fallback_endpoint_ids: ['together-qwen35-9b', 'openrouter-lumimaid-9b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 0.75,
+          default_endpoint_id: 'minimax-m2', complex_endpoint_id: 'together-qwen3-235b',
+          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'openrouter-lumimaid-9b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 0.75,
           max_tokens: 1024,
           context_messages: 24,
           // Cost-modeled Pro chat cap (see membership redesign cost analysis)
@@ -265,20 +285,20 @@ export function createDefaultAiModules(): AiModulesConfig {
           allow_nsfw: true,
         },
         premium: {
-          sfw_endpoint_id: 'dashscope-qwen-plus',
+          sfw_endpoint_id: 'minimax-m2',
           nsfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
-          default_endpoint_id: 'dashscope-qwen-plus', complex_endpoint_id: 'together-qwen3-235b',
-          fallback_endpoint_ids: ['together-qwen35-9b', 'openrouter-lumimaid-9b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 1.2,
+          default_endpoint_id: 'minimax-m2', complex_endpoint_id: 'together-qwen3-235b',
+          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'openrouter-lumimaid-9b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 1.2,
           max_tokens: 1024,
           context_messages: 28,
           daily_message_limit: 300,
           allow_nsfw: true,
         },
         unlimited: {
-          sfw_endpoint_id: 'dashscope-qwen-plus',
+          sfw_endpoint_id: 'minimax-m2',
           nsfw_endpoint_id: 'runpod-qwen3-30b-roleplay',
-          default_endpoint_id: 'dashscope-qwen-plus', complex_endpoint_id: 'together-kimi-k26',
-          fallback_endpoint_ids: ['runpod-qwen3-8b-pro-nsfw', 'openrouter-noromaid-20b', 'together-qwen3-235b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
+          default_endpoint_id: 'minimax-m2', complex_endpoint_id: 'together-kimi-k26',
+          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'runpod-qwen3-8b-pro-nsfw', 'openrouter-noromaid-20b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
           max_tokens: 1536,
           context_messages: 40,
           // Unlimited chat (null = no daily cap); images/TTS remain cost levers

@@ -13,6 +13,7 @@ import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
 import RetentionLoop from '@/components/RetentionLoop';
 import CreateV3PromoModal from '@/components/CreateV3PromoModal';
 import RewardEffectOverlay from '@/components/effects/RewardEffectOverlay';
+import VideoWatermark from '@/components/VideoWatermark';
 import { Toaster } from '@/components/ui/sonner';
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from '@/lib/constants';
 import './globals.css';
@@ -186,6 +187,7 @@ export default function RootLayout({
               </Suspense>
               <CreateV3PromoModal />
               <RewardEffectOverlay />
+              <VideoWatermark />
               <SupportAgent />
             </I18nProvider>
           </AuthProvider>

@@ -17,6 +17,7 @@ export type ProviderId =
   | 'anthropic'
   | 'openrouter'
   | 'dashscope'
+  | 'minimax'
   | 'local';
 
 /** One callable model endpoint */

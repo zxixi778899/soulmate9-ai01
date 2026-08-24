@@ -15,6 +15,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
+import { applyImageWatermark } from '@/lib/watermark';
 
 const URL_CACHE: Map<string, { url: string; expiresAt: number }> = new Map();
 const URL_TTL_SEC = 6 * 24 * 60 * 60; // refresh before 7-day signatures expire
@@ -326,10 +327,12 @@ export function decodeImagePayload(raw: string): Buffer {
 export async function uploadDataUrl(dataUrl: string, prefix = 'girlfriends'): Promise<string> {
   if (!isDataUrl(dataUrl)) throw new Error('not a data url');
   const { buffer, contentType, ext } = parseDataUrl(dataUrl);
+  // Brand-stamp generated stills (skip videos / audio payloads).
+  const stamped = contentType.startsWith('image/') ? await applyImageWatermark(buffer) : buffer;
   const ts = Date.now();
   const rand = Math.random().toString(36).slice(2, 8);
   const fileName = `${prefix}/avatar_${ts}_${rand}.${ext}`;
-  const { key } = await uploadFile(buffer, fileName, contentType, '');
+  const { key } = await uploadFile(stamped, fileName, contentType, '');
   return key;
 }
 
@@ -352,7 +355,8 @@ export async function uploadImageAsWebP(
     contentType === 'image/png' ||
     contentType === 'image/jpeg' ||
     contentType === 'image/jpg';
-  let uploadBuffer = buffer;
+  // Brand-stamp every generated still before (transcode +) upload.
+  let uploadBuffer = await applyImageWatermark(buffer);
   let uploadMime = contentType;
   let uploadExt = ext;
   if (transcodable) {
@@ -606,13 +610,15 @@ export async function uploadImageBase64(
     return { key: extractKeyFromUrl(raw) || raw, url: raw };
   }
   const buffer = decodeImagePayload(raw);
+  // Brand-stamp generated stills; non-image payloads (audio reuse) pass through.
+  const stamped = contentType.startsWith('image/') ? await applyImageWatermark(buffer) : buffer;
   const ext =
     contentType.includes('jpeg') || contentType.includes('jpg')
       ? 'jpg'
       : contentType.includes('webp')
         ? 'webp'
         : 'png';
-  return uploadFile(buffer, `gen_${Date.now()}.${ext}`, contentType, folder);
+  return uploadFile(stamped, `gen_${Date.now()}.${ext}`, contentType, folder);
 }
 
 export function extractKeyFromUrl(value: string | null | undefined): string | null {

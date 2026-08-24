@@ -33,22 +33,23 @@ function normalizeAiModules(raw: Partial<AiModulesConfig>): AiModulesConfig {
     merged.chat = { ...merged.chat, ...defaults.chat, global_system_suffix: merged.chat.global_system_suffix || defaults.chat.global_system_suffix };
     merged.image.scenes = Object.fromEntries(Object.entries(defaults.image.scenes).map(([scene, config]) => [scene, { ...config, ...(merged.image.scenes[scene as keyof typeof merged.image.scenes] || {}) }])) as typeof merged.image.scenes;
   }
-  if ((raw.version || 1) < 3) {
-    merged.version = 3;
-    // v3 redesign: SFW chat moves to instant third-party APIs (DashScope /
-    // Together) to avoid RunPod cold starts; RunPod stays NSFW-only. Force
-    // the routing fields for every tier while keeping admin-tuned quotas
-    // (daily limits, soft budget, context window) from the stored config.
+  if ((raw.version || 1) < 4) {
+    merged.version = 4;
+    // v3/v4 routing redesigns: SFW chat runs on instant third-party APIs
+    // (v4: MiniMax M2 official as paid primary; RunPod stays NSFW-only).
+    // Force the routing fields for every tier while keeping admin-tuned
+    // quotas (daily limits, soft budget, context window) from stored config.
     for (const [tierName, tier] of Object.entries(merged.chat.tiers)) {
-      const v3 = defaults.chat.tiers[tierName as keyof typeof defaults.chat.tiers];
-      if (!v3) continue;
-      tier.sfw_endpoint_id = v3.sfw_endpoint_id;
-      tier.nsfw_endpoint_id = v3.nsfw_endpoint_id;
-      tier.default_endpoint_id = v3.default_endpoint_id;
-      tier.complex_endpoint_id = v3.complex_endpoint_id;
-      tier.fallback_endpoint_ids = [...(v3.fallback_endpoint_ids || [])];
-      tier.allow_nsfw = v3.allow_nsfw;
+      const v4 = defaults.chat.tiers[tierName as keyof typeof defaults.chat.tiers];
+      if (!v4) continue;
+      tier.sfw_endpoint_id = v4.sfw_endpoint_id;
+      tier.nsfw_endpoint_id = v4.nsfw_endpoint_id;
+      tier.default_endpoint_id = v4.default_endpoint_id;
+      tier.complex_endpoint_id = v4.complex_endpoint_id;
+      tier.fallback_endpoint_ids = [...(v4.fallback_endpoint_ids || [])];
+      tier.allow_nsfw = v4.allow_nsfw;
     }
+    merged.chat.classifier_endpoint_id = defaults.chat.classifier_endpoint_id;
   }
   return merged;
 }
@@ -120,7 +121,7 @@ export async function saveAiModules(
 ): Promise<{ source: 'db' | 'file' }> {
   const next = {
     ...config,
-    version: 3,
+    version: 4,
     updated_at: new Date().toISOString(),
   };
 
