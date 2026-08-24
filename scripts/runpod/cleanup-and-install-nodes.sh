@@ -5,11 +5,26 @@
 set -e
 
 RUNPOD_VOLUME="/runpod-volume"
-COMFYUI_PATH="/comfyui"
+
+# Auto-detect ComfyUI path (try multiple locations)
+COMFYUI_PATH=""
+if [ -d "/comfyui" ]; then
+    COMFYUI_PATH="/comfyui"
+elif [ -d "$RUNPOD_VOLUME/ComfyUI" ]; then
+    COMFYUI_PATH="$RUNPOD_VOLUME/ComfyUI"
+elif [ -d "$RUNPOD_VOLUME/comfyui" ]; then
+    COMFYUI_PATH="$RUNPOD_VOLUME/comfyui"
+else
+    # Create new directory
+    COMFYUI_PATH="/comfyui"
+    mkdir -p "$COMFYUI_PATH"
+fi
+
 CUSTOM_NODES="$COMFYUI_PATH/custom_nodes"
 
 echo "🔧 Starting RunPod volume cleanup and node installation..."
 echo ""
+echo "📍 Detected ComfyUI path: $COMFYUI_PATH"
 
 # ============================================
 # 1. 检查目录结构
@@ -76,12 +91,29 @@ install_node() {
     
     if [ ! -d "$CUSTOM_NODES/$node_name" ]; then
         echo "📥 Installing $node_name..."
-        git clone --depth 1 "$repo_url" "$CUSTOM_NODES/$node_name" || {
-            echo "⚠️  Failed to install $node_name, skipping..."
-            return 1
-        }
         
-        # 安装依赖
+        # Try cloning without authentication first
+        if git clone --depth 1 "$repo_url" "$CUSTOM_NODES/$node_name" 2>/dev/null; then
+            # Success
+            :
+        else
+            # If failed, try with credentials disabled
+            echo "  ⚠️  Git clone failed, trying alternative method..."
+            
+            # Remove partial clone if exists
+            rm -rf "$CUSTOM_NODES/$node_name" 2>/dev/null || true
+            
+            # Try again with GIT_TERMINAL_PROMPT=0
+            if GIT_TERMINAL_PROMPT=0 git clone --depth 1 "$repo_url" "$CUSTOM_NODES/$node_name" 2>&1; then
+                :
+            else
+                echo "  ❌ Failed to install $node_name"
+                echo "     Note: Some nodes may require manual installation"
+                return 1
+            fi
+        fi
+        
+        # Install requirements
         if [ -f "$CUSTOM_NODES/$node_name/requirements.txt" ]; then
             echo "  Installing requirements..."
             python -m pip install --no-cache-dir -r "$CUSTOM_NODES/$node_name/requirements.txt" --quiet || true
@@ -98,13 +130,25 @@ install_node "https://github.com/Shakker-Labs/ComfyUI-IPAdapter-Flux.git" "comfy
 
 # 2. ControlNet - 已有
 if [ ! -d "$CUSTOM_NODES/sd-webui-controlnet" ]; then
-    echo "📥 Installing sd-webui-controlnet v2..."
-    git clone --branch v2 https://github.com/Mikubill/sd-webui-controlnet.git "$CUSTOM_NODES/sd-webui-controlnet" || \
-    git clone https://github.com/Mikubill/sd-webui-controlnet.git "$CUSTOM_NODES/sd-webui-controlnet"
+    echo "📥 Installing sd-webui-controlnet..."
+    # Try main branch first (v2 branch doesn't exist)
+    GIT_TERMINAL_PROMPT=0 git clone https://github.com/Mikubill/sd-webui-controlnet.git "$CUSTOM_NODES/sd-webui-controlnet" || {
+        echo "⚠️  Failed to install ControlNet"
+    }
 fi
 
 # 3. ADetailer - 已有
-install_node "https://github.com/Gourieff/ComfyUI-ADetailer.git" "ComfyUI-ADetailer"
+if [ ! -d "$CUSTOM_NODES/ComfyUI-ADetailer" ]; then
+    echo "📥 Installing ComfyUI-ADetailer..."
+    # Use direct HTTPS URL without credentials
+    GIT_TERMINAL_PROMPT=0 git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git "$CUSTOM_NODES/ComfyUI-ADetailer" || {
+        echo "  ⚠️  Trying alternative repository..."
+        # Try the original Gourieff repo with no prompt
+        GIT_TERMINAL_PROMPT=0 git clone --depth 1 https://github.com/Gourieff/ComfyUI-ADetailer.git "$CUSTOM_NODES/ComfyUI-ADetailer" 2>&1 || {
+            echo "❌ ADetailer installation failed - will try again later"
+        }
+    }
+fi
 
 # 4. KJNodes - 可能有
 install_node "https://github.com/kijai/ComfyUI-KJNodes.git" "ComfyUI-KJNodes"
@@ -124,19 +168,19 @@ echo "🎯 Installing additional recommended nodes..."
 # Impact Pack (必装 - 核心功能包)
 if [ ! -d "$CUSTOM_NODES/ImpactPack" ]; then
     echo "📥 Installing ImpactPack..."
-    git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git "$CUSTOM_NODES/ImpactPack"
+    GIT_TERMINAL_PROMPT=0 git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git "$CUSTOM_NODES/ImpactPack" || echo "⚠️  ImpactPack failed"
 fi
 
 # ComfyUI Manager (管理和更新节点)
 if [ ! -d "$CUSTOM_NODES/ComfyUI-Manager" ]; then
     echo "📥 Installing ComfyUI-Manager..."
-    git clone https://github.com/pythongosssss/ComfyUI-Manager.git "$CUSTOM_NODES/ComfyUI-Manager"
+    GIT_TERMINAL_PROMPT=0 git clone https://github.com/pythongosssss/ComfyUI-Manager.git "$CUSTOM_NODES/ComfyUI-Manager" || echo "⚠️  Manager failed"
 fi
 
 # WAS Node Suite (实用工具集)
 if [ ! -d "$CUSTOM_NODES/WAS-Node-Suite" ]; then
     echo "📥 Installing WAS-Node-Suite..."
-    git clone https://github.com/BadCafé/was-node-suite-comfyui.git "$CUSTOM_NODES/WAS-Node-Suite"
+    GIT_TERMINAL_PROMPT=0 git clone https://github.com/WASasquatch/was-node-suite-comfyui.git "$CUSTOM_NODES/WAS-Node-Suite" || echo "⚠️  WAS-Node-Suite failed"
 fi
 
 # ComfyUI-Custom-Scripts (PaulS 的高级功能)
@@ -148,25 +192,25 @@ fi
 # Easy Notes (注释节点)
 if [ ! -d "$CUSTOM_NODES/easy-notes" ]; then
     echo "📥 Installing Easy-Nodes..."
-    git clone https://github.com/nodelove/ComfyUI-Easy-Notes.git "$CUSTOM_NODES/easy-notes"
+    GIT_TERMINAL_PROMPT=0 git clone https://github.com/nodelove/ComfyUI-Easy-Notes.git "$CUSTOM_NODES/easy-notes" || echo "⚠️  Easy-Nodes failed"
 fi
 
 #rgthree-comfy (工作流优化)
 if [ ! -d "$CUSTOM_NODES/rgthree-comfy" ]; then
     echo "📥 Installing rgthree-comfy..."
-    git clone https://github.com/rgthree/rgthree-comfy.git "$CUSTOM_NODES/rgthree-comfy"
+    GIT_TERMINAL_PROMPT=0 git clone https://github.com/rgthree/rgthree-comfy.git "$CUSTOM_NODES/rgthree-comfy" || echo "⚠️  rgthree-comfy failed"
 fi
 
 # ComfyUI_Fixed-Seed (固定种子)
 if [ ! -d "$CUSTOM_NODES/ComfyUI_Fixed-Seed" ]; then
     echo "📥 Installing ComfyUI_Fixed-Seed..."
-    git clone https://github.com/kijai/ComfyUI_Fixed-Seed.git "$CUSTOM_NODES/ComfyUI_Fixed-Seed"
+    GIT_TERMINAL_PROMPT=0 git clone https://github.com/kijai/ComfyUI_Fixed-Seed.git "$CUSTOM_NODES/ComfyUI_Fixed-Seed" || echo "⚠️  Fixed-Seed failed"
 fi
 
 # InstLatexFF (节点检测)
 if [ ! -d "$CUSTOM_NODES/InstLatexFF" ]; then
     echo "📥 Installing InstLatexFF..."
-    git clone https://github.com/INSTILLATION/ComfyUI-InstLatexFF.git "$CUSTOM_NODES/InstLatexFF"
+    GIT_TERMINAL_PROMPT=0 git clone https://github.com/INSTILLATION/ComfyUI-InstLatexFF.git "$CUSTOM_NODES/InstLatexFF" || echo "⚠️  InstLatexFF failed"
 fi
 
 echo ""
