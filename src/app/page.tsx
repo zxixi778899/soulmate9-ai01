@@ -511,7 +511,7 @@ export default function HomePage() {
   const [catalogReady, setCatalogReady] = useState(false);
   const [catalogSource, setCatalogSource] = useState<'api' | 'demo'>('api');
   const [categoryFilter, setCategoryFilter] = useState<'all' | CompanionCategory>('all');
-  const [sortMode, setSortMode] = useState<'hot' | 'new' | 'featured'>('hot');
+  const [sortMode, setSortMode] = useState<'hot' | 'new' | 'featured'>('featured');
   const [detail, setDetail] = useState<DemoGirl | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [bonding, setBonding] = useState(false);

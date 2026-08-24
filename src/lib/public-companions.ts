@@ -225,6 +225,10 @@ export async function loadPublicGirlfriends(limit = 48): Promise<PublicCompanion
       created_at: (g.created_at as string) ?? null,
       voice_promo_url: (g.voice_promo_url as string | null) ?? null,
       is_demo: false,
+      is_hot: (g.is_hot as boolean) ?? false,
+      is_featured: (g.is_featured as boolean) ?? false,
+      hot_score: (g.hot_score as number) ?? null,
+      sort_order: (g.sort_order as number) ?? null,
     });
   }
 
@@ -386,6 +390,7 @@ export async function loadCatalogCompanions(limit = 48): Promise<{
     string,
     { is_hot?: boolean; is_featured?: boolean; hot_score?: number; sort_order?: number }
   >();
+  let hotColsOk = false;
   try {
     const sb = getSupabaseClient();
     const { data: hotRows, error: hotErr } = await sb
@@ -398,6 +403,7 @@ export async function loadCatalogCompanions(limit = 48): Promise<{
       .order('hot_score', { ascending: false })
       .limit(60);
     if (!hotErr && hotRows) {
+      hotColsOk = true;
       for (const h of hotRows as Record<string, unknown>[]) {
         hotById.set(String(h.id), {
           is_hot: h.is_hot === true,
@@ -445,9 +451,10 @@ export async function loadCatalogCompanions(limit = 48): Promise<{
     merged.push(r);
   }
 
-  // C) remaining public
+  // C) remaining public — popularity-0 companions never surface (only hot_score > 0 or admin-pinned)
   for (const r of publicRows) {
     if (!r.id || seen.has(r.id)) continue;
+    if (hotColsOk && !r.is_featured && !r.is_hot && Number(r.hot_score || 0) <= 0) continue;
     seen.add(r.id);
     merged.push(r);
   }

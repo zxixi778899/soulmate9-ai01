@@ -127,9 +127,9 @@ if (TOGETHER_KEY) {
   results.push({ label: 'together:*', ok: false, ms: 0, detail: 'SKIPPED — no TOGETHER_API_KEY (set it in .env.local to probe)' });
 }
 
-// ── 3. OpenRouter NSFW fallbacks ──
+// ── 3. OpenRouter NSFW fallbacks (live slugs, 2026-08) ──
 if (OPENROUTER_KEY) {
-  for (const model of ['lumimaid-v02-9b', 'noromaid-20b']) {
+  for (const model of ['sao10k/l3.3-euryale-70b', 'aion-labs/aion-rp-llama-3.1-8b']) {
     await chatCompletion(`openrouter:${model}`, 'https://openrouter.ai/api/v1/chat/completions', OPENROUTER_KEY, model, {}, 45_000);
   }
 } else {

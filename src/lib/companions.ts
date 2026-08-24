@@ -298,8 +298,15 @@ export async function fetchCompanionCatalog(limit = 48): Promise<CompanionCatalo
       const data = await pubRes.json();
       const rows = (data.girlfriends || []) as Record<string, unknown>[];
       const visible = rows.filter((r) => String(r.access_status || 'open') !== 'closed');
-      if (visible.length > 0) {
-        const girls = await mergeUnlockFlags(visible.map((r, i) => mapToDemoGirl(r, i)));
+      // Popularity 0 not shown: when hot_score column exists, keep only popular or admin-pinned companions
+      const hasHotCol = visible.some((r) => r.hot_score !== null && r.hot_score !== undefined);
+      const shown = hasHotCol
+        ? visible.filter(
+            (r) => r.is_hot === true || r.is_featured === true || Number(r.hot_score || 0) > 0,
+          )
+        : visible;
+      if (shown.length > 0) {
+        const girls = await mergeUnlockFlags(shown.map((r, i) => mapToDemoGirl(r, i)));
         return {
           girls,
           source: 'api',
