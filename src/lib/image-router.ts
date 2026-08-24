@@ -16,6 +16,7 @@ import { logger } from '@/lib/logger';
 import { isGpuCapacityError, runpodClient } from '@/lib/runpod';
 import { falGenerate, isFalConfigured } from '@/lib/fal-client';
 import type { ImageModelFamily } from '@/lib/image-generation-routing';
+import { resolveSdxlEndpoint } from '@/lib/image-generation-routing';
 import {
   getBreakerState,
   memoryGetBreaker,
@@ -170,9 +171,19 @@ async function executeRunPod(
   config: ImageRouteConfig,
   opts: ImageRouterOptions,
 ): Promise<{ images: string[]; pending?: boolean; job_id?: string; seed?: number }> {
-  const endpointId = config.endpoint_env
+  // Per-family endpoint resolution for the SDXL matrix provider: pony
+  // checkpoints only exist on the Pony endpoint and Illustrious checkpoints
+  // only on the Illustrious endpoint, so a shared generic env would submit
+  // workflows to the wrong worker (job 404 / missing checkpoint).
+  let endpointId = config.endpoint_env
     ? process.env[config.endpoint_env] || opts.endpoint_id
     : opts.endpoint_id;
+  if (config.provider === 'runpod_dc2' && opts.model_family && opts.model_family !== 'flux') {
+    const familyEndpoint = resolveSdxlEndpoint(
+      opts.model_family === 'illustrious' ? 'illustrious' : 'pony',
+    );
+    if (familyEndpoint) endpointId = familyEndpoint;
+  }
 
   const gen = await runpodClient.generate({
     prompt: opts.prompt,
