@@ -702,6 +702,7 @@ export interface RunPodGenerateOptions {
 export interface RunPodGenerateResult {
   images: string[];
   execution_time?: number;
+  latency_ms?: number; // 新增：用于 /runsync 直接调用的耗时
   job_id?: string;
   pending?: boolean;
   status?: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
@@ -1042,6 +1043,7 @@ class RunPodClient {
     options = this.preflightValidateModelOptions(options);
     const endpointId = options.endpoint_id || this.endpointId;
     const baseUrl = endpointId ? `https://api.runpod.ai/v2/${endpointId}` : this.baseUrl;
+    const started = Date.now(); // 新增：用于计算 /runsync 耗时
     if (!this.apiKey || !endpointId) {
       throw new Error('RunPod is not configured. Set RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID.');
     }
@@ -1267,258 +1269,68 @@ class RunPodClient {
           poll_budget_ms: pollBudgetMs,
         });
 
-        const submitRes = await fetch(`${baseUrl}/run`, {
+        const submitRes = await fetch(`${baseUrl}/runsync`, {
           method: 'POST',
           headers: this.headers,
-          body: JSON.stringify({ input: strategy.input }),
-          signal: AbortSignal.timeout(15000),
+          body: JSON.stringify({ input: strategy.input, async_: false }),
+          signal: AbortSignal.timeout(300000), // 5 minutes for sync call
         });
 
         if (!submitRes.ok) {
           const errText = await submitRes.text();
           errors.push(`${strategy.name}: submit HTTP ${submitRes.status} ${errText.slice(0, 160)}`);
-          // Hard submit fail → try next payload shape
           continue;
         }
 
-        const { id } = (await submitRes.json()) as { id: string };
-        if (!id) {
-          errors.push(`${strategy.name}: no job id`);
+        // /runsync returns result directly (no job_id polling)
+        const submitData = (await submitRes.json()) as {
+          output?: { images?: Array<string | RunPodImageOutput> };
+          error?: string;
+          status?: string;
+        };
+
+        if (submitData.error || submitData.status === 'FAILED') {
+          errors.push(`${strategy.name}: ${submitData.error || 'failed'}`);
           continue;
         }
 
-        // submit_only: return immediately — client will poll /api/runpod/status
-        if (options.submit_only) {
-          logger.info('[runpod] job submitted (submit_only) — client will poll', {
-            id,
-            strategy: strategy.name,
-          });
-          return {
-            images: [],
-            job_id: id,
-            pending: true,
-            status: 'IN_QUEUE',
-            endpoint_id: endpointId,
-            waited_ms: 0,
-            strategy: strategy.name,
-          };
+        // Success! Direct result from /runsync
+        const images: string[] = [];
+        const out = submitData.output as Record<string, unknown> | undefined;
+
+        if (Array.isArray(out?.images)) {
+          for (const img of out.images) {
+            if (typeof img === 'string') images.push(img);
+            else if (typeof img === 'object') {
+              // Extract image URL/data from object
+              const urlOrData = (img as any).url || (img as any).image || (img as any).data;
+              if (typeof urlOrData === 'string') images.push(urlOrData);
+            }
+          }
+        } else if (out?.image && typeof out.image === 'string') {
+          images.push(out.image);
+        } else if (out?.data && typeof out.data === 'string') {
+          images.push(out.data);
         }
 
-        logger.info('[runpod] job submitted — waiting (queue may be 2–5 min)', {
-          id,
+        if (!images.length) {
+          errors.push(`${strategy.name}: no images in response`);
+          continue;
+        }
+
+        // Success! Direct result from /runsync
+        logger.info('[runpod] success', {
           strategy: strategy.name,
+          id: 'direct',
+          count: images.length,
         });
 
-        let terminal: 'success' | 'fail' | 'timeout' = 'timeout';
-        let successResult: RunPodGenerateResult | null = null;
-        let failMsg = '';
-        let lastStatus = '';
-
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          const statusRes = await fetch(`${baseUrl}/status/${id}`, {
-            headers: this.headers,
-            signal: AbortSignal.timeout(10000),
-          });
-
-          if (!statusRes.ok) {
-            failMsg = `status HTTP ${statusRes.status}`;
-            terminal = 'fail';
-            break;
-          }
-
-          const status = (await statusRes.json()) as RunPodJobStatus & {
-            output?: {
-              images?: Array<RunPodImageOutput | string>;
-              error?: string;
-              message?: string;
-            };
-          };
-
-          if (status.status !== lastStatus) {
-            lastStatus = status.status;
-            logger.info('[runpod] job status', { id, status: status.status, attempt });
-          }
-
-          if (status.status === 'COMPLETED') {
-            const images: string[] = [];
-            const out = status.output as Record<string, unknown> | undefined;
-
-            /** Only accept real image payloads — never prompts / bare filenames */
-            const looksLikeImagePayload = (s: string): boolean => {
-              const t = s.trim();
-              if (!t || t.length < 64) return false;
-              if (/^https?:\/\//i.test(t)) return true;
-              if (t.startsWith('data:image/')) return true;
-              // Reject natural-language prompts (common worker mis-map)
-              if (/\s/.test(t) && /\b(photo|portrait|woman|photorealistic|masterpiece)\b/i.test(t)) {
-                return false;
-              }
-              // Bare Comfy filename without bytes — not usable
-              if (/^[\w./-]+\.(png|jpe?g|webp)$/i.test(t) && t.length < 180) return false;
-              // Base64-ish long blob (PNG magic in b64 often starts iVBOR)
-              const compact = t.replace(/\s+/g, '');
-              if (compact.startsWith('iVBOR') && compact.length > 200) return true;
-              if (compact.startsWith('/9j/') && compact.length > 200) return true;
-              return compact.length > 500 && /^[A-Za-z0-9+/_=-]+$/.test(compact.slice(0, 120));
-            };
-
-            const pushImg = (v: unknown) => {
-              if (!v) return;
-              if (typeof v === 'string') {
-                if (looksLikeImagePayload(v)) images.push(v);
-                return;
-              }
-              if (typeof v === 'object' && v !== null) {
-                const o = v as Record<string, unknown>;
-                // Prefer binary fields; never use prompt/text/filename alone
-                const candidates = [
-                  o.data,
-                  o.image,
-                  o.base64,
-                  o.b64_json,
-                  o.b64,
-                  o.url, // may be https
-                ];
-                for (const cand of candidates) {
-                  if (typeof cand === 'string' && looksLikeImagePayload(cand)) {
-                    images.push(cand);
-                    return;
-                  }
-                }
-              }
-            };
-
-            if (Array.isArray(out?.images)) {
-              for (const img of out!.images as unknown[]) pushImg(img);
-            }
-            pushImg(out?.image);
-            // Some workers wrap: { output: { images: [...] } }
-            if (out?.output && typeof out.output === 'object') {
-              const inner = out.output as Record<string, unknown>;
-              if (Array.isArray(inner.images)) {
-                for (const img of inner.images) pushImg(img);
-              }
-              pushImg(inner.image);
-            }
-            // Only treat message as image if it is clearly a data-URL / base64 blob
-            if (typeof out?.message === 'string' && looksLikeImagePayload(out.message)) {
-              pushImg(out.message);
-            }
-            if (Array.isArray(out?.result)) {
-              for (const r of out!.result as unknown[]) pushImg(r);
-            }
-
-            if (!images.length) {
-              // Help debug worker shape without dumping huge base64
-              const shape = out
-                ? Object.keys(out).reduce<Record<string, string>>((acc, k) => {
-                    const v = out[k];
-                    if (v == null) acc[k] = 'null';
-                    else if (typeof v === 'string') acc[k] = `str:${v.length}`;
-                    else if (Array.isArray(v)) acc[k] = `arr:${v.length}`;
-                    else if (typeof v === 'object') acc[k] = `obj:${Object.keys(v as object).join(',')}`;
-                    else acc[k] = typeof v;
-                    return acc;
-                  }, {})
-                : {};
-              failMsg =
-                'COMPLETED but no valid image bytes in output. shape=' +
-                JSON.stringify(shape).slice(0, 280);
-              terminal = 'fail';
-              break;
-            }
-            successResult = {
-              images,
-              execution_time: status.execution_time,
-              job_id: id,
-            };
-            terminal = 'success';
-            break;
-          }
-
-          if (status.status === 'FAILED') {
-            failMsg =
-              status.error ||
-              status.output?.error ||
-              status.output?.message ||
-              JSON.stringify(status.output || status).slice(0, 280);
-            terminal = 'fail';
-            break;
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-        }
-
-        if (terminal === 'success' && successResult) {
-          logger.info('[runpod] success', {
-            strategy: strategy.name,
-            id,
-            count: successResult.images.length,
-          });
-          return successResult;
-        }
-
-                if (terminal === 'timeout') {
-          // Keep queue position — do NOT cancel unless caller opts in.
-          const waited = pollBudgetMs;
-          if ((options.on_timeout || 'pending') === 'cancel') {
-            try {
-              await fetch(`${baseUrl}/cancel/${id}`, {
-                method: 'POST',
-                headers: this.headers,
-                signal: AbortSignal.timeout(5000),
-              });
-            } catch {
-              /* ignore */
-            }
-            throw new Error(
-              `RunPod queue timeout (waited ${Math.round(pollBudgetMs / 1000)}s, job ${id}). ` +
-                `Endpoint ${endpointId} workers busy/long queue. Retry later or check RunPod console.`,
-            );
-          }
-          logger.info('[runpod] poll budget exceeded — keep job alive', {
-            id,
-            strategy: strategy.name,
-            waited_ms: waited,
-            endpoint: endpointId,
-          });
-          const pendingResult: RunPodGenerateResult = {
-            images: [],
-            job_id: id,
-            pending: true,
-            status: (lastStatus as 'IN_QUEUE' | 'IN_PROGRESS') || 'IN_QUEUE',
-            endpoint_id: endpointId,
-            waited_ms: waited,
-            strategy: strategy.name,
-          };
-          if (options.throw_on_pending !== false) {
-            throw new RunPodPendingError({
-              job_id: id,
-              endpoint_id: endpointId,
-              waited_ms: waited,
-              status: pendingResult.status || 'IN_QUEUE',
-              strategy: strategy.name,
-            });
-          }
-          return pendingResult;
-        }
-
-        // FAILED with this payload shape → try next strategy
-        errors.push(`${strategy.name}: ${failMsg || 'failed'}`);
-        // If the error is clearly "missing workflow" / bad shape, fall through.
-        // Otherwise still try next once.
+        const elapsed = Date.now() - started; // 重新计算耗时
+        return {
+          images,
+          latency_ms: elapsed,
+        };
       } catch (e) {
-        // Re-throw pending/timeout so caller can resume the same job_id
-        if (e instanceof RunPodPendingError) throw e;
-        if (
-          e instanceof Error &&
-          (e.message.startsWith('RunPod queue timeout') ||
-            e.message.startsWith('RunPod still queued') ||
-            e.message.includes('仍在排队') ||
-            e.message.includes('排队超时'))
-        ) {
-          throw e;
-        }
         errors.push(
           `${strategy.name}: ${e instanceof Error ? e.message : String(e)}`,
         );
@@ -1530,8 +1342,8 @@ class RunPodClient {
     // 卷资产配置问题，必须暴露出来修复，而不是用错误家族出图。
     const hint =
       endpointId.startsWith('h0p7dpiv')
-        ? ' [提示: 端点 h0p7dpiv* 在项目文档中标记为不可用，请把 Vercel RUNPOD_ENDPOINT_ID 改成可用的 Comfy 端点，例如本地 b6r5nhhrddf8dx]'
-        : ' [提示: 确认 RUNPOD_ENDPOINT_ID 是 Comfy/FLUX 出图端点；Flux Unchained 需 worker 有 clip_l.safetensors + t5xxl_fp8_e4m3fn.safetensors (models/clip) 与 ae.safetensors (models/vae)]';
+        ? ' [提示：端点 h0p7dpiv* 在项目文档中标记为不可用，请把 Vercel RUNPOD_ENDPOINT_ID 改成可用的 Comfy 端点，例如本地 b6r5nhhrddf8dx]'
+        : ' [提示：确认 RUNPOD_ENDPOINT_ID 是 Comfy/FLUX 出图端点；Flux Unchained 需 worker 有 clip_l.safetensors + t5xxl_fp8_e4m3fn.safetensors (models/clip) 与 ae.safetensors (models/vae)]';
 
     throw new Error(`RunPod generation failed: ${joined}${hint}`);
   }
