@@ -293,7 +293,7 @@ export default function ChatsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedFriendId = searchParams.get('friend');
-  const { user } = useAuth();
+  const { user, session } = useAuth();  // ✅ Added session
   const membership = useMembership();
   const { unreadCounts, refreshUnread } = useUnreadMessages();
 
@@ -939,9 +939,18 @@ export default function ChatsPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text || displayText, girlfriend_id: selectedId, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale, reply_mode: replyMode, prefer_nsfw: nsfwMode, ...(selectedChatModel ? { chat_model: selectedChatModel } : {}), ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}) }),
       });
+      
+      // Debug log
       if (!res.ok) {
+        console.error('[Chats] Auth error details:', {
+          status: res.status,
+          statusText: res.statusText,
+          url: res.url,
+          hasSession: !!session,
+          hasUser: !!user,
+        });
         const errBody = (await readResponseJson(res).catch(() => ({}))) as { error?: string; localized_error?: string; code?: string };
-        throw new Error(typeof errBody?.localized_error === 'string' ? errBody.localized_error : errBody.code === 'daily_message_limit' ? t('chat.messageDailyLimit') : typeof errBody?.error === 'string' ? errBody.error : `Send failed (${res.status})`);
+        throw new Error(typeof errBody?.localized_error === 'string' ? errBody.localized_error : errBody.code === 'daily_message_limit' ? t('chat.messageDailyLimit') : typeof errBody?.error === 'string' ? errBody.error : `Send failed (${res.status}) ${errBody.error ? `- ${errBody.error}` : ''}`);
       }
 
       setMessages((prev) => prev.map((m) => m.id === tempId ? { ...m, status: 'sent', media_url: mediaUrl || m.media_url, media_type: mediaType || m.media_type } : m));

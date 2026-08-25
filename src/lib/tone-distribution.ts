@@ -84,29 +84,29 @@ export const TONE_DEFINITIONS: Record<ToneType, ToneDef> = {
 
 /** Base probability distribution */
 const BASE_DISTRIBUTION: Record<ToneType, number> = {
-  sweet: 60,
-  coquettish: 20,
-  refusal: 10,
-  angry: 10,
+  sweet: 50,      // 降低温柔比例，避免全程甜腻
+  coquettish: 25, // 增加撒娇比例，让对话更有活力
+  refusal: 15,    // 傲娇型必备，制造反差
+  angry: 10,      // 小脾气偶尔出现，保持真实
 };
 
 /** Personality modifier matrix — adjusts probability distribution */
 const PERSONALITY_MODIFIERS: Record<string, Record<ToneType, number>> = {
-  tsundere: { sweet: -20, coquettish: -5, refusal: +10, angry: +15 },
-  oneeSan: { sweet: +15, coquettish: -5, refusal: -3, angry: -7 },
-  yandere: { sweet: -15, coquettish: 0, refusal: 0, angry: +15 },
-  genki: { sweet: -10, coquettish: +10, refusal: 0, angry: 0 },
-  kuudere: { sweet: +5, coquettish: -15, refusal: +10, angry: 0 },
+  tsundere: { sweet: -15, coquettish: -5, refusal: +20, angry: +15 }, // 傲娇：更多"才不是"
+  oneeSan: { sweet: +20, coquettish: -5, refusal: -10, angry: -15 },  // 姐姐：超级温柔
+  yandere: { sweet: -10, coquettish: +5, refusal: +5, angry: +20 },   // 病娇：占有欲强
+  genki: { sweet: -5, coquettish: +20, refusal: -5, angry: 0 },       // 元气：超级撒娇
+  kuudere: { sweet: +10, coquettish: -20, refusal: +15, angry: -5 },  // 高冷：话少但关心
 };
 
-/** Mood-to-tone override mapping */
+/** Mood-to-tone override mapping - increased weights for more consistent mood response */
 const MOOD_TONE_OVERRIDE: Record<string, { primary: ToneType; weight: number }> = {
-  angry: { primary: 'angry', weight: 0.7 },
-  jealous: { primary: 'angry', weight: 0.6 },
-  sad: { primary: 'refusal', weight: 0.5 },
-  happy: { primary: 'sweet', weight: 0.6 },
-  excited: { primary: 'coquettish', weight: 0.5 },
-  flirtatious: { primary: 'coquettish', weight: 0.6 },
+  angry: { primary: 'angry', weight: 0.8 },  // 他生气时匹配他的情绪
+  jealous: { primary: 'angry', weight: 0.7 }, // 吃醋时带点小脾气
+  sad: { primary: 'sweet', weight: 0.7 },    // 难过时更温柔安慰
+  happy: { primary: 'coquettish', weight: 0.6 }, // 开心时撒娇
+  excited: { primary: 'coquettish', weight: 0.7 }, // 兴奋时活泼
+  flirtatious: { primary: 'coquettish', weight: 0.8 }, // 暧昧时调情
 };
 
 /** Intimacy level modifier — higher intimacy = slightly more coquettish */
