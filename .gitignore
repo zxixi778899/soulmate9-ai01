@@ -97,3 +97,25 @@ ourdream-*.png
 
 # downloaded model binaries
 loras/
+# Debug scripts
+_check-*.*
+_tmp-*.*
+scripts/test-*.js
+scripts/debug-*.mjs
+scripts/verify-*.mjs
+scripts/check-*.js
+scripts/diagnose-*.js
+MOBILE-CHAT-OPTIMIZATION-TEST.js
+
+# Temporary files
+*.png
+*.txt
+
+# Logs
+vercel-logs.tmp.old
+vl-tmp.old
+vercel-all.old.txt
+vercel-full.old.txt
+
+# Old backups
+old.txt
