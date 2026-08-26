@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { client } from '@/lib/supabase';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 import { requireAdmin } from '@/lib/require-admin';
 
@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Get daily stats
+    const client = getSupabaseClient();
     const todayStats = await client.rpc('get_daily_stats', { days: 1 });
     
     // Get cache health
