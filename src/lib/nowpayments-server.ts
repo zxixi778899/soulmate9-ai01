@@ -29,8 +29,21 @@ async function nowPaymentsFetch<T>(path: string, options?: RequestInit): Promise
     signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`NOWPayments ${path} HTTP ${res.status}: ${text}`);
+    let text = '';
+    try {
+      text = await res.text().catch(() => '');
+    } catch (e) {
+      text = '[unable to read response body]';
+    }
+    
+    logger.error('NOWPayments API error:', {
+      path,
+      status: res.status,
+      statusText: res.statusText,
+      body: text,
+    });
+    
+    throw new Error(`NOWPayments ${path} HTTP ${res.status}: ${text || 'Unknown error'}`);
   }
   return res.json() as Promise<T>;
 }
@@ -93,6 +106,13 @@ export async function nowPaymentsCreatePayment(params: {
   pay_amount_v2?: number;
   network?: string;
 }> {
+  logger.info('[nowpayments] Creating payment:', {
+    price_amount: params.price_amount,
+    price_currency: params.price_currency,
+    pay_currency: params.pay_currency,
+    order_id: params.order_id.slice(-8), // Log last 8 chars for privacy
+  });
+  
   return nowPaymentsFetch('/payment', {
     method: 'POST',
     body: JSON.stringify(params),

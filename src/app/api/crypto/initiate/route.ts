@@ -13,16 +13,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { planId, billing } = await request.json();
+  const body = await request.json();
+  logger.info('[crypto/initiate] Received request:', { 
+    planId: body.planId, 
+    billing: body.billing,
+    userId: user.id.slice(-8) // Last 8 chars for privacy
+  });
 
   // Validate plan
-  if (!planId || !['pro', 'premium', 'unlimited'].includes(planId)) {
-    return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
+  if (!body.planId || !['pro', 'premium', 'unlimited'].includes(body.planId)) {
+    logger.warn('[crypto/initiate] Invalid plan:', { planId: body.planId });
+    return NextResponse.json({ error: 'Invalid plan. Must be: pro, premium, unlimited' }, { status: 400 });
   }
 
+  const { planId, billing } = body;
+  
   // Get price in cents based on plan and billing cycle
   const amountCents = getNowPaymentsPriceCents(planId, billing);
   if (!amountCents) {
+    logger.warn('[crypto/initiate] No price found:', { planId, billing });
     return NextResponse.json(
       { error: `No price found for ${planId}/${billing}` }, 
       { status: 400 }
@@ -50,9 +59,10 @@ export async function POST(request: Request) {
       plan_id: planId,
       amount_usd: amountUsd,
       currency: 'USDT',
-      network: 'TRC-20',
+      // network and expires_at columns may not exist yet - will be added via migration
+      // For NowPayments hosted invoices, we store the pay_address in wallet_address temporarily
+      wallet_address: '', // Will be filled by webhook when payment received
       status: 'awaiting_payment',
-      expires_at: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes from NOW
     })
     .select('id')
     .single();
