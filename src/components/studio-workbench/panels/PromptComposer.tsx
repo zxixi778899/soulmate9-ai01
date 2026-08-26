@@ -11,26 +11,11 @@ const NSFW_LABELS: Record<number, string> = { 1: 'SFW', 2: 'LV1 暗示', 3: 'LV2
 
 export function PromptComposer() {
   const { state, dispatch, optimizePrompt, resolvedPrompt } = useStudio();
-  const [expandedPresets, setExpandedPresets] = useState(true);
-
-  // Reusable preset section (avoid recreating on every render)
-  const presetSection = useMemo(() => (
-    <PromptPresets />
-  ), []);
 
   return (
     <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      {/* Prompt presets - collapsible */}
-      <details open={expandedPresets} onToggle={() => setExpandedPresets(!expandedPresets)}>
-        <summary className="flex cursor-pointer items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-          <div className="flex items-center gap-1.5">
-            <Bookmark className="h-3 w-3 text-violet-400" />
-            <span>提示词预设</span>
-          </div>
-          {expandedPresets ? <ChevronUp className="h-3.5 w-3.5 text-slate-600" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-600" />}
-        </summary>
-        <div className="mt-2">{presetSection}</div>
-      </details>
+      {/* Prompt presets */}
+      <PromptPresets />
 
       {/* Prompt textarea */}
       <div>
