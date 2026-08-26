@@ -11,14 +11,15 @@ import { requireAdmin } from '@/lib/require-admin';
  * Returns hit rate, health score, CPU saved, and top cached prompts.
  */
 export async function GET(request: NextRequest) {
-  const user = await getAuthUser(request);
+  const userResult = await getAuthUser(request);
   
-  if (!user) {
+  if (userResult.error || !userResult.user) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
   // Check admin role
-  await requireAdmin(user);
+  const admin = await requireAdmin(request);
+  if (admin.error) return admin.error;
 
   try {
     // Get daily stats
