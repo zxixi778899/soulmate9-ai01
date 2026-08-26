@@ -33,11 +33,14 @@ export async function POST(request: Request) {
     // amount_usd is numeric(12,2) storing dollars (e.g. 9.99)
     const amountUsd = amountCents / 100;
 
+    // Determine billing cycle
+    const cycle: 'monthly' | 'yearly' = billing === 'yearly' ? 'yearly' : 'monthly';
+
     // Create NOWPayments payment
-    const cycleLabel = billing === 'yearly' ? 'Yearly' : 'Monthly';
+    const cycleLabel = cycle === 'yearly' ? 'Yearly' : 'Monthly';
     const planName = planId.charAt(0).toUpperCase() + planId.slice(1);
     const orderDescription = `${planName} ${cycleLabel} Membership`;
-    const orderId = `soulmate_${planId}_${billing}_${Date.now()}`;
+    const orderId = `soulmate_${planId}_${cycle}_${Date.now()}`;
 
     // Create pending payment record in DB for tracking
     const supabase = getSupabaseClient();
@@ -90,5 +93,6 @@ export async function POST(request: Request) {
         { error: 'Failed to create payment with NOWPayments' }, 
         { status: 500 }
       );
+    }
   }
 }
