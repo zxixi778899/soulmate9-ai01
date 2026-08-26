@@ -171,12 +171,12 @@ export function getNowPaymentsPriceCents(plan: string, billing: string): number 
   };
   const cycle = discounts[billing] ?? discounts.monthly;
   
-  // For yearly billing, use exact values from crypto-config
+  // For yearly billing, use exact values from crypto-config (.env.local)
   if (billing === 'yearly') {
     const yearlyMap: Record<string, number> = {
-      pro: 9999,
-      premium: 19999,
-      unlimited: 29999,
+      pro: 8499,        // $84.99 (17% off from $99.99)
+      premium: 16999,   // $169.99 (20% off from $199.99)
+      unlimited: 25499, // $254.99 (25% off from $299.99)
     };
     return yearlyMap[plan] ?? 0;
   }
