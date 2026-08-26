@@ -71,6 +71,7 @@ type Girlfriend = {
   name: string;
   age: number;
   gender?: string | null;
+  style_category?: 'realistic' | '2d' | '3d' | string | null;
   slug?: string | null;
   personality?: string | null;
   tags?: string[] | string | null;
@@ -91,6 +92,7 @@ type Girlfriend = {
   appearance_style?: string | null;
   appearance_race?: string | null;
   image_prompt?: string | null;
+  image_prompt_extra?: string | null;
   negative_prompt?: string | null;
   is_public?: boolean;
   review_status?: string | null;
@@ -113,6 +115,7 @@ type FormState = {
   age: number;
   slug: string;
   gender: 'Female' | 'Male' | 'Transgender';
+  style_category: 'realistic' | '2d' | '3d';
   personality: string;
   tags: string;
   short_description: string;
@@ -132,6 +135,7 @@ type FormState = {
   appearance_style: string;
   appearance_race: string;
   image_prompt: string;
+  image_prompt_extra: string;
   negative_prompt: string;
   is_public: boolean;
   review_status: string;
@@ -154,6 +158,7 @@ function emptyForm(): FormState {
     name: '',
     age: rnd.age,
     gender: 'Female',
+    style_category: 'realistic',
     slug: '',
     personality: '',
     tags: '',
@@ -174,6 +179,7 @@ function emptyForm(): FormState {
     appearance_style: '',
     appearance_race: '',
     image_prompt: '',
+    image_prompt_extra: '',
     negative_prompt: '',
     is_public: true,
     review_status: 'approved',
@@ -206,6 +212,7 @@ function toForm(g: Girlfriend): FormState {
     name: g.name || '',
     age: Number(g.age || 22),
     gender: (['Female', 'Male', 'Transgender'].includes(String(g.gender)) ? String(g.gender) : 'Female') as FormState['gender'],
+    style_category: (['realistic', '2d', '3d'].includes(String(g.style_category || '')) ? String(g.style_category) : 'realistic') as FormState['style_category'],
     slug: g.slug || '',
     personality: g.personality || '',
     tags: tagsToString(g.tags),
@@ -226,6 +233,7 @@ function toForm(g: Girlfriend): FormState {
     appearance_style: g.appearance_style || '',
     appearance_race: g.appearance_race || '',
     image_prompt: g.image_prompt || '',
+    image_prompt_extra: g.image_prompt_extra || '',
     negative_prompt: g.negative_prompt || '',
     is_public: Boolean(g.is_public),
     review_status: g.review_status || 'approved',
@@ -398,6 +406,7 @@ function AdminGirlfriendsMediaPageInner() {
       name: form.name.trim(),
       age: Math.max(18, Number(form.age) || 18),
       gender: form.gender,
+      style_category: form.style_category,
       slug: form.slug.trim() || undefined,
       personality: form.personality.trim() || null,
       tags,
@@ -418,6 +427,7 @@ function AdminGirlfriendsMediaPageInner() {
       appearance_style: form.appearance_style.trim() || null,
       appearance_race: form.appearance_race.trim() || null,
       image_prompt: form.image_prompt.trim() || null,
+      image_prompt_extra: form.image_prompt_extra.trim() || null,
       negative_prompt: form.negative_prompt.trim() || null,
       is_public: form.is_public,
       review_status: form.review_status,
@@ -1185,7 +1195,7 @@ function AdminGirlfriendsMediaPageInner() {
                   {randomizingCurrent ? '生成完整角色卡…' : '随机完整角色卡'}
                 </Button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <Label>名字</Label>
                   <Input value={form.name} onChange={(e) => setField('name', e.target.value)} className="mt-1 bg-black/30" />
@@ -1194,6 +1204,18 @@ function AdminGirlfriendsMediaPageInner() {
                   <Label>年龄 (≥18)</Label>
                   <Input type="number" min={18} max={99} value={form.age} onChange={(e) => setField('age', Number(e.target.value) || 18)} className="mt-1 bg-black/30" />
                 </div>
+                <div>
+                  <Label>风格</Label>
+                  <Select value={form.style_category} onValueChange={(value) => setField('style_category', value as FormState['style_category'])}>
+                    <SelectTrigger className="mt-1 bg-black/30"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="realistic">写实</SelectItem>
+                      <SelectItem value="2d">二次元</SelectItem>
+                      <SelectItem value="3d">3D 卡通</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div>
                 <Label>性别</Label>
                 <Select value={form.gender} onValueChange={(value) => setField('gender', value as FormState['gender'])}>
@@ -1204,7 +1226,6 @@ function AdminGirlfriendsMediaPageInner() {
                     <SelectItem value="Transgender">跨性别</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
               </div>
               <div>
                 <Label>Slug</Label>
@@ -1306,10 +1327,19 @@ function AdminGirlfriendsMediaPageInner() {
                 <Textarea value={form.backstory} onChange={(e) => setField('backstory', e.target.value)} className="mt-1 min-h-[72px] bg-black/30" />
               </div>
               <div>
-                <Label>标签（逗号分隔）</Label>
-                <Input value={form.tags} onChange={(e) => setField('tags', e.target.value)} className="mt-1 bg-black/30" />
+                <Label>专用提示词模板</Label>
+                <p className="mt-1 text-[10px] text-slate-400">风格 (写实/2D/3D) 基础信息 + 人物特色</p>
+                <Textarea value={form.image_prompt} onChange={(e) => setField('image_prompt', e.target.value)} className="mt-1 min-h-[64px] bg-black/30 font-mono text-xs" />
               </div>
               <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>标签（逗号分隔）</Label>
+                  <Input value={form.tags} onChange={(e) => setField('tags', e.target.value)} className="mt-1 bg-black/30" />
+                </div>
+                <div>
+                  <Label>生图提示词（角色专属）</Label>
+                  <Textarea value={form.image_prompt_extra} onChange={(e) => setField('image_prompt_extra', e.target.value)} className="mt-1 min-h-[64px] bg-black/30 font-mono text-xs" />
+                </div>
                 <div>
                   <Label>发色</Label>
                   <Input value={form.appearance_hair_color} onChange={(e) => setField('appearance_hair_color', e.target.value)} className="mt-1 bg-black/30" />
@@ -1334,14 +1364,6 @@ function AdminGirlfriendsMediaPageInner() {
                   <Label>种族/气质</Label>
                   <Input value={form.appearance_race} onChange={(e) => setField('appearance_race', e.target.value)} className="mt-1 bg-black/30" />
                 </div>
-              </div>
-              <div>
-                <Label>生图提示词（角色专属）</Label>
-                <Textarea value={form.image_prompt} onChange={(e) => setField('image_prompt', e.target.value)} className="mt-1 min-h-[64px] bg-black/30 font-mono text-xs" />
-              </div>
-              <div>
-                <Label>反向提示词</Label>
-                <Textarea value={form.negative_prompt} onChange={(e) => setField('negative_prompt', e.target.value)} className="mt-1 min-h-[48px] bg-black/30 font-mono text-xs" />
               </div>
             </div>
 
@@ -1487,15 +1509,19 @@ function AdminGirlfriendsMediaPageInner() {
                       ))}
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {([
+                      {([ 
                         ['portrait_video_url', '肖像视频'] as const,
                         ['avatar_video_url', '头像视频'] as const,
                       ]).map(([field, label]) => (
                         <div key={field} className="rounded-lg border border-white/10 p-2">
                           <p className="text-[10px] text-slate-400">{label}</p>
-                          {form[field] ? (
-                            <video src={form[field]} className="mt-1 max-h-24 w-full rounded object-cover" controls muted playsInline />
-                          ) : null}
+                          <div className="mb-1 aspect-[2/3] overflow-hidden rounded bg-black/40">
+                            {form[field] ? (
+                              <video src={form[field]} className="h-full w-full object-cover" controls muted playsInline />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-slate-600"><ImageOff className="h-4 w-4" /></div>
+                            )}
+                          </div>
                           <label className="mt-1 flex cursor-pointer items-center justify-center gap-1 rounded bg-white/5 py-1 text-[10px] hover:bg-white/10">
                             {videoUploading === field ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />}
                             上传视频
@@ -1510,7 +1536,19 @@ function AdminGirlfriendsMediaPageInner() {
                       ))}
                     </div>
                     <div className="rounded-lg border border-white/10 p-2">
-                      <p className="text-[10px] text-slate-400">音频 / 语音</p>
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-[10px] text-slate-400">音频 / 语音</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 border-white/15 text-[10px]"
+                          disabled={audioUploading || !selected?.id}
+                          onClick={() => { toast.info('TTS 音色生成将在创作工作台开放；请先保存创建伴侣'); void handleOpenStudio(); }}
+                        >
+                          <Sparkles className="mr-1 h-3 w-3" /> 创建音色
+                        </Button>
+                      </div>
                       {form.voice ? (
                         <audio controls src={form.voice} className="mt-1 w-full" />
                       ) : (
