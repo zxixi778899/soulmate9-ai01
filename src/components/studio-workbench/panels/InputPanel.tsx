@@ -18,7 +18,7 @@ import { useState } from 'react';
 import { AssetTypeSelector } from './AssetTypeSelector';
 
 export function InputPanel() {
-  const { state, generate } = useStudio();
+  const { state, generate, dispatch } = useStudio();
   const [showLoraSelector, setShowLoraSelector] = useState(false);
   const [activeNodeTab, setActiveNodeTab] = useState<StudioEnhancerKey>(state.activeNodeControlTab);
 
