@@ -326,6 +326,32 @@ export default function GenerateWorkbench() {
     [loadCustomPresets],
   );
 
+  const adminEditPreset = useCallback(
+    async (category: SlotKind, slug: string, input: { label_en?: string; label_zh?: string; prompt_hint?: string }) => {
+      try {
+        const body: Record<string, unknown> = { category, slug };
+        if (input.label_en !== undefined) body.label_en = input.label_en;
+        if (input.label_zh !== undefined) body.label_zh = input.label_zh;
+        if (input.prompt_hint !== undefined) body.prompt_hint = input.prompt_hint;
+        
+        const res = await authedFetch('/api/admin/gen-custom-presets', { 
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({ error: String(res.status) }));
+          logger.warn('[generate] admin preset edit failed', { err: data?.error || String(res.status) });
+          return;
+        }
+        await loadCustomPresets(true);
+      } catch (e) {
+        logger.warn('[generate] admin preset edit failed', { err: String(e) });
+      }
+    },
+    [loadCustomPresets],
+  );
+
   // Initial works feed load.
   useEffect(() => {
     refreshHistory();
@@ -708,6 +734,7 @@ export default function GenerateWorkbench() {
             isAdmin={isAdmin}
             onAdminCreate={adminCreatePreset}
             onAdminDelete={adminDeletePreset}
+            onAdminEdit={adminEditPreset}
             onSwitchSlot={setSlotPicker}
             onClose={() => setSlotPicker(null)}
             isZh={isZh}

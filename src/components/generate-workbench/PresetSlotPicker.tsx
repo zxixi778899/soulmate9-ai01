@@ -10,7 +10,7 @@
  */
 
 import { useRef, useState } from 'react';
-import { ArrowLeft, Loader2, Lock, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Edit2, Loader2, Lock, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
 import type { TranslationKey } from '@/lib/i18n/types';
@@ -21,6 +21,8 @@ const SLOT_TABS: { id: SlotKind; key: TranslationKey }[] = [
   { id: 'outfit', key: 'generate.slotOutfit' },
   { id: 'scene', key: 'generate.slotScene' },
 ];
+
+const EDIT_FORM_KEYS = ['label_en', 'label_zh', 'prompt_hint'];
 
 export function PresetSlotPicker(props: {
   slot: SlotKind;
@@ -40,17 +42,24 @@ export function PresetSlotPicker(props: {
     input: { label_en: string; label_zh: string; prompt_hint: string; file: File | null },
   ) => Promise<void>;
   onAdminDelete?: (category: SlotKind, slug: string) => Promise<void>;
+  onAdminEdit?: (
+    category: SlotKind,
+    slug: string,
+    input: { label_en?: string; label_zh?: string; prompt_hint?: string },
+  ) => Promise<void>;
   onSwitchSlot: (slot: SlotKind) => void;
   onClose: () => void;
   isZh: boolean;
 }) {
   const { t } = useTranslation();
   const [formOpen, setFormOpen] = useState(false);
+  const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [labelEn, setLabelEn] = useState('');
   const [labelZh, setLabelZh] = useState('');
   const [promptHint, setPromptHint] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const title =
@@ -98,6 +107,26 @@ export function PresetSlotPicker(props: {
       setFile(null);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const submitEdit = async () => {
+    if (!props.onAdminEdit || savingEdit || !editingSlug) return;
+    if (!labelEn.trim()) return;
+    
+    setSavingEdit(true);
+    try {
+      await props.onAdminEdit(props.slot, editingSlug, {
+        label_en: labelEn.trim(),
+        label_zh: labelZh.trim(),
+        prompt_hint: promptHint.trim(),
+      });
+      setEditingSlug(null);
+      setLabelEn('');
+      setLabelZh('');
+      setPromptHint('');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -211,6 +240,56 @@ export function PresetSlotPicker(props: {
             </div>
           )}
 
+          {/* Admin edit form */}
+          {props.isAdmin && editingSlug && props.onAdminEdit && (
+            <div className="mb-4 rounded-xl border border-[#FD5FC2]/30 bg-[#FD5FC2]/[0.05] p-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={labelEn}
+                  onChange={(e) => setLabelEn(e.target.value)}
+                  placeholder="Label (EN) *"
+                  className={inputClass}
+                />
+                <input
+                  value={labelZh}
+                  onChange={(e) => setLabelZh(e.target.value)}
+                  placeholder="标签 (中文)"
+                  className={inputClass}
+                />
+              </div>
+              <input
+                value={promptHint}
+                onChange={(e) => setPromptHint(e.target.value)}
+                placeholder={t('generate.promptHintPlaceholder')}
+                className={inputClass}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void submitEdit()}
+                  disabled={savingEdit || !labelEn.trim()}
+                  className="h-9 px-4 rounded-lg text-[11px] font-bold text-white disabled:opacity-40 inline-flex items-center gap-1.5 transition-all"
+                  style={{ background: 'linear-gradient(0deg, #FF1CAC, #FD5FC2 50%, #FF79D1)' }}
+                >
+                  {savingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Edit2 className="h-3.5 w-3.5" />}
+                  {t('generate.adminSave')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingSlug(null);
+                    setLabelEn('');
+                    setLabelZh('');
+                    setPromptHint('');
+                  }}
+                  className="h-9 w-9 rounded-lg border border-white/10 flex items-center justify-center text-white/60 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {props.slot === 'outfit' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {props.outfits.map((outfit) => {
@@ -250,14 +329,33 @@ export function PresetSlotPicker(props: {
                       </span>
                     </button>
                     {props.isAdmin && custom && props.onAdminDelete && (
-                      <button
-                        type="button"
-                        onClick={() => void props.onAdminDelete?.(props.slot, outfit.id)}
-                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 flex items-center justify-center text-white/70 hover:text-red-300"
-                        aria-label={`Delete ${outfit.name}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                      <div className="absolute top-1 right-1 flex gap-1">
+                        {props.onAdminEdit && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const label = outfit.name || '';
+                              setEditingSlug(outfit.id);
+                              setLabelEn(label);
+                              setLabelZh('');
+                              setPromptHint('');
+                            }}
+                            className="h-6 w-6 rounded-full bg-black/60 flex items-center justify-center text-white/70 hover:text-blue-300"
+                            aria-label={`Edit ${outfit.name}`}
+                          >
+                            <Edit2 className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void props.onAdminDelete?.(props.slot, outfit.id)}
+                          className="h-6 w-6 rounded-full bg-black/60 flex items-center justify-center text-white/70 hover:text-red-300"
+                          aria-label={`Delete ${outfit.name}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 );
@@ -316,14 +414,33 @@ export function PresetSlotPicker(props: {
                       </span>
                     </button>
                     {props.isAdmin && custom && props.onAdminDelete && !preset.locked && (
-                      <button
-                        type="button"
-                        onClick={() => void props.onAdminDelete?.(props.slot, preset.slug)}
-                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 flex items-center justify-center text-white/70 hover:text-red-300"
-                        aria-label={`Delete ${label}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                      <div className="absolute top-1 right-1 flex gap-1">
+                        {props.onAdminEdit && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const label = props.isZh ? preset.label_zh || preset.label_en : preset.label_en || preset.label_zh;
+                              setEditingSlug(preset.slug);
+                              setLabelEn(label);
+                              setLabelZh('');
+                              setPromptHint('');
+                            }}
+                            className="h-6 w-6 rounded-full bg-black/60 flex items-center justify-center text-white/70 hover:text-blue-300"
+                            aria-label={`Edit ${label}`}
+                          >
+                            <Edit2 className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void props.onAdminDelete?.(props.slot, preset.slug)}
+                          className="h-6 w-6 rounded-full bg-black/60 flex items-center justify-center text-white/70 hover:text-red-300"
+                          aria-label={`Delete ${label}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 );

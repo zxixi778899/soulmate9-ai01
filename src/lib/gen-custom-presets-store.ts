@@ -147,6 +147,28 @@ export async function setGenCustomPresetPreview(
   return persist(supabase, next);
 }
 
+/** Update editable fields of an existing entry. */
+export async function updateGenCustomPreset(
+  category: GenCustomPresetCategory,
+  slug: string,
+  updates: { label_en?: string; label_zh?: string; prompt_hint?: string; preview_url?: string },
+  supabase: SiteSettingsClient,
+): Promise<GenCustomPresetsConfig> {
+  const current = await loadGenCustomPresets(supabase);
+  if (!(category in current)) {
+    throw new Error(`Preset category not found: ${category}`);
+  }
+  if (!current[category]?.some(e => e.slug === slug)) {
+    throw new Error(`Preset not found: ${category}/${slug}`);
+  }
+  const bucket = (current[category] || []).map((e) =>
+    e.slug === slug ? { ...e, ...updates } : e,
+  );
+  const next: GenCustomPresetsConfig = { ...current, updated_at: new Date().toISOString() };
+  next[category] = bucket;
+  return persist(supabase, next);
+}
+
 /** Remove one entry by slug. */
 export async function removeGenCustomPreset(
   category: GenCustomPresetCategory,

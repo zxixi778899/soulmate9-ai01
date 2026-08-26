@@ -2,10 +2,12 @@
  * Admin CRUD for /generate workbench custom presets (pose / outfit / scene).
  *
  * GET    /api/admin/gen-custom-presets — full config
- * POST   /api/admin/gen-custom-presets — create one entry
- *          multipart: { category, label_en, label_zh?, prompt_hint?, file }
- *          JSON:      { category, label_en, label_zh?, prompt_hint?, url }
- *          replace-preview JSON: { category, slug, url } — swap an entry's image
+ * POST   /api/admin/gen-custom-presets — create one entry (JSON with URL or multipart with file upload)
+ *         JSON branch: { category, label_en, label_zh?, prompt_hint?, url }
+ *         File upload: { category, label_en, label_zh?, prompt_hint?, file }
+ *         Replace preview: { category, slug, url } — swap an entry's image
+ * PUT    /api/admin/gen-custom-presets — edit existing entry
+ *         Body: { category, slug, label_en?, label_zh?, prompt_hint?, url? }
  * DELETE /api/admin/gen-custom-presets?category=pose&slug=xxx — remove one entry
  */
 
@@ -18,6 +20,7 @@ import {
   loadGenCustomPresets,
   addGenCustomPreset,
   setGenCustomPresetPreview,
+  updateGenCustomPreset,
   removeGenCustomPreset,
   invalidateGenCustomPresetsCache,
   isGenCustomPresetCategory,
@@ -221,6 +224,68 @@ export async function DELETE(request: NextRequest) {
     });
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Delete failed' },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * Edit an existing custom preset (PUT)
+ */
+export async function PUT(request: NextRequest) {
+  const admin = await requireAdmin(request, 'admin');
+  if (admin.error) return admin.error;
+
+  const rl = await checkRateLimitAsync(`admin-gen-presets:${admin.user!.id}`, WRITE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl, WRITE_LIMIT) },
+    );
+  }
+
+  try {
+    const body = await request.json();
+    const category = String(body?.category || '').toLowerCase();
+    const slug = cleanText(body?.slug, 120);
+
+    if (!slug) {
+      return NextResponse.json({ error: 'slug is required for edit' }, { status: 400 });
+    }
+
+    if (!isGenCustomPresetCategory(category)) {
+      return NextResponse.json(
+        { error: `category must be one of ${GEN_CUSTOM_PRESET_CATEGORIES.join(', ')}` },
+        { status: 400 },
+      );
+    }
+
+    // At least one editable field must be provided
+    const updates: Partial<typeof body> = {};
+    if (body?.label_en !== undefined) updates.label_en = cleanText(body.label_en);
+    if (body?.label_zh !== undefined) updates.label_zh = cleanText(body.label_zh);
+    if (body?.prompt_hint !== undefined) updates.prompt_hint = cleanText(body.prompt_hint, 400);
+    
+    // Handle preview image update via URL
+    if (body?.url !== undefined && /^https?:\/\//.test(String(body.url))) {
+      updates.preview_url = String(body.url);
+    }
+    
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No editable fields provided' }, { status: 400 });
+    }
+
+    const client = admin.supabase as unknown as SiteSettingsClient;
+    const presets = await updateGenCustomPreset(category, slug, updates, client);
+    invalidateGenCustomPresetsCache();
+    logger.info('[admin/gen-custom-presets] updated', { category, slug, updates: Object.keys(updates).join(',') });
+    return NextResponse.json({ success: true, presets, updated: slug });
+  } catch (e) {
+    logger.error('[admin/gen-custom-presets] update failed', {
+      err: e instanceof Error ? e.message : String(e),
+    });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Update failed' },
       { status: 500 },
     );
   }
