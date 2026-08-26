@@ -1,5 +1,4 @@
 import { logger } from '@/lib/logger';
-import type { CompanionScene } from './generation-cache';
 
 /**
  * Compute a deterministic cache key for image generation.
@@ -9,7 +8,7 @@ export function computeCacheKey(params: {
   userId: string;
   prompt: string;
   negativePrompt: string;
-  scene: CompanionScene;
+  scene: string; // Scene ID like 'chat_selfie', 'adult_roleplay', etc.
   width: number;
   height: number;
   steps: number;
