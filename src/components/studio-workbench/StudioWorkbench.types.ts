@@ -9,6 +9,7 @@ import type { IdentityKit } from '@/lib/identity-kit';
 export type Any = Record<string, any>;
 
 export type StudioTask = 'identity' | 'portrait' | 'outfit' | 'pose' | 'background' | 'video';
+export type AssetLibraryType = 'normal' | 'outfit' | 'action' | 'scene' | 'advertising';
 
 export type GenerationStage = 'idle' | 'submitting' | 'queued' | 'finalizing';
 
@@ -102,8 +103,8 @@ export interface StudioState {
   // UI
   advancedMode: boolean;
   activeNodeControlTab: StudioEnhancerKey;
-  /** 用户是否手动改过采样参数（改过则不再被推荐预设覆盖） */
   paramsTouched: boolean;
+  assetType: AssetLibraryType;
 }
 
 export type StudioAction =
@@ -148,7 +149,8 @@ export type StudioAction =
   | { type: 'SET_UPSCALE_FACTOR'; value: 2 | 3 | 4 }
   | { type: 'SET_TILE_SIZE'; value: number }
   | { type: 'SET_UPSCALE_DENOISE'; value: number }
-  | { type: 'SET_ACTIVE_NODE_CONTROL_TAB'; value: StudioEnhancerKey };
+  | { type: 'SET_ACTIVE_NODE_CONTROL_TAB'; value: StudioEnhancerKey }
+  | { type: 'SET_ASSET_TYPE'; value: AssetLibraryType };
 
 export const INITIAL_STATE: StudioState = {
   config: null,
@@ -205,4 +207,5 @@ export const INITIAL_STATE: StudioState = {
   advancedMode: false,
   activeNodeControlTab: 'controlnet',
   paramsTouched: false,
+  assetType: 'normal',
 };
