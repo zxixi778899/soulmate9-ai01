@@ -83,13 +83,23 @@ export async function POST(request: Request) {
 
     // Return session + set newbie trial + 归因落库
     const profileClient = getSupabaseClient();
-    const newbieExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour from now
-    const profileUpdate: Record<string, unknown> = { newbie_expires_at: newbieExpiresAt };
-    if (leadSource) profileUpdate.lead_source = leadSource;
-    await profileClient
-      .from('profiles')
-      .update(profileUpdate)
-      .eq('user_id', sessionData.user.id);
+    
+    let newbieExpiresAt: string;
+    try {
+      newbieExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour from now
+      const profileUpdate: Record<string, unknown> = { newbie_expires_at: newbieExpiresAt };
+      if (leadSource) profileUpdate.lead_source = leadSource;
+      
+      // Try to update/create profile
+      await profileClient
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('user_id', sessionData.user.id);
+    } catch (profileError) {
+      logger.warn('[AUTH:SIGNUP] Profile update failed (non-fatal):', { data: profileError });
+      // Don't fail registration - just warn
+      newbieExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // Fallback value
+    }
 
     // 服务端 CAPI：注册即 Lead（fire-and-forget，失败不影响注册）
     void sendCapiEvent({

@@ -14,7 +14,10 @@ const NOWPAYMENTS_API_URL = 'https://api.nowpayments.io/v1';
 
 function getApiKey(): string {
   const key = process.env.NOWPAYMENTS_API_KEY || '';
-  if (!key) throw new Error('NOWPAYMENTS_API_KEY is not configured');
+  if (!key) {
+    logger.error('[nowpayments] API Key not configured!');
+    throw new Error('NOWPayments is misconfigured - API Key missing in environment variables');
+  }
   return key;
 }
 

@@ -214,7 +214,7 @@ function PricingContent() {
       const res = await authedFetch('/api/crypto/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, currencyId: 'usdt-trc20', billing }),
+        body: JSON.stringify({ planId, billing }), // Removed currencyId - now always USDT TRC-20
       });
       const data = await res.json();
 
@@ -224,14 +224,14 @@ function PricingContent() {
         return;
       }
 
-      if (!data.walletAddress) {
+      if (!data.payAddress) {
         toast.error(t('pricing.toastNoWallet'));
         resetCrypto();
         return;
       }
 
       setCryptoPaymentId(data.paymentId);
-      setCryptoWallet(data.walletAddress);
+      setCryptoWallet(data.payAddress); // Changed from walletAddress to payAddress
       setCryptoNetwork(data.network || 'TRC-20');
       setCryptoAmount(Number(data.amountUsd) || null);
       setCryptoStep('pay');

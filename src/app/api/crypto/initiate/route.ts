@@ -97,9 +97,23 @@ export async function POST(request: Request) {
       expirationTime: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     });
   } catch (err) {
-    logger.error('NOWPayments API call failed:', { err });
+    logger.error('NOWPayments API call failed:', { 
+      err: err instanceof Error ? err.message : 'Unknown error',
+      planId,
+      billing,
+      amountUsd,
+    });
+    
+    // Provide user-friendly error message
+    if (err instanceof Error && err.message.includes('misconfigured')) {
+      return NextResponse.json(
+        { error: 'Payment service is temporarily unavailable. Please contact support.' }, 
+        { status: 503 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to create payment with NOWPayments' }, 
+      { error: 'Failed to create payment with NOWPayments', details: err instanceof Error ? err.message : 'Unknown error' }, 
       { status: 500 }
     );
   }
