@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { client } from '@/lib/supabase-admin';
+import { client } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { requireAdmin } from '@/lib/require-admin';
 

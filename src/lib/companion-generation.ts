@@ -96,43 +96,7 @@ export function buildCompanionIdentitySpecification(row: Record<string, unknown>
   return `Identity specification for ${String(row.name || 'this companion')}: ${parts.join('; ')}. Preserve this exact age, gender presentation, ethnicity, face geometry, hair, eyes, physique, temperament and signature features in every view; do not replace them with a generic beauty face.`;
 }
 
-/**
- * Build a concise generation prompt template for FLUX image generation.
- * Format: [Style quality terms] + [Basic identity: age/gender/relationship/appearance]
- * Keeps it minimal to avoid FLUX from over-interpreting and cropping.
- */
-export function buildCompanionGenerationPrompt(row: Record<string, unknown>): string {
-  const profile = resolveCompanionProfile(row);
-  const age = Math.max(18, Math.round(Number(row.age) || 25));
-  
-  // Gender term
-  const genderTerm = profile.category === 'male' ? 'man' : profile.category === 'transgender' ? 'trans woman' : 'woman';
-  
-  // Relationship (optional addition)
-  const relationshipTerm = row.relationship ? String(row.relationship) : '';
-  
-  // Style prefix based on anime style
-  const styleTerms = profile.animeRenderStyle === 'anime' 
-    ? ['anime style, cel shading, detailed illustration']
-    : profile.animeRenderStyle === '3d'
-      ? ['3D render, octane render, subsurface scattering']
-      : ['photorealistic, ultra detailed, professional photography'];
-  
-  // Basic identity (keep minimal)
-  const identityParts = [
-    `${age}-year-old ${genderTerm}`,
-    relationshipTerm ? `${relationshipTerm} of user` : '',
-    row.appearance_race ? String(row.appearance_race) : '',
-    row.appearance_hair_color && row.appearance_hair
-      ? `${String(row.appearance_hair_color)} ${String(row.appearance_hair)} hair`
-      : row.appearance_hair ? `${String(row.appearance_hair)} hair` : '',
-    row.appearance_eyes ? `${String(row.appearance_eyes)} eyes` : '',
-    row.appearance_job ? `profession: ${String(row.appearance_job)}` : '',
-    row.appearance_features ? String(row.appearance_features) : '',
-  ].filter(Boolean);
-  
-  return [...styleTerms, ...identityParts].join(', ');
-}
+// Legacy version removed - use new version at L226 with CompanionGenerationResult return type
 
 /**
  * Brief identity cue for turnaround/reference sheets where COMPOSITION must
