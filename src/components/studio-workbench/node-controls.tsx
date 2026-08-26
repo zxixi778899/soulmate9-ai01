@@ -301,34 +301,56 @@ export function NodeControls({ activeTab, setActiveTab }: {
   activeTab: StudioEnhancerKey; 
   setActiveTab: (tab: StudioEnhancerKey) => void 
 }) {
+  const { state, dispatch } = useStudio();
   return (
     <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">图像增强节点</h3>
+      <div className="flex items-center justify-between">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          图像增强
+        </label>
+        <p className="text-[9px] text-slate-600">点击左侧按钮查看详情与参数</p>
+      </div>
       
-      {/* Tab navigation */}
+      {/* Quick toggle buttons */}
       <div className="flex gap-1">
-        {[
-          { key: 'controlnet' as const, label: 'ControlNet', icon: <ImageIcon className="h-3 w-3" /> },
-          { key: 'adetailer' as const, label: 'ADetailer', icon: <ScanSearch className="h-3 w-3" /> },
-          { key: 'upscale' as const, label: '放大', icon: <ZoomIn className="h-3 w-3" /> },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              'flex flex-1 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-medium transition',
-              activeTab === tab.key
-                ? 'bg-violet-500/20 text-violet-300'
-                : 'text-slate-500 hover:bg-white/[0.04] hover:text-slate-300',
-            )}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
+        {[{
+          key: 'controlnet' as const, 
+          label: 'ControlNet', 
+          icon: <ImageIcon className="h-3 w-3" />
+        }, {
+          key: 'adetailer' as const, 
+          label: 'ADetailer', 
+          icon: <ScanSearch className="h-3 w-3" />
+        }, {
+          key: 'upscale' as const, 
+          label: '放大', 
+          icon: <ZoomIn className="h-3 w-3" />
+        }].map((tabItem) => {
+          const ready = state.enhancerStatuses.some(s => s.id === tabItem.key && s.enabled === true);
+          const checked = state.enhancers[tabItem.key] && ready;
+          return (
+            <button
+              key={tabItem.key}
+              onClick={() => dispatch({ type: 'SET_ENHANCER', key: tabItem.key, value: !checked })}
+              disabled={!ready}
+              className={cn(
+                'relative h-4 w-7 shrink-0 rounded-full transition',
+                checked ? 'bg-violet-500' : 'bg-white/10',
+                (!ready || !checked) ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
+              )}
+            >
+              <span
+                className={cn(
+                  'absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all',
+                  checked ? 'left-3.5' : 'left-0.5',
+                )}
+              />
+            </button>
+          );
+        })}
       </div>
 
-      {/* Tab content */}
+      {/* Detailed controls */}
       <div className="min-h-[200px]">
         {activeTab === 'controlnet' && <ControlNetPanel />}
         {activeTab === 'adetailer' && <ADetailerPanel />}

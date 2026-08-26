@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { AssetTypeSelector } from './AssetTypeSelector';
 
 export function InputPanel() {
   const { state, generate } = useStudio();
@@ -28,6 +29,24 @@ export function InputPanel() {
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Asset Type Selector */}
+      <AssetTypeSelector
+        selectedType={state.assetType}
+        onSelect={(type) => {
+          dispatch({ type: 'SET_ASSET_TYPE', value: type });
+          // Auto-adjust dimensions based on asset type
+          if (type === 'outfit') {
+            dispatch({ type: 'SET_PARAMS', patch: { width: 1024, height: 1536 } });
+          } else if (type === 'action') {
+            dispatch({ type: 'SET_PARAMS', patch: { width: 1024, height: 1536 } });
+          } else if (type === 'scene') {
+            dispatch({ type: 'SET_PARAMS', patch: { width: 1536, height: 1024 } });
+          } else if (type === 'advertising') {
+            dispatch({ type: 'SET_PARAMS', patch: { width: 1024, height: 1024 } });
+          }
+        }}
+      />
+
       {/* Reference image uploader (img2img / img2video) */}
       {(state.genMode === 'img2img' || state.genMode === 'img2video') && (
         <ReferenceUploader />
