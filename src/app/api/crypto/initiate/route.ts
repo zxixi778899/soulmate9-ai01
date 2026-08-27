@@ -74,15 +74,17 @@ export async function POST(request: Request) {
 
   try {
     // Create NOWPayments payment
+    const nowPaymentsUrl = 'https://www.oxmate-ai.com'; // Fixed production URL
+    
     const paymentResult = await nowPaymentsCreatePayment({
       price_amount: amountUsd,
       price_currency: 'usd',
       pay_currency: PAYMENT_CURRENCY,
       order_id: orderId,
       order_description: orderDescription,
-      ipn_callback_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/crypto/webhook`,
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
+      ipn_callback_url: `${nowPaymentsUrl}/api/crypto/webhook`,
+      success_url: `${nowPaymentsUrl}/pricing?success=true`,
+      cancel_url: `${nowPaymentsUrl}/pricing?canceled=true`,
     });
 
     return NextResponse.json({
@@ -104,17 +106,40 @@ export async function POST(request: Request) {
       amountUsd,
     });
     
-    // Provide user-friendly error message
-    if (err instanceof Error && err.message.includes('misconfigured')) {
+    // 降级到手动支付模式（当 NOWPayments API 失败时）
+    const walletAddress = process.env.CRYPTO_WALLET_TRC20;
+    if (!walletAddress) {
       return NextResponse.json(
         { error: 'Payment service is temporarily unavailable. Please contact support.' }, 
         { status: 503 }
       );
     }
     
-    return NextResponse.json(
-      { error: 'Failed to create payment with NOWPayments', details: err instanceof Error ? err.message : 'Unknown error' }, 
-      { status: 500 }
-    );
+    // 返回手动支付信息（用户发送 USDT 到自己的钱包）
+    return NextResponse.json({
+      success: true,
+      manualPayment: true, // 标记为手动支付模式
+      paymentId: payment.id,
+      payAddress: walletAddress, // 使用配置的钱包地址
+      network: 'TRC-20',
+      currency: 'USDT',
+      billing: cycle,
+      amountUsd,
+      payAmount: amountUsd, // 固定金额
+      instructions: `
+        ⚠️ **Manual Payment Mode** \n\n` +
+        `Please send exactly **$${amountUsd.toFixed(2)} USDT (TRC-20)** to:\n` +
+        `📍 Address: ${walletAddress}\n` +
+        `💰 Amount: $${amountUsd.toFixed(2)} USDT\n` +
+        `🌐 Network: TRC-20 (Tether TrueLink Chain)\n\n` +
+        `**Important:**\n` +
+        `- Send ONLY USDT on TRC-20 network\n` +
+        `- Exact amount required for automatic verification\n` +
+        `- After sending, check your email for verification instructions\n\n` +
+        `⏱️ Payment expires in 15 minutes\n` +
+        `🔒 Order ID: ${orderId}
+      `.trim(),
+      orderId: orderId,
+    });
   }
 }
