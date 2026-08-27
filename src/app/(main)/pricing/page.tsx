@@ -219,7 +219,10 @@ function PricingContent() {
       const data = await res.json();
 
       if (!data.success) {
-        toast.error(data.error || t('pricing.toastInitiateFailed'));
+        // 显示详细的错误信息（包括 details 字段）
+        const detailedError = data.details || data.error || t('pricing.toastInitiateFailed');
+        console.error('[Payment Error]', data); // 记录完整错误到 Console
+        toast.error(detailedError);
         resetCrypto();
         return;
       }
