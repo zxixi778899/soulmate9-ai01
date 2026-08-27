@@ -211,19 +211,25 @@ function PricingContent() {
     setTxHash('');
     setCryptoStep('initiating');
     try {
-      const res = await authedFetch('/api/crypto/initiate', {
+      const res = await authedFetch('/api/jangopay/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, billing }), // Removed currencyId - now always USDT TRC-20
+        body: JSON.stringify({ planId, billing }),
       });
       const data = await res.json();
 
-      if (!data.success) {
+      if (!res.ok) {
         // 显示详细的错误信息（包括 details 字段）
         const detailedError = data.details || data.error || t('pricing.toastInitiateFailed');
         console.error('[Payment Error]', data); // 记录完整错误到 Console
         toast.error(detailedError);
         resetCrypto();
+        return;
+      }
+
+      if (data.redirectUrl) {
+        // Redirect to JangoPay payment page
+        window.location.href = data.redirectUrl;
         return;
       }
 
