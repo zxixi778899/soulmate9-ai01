@@ -107,6 +107,13 @@ export async function jangoPayCreatePayment(params: PaymentRequest): Promise<Pay
   }
 }
 
+interface PaymentDetail {
+  status: string;
+  amount: string;
+  currency: string;
+  created_at: string;
+}
+
 /**
  * Verify payment status
  */
@@ -118,12 +125,16 @@ export async function jangoPayGetPaymentStatus(transactionId: string): Promise<{
 }> {
   logger.info('[jangopay] Checking payment status:', { transactionId });
 
-  const result = await jangoFetch(`/merchant/payments/${transactionId}`);
+  const result = await jangoFetch<PaymentDetail>(`/merchant/payments/${transactionId}`);
+  
+  // Type assertion to ensure type safety
+  const paymentDetail: PaymentDetail = result;
+  
   return {
-    status: result.status,
-    amount: result.amount,
-    currency: result.currency,
-    createdAt: result.created_at,
+    status: paymentDetail.status,
+    amount: paymentDetail.amount,
+    currency: paymentDetail.currency,
+    createdAt: paymentDetail.created_at,
   };
 }
 
