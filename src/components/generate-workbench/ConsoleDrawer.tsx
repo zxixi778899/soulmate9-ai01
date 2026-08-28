@@ -141,6 +141,8 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
     loading: boolean;
     onClick: () => void;
     onClear?: () => void;
+    controlnetActive?: boolean;
+    controlnetType?: 'openpose' | 'canny' | 'depth' | 'segment';
   }> = {
     pose: {
       label: t('generate.slotPose'),
