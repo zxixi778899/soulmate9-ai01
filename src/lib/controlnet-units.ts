@@ -83,7 +83,7 @@ export function createOpenPoseUnit(config: {
   return {
     id: generateUUID(),
     type: 'openpose',
-    preset_category: preset_category || 'pose',
+    preset_category: config.preset_category || 'pose',
     image_url: config.image_url,
     weight: config.weight ?? 0.72,
     guidance_start: config.guidance_start ?? 0.1,
@@ -112,7 +112,7 @@ export function createCannyUnit(config: {
   return {
     id: generateUUID(),
     type: 'canny',
-    preset_category: preset_category || 'outfit',
+    preset_category: config.preset_category || 'outfit',
     image_url: config.image_url,
     weight: config.weight ?? 0.82,
     guidance_start: config.guidance_start ?? 0.1,
@@ -143,7 +143,7 @@ export function createDepthUnit(config: {
   return {
     id: generateUUID(),
     type: 'depth',
-    preset_category: preset_category || 'scene',
+    preset_category: config.preset_category || 'scene',
     image_url: config.image_url,
     weight: config.weight ?? 0.65,
     guidance_start: config.guidance_start ?? 0.1,
