@@ -60,7 +60,7 @@ async function jangoFetch<T>(path: string, options?: RequestInit): Promise<T> {
       throw new Error(`JangoPay ${path} HTTP ${res.status}: ${text || 'Unknown error'}`);
     }
 
-    return res.json() as Promise<T>;
+    return (await res.json()) as T;
   } catch (error) {
     logger.error('JangoPay request failed:', { error });
     throw error;
