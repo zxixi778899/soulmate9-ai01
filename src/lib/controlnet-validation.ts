@@ -47,7 +47,7 @@ export const controlnetUnitBaseSchema = z.object({
   }).optional(),
   
   // Additional metadata
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
@@ -177,7 +177,7 @@ export const generationRequestWithControlNetSchema = z.object({
 export const batchProcessingResultSchema = z.object({
   preset_id: z.string(),
   status: z.enum(['success', 'failed', 'skipped']),
-  assets: z.record(z.string().url()).optional(),
+  assets: z.record(z.string(), z.string().url()).optional(),
   error: z.string().optional(),
 });
 
