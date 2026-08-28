@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { requireAdmin } from '@/lib/require-admin';
-import { authedFetch } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -362,9 +362,3 @@ async function storeAssetMetadata(
       });
   }
 }
-
-const logger = {
-  info: (msg: string, data?: any) => console.log(`[${msg}]`, data),
-  warn: (msg: string, data?: any) => console.warn(`[${msg}]`, data),
-  error: (msg: string, data?: any) => console.error(`[${msg}]`, data),
-};

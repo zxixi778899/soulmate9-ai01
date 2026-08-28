@@ -7,7 +7,7 @@
  * for multiple presets at once using ComfyUI preprocessing nodes.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from '@/lib/i18n/context';
 import { authedFetch } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
@@ -34,9 +34,10 @@ export function AdminControlNetBatchUpload() {
   const [error, setError] = useState<string | null>(null);
 
   // ========== Load Presets on Mount ==========
-  useState(() => {
+  useEffect(() => {
     loadPresets();
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only
+  }, []);
 
   const loadPresets = async () => {
     try {

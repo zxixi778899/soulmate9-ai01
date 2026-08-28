@@ -226,7 +226,7 @@ function sanitizeUnit(
 export function inferControlNetUnitsFromPresets(presets: {
   pose?: { openpose_json?: string; body_depth_url?: string; ip_adapter_face?: string };
   outfit?: { canny_edge_url?: string; person_mask_url?: string; ip_adapter_face?: string };
-  scene?: { depth_url?: string; canny_edge_url?: string; bg_mask_url?: string };
+  scene?: { body_depth_url?: string; canny_edge_url?: string; bg_mask_url?: string };
 }): ControlNetMultiUnitConfig {
   const inferred: ControlNetMultiUnitConfig = {};
   
@@ -266,9 +266,9 @@ export function inferControlNetUnitsFromPresets(presets: {
   }
   
   // Scene unit (depth or Canny)
-  if (presets.scene?.depth_url) {
+  if (presets.scene?.body_depth_url) {
     inferred.scene_unit = createDepthUnit({
-      image_url: presets.scene.depth_url,
+      image_url: presets.scene.body_depth_url,
     });
   } else if (presets.scene?.canny_edge_url) {
     inferred.scene_unit = createCannyUnit({

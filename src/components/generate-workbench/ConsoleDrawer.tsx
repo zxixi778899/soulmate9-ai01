@@ -377,6 +377,8 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
                   loading={def.loading}
                   onClick={def.onClick}
                   onClear={def.onClear}
+                  controlnetActive={def.controlnetActive}
+                  controlnetType={def.controlnetType}
                   onRemove={() => setVisibleSlots((prev) => prev.filter((s) => s !== kind))}
                 />
               );
