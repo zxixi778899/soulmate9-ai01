@@ -7,7 +7,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthUser, requireAdmin } from '@/lib/supabase-server';
+import { getAuthUser } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/require-admin';
 import { authedFetch } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
