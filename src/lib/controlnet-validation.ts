@@ -223,16 +223,30 @@ export type WorkbenchPresetWithControlNet = z.infer<typeof workbenchPresetWithCo
 // ============================================
 
 /**
+ * Build a typed ZodError with a custom issue. Required because the Zod v4
+ * ZodError constructor returns `ZodError<unknown>` regardless of the supplied
+ * issues, so we cast up to `ZodError<T>` to satisfy ZodSafeParseResult<T>.
+ */
+function customZodError<T>(message: string, path: (string | number)[] = []): z.ZodError<T> {
+  const issue: z.core.$ZodIssue = {
+    code: 'custom',
+    message,
+    path,
+  } as z.core.$ZodIssue;
+  return new z.ZodError([issue]) as z.ZodError<T>;
+}
+
+/**
  * Validate a ControlNet unit input based on its type
  */
 export function validateControlNetUnit(input: unknown): z.ZodSafeParseResult<ControlNetUnitInput> {
   if (!input || typeof input !== 'object') {
-    return { success: false, error: new z.ZodError<ControlNetUnitInput>([{ message: 'Input must be an object' }]) };
+    return { success: false, error: customZodError<ControlNetUnitInput>('Input must be an object') };
   }
-  
+
   const typedInput = input as Record<string, unknown>;
   const unitType = typedInput.type as string;
-  
+
   switch (unitType) {
     case 'openpose':
       return openPoseUnitSchema.safeParse(typedInput);
@@ -245,9 +259,10 @@ export function validateControlNetUnit(input: unknown): z.ZodSafeParseResult<Con
     case 'ipadapter':
       return ipAdapterUnitSchema.safeParse(typedInput);
     default:
-      return { success: false, error: new z.ZodError<ControlNetUnitInput>([
-        { message: `Unknown ControlNet type: ${unitType}`, path: ['type'] }
-      ]) };
+      return { success: false, error: customZodError<ControlNetUnitInput>(
+        `Unknown ControlNet type: ${unitType}`,
+        ['type'],
+      ) };
   }
 }
 
