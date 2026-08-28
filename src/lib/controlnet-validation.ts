@@ -225,7 +225,7 @@ export type WorkbenchPresetWithControlNet = z.infer<typeof workbenchPresetWithCo
 /**
  * Validate a ControlNet unit input based on its type
  */
-export function validateControlNetUnit(input: unknown): z.ZodResult<ControlNetUnitInput> {
+export function validateControlNetUnit(input: unknown): z.ZodSafeParseResult<ControlNetUnitInput> {
   if (!input || typeof input !== 'object') {
     return { success: false, error: new z.ZodError([{ message: 'Input must be an object' }]) };
   }
@@ -254,7 +254,7 @@ export function validateControlNetUnit(input: unknown): z.ZodResult<ControlNetUn
 /**
  * Validate entire multi-unit configuration
  */
-export function validateControlNetMultiUnitConfig(input: unknown): z.ZodResult<ControlNetMultiUnitConfig> {
+export function validateControlNetMultiUnitConfig(input: unknown): z.ZodSafeParseResult<ControlNetMultiUnitConfig> {
   const result = generationRequestWithControlNetSchema.safeParse({ controlnet_units: input });
   
   if (!result.success) {
