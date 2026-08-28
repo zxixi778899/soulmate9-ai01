@@ -103,11 +103,7 @@ export default function GenerateWorkbench() {
   const [credits, setCredits] = useState<number | null>(null);
 
   // ========== IP-Adapter Auto Detection ==========
-  // Detect if any selected preset has identity image (IP-Adapter face)
-  const hasPresetIdentity = Boolean(
-    selectedPose?.ip_adapter_face ||
-    selectedOutfit?.preview_url
-  );
+  // (moved below — needs selectedPose/selectedOutfit to be declared first)
 
   // ── Preset slots ──
   const [posePresets, setPosePresets] = useState<WorkbenchPreset[]>([]);
@@ -117,6 +113,12 @@ export default function GenerateWorkbench() {
   const [selectedPose, setSelectedPose] = useState<WorkbenchPreset | null>(null);
   const [selectedScene, setSelectedScene] = useState<WorkbenchPreset | null>(null);
   const [selectedOutfit, setSelectedOutfit] = useState<OutfitOption | null>(null);
+
+  // Detect if any selected preset has identity image (IP-Adapter face)
+  const hasPresetIdentity = Boolean(
+    selectedPose?.ip_adapter_face ||
+    selectedOutfit?.preview_url
+  );
   const [slotPicker, setSlotPicker] = useState<SlotKind | null>(null);
   const [lockedHint, setLockedHint] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
