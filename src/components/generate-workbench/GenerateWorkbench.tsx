@@ -685,10 +685,10 @@ export default function GenerateWorkbench() {
           onClearScene={() => setSelectedScene(null)}
           onClearOutfit={() => setSelectedOutfit(null)}
           // ========== ControlNet Multi-Unit Status ==========
-          poseControlNetActive: Boolean(selectedPose?.openpose_json || selectedPose?.body_depth_url),
-          outfitControlNetActive: Boolean(selectedOutfit?.canny_edge_url || selectedOutfit?.person_mask_url),
-          sceneControlNetActive: Boolean(selectedScene?.body_depth_url || selectedScene?.canny_edge_url || selectedScene?.bg_mask_url),
-          identityControlNetActive: hasPresetIdentity || (identityOn && girlIdentityUrl(selectedGirl)), // Auto-detected
+          poseControlNetActive={Boolean(selectedPose?.openpose_json || selectedPose?.body_depth_url)}
+          outfitControlNetActive={Boolean(selectedOutfit?.canny_edge_url || selectedOutfit?.person_mask_url)}
+          sceneControlNetActive={Boolean(selectedScene?.body_depth_url || selectedScene?.canny_edge_url || selectedScene?.bg_mask_url)}
+          identityControlNetActive={hasPresetIdentity}
           prompt={prompt}
           onPromptChange={setPrompt}
           count={count}
