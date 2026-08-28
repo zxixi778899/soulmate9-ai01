@@ -132,7 +132,7 @@ export function CryptoPaymentModal({
                 </div>
               )}
 
-              {status === 'confirmed' && (
+              {status === 'paid' && (
                 <div className="flex items-center justify-center text-green-500">
                   <CheckCircle2 className="h-6 w-6 mr-2" />
                   <span className="font-semibold">Payment Confirmed!</span>
