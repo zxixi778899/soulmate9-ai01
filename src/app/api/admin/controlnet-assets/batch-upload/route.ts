@@ -333,7 +333,7 @@ async function updatePresetAssets(
   }
   
   if (Object.keys(updates).length > 0) {
-    await client
+    await supabase
       .from('gen_presets')
       .update({
         ...updates,
