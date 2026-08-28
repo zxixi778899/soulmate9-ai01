@@ -227,7 +227,7 @@ export type WorkbenchPresetWithControlNet = z.infer<typeof workbenchPresetWithCo
  */
 export function validateControlNetUnit(input: unknown): z.ZodSafeParseResult<ControlNetUnitInput> {
   if (!input || typeof input !== 'object') {
-    return { success: false, error: new z.ZodError([{ message: 'Input must be an object' }]) };
+    return { success: false, error: new z.ZodError<ControlNetUnitInput>([{ message: 'Input must be an object' }]) };
   }
   
   const typedInput = input as Record<string, unknown>;
@@ -245,7 +245,7 @@ export function validateControlNetUnit(input: unknown): z.ZodSafeParseResult<Con
     case 'ipadapter':
       return ipAdapterUnitSchema.safeParse(typedInput);
     default:
-      return { success: false, error: new z.ZodError([
+      return { success: false, error: new z.ZodError<ControlNetUnitInput>([
         { message: `Unknown ControlNet type: ${unitType}`, path: ['type'] }
       ]) };
   }
