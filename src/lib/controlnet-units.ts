@@ -1,13 +1,11 @@
 /**
  * ControlNet Multi-Unit System — Type Definitions
- * 
+ *
  * Architecture: Three independent ControlNet units for pose/outfit/scene control
  * from preset library reference images.
  */
 
-import { customAlphabet } from 'nanoid';
-
-const generateUUID = () => crypto.randomUUID() || customAlphabet('1234567890abcdef', 32)();
+const generateUUID = () => crypto.randomUUID();
 
 export type ControlNetType = 'openpose' | 'depth' | 'canny' | 'segment' | 'ipadapter';
 export type PresetCategory = 'pose' | 'outfit' | 'scene';
