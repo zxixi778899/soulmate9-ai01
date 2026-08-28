@@ -92,6 +92,14 @@ export async function GET(request: NextRequest) {
       style_family: preset.style_family ?? null,
       pose_reference: preset.pose_reference ?? null,
       workflow_flags: preset.workflow_flags ?? null,
+      // ========== ControlNet Multi-Unit Resources ==========
+      openpose_json: preset.openpose_json ?? null,
+      body_depth_url: preset.body_depth_url ?? null,
+      canny_edge_url: preset.canny_edge_url ?? null,
+      bg_mask_url: preset.bg_mask_url ?? null,
+      ip_adapter_face: preset.ip_adapter_face ?? null,
+      person_mask_url: preset.person_mask_url ?? null,
+      depth_url: preset.depth_url ?? null, // Legacy field for compatibility
     })),
   });
 }

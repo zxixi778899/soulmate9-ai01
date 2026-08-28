@@ -28,6 +28,7 @@ import { ConsoleDrawer } from './ConsoleDrawer';
 import { CompanionGrid } from './CompanionGrid';
 import { WorksGallery } from './WorksGallery';
 import { PresetSlotPicker } from './PresetSlotPicker';
+import { ControlNetPreviewPanel } from './ControlNetPreviewPanel';
 import {
   girlAvatarUrl,
   girlIdentityUrl,
@@ -100,6 +101,13 @@ export default function GenerateWorkbench() {
   const [hdOn, setHdOn] = useState(false);
   const [identityOn, setIdentityOn] = useState(true);
   const [credits, setCredits] = useState<number | null>(null);
+
+  // ========== IP-Adapter Auto Detection ==========
+  // Detect if any selected preset has identity image (IP-Adapter face)
+  const hasPresetIdentity = Boolean(
+    selectedPose?.ip_adapter_face ||
+    selectedOutfit?.preview_url
+  );
 
   // ── Preset slots ──
   const [posePresets, setPosePresets] = useState<WorkbenchPreset[]>([]);
@@ -644,6 +652,15 @@ export default function GenerateWorkbench() {
         <>
       {/* ══ Left console drawer (fixed on xl, inline below) ══ */}
       <div className="xl:fixed xl:left-[264px] xl:top-4 xl:bottom-4 xl:z-30 xl:w-[360px] px-3 pt-4 xl:p-0">
+        {/* ControlNet Multi-Unit Preview Panel */}
+        <ControlNetPreviewPanel
+          pose={selectedPose}
+          outfit={selectedOutfit}
+          scene={selectedScene}
+          identityImage={identityOn ? girlIdentityUrl(selectedGirl) : null}
+          presetIdentityImage={selectedPose?.ip_adapter_face || null} // Auto-detect from preset
+        />
+        
         <ConsoleDrawer
           mode={mode}
           onModeChange={(m) => {
@@ -667,6 +684,11 @@ export default function GenerateWorkbench() {
           onClearPose={() => setSelectedPose(null)}
           onClearScene={() => setSelectedScene(null)}
           onClearOutfit={() => setSelectedOutfit(null)}
+          // ========== ControlNet Multi-Unit Status ==========
+          poseControlNetActive: Boolean(selectedPose?.openpose_json || selectedPose?.body_depth_url),
+          outfitControlNetActive: Boolean(selectedOutfit?.canny_edge_url || selectedOutfit?.person_mask_url),
+          sceneControlNetActive: Boolean(selectedScene?.body_depth_url || selectedScene?.canny_edge_url || selectedScene?.bg_mask_url),
+          identityControlNetActive: hasPresetIdentity || (identityOn && girlIdentityUrl(selectedGirl)), // Auto-detected
           prompt={prompt}
           onPromptChange={setPrompt}
           count={count}
@@ -699,6 +721,16 @@ export default function GenerateWorkbench() {
             setMode('image');
             setSubMode('edit');
           }}
+          presetIdentityImage={selectedPose?.ip_adapter_face || null}
+          hasControlNetResources={Boolean(
+            selectedPose?.openpose_json || 
+            selectedPose?.body_depth_url ||
+            selectedOutfit?.canny_edge_url || 
+            selectedOutfit?.person_mask_url ||
+            selectedScene?.depth_url || 
+            selectedScene?.canny_edge_url ||
+            selectedScene?.bg_mask_url
+          )}
         />
       </div>
 

@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/context';
 import { GenJobProgress } from '@/components/common/GenJobProgress';
 import { girlAvatarUrl, type Girl, type OutfitOption, type PersonalWork, type SlotKind, type WorkbenchMode, type WorkbenchPreset, type WorkbenchSubMode } from './types';
+import { Badge } from '@/components/ui/badge';
 
 const COUNT_OPTIONS = [1, 2, 4];
 const UPSCALE_OPTIONS = [0, 2, 4];
@@ -45,6 +46,12 @@ export interface ConsoleDrawerProps {
   onClearPose: () => void;
   onClearScene: () => void;
   onClearOutfit: () => void;
+  
+  // ========== ControlNet Multi-Unit Status ==========
+  poseControlNetActive?: boolean;
+  outfitControlNetActive?: boolean;
+  sceneControlNetActive?: boolean;
+  identityControlNetActive?: boolean; // Auto-detected if IP-Adapter face available
   prompt: string;
   onPromptChange: (value: string) => void;
   count: number;
@@ -74,6 +81,8 @@ export interface ConsoleDrawerProps {
   isZh: boolean;
   personalWorks: PersonalWork[];
   onPickWork: (url: string) => void;
+  hasControlNetResources: boolean; // NEW: Flag for showing CN panel hint
+  presetIdentityImage?: string | null; // Identity image from selected preset (IP-Adapter face)
 }
 
 export function ConsoleDrawer(props: ConsoleDrawerProps) {
@@ -82,6 +91,14 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
   const [countOpen, setCountOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const baseInputRef = useRef<HTMLInputElement | null>(null);
+
+  // ========== IP-Adapter Auto Detection ==========
+  // Detect if preset has identity image (IP-Adapter face reference)
+  const hasPresetIdentity = Boolean(
+    props.presetIdentityImage ||
+    props.selectedPose?.ip_adapter_face ||
+    props.selectedOutfit?.preview_url && props.identityOn
+  );
 
   // Preset slots can be added / removed; the layout survives reloads.
   const [visibleSlots, setVisibleSlots] = useState<SlotKind[]>(ALL_SLOTS);
@@ -132,6 +149,8 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
       loading: props.presetsLoading,
       onClick: () => props.onOpenSlot('pose'),
       onClear: props.selectedPose ? props.onClearPose : undefined,
+      controlnetActive: props.poseControlNetActive ?? Boolean(props.selectedPose?.openpose_json || props.selectedPose?.body_depth_url),
+      controlnetType: props.selectedPose?.openpose_json ? 'openpose' : props.selectedPose?.body_depth_url ? 'depth' : undefined,
     },
     outfit: {
       label: t('generate.slotOutfit'),
@@ -140,6 +159,8 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
       loading: false,
       onClick: () => props.onOpenSlot('outfit'),
       onClear: props.selectedOutfit ? props.onClearOutfit : undefined,
+      controlnetActive: props.outfitControlNetActive ?? Boolean(props.selectedOutfit?.canny_edge_url || props.selectedOutfit?.person_mask_url),
+      controlnetType: props.selectedOutfit?.canny_edge_url ? 'canny' : props.selectedOutfit?.person_mask_url ? 'segment' : undefined,
     },
     scene: {
       label: t('generate.slotScene'),
@@ -148,6 +169,8 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
       loading: props.presetsLoading,
       onClick: () => props.onOpenSlot('scene'),
       onClear: props.selectedScene ? props.onClearScene : undefined,
+      controlnetActive: props.sceneControlNetActive ?? Boolean(props.selectedScene?.body_depth_url || props.selectedScene?.canny_edge_url || props.selectedScene?.bg_mask_url),
+      controlnetType: props.selectedScene?.body_depth_url ? 'depth' : props.selectedScene?.canny_edge_url || props.selectedScene?.bg_mask_url ? 'canny' : undefined,
     },
   };
 
@@ -609,6 +632,7 @@ function ToolCard(props: {
   desc: string;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -654,6 +678,10 @@ function SlotCard(props: {
   onClear?: () => void;
   /** Hides this slot from the console (user-managed layout). */
   onRemove?: () => void;
+  /** ControlNet multi-unit status (NEW) */
+  controlnetActive?: boolean;
+  /** ControlNet type indicator (NEW) */
+  controlnetType?: 'openpose' | 'canny' | 'depth' | 'segment';
 }) {
   const { t } = useTranslation();
   return (
@@ -664,7 +692,9 @@ function SlotCard(props: {
         className={cn(
           'relative w-full aspect-[2/3] rounded-xl overflow-hidden border text-left transition-all',
           props.selectedLabel
-            ? 'border-[#FD5FC2]/50'
+            ? props.controlnetActive
+              ? 'border-[#FD5FC2]/60 bg-[#FD5FC2]/10 shadow-[0_0_18px_rgba(253,95,194,0.15)]'
+              : 'border-[#FD5FC2]/50'
             : 'border-dashed border-white/20 hover:border-[#FD5FC2]/50',
         )}
       >
@@ -683,6 +713,24 @@ function SlotCard(props: {
           <span className="absolute top-1 left-1 rounded bg-white/15 px-1 py-px text-[8px] uppercase tracking-wide text-white/70">
             {props.label}
           </span>
+        )}
+        {/* ControlNet status badge (NEW) */}
+        {props.selectedLabel && props.controlnetActive && props.controlnetType && (
+          <Badge
+            variant="outline"
+            className={cn(
+              'absolute top-1 right-1 rounded text-[9px] font-bold uppercase tracking-wider border-0',
+              props.controlnetType === 'openpose' && 'bg-[#FD5FC2]/20 text-[#FF9ADE]',
+              props.controlnetType === 'canny' && 'bg-[#8b5cf6]/20 text-[#A78BFA]',
+              props.controlnetType === 'depth' && 'bg-[#06b6d4]/20 text-[#67E8F9]',
+              props.controlnetType === 'segment' && 'bg-[#f59e0b]/20 text-[#FCD34D]',
+            )}
+          >
+            {props.controlnetType === 'openpose' && t('workbench.openPoseEnabled')}
+            {props.controlnetType === 'canny' && t('workbench.tryOnEnabled')}
+            {props.controlnetType === 'depth' && t('workbench.depthEnabled')}
+            {props.controlnetType === 'segment' && t('workbench.tryOnEnabled')}
+          </Badge>
         )}
       </button>
       {props.onClear && (

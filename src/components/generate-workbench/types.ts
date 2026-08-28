@@ -47,6 +47,20 @@ export interface WorkbenchPreset {
   pose_reference?: string | null;
   /** Admin custom presets carry a free-form prompt hint instead of a catalog slug. */
   prompt_hint?: string;
+  
+  // ========== ControlNet Multi-Unit Resources ==========
+  /** OpenPose skeleton JSON file URL (pose only) */
+  openpose_json?: string;
+  /** Body depth map PNG URL (pose/outfit) - renamed from depth_url for clarity */
+  body_depth_url?: string;
+  /** Canny edge map PNG URL (outfit/scene) */
+  canny_edge_url?: string;
+  /** Background segmentation mask PNG (scene background isolation) */
+  bg_mask_url?: string;
+  /** IP-Adapter face reference URL (all categories for identity lock) */
+  ip_adapter_face?: string;
+  /** Human segmentation mask PNG (outfit try-on) */
+  person_mask_url?: string;
 }
 
 export interface OutfitOption {
@@ -57,6 +71,12 @@ export interface OutfitOption {
   wear_prompt: string;
   emoji?: string;
   preview_url?: string | null;
+  
+  // ========== ControlNet Multi-Unit Resources ==========
+  /** Canny edge map for clothing outline preservation */
+  canny_edge_url?: string;
+  /** Human segmentation mask for try-on occlusion handling */
+  person_mask_url?: string;
 }
 
 export interface HistoryJob {
@@ -78,6 +98,13 @@ export interface GenCustomPresetItem {
   label_zh: string;
   preview_url: string;
   prompt_hint: string;
+  
+  // ========== ControlNet resources for custom presets ==========
+  openpose_json?: string;
+  body_depth_url?: string;
+  canny_edge_url?: string;
+  ip_adapter_face?: string;
+  person_mask_url?: string;
 }
 
 /** Personal library entry — one finished image flattened from history jobs. */
