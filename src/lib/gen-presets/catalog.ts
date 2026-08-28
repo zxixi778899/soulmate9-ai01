@@ -79,6 +79,7 @@ export interface GenPreset {
   bg_mask_url?: string | null;
   ip_adapter_face?: string | null;
   person_mask_url?: string | null;
+  depth_url?: string | null; // Legacy field for backward compatibility
 }
 
 /** Defensive row → GenPreset mapping (missing columns degrade gracefully). */
@@ -115,6 +116,7 @@ export function presetFromRow(row: unknown): GenPreset | null {
     bg_mask_url: r.bg_mask_url != null ? String(r.bg_mask_url) : null,
     ip_adapter_face: r.ip_adapter_face != null ? String(r.ip_adapter_face) : null,
     person_mask_url: r.person_mask_url != null ? String(r.person_mask_url) : null,
+    depth_url: r.depth_url != null ? String(r.depth_url) : null, // Legacy field
   };
 }
 
