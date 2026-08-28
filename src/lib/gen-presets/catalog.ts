@@ -72,6 +72,13 @@ export interface GenPreset {
   // ── Unified preset library fields (migration 0044)
   preset_group?: string;
   extra_params?: Record<string, unknown>;
+  // ========== ControlNet Multi-Unit Resources ==========
+  openpose_json?: string | null;
+  body_depth_url?: string | null;
+  canny_edge_url?: string | null;
+  bg_mask_url?: string | null;
+  ip_adapter_face?: string | null;
+  person_mask_url?: string | null;
 }
 
 /** Defensive row → GenPreset mapping (missing columns degrade gracefully). */
@@ -101,6 +108,13 @@ export function presetFromRow(row: unknown): GenPreset | null {
     workflow_flags: r.workflow_flags != null && typeof r.workflow_flags === 'object' ? (r.workflow_flags as { face_fix?: boolean; upscale?: number; identity_image?: boolean }) : undefined,
     preset_group: r.preset_group != null ? String(r.preset_group) : '',
     extra_params: r.extra_params != null && typeof r.extra_params === 'object' ? (r.extra_params as Record<string, unknown>) : {},
+    // ========== ControlNet Multi-Unit Resources ==========
+    openpose_json: r.openpose_json != null ? String(r.openpose_json) : null,
+    body_depth_url: r.body_depth_url != null ? String(r.body_depth_url) : null,
+    canny_edge_url: r.canny_edge_url != null ? String(r.canny_edge_url) : null,
+    bg_mask_url: r.bg_mask_url != null ? String(r.bg_mask_url) : null,
+    ip_adapter_face: r.ip_adapter_face != null ? String(r.ip_adapter_face) : null,
+    person_mask_url: r.person_mask_url != null ? String(r.person_mask_url) : null,
   };
 }
 
