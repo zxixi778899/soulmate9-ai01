@@ -729,7 +729,7 @@ export default function GenerateWorkbench() {
             selectedPose?.body_depth_url ||
             selectedOutfit?.canny_edge_url || 
             selectedOutfit?.person_mask_url ||
-            selectedScene?.depth_url || 
+            selectedScene?.body_depth_url ||
             selectedScene?.canny_edge_url ||
             selectedScene?.bg_mask_url
           )}
