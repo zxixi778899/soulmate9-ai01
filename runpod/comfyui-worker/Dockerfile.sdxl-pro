@@ -54,7 +54,7 @@ RUN git clone --depth 1 \
 # adetailer yolov8 checkpoints; subpack only retries with weights_only=False
 # for files listed in its model-whitelist.txt. Pre-seed it at build time.
 RUN mkdir -p /comfyui/user/default/ComfyUI-Impact-Subpack \
-    && printf 'face_yolov8m.pt\n' \
+    && printf 'bbox/face_yolov8m.pt\n' \
       > /comfyui/user/default/ComfyUI-Impact-Subpack/model-whitelist.txt
 
 # Build-time smoke test: starting ComfyUI imports every custom node module, so

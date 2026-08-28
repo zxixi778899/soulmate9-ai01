@@ -4,7 +4,8 @@
   "build": {
     "env": {
       "NEXT_DISABLE_ESLINT": "1",
-      "ESLINT_NO_DEV_ERRORS": "true"
+      "ESLINT_NO_DEV_ERRORS": "true",
+      "NEXT_TELEMETRY_DISABLED": "1"
     }
   },
   "crons": [

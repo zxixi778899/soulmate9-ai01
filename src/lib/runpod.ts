@@ -428,12 +428,13 @@ export function buildFluxWorkflow(opts: {
         logger.warn('[runpod] face_detailer requested but RUNPOD_ADETAILER_READY=false — skipping ADetailer enhancement');
       } else {
         // RunPod endpoint confirmed to have Impact Pack installed.
-        // 新版 Impact Pack schema（与 comfy-builders/enhance-blocks.ts 对齐）：
-        // 模型名带 bbox/ 前缀；feather/wildcard/cycle/drop_size 等为必填输入。
+        // New Impact Pack schema (aligned with comfy-builders/enhance-blocks.ts):
+        // Model name uses bbox/ prefix; feather/wildcard/cycle/drop_size are required inputs.
+        const adetailerModel = process.env.RUNPOD_ADETAILER_MODEL || 'bbox/face_yolov8m.pt';
         Object.assign(graph, {
           '51': {
             class_type: 'UltralyticsDetectorProvider',
-            inputs: { model_name: process.env.RUNPOD_ADETAILER_MODEL?.trim() || 'bbox/face_yolov8m.pt' },
+            inputs: { model_name: adetailerModel.trim() },
           },
           '50': {
             class_type: 'FaceDetailer',

@@ -208,6 +208,28 @@ export function getNowPaymentsPriceCents(plan: string, billing: string): number 
 }
 
 /**
+ * Get token package price in USD cents from environment or fallback
+ */
+export function getTokenPackagePriceCents(tokenCount: number): number {
+  // Check environment variables first
+  const envPrices: Record<string, number> = {
+    '500': parseInt(process.env.CRYPTO_TOKENS_500_PRICE || '599'),
+    '1000': parseInt(process.env.CRYPTO_TOKENS_1000_PRICE || '999'),
+    '2500': parseInt(process.env.CRYPTO_TOKENS_2500_PRICE || '2299'),
+    '5000': parseInt(process.env.CRYPTO_TOKENS_5000_PRICE || '3999'),
+    '10000': parseInt(process.env.CRYPTO_TOKENS_10000_PRICE || '6999'),
+  };
+  
+  // Try to find exact match
+  let price = envPrices[String(tokenCount)];
+  if (price > 0) return price;
+  
+  // Fallback to hardcoded rates: 1000 credits = $9.99
+  const ratePerToken = 0.00999; // ~$0.01 per token
+  return Math.round(tokenCount * ratePerToken * 100);
+}
+
+/**
  * Verify IPN webhook signature (HMAC-SHA512)
  */
 export function verifyNowPaymentsIPN(body: string, signature: string): boolean {

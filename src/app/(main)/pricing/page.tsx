@@ -211,7 +211,8 @@ function PricingContent() {
     setTxHash('');
     setCryptoStep('initiating');
     try {
-      const res = await authedFetch('/api/jangopay/initiate', {
+      // 暂时回退到原有 crypto initiate 流程
+      const res = await authedFetch('/api/crypto/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planId, billing }),
@@ -233,7 +234,13 @@ function PricingContent() {
         return;
       }
 
-      if (!data.payAddress) {
+      if (data.redirectUrl) {
+        // Redirect to JangoPay payment page
+        window.location.href = data.redirectUrl;
+        return;
+      }
+
+      if (!data.payAddress && !data.success) {
         toast.error(t('pricing.toastNoWallet'));
         resetCrypto();
         return;

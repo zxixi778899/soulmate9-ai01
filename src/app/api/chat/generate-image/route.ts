@@ -600,8 +600,21 @@ export async function POST(request: NextRequest) {
       upscale?: number;
       identity_image?: string;
     };
+    
+    // ========== NEW: Support ControlNet Multi-Unit Config ==========
+    const controlnetUnits = ((body as { controlnet_units?: unknown }).controlnet_units || {}) as {
+      pose_unit?: unknown;
+      outfit_unit?: unknown;
+      scene_unit?: unknown;
+      identity_unit?: unknown;
+    };
+    
+    // Also support legacy single-unit format for backwards compatibility
+    const legacyControl = (body as { control?: unknown }).control;
+    
     const hasEnhancement = Boolean(
-      caps.control?.image || caps.face_fix || caps.upscale || caps.identity_image,
+      caps.control?.image || caps.face_fix || caps.upscale || caps.identity_image ||
+      controlnetUnits.pose_unit || controlnetUnits.outfit_unit || controlnetUnits.scene_unit || controlnetUnits.identity_unit
     );
     // Only force the self-hosted RunPod path when the request actually needs
     // its capabilities (NSFW, LoRA stack, identity reference, enhancement
@@ -619,8 +632,8 @@ export async function POST(request: NextRequest) {
       num_inference_steps: generationRoute.steps,
       guidance_scale: generationRoute.cfg,
       seed: generationSeed,
-      ip_adapter_image: useConsistency ? referenceImage : caps.identity_image || undefined,
-      ip_adapter_weight: useConsistency ? ipAdapterWeight : caps.identity_image ? 0.75 : undefined,
+      ip_adapter_image: useConsistency ? referenceImage : caps.identity_image || (controlnetUnits.identity_unit?.image_url as string) || undefined,
+      ip_adapter_weight: useConsistency ? ipAdapterWeight : caps.identity_image ? 0.75 : (controlnetUnits.identity_unit as any)?.weight ?? undefined,
       control_image: caps.control?.image,
       control_strength: caps.control?.strength,
       face_detailer: caps.face_fix === true,
@@ -634,6 +647,9 @@ export async function POST(request: NextRequest) {
       force_provider: requestedProvider || (needsRunPod ? defaultProvider : undefined),
       nsfw: effectiveAdult,
       endpoint_id: generationRoute.endpointId || resolved.endpointId || undefined,
+      // ========== NEW: Pass ControlNet multi-unit config to worker ==========
+      controlnet_units: Object.keys(controlnetUnits).length > 0 ? controlnetUnits : null,
+      legacy_control: legacyControl || null,
     };
 
     // 候选模式：一次出多张候选，客户端选一张后再落库
