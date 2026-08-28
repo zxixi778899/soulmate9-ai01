@@ -603,10 +603,23 @@ export async function POST(request: NextRequest) {
     
     // ========== NEW: Support ControlNet Multi-Unit Config ==========
     const controlnetUnits = ((body as { controlnet_units?: unknown }).controlnet_units || {}) as {
-      pose_unit?: unknown;
-      outfit_unit?: unknown;
-      scene_unit?: unknown;
-      identity_unit?: unknown;
+      pose_unit?: {
+        image_url?: string;
+        strength?: number;
+        guidance?: number;
+      };
+      outfit_unit?: {
+        image_url?: string;
+        strength?: number;
+      };
+      scene_unit?: {
+        image_url?: string;
+        strength?: number;
+      };
+      identity_unit?: {
+        image_url?: string;
+        weight?: number;
+      };
     };
     
     // Also support legacy single-unit format for backwards compatibility
@@ -633,7 +646,7 @@ export async function POST(request: NextRequest) {
       guidance_scale: generationRoute.cfg,
       seed: generationSeed,
       ip_adapter_image: useConsistency ? referenceImage : caps.identity_image || (controlnetUnits.identity_unit?.image_url as string) || undefined,
-      ip_adapter_weight: useConsistency ? ipAdapterWeight : caps.identity_image ? 0.75 : (controlnetUnits.identity_unit as any)?.weight ?? undefined,
+      ip_adapter_weight: useConsistency ? ipAdapterWeight : caps.identity_image ? 0.75 : controlnetUnits.identity_unit?.weight ?? undefined,
       control_image: caps.control?.image,
       control_strength: caps.control?.strength,
       face_detailer: caps.face_fix === true,
