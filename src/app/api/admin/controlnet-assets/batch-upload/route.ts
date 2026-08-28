@@ -120,10 +120,10 @@ export async function POST(request: NextRequest) {
         result.assets = generatedAssets.assets;
         
         // Update gen_presets table with new URLs
-        await updatePresetAssets(supabase, preset.id, generatedAssets.assets);
+        await updatePresetAssets(supabase, preset.id, generatedAssets.assets!);
         
         // Store metadata in controlnet_assets table
-        await storeAssetMetadata(supabase, preset.id, generatedAssets.assets);
+        await storeAssetMetadata(supabase, preset.id, generatedAssets.assets!);
       } else {
         result.status = 'failed';
         result.error = generatedAssets.error;
