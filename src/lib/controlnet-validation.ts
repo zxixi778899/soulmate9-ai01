@@ -271,36 +271,36 @@ export function validateControlNetUnit(input: unknown): z.ZodSafeParseResult<Con
  */
 export function validateControlNetMultiUnitConfig(input: unknown): z.ZodSafeParseResult<ControlNetMultiUnitConfig> {
   const result = generationRequestWithControlNetSchema.safeParse({ controlnet_units: input });
-  
+
   if (!result.success) {
-    return { success: false, error: result.error };
+    return { success: false, error: result.error as z.ZodError<ControlNetMultiUnitConfig> };
   }
-  
+
   const units = result.data.controlnet_units;
-  
+
   // Each unit must be valid based on its declared type
   const validatedUnits: Partial<Record<'pose_unit' | 'outfit_unit' | 'scene_unit' | 'identity_unit', unknown>> = {};
-  
+
   if (units?.pose_unit) {
     const poseValidation = validateControlNetUnit(units.pose_unit);
-    if (!poseValidation.success) return { success: false, error: poseValidation.error };
+    if (!poseValidation.success) return { success: false, error: poseValidation.error as z.ZodError<ControlNetMultiUnitConfig> };
   }
-  
+
   if (units?.outfit_unit) {
     const outfitValidation = validateControlNetUnit(units.outfit_unit);
-    if (!outfitValidation.success) return { success: false, error: outfitValidation.error };
+    if (!outfitValidation.success) return { success: false, error: outfitValidation.error as z.ZodError<ControlNetMultiUnitConfig> };
   }
-  
+
   if (units?.scene_unit) {
     const sceneValidation = validateControlNetUnit(units.scene_unit);
-    if (!sceneValidation.success) return { success: false, error: sceneValidation.error };
+    if (!sceneValidation.success) return { success: false, error: sceneValidation.error as z.ZodError<ControlNetMultiUnitConfig> };
   }
-  
+
   if (units?.identity_unit) {
     const identityValidation = validateControlNetUnit(units.identity_unit);
-    if (!identityValidation.success) return { success: false, error: identityValidation.error };
+    if (!identityValidation.success) return { success: false, error: identityValidation.error as z.ZodError<ControlNetMultiUnitConfig> };
   }
-  
+
   return { success: true, data: units as ControlNetMultiUnitConfig };
 }
 
