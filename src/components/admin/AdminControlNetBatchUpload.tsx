@@ -15,7 +15,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Combobox } from '@/components/ui/combobox';
 import { Loader2, RefreshCw, Upload, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 
 interface PresetOption {
