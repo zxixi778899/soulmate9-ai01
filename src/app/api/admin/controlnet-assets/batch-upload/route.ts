@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthUser, requireAdmin } from '@/lib/require-admin';
+import { getAuthUser, requireAdmin } from '@/lib/supabase-server';
 import { authedFetch } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
@@ -33,12 +33,14 @@ export async function POST(request: NextRequest) {
   }
   
   // ========== Admin Check ==========
-  try {
-    await requireAdmin(user.id, client);
-  } catch (e) {
+  const adminCheck = await requireAdmin(request, 'admin');
+  if (adminCheck.error) {
     logger.warn('[controlnet-batch] Non-admin attempted upload', { userId: user.id });
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    return adminCheck.error;
   }
+  
+  // Get supabase client from admin check result
+  const supabase = adminCheck.supabase || client;
   
   // ========== Parse Request Body ==========
   let body: BatchUploadRequest;
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
   }
   
   // ========== Fetch Preset Details ==========
-  const presetsQuery = await client
+  const presetsQuery = await supabase
     .from('gen_presets')
     .select('*')
     .in('id', preset_ids);
@@ -94,7 +96,7 @@ export async function POST(request: NextRequest) {
     
     try {
       // Skip if already has all requested assets
-      const existingAssets = await checkExistingAssets(client, preset.id, selectedTypes);
+      const existingAssets = await checkExistingAssets(supabase, preset.id, selectedTypes);
       const newTypes = selectedTypes.filter(t => !existingAssets[t]);
       
       if (newTypes.length === 0) {
@@ -108,7 +110,7 @@ export async function POST(request: NextRequest) {
       const generatedAssets = await generateControlNetAssets(
         preset,
         newTypes,
-        client,
+        supabase,
         user.id
       );
       
@@ -117,10 +119,10 @@ export async function POST(request: NextRequest) {
         result.assets = generatedAssets.assets;
         
         // Update gen_presets table with new URLs
-        await updatePresetAssets(client, preset.id, generatedAssets.assets);
+        await updatePresetAssets(supabase, preset.id, generatedAssets.assets);
         
         // Store metadata in controlnet_assets table
-        await storeAssetMetadata(client, preset.id, generatedAssets.assets);
+        await storeAssetMetadata(supabase, preset.id, generatedAssets.assets);
       } else {
         result.status = 'failed';
         result.error = generatedAssets.error;
@@ -157,7 +159,7 @@ export async function POST(request: NextRequest) {
 // ========== Helper Functions ==========
 
 async function checkExistingAssets(
-  client: any,
+  supabase: any,
   preset_id: string,
   asset_types: string[]
 ): Promise<Record<string, boolean>> {
@@ -175,7 +177,7 @@ async function checkExistingAssets(
     const columnName = columnMap[assetType];
     if (!columnName) continue;
     
-    const result = await client
+    const result = await supabase
       .from('gen_presets')
       .select(columnName)
       .eq('id', preset_id)
@@ -190,7 +192,7 @@ async function checkExistingAssets(
 async function generateControlNetAssets(
   preset: any,
   asset_types: string[],
-  client: any,
+  supabase: any,
   adminUserId: string
 ): Promise<{ success: boolean; assets?: Record<string, string>; error?: string }> {
   try {
@@ -309,7 +311,7 @@ function buildComfyWorkflow(assetType: string, sourceImage: string): Record<stri
 }
 
 async function updatePresetAssets(
-  client: any,
+  supabase: any,
   preset_id: string,
   assets: Record<string, string>
 ): Promise<void> {
@@ -341,12 +343,12 @@ async function updatePresetAssets(
 }
 
 async function storeAssetMetadata(
-  client: any,
+  supabase: any,
   preset_id: string,
   assets: Record<string, string>
 ): Promise<void> {
   for (const [assetType, url] of Object.entries(assets)) {
-    await client
+    await supabase
       .from('controlnet_assets')
       .insert({
         preset_id,
