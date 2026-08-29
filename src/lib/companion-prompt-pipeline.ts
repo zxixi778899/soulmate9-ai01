@@ -7,7 +7,7 @@
  * 4. 所有入口（create / chat / console）走同一套 builder
  */
 
-export type IdFraming = 'waist-up' | 'close-up';
+export type IdFraming = 'waist-up' | 'close-up' | 'bust-up';
 
 /** 从基础信息（捏脸表单 / 伴侣行）拼出角色专属提示词 */
 export function buildCompanionCharacterPrompt(info: Record<string, unknown>): string {
@@ -42,11 +42,23 @@ export function buildCompanionCharacterPrompt(info: Record<string, unknown>): st
   return parts.join(', ').replace(/\s{2,}/g, ' ').trim();
 }
 
-/** ID 参考图的方向提示词（腰部以上 / 头部特写，身份锚点） */
+/**
+ * ID 参考图的方向提示词。
+ *
+ * - `close-up`：头部特写，纯身份锚点
+ * - `waist-up`：腰部以上，露出上半身轮廓
+ * - `bust-up`（默认）：胸部以上半身，露出颈/肩/胸曲线，性格/吸引人元素
+ *   的最佳取景；FLUX LoRA 在这个区间最稳定
+ */
 export function buildIdReferencePrompt(framing: IdFraming): string {
-  return framing === 'close-up'
-    ? 'head close-up identity reference portrait, face large and unobstructed, both eyes sharp, full hairline and chin visible, shoulders softly out of frame, looking naturally at the camera, plain warm neutral background'
-    : 'waist-up identity reference portrait, face and upper body centered, both eyes sharp, complete hairline and chin visible, relaxed shoulders, looking naturally at the camera, plain warm neutral background';
+  if (framing === 'close-up') {
+    return 'head close-up identity reference portrait, face large and unobstructed, both eyes sharp, full hairline and chin visible, shoulders softly out of frame, looking naturally at the camera, plain warm neutral background';
+  }
+  if (framing === 'waist-up') {
+    return 'waist-up identity reference portrait, face and upper body centered, both eyes sharp, complete hairline and chin visible, relaxed shoulders, looking naturally at the camera, plain warm neutral background';
+  }
+  // bust-up — chest-up framing, the new default for companion creation.
+  return 'bust-up identity reference portrait, chest-up framing with neck, shoulders and collarbone visible, both eyes sharp, complete hairline and chin visible, relaxed natural posture with subtle confident expression, plain warm neutral background';
 }
 
 /** 下游内容提示词：只描述画面内容，身份交给 ID 参考图 / IP-Adapter */
