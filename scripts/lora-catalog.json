@@ -1,0 +1,110 @@
+{
+  "_meta": {
+    "format": "filename → {url, source, civitai_model_id?, requires_token?: bool}",
+    "last_curated": "2026-08-30",
+    "notes": "Sourced from scripts/runpod/lora-urls.recommended.txt (Tier A-E) plus gaps found by scripts/check-lora-installed.mjs. flux_3d_render_v1 was the missing piece behind the '3D 出图全部失败' report — its Civitai model id 694058 was not previously documented in lora-urls.recommended.txt."
+  },
+  "flux_3d_render_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/695564",
+    "source": "civitai",
+    "civitai_model_id": 694058,
+    "tier": "D",
+    "label": "3D render — fills the SFW 3D path"
+  },
+  "flux_style_photoreal_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/1084957",
+    "source": "civitai",
+    "tier": "A",
+    "label": "Card-quality photoreal style"
+  },
+  "flux_style_hyperreal_aidma_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/980278",
+    "source": "civitai",
+    "tier": "A"
+  },
+  "flux_detail_skin_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/827325",
+    "source": "civitai",
+    "tier": "A"
+  },
+  "flux_detail_skin_nplastic_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/1301668",
+    "source": "civitai",
+    "tier": "A"
+  },
+  "flux_detail_hands_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/1003317",
+    "source": "civitai",
+    "tier": "A"
+  },
+  "flux_detail_upgrader_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/984672",
+    "source": "civitai",
+    "tier": "A"
+  },
+  "flux_body_curvy_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/1668530",
+    "source": "civitai",
+    "tier": "B"
+  },
+  "flux_body_pear_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/1276427",
+    "source": "civitai",
+    "tier": "B"
+  },
+  "flux_outfit_lingerie_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/869894",
+    "source": "civitai",
+    "tier": "C"
+  },
+  "flux_outfit_bunny_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/817758",
+    "source": "civitai",
+    "tier": "C"
+  },
+  "flux_outfit_maid_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/1588611",
+    "source": "civitai",
+    "tier": "C"
+  },
+  "flux_outfit_bikini_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/1184191",
+    "source": "civitai",
+    "tier": "C"
+  },
+  "flux_outfit_latex_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/734230",
+    "source": "civitai",
+    "tier": "C"
+  },
+  "flux_outfit_school_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/2163726",
+    "source": "civitai",
+    "tier": "C"
+  },
+  "flux_pose_nsfw_dynamic_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/746602",
+    "source": "civitai",
+    "tier": "D"
+  },
+  "flux_face_ahegao_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/1477302",
+    "source": "civitai",
+    "tier": "D"
+  },
+  "flux_style_cinematic_v1.safetensors": {
+    "url": "https://civitai.com/api/download/models/953083",
+    "source": "civitai",
+    "tier": "E"
+  },
+  "flux_anime_v1.safetensors": {
+    "url": null,
+    "source": "rdanimefluxv1rapid.safetensors — bundled with FLUX.1 D anime preset, not on Civitai",
+    "label": "If missing, search rdanimefluxv1rapid.safetensors on HuggingFace"
+  },
+  "flux_lewd_v1.safetensors": {
+    "url": null,
+    "source": "Unknown — search Civitai (Flux.1 D NSFW) or rebuild from runtime-assets volume",
+    "label": "Affects NSFW intensity ≥3 path"
+  }
+}
