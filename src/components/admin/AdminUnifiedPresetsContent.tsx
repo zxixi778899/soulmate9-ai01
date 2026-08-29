@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
-  Loader2, RefreshCw, Plus, Trash2, ImageIcon,
+  Loader2, RefreshCw, Plus, Trash2, ImageIcon, Upload,
   FileText, Move, MapPin, ChevronDown, ChevronRight,
   Copy, Edit, Check,
 } from 'lucide-react';
@@ -44,12 +44,13 @@ interface GenPreset {
   extra_params?: Record<string, unknown>;
 }
 
-type UnifiedCategory = 'prompt' | 'pose' | 'scene';
+type UnifiedCategory = 'prompt' | 'pose' | 'scene' | 'outfit';
 
 const CATEGORY_META: Record<UnifiedCategory, { label: string; icon: typeof FileText; hint: string; color: string }> = {
-  prompt: { label: '提示词预设', icon: FileText, hint: 'FLUX / SDXL 提示词模板 · 生成参数', color: 'violet' },
-  pose:   { label: '姿势 / 动作', icon: Move, hint: 'ControlNet 姿势参考 · 动作模板', color: 'cyan' },
-  scene:  { label: '场景库', icon: MapPin, hint: '场景环境 · 服装 · 画风 · 氛围', color: 'emerald' },
+  prompt:   { label: '提示词预设', icon: FileText, hint: 'FLUX / SDXL 提示词模板 · 生成参数', color: 'violet' },
+  pose:     { label: '姿势 / 动作', icon: Move, hint: 'ControlNet 姿势参考 · 动作模板', color: 'cyan' },
+  scene:    { label: '场景库', icon: MapPin, hint: '场景环境 · 画风 · 氛围', color: 'emerald' },
+  outfit:   { label: '服装库', icon: ImageIcon, hint: '服装图片 · 穿搭模板', color: 'pink' },
 };
 
 const NSFW_BADGE: Record<number, string> = {
@@ -65,7 +66,7 @@ const NSFW_BADGE: Record<number, string> = {
 
 export default function AdminUnifiedPresetsContent({ embedded = false }: { embedded?: boolean }) {
   const [allPresets, setAllPresets] = useState<Record<UnifiedCategory, GenPreset[]>>({
-    prompt: [], pose: [], scene: [],
+    prompt: [], pose: [], scene: [], outfit: [],
   });
   const [loading, setLoading] = useState(true);
   const [seeded, setSeeded] = useState(false);
@@ -78,7 +79,7 @@ export default function AdminUnifiedPresetsContent({ embedded = false }: { embed
       const res = await authedFetch('/api/admin/gen-presets?unified=1');
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load');
-      setAllPresets(json.unified || { prompt: [], pose: [], scene: [] });
+      setAllPresets(json.unified || { prompt: [], pose: [], scene: [], outfit: [] });
       setSeeded(true);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -670,15 +671,65 @@ function PresetDialog({
               className="bg-[#0f0f17] border-gray-700 text-sm" placeholder="bad anatomy, deformed..." />
           </div>
 
-          {/* Preview URL */}
+          {/* Preview URL + Upload */}
           <div className="space-y-1">
-            <Label className="text-xs text-gray-400">预览图 URL</Label>
+            <Label className="text-xs text-gray-400">预览图 URL / 上传</Label>
             <Input value={form.preview_url} onChange={(e) => update({ preview_url: e.target.value })}
-              placeholder="https://..." className="bg-[#0f0f17] border-gray-700 text-sm" />
+              placeholder="https://... (or use upload below)" 
+              className="bg-[#0f0f17] border-gray-700 text-sm" />
             {form.preview_url && (
               <div className="mt-1 aspect-video max-h-32 bg-gray-900 rounded-md overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={form.preview_url} alt="preview" className="w-full h-full object-cover" />
+              </div>
+            )}
+
+            {/* Image upload for outfit category - Multi-file support */}
+            {category === 'outfit' && (
+              <div className="border border-dashed border-gray-600 rounded-lg p-4 bg-gray-900/30 mt-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Upload className="h-4 w-4 text-violet-400" />
+                  <span className="text-sm text-violet-300 hover:text-violet-200 transition-colors">
+                    点击上传图片 (可多选)
+                  </span>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    multiple
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (!files.length) return;
+                      setSaving(true);
+                      try {
+                        const formData = new FormData();
+                        files.forEach(file => formData.append('files', file));
+                        formData.append('category', 'outfit');
+                        formData.append('tags', 'preset,clothing');
+                        
+                        const res = await authedFetch('/api/storage/upload', {
+                          method: 'POST',
+                          body: formData,
+                        });
+                        if (!res.ok) throw new Error('Upload failed');
+                        const result = await res.json();
+                        
+                        // Update preview URLs with first uploaded image or comma-separated list
+                        if (result.files && result.files.length > 0) {
+                          const urls = result.files.map(f => f.url).join(', ');
+                          update({ preview_url: urls });
+                          toast.success(`已上传 ${result.count} 张图片`);
+                        }
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : 'Upload failed');
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    className="hidden"
+                    id={`outfit-upload-${category}`}
+                  />
+                </label>
+                {saving && <p className="text-xs text-gray-400 mt-1">上传中...</p>}
               </div>
             )}
           </div>

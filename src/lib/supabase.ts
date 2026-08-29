@@ -11,8 +11,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
  * Resolution: read HARDCODED first, fall back to env if explicitly set.
  * This keeps the fallback chain reachable regardless of bundler behaviour.
  */
-const HARDCODED_URL = 'https://vvblrnkguyxeeeoslkk.supabase.co';
-const HARDCODED_KEY = 'sb_publishable_7YIlnWCPFcTez5gK6pvRtA_zNPFC8LX';
+const HARDCODED_URL = 'https://vvblrkngzuyxeeoslzkl.supabase.co';
+const HARDCODED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Ymxya25negt1eXhlZW9zbHprbCIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzgyOTE3MTQ4LCJleHAiOjIwOTg0OTMxNDh9.MrWduKdUaJf8V5r-S14XLERHQijV8wF74Pvko72TNkQ';
 
 const SUPABASE_URL: string =
   (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_URL.trim()) ||

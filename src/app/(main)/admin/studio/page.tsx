@@ -7,7 +7,8 @@ import {
   ArrowRight,
   Layers,
   Loader2,
-  Palette,
+  CloudUpload,
+  BookOpen,
   SlidersHorizontal,
   UserRound,
   Workflow,
@@ -17,10 +18,11 @@ import ComfyConsole from '../comfy/ComfyConsole';
 import { StudioWorkbench } from '@/components/studio-workbench/StudioWorkbench';
 import AdminUnifiedPresetsContent from '@/components/admin/AdminUnifiedPresetsContent';
 import CreatorPreviewsAdminContent from '@/components/admin/CreatorPreviewsAdminContent';
+import PublicAssetsAdminContent from '@/components/admin/PublicAssetsAdminContent';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';
 
-type Section = 'studio' | 'unified-presets' | 'previews';
+type Section = 'studio' | 'unified-presets' | 'public-assets';
 
 const SECTIONS: Array<{
   id: Section;
@@ -41,10 +43,10 @@ const SECTIONS: Array<{
     hint: '提示词 · 姿势动作 · 场景',
   },
   {
-    id: 'previews',
-    label: '预览图配置',
-    icon: Palette,
-    hint: '捏脸创建 3 性别 × 3 画风预览位',
+    id: 'public-assets',
+    label: '公共资源库',
+    icon: CloudUpload,
+    hint: '公共图片、模型与素材资源管理',
   },
 ];
 
@@ -57,7 +59,7 @@ function StudioInner(): React.JSX.Element {
   ).trim();
   const sectionParam = searchParams.get('section');
   const section: Section =
-    sectionParam === 'unified-presets' || sectionParam === 'previews' ? sectionParam : 'studio';
+    sectionParam === 'unified-presets' || sectionParam === 'public-assets' ? sectionParam : 'studio';
   const useLegacy = searchParams.get('v') === 'legacy';
 
   // 头部引擎徽章跟随 SDXL 矩阵总闸（服务端 env 客户端不可见，走 API 下发）。
@@ -151,10 +153,10 @@ function StudioInner(): React.JSX.Element {
       <div className="mx-auto max-w-[1600px] px-3 py-4 md:px-4">
         {section === 'studio' && (useLegacy
           ? <ComfyConsole girlfriendId={girlfriendId || undefined} embedded />
-          : <StudioWorkbench girlfriendId={girlfriendId || undefined} />
-        )}
+          : <StudioWorkbench girlfriendId={girlfriendId || undefined} />)
+        }
         {section === 'unified-presets' && <AdminUnifiedPresetsContent embedded />}
-        {section === 'previews' && <CreatorPreviewsAdminContent />}
+        {section === 'public-assets' && <PublicAssetsAdminContent />}
       </div>
     </div>
   );

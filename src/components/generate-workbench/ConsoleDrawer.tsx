@@ -250,8 +250,11 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
             </div>
             {props.baseImage ? (
               <div className="relative rounded-xl overflow-hidden border border-white/10">
-                {/* eslint-disable-next-line @next/next/no-img-element -- dynamic upload/result URL */}
-                <img src={props.baseImage} alt="Base" className="h-28 w-full object-cover" />
+                <img 
+                  src={props.baseImage} 
+                  alt="Base" 
+                  className="h-auto w-full max-h-[320px] object-contain mx-auto" 
+                />
                 <button
                   type="button"
                   onClick={props.onClearBase}
@@ -265,10 +268,10 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
                 type="button"
                 onClick={() => baseInputRef.current?.click()}
                 disabled={props.uploadingBase}
-                className="flex h-16 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 text-xs text-white/50 hover:border-[#FD5FC2]/50 hover:text-white transition-all"
+                className="flex h-20 w-full min-h-[80px] items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 text-sm text-white/50 hover:border-[#FD5FC2]/50 hover:text-white transition-all disabled:opacity-50"
               >
                 {props.uploadingBase ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                {t('generate.pickBaseImage')}
+                <span className="text-center">{t('generate.pickBaseImage')}</span>
               </button>
             )}
             <input
@@ -278,7 +281,15 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) props.onBaseUpload(file);
+                if (file) {
+                  // Mobile optimization: preview file size before upload
+                  if (file.size > 10 * 1024 * 1024) {
+                    alert(t('generate.fileSizeWarning', { size: (file.size / 1024 / 1024).toFixed(1) }));
+                    e.target.value = '';
+                    return;
+                  }
+                  props.onBaseUpload(file);
+                }
                 e.target.value = '';
               }}
             />

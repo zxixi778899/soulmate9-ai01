@@ -29,13 +29,14 @@ export default function LoginPage() {
     try {
       const supabase = createBrowserClient();
       if (!supabase) {
-        setError(t('common.error'));
+        setError('Supabase client initialization failed. Please refresh the page.');
         setLoading(false);
         return;
       }
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) {
-        setError(authError.message);
+        console.error('Login error:', authError);
+        setError(authError.message || t('common.error'));
         setLoading(false);
         return;
       }
