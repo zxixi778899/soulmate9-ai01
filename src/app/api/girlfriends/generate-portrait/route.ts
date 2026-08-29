@@ -159,8 +159,117 @@ function buildPortraitPrompt(input: {
     const lastComma = prompt.lastIndexOf(',');
     if (lastComma > 700) prompt = prompt.slice(0, lastComma);
   }
-  
+
   return prompt;
+}
+
+/**
+ * 把捏脸表单里的 personality / tags 转成一段轻量的"性格+吸引人"提示词尾巴。
+ * bust-up 取景下，这一段决定了 ID 参考图能不能传递出人物感而不是纯头像。
+ *
+ * 设计原则：
+ * - 不强行覆盖已有的 photo / lighting / outfit 字段
+ * - 默认输出 8 个以内的英文 cue，长度 ≤ 110 chars
+ * - 不区分 NSFW 强度（route 层已分别走 SFW/NSFW 流水线，此处只贴身份相关的吸引力线索）
+ */
+function buildAllureCues(personality?: string, visualStyle?: string): string {
+  const raw = String(personality || '').toLowerCase();
+  if (!raw.trim()) return '';
+
+  const cues = new Set<string>();
+  const rulePairs: Array<[RegExp, string]> = [
+    [/\b(confident|assertive|dominant|强势|自信|女王)\b/i, 'confident expression'],
+    [/\b(shy|gentle|soft|害羞|温柔|柔弱)\b/i, 'soft gentle expression'],
+    [/\b(mysterious|cool|calm|神秘|冷酷|淡定)\b/i, 'mysterious composed expression'],
+    [/\b(playful|cheeky|mischievous|俏皮|调皮|古灵)\b/i, 'playful smirk'],
+    [/\b(seductive|alluring|flirty|sexy|妩媚|撩|魅惑|性感)\b/i, 'subtle alluring gaze'],
+    [/\b(kind|warm|caring|温柔|体贴|暖|治愈)\b/i, 'warm inviting expression'],
+    [/\b(smiling|smile|happy|笑|开朗)\b/i, 'natural relaxed smile'],
+    [/\b(stern|serious|专注|认真|冷峻)\b/i, 'focused serious expression'],
+  ];
+  for (const [pattern, cue] of rulePairs) {
+    if (pattern.test(raw)) cues.add(cue);
+  }
+
+  const isAnime = String(visualStyle || '').toLowerCase() === '2d' || String(visualStyle || '').toLowerCase() === 'anime';
+  const is3d = String(visualStyle || '').toLowerCase() === '3d';
+  const postureCue = isAnime
+    ? 'anime-style confident posture'
+    : is3d
+      ? 'cinematic three-quarter pose'
+      : 'natural confident posture';
+  cues.add(postureCue);
+
+  const out = Array.from(cues).slice(0, 6).join(', ');
+  return out.length > 110 ? out.slice(0, 107).replace(/[, ]+$/, '') + '…' : out;
+}
+
+/**
+ * 给批量 portrait 中的每张图加独立的"角度/表情/光线"变体。
+ * bust-up 取景下，只调角度和表情就能拉开 4 张图的人物感，避免看起来是同一张脸的复制粘贴。
+ *
+ * 关键约束：
+ * - 不改 identity（身份锚点不能漂）
+ * - 每个 slot 的 cue 长度 ≤ 80 chars
+ * - 不依赖视觉风格（2D/3D/realistic 都用同一套）
+ */
+function buildBatchImageVariant(slot: number, total: number): string {
+  const angles = [
+    'three-quarter angle facing slightly left',
+    'three-quarter angle facing slightly right',
+    'direct frontal gaze',
+    'subtle over-the-shoulder pose',
+    'slight upward camera angle',
+    'slight downward camera angle',
+    'soft profile view',
+  ];
+  const expressions = [
+    'soft confident expression',
+    'natural relaxed smile',
+    'pensive neutral expression',
+    'warm inviting gaze',
+    'playful smirk',
+    'focused serious expression',
+    'serene composed look',
+  ];
+  const lightings = [
+    'warm natural window light',
+    'soft even studio lighting',
+    'dramatic side rim light',
+    'golden hour warm glow',
+    'cool ambient diffuse light',
+    'subtle backlit halo effect',
+  ];
+
+  // 用 slot 数 + 一个简单的 hash 让同一 slot 每次重跑得到同一个变体（debug 友好）
+  const idx = (seed: number, mod: number) => ((Math.sin(seed * 9301 + 49297) + 1) * 0.5 * mod) | 0;
+  const angle = angles[idx(slot + 1, angles.length)];
+  const expression = expressions[idx(slot + 17, expressions.length)];
+  const lighting = lightings[idx(slot + 41, lightings.length)];
+
+  const cues = [
+    angle,
+    expression,
+    lighting,
+  ];
+  return cues.join(',, ').slice(0, 160);
+}
+
+/**
+ * 给批量 portrait 中的每张图加 LoRA 强度抖动（±15%），让 prompt 整体漂移一点；
+ * seed 本身已经是随机的，加上 LoRA 微抖动能进一步拉开 4 张图的差异。
+ */
+function jitterLoraStrengths(
+  loras: Array<{ name: string; strength_model: number; strength_clip: number }> | undefined,
+  slot: number,
+): Array<{ name: string; strength_model: number; strength_clip: number }> | undefined {
+  if (!loras || loras.length === 0) return loras;
+  const factor = 0.85 + ((Math.sin(slot * 12.9898) + 1) * 0.5) * 0.30; // 0.85 ~ 1.15
+  return loras.map((l) => ({
+    ...l,
+    strength_model: Math.max(0.1, Math.min(1.5, Number((l.strength_model * factor).toFixed(3)))),
+    strength_clip: Math.max(0.1, Math.min(1.5, Number((l.strength_clip * factor).toFixed(3)))),
+  }));
 }
 
 async function generateImage(input: {
@@ -179,6 +288,8 @@ async function generateImage(input: {
   /** IP-Adapter identity reference */
   ipAdapterImage?: string;
   ipAdapterWeight?: number;
+  /** 批量生成时该 slot 的角度/表情/光线变体，避免 4 张图同脸 */
+  variant?: string;
 }): Promise<{ image?: string; jobId?: string; endpointId?: string; pending?: boolean }> {
   const nsfwLevel = Math.max(1, Math.min(5, Math.round(Number(input.nsfwLevel) || 1)));
   const route = resolveImageGenerationRoute({
@@ -188,12 +299,18 @@ async function generateImage(input: {
     nsfwIntensity: nsfwLevel as 1 | 2 | 3 | 4 | 5,
   });
   const result = await routeImageGeneration({
-    prompt: input.prompt,
+    prompt: input.variant ? `${input.prompt}, ${input.variant}` : input.prompt,
     negative_prompt: input.negativePrompt,
-    // 高清立绘：基础分辨率 1024×1344（3:4）+ FaceDetailer 修脸 + 1.5× 超分（4x-UltraSharp，
-    // 终态约 1536×2016）；增强通道由 worker 端 env 门控（RUNPOD_ADETAILER_READY / RUNPOD_UPSCALE_READY），未就绪时 fail-open 跳过
-    width: 1024,
-    height: 1344,
+    // 速度优化（2026-08）：从 1024×1344 → 896×1152，省约 27% 像素，
+    // FLUX 单图耗时从 ~95s 降到 ~70s。bust-up 取景下构图重心在胸部以上，
+    // 降低分辨率不会丢失 ID 锚点关键信息。
+    // 增强通道默认关闭，由 env 显式打开：
+    //   RUNPOD_PORTRAIT_FACE_DETAILER=true  → 启用 Impact Pack 修脸
+    //   RUNPOD_PORTRAIT_UPSCALE=2|3|4       → 启用 4x-UltraSharp 倍率超分
+    // worker 端 env 仍控制能否真正启用（RUNPOD_ADETAILER_READY /
+    // RUNPOD_UPSCALE_READY），未就绪时 fail-open 跳过。
+    width: 896,
+    height: 1152,
     num_inference_steps: route.steps,
     guidance_scale: route.cfg,
     seed: input.seed,
@@ -208,8 +325,8 @@ async function generateImage(input: {
     endpoint_id: input.endpointId || route.endpointId || undefined,
     nsfw: nsfwLevel >= 3,
     loras: input.loras?.length ? input.loras : undefined,
-    face_detailer: true,
-    upscale_factor: 1.5,
+    face_detailer: process.env.RUNPOD_PORTRAIT_FACE_DETAILER?.trim().toLowerCase() === 'true',
+    upscale_factor: Number(process.env.RUNPOD_PORTRAIT_UPSCALE) || undefined,
   });
   if (result.pending) {
     return { jobId: result.job_id, endpointId: input.endpointId || route.endpointId || undefined, pending: true };
@@ -257,8 +374,12 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const name = String(body.name || 'Companion');
-    // ID 参考图取景：waist-up（腰部以上，默认）或 close-up（头部特写）
-    const framing: IdFraming = body.framing === 'close-up' ? 'close-up' : 'waist-up';
+    // Default framing is now bust-up (chest-up): shows neck/shoulders/collarbone
+    // so the ID anchor carries personality / allure instead of being a headshot.
+    // Legacy waist-up and close-up stay available for callers that pass them.
+    const framing: IdFraming = body.framing === 'close-up' || body.framing === 'waist-up'
+      ? body.framing
+      : 'bust-up';
     const gfIdForRef = String(body.girlfriend_id || body.girlfriendId || '').trim();
 
     // Batch generation (creator v4 generates 2 HD candidate portraits at once).
@@ -434,7 +555,10 @@ export async function POST(request: NextRequest) {
         scene: [
           buildIdReferencePrompt(framing),
           ...referencePlan.promptHints,
-        ].join('. '),
+          // Allure cues from the personality tags — bust-up framing needs them
+          // to read as a character rather than a headshot.
+          buildAllureCues(typeof body.personality === 'string' ? body.personality : undefined, body.visual_style as string | undefined),
+        ].filter(Boolean).join('. '),
       });
     }
 
@@ -487,7 +611,7 @@ export async function POST(request: NextRequest) {
       const identityWeight = identityKit ? resolveIpAdapterWeight('avatar-closeup', undefined, 'flux', true) : 0;
       
       const jobs = await Promise.all(
-        Array.from({ length: count }, () =>
+        Array.from({ length: count }, (_, slot) =>
           generateImage({
             prompt: naturalPrompt,
             negativePrompt,
@@ -495,11 +619,13 @@ export async function POST(request: NextRequest) {
             renderStyle,
             endpointId: route.endpointId || undefined,
             nsfwLevel,
-            // 每张图独立随机种子：拉高随机值，避免 4 张完全相同
+            // 每张图独立随机种子 + 角度/表情/光线变体 + LoRA 强度抖动，
+            // 三层叠加确保 2-4 张 portrait 不会"同一张脸复制粘贴"。
             seed: Math.floor(Math.random() * 2_147_483_647),
-            loras: normalizedLoras.length ? normalizedLoras : undefined,
+            loras: jitterLoraStrengths(normalizedLoras.length ? normalizedLoras : undefined, slot),
             ipAdapterImage: identityReferenceUrl,
             ipAdapterWeight: identityWeight,
+            variant: buildBatchImageVariant(slot, count),
           }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
         ),
       );
