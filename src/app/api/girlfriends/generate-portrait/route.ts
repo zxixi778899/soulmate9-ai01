@@ -51,6 +51,14 @@ function hairColorName(hexOrName: string): string {
   return map[v.toLowerCase()] || 'colored';
 }
 
+/**
+ * 构建肖像提示词（捏脸系统专用）
+ * 特点：
+ * - 质量前缀 + 主体描述 + 细节分层
+ * - 自动性别/风格差异化
+ * - 长度限制防止 token 溢出
+ * - 稳定性 guardrails（手部/构图/眼神）
+ */
 function buildPortraitPrompt(input: {
   name?: string;
   visual_style?: string;
@@ -69,7 +77,6 @@ function buildPortraitPrompt(input: {
   bodyType?: string;
   style?: string;
   personality?: string;
-  /** Parts-library (forge genome) fragments: skin tone / bust shape / height / combined extras. */
   skin_tone?: string;
   bust_shape?: string;
   height?: string;
@@ -85,6 +92,8 @@ function buildPortraitPrompt(input: {
   const bodyType = input.body_type || input.bodyType || 'slim';
   const fashion = input.fashion_style || input.style || 'casual';
   const visual = (input.visual_style || 'realistic').toLowerCase();
+  
+  // 清理模糊关键词（NSFW guardrails）
   const extra = sanitizeBlurKeywords(
     [input.appearance_prompt, input.personality].filter(Boolean).join(', '),
   );
@@ -93,40 +102,64 @@ function buildPortraitPrompt(input: {
   const heightFrag = sanitizeBlurKeywords(String(input.height || '').trim());
   const genomeExtra = sanitizeBlurKeywords(String(input.genome_prompt || '').trim());
 
+  // === 质量前缀（根据风格自适应）===
   const medium =
     visual === '2d' || visual === 'anime'
       ? 'a polished 2D anime character portrait with fully rendered colors and deliberate cel shading'
       : visual === '3d'
         ? 'a polished 3D animated character portrait with coherent materials and studio character lighting'
         : 'a natural editorial photograph with believable skin texture and soft directional light';
+  
   const category = normalizeCompanionCategory({ gender });
+  
+  // === 体型描述（性别差异化）===
   const bodyDescription = category === 'male'
     ? `${bodyType} adult masculine build with broad shoulders and a defined torso`
     : category === 'transgender'
       ? `${bodyType} adult feminine silhouette with visibly mixed masculine and feminine physical traits`
       : `${bodyType} adult feminine figure with natural proportions`;
 
+  // === 提示词部件（分层构建）===
   const parts = [
+    // ① 质量描述（固定前缀）
     medium,
+    
+    // ② 主体人物
     `gorgeous young adult ${gender.toLowerCase()} age 22-28 named ${name}`,
+    
+    // ③ 面部特征
     `${ethnicity} features, ${face} face shape${skinTone ? `, ${skinTone}` : ''}`,
+    
+    // ④ 发型发色
     `${hairStyle} ${hairColor} hair`,
+    
+    // ⑤ 眼睛表情
     `${eyeColor} eyes looking at viewer`,
+    
+    // ⑥ 体型描述
     bodyDescription,
-    bustShape,
-    heightFrag,
+    
+    // ⑦ 服装风格
     `wearing flattering ${fashion} outfit`,
+    
+    // ⑧ 额外细节（截断保护）
     genomeExtra.slice(0, 200),
     extra.slice(0, 180),
+    
+    // ⑨ 稳定性 guardrails（防止手部崩坏/构图异常）
     'clear eyes, complete head in frame, relaxed shoulders, natural asymmetrical posture, coherent hands',
   ].filter(Boolean);
 
+  // === 合并与长度控制 ===
   let prompt = parts.join(', ').replace(/\s{2,}/g, ' ').trim();
+  
+  // FLUX 限制 ~900 tokens，超出时从后向前截断
   if (prompt.length > 900) {
     prompt = prompt.slice(0, 900);
     const lastComma = prompt.lastIndexOf(',');
     if (lastComma > 700) prompt = prompt.slice(0, lastComma);
   }
+  
   return prompt;
 }
 
