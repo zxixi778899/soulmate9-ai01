@@ -48,7 +48,10 @@ export function buildCompanionCharacterPrompt(info: Record<string, unknown>): st
  * - `close-up`：头部特写，纯身份锚点
  * - `waist-up`：腰部以上，露出上半身轮廓
  * - `bust-up`（默认）：胸部以上半身，露出颈/肩/胸曲线，性格/吸引人元素
- *   的最佳取景；FLUX LoRA 在这个区间最稳定
+ *   的最佳取景；FLUX LoRA 在这个区间最稳定。
+ *
+ *   v2 (2026-08): bust-up 措辞强化，加显式构图比例 + anti-close-up 排他词，
+ *   解决"出图仍像头像特写"的反馈。
  */
 export function buildIdReferencePrompt(framing: IdFraming): string {
   if (framing === 'close-up') {
@@ -58,7 +61,11 @@ export function buildIdReferencePrompt(framing: IdFraming): string {
     return 'waist-up identity reference portrait, face and upper body centered, both eyes sharp, complete hairline and chin visible, relaxed shoulders, looking naturally at the camera, plain warm neutral background';
   }
   // bust-up — chest-up framing, the new default for companion creation.
-  return 'bust-up identity reference portrait, chest-up framing with neck, shoulders and collarbone visible, both eyes sharp, complete hairline and chin visible, relaxed natural posture with subtle confident expression, plain warm neutral background';
+  // v2 (2026-08): 加显式构图比例（head 30% / shoulders+chest 50% / waist cut 20%）
+  // 和 anti-close-up 排他词。旧措辞 "identity reference portrait, complete
+  // hairline and chin visible" 把 FLUX 拉向 head-and-shoulders 特写，导致
+  // bust-up 出图看起来像头像。
+  return 'medium close-up half-body shot, chest-up framing, head occupies top third of frame with neck and full hairline clearly visible, shoulders and upper chest occupy the middle third with collarbone and natural neckline visible, waist area cut off at bottom edge, full torso proportions not visible, both eyes sharp, looking naturally at the camera, plain warm neutral background, no headshot, no extreme close-up, no face-only crop';
 }
 
 /** 下游内容提示词：只描述画面内容，身份交给 ID 参考图 / IP-Adapter */

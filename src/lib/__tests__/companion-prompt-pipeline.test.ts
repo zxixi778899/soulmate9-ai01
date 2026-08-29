@@ -22,13 +22,19 @@ describe('buildIdReferencePrompt', () => {
     expect(text).not.toMatch(/bust-up/i);
   });
 
-  it('bust-up anchors on neck/shoulders/collarbone (chest-up framing)', () => {
+  it('bust-up anchors on chest-up framing with explicit composition ratios', () => {
     const text = buildIdReferencePrompt('bust-up');
-    expect(text).toMatch(/bust-up/i);
+    // v2 wording — composition ratios replace the v1 short cue
     expect(text).toMatch(/chest-up/i);
-    // bust-up explicitly shows neck/shoulder/collarbone — the character
-    // signal that the bust-up framing was chosen for.
     expect(text).toMatch(/collarbone|shoulder|neck/i);
+    // explicit composition guidance prevents FLUX from collapsing to headshot
+    expect(text).toMatch(/top third of frame/i);
+    expect(text).toMatch(/middle third/i);
+    expect(text).toMatch(/waist area cut off/i);
+    // explicit anti-close-up language so FLUX doesn't drift back into a face crop
+    expect(text).toMatch(/no headshot/i);
+    expect(text).toMatch(/no extreme close-up/i);
+    expect(text).toMatch(/no face-only crop/i);
     // bust-up is not waist-up
     expect(text).not.toMatch(/waist-up/i);
   });

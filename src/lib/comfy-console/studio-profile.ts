@@ -212,7 +212,10 @@ export function studioIntensityLabel(intensity: NsfwIntensity): string {
 }
 
 export function studioNegativePrompt(category: CompanionCategory, animeStyle: AnimeRenderStyle = 'realistic'): string {
-  const shared = 'child, teen, underage, young-looking, low resolution, blur, deformed anatomy, extra limbs, fused hands, malformed hands, duplicate person, cropped head, cropped feet, rigid pose, plastic skin, oversaturated skin, text, watermark';
+  // 2026-08: 在原来 anti-blur / anti-anatomy / anti-cross-style 基础上加了
+  // 显式的 anti-close-up（no headshot / no extreme close-up / no face-only），
+  // 防止 bust-up 取景被 FLUX 拉回头像特写。同时收紧"模糊 / 噪点"措辞。
+  const shared = 'child, teen, underage, young-looking, low resolution, blur, blurred, fuzzy, hazy, noisy, film grain, jpeg artifacts, compression artifacts, soft focus, out of focus, deformed anatomy, extra limbs, fused hands, malformed hands, duplicate person, cropped head, cropped feet, rigid pose, plastic skin, oversaturated skin, text, watermark, headshot, extreme close-up, face-only crop, tight head crop';
   const anatomy = category === 'transgender'
     ? 'cisgender woman, vagina, flat chest, duplicated genitals, detached genitals, caricature'
     : category === 'male'

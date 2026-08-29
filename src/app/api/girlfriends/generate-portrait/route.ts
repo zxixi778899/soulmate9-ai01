@@ -301,16 +301,15 @@ async function generateImage(input: {
   const result = await routeImageGeneration({
     prompt: input.variant ? `${input.prompt}, ${input.variant}` : input.prompt,
     negative_prompt: input.negativePrompt,
-    // 速度优化（2026-08）：从 1024×1344 → 896×1152，省约 27% 像素，
-    // FLUX 单图耗时从 ~95s 降到 ~70s。bust-up 取景下构图重心在胸部以上，
-    // 降低分辨率不会丢失 ID 锚点关键信息。
-    // 增强通道默认关闭，由 env 显式打开：
-    //   RUNPOD_PORTRAIT_FACE_DETAILER=true  → 启用 Impact Pack 修脸
-    //   RUNPOD_PORTRAIT_UPSCALE=2|3|4       → 启用 4x-UltraSharp 倍率超分
-    // worker 端 env 仍控制能否真正启用（RUNPOD_ADETAILER_READY /
-    // RUNPOD_UPSCALE_READY），未就绪时 fail-open 跳过。
-    width: 896,
-    height: 1152,
+    // 分辨率恢复：从 896×1152 → 1024×1344（≈30% 更多像素），
+    // 给 bust-up 留出上半身构图空间 + 让 FLUX 有足够像素表达面部细节，
+    // 平衡"速度 vs 清晰度 vs 上半身可见"三者。
+    // 单图耗时回到 ~95s，对比 896×1152 的 ~70s。
+    // 增强通道默认开 face_detailer（worker gate 已控制可行性，未就绪时 fail-open 跳过）：
+    //   RUNPOD_PORTRAIT_FACE_DETAILER 默认 ON；RUNPOD_PORTRAIT_FACE_DETAILER=false 显式关
+    //   RUNPOD_PORTRAIT_UPSCALE=N        默认 OFF；N=2|3|4 启用 4x-UltraSharp 倍率超分
+    width: 1024,
+    height: 1344,
     num_inference_steps: route.steps,
     guidance_scale: route.cfg,
     seed: input.seed,
@@ -325,7 +324,7 @@ async function generateImage(input: {
     endpoint_id: input.endpointId || route.endpointId || undefined,
     nsfw: nsfwLevel >= 3,
     loras: input.loras?.length ? input.loras : undefined,
-    face_detailer: process.env.RUNPOD_PORTRAIT_FACE_DETAILER?.trim().toLowerCase() === 'true',
+    face_detailer: process.env.RUNPOD_PORTRAIT_FACE_DETAILER?.trim().toLowerCase() !== 'false',
     upscale_factor: Number(process.env.RUNPOD_PORTRAIT_UPSCALE) || undefined,
   });
   if (result.pending) {
