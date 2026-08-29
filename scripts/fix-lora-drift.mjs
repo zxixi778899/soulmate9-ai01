@@ -32,6 +32,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// .env.local lives at the project root, one level up from scripts/.
+const projectRoot = path.resolve(__dirname, '..');
 
 // ─── args + env loading ──────────────────────────────────────────────────────────────────────────────────
 
@@ -48,7 +50,7 @@ const DEFAULT_LORAS = [
 const requested = targets.length ? targets : DEFAULT_LORAS;
 
 // Inline .env.local reader (no dotenv dep so this runs even when node_modules is stale).
-const envFile = path.join(__dirname, '.env.local');
+const envFile = path.join(projectRoot, '.env.local');
 if (fs.existsSync(envFile)) {
   for (const raw of fs.readFileSync(envFile, 'utf8').replace(/^﻿/, '').split(/\r?\n/)) {
     const line = raw.trim();
@@ -114,28 +116,42 @@ function buildProbeWorkflow(loraName) {
         denoise: 1,
       },
     },
+    '7': { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['1', 2] } },
+    '8': { class_type: 'SaveImage', inputs: { filename_prefix: 'probe', images: ['7', 0] } },
   };
 }
 
 async function probeOne(loraName) {
-  try {
-    const res = await fetch(`https://api.runpod.ai/v2/${endpointId}/runsync`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ input: { prompt: buildProbeWorkflow(loraName) }, async_: false }),
-      signal: AbortSignal.timeout(60_000),
-    });
-    const text = await res.text();
-    const payload = JSON.parse(text);
-    const errText = String(payload?.error || payload?.output?.error || '');
-    const status = String(payload?.status || '');
-    const missing = /value_not_in_list/.test(errText) && /lora_name/.test(errText);
-    if (missing) return { present: false, detail: errText.slice(0, 200) };
-    if (status === 'COMPLETED' || payload?.output?.images) return { present: true };
-    return { present: false, detail: errText.slice(0, 200) || 'no_images' };
-  } catch (e) {
-    return { present: false, detail: `network_error: ${e.message}` };
+  // Production FLUX endpoint expects `input.workflow` (comfy_workflow
+  // strategy in src/lib/runpod.ts:1238); some endpoints want `prompt`
+  // instead. Try both so we don't get false negatives.
+  const payloadShapes = [
+    { input: { workflow: buildProbeWorkflow(loraName), async_: false } },
+    { input: { prompt: buildProbeWorkflow(loraName), workflow: buildProbeWorkflow(loraName), async_: false } },
+  ];
+  for (const body of payloadShapes) {
+    try {
+      const res = await fetch(`https://api.runpod.ai/v2/${endpointId}/runsync`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(60_000),
+      });
+      const text = await res.text();
+      const payload = JSON.parse(text);
+      const errText = String(payload?.error || payload?.output?.error || '');
+      const status = String(payload?.status || '');
+      const missing = /value_not_in_list/.test(errText) && /lora_name/.test(errText);
+      if (missing) return { present: false, detail: errText.slice(0, 200) };
+      if (status === 'COMPLETED' || payload?.output?.images) return { present: true };
+      // Reject this shape and try the next one
+      if (/workflow|prompt/i.test(errText) && (errText.includes('Missing') || errText.includes('required'))) continue;
+      return { present: false, detail: errText.slice(0, 200) || 'no_images' };
+    } catch (e) {
+      return { present: false, detail: `network_error: ${e.message}` };
+    }
   }
+  return { present: false, detail: 'all payload shapes rejected' };
 }
 
 const declarative = new Set(

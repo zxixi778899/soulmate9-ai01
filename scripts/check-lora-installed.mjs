@@ -25,11 +25,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// .env.local lives at the project root, one level up from scripts/.
+const projectRoot = path.resolve(__dirname, '..');
 
 // Node 20+ has --env-file built in; caller can also pass env via the shell.
 // We don't depend on the dotenv package here so this script runs even when
 // node_modules is stale.
-const envFile = path.join(__dirname, '.env.local');
+const envFile = path.join(projectRoot, '.env.local');
 try {
   const fs = await import('node:fs');
   if (fs.existsSync(envFile)) {
@@ -127,57 +129,73 @@ function buildProbeWorkflow(loraName) {
         denoise: 1,
       },
     },
+    '7': { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['1', 2] } },
+    '8': { class_type: 'SaveImage', inputs: { filename_prefix: 'probe', images: ['7', 0] } },
   };
 }
 
 async function probeOne(loraName) {
   const url = `https://api.runpod.ai/v2/${endpointId}/runsync`;
-  const body = JSON.stringify({ input: { prompt: buildProbeWorkflow(loraName) }, async_: false });
-  let res;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-      body,
-      signal: AbortSignal.timeout(60_000),
-    });
-  } catch (e) {
-    return { loraName, declarative: declarative.has(loraName), probe: 'network_error', detail: e.message };
-  }
-  const text = await res.text();
-  let payload = null;
-  try { payload = JSON.parse(text); } catch { /* keep null */ }
+  // The production FLUX endpoint expects `input.workflow` (comfy_workflow
+  // strategy in src/lib/runpod.ts:1238) — sending just `prompt` returns
+  // "Missing 'workflow' parameter". Try comfy_workflow first; fall back to
+  // comfy_dual so we don't get false negatives on endpoints that prefer
+  // either field.
+  const payloadShapes = [
+    { input: { workflow: buildProbeWorkflow(loraName), async_: false } },
+    { input: { prompt: buildProbeWorkflow(loraName), workflow: buildProbeWorkflow(loraName), async_: false } },
+  ];
 
-  if (res.status >= 500) {
-    return { loraName, declarative: declarative.has(loraName), probe: 'http_5xx', detail: text.slice(0, 160) };
-  }
+  for (const body of payloadShapes) {
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch (e) {
+      return { loraName, declarative: declarative.has(loraName), probe: 'network_error', detail: e.message };
+    }
+    const text = await res.text();
+    let payload = null;
+    try { payload = JSON.parse(text); } catch { /* keep null */ }
 
-  // Validation errors land as output.error (a string). Successful runs land as
-  // output with images / status COMPLETED.
-  const errText = String(payload?.error || payload?.output?.error || '');
-  const status = String(payload?.status || '');
-  const missing = /value_not_in_list/.test(errText) && /lora_name/.test(errText);
+    if (res.status >= 500) {
+      return { loraName, declarative: declarative.has(loraName), probe: 'http_5xx', detail: text.slice(0, 160) };
+    }
 
-  if (missing) {
-    return {
-      loraName,
-      declarative: declarative.has(loraName),
-      probe: 'missing_on_worker',
-      detail: errText.slice(0, 200),
-    };
+    const errText = String(payload?.error || payload?.output?.error || '');
+    const status = String(payload?.status || '');
+    const missing = /value_not_in_list/.test(errText) && /lora_name/.test(errText);
+
+    if (missing) {
+      return {
+        loraName,
+        declarative: declarative.has(loraName),
+        probe: 'missing_on_worker',
+        detail: errText.slice(0, 200),
+      };
+    }
+    if (status === 'COMPLETED' || payload?.output?.images) {
+      return { loraName, declarative: declarative.has(loraName), probe: 'present_on_worker' };
+    }
+    // Endpoint rejected this payload shape ("Missing 'workflow' parameter"
+    // or "prompt is required"); try the next shape.
+    if (/workflow|prompt/i.test(errText) && (errText.includes('Missing') || errText.includes('required'))) {
+      continue;
+    }
+    if (errText) {
+      return {
+        loraName,
+        declarative: declarative.has(loraName),
+        probe: 'other_error',
+        detail: errText.slice(0, 200),
+      };
+    }
   }
-  if (status === 'COMPLETED' || payload?.output?.images) {
-    return { loraName, declarative: declarative.has(loraName), probe: 'present_on_worker' };
-  }
-  if (errText) {
-    return {
-      loraName,
-      declarative: declarative.has(loraName),
-      probe: 'other_error',
-      detail: errText.slice(0, 200),
-    };
-  }
-  return { loraName, declarative: declarative.has(loraName), probe: 'unknown', detail: text.slice(0, 160) };
+  return { loraName, declarative: declarative.has(loraName), probe: 'unknown', detail: 'all payload shapes rejected' };
 }
 
 (async () => {
