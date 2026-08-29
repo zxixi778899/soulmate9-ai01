@@ -19,7 +19,6 @@
     "i18n:extract": "node scripts/i18n-extract.mjs",
     "launch:check": "node scripts/launch-check.mjs",
     "runpod:check": "node scripts/check-runpod-endpoints.mjs",
-    "runpod:apikey": "node scripts/check-runpod-apikey.mjs",
     "validate": "pnpm run ts-check && pnpm run lint:build",
     "test": "vitest run",
     "test:watch": "vitest",
