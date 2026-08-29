@@ -420,10 +420,19 @@ export async function routeImageGeneration(opts: ImageRouterOptions): Promise<Im
           ),
         ]);
 
-        // If RunPod queued and switch_on_queue is enabled, try next provider
-        // But never switch if force_provider is set or no remaining providers exist
+        // If RunPod queued and switch_on_queue is enabled, try next provider.
+        // Guard against firing on a submit_only async submit: when executeRunPod
+        // already issued a job_id via /run, the job is in flight and switching
+        // to a fallback provider would create a duplicate (and waste a GPU slot).
+        // But never switch if force_provider is set or no remaining providers exist.
         const hasRemainingProviders = i + 1 < routes.length;
-        if (result.pending && shouldSwitchFromQueuedRunPod(route, needsLora) && !opts.force_provider && hasRemainingProviders) {
+        if (
+          result.pending &&
+          !result.job_id &&
+          shouldSwitchFromQueuedRunPod(route, needsLora) &&
+          !opts.force_provider &&
+          hasRemainingProviders
+        ) {
           const queueLatency = Date.now() - attemptStart;
           attempts.push({ provider: route.provider, success: false, error: 'queued_switch', latency_ms: queueLatency });
           logger.info('[image-router] RunPod queued, switching to next provider', {

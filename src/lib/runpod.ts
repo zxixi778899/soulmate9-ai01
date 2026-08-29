@@ -1273,7 +1273,52 @@ class RunPodClient {
           workflow_nodes: Object.keys(workflow).length,
           prompt_len: promptText.length,
           poll_budget_ms: pollBudgetMs,
+          submit_only: options.submit_only === true,
         });
+
+        // submit_only: hand the job to the worker queue and return immediately
+        // with the job_id — the client polls /api/ai/status in parallel. This
+        // is the only safe path for concurrent /runsync calls against a
+        // single-worker endpoint (otherwise the second submission blocks on
+        // the first and either times out at RunPod's ~90s /runsync ceiling or
+        // surfaces as IN_QUEUE with no output, which then collapses to
+        // "no images in response" across all 3 strategies).
+        if (options.submit_only) {
+          const submitRes = await fetch(`${baseUrl}/run`, {
+            method: 'POST',
+            headers: this.headers,
+            body: JSON.stringify({ input: strategy.input }),
+            signal: AbortSignal.timeout(20_000), // /run returns fast (queue ticket only)
+          });
+          if (!submitRes.ok) {
+            const errText = await submitRes.text();
+            errors.push(`${strategy.name}: submit HTTP ${submitRes.status} ${errText.slice(0, 160)}`);
+            continue;
+          }
+          const submitData = (await submitRes.json()) as {
+            id?: string;
+            status?: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+            error?: string;
+          };
+          if (!submitData.id) {
+            errors.push(`${strategy.name}: no job id in response`);
+            continue;
+          }
+          logger.info('[runpod] submitted (async)', {
+            strategy: strategy.name,
+            job_id: submitData.id,
+            status: submitData.status || 'IN_QUEUE',
+          });
+          return {
+            images: [],
+            latency_ms: Date.now() - started,
+            job_id: submitData.id,
+            pending: true,
+            status: submitData.status || 'IN_QUEUE',
+            endpoint_id: endpointId,
+            strategy: strategy.name,
+          };
+        }
 
         const submitRes = await fetch(`${baseUrl}/runsync`, {
           method: 'POST',
@@ -1290,6 +1335,7 @@ class RunPodClient {
 
         // /runsync returns result directly (no job_id polling)
         const submitData = (await submitRes.json()) as {
+          id?: string;
           output?: { images?: Array<string | RunPodImageOutput> };
           error?: string;
           status?: string;
@@ -1298,6 +1344,28 @@ class RunPodClient {
         if (submitData.error || submitData.status === 'FAILED') {
           errors.push(`${strategy.name}: ${submitData.error || 'failed'}`);
           continue;
+        }
+
+        // /runsync on a busy single-worker endpoint returns IN_QUEUE (not
+        // FAILED) once its hard ceiling (~90s) hits. Surface this as a
+        // resumable pending job instead of dropping the request as
+        // "no images in response" — callers that don't pass submit_only
+        // (cached generation paths, single-shot sync paths) still benefit.
+        if (submitData.id && (submitData.status === 'IN_QUEUE' || submitData.status === 'IN_PROGRESS')) {
+          logger.info('[runpod] runsync queued, returning pending', {
+            strategy: strategy.name,
+            job_id: submitData.id,
+            status: submitData.status,
+          });
+          return {
+            images: [],
+            latency_ms: Date.now() - started,
+            job_id: submitData.id,
+            pending: true,
+            status: submitData.status,
+            endpoint_id: endpointId,
+            strategy: strategy.name,
+          };
         }
 
         // Success! Direct result from /runsync
