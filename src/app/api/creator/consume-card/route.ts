@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
         );
       }
       const result = await cancelCreationCard(token);
-      return NextResponse.json({ ok: true, mode: 'cancel', ...result });
+      return NextResponse.json({ ok: true, mode: 'cancel', cancelled: true });
     }
 
     // Legacy `consume` mode — kept for backward compatibility.
