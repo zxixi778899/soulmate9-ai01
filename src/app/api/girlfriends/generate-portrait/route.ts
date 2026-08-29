@@ -30,7 +30,7 @@ import { resolveIdentityKit, resolveIpAdapterWeight, type IdentityKitSupabaseCli
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const PORTRAIT_GEN_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
+const PORTRAIT_GEN_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 }; // 30/h/user
 
 function hairColorName(hexOrName: string): string {
   const v = (hexOrName || '').trim();
