@@ -123,6 +123,9 @@ export async function POST(request: NextRequest) {
   }
 
   const started = Date.now();
+  // Declared outside the try so the catch block can use them for refunds.
+  // (TypeScript treats `const` inside a try as unreachable from its catch.)
+  let girlfriend_id = '';
   try {
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object') {
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     // Optional companion — the generate workbench creates standalone artwork
     // without a girlfriend; chat surfaces always pass one.
-    const girlfriend_id = String((body as { girlfriend_id?: string }).girlfriend_id || '').trim();
+    girlfriend_id = String((body as { girlfriend_id?: string }).girlfriend_id || '').trim();
 
     const userRequest = String(
       (body as { user_request?: string; prompt?: string; message?: string }).user_request ||
