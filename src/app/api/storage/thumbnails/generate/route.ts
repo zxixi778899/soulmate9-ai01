@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     for (const asset of assets) {
       // Parse URLs if multiple
-      const urls = asset.url.split(',').map(u => u.trim());
+      const urls = asset.url.split(',').map((u: string) => u.trim());
       
       for (const url of urls) {
         try {
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
           const imgBuffer = await imgResponse.arrayBuffer();
           
           // Generate thumbnails for each size
-          const thumbnailPromises = sizes.map(async (size) => {
+          const thumbnailPromises = sizes.map(async (size: 'thumb' | 'medium' | 'large') => {
             let width = 256; // thumb
             let height = 256;
             

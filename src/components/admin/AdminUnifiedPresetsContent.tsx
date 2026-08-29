@@ -715,7 +715,7 @@ function PresetDialog({
                         
                         // Update preview URLs with first uploaded image or comma-separated list
                         if (result.files && result.files.length > 0) {
-                          const urls = result.files.map(f => f.url).join(', ');
+                          const urls = result.files.map((f: any) => f.url).join(', ');
                           update({ preview_url: urls });
                           toast.success(`已上传 ${result.count} 张图片`);
                         }

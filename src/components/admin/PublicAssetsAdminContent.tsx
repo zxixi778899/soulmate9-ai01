@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { authedFetch } from '@/lib/supabase';
 import { useImageCompressor } from '@/hooks/use-image-compressor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

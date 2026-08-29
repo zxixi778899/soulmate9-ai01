@@ -33,8 +33,20 @@ export async function POST(request: NextRequest) {
     const serviceKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const uploadedFiles = [];
     const bucket = 'assets';
+
+    // Define file metadata structure
+    interface UploadedFile {
+      id: string;
+      url: string;
+      filename: string;
+      size: number;
+      category: string;
+      tags: string[];
+      uploadedAt: string;
+    }
+    
+    const uploadedFiles: UploadedFile[] = [];
 
     // Ensure bucket exists (auto-create)
     try {

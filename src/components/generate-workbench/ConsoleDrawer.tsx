@@ -284,7 +284,7 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
                 if (file) {
                   // Mobile optimization: preview file size before upload
                   if (file.size > 10 * 1024 * 1024) {
-                    alert(t('generate.fileSizeWarning', { size: (file.size / 1024 / 1024).toFixed(1) }));
+                    alert(`File size exceeds 10MB. Current: ${(file.size / 1024 / 1024).toFixed(1)}MB`);
                     e.target.value = '';
                     return;
                   }
