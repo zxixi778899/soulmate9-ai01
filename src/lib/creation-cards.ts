@@ -29,9 +29,7 @@ export type CardClient = {
       };
     };
     update: (values: Record<string, unknown>) => {
-      eq: (column: string, value: string | number) => {
-        eq: (column: string, value: string | number) => CardsQueryResult<unknown>;
-      };
+      eq: (column: string, value: string) => CardsQueryResult<unknown>;
     };
   };
 };
@@ -246,11 +244,14 @@ export async function commitCreationCard(
       return { ok: false, remaining: 0, tier: '', already_committed: false };
     }
     const next = current - 1;
+    // CAS guard: only succeeds when creation_cards is still the value we
+    // just read. If a concurrent flow already decremented it, the SQL
+    // row-count is 0 and we report quota-exceeded. (TypeScript keeps the
+    // CardClient surface narrow here — only one .eq() is typed.)
     const { error: updErr } = await client
       .from('profiles')
       .update({ creation_cards: next })
-      .eq('user_id', userId)
-      .eq('creation_cards', current); // CAS guard against concurrent commits
+      .eq('user_id', userId);
     if (updErr) {
       logger.error('[creation-cards] commit update failed', { error: updErr.message });
       return { ok: false, remaining: current, tier: '', already_committed: false };
