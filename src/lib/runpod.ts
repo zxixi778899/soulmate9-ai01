@@ -17,6 +17,7 @@ import { sanitizeLoraForVolume } from '@/lib/runpod-loras';
 import { specialistCheckpointInventory } from '@/lib/image-generation-routing';
 import { logger } from '@/lib/logger';
 import { capture, AnalyticsEvents } from './analytics';
+import { normalizeAdetailerModelName } from '@/lib/comfy-console/enhancer-config';
 
 // 
 // RunPod credentials  MUST come from environment variables
@@ -430,11 +431,15 @@ export function buildFluxWorkflow(opts: {
         // RunPod endpoint confirmed to have Impact Pack installed.
         // New Impact Pack schema (aligned with comfy-builders/enhance-blocks.ts):
         // Model name uses bbox/ prefix; feather/wildcard/cycle/drop_size are required inputs.
-        const adetailerModel = process.env.RUNPOD_ADETAILER_MODEL || 'bbox/face_yolov8m.pt';
+        // normalizeAdetailerModelName() auto-prepends bbox/ if RUNPOD_ADETAILER_MODEL
+        // is a bare filename (matches the behavior of applyFaceDetailer()).
+        const adetailerModel = normalizeAdetailerModelName(
+          process.env.RUNPOD_ADETAILER_MODEL || 'bbox/face_yolov8m.pt',
+        );
         Object.assign(graph, {
           '51': {
             class_type: 'UltralyticsDetectorProvider',
-            inputs: { model_name: adetailerModel.trim() },
+            inputs: { model_name: adetailerModel },
           },
           '50': {
             class_type: 'FaceDetailer',

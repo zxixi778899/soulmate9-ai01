@@ -51,3 +51,20 @@ export function assertEnhancersReady(requested: Partial<Record<EnhancerId, boole
     }
   }
 }
+
+/**
+ * Impact-Subpack UltralyticsDetectorProvider 强制按目录枚举模型
+ * (bbox/ 或 segm/)。如果 env 变量只填了裸文件名（例如
+ * `face_yolov8m.pt`），自动补上 `bbox/` 前缀避免 worker 上
+ * `value_not_in_list` 报错。已带前缀的保持不动。
+ *
+ * 集中在此供 `buildFluxWorkflow` (runpod.ts) 与
+ * `applyFaceDetailer` (comfy-builders/enhance-blocks.ts) 共用，避免
+ * 两条 workflow 构建路径出现行为漂移。
+ */
+export function normalizeAdetailerModelName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith('bbox/') || trimmed.startsWith('segm/')) return trimmed;
+  return `bbox/${trimmed}`;
+}

@@ -43,6 +43,22 @@ describe('buildFluxWorkflow enhancement branches', () => {
     expect(inputsOf(graph, '7')).toMatchObject({ images: ['62', 0] });
   });
 
+  it('auto-prepends bbox/ when RUNPOD_ADETAILER_MODEL is a bare filename', () => {
+    process.env.RUNPOD_ADETAILER_MODEL = 'face_yolov8m.pt';
+    const bare = buildFluxWorkflow({ prompt: 'x', face_detailer: true });
+    expect(inputsOf(bare, '51')).toMatchObject({ model_name: 'bbox/face_yolov8m.pt' });
+
+    // segm/ must pass through untouched (not silently downgraded to bbox/).
+    process.env.RUNPOD_ADETAILER_MODEL = 'segm/face_yolov8n.pt';
+    const segm = buildFluxWorkflow({ prompt: 'x', face_detailer: true });
+    expect(inputsOf(segm, '51')).toMatchObject({ model_name: 'segm/face_yolov8n.pt' });
+
+    // Explicit bbox/ is left alone (no double-prefix).
+    process.env.RUNPOD_ADETAILER_MODEL = 'bbox/hand_yolov8n.pt';
+    const prefixed = buildFluxWorkflow({ prompt: 'x', face_detailer: true });
+    expect(inputsOf(prefixed, '51')).toMatchObject({ model_name: 'bbox/hand_yolov8n.pt' });
+  });
+
   it('keeps enhancement branches on the img2img path too', () => {
     const graph = buildFluxWorkflow({
       prompt: 'x',
