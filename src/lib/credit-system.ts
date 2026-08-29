@@ -294,6 +294,53 @@ export async function grantTopUpCredits(
 }
 
 /**
+ * Refund credits back to the user (failure / rollback path).
+ *
+ * Semantic wrapper over grantCredits(..., 'refund', ...) that keeps the
+ * 'refund' reason in user_credits_ledger consistent. Used by every paid
+ * generation pipeline so failures never leave the user charged.
+ */
+export async function refundCredits(
+  client: SupabaseClient,
+  userId: string,
+  amount: number,
+  refId?: string,
+): Promise<{ ok: true; balance_after: number } | { ok: false; error: string }> {
+  if (amount <= 0) return { ok: true, balance_after: 0 };
+  return grantCredits(client, userId, amount, 'refund', refId);
+}
+
+/**
+ * Wrap a paid generation step so failures ALWAYS refund the user.
+ *
+ * Usage:
+ *   const deduction = await deductCredits(client, user.id, cost, 'image_gen_extra', refId);
+ *   if (!deduction.ok) return NextResponse.json({ error: 'insufficient_credits' }, { status: 402 });
+ *   const result = await withCreditGuard(client, user.id, cost, refId, async () => {
+ *     return runGeneration(...); // throws on failure
+ *   });
+ *
+ * On throw, refundCredits is fired (best-effort, errors swallowed with a
+ * log entry) so the user never pays for an aborted job.
+ */
+export async function withCreditGuard<T>(
+  client: SupabaseClient,
+  userId: string,
+  amount: number,
+  refId: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    // Best-effort refund — never throw out of the guard, the original error
+    // is more important to surface to the caller.
+    await refundCredits(client, userId, amount, `guard:${refId}`).catch(() => undefined);
+    throw err;
+  }
+}
+
+/**
  * Check if user has enough credits for an action.
  */
 export async function checkCreditBalance(

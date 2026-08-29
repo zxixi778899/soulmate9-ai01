@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
-import { deductCredits, checkCreditBalance } from '@/lib/credit-system';
+import { deductCredits, checkCreditBalance, refundCredits } from '@/lib/credit-system';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,11 +81,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (unlockErr) {
-      // Unique race — treat as already unlocked
+      // Unique race — treat as already unlocked (do NOT refund: the credits
+      // were already consumed when the user previously paid for the same
+      // companion, so refunding here would double-grant).
       if (String(unlockErr.code) === '23505') {
         return NextResponse.json({ unlocked: true, already: true });
       }
       logger.error('unlock: insert failed', { unlockErr });
+      // Any other failure — refund the credits we just deducted so the
+      // user doesn't pay for a companion they didn't actually unlock.
+      if (price > 0) {
+        await refundCredits(client, user.id, price, `unlock-fail:${girlfriendId}`).catch((e) => {
+          logger.warn('unlock: refund failed', { err: String(e) });
+        });
+      }
       return NextResponse.json({ error: unlockErr.message }, { status: 500 });
     }
 

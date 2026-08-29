@@ -738,8 +738,11 @@ export default function CreatePage() {
 
   // ── Creation flow (LLM prompt → text-to-image) ──
   const [creating, setCreating] = useState(false);
-  const [createPhase, setCreatePhase] = useState<'idle' | 'consuming_card' | 'crafting_prompt' | 'generating_images' | 'done'>('idle');
+  const [createPhase, setCreatePhase] = useState<'idle' | 'reserving_card' | 'crafting_prompt' | 'generating_images' | 'committing_card' | 'done'>('idle');
   const [generatedPrompt, setGeneratedPrompt] = useState('');
+  // 创建卡预约 token：生成成功后才用此 token 真正扣 1 张卡；
+  // 任何中途失败（LLM 错误/图片生成失败/用户放弃）→ 调 cancel 释放预约，卡片不丢失。
+  const cardReservationRef = useRef<{ token: string; balanceAtReserve: number } | null>(null);
 
   // ─── Data fetching ───────────────────────────────────────────────────────
 
@@ -1020,6 +1023,23 @@ export default function CreatePage() {
     }
   }, [portraitRequestBody, pollJob, t]);
 
+  /** 取消创建卡预约（不扣卡）。失败也安全——预约阶段从未扣分。 */
+  const cancelCardReservation = useCallback(async () => {
+    const tok = cardReservationRef.current?.token;
+    if (!tok) return;
+    try {
+      await authedFetch('/api/creator/consume-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'cancel', reservation_token: tok }),
+      });
+    } catch (err) {
+      logger.warn('[creator] cancel card reservation failed (non-blocking)', { err: String(err) });
+    } finally {
+      cardReservationRef.current = null;
+    }
+  }, []);
+
   const handleStartCreation = useCallback(async () => {
     if (!infoValid || creating) {
       if (name.trim().length < 2) {
@@ -1035,12 +1055,22 @@ export default function CreatePage() {
     setCreating(true);
 
     try {
-      // Phase 1: Consume creation card (card -1)
-      setCreatePhase('consuming_card');
-      const cardRes = await authedFetch('/api/creator/consume-card', { method: 'POST' });
-      const cardData = await readResponseJson<{ ok?: boolean; remaining?: number; error?: string; code?: string }>(cardRes);
-      if (!cardRes.ok || !cardData.ok) {
-        // Upgrade-guided failures: jump to pricing instead of erroring out.
+      // Phase 1: Reserve creation card (NO deduction yet — only check eligibility).
+      // The card is only deducted at Phase "committing_card" once the companion
+      // is fully created and saved. If anything fails in between, the
+      // reservation is cancelled and the user's card balance is untouched.
+      setCreatePhase('reserving_card');
+      const cardRes = await authedFetch('/api/creator/consume-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'reserve' }),
+      });
+      const cardData = await readResponseJson<{
+        ok?: boolean;
+        reservation?: { token: string; balance_at_reserve: number };
+        error?: string; code?: string;
+      }>(cardRes);
+      if (!cardRes.ok || !cardData.ok || !cardData.reservation?.token) {
         if (cardData.code === 'membership_required') {
           router.push('/pricing');
           setCreating(false);
@@ -1058,55 +1088,62 @@ export default function CreatePage() {
         setCreatePhase('idle');
         return;
       }
-      // Update local card status
-      if (cardData.remaining !== undefined && cardStatus) {
-        setCardStatus({ ...cardStatus, cards: cardData.remaining });
-      }
+      // Hold the reservation token for the final commit/cancel step.
+      cardReservationRef.current = {
+        token: cardData.reservation.token,
+        balanceAtReserve: cardData.reservation.balance_at_reserve,
+      };
 
-      // Phase 2: Generate LLM prompt from form selections
-      setCreatePhase('crafting_prompt');
-      const promptRes = await authedFetch('/api/creator/generate-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...portraitRequestBody(),
-          nsfw_level: nsfwLevel,
-        }),
-      });
-      const promptData = await readResponseJson<{
-        success?: boolean; 
-        prompt?: string;
-        error?: string;
-        meta?: ModelMeta | null;
-        lora_info?: ModelLoraInfo | null;
-        negative_prompt?: string;
-        base_prompt?: string;
-      }>(promptRes);
-      
-      if (!promptRes.ok || !promptData.success || !promptData.prompt) {
-        setError(promptData.error || t('create.genFailed'));
-        setCreating(false);
-        setCreatePhase('idle');
-        return;
-      }
-      
-      // Store metadata for UI panels
-      setGenerationResult({
-        meta: promptData.meta || null,
-        lora: promptData.lora_info || null,
-        positive: promptData.prompt || '',
-        negative: promptData.negative_prompt || '',
-        base: promptData.base_prompt || promptData.prompt,
-      });
-      
-      setGeneratedPrompt(promptData.prompt);
+      try {
+        // Phase 2: Generate LLM prompt from form selections
+        setCreatePhase('crafting_prompt');
+        const promptRes = await authedFetch('/api/creator/generate-prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...portraitRequestBody(),
+            nsfw_level: nsfwLevel,
+          }),
+        });
+        const promptData = await readResponseJson<{
+          success?: boolean;
+          prompt?: string;
+          error?: string;
+          meta?: ModelMeta | null;
+          lora_info?: ModelLoraInfo | null;
+          negative_prompt?: string;
+          base_prompt?: string;
+        }>(promptRes);
 
-      // Phase 3: Start image generation (text-to-image mode)
-      setCreatePhase('generating_images');
-      setStep('portrait');
-      // Pass advanced settings to generation
-      await runBatch(undefined, promptData.prompt);
-      setCreatePhase('done');
+        if (!promptRes.ok || !promptData.success || !promptData.prompt) {
+          throw new Error(promptData.error || t('create.genFailed'));
+        }
+
+        // Store metadata for UI panels
+        setGenerationResult({
+          meta: promptData.meta || null,
+          lora: promptData.lora_info || null,
+          positive: promptData.prompt || '',
+          negative: promptData.negative_prompt || '',
+          base: promptData.base_prompt || promptData.prompt,
+        });
+
+        setGeneratedPrompt(promptData.prompt);
+
+        // Phase 3: Start image generation (text-to-image mode)
+        setCreatePhase('generating_images');
+        setStep('portrait');
+        // Pass advanced settings to generation
+        await runBatch(undefined, promptData.prompt);
+        // Image generation finished — success means we proceed to user pick + submit,
+        // failure means runBatch already surfaced the error and slots are empty.
+        // Card deduction is deferred until handleSubmit (which creates the companion).
+        setCreatePhase('done');
+      } catch (innerErr) {
+        // Phase 2/3 failed — release the reservation so the user keeps their card.
+        await cancelCardReservation();
+        throw innerErr;
+      }
     } catch (e) {
       logger.error(String(e));
       setError(errorMessageFromUnknown(e, t('create.genFailed')));
@@ -1114,7 +1151,7 @@ export default function CreatePage() {
     } finally {
       setCreating(false);
     }
-  }, [infoValid, creating, name, t, cardStatus, portraitRequestBody, nsfwLevel, runBatch, setGenerationResult, router]);
+  }, [infoValid, creating, name, t, portraitRequestBody, nsfwLevel, runBatch, setGenerationResult, router, cancelCardReservation]);
 
   const startPortraitStep = handleStartCreation;
 
@@ -1178,28 +1215,50 @@ export default function CreatePage() {
         stats?: { base_desire?: number; base_development?: number; base_kink?: number; score?: number; rarity?: Rarity };
       }>(res);
       if (!res.ok) {
-        if (data.code === 'SEAT_LIMIT') {
-          setError(t('create.seatLimitDesc'));
-          return;
-        }
+        // All companion-save failures must release the card reservation so
+        // the user doesn't lose a card for a creation that wasn't actually
+        // committed. Throwing routes through the catch which calls
+        // cancelCardReservation() and the catch's setError surfaces the
+        // user-friendly message.
+        let errorMessage =
+          data.code === 'SEAT_LIMIT'
+            ? t('create.seatLimitDesc')
+            : data.code === 'creation_quota_exceeded'
+              ? t('create.quotaReachedDesc')
+              : data.code === 'NO_CARDS'
+                ? t('create.noCardsBuyMore')
+                : data.error || t('create.createFailed');
+        setError(errorMessage);
         if (data.code === 'membership_required') {
           router.push('/pricing');
-          return;
         }
-        if (data.code === 'creation_quota_exceeded') {
-          setError(t('create.quotaReachedDesc'));
-          return;
-        }
-        if (data.code === 'NO_CARDS') {
-          setError(t('create.noCardsBuyMore'));
-          return;
-        }
-        setError(data.error || (t('create.createFailed')));
-        return;
+        throw new Error(errorMessage);
       }
 
       if (data.cards_remaining !== undefined && cardStatus) {
         setCardStatus({ ...cardStatus, cards: data.cards_remaining });
+      } else if (cardReservationRef.current) {
+        // Reservation flow: refresh local card status from the source of truth
+        // (commit endpoint reports the new balance).
+        refreshCards();
+      }
+      // Commit the reservation — only NOW is the creation card actually deducted.
+      // This is the "确认生成完成才扣除创建卡-1" step: failure any time before
+      // here leaves the user's card balance untouched.
+      const reserved = cardReservationRef.current;
+      if (reserved?.token) {
+        setCreatePhase('committing_card');
+        try {
+          await authedFetch('/api/creator/consume-card', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'commit', reservation_token: reserved.token }),
+          });
+        } catch (commitErr) {
+          logger.warn('[creator] commit card reservation failed (companion already saved)', { err: String(commitErr) });
+        } finally {
+          cardReservationRef.current = null;
+        }
       }
       notifyDataChange('girlfriends');
 
@@ -1217,11 +1276,17 @@ export default function CreatePage() {
       });
     } catch (e) {
       logger.error(String(e));
-      setError(errorMessageFromUnknown(e, t('common.networkError')));
+      // If the companion save failed after a reservation was issued, release
+      // it so the user's card balance is preserved. (If we already committed
+      // before this catch fired, ref is null and cancelCardReservation is a
+      // safe no-op.) The throw inside the try already set a user-friendly
+      // error message; for unexpected errors fall back to a generic message.
+      await cancelCardReservation();
+      setError((prev) => prev || errorMessageFromUnknown(e, t('common.networkError')));
     } finally {
       setSaving(false);
     }
-  }, [slots, selectedSlot, saving, getOpts, relationship, locale, visualStyle, gender, faceShape, ethnicity, occupation, shortDescription, name, age, selectedTags, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, skinTone, buildGenome, selectedVoice, appearancePrompt, cardStatus, t, router]);
+  }, [slots, selectedSlot, saving, getOpts, relationship, locale, visualStyle, gender, faceShape, ethnicity, occupation, shortDescription, name, age, selectedTags, hairStyle, hairColor, eyeColor, bodyType, fashionStyle, skinTone, buildGenome, selectedVoice, appearancePrompt, cardStatus, t, router, refreshCards, cancelCardReservation]);
 
   // ─── Reveal actions ──────────────────────────────────────────────────────
 
@@ -1240,6 +1305,9 @@ export default function CreatePage() {
     setCreating(false);
     setCreatePhase('idle');
     setGeneratedPrompt('');
+    // Safety: if the user navigates away with a pending reservation, drop the
+    // ref so a stale token isn't accidentally committed on a later submit.
+    cardReservationRef.current = null;
     void fetchCreatorData();
   }, [fetchCreatorData]);
 
@@ -1542,9 +1610,10 @@ export default function CreatePage() {
                         animate={{ opacity: 1, y: 0 }}
                         className="text-lg font-bold text-white/90"
                       >
-                        {createPhase === 'consuming_card' && t('create.cardConsumed')}
+                        {createPhase === 'reserving_card' && t('create.cardReserving')}
                         {createPhase === 'crafting_prompt' && t('create.craftingPrompt')}
                         {createPhase === 'generating_images' && t('create.generatingImages')}
+                        {createPhase === 'committing_card' && t('create.cardCommitting')}
                         {createPhase === 'done' && t('create.promptReady')}
                       </motion.p>
                       <motion.p
@@ -1564,9 +1633,10 @@ export default function CreatePage() {
                           initial={{ width: '0%' }}
                           animate={{
                             width:
-                              createPhase === 'consuming_card' ? '15%' :
-                              createPhase === 'crafting_prompt' ? '45%' :
-                              createPhase === 'generating_images' ? '75%' : '100%',
+                              createPhase === 'reserving_card' ? '10%' :
+                              createPhase === 'crafting_prompt' ? '40%' :
+                              createPhase === 'generating_images' ? '75%' :
+                              createPhase === 'committing_card' ? '95%' : '100%',
                           }}
                           transition={{ duration: 0.8, ease: 'easeOut' }}
                         />

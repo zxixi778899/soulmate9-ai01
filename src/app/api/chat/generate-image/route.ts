@@ -41,7 +41,7 @@ import {
 } from '@/lib/image-prompt-llm';
 import { buildContentOnlyPrompt } from '@/lib/companion-prompt-pipeline';
 import { detectAdultMention } from '@/lib/content-rating';
-import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
+import { CREDIT_COSTS, deductCredits, refundCredits } from '@/lib/credit-system';
 import { forwardLegacyGeneration } from '@/lib/gen-hub';
 import {
   IMAGE_GEN_RATE_KEY,
@@ -875,6 +875,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
     logger.error('[Chat Generate Image] Error:', { data: errMsg });
+    // Refund the image-gen credit on failure so users never pay for errors.
+    // Deducted above with reason 'image_gen_extra'; refund uses the same
+    // ref-id (girlfriend_id) so the ledger is self-explanatory.
+    await refundCredits(client, user.id, CREDIT_COSTS.image_gen, girlfriend_id || undefined).catch((e) => {
+      logger.warn('[Chat Generate Image] refund failed', { err: String(e) });
+    });
     void logModelUsage({
       provider: 'runpod',
       model_id: 'flux-chat-selfie',

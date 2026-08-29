@@ -10,7 +10,7 @@ import {
   type ImageModuleConfig,
 } from '@/lib/ai-modules';
 import { logModelUsage } from '@/lib/model-usage';
-import { CREDIT_COSTS, deductCredits } from '@/lib/credit-system';
+import { CREDIT_COSTS, deductCredits, refundCredits } from '@/lib/credit-system';
 import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
 import { classifyImageScene } from '@/lib/image-scene-semantics';
 import type { CompanionCategory } from '@/lib/companion-category';
@@ -341,6 +341,13 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     logger.error('Image generation error:', { data: error });
+    // Best-effort refund — surfaces never charge users for failures.
+    // Both call sites (companion surface + daily-quota overflow) use the
+    // same 'image_gen_extra' reason with no ref_id, so a single refund
+    // matches either path (the second deduct is unreachable when the
+    // first failed, and the first one is the only one that runs in the
+    // happy path).
+    await refundCredits(client, user.id, CREDIT_COSTS.image_gen).catch(() => undefined);
     void logModelUsage({
       provider: 'runpod',
       model_id: 'flux',

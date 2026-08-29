@@ -19,7 +19,7 @@ import {
   resolveMembershipTier,
   tierRank,
 } from '@/lib/chat-models';
-import { deductCredits } from '@/lib/credit-system';
+import { deductCredits, refundCredits } from '@/lib/credit-system';
 import { buildPersonaPrompt } from '@/lib/prompt-builder';
 import { calculateDesireLevel, getDesireLanguageGradient } from '@/lib/desire-calculator';
 import {
@@ -1282,6 +1282,14 @@ ${timeContext}` +
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : 'Unknown error';
         logger.error('[chat-stream] streaming failed', { err: errMsg.slice(0, 200) });
+        // Refund the per-message credit so a transient LLM/provider failure
+        // never costs the user. Guarded by `modelCost > 0 && selectedModel`
+        // because only that path deducts upfront.
+        if (selectedModel && modelCost > 0) {
+          await refundCredits(client, user.id, modelCost, `stream-fail:${girlfriend_id}`).catch((e) => {
+            logger.warn('[chat-stream] refund failed', { err: String(e) });
+          });
+        }
         const soft =
           "I'm still here... my signal glitched for a second. Tap send again and I'll reply right away~";
         fullResponse = soft;
