@@ -29,7 +29,9 @@ export type CardClient = {
       };
     };
     update: (values: Record<string, unknown>) => {
-      eq: (column: string, value: string) => CardsQueryResult<unknown>;
+      eq: (column: string, value: string | number) => {
+        eq: (column: string, value: string | number) => CardsQueryResult<unknown>;
+      };
     };
   };
 };
