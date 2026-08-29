@@ -47,9 +47,16 @@ const CATEGORY_SUBJECTS: Record<CompanionCategory, string> = {
 };
 
 const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
-  'realistic': 'real camera photograph, neutral skin tone, natural skin, practical soft light, relaxed posture, natural hands',
-  '2d': '2D anime illustration, fully colored finished artwork, vibrant cel shading',
-  '3d': '3D character render, PBR materials',
+  'realistic': 'real camera photograph, neutral skin tone, natural skin, practical soft light, relaxed posture, natural hands, sharp focus',
+  // 2D uplift: stronger anime-tag pull so FLUX/anime-LoRA doesn't drift into
+  // a soft watercolor / unfinished sketch. Pulls on cel-shaded lineart cues
+  // that rdanimefluxv1rapid was trained on.
+  '2d': '2D anime illustration, anime key visual, fully colored finished artwork, vibrant cel shading, clean lineart, sharp linework, vivid saturated colors, detailed expressive eyes, studio quality',
+  // 3D uplift: anti-2D drift. Default FLUX 3D LoRA is light; if not installed
+  // the worker falls back to vanilla realistic, which the user reads as
+  // "3D broken". Reinforce the 3D vocabulary in the prompt itself so the
+  // render still reads as 3D even without the dedicated LoRA.
+  '3d': '3D character render, octane render, blender cycles, PBR materials, subsurface scattering, studio three-point lighting, cinematic depth of field, sharp focus, ultra detailed',
 };
 
 function compactIdentity(identity?: string): string {
@@ -213,10 +220,13 @@ export function studioNegativePrompt(category: CompanionCategory, animeStyle: An
       : category === 'female'
         ? 'man, penis, testicles, transgender woman, masculine face'
         : 'broken pelvis';
+  // Stronger cross-style breakers so 2D doesn't drift into watercolor /
+  // unfinished sketch, and 3D doesn't drift into flat illustration when the
+  // dedicated LoRA isn't installed on the endpoint.
   const style = animeStyle === '2d'
-    ? 'photorealistic, photograph, 3d render, plastic CGI, muddy line art, line art only, sketch only, unfinished sketch, monochrome, grayscale, coloring book'
+    ? 'photorealistic, photograph, 3d render, plastic CGI, muddy line art, line art only, sketch only, unfinished sketch, monochrome, grayscale, coloring book, watercolor, oil painting, soft shading, low detail'
     : animeStyle === '3d'
-      ? 'flat 2d drawing, sketch, broken mesh, wax figure, low-poly model'
+      ? 'flat 2d drawing, sketch, broken mesh, wax figure, low-poly model, illustration, anime, cartoon, watercolor, cel shading, line art, 2d flat shading, painterly'
       : 'illustration, anime, cartoon, CGI, 3d render';
   return shared + ', ' + anatomy + ', ' + style;
 }
