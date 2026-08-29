@@ -130,6 +130,25 @@ describe('enhance blocks', () => {
     expect(inputsOf(ctx.graph, '7')).toMatchObject({ images: ['50', 0] });
   });
 
+  it('applyFaceDetailer auto-prepends bbox/ when env model is a bare filename', () => {
+    process.env.RUNPOD_ADETAILER_MODEL = 'face_yolov8m.pt';
+    const bare = buildSdxlWorkflow({ prompt: 'x' });
+    applyFaceDetailer(bare, {});
+    expect(inputsOf(bare.graph, '51')).toMatchObject({ model_name: 'bbox/face_yolov8m.pt' });
+
+    // segm/ prefix should pass through untouched (not silently downgraded to bbox/).
+    process.env.RUNPOD_ADETAILER_MODEL = 'segm/face_yolov8n.pt';
+    const segm = buildSdxlWorkflow({ prompt: 'x' });
+    applyFaceDetailer(segm, {});
+    expect(inputsOf(segm.graph, '51')).toMatchObject({ model_name: 'segm/face_yolov8n.pt' });
+
+    // Explicit bbox/ prefix is left alone (no double-prefix).
+    process.env.RUNPOD_ADETAILER_MODEL = 'bbox/hand_yolov8n.pt';
+    const prefixed = buildSdxlWorkflow({ prompt: 'x' });
+    applyFaceDetailer(prefixed, {});
+    expect(inputsOf(prefixed.graph, '51')).toMatchObject({ model_name: 'bbox/hand_yolov8n.pt' });
+  });
+
   it('applyHiresUpscale chains 4x-UltraSharp with an optional refine pass', () => {
     const ctx = buildSdxlWorkflow({ prompt: 'x', width: 832, height: 1216 });
     applyHiresUpscale(ctx, { factor: 2 });

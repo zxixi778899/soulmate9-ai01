@@ -18,6 +18,19 @@ export type ControlNetType = 'openpose' | 'depth';
 
 const envModel = (key: string, fallback: string): string => process.env[key]?.trim() || fallback;
 
+/**
+ * Impact-Subpack UltralyticsDetectorProvider 强制按目录枚举模型
+ * (bbox/ 或 segm/)。如果 env 变量只填了裸文件名（例如
+ * `face_yolov8m.pt`），自动补上 `bbox/` 前缀避免 worker 上
+ * `value_not_in_list` 报错。已带前缀的保持不动。
+ */
+function normalizeAdetailerModelName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith('bbox/') || trimmed.startsWith('segm/')) return trimmed;
+  return `bbox/${trimmed}`;
+}
+
 function patchSaveImage(ctx: SdxlWorkflowContext): void {
   const save = ctx.graph['7'];
   if (save) {
@@ -106,8 +119,9 @@ export function applyFaceDetailer(
 
   ctx.graph['51'] = {
     class_type: 'UltralyticsDetectorProvider',
-    // Impact-Subpack enumerates models with their type prefix (bbox/ or segm/).
-    inputs: { model_name: envModel('RUNPOD_ADETAILER_MODEL', 'bbox/face_yolov8m.pt') },
+    // Impact-Subpack enumerates models with their type prefix (bbox/ or segm/);
+    // normalizeAdetailerModelName auto-prepends bbox/ if the env var is bare.
+    inputs: { model_name: normalizeAdetailerModelName(envModel('RUNPOD_ADETAILER_MODEL', 'bbox/face_yolov8m.pt')) },
   };
   ctx.graph['50'] = {
     class_type: 'FaceDetailer',
