@@ -613,8 +613,12 @@ export async function POST(request: NextRequest) {
 
   // Charge per-message credits for an explicitly selected model. Auto
   // routing stays covered by the subscription (no credits).
+  // modelCost is hoisted out of the `if` block so the streaming-failure
+  // catch below can refund it (TypeScript's `const`-block scoping would
+  // otherwise hide it from the catch).
+  let modelCost = 0;
   if (selectedModel) {
-    const modelCost = Math.max(0, Math.round(selectedModel.credit_cost ?? 0));
+    modelCost = Math.max(0, Math.round(selectedModel.credit_cost ?? 0));
     if (modelCost > 0) {
       const deducted = await deductCredits(
         client,
