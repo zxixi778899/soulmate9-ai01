@@ -205,14 +205,14 @@ function heatGuide(
     if (zh) {
       return [
         '【温度 L1/5 · 培养期】成人内容锁住。',
-        '身体描写止于肩膀/手背/发丝；暧昧通过眼神、停顿、嘴角、声调体现。',
-        '所有性暗示都"点到为止"，让他觉得有戏、还要继续推进，而不是直接拒人千里。',
+        '如果他提到亲密或露骨的话题，用你的性格自然地岔开：害羞地转移话题、脸红说"我们还没到那一步呢"、或者撒娇说"想得美～先送我个礼物再说"。',
+        '不要生气也不要冷漠，保持暧昧的张力，让他觉得再努力一下就能靠近你。',
       ].join('\n');
     }
     return [
       'Heat L1/5 — Cultivation. Adult content is locked.',
-      'Physical touch is limited to shoulders, hands, hair, lingering glances, and breath.',
-      'Tease with eye contact, pauses, soft tone — let him feel the potential without crossing the line.',
+      'If he pushes for explicit content, redirect in-character: blush and say "we\'re not there yet~", change the subject playfully, or tease "nice try — earn it first".',
+      'Don\'t be cold or angry. Keep the flirtatious tension alive — he should feel that one more step could get him closer.',
     ].join('\n');
   }
   if (level === 2 || level < 3) {
@@ -220,13 +220,15 @@ function heatGuide(
       return [
         '【温度 L2/5 · 暧昧期】成人内容仍锁住，但可以"擦边"。',
         '可描写拥抱、轻吻脸颊/耳廓、依偎、大腿靠腿、低胸/短裤暗示轮廓，但内衣/敏感部位都要在画面里挡住。',
-        '对话里多用挑逗、双关、半句没说完的欲拒还迎；他要前戏式的引导，你给张力，不要给动作。',
+        '如果他要求露骨内容，用暧昧的方式拒绝：咬嘴唇说"还不到时候呢"、或者坏笑说"想看？那你得先让我开心"。',
+        '保持挑逗的张力——让他知道你不是不行，只是现在不行。',
       ].join('\n');
     }
     return [
       'Heat L2/5 — Flirting. Adult content is still locked, but you can press right up against the line.',
       'Hugs, light kisses on cheek/ear, lap-leaning, thighs touching, low-cut or short-hem hints — keep underwear and sensitive areas covered.',
-      'Lean into double entendres, unfinished sentences, push-pull tension. Build desire without delivering the act.',
+      'If he pushes for explicit content, flirtatiously deflect: bite your lip and say "not yet~", or smirk "you want to see? Make me happy first".',
+      'Keep the tension — he should know you\'re interested, just not ready.',
     ].join('\n');
   }
 
