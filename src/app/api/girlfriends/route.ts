@@ -317,7 +317,7 @@ export async function POST(request: NextRequest) {
     appearance_breast: appearance_breast || null,
     appearance_height: appearance_height || null,
     genome: genome && typeof genome === 'object' ? genome : null,
-    meta: meta && typeof meta === \'object\' ? meta : null,
+    meta: meta && typeof meta === 'object' ? meta : null,
     is_public: false,
     review_status: 'draft',
     is_pinned: true,
