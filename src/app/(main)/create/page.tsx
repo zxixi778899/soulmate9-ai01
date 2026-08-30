@@ -958,7 +958,7 @@ export default function CreatePage() {
 
     // Meta fallback
     const meta = (gf.meta && typeof gf.meta === 'object' ? gf.meta : {}) as Record<string, unknown>;
-    const vs = s(meta.visual_style) || s(gf.character_card?.visualStyle);
+    const vs = s(meta.visual_style) || s(((gf.character_card ?? {}) as Record<string, unknown>).visualStyle);
     if (vs) setVisualStyle(vs);
     const g = s(meta.gender);
     if (g) setGender(g);
