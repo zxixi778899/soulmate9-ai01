@@ -1558,6 +1558,41 @@ class RunPodClient {
           adjusted.num_inference_steps = 24;
         }
       }
+      // Reverse fallback: when the route requests the dev-fp8 "safe" checkpoint
+      // but the worker actually has Unchained (or vice-versa), the worker returns
+      // `value_not_in_list` and every image generation silently fails. Validate
+      // the requested checkpoint against RUNPOD_INSTALLED_FLUX_CHECKPOINTS and
+      // swap to the first installed one before submitting.
+      const installedFluxCkpts = (process.env.RUNPOD_INSTALLED_FLUX_CHECKPOINTS || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const installedFluxCkptsLower = new Set(installedFluxCkpts.map((c) => c.toLowerCase()));
+      const requestedLower = (adjusted.ckpt_name || '').trim().toLowerCase();
+      const fixedNameLower = (name: string): string => (name.split('/').pop() || name).trim().toLowerCase();
+      const ckptNotInstalled = installedFluxCkptsLower.size > 0
+        && requestedLower
+        && !installedFluxCkptsLower.has(fixedNameLower(requestedLower));
+      if (ckptNotInstalled) {
+        // Prefer Unchained when it's installed (it's the actual production asset).
+        const unchained = installedFluxCkpts.find((c) => c.toLowerCase().includes('fluxunchained'));
+        const fallback = unchained || installedFluxCkpts[0];
+        if (fallback) {
+          logger.warn('[runpod] requested FLUX checkpoint not installed on worker, falling back', {
+            requested: adjusted.ckpt_name,
+            installed: installedFluxCkpts,
+            fallback,
+          });
+          adjusted.ckpt_name = fallback;
+          // Unchained needs the split loader (UNET + DualCLIP + VAE), dev-fp8
+          // can use CheckpointLoaderSimple. Reset so buildFluxWorkflow re-detects.
+          adjusted.ckpt_loader = fallback.toLowerCase().includes('fluxunchained') ? 'split' : 'checkpoint';
+        } else {
+          logger.warn('[runpod] no installed FLUX checkpoints in inventory, submitting as-is', {
+            requested: adjusted.ckpt_name,
+          });
+        }
+      }
       // IP-Adapter: the FLUX worker must carry Shakker-Labs/ComfyUI-IPAdapter-Flux.
       // When the flag is off, actually strip ip_adapter_image — otherwise the
       // workflow builder still injects ApplyIPAdapterFlux and the worker fails

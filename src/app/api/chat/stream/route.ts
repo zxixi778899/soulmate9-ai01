@@ -832,6 +832,7 @@ export async function POST(request: NextRequest) {
   const fallbackSystemPrompt = buildCharacterPrompt({
     gf,
     intimacyLevel,
+    intimacyScore: Number(intimacyResult.data?.score || 0),
     detectedEmotion,
     memories: memories || [],
     milestones: milestoneRecalls.length > 0

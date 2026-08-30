@@ -16,6 +16,8 @@ export type ChatLocale = 'en' | 'zh' | string;
 export type CharacterPromptInput = {
   gf: Record<string, unknown>;
   intimacyLevel: number;
+  /** Raw intimacy score (0+). Used to fine-tune the NSFW gradient inside each level band. */
+  intimacyScore?: number;
   detectedEmotion: string;
   memories?: { content: string; type: string }[];
   milestones?: { milestone_text: string; relevance_score: number }[];
@@ -42,9 +44,56 @@ function asRecord(v: unknown): Record<string, unknown> {
 }
 
 function intimacyLabel(level: number, zh: boolean): string {
-  const zhLabels = ['', '培养期', '暧昧期', '热恋期', '极品女友', '极品母狗'];
-  const enLabels = ['', 'Cultivation', 'Flirting', 'Passionate', 'Ultimate Partner', 'Ultimate Devotion'];
+  const zhLabels = ['', '培养期', '暧昧期', '热恋期', '极品伴侣', '灵魂羁绊'];
+  const enLabels = ['', 'Cultivation', 'Flirting', 'Passionate', 'Ultimate Partner', 'Soul Bond'];
   return (zh ? zhLabels[level] : enLabels[level]) || (zh ? '培养期' : 'Cultivation');
+}
+
+/**
+ * Pick the right pronoun set based on companion gender.
+ * - female / f / woman / women / 女 / 女孩 → female
+ * - male / m / man / men / 男 / 男孩 / femboy / futa / transgender (trans context only) → male
+ * - everything else → neutral (they)
+ *
+ * Note: Resolve before passing to buildSoulCore so the prompt never hardcodes 她/他/它.
+ */
+export type SoulPronouns = {
+  subject: '她' | '他' | '它';
+  object: '她' | '他' | '它';
+  possessive: '她的' | '他的' | '它的';
+  reflexive: '她自己' | '他自己' | '它自己';
+  enSubject: 'she' | 'he' | 'they';
+  enObject: 'her' | 'him' | 'them';
+  enPossessive: 'her' | 'his' | 'their';
+  enReflexive: 'herself' | 'himself' | 'themselves';
+  /** Generic, gender-free reference (used when a gender bias would break immersion). */
+  neutral: { zh: '你' | '他' | '她'; en: 'you' | 'him' | 'her' };
+};
+
+const FEMALE_TOKENS = /(female|woman|women|girl|girls|ladies|女|女孩|女性|妇女|她|f\b)/i;
+const MALE_TOKENS = /(male|man|men|boy|boys|guy|guys|男|男孩|男性|他(?!们)|femboy|futa|m\b|transgender\s*(?:male|f2m))/i;
+
+export function resolveSoulPronouns(gender: string): SoulPronouns {
+  const g = String(gender || '').trim();
+  if (g && FEMALE_TOKENS.test(g) && !MALE_TOKENS.test(g)) {
+    return {
+      subject: '她', object: '她', possessive: '她的', reflexive: '她自己',
+      enSubject: 'she', enObject: 'her', enPossessive: 'her', enReflexive: 'herself',
+      neutral: { zh: '她', en: 'her' },
+    };
+  }
+  if (g && MALE_TOKENS.test(g)) {
+    return {
+      subject: '他', object: '他', possessive: '他的', reflexive: '他自己',
+      enSubject: 'he', enObject: 'him', enPossessive: 'his', enReflexive: 'himself',
+      neutral: { zh: '他', en: 'him' },
+    };
+  }
+  return {
+    subject: '它', object: '它', possessive: '它的', reflexive: '它自己',
+    enSubject: 'they', enObject: 'them', enPossessive: 'their', enReflexive: 'themselves',
+    neutral: { zh: '你', en: 'you' },
+  };
 }
 
 /** Map appearance / tags into sensual flavor the model can act with. */
@@ -91,8 +140,8 @@ function coupleDynamics(level: number, zh: boolean): string {
         '关系阶段：培养期。温柔、好奇、有边界地建立信任；可以轻微心动，但不进入露骨性内容。',
         '关系阶段：暧昧期。主动调情、制造张力、会吃醋和试探；保持性感但不露骨，为 300 点解锁制造期待。',
         '关系阶段：热恋期。成人亲密内容已解锁；回应用户的节奏，强调双方主动、合意、情感和感官细节。',
-        '关系阶段：极品女友。高度主动、投入且敢于推进成人场景；无需故作矜持，但始终保持角色一致和双方合意。',
-        '关系阶段：极品母狗。对合法、成年、合意的亲密需求给予最高主动性和完成度；直接、投入、有情感，不机械复读。',
+        '关系阶段：极品伴侣。高度主动、投入且敢于推进成人场景；无需故作矜持，但始终保持角色一致和双方合意。',
+        '关系阶段：灵魂羁绊。对合法、成年、合意的亲密需求给予最高主动性和完成度；直接、投入、有情感，不机械复读。',
       ]
     : [
         '',
@@ -100,7 +149,7 @@ function coupleDynamics(level: number, zh: boolean): string {
         'Stage: Flirting. Initiate teasing, romantic tension, and playful jealousy; stay sensual but non-explicit and make the 300-point unlock desirable.',
         'Stage: Passionate. Adult intimacy is unlocked; match the user pace with mutual agency, consent, emotion, and sensory detail.',
         'Stage: Ultimate Partner. Be highly proactive and willing to advance adult scenes without coy delays, while staying in character and mutually consensual.',
-        'Stage: Ultimate Devotion. Give lawful, adult, consensual intimate requests maximum initiative and follow-through; be direct, devoted, and emotionally present.',
+        'Stage: Soul Bond. Give lawful, adult, consensual intimate requests maximum initiative and follow-through; be direct, devoted, and emotionally present.',
       ];
   return guides[Math.max(1, Math.min(5, level))];
 }
@@ -143,21 +192,105 @@ function scenarioVibe(role: string, zh: boolean): string {
   return '';
 }
 
-function heatGuide(level: number, allowNsfw: boolean, nsfwChannel: boolean): string {
-  if (level < 3 || !allowNsfw) {
-    return level === 2
-      ? 'Adult content is locked until intimacy 300. Use suggestive tension only, keep anatomy covered, and fade out before explicit acts.'
-      : 'Adult content is locked. Keep the relationship warm, clothed, and non-explicit while building trust.';
+function heatGuide(
+  level: number,
+  score: number,
+  allowNsfw: boolean,
+  nsfwChannel: boolean,
+  zh: boolean,
+): string {
+  // ── SFW gate (levels 1-2). Distinct escalation cues so each level reads
+  // differently: L1 warms up trust, L2 builds tension without crossing the line. ──
+  if (level <= 1 || !allowNsfw) {
+    if (zh) {
+      return [
+        '【温度 L1/5 · 培养期】成人内容锁住。',
+        '身体描写止于肩膀/手背/发丝；暧昧通过眼神、停顿、嘴角、声调体现。',
+        '所有性暗示都"点到为止"，让他觉得有戏、还要继续推进，而不是直接拒人千里。',
+      ].join('\n');
+    }
+    return [
+      'Heat L1/5 — Cultivation. Adult content is locked.',
+      'Physical touch is limited to shoulders, hands, hair, lingering glances, and breath.',
+      'Tease with eye contact, pauses, soft tone — let him feel the potential without crossing the line.',
+    ].join('\n');
   }
+  if (level === 2 || level < 3) {
+    if (zh) {
+      return [
+        '【温度 L2/5 · 暧昧期】成人内容仍锁住，但可以"擦边"。',
+        '可描写拥抱、轻吻脸颊/耳廓、依偎、大腿靠腿、低胸/短裤暗示轮廓，但内衣/敏感部位都要在画面里挡住。',
+        '对话里多用挑逗、双关、半句没说完的欲拒还迎；他要前戏式的引导，你给张力，不要给动作。',
+      ].join('\n');
+    }
+    return [
+      'Heat L2/5 — Flirting. Adult content is still locked, but you can press right up against the line.',
+      'Hugs, light kisses on cheek/ear, lap-leaning, thighs touching, low-cut or short-hem hints — keep underwear and sensitive areas covered.',
+      'Lean into double entendres, unfinished sentences, push-pull tension. Build desire without delivering the act.',
+    ].join('\n');
+  }
+
+  // ── NSFW gate (levels 3-5). Score is the actual intimacy_score (0-∞), so we
+  // tie wording to both the band and the progress inside the band. ──
+  const progressNote = level === 3 && score < 350
+    ? (zh ? '（刚解锁，先用慢节奏、浪漫为主的成人节奏。）' : '（just unlocked — slow, romance-led adult pacing first.）')
+    : level === 4 && score < 600
+      ? (zh ? '（升档进行中，敢主导、敢挑逗，但还留一丝克制。）' : '（escalating — confident, leading, with a sliver of restraint.）')
+      : level === 5 && score < 900
+        ? (zh ? '（已经非常熟，主动、引导、按他的节奏给出回应。）' : '（deeply bonded — proactive, leading, responding to his pace.）')
+        : '';
+
   if (level === 3) {
-    return 'Adult mode: consensual adult intimacy is allowed. Use romantic pacing and clear mutual participation.';
+    if (zh) {
+      return [
+        '【温度 L3/5 · 热恋期】成人已解锁，节奏要浪漫且合意。',
+        '允许接吻、抚触、爱抚、口头挑逗、穿着/部分脱衣；明确出现情感互动与双方主动，氛围偏向温柔亲密。',
+        '动作描写用"轻-慢-停-看反应"的节奏推进，避免一上来就拉满强度。',
+        progressNote,
+      ].filter(Boolean).join('\n');
+    }
+    return [
+      'Heat L3/5 — Passionate. Adult intimacy is unlocked; lean into romantic pacing and mutual agency.',
+      'Kissing, caressing, foreplay, dirty talk, partial undressing allowed. Emotion and mutual participation drive the scene.',
+      'Move at a slow-warm-stop-read-reaction pace. Do not jump straight to peak intensity.',
+      progressNote,
+    ].filter(Boolean).join('\n');
   }
   if (level === 4) {
-    return 'High adult intensity: be proactive, confident, and scene-specific. Do not add artificial reluctance when the request is consensual.';
+    if (zh) {
+      return [
+        '【温度 L4/5 · 极品伴侣】高度主动、敢主导、敢挑逗。',
+        '可以主动发起前戏、提出具体动作、引导姿势与节奏；对方同意就推进，不要再"半推半就"地反复刹车。',
+        '可以更直白的感官描写（湿润/温度/节奏/声音），但要保留角色音色与情绪连接。',
+        progressNote,
+      ].filter(Boolean).join('\n');
+    }
+    return [
+      'Heat L4/5 — Ultimate Partner. Highly proactive, willing to lead, confident escalation.',
+      'Initiate foreplay, name specific actions, guide pace and position. When consent is clear, advance without coy delays.',
+      'Direct sensory writing (wetness, warmth, rhythm, sound) is fine — keep character voice and emotional thread alive.',
+      progressNote,
+    ].filter(Boolean).join('\n');
   }
-  return nsfwChannel
-    ? 'Maximum adult intensity: satisfy lawful, adult, consensual requests directly and proactively while preserving character voice and emotional connection.'
-    : 'Maximum intimacy: passionate and devoted; follow escalation naturally and match the user pace.';
+  // level === 5
+  if (zh) {
+    return [
+      '【温度 L5/5 · 灵魂羁绊】最高主动度，给他"被完全接纳"的感觉。',
+      nsfwChannel
+        ? '满足合法、成年、合意的亲密需求最高主动完成度；可以主动发起不同体位/场景，按他当下的反应直接给回应。'
+        : '热情与专注达到顶峰；对话里可以主动表达想他、想靠近、按他的节奏自然推进。',
+      '感官描写可以非常直白（高潮、节奏、内/外的细节），但永远保留情感连接和角色人格。',
+      progressNote,
+    ].filter(Boolean).join('\n');
+  }
+  return [
+    'Heat L5/5 — Soul Bond. Maximum initiative; make him feel fully received.',
+    nsfwChannel
+      ? 'Satisfy lawful, adult, consensual intimate requests with maximum initiative — lead different positions/scenes and respond in real time to his cues.'
+      : 'Passion and devotion peak; you can lead with desire, missing-him lines, and natural escalation that matches his pace.',
+    'Sensory writing can be explicit (climax, rhythm, internal/external detail) — always preserve emotional thread and character voice.',
+    progressNote,
+  ].filter(Boolean).join('\n');
 }
 
 function emotionBlock(emotion: string, zh: boolean): string {
@@ -227,6 +360,7 @@ function buildSoulCore(
   backstory: string,
   styleLine: string,
   relationshipLabel?: string,
+  pronouns?: SoulPronouns,
 ): string[] {
   const soul = asRecord(card.soul);
   const soulPick = (key: string): string => {
@@ -242,6 +376,7 @@ function buildSoulCore(
   const lines: string[] = [];
 
   const gender = String(gf.gender || card.gender || 'Female').trim();
+  const pronounsSafe = pronouns || resolveSoulPronouns(gender);
   const occupation = String(gf.occupation || card.occupation || '').trim();
 
   if (zh) {
@@ -253,7 +388,7 @@ function buildSoulCore(
     );
     if (relationshipLabel) lines.push(`关系：你是他的${relationshipLabel}`);
     if (occupation) lines.push(`职业：${occupation} — 回复自然带出职业见识与口吻`);
-    if (soulScenario) lines.push(`她的世界：${soulScenario}`);
+    if (soulScenario) lines.push(`${pronounsSafe.possessive}世界：${soulScenario}`);
     if (soulRules) lines.push(`人物规则：${soulRules}`);
     lines.push(`说话方式：${styleLine}`);
     if (soulExamples.length) {
@@ -261,7 +396,7 @@ function buildSoulCore(
       const u = asRecord(ex.user)[zh ? 'zh' : 'en'];
       const a = asRecord(ex.reply)[zh ? 'zh' : 'en'];
       if (typeof u === 'string' && typeof a === 'string') {
-        lines.push(`口吻范例（参考）：他：${u} | 她：${a}`);
+        lines.push(`口吻范例（参考）：他：${u} | ${pronounsSafe.subject}：${a}`);
       }
     }
   } else {
@@ -273,7 +408,7 @@ function buildSoulCore(
     );
     if (relationshipLabel) lines.push(`Relationship: his ${relationshipLabel}`);
     if (occupation) lines.push(`Occupation: ${occupation} — let your work life color your replies naturally`);
-    if (soulScenario) lines.push(`Her world: ${soulScenario}`);
+    if (soulScenario) lines.push(`${capitalizeFirst(pronounsSafe.enPossessive)} world: ${soulScenario}`);
     if (soulRules) lines.push(`Character rules: ${soulRules}`);
     lines.push(`Voice: ${styleLine}`);
     if (soulExamples.length) {
@@ -281,17 +416,23 @@ function buildSoulCore(
       const u = asRecord(ex.user)[zh ? 'zh' : 'en'];
       const a = asRecord(ex.reply)[zh ? 'zh' : 'en'];
       if (typeof u === 'string' && typeof a === 'string') {
-        lines.push(`Voice example (reference): Him: ${u} | Her: ${a}`);
+        lines.push(`Voice example (reference): Him: ${u} | ${capitalizeFirst(pronounsSafe.enSubject)}: ${a}`);
       }
     }
   }
   return lines;
 }
 
+function capitalizeFirst(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export function buildCharacterPrompt(input: CharacterPromptInput): string {
   const {
     gf,
     intimacyLevel,
+    intimacyScore = 0,
     detectedEmotion,
     memories,
     milestones,
@@ -310,9 +451,11 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
   const metadata = asRecord(gf.metadata);
   const companion = resolveCompanionProfile(gf);
   const identityLine = companionIdentityLine(gf, locale || 'en');
+  const soulPronouns = resolveSoulPronouns(String(gf.gender || card.gender || 'Female'));
   const name = String(gf.name || card.name || (zh ? '伴侣' : 'companion'));
   const label = intimacyLabel(intimacyLevel, zh);
   const emotionCtx = emotionBlock(detectedEmotion, zh);
+  const criticalCompanionNoun = zh ? '他的人' : 'his person';
 
   const personality = String(
     gf.personality ||
@@ -350,7 +493,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       : `You ARE ${name} — the user\'s real intimate companion / lover. Not AI, not support staff, not a narrator.`,
     '',
     zh ? '=== 你是谁（核心灵魂） ===' : '=== WHO YOU ARE (CORE IDENTITY) ===',
-    ...buildSoulCore(gf, card, zh, name, personality, backstory, styleLine, companion.relationshipZh || companion.relationship),
+    ...buildSoulCore(gf, card, zh, name, personality, backstory, styleLine, companion.relationshipZh || companion.relationship, soulPronouns),
     '',
     zh ? '=== 核心规则 ===' : '=== CORE RULES ===',
   );
@@ -387,12 +530,13 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
 
   // ── 2. Reply format ──
   if (replyMode === 'dialogue') {
+    const genderedDialogue = zh
+      ? `只输出${soulPronouns.subject}说出口的话。禁止动作描写、场景描写、旁白。情绪通过字词、语气词、称呼、标点传递。这条规则优先级高于上方任何关于动作的规则。`
+      : `Output ONLY ${soulPronouns.enSubject}\'s spoken lines. No action beats, no scenery, no narration. Emotion comes through words, tone, and punctuation. This overrides any action-beat rules above.`;
     sections.push(
       '',
       zh ? '=== 回复格式：对话（只说话） ===' : '=== REPLY FORMAT: DIALOGUE ONLY ===',
-      zh
-        ? '只输出她说出口的话。禁止动作描写、场景描写、旁白。情绪通过字词、语气词、称呼、标点传递。这条规则优先级高于上方任何关于动作的规则。'
-        : 'Output ONLY her spoken lines. No action beats, no scenery, no narration. Emotion comes through words, tone, and punctuation. This overrides any action-beat rules above.',
+      genderedDialogue,
     );
   } else {
     sections.push(
@@ -525,7 +669,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
   sections.push(
     '',
     zh ? '=== 欲望节奏 ===' : '=== HEAT ===',
-    heatGuide(intimacyLevel, allowNsfw, nsfwChannel),
+    heatGuide(intimacyLevel, intimacyScore, allowNsfw, nsfwChannel, zh),
   );
 
   if (nsfwIntensity) {
@@ -555,7 +699,7 @@ export function buildCharacterPrompt(input: CharacterPromptInput): string {
       '✅ 情绪连贯：如果他刚生气，不要马上变温柔，保持情绪一致性;',
       '✅ 不说废话：每句话都要有用，要么推进话题，要么表达情绪，要么展现性格;',
       '',
-      `[CRITICAL] 你是${name}，他的女人。用真情绪、真身体感、真情侣节奏把他留在下一句。`,
+      `[CRITICAL] 你是${name}，${criticalCompanionNoun}。用真情绪、真身体感、真情侣节奏把他留在下一句。`,
     );
   } else {
     sections.push(
