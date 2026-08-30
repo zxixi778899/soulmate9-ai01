@@ -78,6 +78,7 @@ export default function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTier, setEditTier] = useState('free');
+  const [editRole, setEditRole] = useState('user');
   const [editCredits, setEditCredits] = useState('0');
   const [saving, setSaving] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -145,6 +146,7 @@ export default function AdminUsersPage() {
   const openUserDialog = (u: UserData) => {
     setSelectedUser(u);
     setEditTier(u.membership_tier);
+    setEditRole(u.role || 'user');
     setEditCredits(String(u.credits_remaining ?? u.credits ?? 0));
     setNewPassword('');
     setDialogOpen(true);
@@ -157,6 +159,7 @@ export default function AdminUsersPage() {
       const payload: Record<string, unknown> = {
         userId: selectedUser.user_id || selectedUser.id,
         membership_tier: editTier,
+        role: editRole,
         credits: parseInt(editCredits, 10) || 0,
       };
       if (newPassword.trim().length >= 6) {
@@ -349,7 +352,12 @@ export default function AdminUsersPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm text-[#8B8BA3]">{u.email}</td>
-                          <td className="px-4 py-3"><Badge variant={u.membership_tier === 'unlimited' ? 'default' : 'outline'} className="text-[10px] capitalize">{u.membership_tier}</Badge></td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant={u.membership_tier === 'unlimited' ? 'default' : 'outline'} className="text-[10px] capitalize">{u.membership_tier}</Badge>
+                              {u.role && u.role !== 'user' && <Badge variant="secondary" className="text-[10px] capitalize">{u.role}</Badge>}
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-sm font-mono text-amber-400">{u.credits_remaining ?? u.credits ?? 0}</td>
                           <td className="px-4 py-3"><Badge variant={u.is_disabled ? 'destructive' : 'default'} className="text-[10px]">{u.is_disabled ? '禁用' : '正常'}</Badge></td>
                           <td className="px-4 py-3 text-sm text-[#8B8BA3]">{new Date(u.created_at).toLocaleDateString()}</td>
@@ -459,6 +467,19 @@ export default function AdminUsersPage() {
                     <SelectItem value="unlimited">Unlimited</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>角色</Label>
+                <Select value={editRole} onValueChange={setEditRole}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select role" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="superadmin">Superadmin</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-[#8B8BA3]">Admin/Superadmin 自动获得 Unlimited 权限</p>
               </div>
 
               <div className="space-y-2">

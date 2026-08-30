@@ -46,18 +46,25 @@ export function tierRank(tier: MembershipTier): number {
  * admin profile had no explicit membership_tier set and was treated as 'free'.
  */
 export function resolveMembershipTier(profile: Record<string, unknown> | null): MembershipTier {
-  // Admin role overrides everything — don't rely on membership_tier column.
+  // Resolve tier from BOTH role and membership_tier columns — return the higher one.
+  // This ensures admin panel setting membership_tier='unlimited' takes effect
+  // even when the role column is still the default 'user'.
+  const TIER_RANK: Record<string, number> = { free: 0, basic: 1, pro: 2, premium: 2, unlimited: 3 };
+
   const role = String(profile?.role || '').toLowerCase();
-  if (role === 'admin' || role === 'superadmin') return 'unlimited';
+  const roleTier: MembershipTier =
+    role === 'admin' || role === 'superadmin' ? 'unlimited' : 'free';
 
   const raw = String(
     profile?.membership_tier || profile?.subscription_tier || profile?.plan || 'free',
   ).toLowerCase();
-  if (raw.includes('unlimit') || raw === 'admin') return 'unlimited';
-  if (raw.includes('premium')) return 'premium';
-  if (raw.includes('pro') || raw.includes('plus')) return 'pro';
-  if (raw.includes('basic') || raw.includes('starter')) return 'basic';
-  return 'free';
+  let colTier: MembershipTier = 'free';
+  if (raw.includes('unlimit') || raw === 'admin') colTier = 'unlimited';
+  else if (raw.includes('premium')) colTier = 'premium';
+  else if (raw.includes('pro') || raw.includes('plus')) colTier = 'pro';
+  else if (raw.includes('basic') || raw.includes('starter')) colTier = 'basic';
+
+  return (TIER_RANK[colTier] ?? 0) >= (TIER_RANK[roleTier] ?? 0) ? colTier : roleTier;
 }
 
 /** All endpoints flagged for the in-chat picker (healthy only). */

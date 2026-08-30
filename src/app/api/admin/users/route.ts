@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 export const dynamic = 'force-dynamic';
 
 const VALID_TIERS = ['free', 'basic', 'pro', 'unlimited'];
+const VALID_ROLES = ['user', 'admin', 'superadmin'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -191,6 +192,13 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: `Invalid membership tier: ${tier}` }, { status: 400 });
       }
       updates.membership_tier = tier;
+    }
+    if (body.role !== undefined) {
+      const role = String(body.role).toLowerCase();
+      if (!VALID_ROLES.includes(role)) {
+        return NextResponse.json({ error: `Invalid role: ${role}` }, { status: 400 });
+      }
+      updates.role = role;
     }
     const creditsRaw = body.credits_remaining ?? body.credits;
     if (creditsRaw !== undefined) {
