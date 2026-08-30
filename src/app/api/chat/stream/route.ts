@@ -343,7 +343,7 @@ export async function POST(request: NextRequest) {
   // Rate limiting: 60 requests/minute per user
   const { data: profile } = await client
     .from('profiles')
-    .select('role, membership_tier, newbie_expires_at, preferred_locale, locale, subscription_tier, plan, timezone_offset')
+    .select('role, membership_tier, newbie_expires_at, preferred_locale, locale, timezone_offset')
     .eq('user_id', user.id)
     .single();
 

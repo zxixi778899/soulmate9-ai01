@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       try {
         const { data: profile } = await auth.client
           .from('profiles')
-          .select('role, membership_tier, subscription_tier, plan')
+          .select('role, membership_tier')
           .eq('id', auth.user.id)
           .maybeSingle();
         // Admin role always gets unlimited — don't rely on membership_tier column.
@@ -34,8 +34,6 @@ export async function POST(request: NextRequest) {
         } else {
           const raw =
             profile?.membership_tier ||
-            profile?.subscription_tier ||
-            profile?.plan ||
             'free';
           const t = String(raw).toLowerCase();
           if (t.includes('unlimit') || t === 'admin') tier = 'unlimited';

@@ -38,17 +38,13 @@ export function tierRank(tier: MembershipTier): number {
 }
 
 /**
- * Map raw profile tier columns (membership_tier / subscription_tier / plan)
- * to the canonical MembershipTier used by the chat router.
+ * Map raw profile membership_tier column to the canonical MembershipTier.
  *
- * Admin / superadmin roles always get 'unlimited' regardless of the
- * membership_tier column — this fixes the long-standing bug where the
- * admin profile had no explicit membership_tier set and was treated as 'free'.
+ * Resolves from BOTH role and membership_tier — returns the higher tier.
+ * This ensures admin panel setting membership_tier='unlimited' takes effect
+ * even when the role column is still the default 'user'.
  */
 export function resolveMembershipTier(profile: Record<string, unknown> | null): MembershipTier {
-  // Resolve tier from BOTH role and membership_tier columns — return the higher one.
-  // This ensures admin panel setting membership_tier='unlimited' takes effect
-  // even when the role column is still the default 'user'.
   const TIER_RANK: Record<string, number> = { free: 0, basic: 1, pro: 2, premium: 2, unlimited: 3 };
 
   const role = String(profile?.role || '').toLowerCase();
@@ -56,7 +52,7 @@ export function resolveMembershipTier(profile: Record<string, unknown> | null): 
     role === 'admin' || role === 'superadmin' ? 'unlimited' : 'free';
 
   const raw = String(
-    profile?.membership_tier || profile?.subscription_tier || profile?.plan || 'free',
+    profile?.membership_tier || 'free',
   ).toLowerCase();
   let colTier: MembershipTier = 'free';
   if (raw.includes('unlimit') || raw === 'admin') colTier = 'unlimited';

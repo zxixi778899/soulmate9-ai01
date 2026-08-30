@@ -8,10 +8,7 @@ export const dynamic = 'force-dynamic';
  * GET /api/debug/membership?email=admin888@oxmate.com
  *
  * Debug endpoint — uses service-role key to query profiles directly.
- * No auth required (this is a temporary diagnostic tool).
- *
- * Returns the raw profile columns and the resolved membership tier so
- * we can see exactly what the database holds for a given user.
+ * Only selects columns that ACTUALLY EXIST in the database.
  */
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -21,31 +18,27 @@ export async function GET(request: NextRequest) {
   const serviceKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceKey) {
-    return NextResponse.json({
-      error: 'Missing Supabase env vars',
-      has_url: !!supabaseUrl,
-      has_key: !!serviceKey,
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Missing env vars' }, { status: 500 });
   }
 
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // 1. Look up the profile by email
+  // Only select columns that DEFINITELY exist (avoid subscription_tier / plan)
   const { data: profile, error: profileErr } = await admin
     .from('profiles')
-    .select('id, user_id, email, role, membership_tier, subscription_tier, plan, credits_remaining')
+    .select('id, user_id, email, role, membership_tier, credits_remaining')
     .ilike('email', email)
     .maybeSingle();
 
-  // 2. Also look up in auth.users
-  const { data: authUsers } = await admin.auth.admin.listUsers();
-  const authUser = authUsers?.users?.find(
-    (u) => u.email?.toLowerCase() === email.toLowerCase(),
-  );
+  // Also try a raw column check — list all columns via a SELECT *
+  const { data: allCols, error: allColsErr } = await admin
+    .from('profiles')
+    .select('*')
+    .ilike('email', email)
+    .maybeSingle();
 
-  // 3. Resolve tier using the same function the app uses
   const resolvedTier = resolveMembershipTier(
     (profile as Record<string, unknown>) || null,
   );
@@ -54,14 +47,13 @@ export async function GET(request: NextRequest) {
     query_email: email,
     raw_profile: profile,
     profile_error: profileErr?.message || null,
-    auth_user: authUser
-      ? { id: authUser.id, email: authUser.email, role: authUser.role }
-      : null,
+    all_columns: allCols ? Object.keys(allCols) : [],
+    all_cols_error: allColsErr?.message || null,
     resolved_tier: resolvedTier,
     diagnosis: {
-      role_in_db: profile?.role ?? 'COLUMN MISSING',
-      membership_tier_in_db: profile?.membership_tier ?? 'COLUMN MISSING',
-      tier_will_be_unlimited: resolvedTier === 'unlimited',
+      role: profile?.role ?? 'MISSING',
+      membership_tier: profile?.membership_tier ?? 'MISSING',
+      resolved_unlimited: resolvedTier === 'unlimited',
     },
-  }, { status: 200 });
+  });
 }

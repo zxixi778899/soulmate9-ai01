@@ -19,7 +19,6 @@ export const IMAGE_GEN_RATE_KEY = 'image-gen';
 export function membershipFromProfile(
   profile: Record<string, unknown> | null,
 ): MembershipTier {
-  // Resolve tier from BOTH role and membership_tier columns — return the higher one.
   const TIER_RANK: Record<string, number> = { free: 0, basic: 1, pro: 2, premium: 2, unlimited: 3 };
 
   const role = String(profile?.role || '').toLowerCase();
@@ -27,7 +26,7 @@ export function membershipFromProfile(
     role === 'admin' || role === 'superadmin' ? 'unlimited' : 'free';
 
   const raw = String(
-    profile?.membership_tier || profile?.subscription_tier || profile?.plan || 'free',
+    profile?.membership_tier || 'free',
   ).toLowerCase();
   let colTier: MembershipTier = 'free';
   if (raw.includes('unlimit') || raw === 'admin') colTier = 'unlimited';
@@ -80,7 +79,7 @@ export async function loadQuotaProfile(
 ): Promise<Record<string, unknown> | null> {
   const { data } = await client
     .from('profiles')
-    .select('role, membership_tier, subscription_tier, plan, timezone_offset, credits_remaining')
+    .select('role, membership_tier, timezone_offset, credits_remaining')
     .eq('id', userId)
     .maybeSingle();
   return (data as Record<string, unknown> | null) || null;
