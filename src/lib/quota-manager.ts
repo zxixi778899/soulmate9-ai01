@@ -10,11 +10,13 @@ export class QuotaManager {
     try {
       const { data, error } = await this.supabase
         .from('profiles')
-        .select('membership_tier')
+        .select('role, membership_tier')
         .eq('id', userId)
         .single();
-      
+
       if (error) return 'free';
+      const role = String(data?.role || '').toLowerCase();
+      if (role === 'admin' || role === 'superadmin') return 'unlimited';
       return (data?.membership_tier as MembershipTier) || 'free';
     } catch (err) {
       logger.error('[QuotaManager] Unexpected error', { err });
