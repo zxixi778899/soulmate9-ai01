@@ -278,9 +278,12 @@ export async function buildPersonaPrompt(input: BuildPromptInput): Promise<strin
  */
 type GirlfriendDetail = {
   name?: string;
+  gender?: string;
+  age?: number;
   personality_traits?: string[];
   openness?: string;
   relationship_style?: string;
+  occupation?: string;
 } | null;
 
 /**
@@ -296,13 +299,16 @@ function buildBasePersona(girlfriendData: GirlfriendDetail, intimacyLevel: numbe
   const nsfwCue = nsfwCueForLevel(intimacyLevel);
 
   let personaDef = `【基础人设】\n角色名：${data.name || '她'}\n`;
+  if (data.gender) personaDef += `性别：${data.gender}\n`;
+  if (data.age && data.age > 0) personaDef += `年龄：${data.age}岁\n`;
+  if (data.occupation) personaDef += `职业：${data.occupation}\n`;
   personaDef += template.baseDefinition.replace(/\{\{NSFW_CUE\}\}/g, () => nsfwCue) + '\n\n';
-  
+
   // Add specific traits
   if (personalityTypes.length > 1) {
     personaDef += `额外特质：${personalityTypes.slice(1).join('、')}\n`;
   }
-  
+
   // Add example lines
   personaDef += `\n【典型台词参考】\n` + template.exampleLines.join('\n');
   

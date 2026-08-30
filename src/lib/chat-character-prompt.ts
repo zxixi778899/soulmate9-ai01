@@ -378,11 +378,13 @@ function buildSoulCore(
   const gender = String(gf.gender || card.gender || 'Female').trim();
   const pronounsSafe = pronouns || resolveSoulPronouns(gender);
   const occupation = String(gf.occupation || card.occupation || '').trim();
+  const age = Number(gf.age || card.age || 0) || 0;
 
   if (zh) {
     lines.push(
       `名字：${name}`,
       `性别：${gender}`,
+      ...(age > 0 ? [`年龄：${age}岁`] : []),
       `性格：${personality}`,
       `背景：${backstory}`,
     );
@@ -403,6 +405,7 @@ function buildSoulCore(
     lines.push(
       `Name: ${name}`,
       `Gender: ${gender}`,
+      ...(age > 0 ? [`Age: ${age}`] : []),
       `Personality: ${personality}`,
       `Backstory: ${backstory}`,
     );
