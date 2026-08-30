@@ -373,8 +373,82 @@ function buildBatchImageVariant(slot: number, total: number): string {
     angle,
     expression,
     lighting,
+    buildBatchPersonaNudge(slot, total),
+    buildBatchMicroVariation(slot),
   ];
-  return cues.join(',, ').slice(0, 160);
+  return cues.filter(Boolean).join(', ').slice(0, 200);
+}
+
+/**
+ * 给批量 portrait 中的每个 slot 加一个独立的"配件 / 姿态 / 微场景"小变化，
+ * 让两张图即使 seed 不同也能在视觉层面拉开。cue 跟 buildMicroCues 完全正交
+ * —— buildMicroCues 已经决定了"她是谁"，这里只决定"她这次穿的/摆的"。
+ *
+ * 关键约束：
+ * - 不改 identity（鼻型/发色/体型仍然由主 prompt 决定）
+ * - cue 跟 FLUX / Pony 训练分布对得上（headphones/pendant/手托腮 等）
+ * - 同 slot 同 cue（确定性 → 可复现），不同 slot 不同 cue
+ */
+function buildBatchPersonaNudge(slot: number, total: number): string {
+  const accessories = [
+    'gold pendant necklace',
+    'silver hoop earrings',
+    'tiny stud earrings',
+    'thin chain bracelet',
+    'slim wristwatch',
+    'ankle bracelet',
+    'no accessories',
+  ];
+  const poses = [
+    'hand on collarbone',
+    'brushing hair behind ear',
+    'chin tilted with soft smile',
+    'weight on one shoulder',
+    'arms crossed at waist',
+    'fingers at temple',
+    'hand on hip',
+  ];
+  const scenes = [
+    'soft lamp glow background',
+    'neutral studio backdrop',
+    'window light from one side',
+    'soft curtain backdrop',
+    'warm bokeh lights',
+    'plain gradient background',
+  ];
+
+  const idx = (seed: number, mod: number) => ((Math.sin(seed * 7919 + 31337) + 1) * 0.5 * mod) | 0;
+  const pick = (arr: string[]) => arr[idx(slot + 1, arr.length)];
+
+  return [pick(accessories), pick(poses), pick(scenes)].filter(Boolean).join(', ');
+}
+
+/**
+ * 给批量 portrait 中的每个 slot 加一个轻量的"面部/发型微变体"。
+ * 跟主 prompt 的 buildMicroCues 互补（主 prompt 决定她是谁；这里再稍微
+ * 调整发型长度、刘海、唇形等细节，让两张图不是 100% 同一个人）。
+ *
+ * 注意：cue 故意只用 FLUX/Pony 训练里高频的描述词（"slightly longer hair"、
+ * "subtle wavy hair"），避免跨模型漂移。
+ */
+function buildBatchMicroVariation(slot: number): string {
+  const hairLengthVariants = [
+    'hair worn slightly longer than usual',
+    'hair tucked behind one ear',
+    'a few loose face-framing strands',
+    'hair swept up with loose tendrils',
+  ];
+  const expressionVariants = [
+    'with the faintest hint of a smile',
+    'with relaxed brows',
+    'with subtly raised chin',
+    'with softly pursed lips',
+  ];
+  const idx = (seed: number, mod: number) => ((Math.sin(seed * 6151 + 17239) + 1) * 0.5 * mod) | 0;
+  return [
+    hairLengthVariants[idx(slot + 1, hairLengthVariants.length)],
+    expressionVariants[idx(slot + 13, expressionVariants.length)],
+  ].filter(Boolean).join(', ');
 }
 
 /**
@@ -730,7 +804,16 @@ export async function POST(request: NextRequest) {
       const identityReferenceUrl = identityKit?.anchorImageUrl || '';
       // Prioritize variety on first generation, then balance with identity
       const identityWeight = identityKit ? resolveIpAdapterWeight('avatar-closeup', undefined, 'flux', true) : 0;
-      
+
+      // 批量模式下按 slot 衰减 IP-Adapter 权重，避免 anchor face 把所有图都
+      // 锁回同一个人；保留 identityWeight * 0.6 作为最低身份线索，让用户能看出
+      // "这几张是同一个人"但脸型/角度明显不同。slot 0 是锚点最强的一张，越往后越自由。
+      const perSlotIdentityWeight = (slot: number, total: number): number => {
+        if (!identityReferenceUrl) return 0;
+        const decay = 1 - (slot / Math.max(1, total)) * 0.5; // 1.0 → 0.5
+        return Math.max(0.35, Number((identityWeight * decay).toFixed(3)));
+      };
+
       const jobs = await Promise.all(
         Array.from({ length: count }, (_, slot) =>
           generateImage({
@@ -740,12 +823,13 @@ export async function POST(request: NextRequest) {
             renderStyle,
             endpointId: route.endpointId || undefined,
             nsfwLevel,
-            // 每张图独立随机种子 + 角度/表情/光线变体 + LoRA 强度抖动，
-            // 三层叠加确保 2-4 张 portrait 不会"同一张脸复制粘贴"。
+            // 每张图独立随机种子 + 角度/表情/光线变体 + 配件/姿态/微场景
+            // nudges + LoRA 强度抖动 + 递减 IP-Adapter 锚点权重，五层叠加
+            // 确保 2-4 张 portrait 不会"同一张脸复制粘贴"。
             seed: Math.floor(Math.random() * 2_147_483_647),
             loras: jitterLoraStrengths(normalizedLoras.length ? normalizedLoras : undefined, slot),
             ipAdapterImage: identityReferenceUrl,
-            ipAdapterWeight: identityWeight,
+            ipAdapterWeight: perSlotIdentityWeight(slot, count),
             variant: buildBatchImageVariant(slot, count),
           }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
         ),
