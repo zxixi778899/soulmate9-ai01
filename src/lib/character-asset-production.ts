@@ -219,8 +219,5 @@ export function styleProductionHint(style: AnimeRenderStyle): string {
   if (style === '2d') {
     return 'Render only as coherent 2D animation art with stable linework and cel shading; do not use photography or 3D CGI.';
   }
-  if (style === '3d') {
-    return 'Render only as coherent 3D animation with consistent character materials and cinematic CGI lighting; do not use 2D line art or live photography.';
-  }
   return 'Render only as a candid real camera photograph with neutral white balance, accurate skin tone, restrained saturation, gentle highlight roll-off, practical or window light, real fabric texture, and moderate depth of field. Give the subject a relaxed asymmetrical posture, believable weight distribution, natural hands, and a subtle micro-expression; avoid beauty filtering, glossy plastic skin, neon color casts, illustration, and CGI.';
 }

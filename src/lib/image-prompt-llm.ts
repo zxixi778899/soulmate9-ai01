@@ -114,9 +114,7 @@ export function buildIdentitySheet(
   const style =
     renderStyle === '2d'
       ? '2D anime key visual'
-      : renderStyle === '3d'
-        ? '3D animated film frame'
-        : 'photorealistic editorial photo';
+      : 'photorealistic editorial photo';
   parts.push(`Render style: ${style}`);
   return parts.filter(Boolean).join('\n');
 }

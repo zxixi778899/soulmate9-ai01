@@ -5,7 +5,7 @@ export type FluxPromptPreset = { id: string; category: CompanionCategory; style:
 const SCENES = ['standing beside a sunlit window', 'sitting on a quiet apartment sofa', 'leaning against a hotel balcony', 'walking through a softly lit bedroom', 'resting beside a pool at dusk', 'standing in a warm dressing room', 'sitting at a small cafe table', 'turning in a rain-washed city street', 'standing near a fireplace', 'lying on crisp white sheets'] as const;
 const ACTIONS = ['looking calmly into the camera', 'smiling with relaxed confidence', 'turning over one shoulder'] as const;
 const SUBJECT: Record<CompanionCategory, string> = { female: 'an adult woman', male: 'an adult man', transgender: 'an adult transgender woman', anime: 'an unmistakably adult anime character' };
-const STYLE: Record<AnimeRenderStyle, string> = { realistic: 'natural real-camera photography with soft practical light', '2d': 'clean 2D anime artwork with stable linework and cel shading', '3d': 'polished 3D character render with coherent PBR materials' };
+const STYLE: Record<AnimeRenderStyle, string> = { realistic: 'natural real-camera photography with soft practical light', '2d': 'clean 2D anime artwork with stable linework and cel shading' };
 const LEVEL: Record<NsfwIntensity, string> = {
   1: 'wearing a complete stylish outfit, relaxed adult pose',
   2: 'wearing adult lingerie or a sensual outfit, teasing pose, covered intimate areas',

@@ -28,7 +28,6 @@ const AUTO_MATRIX: Record<string, LoraAutoPick[]> = {
     { id: 'flux-detail-skin-nplastic-v1', strength: 0.2 },
   ],
   anime: [{ id: 'flux-anime-v1', strength: 0.6 }],
-  '3d': [{ id: 'flux-3d-render-v1', strength: 0.45 }],
 };
 
 export function resolveAutoGender(gender?: unknown): string {
@@ -42,7 +41,6 @@ export function resolveAutoGender(gender?: unknown): string {
 export function resolveAutoStyle(style?: unknown): string {
   const s = String(style || '').toLowerCase();
   if (/anime|manga|2d|illustration|cel/.test(s)) return 'anime';
-  if (/3d|render/.test(s)) return '3d';
   return 'realistic';
 }
 
@@ -79,8 +77,6 @@ export function buildAutoLoraStack(
   } else {
     if (s === 'anime') {
       picks.push(...AUTO_MATRIX.anime);
-    } else if (s === '3d') {
-      picks.push(...AUTO_MATRIX['3d']);
     } else {
       picks.push(...(AUTO_MATRIX[g] || AUTO_MATRIX.female));
     }

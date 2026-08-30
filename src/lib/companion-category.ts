@@ -75,12 +75,14 @@ export function companionDisplayCategory(input: {
   return normalizeCompanionCategory(input);
 }
 
-export type CompanionRenderStyle = 'realistic' | '2d' | '3d';
+export type CompanionRenderStyle = 'realistic' | '2d';
 
 function exactStyle(value: unknown): CompanionRenderStyle | null {
   const normalized = String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
   if (['2d', '2danime', 'anime2d', 'anime', 'manga', 'cartoon', 'cel', 'celshaded'].includes(normalized)) return '2d';
-  if (['3d', '3danime', 'anime3d', 'cgi', 'pbr', 'animation3d', '3danimation'].includes(normalized)) return '3d';
+  // 2026-08: 3D style removed from product surface; any 3d-shaped token
+  // (cgi/pbr/3danimation/…) now falls through to realistic so legacy
+  // admin DB rows still resolve without throwing.
   if (['realistic', 'photorealistic', 'photo', 'photography', 'real'].includes(normalized)) return 'realistic';
   return null;
 }

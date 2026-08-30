@@ -76,7 +76,7 @@ export interface PipelineContext {
   companionId: string;
   companion: Record<string, unknown>;
   category: 'female' | 'male' | 'transgender' | 'anime';
-  animeStyle: 'realistic' | '2d' | '3d';
+  animeStyle: 'realistic' | '2d';
   nsfwIntensity: number;
   /** URLs of previously generated assets keyed by stage/role */
   existingAssets: Record<string, string>;
@@ -149,7 +149,7 @@ Rules:
 - For avatar: a waist-up studio portrait of the character from their basic attributes (age, gender, ethnicity, hair color and style, eye color, build, temperament). Plain warm-gray background, soft diffused daylight, relaxed natural expression, clean eye contact. This is the identity anchor that later stages lock onto, so the face must be clear and unobstructed.
 - For character-art: the face is already locked by IP-Adapter, so describe the adult companion's exact action, body language, gaze, wardrobe, lived-in setting and mood. Use these exact adult-only levels: 1=everyday sexy clothing with nipples and genitals covered; 2=lingerie, nightwear, or adult fantasy costume with genitals covered and no sexual act; 3=full nudity with breasts and/or genitals visible but no sexual act; 4=clearly visible solo masturbation; 5=clearly visible consensual sex between unmistakably adult partners, including the requested act and any requested sexual fluids. Keep every relevant adult, face, hand, contact point and action readable. Use a varied believable private or lifestyle setting instead of defaulting to a generic sofa or empty boudoir. Keep the whole body in frame from head to feet with margin above and below.
 - For video: describe subtle natural motion only (gentle breathing, soft hair sway, a slow smile, a slight body turn).
-- Never use: orthographic, wireframe, T-pose, character sheet, reference sheet, turnaround, multiple views, 3D render.
+- Never use: orthographic, wireframe, T-pose, character sheet, reference sheet, turnaround, multiple views.
 - Language: English only.`;
 
 /**
@@ -262,7 +262,9 @@ Generate the optimal FLUX prompt for this stage:`;
 }
 
 function buildStageNegative(stage: PipelineStageConfig): string {
-  // Anti-3D terms FIRST (FLUX negative truncated at 300 chars)
+  // 2026-08: 3D rendering removed from product surface. Anti-3D tokens are
+  // still useful for the avatar stage (FLUX tends to drift toward CGI on
+  // 头像 close-up) but no longer drive a separate code path.
   const anti3d = '3D render, CG, mannequin, doll, plastic skin, wireframe, clay render, T-pose';
   switch (stage.id) {
     case 'avatar':

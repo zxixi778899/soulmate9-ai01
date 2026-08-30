@@ -3,7 +3,7 @@ import { getCatalogLoraById } from '@/lib/comfy-console/lora-catalog';
 import { fluxScenarioPlan } from '@/lib/model-lora-routing';
 import { isLoraInstalled } from '@/lib/runpod-loras';
 
-export type AnimeRenderStyle = 'realistic' | '2d' | '3d';
+export type AnimeRenderStyle = 'realistic' | '2d';
 export type NsfwIntensity = 1 | 2 | 3 | 4 | 5;
 
 const INTENSITY_ACTIONS: Record<NsfwIntensity, Record<CompanionCategory, string>> = {
@@ -52,12 +52,8 @@ const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
   // 等动漫模型训练时最敏感的质量 token。这些 token 在训练集中跟"精致"+"高细节
   // 图像的强绑定，prompt 里出现就能直接拉高模型对细节/线条/色彩的优先级。
   // 同时保持 FLUX-friendly 的英文描述，让 anime-LoRA + quality tag 协同发力。
+  // 2026-08: 3D style removed from product surface.
   '2d': '2D anime illustration, masterpiece, best quality, very aesthetic, absurdres, highres, official art, anime key visual, fully colored finished artwork, vibrant cel shading, clean lineart, sharp linework, vivid saturated colors, detailed expressive eyes, beautiful detailed face, intricate details, studio quality, professional artwork',
-  // 3D uplift: anti-2D drift. Default FLUX 3D LoRA is light; if not installed
-  // the worker falls back to vanilla realistic, which the user reads as
-  // "3D broken". Reinforce the 3D vocabulary in the prompt itself so the
-  // render still reads as 3D even without the dedicated LoRA.
-  '3d': '3D character render, octane render, blender cycles, PBR materials, subsurface scattering, studio three-point lighting, cinematic depth of field, sharp focus, ultra detailed',
 };
 
 function compactIdentity(identity?: string): string {
@@ -229,9 +225,7 @@ export function studioNegativePrompt(category: CompanionCategory, animeStyle: An
   // dedicated LoRA isn't installed on the endpoint.
   const style = animeStyle === '2d'
     ? 'photorealistic, photograph, 3d render, plastic CGI, muddy line art, line art only, sketch only, unfinished sketch, monochrome, grayscale, coloring book, watercolor, oil painting, soft shading, low detail'
-    : animeStyle === '3d'
-      ? 'flat 2d drawing, sketch, broken mesh, wax figure, low-poly model, illustration, anime, cartoon, watercolor, cel shading, line art, 2d flat shading, painterly'
-      : 'illustration, anime, cartoon, CGI, 3d render';
+    : 'illustration, anime, cartoon, CGI, 3d render';
   return shared + ', ' + anatomy + ', ' + style;
 }
 
@@ -246,7 +240,6 @@ const FLUX_LORA_CATALOG: Record<string, { id: string; reasonZh: string }> = {
   'flux_male_muscle_v1.safetensors': { id: 'flux-male-muscle-v1', reasonZh: '肌肉线条增强：男性健身体型力量感。' },
   'realistic-mtf-trans.safetensors': { id: 'flux-mtf-trans-v1', reasonZh: 'MTF 跨性别写实：女性化面部与男性特征稳定共存。' },
   'rdanimefluxv1rapid.safetensors': { id: 'flux-anime-v1', reasonZh: '二次元动漫画风主力：线稿与赛璐璐上色。' },
-  'flux_3d_render_v1.safetensors': { id: 'flux-3d-render-v1', reasonZh: '3D 渲染风格：PBR 材质与电影灯光。' },
   'flux_outfit_lingerie_v1.safetensors': { id: 'flux-outfit-lingerie-v1', reasonZh: '内衣穿搭 LoRA：仅控制服装，不改变人物身份。' },
   'flux_outfit_bikini_v1.safetensors': { id: 'flux-outfit-bikini-v1', reasonZh: '泳装穿搭 LoRA：仅控制服装，不改变人物身份。' },
   'flux_outfit_latex_v1.safetensors': { id: 'flux-outfit-latex-v1', reasonZh: '乳胶/胶衣穿搭 LoRA：仅控制服装，不改变人物身份。' },

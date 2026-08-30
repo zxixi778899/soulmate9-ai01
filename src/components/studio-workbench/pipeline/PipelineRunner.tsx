@@ -23,7 +23,7 @@ import type { Any } from '../StudioWorkbench.types';
 interface Props {
   companionId: string;
   companion: Any | null;
-  animeStyle: 'realistic' | '2d' | '3d';
+  animeStyle: 'realistic' | '2d';
   nsfwIntensity: number;
   onComplete?: (assets: Record<string, string>) => void;
 }

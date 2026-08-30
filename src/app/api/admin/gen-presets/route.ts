@@ -42,7 +42,7 @@ function sanitizeSlug(value: unknown): string {
 }
 
 const PRESET_GENDERS = ['female', 'male', 'trans', 'all'] as const;
-const PRESET_STYLE_FAMILIES = ['realistic', 'anime', '3d'] as const;
+const PRESET_STYLE_FAMILIES = ['realistic', 'anime'] as const;
 
 function sanitizeGender(value: unknown): string | null {
   return (PRESET_GENDERS as readonly string[]).includes(String(value)) ? String(value) : null;

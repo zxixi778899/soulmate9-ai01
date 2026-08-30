@@ -17,7 +17,7 @@ import type { CompanionCategory } from '@/lib/companion-category';
 import type { AnimeRenderStyle } from '@/lib/comfy-console/studio-profile';
 
 export type PromptFamily = 'flux' | 'pony' | 'illustrious';
-export type PromptSubject = 'female' | 'male' | 'transgender' | '2d' | '3d';
+export type PromptSubject = 'female' | 'male' | 'transgender' | '2d';
 export type PromptProtocolId = 'flux-natural' | 'pony-tags' | 'illustrious-tags';
 
 export type FamilySubjectPreset = {
@@ -84,15 +84,6 @@ const FLUX_PRESETS: Record<PromptSubject, FamilySubjectPreset> = {
     nsfwNegativeExtra: '',
     enhancers: { adetailer: true, upscale: true },
   },
-  '3d': {
-    note: 'FLUX 3D 渲染：PBR 材质与渲染器质感描述。',
-    descriptor: '3D character render, PBR materials, subsurface scattering, studio octane render',
-    qualityPrefix: '',
-    qualitySuffix: 'crisp geometry, clean topology shading, high detail textures',
-    negative: '2d, flat color, sketch, line art, blurry, low quality, photograph, watermark',
-    nsfwNegativeExtra: '',
-    enhancers: { adetailer: true, upscale: false },
-  },
 };
 
 // ─── Pony：score 评分 tag 协议 ─────────────────────────────────
@@ -132,15 +123,6 @@ const PONY_PRESETS: Record<PromptSubject, FamilySubjectPreset> = {
     negative: 'score_1, score_2, bad anatomy, bad hands, blurry, low quality, watermark, photorealistic, 3d, sketch, monochrome, line art only',
     nsfwNegativeExtra: 'censored, mosaic, bar censor',
     enhancers: { adetailer: true, upscale: true },
-  },
-  '3d': {
-    note: 'Pony 3D：评分 tag + 3d 渲染 tag。',
-    descriptor: '1girl, solo, 3d style, pbr materials, render',
-    qualityPrefix: 'score_9, score_8_up, score_7_up',
-    qualitySuffix: '',
-    negative: 'score_1, score_2, bad anatomy, blurry, low quality, watermark, sketch, 2d flat color',
-    nsfwNegativeExtra: 'censored, mosaic, bar censor',
-    enhancers: { adetailer: true, upscale: false },
   },
 };
 
@@ -207,7 +189,6 @@ export function resolvePromptSubject(
   renderStyle: AnimeRenderStyle | undefined,
 ): PromptSubject {
   if (renderStyle === '2d') return '2d';
-  if (renderStyle === '3d') return '3d';
   if (category === 'male') return 'male';
   if (category === 'transgender') return 'transgender';
   return 'female';

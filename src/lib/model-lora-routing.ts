@@ -122,14 +122,12 @@ function configuredCandidates(
         nsfwConfigured,
         categoryConfigured,
         animeStyle === '2d' ? process.env[`${prefix}_2D_LORAS`] : '',
-        animeStyle === '3d' ? process.env[`${prefix}_3D_LORAS`] : '',
         process.env[`${prefix}_LORAS`],
       ]
     : [
         categoryConfigured,
         nsfwConfigured,
         animeStyle === '2d' ? process.env[`${prefix}_2D_LORAS`] : '',
-        animeStyle === '3d' ? process.env[`${prefix}_3D_LORAS`] : '',
         process.env[`${prefix}_LORAS`],
       ];
   const configured = [...new Set(values.flatMap(splitList))].filter((name) =>
@@ -210,12 +208,8 @@ export function fluxScenarioPlan(input: {
     return plan;
   }
 
-  // ─── 3D 渲染 ──────────────────────────────────────────────────────────────
-  if (input.animeStyle === '3d') {
-    return [{ name: 'flux_3d_render_v1.safetensors', strength: 0.6 }];
-  }
-
   // ─── 男性 ─────────────────────────────────────────────────────────────────
+  if (input.category === 'male') {
   if (input.category === 'male') {
     return nsfw
       ? [
@@ -268,7 +262,6 @@ function triggersForLora(name: string): string[] {
   // style/detail LoRAs stay trigger-free so prompts are not polluted.
   if (lower.includes('realistic-mtf-trans') || lower.includes('mtf_trans')) return ['transgender woman', 'developed breasts'];
   if (lower.includes('rdanimeflux')) return ['anime style', 'cel shading'];
-  if (lower.includes('flux_3d_render')) return ['3d character render'];
   if (lower.includes('male_masc')) return ['masculine adult man'];
   if (lower.includes('male_muscle')) return ['muscular male body'];
   if (lower.includes('femboy')) return ['femboy'];

@@ -197,7 +197,7 @@ function fluxRoute(
     loraPolicy: {
       inventoryEnv: ['RUNPOD_INSTALLED_LORAS_FLUX', 'RUNPOD_INSTALLED_LORAS'],
       categoryEnv: `RUNPOD_FLUX_${categoryKey}_LORAS`,
-      styleEnv: renderStyle === '2d' ? 'RUNPOD_FLUX_2D_LORAS' : renderStyle === '3d' ? 'RUNPOD_FLUX_3D_LORAS' : undefined,
+      styleEnv: renderStyle === '2d' ? 'RUNPOD_FLUX_2D_LORAS' : undefined,
       adultEnv: 'RUNPOD_FLUX_NSFW_LORAS',
       maxLoras: 3,
       maxCombinedStrength: 1.65,
@@ -383,19 +383,8 @@ export function resolveImageGenerationRoute(input: {
     }, category, renderStyle, nsfw);
   }
 
-  // ─── 3D render style (SFW) ────────────────────────────────────────────────
-  if (input.surface === 'companion' && renderStyle === '3d') {
-    return fluxRoute({
-      surface: input.surface,
-      checkpoint,
-      steps: 28,
-      fluxGuidance: 3.5,
-      width: 1152,
-      height: 1472,
-      presetId: complexScene ? 'flux-3d-multi-control' : 'flux-3d-portrait',
-      reason: '3D companion rendering uses FLUX with the 3D render LoRA.',
-    }, category, renderStyle, nsfw);
-  }
+  // 3D render style removed (2026-08); any 3d request falls through to the
+  // default FLUX SFW branch below.
 
   // ─── Transgender anatomy (SFW; NSFW trans is hard-routed to SDXL pony) ────
   if (input.surface === 'companion' && category === 'transgender') {

@@ -47,7 +47,7 @@ export function isGenPresetCategory(value: unknown): value is GenPresetCategory 
 export type GenPresetTier = 'free' | 'premium';
 
 export type PresetGender = 'female' | 'male' | 'trans' | 'all';
-export type PresetStyleFamily = 'realistic' | 'anime' | '3d';
+export type PresetStyleFamily = 'realistic' | 'anime';
 
 export interface GenPreset {
   id: string;
@@ -104,7 +104,7 @@ export function presetFromRow(row: unknown): GenPreset | null {
     sort_order: Number(r.sort_order || 0),
     is_active: r.is_active !== false,
     gender: (['female', 'male', 'trans', 'all'].includes(r.gender as string)) ? (r.gender as PresetGender) : undefined,
-    style_family: (['realistic', 'anime', '3d'].includes(r.style_family as string)) ? (r.style_family as PresetStyleFamily) : undefined,
+    style_family: (['realistic', 'anime'].includes(r.style_family as string)) ? (r.style_family as PresetStyleFamily) : undefined,
     pose_reference: r.pose_reference != null ? String(r.pose_reference) : null,
     workflow_flags: r.workflow_flags != null && typeof r.workflow_flags === 'object' ? (r.workflow_flags as { face_fix?: boolean; upscale?: number; identity_image?: boolean }) : undefined,
     preset_group: r.preset_group != null ? String(r.preset_group) : '',

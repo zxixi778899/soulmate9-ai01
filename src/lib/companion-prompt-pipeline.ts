@@ -71,14 +71,12 @@ export function buildIdReferencePrompt(framing: IdFraming): string {
 /** 下游内容提示词：只描述画面内容，身份交给 ID 参考图 / IP-Adapter */
 export function buildContentOnlyPrompt(
   content: string,
-  opts?: { mood?: string; environment?: string; style?: 'realistic' | '2d' | '3d' },
+  opts?: { mood?: string; environment?: string; style?: 'realistic' | '2d' },
 ): string {
   const style =
     opts?.style === '2d'
       ? 'anime key visual'
-      : opts?.style === '3d'
-        ? '3D film frame'
-        : 'photorealistic editorial photo';
+      : 'photorealistic editorial photo';
   const mood = opts?.mood ? `, ${opts.mood}` : '';
   const env = opts?.environment ? `, ${opts.environment}` : '';
   return `${String(content || '').trim()}${mood}${env}, ${style}, natural skin texture with visible pores, correct realistic anatomy, natural body proportions, well-formed hands and fingers, fine film grain, 8k`

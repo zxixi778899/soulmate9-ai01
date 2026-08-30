@@ -162,11 +162,11 @@ export function resolveModelPlan(input: {
     return fluxPlan('SDXL matrix gate closed — unified FLUX pipeline.');
   }
 
-  // ── NSFW 硬路由 SDXL：FLUX NSFW 稳定性差，premium/3D/产品资产也收敛到 ──
-  // ── SDXL 双通道（3D 无 SDXL LoRA 生态时归入写实通道） ──
-  const effectiveStyle: AnimeRenderStyle = nsfw && renderStyle === '3d' ? 'realistic' : renderStyle;
+  // ── NSFW 硬路由 SDXL：FLUX NSFW 稳定性差，premium/产品资产也收敛到 ──
+  // ── SDXL 双通道。3D style 已从产品面移除 ──
+  // (no effectiveStyle needed; renderStyle only takes 'realistic' | '2d' now)
 
-  // ── premium 精品层 / 3D / 产品资产（仅 SFW）保留 FLUX ──
+  // ── premium 精品层 / 产品资产（仅 SFW）保留 FLUX ──
   if (!nsfw) {
     if (input.tier === 'premium') {
       return fluxPlan('Premium tier stays on the FLUX boutique layer.');
@@ -174,13 +174,10 @@ export function resolveModelPlan(input: {
     if (input.surface === 'prop' || input.surface === 'advert') {
       return fluxPlan(`${input.surface} product assets stay on FLUX.`);
     }
-    if (effectiveStyle === '3d') {
-      return fluxPlan('3D renders stay on FLUX (3D LoRA only exists there).');
-    }
   }
 
   // ── 二次元 → Illustrious 旗舰（SFW/NSFW） ──
-  if (effectiveStyle === '2d') {
+  if (renderStyle === '2d') {
     return {
       endpointKey: 'runpod-sdxl-pro',
       modelFamily: 'illustrious',

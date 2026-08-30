@@ -72,9 +72,6 @@ function qualityForModel(modelFamily: PromptInput['modelFamily'], renderStyle: A
   if (renderStyle === '2d') {
     return '2D anime illustration, fully colored finished artwork, vibrant cel shading';
   }
-  if (renderStyle === '3d') {
-    return '3D character render, PBR materials, natural materials';
-  }
   return 'real-camera photograph, face and full body clearly illuminated, no crushed shadows, natural skin, soft practical light';
 }
 

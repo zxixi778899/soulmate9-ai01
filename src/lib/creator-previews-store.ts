@@ -21,7 +21,7 @@ export const CREATOR_PREVIEWS_KEY = 'creator_previews';
 export const PREVIEW_GENDERS = ['Female', 'Male', 'Transgender'] as const;
 export type PreviewGender = (typeof PREVIEW_GENDERS)[number];
 
-export const PREVIEW_STYLES = ['realistic', 'anime', '3d'] as const;
+export const PREVIEW_STYLES = ['realistic', 'anime'] as const;
 export type PreviewStyle = (typeof PREVIEW_STYLES)[number];
 
 export const GENDER_LABELS: Record<PreviewGender, { en: string; zh: string }> = {
@@ -33,7 +33,6 @@ export const GENDER_LABELS: Record<PreviewGender, { en: string; zh: string }> = 
 export const STYLE_LABELS: Record<PreviewStyle, { en: string; zh: string }> = {
   realistic: { en: 'Realistic', zh: '写实' },
   anime: { en: 'Anime', zh: '二次元' },
-  '3d': { en: '3D Animation', zh: '3D动画' },
 };
 
 // ─── Config Shape ────────────────────────────────────────────

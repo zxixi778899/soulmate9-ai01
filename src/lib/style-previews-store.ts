@@ -13,7 +13,7 @@ import type { SiteSettingsClient } from '@/lib/site-settings-client';
 
 export const STYLE_PREVIEWS_KEY = 'creator_style_previews';
 
-export const STYLE_PREVIEW_KEYS = ['realistic', 'anime', '3d'] as const;
+export const STYLE_PREVIEW_KEYS = ['realistic', 'anime'] as const;
 export type StylePreviewKey = (typeof STYLE_PREVIEW_KEYS)[number];
 
 /** Fallback artwork (the originally uploaded static samples). */
@@ -22,13 +22,11 @@ export const STYLE_PREVIEW_DEFAULTS: Record<StylePreviewKey, string> = {
     'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/realistic.png',
   anime:
     'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/anime.png',
-  '3d': 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/3d.png',
 };
 
 export interface StylePreviewsConfig {
   realistic: string;
   anime: string;
-  '3d': string;
   updated_at?: string;
 }
 
@@ -52,7 +50,6 @@ export function normalizeStylePreviews(raw: unknown): StylePreviewsConfig {
   return {
     realistic: pick('realistic'),
     anime: pick('anime'),
-    '3d': pick('3d'),
     ...(typeof r.updated_at === 'string' ? { updated_at: r.updated_at } : {}),
   };
 }
@@ -92,7 +89,6 @@ export async function saveStylePreviews(
   const next: StylePreviewsConfig = {
     realistic: patch.realistic || current.realistic,
     anime: patch.anime || current.anime,
-    '3d': patch['3d'] || current['3d'],
     updated_at: new Date().toISOString(),
   };
 

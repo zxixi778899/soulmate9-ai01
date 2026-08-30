@@ -8,7 +8,7 @@ export interface CreatorPreset {
   description: string;
   description_zh: string;
   gender: 'Female' | 'Male' | 'Transgender';
-  visual_style: 'realistic' | 'anime' | '3d';
+  visual_style: 'realistic' | 'anime';
   ethnicity: string;
   face_shape: string;
   hair_style: string;
@@ -226,7 +226,7 @@ export function normalizeCreatorPreset(row: Record<string, unknown>): CreatorPre
     genderValue === 'Male' || genderValue === 'Transgender' ? genderValue : 'Female';
   const styleValue = text(row, 'visual_style', 'realistic');
   const visualStyle: CreatorPreset['visual_style'] =
-    styleValue === 'anime' || styleValue === '3d' ? styleValue : 'realistic';
+    styleValue === 'anime' ? styleValue : 'realistic';
   const rarityValue = text(row, 'rarity');
   const rarity: CreatorPreset['rarity'] =
     rarityValue === 'N' || rarityValue === 'R' || rarityValue === 'SR' || rarityValue === 'SSR'

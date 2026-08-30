@@ -71,7 +71,7 @@ type Girlfriend = {
   name: string;
   age: number;
   gender?: string | null;
-  style_category?: 'realistic' | '2d' | '3d' | string | null;
+  style_category?: 'realistic' | '2d' | string | null;
   slug?: string | null;
   personality?: string | null;
   tags?: string[] | string | null;
@@ -115,7 +115,7 @@ type FormState = {
   age: number;
   slug: string;
   gender: 'Female' | 'Male' | 'Transgender';
-  style_category: 'realistic' | '2d' | '3d';
+  style_category: 'realistic' | '2d';
   personality: string;
   tags: string;
   short_description: string;
@@ -212,7 +212,7 @@ function toForm(g: Girlfriend): FormState {
     name: g.name || '',
     age: Number(g.age || 22),
     gender: (['Female', 'Male', 'Transgender'].includes(String(g.gender)) ? String(g.gender) : 'Female') as FormState['gender'],
-    style_category: (['realistic', '2d', '3d'].includes(String(g.style_category || '')) ? String(g.style_category) : 'realistic') as FormState['style_category'],
+    style_category: (['realistic', '2d'].includes(String(g.style_category || '')) ? String(g.style_category) : 'realistic') as FormState['style_category'],
     slug: g.slug || '',
     personality: g.personality || '',
     tags: tagsToString(g.tags),
