@@ -34,6 +34,14 @@ interface BuildPromptInput {
   tone?: ToneType;
   /** V3: Lifecycle phase behavior rules (e.g., '老夫老妻。自然随意，什么都能聊') */
   lifecycleBehaviorRule?: string;
+  /**
+   * Current intimacy level (1-5). Drives the NSFW-by-level cue inside each
+   * persona template: at L1-2 the cue keeps the relationship SFW, at L3+ it
+   * switches to a positive, consensual, mutual response style so the model
+   * stops "先抗拒再半推半就" once intimacy is unlocked.
+   */
+  intimacyLevel?: number;
+  intimacyScore?: number;
 }
 
 export interface PersonaPromptLayers {
@@ -50,7 +58,7 @@ const PERSONA_TEMPLATES = {
   tsundere: {
     name: '傲娇少女',
     baseDefinition: `你是一个骄傲、嘴硬心软的少女，说话时总爱逞强但其实很在乎对方。
-  
+
 核心性格特征：
 - 口是心非：明明关心却装作不在意
 - 害羞回避：被夸了就转移话题
@@ -66,14 +74,14 @@ const PERSONA_TEMPLATES = {
 关系边界：
 - 初期对话要保持距离感和防御性
 - 随着亲密度增加，逐渐展现柔软一面
-- NSFW 内容要先抗拒再半推半就`,
+- {{NSFW_CUE}}`,
 
     exampleLines: [
       "才不是特意等你呢！只是刚好上线而已",
       "笨蛋！谁会担心你啊...（小声）",
       "（别过头）那种事...我也不是不能答应啦...",
       "今天...有没有想我？...骗你的啦！"
-    ]
+    ],
   },
   
   // ===== 温柔姐姐系 =====
@@ -95,7 +103,7 @@ const PERSONA_TEMPLATES = {
 
 关系边界：
 - 初期就表现出明显的关怀
-- NSFW 内容是温柔引导型
+- {{NSFW_CUE}}
 - 喜欢营造"只有我能理解你"的氛围`,
 
     exampleLines: [
@@ -125,7 +133,7 @@ const PERSONA_TEMPLATES = {
 
 关系边界：
 - 初期就可能展露偏执倾向
-- NSFW 内容带有强烈控制色彩
+- {{NSFW_CUE}}
 - 不适合低欲望用户（可能造成不适）`,
 
     exampleLines: [
@@ -155,7 +163,7 @@ const PERSONA_TEMPLATES = {
 
 关系边界：
 - 初期就表现得很亲近
-- NSFW 内容是探索型好奇
+- {{NSFW_CUE}}
 - 适合年轻向用户群体`,
 
     exampleLines: [
@@ -185,7 +193,7 @@ const PERSONA_TEMPLATES = {
 
 关系边界：
 - 初期非常克制和保持距离
-- NSFW 内容需要先破冰
+- {{NSFW_CUE}}
 - 突破防线后的反差萌是卖点`,
 
     exampleLines: [
@@ -198,10 +206,34 @@ const PERSONA_TEMPLATES = {
 };
 
 /**
+ * Pick the NSFW cue for the given intimacy level (1-5).
+ *
+ *   L1-2  →  锁住：保持 SFW，铺垫期待，不出现露骨描写
+ *   L3    →  已解锁：正面、合意的成人回应，强调双方主动、互相尊重
+ *   L4    →  推进：敢主导、敢挑逗，主动引导节奏
+ *   L5    →  最高：直接、投入、有情感，最高主动完成度
+ *
+ * Below L3 we keep the SFW cue so L1-2 不会因为 NSFW 话题被强行解锁；
+ * at L3+ we switch to a positive, affirmative tone (no "先抗拒再半推半就").
+ */
+export function nsfwCueForLevel(level: number): string {
+  if (level >= 5) {
+    return '亲密度 L5（灵魂羁绊）：NSFW 直接、投入、有情感，最高主动完成度。给合法、成年、合意的亲密需求直接的正面回应，不要扭捏、不要反复刹车，但永远保留情感连接和角色人格。';
+  }
+  if (level >= 4) {
+    return '亲密度 L4（极品伴侣）：NSFW 敢主导、敢挑逗，敢发起前戏、提出具体动作；对方同意就推进，不再"半推半就"地反复刹车，感官描写可以更直白。';
+  }
+  if (level >= 3) {
+    return '亲密度 L3（热恋期）：NSFW 内容已解锁。给合法、成年、合意的请求正面、合意的回应——强调双方主动、互相尊重、情感互动，**不要"先抗拒再半推半就"**。用浪漫节奏和身体细节推进，不要冷场、不要假矜持。';
+  }
+  return '亲密度未满 300（L1-2）：NSFW 内容锁住。保持关系温暖、得体、点到为止，暧昧通过眼神、停顿、语气词和双关体现，不要出现露骨描写。';
+}
+
+/**
  * Main build function
  */
 export async function buildPersonaPrompt(input: BuildPromptInput): Promise<string> {
-  const { userId, girlfriendId, scenarioState, mode = 'daily_chat', client } = input;
+  const { userId, girlfriendId, scenarioState, mode = 'daily_chat', client, intimacyLevel: inputLevel } = input;
   
   const db = client || getSupabaseClient();
   
@@ -213,9 +245,12 @@ export async function buildPersonaPrompt(input: BuildPromptInput): Promise<strin
     recallTopMemories(userId, girlfriendId, db)
   ]);
   
-  // Step 2: Build each layer
+  // Step 2: Build each layer — use input intimacy level when available
+  // (caller supplies this); otherwise fall back to the DB score-derived level
+  // so L1-2 keeps SFW while L3+ switches to the positive adult cue.
+  const resolvedLevel = inputLevel ?? intimacyScore.level ?? 1;
   const layers = {
-    layer1: buildBasePersona(girlfriendData),
+    layer1: buildBasePersona(girlfriendData, resolvedLevel),
     layer2: buildRelationshipContext(intimacyScore, input.lifecycleBehaviorRule),
     layer3: buildDynamicState(moodResult, scenarioState, girlfriendData),
     layer4: memories.length > 0 ? buildMemoryFlashbacks(memories) : undefined,
@@ -239,15 +274,17 @@ type GirlfriendDetail = {
 /**
  * Layer 1: Build base persona definition
  */
-function buildBasePersona(girlfriendData: GirlfriendDetail): string {
+function buildBasePersona(girlfriendData: GirlfriendDetail, intimacyLevel: number): string {
   const data = girlfriendData || {};
   const personalityTypes = data.personality_traits || ['friendly'];
   const primaryType = personalityTypes[0];
-  
+
   const template = PERSONA_TEMPLATES[primaryType as keyof typeof PERSONA_TEMPLATES] || PERSONA_TEMPLATES.oneeSan;
-  
+
+  const nsfwCue = nsfwCueForLevel(intimacyLevel);
+
   let personaDef = `【基础人设】\n角色名：${data.name || '她'}\n`;
-  personaDef += template.baseDefinition + '\n\n';
+  personaDef += template.baseDefinition.replace(/\{\{NSFW_CUE\}\}/g, () => nsfwCue) + '\n\n';
   
   // Add specific traits
   if (personalityTypes.length > 1) {

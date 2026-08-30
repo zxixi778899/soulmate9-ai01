@@ -817,6 +817,8 @@ export async function POST(request: NextRequest) {
     mode: replyMode === 'scene' ? 'roleplay' : 'daily_chat',
     tone: chatTone,
     lifecycleBehaviorRule: phaseBehaviorRule, // V3: Inject lifecycle behavior rules
+    intimacyLevel, // NSFW: persona template picks the right adult cue per level
+    intimacyScore: Number(intimacyResult.data?.score || 0), // level-internal progress note
   });
   
   // Get NSFW language gradient based on desire level

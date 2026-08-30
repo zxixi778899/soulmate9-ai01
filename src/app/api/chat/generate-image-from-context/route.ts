@@ -5,6 +5,12 @@ import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
 import { checkCompanionAccess } from '@/lib/companion-access';
 import { logger } from '@/lib/logger';
+import {
+  extractSceneFromContext,
+  extractTimeOfDay,
+  extractActivityFromContext,
+  type ChatContextLine,
+} from '@/lib/chat-image-intent';
 
 export async function POST(request: NextRequest) {
   const { user, client } = await getAuthUser(request);
@@ -14,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   if (!body) {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    return NextRequest.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
   const {
@@ -23,12 +29,14 @@ export async function POST(request: NextRequest) {
     context_type,
     existing_prompt,
     count,
+    chat_context, // optional: recent conversation lines for context fusion
   } = body as {
     girlfriend_id?: string;
     message?: string;
     context_type?: string;
     existing_prompt?: string;
     count?: number;
+    chat_context?: ChatContextLine[];
   };
 
   if (!girlfriend_id) {
@@ -46,21 +54,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Girlfriend not found' }, { status: 404 });
   }
 
-  // Build prompt from existing or create basic one
+  // ── Context fusion: build a scene-aware prompt from the user's actual
+  //    message ("今天去海洋馆看了鲸鱼") instead of a generic appearance-only prompt.
+  //    The companions face stays locked via IP-Adapter anchor (resolved downstream
+  //    in routeImageGeneration). ──
   let naturalPrompt = existing_prompt?.trim();
 
   if (!naturalPrompt) {
-    // Basic character-based prompt
+    // Core character base (appearance)
+    const gender = gf.data.gender || 'Female';
+    const genderWord = /male|man|boy/i.test(gender) ? 'handsome young man' : 'gorgeous young woman';
     const parts = [
       'natural editorial photograph with realistic skin texture',
-      `gorgeous young adult ${gf.data.gender || 'Female'} age 22-28 named ${gf.data.name}`,
+      `${genderWord} age 22-28 named ${gf.data.name}`,
       `${gf.data.appearance_race || 'mixed'} features, oval face shape`,
       `${gf.data.hair_style || gf.data.hairStyle || 'long flowing'} ${gf.data.hair_color || gf.data.hairColor || 'brown'} hair`,
       `${gf.data.eye_color || gf.data.eyeColor || 'brown'} eyes looking at viewer`,
-      `${gf.data.body_type || gf.data.bodyType || 'slim'} adult feminine figure`,
+      `${gf.data.body_type || gf.data.bodyType || 'slim'} figure`,
       `wearing flattering ${gf.data.fashion_style || 'casual'} outfit`,
-      'clear eyes, complete head in frame, soft lighting, professional photography',
     ].filter(Boolean);
+
+    // ── Scene extraction from user message + recent chat ──
+    const recentLines: ChatContextLine[] = chat_context || [];
+    const userRequest = String(message || '').trim();
+    const scene = extractSceneFromContext(userRequest, recentLines);
+    const timeOfDay = extractTimeOfDay(userRequest, recentLines);
+    const activity = extractActivityFromContext(userRequest, recentLines);
+
+    if (scene) parts.push(scene);
+    if (timeOfDay) parts.push(timeOfDay);
+    if (activity) parts.push(activity);
+
+    parts.push('clear eyes, complete head in frame, soft professional lighting');
 
     naturalPrompt = parts.join(', ').slice(0, 900);
   }
@@ -119,8 +144,8 @@ export async function POST(request: NextRequest) {
     results.map(async (r, i) => {
       if (r.url) {
         try {
-          const dataUrl = r.url.startsWith('data:') 
-            ? r.url 
+          const dataUrl = r.url.startsWith('data:')
+            ? r.url
             : `data:image/png;base64,${r.url}`;
           const safeName = (gf.data.name || 'companion').replace(/[^a-zA-Z0-9]/g, '_');
           const key = await uploadDataUrl(dataUrl, `chat-images/${safeName}_${Date.now()}_${i}`);
