@@ -175,7 +175,7 @@ function PortraitCard({
         />
       ) : slot.status === 'loading' ? (
         <PortraitLoadingProgress
-          label={t('create.generatingN', { n: `${idx + 1}/4` })}
+          label={`${t('create.generating')} ${idx + 1}/4`}
         />
       ) : slot.status === 'error' ? (
         <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
