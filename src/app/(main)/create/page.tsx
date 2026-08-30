@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Character Creator v4 — 四步向导（风格 → 面部/身材 → 人设 → 立绘）。
+ * Character Creator v5 — 六步向导（风格 → 性别 → 种族/发型 → 身材/服装 → 人设 → 立绘）。
  *
- * Steps 风格/面部身材/人设：左侧档案卡预览 + 右侧分步选项面板；
+ * Steps 风格/性别/种族发型/身材服装/人设：左侧档案卡预览 + 右侧分步选项面板；
  * Step 人设：身份档案 + 性格灵魂 + 声音；
- * Step 立绘：2 张高清 AI 立绘并排生成，2 选 1 完成（选中自动设为头像与伴侣立绘）。
+ * Step 立绘：4 张高清 AI 立绘（2 写实 + 2 二次元），用户从 4 中选 1 完成。
  * On success a gacha-style reveal modal shows the rolled score / rarity.
  *
  * Rarity rule (site-wide, see src/lib/rarity.ts):
@@ -47,8 +47,8 @@ import { PromptEditor } from '@/components/creator/PromptEditor';
 import { GenerationSettings } from '@/components/creator/GenerationSettings';
 import { CharacterPresetCard } from '@/components/creator/CharacterPresetCard';
 
-type CreateStep = 'style' | 'appearance' | 'general' | 'portrait';
-const CREATE_STEPS: CreateStep[] = ['style', 'appearance', 'general', 'portrait'];
+type CreateStep = 'style' | 'gender' | 'race_hair' | 'body_fashion' | 'identity' | 'portrait';
+const CREATE_STEPS: CreateStep[] = ['style', 'gender', 'race_hair', 'body_fashion', 'identity', 'portrait'];
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -95,7 +95,7 @@ interface PortraitBatchResponse {
   endpoint_id?: string;
 }
 
-const SLOT_COUNT = 2;
+const SLOT_COUNT = 4;
 const EMPTY_SLOTS: PortraitSlot[] = Array.from({ length: SLOT_COUNT }, () => ({ status: 'idle' as const }));
 
 /**
@@ -137,6 +137,84 @@ function PortraitLoadingProgress({ label }: { label: string }) {
         />
       </div>
     </div>
+  );
+}
+
+/** Portrait card used in the dual-style preview grid */
+function PortraitCard({
+  slot, idx, selectedSlot, onSelectSlot, t,
+}: {
+  slot: PortraitSlot;
+  idx: number;
+  selectedSlot: number;
+  onSelectSlot: (idx: number) => void;
+  t: (key: TranslationKey) => string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={slot.status !== 'ready'}
+      onClick={() => onSelectSlot(idx)}
+      className={cn(
+        'group relative aspect-[3/4] overflow-hidden rounded-[22px] border text-left transition-all',
+        slot.status === 'ready' && selectedSlot === idx
+          ? 'border-[#FF2D78] ring-2 ring-[#FF2D78]/60 shadow-[0_0_28px_rgba(255,45,120,0.45)] scale-[1.02]'
+          : slot.status === 'ready'
+            ? 'border-white/15 hover:border-[#FF2D78]/50 hover:shadow-[0_0_18px_rgba(255,45,120,0.2)]'
+            : 'border-white/[0.08] bg-white/[0.02]',
+      )}
+    >
+      {slot.status === 'ready' && slot.url ? (
+        <OptimizedImg
+          src={slot.url}
+          size="card"
+          previewWidth={1024}
+          previewQuality={78}
+          alt={`portrait-${idx + 1}`}
+          className="h-full w-full object-cover"
+        />
+      ) : slot.status === 'loading' ? (
+        <PortraitLoadingProgress
+          label={t('create.generatingN', { n: `${idx + 1}/4` })}
+        />
+      ) : slot.status === 'error' ? (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
+          <span className="text-[11px] text-red-400/80">{slot.error || (t('create.genFailed'))}</span>
+        </div>
+      ) : (
+        <div className="flex h-full w-full items-center justify-center">
+          <ImagePlus className="h-6 w-6 text-white/10" />
+        </div>
+      )}
+
+      {slot.status === 'ready' && (
+        <>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 to-transparent" />
+          <div className="pointer-events-none absolute bottom-2 left-2.5 text-[10px] font-semibold text-white/70">
+            {t('create.portraitN', { n: idx + 1 })}
+          </div>
+          {selectedSlot === idx && (
+            <motion.div
+              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+            >
+              <Check className="h-4 w-4 text-white" />
+            </motion.div>
+          )}
+          {selectedSlot === idx && (
+            <motion.div
+              className="pointer-events-none absolute bottom-2 right-2.5 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] px-2 py-0.5 text-[9px] font-bold text-white shadow-[0_0_10px_rgba(255,45,120,0.5)]"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              {t('create.setAsAvatarPortrait')}
+            </motion.div>
+          )}
+        </>
+      )}
+    </button>
   );
 }
 
@@ -952,49 +1030,76 @@ export default function CreatePage() {
     setSelectedSlot(-1);
     setSlots(Array.from({ length: SLOT_COUNT }, () => ({ status: 'loading' as const })));
     try {
-      const reqBody: Record<string, unknown> = {
+      const baseBody: Record<string, unknown> = {
         ...portraitRequestBody(),
-        count: SLOT_COUNT,
+        count: 2,
         ...(level ? { nsfw_level: level } : {}),
       };
-      // Text-to-image mode: use pre-built prompt from creator wizard
       if (customPromptOverride) {
-        reqBody.custom_prompt = customPromptOverride;
+        baseBody.custom_prompt = customPromptOverride;
       }
-      const res = await authedFetch('/api/girlfriends/generate-portrait', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reqBody),
-      });
-      const data = await readResponseJson<PortraitBatchResponse>(res);
+      // Send two parallel requests: one realistic, one anime
+      const [resRealistic, resAnime] = await Promise.all([
+        authedFetch('/api/girlfriends/generate-portrait', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...baseBody, visual_style: 'realistic' }),
+        }),
+        authedFetch('/api/girlfriends/generate-portrait', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...baseBody, visual_style: '2d' }),
+        }),
+      ]);
+      const [dataRealistic, dataAnime] = await Promise.all([
+        readResponseJson<PortraitBatchResponse>(resRealistic),
+        readResponseJson<PortraitBatchResponse>(resAnime),
+      ]);
       if (batchRun.current !== run) return;
-      if (!res.ok) {
-        setError(data.error || t('create.failed'));
+      if (!resRealistic.ok || !resAnime.ok) {
+        setError(dataRealistic.error || dataAnime.error || t('create.failed'));
         setSlots(EMPTY_SLOTS);
         return;
       }
 
-      // Normalize batch / legacy single responses
-      const readyUrls: string[] = Array.isArray(data.images) ? data.images.filter(Boolean) : [];
-      const pendingJobs: Array<{ job_id: string; endpoint_id?: string }> = Array.isArray(data.pending_jobs) ? data.pending_jobs : [];
-      const singleUrl = data.imageUrl || data.portrait_url || data.url;
-      if (!readyUrls.length && singleUrl) readyUrls.push(singleUrl);
-      if (!pendingJobs.length && data.pending && data.job_id) {
-        pendingJobs.push({ job_id: data.job_id, endpoint_id: data.endpoint_id });
-      }
+      // Normalize batch / legacy single responses for each style
+      const normalizeResponse = (data: PortraitBatchResponse) => {
+        const readyUrls: string[] = Array.isArray(data.images) ? data.images.filter(Boolean) : [];
+        const pendingJobs: Array<{ job_id: string; endpoint_id?: string }> = Array.isArray(data.pending_jobs) ? data.pending_jobs : [];
+        const singleUrl = data.imageUrl || data.portrait_url || data.url;
+        if (!readyUrls.length && singleUrl) readyUrls.push(singleUrl);
+        if (!pendingJobs.length && data.pending && data.job_id) {
+          pendingJobs.push({ job_id: data.job_id, endpoint_id: data.endpoint_id });
+        }
+        return { readyUrls, pendingJobs };
+      };
 
-      if (!readyUrls.length && !pendingJobs.length) {
+      const normRealistic = normalizeResponse(dataRealistic);
+      const normAnime = normalizeResponse(dataAnime);
+
+      if (!normRealistic.readyUrls.length && !normRealistic.pendingJobs.length &&
+          !normAnime.readyUrls.length && !normAnime.pendingJobs.length) {
         setError(t('create.noImageReturned'));
         setSlots(EMPTY_SLOTS);
         return;
       }
 
-      const next: PortraitSlot[] = Array.from({ length: SLOT_COUNT }, (_, i) => {
-        if (readyUrls[i]) return { status: 'ready' as const, url: readyUrls[i] };
-        const job = pendingJobs[i - readyUrls.length];
-        if (job) return { status: 'loading' as const, jobId: job.job_id, endpointId: job.endpoint_id };
-        return { status: 'idle' as const };
-      });
+      // Slots 0-1: realistic, Slots 2-3: anime
+      const buildSlots = (
+        norm: { readyUrls: string[]; pendingJobs: Array<{ job_id: string; endpoint_id?: string }> },
+        offset: number,
+      ): PortraitSlot[] => {
+        return Array.from({ length: 2 }, (_, i) => {
+          if (norm.readyUrls[i]) return { status: 'ready' as const, url: norm.readyUrls[i] };
+          const job = norm.pendingJobs[i - norm.readyUrls.length];
+          if (job) return { status: 'loading' as const, jobId: job.job_id, endpointId: job.endpoint_id };
+          return { status: 'idle' as const };
+        });
+      };
+
+      const realisticSlots = buildSlots(normRealistic, 0);
+      const animeSlots = buildSlots(normAnime, 2);
+      const next: PortraitSlot[] = [...realisticSlots, ...animeSlots];
       setSlots(next);
 
       // Poll pending jobs in parallel, each fills its own slot
@@ -1454,8 +1559,10 @@ export default function CreatePage() {
   const readyCount = slots.filter((s) => s.status === 'ready').length;
   const stepLabels: TranslationKey[] = [
     'create.stepStyle',
-    'create.stepFaceBody',
-    'create.stepGeneral',
+    'create.stepGender',
+    'create.stepRaceHair',
+    'create.stepBodyFashion',
+    'create.stepIdentity',
     'create.portrait',
   ];
   const stepIndex = CREATE_STEPS.indexOf(step);
@@ -1571,7 +1678,7 @@ export default function CreatePage() {
           <AnimatePresence mode="wait">
 
             {/* ─── Creating phase: LLM prompt + image gen progress ────────────── */}
-            {creating && step === 'general' && (
+            {creating && step === 'identity' && (
               <motion.div
                 key="creating"
                 initial={{ opacity: 0, scale: 0.97 }}
@@ -1799,7 +1906,7 @@ export default function CreatePage() {
                       {/* Right column: options */}
                       <div className="space-y-4">
                         {/* ── 人设步：身份档案 ── */}
-                        {step === 'general' && (
+                        {step === 'identity' && (
                         <Panel title={t('create.identity')}>
                           <div className="grid grid-cols-[1fr_auto] gap-3">
                             <div>
@@ -1911,88 +2018,6 @@ export default function CreatePage() {
                             })}
                           </div>
 
-                          {/* 性别（风格步）：同风格卡图片预设展示，管理员可上传/删除 */}
-                          {(() => {
-                            const allGenders = getOpts('gender');
-                            const canonical = allGenders.filter((o) =>
-                              (CANONICAL_GENDERS as readonly string[]).includes(o.value),
-                            );
-                            const genderOpts = canonical.length ? canonical : allGenders;
-                            return genderOpts.length > 0 ? (
-                            <div>
-                              <div className="mb-1.5 text-[11px] text-white/40">{t('create.gender')}</div>
-                              <div className="grid grid-cols-3 gap-2.5">
-                                {genderOpts.map((o) => {
-                                  const activeGender = gender === o.value;
-                                  const gKey = GENDER_PREVIEW_KEYOF[o.value] || o.value.toLowerCase();
-                                  const gPreview = genderPreviews[gKey];
-                                  return (
-                                    <button
-                                      key={o.value}
-                                      type="button"
-                                      onClick={() => setGender(o.value)}
-                                      className={cn(
-                                        'group relative aspect-[3/4] overflow-hidden rounded-[20px] border text-left transition-all duration-300 touch-manipulation',
-                                        activeGender
-                                          ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_24px_rgba(255,45,120,0.4)]'
-                                          : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/25',
-                                      )}
-                                    >
-                                      {gPreview ? (
-                                        <OptimizedImg
-                                          src={gPreview}
-                                          size="card"
-                                          alt={getLabel(o, locale)}
-                                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                                        />
-                                      ) : (
-                                        // 无图占位：渐变底 + 性别符号（管理员上传后自动替换）
-                                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#FF2D78]/15 via-white/[0.03] to-[#8b5cf6]/20">
-                                          <span aria-hidden className="text-4xl text-white/25">
-                                            {GENDER_SYMBOLS[o.value] || '⚧'}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {/* Admin 就地管理：上传/删除 */}
-                                      {isAdmin && (
-                                        <AdminCardButtons
-                                          busy={assetBusy === `gender:${gKey}`}
-                                          onUpload={() => pickAssetImage('gender', gKey)}
-                                          onClear={() => void clearAssetImage('gender', gKey)}
-                                          clearTitle={t('create.adminDeleteImage')}
-                                          clearIcon="trash"
-                                        />
-                                      )}
-                                      {activeGender && (
-                                        <motion.span
-                                          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
-                                          initial={{ scale: 0 }}
-                                          animate={{ scale: 1 }}
-                                          transition={{ type: 'spring', stiffness: 320, damping: 18 }}
-                                        >
-                                          <Check className="h-3.5 w-3.5 text-white" />
-                                        </motion.span>
-                                      )}
-                                      {/* 底部 pill 标签：选中=品牌粉实心，未选=black/50 毛玻璃 */}
-                                      <div className="absolute inset-x-0 bottom-0 flex justify-center pb-3">
-                                        <span
-                                          className={cn(
-                                            'rounded-full px-3.5 py-1 text-xs font-semibold backdrop-blur transition-all',
-                                            activeGender
-                                              ? 'bg-[#FF2D78] text-white shadow-[0_0_16px_rgba(255,45,120,0.5)]'
-                                              : 'bg-black/50 text-white/85',
-                                          )}
-                                        >
-                                          {getLabel(o, locale)}
-                                        </span>
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                            ) : null;
-                          })()}
                           {/* 风格 LoRA 预览：不同风格生图时自动挂载对应 LoRA（后端 auto-lora 同源） */}
                           {(() => {
                             const loras = STYLE_LORA_PREVIEW[visualStyle];
@@ -2015,8 +2040,89 @@ export default function CreatePage() {
                         </Panel>
                         )}
 
-                        {/* ── 面部/身材步：种族 / 发型 / 发色 / 身材 / 穿搭风格 (可视化卡片) ── */}
-                        {step === 'appearance' && (
+                        {/* ── 性别步：性别选择（卡片式） ── */}
+                        {step === 'gender' && (
+                        <Panel title={t('create.gender')}>
+                          {(() => {
+                            const allGenders = getOpts('gender');
+                            const canonical = allGenders.filter((o) =>
+                              (CANONICAL_GENDERS as readonly string[]).includes(o.value),
+                            );
+                            const genderOpts = canonical.length ? canonical : allGenders;
+                            return genderOpts.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-2.5">
+                              {genderOpts.map((o) => {
+                                const activeGender = gender === o.value;
+                                const gKey = GENDER_PREVIEW_KEYOF[o.value] || o.value.toLowerCase();
+                                const gPreview = genderPreviews[gKey];
+                                return (
+                                  <button
+                                    key={o.value}
+                                    type="button"
+                                    onClick={() => setGender(o.value)}
+                                    className={cn(
+                                      'group relative aspect-[3/4] overflow-hidden rounded-[20px] border text-left transition-all duration-300 touch-manipulation',
+                                      activeGender
+                                        ? 'border-[#FF2D78]/90 ring-2 ring-[#FF2D78]/50 shadow-[0_0_24px_rgba(255,45,120,0.4)]'
+                                        : 'border-white/[0.09] shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/25',
+                                    )}
+                                  >
+                                    {gPreview ? (
+                                      <OptimizedImg
+                                        src={gPreview}
+                                        size="card"
+                                        alt={getLabel(o, locale)}
+                                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                                      />
+                                    ) : (
+                                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#FF2D78]/15 via-white/[0.03] to-[#8b5cf6]/20">
+                                        <span aria-hidden className="text-4xl text-white/25">
+                                          {GENDER_SYMBOLS[o.value] || '⚧'}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {isAdmin && (
+                                      <AdminCardButtons
+                                        busy={assetBusy === `gender:${gKey}`}
+                                        onUpload={() => pickAssetImage('gender', gKey)}
+                                        onClear={() => void clearAssetImage('gender', gKey)}
+                                        clearTitle={t('create.adminDeleteImage')}
+                                        clearIcon="trash"
+                                      />
+                                    )}
+                                    {activeGender && (
+                                      <motion.span
+                                        className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                                      >
+                                        <Check className="h-3.5 w-3.5 text-white" />
+                                      </motion.span>
+                                    )}
+                                    <div className="absolute inset-x-0 bottom-0 flex justify-center pb-3">
+                                      <span
+                                        className={cn(
+                                          'rounded-full px-3.5 py-1 text-xs font-semibold backdrop-blur transition-all',
+                                          activeGender
+                                            ? 'bg-[#FF2D78] text-white shadow-[0_0_16px_rgba(255,45,120,0.5)]'
+                                            : 'bg-black/50 text-white/85',
+                                        )}
+                                      >
+                                        {getLabel(o, locale)}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            ) : null;
+                          })()}
+                        </Panel>
+                        )}
+
+                        {/* ── 种族/发型步：种族 / 发型 / 发色 (可视化卡片) ── */}
+                        {step === 'race_hair' && (
                         <Panel title={t('create.stepFace')} hint={t('create.genderTailored')}>
                           {/* Ethnicity Cards - 8 options max */}
                           {(() => {
@@ -2090,8 +2196,8 @@ export default function CreatePage() {
                         </Panel>
                         )}
 
-                        {/* ── 面部/身材步（续）：体型 / 穿搭风格 / 额外备注 (可视化卡片) ── */}
-                        {step === 'appearance' && (
+                        {/* ── 身材/服装步：体型 / 穿搭风格 / 额外备注 (可视化卡片) ── */}
+                        {step === 'body_fashion' && (
                         <Panel title={t('create.stepBody')} hint={t('create.genderTailored')}>
                           {/* Body Type Cards - 8 options max（按性别过滤） */}
                           {(() => {
@@ -2155,8 +2261,8 @@ export default function CreatePage() {
                         </Panel>
                         )}
 
-                        {/* ── 基本步（golove General）：性格灵魂 / 声音 ── */}
-                        {step === 'general' && (
+                        {/* ── 身份步（Identity）：性格灵魂 / 声音 ── */}
+                        {step === 'identity' && (
                         <>
                         <Panel title={t('create.personalitySoul')}>
                           <div className="mb-3">
@@ -2345,82 +2451,34 @@ export default function CreatePage() {
 
                 {/* 内容级别选择已移除：固定默认级别随请求提交 */}
 
-                {/* 2 portrait cards — 2 选 1
-                    max-w-[1020px] mx-auto + 缩到 1024px 压缩图：上一轮把预览缩到
-                    340px 太克制了，用户要求放大 3 倍（约 1020px 宽，每张 ~500px）。
-                    其它用 size="card" 的地方（伴侣卡/示例图）不受影响。
-                    大屏（>=1024px）时左右两张并排刚好占满预览舞台，小屏下两卡
-                    仍以 2 列并排但更紧凑。 */}
-                <div className="mx-auto grid w-full max-w-[1020px] grid-cols-2 gap-4">
-                  {slots.map((slot, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      disabled={slot.status !== 'ready'}
-                      onClick={() => setSelectedSlot(idx)}
-                      className={cn(
-                        'group relative aspect-[3/4] overflow-hidden rounded-[22px] border text-left transition-all',
-                        slot.status === 'ready' && selectedSlot === idx
-                          ? 'border-[#FF2D78] ring-2 ring-[#FF2D78]/60 shadow-[0_0_28px_rgba(255,45,120,0.45)] scale-[1.02]'
-                          : slot.status === 'ready'
-                            ? 'border-white/15 hover:border-[#FF2D78]/50 hover:shadow-[0_0_18px_rgba(255,45,120,0.2)]'
-                            : 'border-white/[0.08] bg-white/[0.02]',
-                      )}
-                    >
-                      {slot.status === 'ready' && slot.url ? (
-                        // 选片网格按需压缩（1024px 宽，约 3× 之前 340px 视觉宽度）
-                        <OptimizedImg
-                          src={slot.url}
-                          size="card"
-                          previewWidth={1024}
-                          previewQuality={78}
-                          alt={`portrait-${idx + 1}`}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : slot.status === 'loading' ? (
-                        <PortraitLoadingProgress
-                          label={t('create.generatingN', { n: `${idx + 1}/${SLOT_COUNT}` })}
-                        />
-                      ) : slot.status === 'error' ? (
-                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
-                          <span className="text-[11px] text-red-400/80">{slot.error || (t('create.genFailed'))}</span>
-                        </div>
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center">
-                          <ImagePlus className="h-6 w-6 text-white/10" />
-                        </div>
-                      )}
-
-                      {slot.status === 'ready' && (
-                        <>
-                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 to-transparent" />
-                          <div className="pointer-events-none absolute bottom-2 left-2.5 text-[10px] font-semibold text-white/70">
-                            {t('create.portraitN', { n: idx + 1 })}
-                          </div>
-                          {selectedSlot === idx && (
-                            <motion.div
-                              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] shadow-[0_0_12px_rgba(255,45,120,0.6)]"
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              transition={{ type: 'spring', stiffness: 320, damping: 18 }}
-                            >
-                              <Check className="h-4 w-4 text-white" />
-                            </motion.div>
-                          )}
-                          {/* 选中即定位：该图将作为伴侣头像(ID)与立绘随创建提交 */}
-                          {selectedSlot === idx && (
-                            <motion.div
-                              className="pointer-events-none absolute bottom-2 right-2.5 rounded-full bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] px-2 py-0.5 text-[9px] font-bold text-white shadow-[0_0_10px_rgba(255,45,120,0.5)]"
-                              initial={{ opacity: 0, y: 4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                            >
-                              {t('create.setAsAvatarPortrait')}
-                            </motion.div>
-                          )}
-                        </>
-                      )}
-                    </button>
-                  ))}
+                {/* 4 portrait cards — 2 行：写实 + 二次元，各 2 选 1 */}
+                <div className="mx-auto w-full max-w-[1020px] space-y-4">
+                  {/* Row 1: Realistic */}
+                  <div>
+                    <div className="mb-2 text-center">
+                      <span className="rounded-full bg-white/[0.06] px-3 py-1 text-[11px] font-semibold text-white/60">
+                        {t('create.realisticStyle')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {slots.slice(0, 2).map((slot, idx) => (
+                        <PortraitCard key={idx} slot={slot} idx={idx} selectedSlot={selectedSlot} onSelectSlot={setSelectedSlot} t={t} />
+                      ))}
+                    </div>
+                  </div>
+                  {/* Row 2: Anime */}
+                  <div>
+                    <div className="mb-2 text-center">
+                      <span className="rounded-full bg-white/[0.06] px-3 py-1 text-[11px] font-semibold text-white/60">
+                        {t('create.animeStyle')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {slots.slice(2, 4).map((slot, idx) => (
+                        <PortraitCard key={idx + 2} slot={slot} idx={idx + 2} selectedSlot={selectedSlot} onSelectSlot={setSelectedSlot} t={t} />
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {error && <p className="mt-4 text-center text-sm text-red-400">{error}</p>}
@@ -2446,7 +2504,7 @@ export default function CreatePage() {
           <ArrowLeft className="h-4 w-4" /> {t('create.back')}
         </button>
 
-        {step === 'general' ? (
+        {step === 'identity' ? (
           <GamePrimaryButton
             className="h-11 px-6 touch-manipulation"
             disabled={!infoValid || !generalValid || noCards || loadingData || creating}
