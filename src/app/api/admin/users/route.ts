@@ -186,7 +186,7 @@ export async function PATCH(request: NextRequest) {
 
     const updates: Record<string, unknown> = {};
     if (body.membership_tier !== undefined) {
-      const tier = String(body.membership_tier);
+      const tier = String(body.membership_tier).toLowerCase();
       if (!VALID_TIERS.includes(tier)) {
         return NextResponse.json({ error: `Invalid membership tier: ${tier}` }, { status: 400 });
       }
