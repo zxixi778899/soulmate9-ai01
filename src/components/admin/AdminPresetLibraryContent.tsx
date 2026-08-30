@@ -781,7 +781,6 @@ function PresetDialog({
                   <SelectContent>
                     <SelectItem value="realistic">写实</SelectItem>
                     <SelectItem value="anime">二次元</SelectItem>
-                    <SelectItem value="3d">3D动画</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -970,7 +969,6 @@ function FolderDialog({
 const STYLE_SLOTS = [
   { key: 'realistic', label: 'Realistic', labelZh: '写实' },
   { key: 'anime', label: 'Anime', labelZh: '二次元' },
-  { key: '3d', label: '3D Animation', labelZh: '3D动画' },
 ] as const;
 
 function StylePreviewsCard() {

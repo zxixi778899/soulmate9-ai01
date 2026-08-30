@@ -106,9 +106,7 @@ function buildPortraitPrompt(input: {
   const medium =
     visual === '2d' || visual === 'anime'
       ? 'a polished 2D anime character portrait with fully rendered colors and deliberate cel shading'
-      : visual === '3d'
-        ? 'a polished 3D animated character portrait with coherent materials and studio character lighting'
-        : 'a natural editorial photograph with believable skin texture and soft directional light';
+      : 'a natural editorial photograph with believable skin texture and soft directional light';
   
   const category = normalizeCompanionCategory({ gender });
   
@@ -314,12 +312,9 @@ function buildAllureCues(personality?: string, visualStyle?: string): string {
   }
 
   const isAnime = String(visualStyle || '').toLowerCase() === '2d' || String(visualStyle || '').toLowerCase() === 'anime';
-  const is3d = String(visualStyle || '').toLowerCase() === '3d';
   const postureCue = isAnime
     ? 'anime-style confident posture'
-    : is3d
-      ? 'cinematic three-quarter pose'
-      : 'natural confident posture';
+    : 'natural confident posture';
   cues.add(postureCue);
 
   const out = Array.from(cues).slice(0, 6).join(', ');

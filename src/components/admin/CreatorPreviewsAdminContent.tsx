@@ -24,7 +24,6 @@ const GENDERS = [
 const STYLES = [
   { value: 'realistic', zh: '写实' },
   { value: 'anime', zh: '二次元' },
-  { value: '3d', zh: '3D动画' },
 ] as const;
 
 interface Preview {

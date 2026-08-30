@@ -81,9 +81,7 @@ function buildPresetPortraitPrompt(preset: CreatorPreset): string {
   const medium =
     visual === '2d' || visual === 'anime'
       ? 'a polished 2D anime character portrait with fully rendered colors and deliberate cel shading'
-      : visual === '3d'
-        ? 'a polished 3D animated character portrait with coherent materials and studio character lighting'
-        : 'a natural editorial photograph with believable skin texture and soft directional light';
+      : 'a natural editorial photograph with believable skin texture and soft directional light';
 
   const sceneParts: string[] = [];
   if (preset.portrait_outfit) sceneParts.push(preset.portrait_outfit);

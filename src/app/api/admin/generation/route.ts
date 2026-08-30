@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
         const category =
           b.category === 'male' ? 'male' : b.category === 'transgender' ? 'transgender' : 'female';
         const renderStyle =
-          b.render_style === '2d' || b.render_style === '3d' ? b.render_style : 'realistic';
+          b.render_style === '2d' ? b.render_style : 'realistic';
         const nsfwLevel = Math.min(5, Math.max(1, Math.round(Number(b.nsfw_level || 1)))) as 1 | 2 | 3 | 4 | 5;
         const plan = resolveModelPlan({
           surface: 'companion',

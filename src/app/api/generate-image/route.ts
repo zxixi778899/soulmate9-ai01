@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     const requestedCategory = String(body.companion_category || 'female') as CompanionCategory;
     const category: CompanionCategory = requestedCategory === 'anime' ? 'female' : requestedCategory;
     const sceneSemantics = classifyImageScene(prompt, category);
-    const renderStyle = body.anime_render_style === '2d' ? '2d' : body.anime_render_style === '3d' ? '3d' : 'realistic';
+    const renderStyle = body.anime_render_style === '2d' ? '2d' : 'realistic';
     const nsfwIntensity = Math.min(5, Math.max(1, Number(body.nsfw_intensity || 1))) as 1 | 2 | 3 | 4 | 5;
     const generationRoute = resolveImageGenerationRoute({
       surface,

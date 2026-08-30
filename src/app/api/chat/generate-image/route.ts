@@ -13,6 +13,9 @@ import {
 import { routeImageGeneration, type ImageProvider } from '@/lib/image-router';
 import {
   buildImageActionFromChat,
+  extractSceneFromContext,
+  extractTimeOfDay,
+  extractActivityFromContext,
   type ChatContextLine,
 } from '@/lib/chat-image-intent';
 import { getIntimacyGenerationPolicy, type IntimacyGenerationPolicy } from '@/lib/intimacy-policy';
@@ -433,7 +436,7 @@ export async function POST(request: NextRequest) {
     let prompt = assembleFamilyPrompt(
       buildContentOnlyPrompt(
         `${sceneBits}. ${buildSceneCastPrompt(sceneSemantics)}${conversationClause ? `. ${conversationClause}` : ''}`,
-        { style: animeStyle === '2d' ? '2d' : animeStyle === '3d' ? '3d' : 'realistic' },
+        { style: animeStyle === '2d' ? '2d' : 'realistic' },
       ),
     );
 

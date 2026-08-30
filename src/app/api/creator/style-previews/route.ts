@@ -19,7 +19,6 @@ export async function GET() {
         previews: {
           realistic: config.realistic,
           anime: config.anime,
-          '3d': config['3d'],
         },
         updated_at: config.updated_at || null,
       },

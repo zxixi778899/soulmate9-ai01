@@ -481,7 +481,7 @@ export async function POST(req: NextRequest) {
         ? rawCategory as CompanionCategory
         : 'female';
     const intensity = Math.min(5, Math.max(1, Math.round(Number(body.nsfw_intensity || 3)))) as NsfwIntensity;
-    const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';
+    const animeStyle: AnimeRenderStyle = body.anime_render_style === '2d' ? '2d' : 'realistic';
     const currentPrompt = String(body.prompt || '').trim();
     const generationMode = body.gen_mode === 'img2video' ? 'img2video' : body.gen_mode === 'img2img' ? 'img2img' : 'txt2img';
     const requestedAssetRole = normalizeCharacterAssetRole(body.asset_role);
@@ -1239,7 +1239,7 @@ if (body.action === 'verify_loras') {
         : 'female';
     const rawIntensity = Math.round(Number(body.nsfw_intensity || 5));
     const nsfwIntensity = Math.min(5, Math.max(1, rawIntensity)) as NsfwIntensity;
-    const animeStyle: AnimeRenderStyle = body.anime_render_style === '3d' ? '3d' : body.anime_render_style === '2d' ? '2d' : 'realistic';
+    const animeStyle: AnimeRenderStyle = body.anime_render_style === '2d' ? '2d' : 'realistic';
     const isIdentityAsset = assetRole === 'avatar-closeup' || assetRole.startsWith('identity-');
     const generationIntensity: NsfwIntensity = isIdentityAsset ? 1 : nsfwIntensity;
     if (isIdentityAsset) {
