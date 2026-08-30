@@ -80,21 +80,12 @@ export async function POST(request: NextRequest) {
   const soul = (soulRaw && typeof soulRaw === 'object' ? soulRaw : null) as PresetSoul | null;
 
   // Determine locale from recent chat or user profile
-  const { data: profile } = await client
-    .from('profiles')
-    .select('preferred_locale, locale')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
+  // NOTE: preferred_locale and locale columns don't exist in profiles table
   const locale = resolveReplyLocale({
     message: '',
     autoDetect: false,
     contextMessages: [],
-    defaultLocale: String(
-      (profile as { preferred_locale?: string } | null)?.preferred_locale
-      || (profile as { locale?: string } | null)?.locale
-      || 'en',
-    ),
+    defaultLocale: 'en',
   });
 
   // Parse personality tags

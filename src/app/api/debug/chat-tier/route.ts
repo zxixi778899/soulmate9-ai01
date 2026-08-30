@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   });
 
   // EXACT same query as stream route
-  const selectCols = 'role, membership_tier, newbie_expires_at, preferred_locale, locale, timezone_offset';
+  const selectCols = 'role, membership_tier, newbie_expires_at, timezone_offset';
 
   const { data: serviceProfile, error: serviceErr } = await adminClient
     .from('profiles')
