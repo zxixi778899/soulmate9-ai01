@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { resolveMembershipTier } from '@/lib/chat-models';
 import { getSeatStatus, type SeatClient } from '@/lib/companion-seats';
 import { getCreationCardStatus, type CardClient } from '@/lib/creation-cards';
 
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     await Promise.all([
       client
         .from('profiles')
-        .select('membership_tier, credits_remaining, display_name, avatar_url, bio, extra_girlfriend_slots')
+        .select('role, membership_tier, credits_remaining, display_name, avatar_url, bio, extra_girlfriend_slots')
         .eq('user_id', user.id)
         .single(),
       client
@@ -63,10 +64,8 @@ export async function GET(req: NextRequest) {
   const createdCompanions = createdCompanionsResult.count;
   const topIntimacy = topIntimacyResult.data;
   const subscription = subscriptionResult.data;
-  const rawTier = profile?.membership_tier || 'free';
-  // Legacy tier no longer sold — grandfather basic into pro.
-  // 'premium' is a current paid tier (kept as-is).
-  const tier = rawTier === 'basic' ? 'pro' : rawTier;
+  // Use shared resolver that checks BOTH role and membership_tier
+  const tier = resolveMembershipTier((profile as Record<string, unknown>) || null);
   // Quotas aligned with MEMBERSHIP_TIERS (membership redesign 2026).
   const plans = {
     free: {
