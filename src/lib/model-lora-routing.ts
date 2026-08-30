@@ -210,7 +210,6 @@ export function fluxScenarioPlan(input: {
 
   // ─── 男性 ─────────────────────────────────────────────────────────────────
   if (input.category === 'male') {
-  if (input.category === 'male') {
     return nsfw
       ? [
           // NSFW：0.4 + 0.3 + 0.3 = 1.0
