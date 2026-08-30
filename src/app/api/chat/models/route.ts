@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data: profile } = await client
       .from('profiles')
-      .select('membership_tier, subscription_tier, plan, credits_remaining')
+      .select('role, membership_tier, subscription_tier, plan, credits_remaining')
       .eq('user_id', user.id)
       .single();
 
