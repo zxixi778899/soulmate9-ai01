@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
     .maybeSingle();
 
   // 4. Check RLS status
-  const { data: rlsCheck } = await adminClient.rpc('check_rls_status' as any).single().catch(() => ({ data: null }));
+  let rlsCheck: any = null;
+  try { rlsCheck = await adminClient.rpc('check_rls_status' as any).single(); } catch { /* ignore */ }
 
   const serviceTier = resolveMembershipTier((serviceProfile as Record<string, unknown>) || null);
   const anonTier = resolveMembershipTier((anonProfile as Record<string, unknown>) || null);
