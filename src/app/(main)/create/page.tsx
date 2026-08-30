@@ -191,7 +191,7 @@ function PortraitCard({
         <>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 to-transparent" />
           <div className="pointer-events-none absolute bottom-2 left-2.5 text-[10px] font-semibold text-white/70">
-            {t('create.portraitN', { n: idx + 1 })}
+            {`Portrait ${idx + 1}`}
           </div>
           {selectedSlot === idx && (
             <motion.div
@@ -373,7 +373,7 @@ function BuyCardsModal({
         return;
       }
       if (typeof data.new_credits_balance === 'number') setBalance(data.new_credits_balance);
-      setSuccess(t('create.cardsAdded', { n: product.cardAmount }));
+      setSuccess(`+${product.cardAmount} creation cards added`);
       onPurchased();
     } catch (e) {
       setError(errorMessageFromUnknown(e, t('common.networkError')));
@@ -408,7 +408,7 @@ function BuyCardsModal({
               </div>
               <div className="flex items-center gap-2">
                 <span className="flex items-center gap-1 rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-semibold text-amber-300">
-                  <Coins className="h-3 w-3" /> {t('create.creditsBalance', { n: balance })}
+                  <Coins className="h-3 w-3" /> {`Credits: ${balance}`}
                 </span>
                 <button
                   type="button"
@@ -463,7 +463,7 @@ function BuyCardsModal({
                             ) : (
                               <Coins className="h-3.5 w-3.5" />
                             )}
-                            {t('create.buyFor', { n: p.price_credits })}
+                            {`Buy · ${p.price_credits} credits`}
                           </button>
                         </div>
                       </div>
