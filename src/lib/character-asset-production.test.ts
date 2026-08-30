@@ -63,7 +63,6 @@ describe('character asset production', () => {
     expect(styleProductionHint('realistic')).toContain('neutral white balance');
     expect(styleProductionHint('realistic')).toContain('relaxed asymmetrical posture');
     expect(styleProductionHint('2d')).toContain('only as coherent 2D');
-    expect(styleProductionHint('3d')).toContain('only as coherent 3D');
   });
 
   it('normalizes unknown asset roles to scene', () => {

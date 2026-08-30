@@ -164,15 +164,6 @@ const ILLUSTRIOUS_PRESETS: Record<PromptSubject, FamilySubjectPreset> = {
     nsfwNegativeExtra: 'censored, mosaic, bar censor',
     enhancers: { adetailer: true, upscale: true },
   },
-  '3d': {
-    note: 'Illustrious 3D 风格：anime 基底 + 3d 风格 tag（非主路径）。',
-    descriptor: '1girl, solo, anime style, 3d style, smooth shading',
-    qualityPrefix: 'masterpiece, best quality, very aesthetic, absurdres',
-    qualitySuffix: '',
-    negative: 'worst quality, low quality, bad anatomy, blurry, jpeg artifacts, photorealistic, watermark',
-    nsfwNegativeExtra: 'censored, mosaic, bar censor',
-    enhancers: { adetailer: true, upscale: true },
-  },
 };
 
 const PRESETS_BY_FAMILY: Record<PromptFamily, Record<PromptSubject, FamilySubjectPreset>> = {

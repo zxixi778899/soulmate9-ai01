@@ -173,11 +173,11 @@ describe('resolveImageGenerationRoute 原子性', () => {
     expect(route.negativePrompt).toContain('censored');
   });
 
-  it('矩阵开启 + 3D → 保留 FLUX 精品层（flux-natural 协议）', () => {
+  it('矩阵开启 + premium → 保留 FLUX 精品层（flux-natural 协议）', () => {
     const route = resolveImageGenerationRoute({
       surface: 'companion',
       category: 'female',
-      renderStyle: '3d',
+      tier: 'premium',
       nsfwIntensity: 1,
       matrixActive: true,
       sdxlEndpointId,
