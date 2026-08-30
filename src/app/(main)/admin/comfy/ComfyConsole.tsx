@@ -2658,7 +2658,7 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
               <div>
                 <Label className="mb-2 block text-[11px] text-slate-200">渲染风格</Label>
                 <div className="flex flex-wrap gap-2">
-                  {(['realistic', '2d', '3d'] as const).map((style) => (
+                  {(['realistic', '2d'] as const).map((style) => (
                     <Button
                       key={style}
                       type="button"
