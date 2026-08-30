@@ -24,18 +24,24 @@ export async function POST(request: NextRequest) {
       try {
         const { data: profile } = await auth.client
           .from('profiles')
-          .select('membership_tier, subscription_tier, plan')
+          .select('role, membership_tier, subscription_tier, plan')
           .eq('id', auth.user.id)
           .maybeSingle();
-        const raw =
-          profile?.membership_tier ||
-          profile?.subscription_tier ||
-          profile?.plan ||
-          'free';
-        const t = String(raw).toLowerCase();
-        if (t.includes('unlimit') || t === 'admin') tier = 'unlimited';
-        else if (t.includes('pro') || t.includes('plus') || t.includes('premium')) tier = 'pro';
-        else tier = 'free';
+        // Admin role always gets unlimited — don't rely on membership_tier column.
+        const role = String(profile?.role || '').toLowerCase();
+        if (role === 'admin' || role === 'superadmin') {
+          tier = 'unlimited';
+        } else {
+          const raw =
+            profile?.membership_tier ||
+            profile?.subscription_tier ||
+            profile?.plan ||
+            'free';
+          const t = String(raw).toLowerCase();
+          if (t.includes('unlimit') || t === 'admin') tier = 'unlimited';
+          else if (t.includes('pro') || t.includes('plus') || t.includes('premium')) tier = 'pro';
+          else tier = 'free';
+        }
       } catch {
         /* free */
       }

@@ -19,6 +19,10 @@ export const IMAGE_GEN_RATE_KEY = 'image-gen';
 export function membershipFromProfile(
   profile: Record<string, unknown> | null,
 ): MembershipTier {
+  // Admin role overrides — same as resolveMembershipTier in chat-models.ts.
+  const role = String(profile?.role || '').toLowerCase();
+  if (role === 'admin' || role === 'superadmin') return 'unlimited';
+
   const raw = String(
     profile?.membership_tier || profile?.subscription_tier || profile?.plan || 'free',
   ).toLowerCase();

@@ -40,8 +40,16 @@ export function tierRank(tier: MembershipTier): number {
 /**
  * Map raw profile tier columns (membership_tier / subscription_tier / plan)
  * to the canonical MembershipTier used by the chat router.
+ *
+ * Admin / superadmin roles always get 'unlimited' regardless of the
+ * membership_tier column — this fixes the long-standing bug where the
+ * admin profile had no explicit membership_tier set and was treated as 'free'.
  */
 export function resolveMembershipTier(profile: Record<string, unknown> | null): MembershipTier {
+  // Admin role overrides everything — don't rely on membership_tier column.
+  const role = String(profile?.role || '').toLowerCase();
+  if (role === 'admin' || role === 'superadmin') return 'unlimited';
+
   const raw = String(
     profile?.membership_tier || profile?.subscription_tier || profile?.plan || 'free',
   ).toLowerCase();

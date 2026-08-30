@@ -36,13 +36,15 @@ export async function POST(req: NextRequest) {
 
     // Membership redesign: TTS consumes credits and is a paid-tier surface.
     // Free users get a structured code so the UI shows an upgrade guide.
+    // Admin role always bypasses the membership check.
     const { data: tierProfile } = await client
       .from('profiles')
-      .select('membership_tier')
+      .select('role, membership_tier')
       .eq('user_id', user.id)
       .maybeSingle();
+    const role = String((tierProfile as { role?: string | null } | null)?.role || '').toLowerCase();
     const tier = String((tierProfile as { membership_tier?: string | null } | null)?.membership_tier || 'free');
-    if (tier === 'free') {
+    if (role !== 'admin' && role !== 'superadmin' && tier === 'free') {
       return NextResponse.json(
         {
           error: 'Voice messages are available on membership plans.',

@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
     const aiModules = await loadAiModules();
     const { data: profile } = await client
       .from('profiles')
-      .select('membership_tier, subscription_tier, plan, timezone_offset')
+      .select('role, membership_tier, subscription_tier, plan, timezone_offset')
       .eq('id', user.id)
       .maybeSingle();
     let tier = membershipFromProfile((profile as Record<string, unknown>) || null);
