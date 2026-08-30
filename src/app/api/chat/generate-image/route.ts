@@ -156,13 +156,14 @@ export async function POST(request: NextRequest) {
     const { data: profile } = await client
       .from('profiles')
       .select('role, membership_tier, timezone_offset')
-      .eq('id', user.id)
+      .eq('user_id', user.id)
       .maybeSingle();
     let tier = membershipFromProfile((profile as Record<string, unknown>) || null);
 
-    // Admin bypass: admins always get unlimited access regardless of
-    // membership_tier field in profiles table.
-    const isAdmin = user.role === 'admin' || user.user_metadata?.role === 'admin' || user.app_metadata?.role === 'admin';
+    // Admin bypass: admins always get unlimited access.
+    const profileRole = String((profile as Record<string, unknown>)?.role || '').toLowerCase();
+    const isAdmin = profileRole === 'admin' || profileRole === 'superadmin'
+      || user.user_metadata?.role === 'admin' || user.app_metadata?.role === 'admin';
     if (isAdmin) tier = 'unlimited';
 
     if (tier === 'free') {
