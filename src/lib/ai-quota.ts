@@ -80,7 +80,7 @@ export async function loadQuotaProfile(
 ): Promise<Record<string, unknown> | null> {
   const { data } = await client
     .from('profiles')
-    .select('membership_tier, subscription_tier, plan, timezone_offset, credits_remaining')
+    .select('role, membership_tier, subscription_tier, plan, timezone_offset, credits_remaining')
     .eq('id', userId)
     .maybeSingle();
   return (data as Record<string, unknown> | null) || null;
