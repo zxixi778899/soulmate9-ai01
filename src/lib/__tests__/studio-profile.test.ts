@@ -97,21 +97,14 @@ describe('studio generation profiles', () => {
     expect(negative).toContain('underage');
     expect(negative.length).toBeLessThan(400);
   });
-  it('keeps 2D and 3D anime directions mutually distinct', () => {
+  it('keeps 2D anime direction distinct from realistic', () => {
     const twoD = buildStudioPromptEnhancement({
       category: 'female',
       intensity: 5,
       animeStyle: '2d',
     });
-    const threeD = buildStudioPromptEnhancement({
-      category: 'female',
-      intensity: 5,
-      animeStyle: '3d',
-    });
     expect(twoD).toContain('fully colored finished artwork');
     expect(twoD).not.toContain('PBR materials');
-    expect(threeD).toContain('PBR materials');
-    expect(threeD).not.toContain('fully colored finished artwork');
   });
 
   it('recommends category-specific practical LoRAs based on new fluxScenarioPlan', () => {
@@ -122,9 +115,6 @@ describe('studio generation profiles', () => {
     // All styles use FLUX LoRAs now - check they're not empty and contain some FLUX identifier
     const twoD = recommendedStudioLoras('female', '2d');
     expect(twoD.length).toBeGreaterThan(0);
-    
-    const threeD = recommendedStudioLoras('male', '3d');
-    expect(threeD.length).toBeGreaterThan(0);
   });
 
   it('deduplicates and caps the final FLUX prompt', () => {

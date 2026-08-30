@@ -146,7 +146,6 @@ function PortraitLoadingProgress({ label }: { label: string }) {
 const STYLE_LORA_PREVIEW: Record<string, string[]> = {
   realistic: ['flux_style_photoreal_v1', 'flux_detail_skin_v1'],
   anime: ['rdanimefluxv1rapid'],
-  '3d': ['flux_3d_render_v1'],
 };
 
 /**
@@ -537,7 +536,6 @@ const DEFAULT_STYLE_PREVIEWS: Record<string, string> = {
     'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/realistic.png',
   anime:
     'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/anime.png',
-  '3d': 'https://vvblrkngzuyxeeoslzkl.supabase.co/storage/v1/object/public/portraits/style-previews/3d.png',
 };
 
 /** 内容级别 1-5 内置默认预览图（site_settings creator_nsfw_previews 可后台替换） */

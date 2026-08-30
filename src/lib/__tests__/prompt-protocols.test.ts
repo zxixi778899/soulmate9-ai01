@@ -17,7 +17,6 @@ import { buildStudioTaskPrompt } from '@/lib/comfy-console/studio-task-prompt';
 describe('resolvePromptSubject', () => {
   it('渲染风格优先于类别', () => {
     expect(resolvePromptSubject('female', '2d')).toBe('2d');
-    expect(resolvePromptSubject('male', '3d')).toBe('3d');
   });
   it('写实风格按类别分化女/男/跨', () => {
     expect(resolvePromptSubject('male', 'realistic')).toBe('male');

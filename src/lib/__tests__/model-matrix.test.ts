@@ -28,7 +28,7 @@ describe('model matrix gate', () => {
   });
 
   it('returns FLUX plans for every scenario while the gate is closed', () => {
-    for (const renderStyle of ['realistic', '2d', '3d'] as const) {
+    for (const renderStyle of ['realistic', '2d'] as const) {
       for (const nsfwLevel of [1, 5] as const) {
         const plan = resolveModelPlan({ surface: 'companion', renderStyle, nsfwLevel });
         expect(plan.endpointKey).toBe('runpod-flux');
@@ -120,10 +120,9 @@ describe('model matrix — anime (illustrious family)', () => {
 });
 
 describe('model matrix — FLUX retained lanes (SFW only)', () => {
-  it('keeps premium tier, 3d and product surfaces on FLUX when SFW', () => {
+  it('keeps premium tier and product surfaces on FLUX when SFW', () => {
     openGate();
     expect(resolveModelPlan({ surface: 'companion', tier: 'premium' }).endpointKey).toBe('runpod-flux');
-    expect(resolveModelPlan({ surface: 'companion', renderStyle: '3d' }).endpointKey).toBe('runpod-flux');
     expect(resolveModelPlan({ surface: 'prop' }).endpointKey).toBe('runpod-flux');
     expect(resolveModelPlan({ surface: 'advert' }).endpointKey).toBe('runpod-flux');
   });
@@ -138,10 +137,9 @@ describe('model matrix — FLUX retained lanes (SFW only)', () => {
 });
 
 describe('model matrix — NSFW hard-routed to SDXL', () => {
-  it('forces premium / 3d / product surfaces onto SDXL when NSFW', () => {
+  it('forces premium and product surfaces onto SDXL when NSFW', () => {
     openGate();
     expect(resolveModelPlan({ surface: 'companion', tier: 'premium', nsfwLevel: 4 }).endpointKey).toBe('runpod-sdxl-pro');
-    expect(resolveModelPlan({ surface: 'companion', renderStyle: '3d', nsfwLevel: 5 }).modelFamily).toBe('pony');
     expect(resolveModelPlan({ surface: 'prop', nsfwLevel: 4 }).endpointKey).toBe('runpod-sdxl-pro');
   });
 

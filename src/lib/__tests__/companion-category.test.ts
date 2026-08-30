@@ -9,7 +9,7 @@ describe('companion categories', () => {
 
   it('normalizes render style independently with strict values', () => {
     expect(normalizeCompanionRenderStyle({ appearanceStyle: 'anime' })).toBe('2d');
-    expect(normalizeCompanionRenderStyle({ animeRenderStyle: '3D' })).toBe('3d');
+    expect(normalizeCompanionRenderStyle({ animeRenderStyle: '3D' })).toBe('realistic');
     expect(normalizeCompanionRenderStyle({ appearanceStyle: 'latex maid outfit' })).toBe('realistic');
     expect(normalizeCompanionRenderStyle({ renderStyle: 'realistic', appearanceStyle: 'anime' })).toBe('realistic');
   });
@@ -22,7 +22,7 @@ describe('companion categories', () => {
     expect(normalizeCompanionRenderStyle({ tags: ['female'] })).toBe('realistic');
     // Explicit style wins over tags
     expect(normalizeCompanionRenderStyle({ renderStyle: 'realistic', tags: ['anime'] })).toBe('realistic');
-    expect(normalizeCompanionRenderStyle({ animeRenderStyle: '3d', tags: ['anime'] })).toBe('3d');
+    expect(normalizeCompanionRenderStyle({ animeRenderStyle: '3d', tags: ['anime'] })).toBe('realistic');
   });
 
   it('detects transgender and male rows', () => {

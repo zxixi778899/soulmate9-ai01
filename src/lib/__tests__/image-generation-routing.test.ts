@@ -124,19 +124,16 @@ describe('image generation routing — SDXL matrix gate open', () => {
     expect(route.loraPolicy.categoryEnv).toContain('RUNPOD_ILLUSTRIOUS');
   });
 
-  it('keeps SFW 3D renders and product surfaces on FLUX even with the gate open', () => {
+  it('keeps product surfaces on FLUX even with the gate open', () => {
     openMatrixGate();
-    expect(resolveImageGenerationRoute({
-      surface: 'companion', renderStyle: '3d',
-    }).modelFamily).toBe('flux');
     expect(resolveImageGenerationRoute({ surface: 'prop' }).modelFamily).toBe('flux');
     expect(resolveImageGenerationRoute({ surface: 'advert' }).modelFamily).toBe('flux');
   });
 
-  it('forces NSFW premium / 3d / product surfaces onto SDXL with the gate open', () => {
+  it('forces NSFW premium and product surfaces onto SDXL with the gate open', () => {
     openMatrixGate();
     expect(resolveImageGenerationRoute({
-      surface: 'companion', renderStyle: '3d', nsfwIntensity: 4,
+      surface: 'companion', tier: 'premium', nsfwIntensity: 4,
     }).modelFamily).toBe('pony');
     expect(resolveImageGenerationRoute({
       surface: 'prop', nsfwIntensity: 4,
