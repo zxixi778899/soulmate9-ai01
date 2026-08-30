@@ -158,9 +158,13 @@ export async function POST(request: NextRequest) {
       .select('membership_tier, subscription_tier, plan, timezone_offset')
       .eq('id', user.id)
       .maybeSingle();
-    const tier = membershipFromProfile((profile as Record<string, unknown>) || null);
-    // Membership redesign: image generation is a paid-tier surface. Free users
-    // are guided to upgrade instead of seeing a hard failure.
+    let tier = membershipFromProfile((profile as Record<string, unknown>) || null);
+
+    // Admin bypass: admins always get unlimited access regardless of
+    // membership_tier field in profiles table.
+    const isAdmin = user.role === 'admin' || user.user_metadata?.role === 'admin' || user.app_metadata?.role === 'admin';
+    if (isAdmin) tier = 'unlimited';
+
     if (tier === 'free') {
       return NextResponse.json(
         {
