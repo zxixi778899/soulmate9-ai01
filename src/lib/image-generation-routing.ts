@@ -349,8 +349,8 @@ export function resolveImageGenerationRoute(input: {
     if (!familyEndpoint) {
       return fluxRoute({
         surface: input.surface,
-        checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors'),
-        steps: 28,
+        checkpoint: env('RUNPOD_FLUX_CHECKPOINT', 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors'),
+        steps: 8,
         fluxGuidance: 3.5,
         width: 1024,
         height: 1536,
@@ -362,8 +362,11 @@ export function resolveImageGenerationRoute(input: {
   }
 
   // Unified FLUX strategy (SFW only — NSFW is hard-routed to SDXL above):
-  // every scenario uses the same verified dev-fp8 checkpoint.
-  const checkpoint = env('RUNPOD_FLUX_CHECKPOINT', 'flux1-dev-fp8.safetensors');
+  // Default to the checkpoint actually installed on the production worker.
+  // The env var RUNPOD_FLUX_CHECKPOINT can override this; if set, the
+  // preflight in runpod.ts validates against RUNPOD_INSTALLED_FLUX_CHECKPOINTS
+  // and swaps to an installed one automatically.
+  const checkpoint = env('RUNPOD_FLUX_CHECKPOINT', 'fluxUnchainedBySCG_hyfu8StepHybridV10.safetensors');
 
   // ─── 2D / Anime style (SFW) ───────────────────────────────────────────────
   // FLUX + anime LoRA (rdanimefluxv1rapid) downstream; higher steps keep

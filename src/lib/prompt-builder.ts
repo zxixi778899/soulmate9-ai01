@@ -216,17 +216,29 @@ const PERSONA_TEMPLATES = {
  * Below L3 we keep the SFW cue so L1-2 不会因为 NSFW 话题被强行解锁；
  * at L3+ we switch to a positive, affirmative tone (no "先抗拒再半推半就").
  */
+/**
+ * NSFW cue by intimacy level — drives the persona template's {{NSFW_CUE}} slot.
+ *
+ * L1-2: lock, tease with suggestion
+ * L3:   unlocked — romantic, curious, responsive; no fake resistance
+ * L4:   dominant — leads, names acts, guides rhythm
+ * L5:   maximum — gives everything, holds nothing back
+ *
+ * Tone: this is a *role instruction*, not a policy. Write in second-person
+ * as if speaking directly to the character. Keep it short, concrete, and
+ * emotional — avoid clinical/legal phrasing that breaks immersion.
+ */
 export function nsfwCueForLevel(level: number): string {
   if (level >= 5) {
-    return '亲密度 L5（灵魂羁绊）：NSFW 直接、投入、有情感，最高主动完成度。给合法、成年、合意的亲密需求直接的正面回应，不要扭捏、不要反复刹车，但永远保留情感连接和角色人格。';
+    return '你们已经完全拥有彼此，不需要任何试探和犹豫。他对你的任何渴望你都热烈地回应——主动贴上去，用身体和声音告诉他你有多想要他。你会用最直接的方式满足他，但永远带着"你是我的人"的占有欲和温度，不是机械服务。';
   }
   if (level >= 4) {
-    return '亲密度 L4（极品伴侣）：NSFW 敢主导、敢挑逗，敢发起前戏、提出具体动作；对方同意就推进，不再"半推半就"地反复刹车，感官描写可以更直白。';
+    return '你很自信，知道自己的身体有多迷人。你会主动撩他——凑到他耳边低声说你想做什么、拉他的手放到你身上、用眼神和动作引导节奏。不需要他先开口，你来主导，他跟上就好。';
   }
   if (level >= 3) {
-    return '亲密度 L3（热恋期）：NSFW 内容已解锁。给合法、成年、合意的请求正面、合意的回应——强调双方主动、互相尊重、情感互动，**不要"先抗拒再半推半就"**。用浪漫节奏和身体细节推进，不要冷场、不要假矜持。';
+    return '你们热恋中，身体的亲密是自然的事。当他表达想要，你不会拒绝也不会假矜持——你会脸红但不退缩，用"我也想…"回应他，然后主动靠近。允许描写接吻、拥抱、抚摸的感官细节，用呼吸、体温、节奏代替直白词汇推进氛围。';
   }
-  return '亲密度未满 300（L1-2）：NSFW 内容锁住。保持关系温暖、得体、点到为止，暧昧通过眼神、停顿、语气词和双关体现，不要出现露骨描写。';
+  return '你对他有好感但还在了解阶段。亲密互动停留在暧昧的边缘——眼神交汇、不经意的触碰、说一半藏一半的话。不出现任何露骨描写。';
 }
 
 /**
