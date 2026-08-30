@@ -5,7 +5,7 @@
  *
  * Steps 风格/性别/种族发型/身材服装/人设：左侧档案卡预览 + 右侧分步选项面板；
  * Step 人设：身份档案 + 性格灵魂 + 声音；
- * Step 立绘：4 张高清 AI 立绘（2 写实 + 2 二次元），用户从 4 中选 1 完成。
+ * Step 立绘：2 张高清 AI 立绘（对应选择的风格），用户从 2 中选 1 完成。
  * On success a gacha-style reveal modal shows the rolled score / rarity.
  *
  * Rarity rule (site-wide, see src/lib/rarity.ts):
@@ -95,7 +95,7 @@ interface PortraitBatchResponse {
   endpoint_id?: string;
 }
 
-const SLOT_COUNT = 4;
+const SLOT_COUNT = 2;
 const EMPTY_SLOTS: PortraitSlot[] = Array.from({ length: SLOT_COUNT }, () => ({ status: 'idle' as const }));
 
 /**
@@ -958,7 +958,7 @@ export default function CreatePage() {
 
     // Meta fallback
     const meta = (gf.meta && typeof gf.meta === 'object' ? gf.meta : {}) as Record<string, unknown>;
-    const vs = s(meta.visual_style);
+    const vs = s(meta.visual_style) || s(gf.character_card?.visualStyle);
     if (vs) setVisualStyle(vs);
     const g = s(meta.gender);
     if (g) setGender(g);
@@ -1038,71 +1038,51 @@ export default function CreatePage() {
       if (customPromptOverride) {
         baseBody.custom_prompt = customPromptOverride;
       }
-      // Send two parallel requests: one realistic, one anime
-      const [resRealistic, resAnime] = await Promise.all([
-        authedFetch('/api/girlfriends/generate-portrait', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...baseBody, visual_style: 'realistic' }),
-        }),
-        authedFetch('/api/girlfriends/generate-portrait', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...baseBody, visual_style: '2d' }),
-        }),
-      ]);
-      const [dataRealistic, dataAnime] = await Promise.all([
-        readResponseJson<PortraitBatchResponse>(resRealistic),
-        readResponseJson<PortraitBatchResponse>(resAnime),
-      ]);
+      // Generate 2 images in the user-selected visual style
+      const selectedStyle = visualStyle === 'anime' ? '2d' : visualStyle;
+      const res = await authedFetch('/api/girlfriends/generate-portrait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...baseBody, visual_style: selectedStyle }),
+      });
+      const data = await readResponseJson<PortraitBatchResponse>(res);
       if (batchRun.current !== run) return;
-      if (!resRealistic.ok || !resAnime.ok) {
-        setError(dataRealistic.error || dataAnime.error || t('create.failed'));
+      if (!res.ok) {
+        setError(data.error || t('create.failed'));
         setSlots(EMPTY_SLOTS);
         return;
       }
 
-      // Normalize batch / legacy single responses for each style
-      const normalizeResponse = (data: PortraitBatchResponse) => {
-        const readyUrls: string[] = Array.isArray(data.images) ? data.images.filter(Boolean) : [];
-        const pendingJobs: Array<{ job_id: string; endpoint_id?: string }> = Array.isArray(data.pending_jobs) ? data.pending_jobs : [];
-        const singleUrl = data.imageUrl || data.portrait_url || data.url;
+      // Normalize batch / legacy single response
+      const normalizeResponse = (response: PortraitBatchResponse) => {
+        const readyUrls: string[] = Array.isArray(response.images) ? response.images.filter(Boolean) : [];
+        const pendingJobs: Array<{ job_id: string; endpoint_id?: string }> = Array.isArray(response.pending_jobs) ? response.pending_jobs : [];
+        const singleUrl = response.imageUrl || response.portrait_url || response.url;
         if (!readyUrls.length && singleUrl) readyUrls.push(singleUrl);
-        if (!pendingJobs.length && data.pending && data.job_id) {
-          pendingJobs.push({ job_id: data.job_id, endpoint_id: data.endpoint_id });
+        if (!pendingJobs.length && response.pending && response.job_id) {
+          pendingJobs.push({ job_id: response.job_id, endpoint_id: response.endpoint_id });
         }
         return { readyUrls, pendingJobs };
       };
 
-      const normRealistic = normalizeResponse(dataRealistic);
-      const normAnime = normalizeResponse(dataAnime);
+      const normalized = normalizeResponse(data);
 
-      if (!normRealistic.readyUrls.length && !normRealistic.pendingJobs.length &&
-          !normAnime.readyUrls.length && !normAnime.pendingJobs.length) {
+      if (!normalized.readyUrls.length && !normalized.pendingJobs.length) {
         setError(t('create.noImageReturned'));
         setSlots(EMPTY_SLOTS);
         return;
       }
 
-      // Slots 0-1: realistic, Slots 2-3: anime
-      const buildSlots = (
-        norm: { readyUrls: string[]; pendingJobs: Array<{ job_id: string; endpoint_id?: string }> },
-        offset: number,
-      ): PortraitSlot[] => {
-        return Array.from({ length: 2 }, (_, i) => {
-          if (norm.readyUrls[i]) return { status: 'ready' as const, url: norm.readyUrls[i] };
-          const job = norm.pendingJobs[i - norm.readyUrls.length];
-          if (job) return { status: 'loading' as const, jobId: job.job_id, endpointId: job.endpoint_id };
-          return { status: 'idle' as const };
-        });
-      };
-
-      const realisticSlots = buildSlots(normRealistic, 0);
-      const animeSlots = buildSlots(normAnime, 2);
-      const next: PortraitSlot[] = [...realisticSlots, ...animeSlots];
+      // Fill 2 slots with the response
+      const next: PortraitSlot[] = Array.from({ length: SLOT_COUNT }, (_, i) => {
+        if (normalized.readyUrls[i]) return { status: 'ready' as const, url: normalized.readyUrls[i] };
+        const job = normalized.pendingJobs[i - normalized.readyUrls.length];
+        if (job) return { status: 'loading' as const, jobId: job.job_id, endpointId: job.endpoint_id };
+        return { status: 'idle' as const };
+      });
       setSlots(next);
 
-      // Poll pending jobs in parallel, each fills its own slot
+      // Poll pending jobs in parallel
       const pollTasks = next.map((slot, idx) => {
         if (slot.status !== 'loading' || !slot.jobId) return null;
         const jobId = slot.jobId;
@@ -1124,7 +1104,7 @@ export default function CreatePage() {
     } finally {
       if (batchRun.current === run) setBatchRunning(false);
     }
-  }, [portraitRequestBody, pollJob, t]);
+  }, [portraitRequestBody, pollJob, t, visualStyle]);
 
   /** 取消创建卡预约（不扣卡）。失败也安全——预约阶段从未扣分。 */
   const cancelCardReservation = useCallback(async () => {
@@ -1308,6 +1288,7 @@ export default function CreatePage() {
             face_shape: faceShape, occupation,
             relationship, appearance_prompt: appearancePrompt,
           },
+          reservation_token: cardReservationRef.current?.token || undefined,
         }),
       });
       const data = await readResponseJson<{

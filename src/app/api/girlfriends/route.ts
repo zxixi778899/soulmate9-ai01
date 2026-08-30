@@ -238,24 +238,32 @@ export async function POST(request: NextRequest) {
       ) || undefined
     : undefined;
 
-  // Consume a creation card
-  const cardResult = await consumeCreationCard(client as unknown as CardClient, user.id);
-  if (!cardResult.ok) {
-    // Membership redesign: forbidden surfaces guide to upgrade, never a bare
-    // failure. Free users must join a plan; paid users hit the monthly quota
-    // (top up cards in the shop or upgrade for a bigger quota).
-    const isFree = cardResult.tier === 'free' || cardResult.tier === '';
-    return NextResponse.json(
-      {
-        error: isFree
-          ? 'Creating companions is available on membership plans.'
-          : 'Monthly creation quota reached. Upgrade for more, or buy extra cards in the shop.',
-        code: isFree ? 'membership_required' : 'creation_quota_exceeded',
-        upgrade_url: '/pricing',
-        shop_url: isFree ? undefined : '/shop',
-      },
-      { status: 403 },
-    );
+  // Consume a creation card (legacy path: only when no reservation token is provided).
+  // The creator wizard uses reserve → commit flow via /api/creator/consume-card,
+  // which is handled outside this route to avoid double deduction.
+  let cardResult: { ok: boolean; remaining?: number; tier?: string } = { ok: true, remaining: 0 };
+  const reservationToken = body.reservation_token as string | undefined;
+  if (!reservationToken) {
+    // Legacy path: consume card directly if no reservation token is provided
+    const legacyResult = await consumeCreationCard(client as unknown as CardClient, user.id);
+    if (!legacyResult.ok) {
+      // Membership redesign: forbidden surfaces guide to upgrade, never a bare
+      // failure. Free users must join a plan; paid users hit the monthly quota
+      // (top up cards in the shop or upgrade for a bigger quota).
+      const isFree = legacyResult.tier === 'free' || legacyResult.tier === '';
+      return NextResponse.json(
+        {
+          error: isFree
+            ? 'Creating companions is available on membership plans.'
+            : 'Monthly creation quota reached. Upgrade for more, or buy extra cards in the shop.',
+          code: isFree ? 'membership_required' : 'creation_quota_exceeded',
+          upgrade_url: '/pricing',
+          shop_url: isFree ? undefined : '/shop',
+        },
+        { status: 403 },
+      );
+    }
+    cardResult = legacyResult;
   }
 
   // base64 data URL  OSS key
@@ -309,6 +317,7 @@ export async function POST(request: NextRequest) {
     appearance_breast: appearance_breast || null,
     appearance_height: appearance_height || null,
     genome: genome && typeof genome === 'object' ? genome : null,
+    meta: meta && typeof meta === \'object\' ? meta : null,
     is_public: false,
     review_status: 'draft',
     is_pinned: true,
