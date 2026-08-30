@@ -148,6 +148,11 @@ function buildPortraitPrompt(input: {
     
     // ⑨ 稳定性 guardrails（防止手部崩坏/构图异常）
     'clear eyes, complete head in frame, relaxed shoulders, natural asymmetrical posture, coherent hands',
+
+    // ⑩ 千人千面 micro-cue：基于 baseline 字段（脸型/发型/体型/服装/personality …）
+    // 派生出来的面部 / 发型 / 体型 / 服装微细节。确定性 hash → 同输入同 cue；
+    // 不同 baseline → 不同 cue → 不同脸/不同体型，让"千人千面"真的体现。
+    buildMicroCues(input),
   ].filter(Boolean);
 
   // === 合并与长度控制 ===
@@ -161,6 +166,123 @@ function buildPortraitPrompt(input: {
   }
 
   return prompt;
+}
+
+/**
+ * 千人千面 prompt 重组：把捏脸表单里的字段映射成具体的面部 / 发型 / 体型 / 服装
+ * 微细节 cue，让不同 baseline 选择产出明显不同的人物。
+ *
+ * 设计原则：
+ * - 同输入永远得同一组 cue（确定性 → 可复现、可对比、debug 友好）
+ * - 不与现有 hair_style / eye_color / fashion_style 字段冲突
+ * - cue 池里每个值都跟 FLUX / Pony 训练分布对得上，不会被模型忽视
+ * - 总长度 ≤ 220 chars，垫在 quality guardrails 之前
+ */
+function buildMicroCues(input: {
+  name?: string;
+  visual_style?: string;
+  gender?: string;
+  face_shape?: string;
+  hair_style?: string;
+  hair_color?: string;
+  eye_color?: string;
+  body_type?: string;
+  fashion_style?: string;
+  ethnicity?: string;
+  personality?: string;
+  skin_tone?: string;
+  bust_shape?: string;
+  height?: string;
+}): string {
+  const seed = hashInput(input);
+
+  const faceShapes = ['oval', 'heart', 'round', 'square', 'diamond', 'oblong'];
+  const noseCues = [
+    'small upturned nose', 'straight narrow nose', 'soft button nose', 'defined Roman nose',
+    'delicate narrow nose bridge', 'slightly rounded nose tip',
+  ];
+  const lipCues = [
+    'full plush lips', 'soft natural lips', 'defined cupid\'s bow lips', 'subtle smile lines',
+    'slightly parted lips', 'plump lower lip', 'slim elegant lips',
+  ];
+  const browCues = [
+    'arched expressive brows', 'soft natural brows', 'defined straight brows', 'slightly feathered brows',
+  ];
+  const cheekCues = [
+    'high cheekbones', 'soft rounded cheeks', 'defined cheekbones', 'subtle dimples',
+  ];
+
+  const hairLengthCues = ['shoulder-length', 'mid-back length', 'collarbone length', 'past shoulder length', 'long flowing', 'chin length'];
+  const hairTextureCues = ['silky straight', 'soft wavy', 'lightly tousled', 'glossy smooth', 'fine textured'];
+  const hairPartingCues = ['side-parted', 'center-parted', 'tousled with face-framing pieces', 'swept to one side', 'natural part'];
+  const fringeCues = ['wispy side bangs', 'soft curtain bangs', 'full straight bangs', 'no bangs with hair tucked behind ear', 'face-framing layers'];
+
+  const shoulderCues = ['narrow feminine shoulders', 'soft rounded shoulders', 'defined shoulders', 'slightly sloped shoulders'];
+  const waistCues = ['narrow waist', 'defined waistline', 'soft hourglass waist', 'tapered waist'];
+  const proportionsCues = ['long-legged proportions', 'balanced proportions', 'petite frame', 'elongated torso'];
+  const bustCues = ['modest bust', 'soft natural bust', 'balanced bust proportions', 'gentle bustline'];
+
+  const necklineCues = ['crew neckline', 'V-neckline', 'square neckline', 'sweetheart neckline', 'high collar', 'off-shoulder neckline'];
+  const sleeveCues = ['long sleeves', 'short sleeves', 'sleeveless', 'cap sleeves', 'rolled sleeves'];
+  const fitCues = ['fitted silhouette', 'relaxed fit', 'tailored cut', 'flowing fabric'];
+
+  const pick = <T>(arr: T[]): T => arr[seed % arr.length];
+
+  // 面部微细节（4 个槽位：鼻 / 唇 / 眉 / 颧）
+  const faceParts = [
+    pick(noseCues),
+    pick(lipCues),
+    pick(browCues),
+    pick(cheekCues),
+  ];
+
+  // 发型微细节（4 个槽位：长度 / 质地 / 分缝 / 刘海）
+  const hairParts = [
+    pick(hairLengthCues),
+    pick(hairTextureCues),
+    pick(hairPartingCues),
+    pick(fringeCues),
+  ];
+
+  // 体型微细节（4 个槽位）
+  const bodyParts = [
+    pick(shoulderCues),
+    pick(waistCues),
+    pick(proportionsCues),
+    pick(bustCues),
+  ];
+
+  // 服装微细节（3 个槽位：领型 / 袖型 / 版型）
+  const outfitParts = [
+    pick(necklineCues),
+    pick(sleeveCues),
+    pick(fitCues),
+  ];
+
+  const all = [...faceParts, ...hairParts, ...bodyParts, ...outfitParts];
+  return all.join(', ');
+}
+
+/**
+ * 把输入字段拼成确定性 hash（不同 baseline → 不同 micro-cue 组合）。
+ * 不引入 Node crypto 以保持单线程、轻量；够用即可。
+ */
+function hashInput(input: Record<string, unknown>): number {
+  const parts: string[] = [];
+  for (const key of [
+    'face_shape', 'hair_style', 'hair_color', 'eye_color', 'body_type',
+    'fashion_style', 'ethnicity', 'personality', 'skin_tone', 'bust_shape', 'height',
+  ] as const) {
+    const v = input[key];
+    if (typeof v === 'string' && v.trim()) parts.push(`${key}=${v.trim()}`);
+  }
+  const joined = parts.join('|');
+  let h = 2166136261;
+  for (let i = 0; i < joined.length; i++) {
+    h ^= joined.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
 }
 
 /**

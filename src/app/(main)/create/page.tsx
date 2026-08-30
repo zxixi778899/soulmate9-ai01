@@ -2347,8 +2347,11 @@ export default function CreatePage() {
 
                 {/* 内容级别选择已移除：固定默认级别随请求提交 */}
 
-                {/* 2 portrait cards — 2 选 1 */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* 2 portrait cards — 2 选 1
+                    max-w-[340px] mx-auto + 缩到 384px 压缩图，把"捏脸最终预览"做成小尺寸，
+                    不抢主舞台视觉重心。其它用 size="card" 的地方（伴侣卡/示例图）
+                    不受影响。 */}
+                <div className="mx-auto grid w-full max-w-[340px] grid-cols-2 gap-2.5">
                   {slots.map((slot, idx) => (
                     <button
                       key={idx}
@@ -2356,17 +2359,25 @@ export default function CreatePage() {
                       disabled={slot.status !== 'ready'}
                       onClick={() => setSelectedSlot(idx)}
                       className={cn(
-                        'group relative aspect-[3/4] overflow-hidden rounded-[22px] border text-left transition-all',
+                        'group relative aspect-[3/4] overflow-hidden rounded-[18px] border text-left transition-all',
                         slot.status === 'ready' && selectedSlot === idx
-                          ? 'border-[#FF2D78] ring-2 ring-[#FF2D78]/60 shadow-[0_0_28px_rgba(255,45,120,0.45)] scale-[1.02]'
+                          ? 'border-[#FF2D78] ring-2 ring-[#FF2D78]/60 shadow-[0_0_24px_rgba(255,45,120,0.45)] scale-[1.02]'
                           : slot.status === 'ready'
-                            ? 'border-white/15 hover:border-[#FF2D78]/50 hover:shadow-[0_0_18px_rgba(255,45,120,0.2)]'
+                            ? 'border-white/15 hover:border-[#FF2D78]/50 hover:shadow-[0_0_14px_rgba(255,45,120,0.2)]'
                             : 'border-white/[0.08] bg-white/[0.02]',
                       )}
                     >
                       {slot.status === 'ready' && slot.url ? (
-                        // 选片网格按需压缩（512px 宽），压缩失败自动回退原图
-                        <OptimizedImg src={slot.url} size="card" alt={`portrait-${idx + 1}`} className="h-full w-full object-cover" />
+                        // 选片网格按需压缩（384px 宽，比标准 card 小 ~44%），
+                        // 压缩失败自动回退原图
+                        <OptimizedImg
+                          src={slot.url}
+                          size="card"
+                          previewWidth={384}
+                          previewQuality={68}
+                          alt={`portrait-${idx + 1}`}
+                          className="h-full w-full object-cover"
+                        />
                       ) : slot.status === 'loading' ? (
                         <PortraitLoadingProgress
                           label={t('create.generatingN', { n: `${idx + 1}/${SLOT_COUNT}` })}

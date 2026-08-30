@@ -48,10 +48,11 @@ const CATEGORY_SUBJECTS: Record<CompanionCategory, string> = {
 
 const RENDER_PROMPTS: Record<AnimeRenderStyle, string> = {
   'realistic': 'real camera photograph, neutral skin tone, natural skin, practical soft light, relaxed posture, natural hands, sharp focus',
-  // 2D uplift: stronger anime-tag pull so FLUX/anime-LoRA doesn't drift into
-  // a soft watercolor / unfinished sketch. Pulls on cel-shaded lineart cues
-  // that rdanimefluxv1rapid was trained on.
-  '2d': '2D anime illustration, anime key visual, fully colored finished artwork, vibrant cel shading, clean lineart, sharp linework, vivid saturated colors, detailed expressive eyes, studio quality',
+  // 2D uplift：强力注入 danbooru/Mix-SFW 体系下 Illustrious / Anything / Counterfeit
+  // 等动漫模型训练时最敏感的质量 token。这些 token 在训练集中跟"精致"+"高细节
+  // 图像的强绑定，prompt 里出现就能直接拉高模型对细节/线条/色彩的优先级。
+  // 同时保持 FLUX-friendly 的英文描述，让 anime-LoRA + quality tag 协同发力。
+  '2d': '2D anime illustration, masterpiece, best quality, very aesthetic, absurdres, highres, official art, anime key visual, fully colored finished artwork, vibrant cel shading, clean lineart, sharp linework, vivid saturated colors, detailed expressive eyes, beautiful detailed face, intricate details, studio quality, professional artwork',
   // 3D uplift: anti-2D drift. Default FLUX 3D LoRA is light; if not installed
   // the worker falls back to vanilla realistic, which the user reads as
   // "3D broken". Reinforce the 3D vocabulary in the prompt itself so the
