@@ -560,7 +560,11 @@ export async function POST(request: NextRequest) {
       ? tierRoute.daily_message_limit
       : FALLBACK_DAILY_LIMITS[membershipTier] ?? 40;
 
-  if (selectedModel) {
+  // Hard bypass: admin/superadmin role always gets unlimited — no limits, no quotas.
+  const profileRole = String(profileAny?.role || '').toLowerCase();
+  const isAdminRole = profileRole === 'admin' || profileRole === 'superadmin';
+
+  if (selectedModel && !isAdminRole) {
     const minTier = selectedModel.min_tier || 'free';
     if (tierRank(membershipTier) < tierRank(minTier)) {
       return NextResponse.json(
@@ -575,7 +579,7 @@ export async function POST(request: NextRequest) {
         { status: 403 },
       );
     }
-    if (selectedModel.nsfw_capable && !tierRoute.allow_nsfw) {
+    if (!isAdminRole && selectedModel.nsfw_capable && !tierRoute.allow_nsfw) {
       return NextResponse.json(
         {
           error: 'This model is unlocked with the adult channel (Pro+).',
@@ -588,7 +592,7 @@ export async function POST(request: NextRequest) {
       );
     }
   }
-  if (!isNewbieTrial && effectiveDailyLimit >= 0) {
+  if (!isAdminRole && !isNewbieTrial && effectiveDailyLimit >= 0) {
     const today = new Date().toISOString().split('T')[0];
     const { count } = await client
       .from('chat_messages')
