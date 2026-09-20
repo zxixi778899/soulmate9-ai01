@@ -557,7 +557,7 @@ export function getDesireLanguageGradient(
         vocabulary: DESIRE_LEVEL_80_100.explicit.vocabulary,
         examples: DESIRE_LEVEL_80_100.explicit.examples,
         nsfwThreshold: 0.9,
-        sensitivity: DESIRE_LEVEL_80_100.explicit.vocabulary.slice(0, 5),
+        sensitivity: DESIRE_LEVEL_80_100.explicit.vocabulary.slice(0, 5).join(' | '),
         intensityLabel: '完全释放期'
       };
     } else if (desireLevel >= 80) {
