@@ -5,7 +5,6 @@ import { routeImageGeneration } from '@/lib/image-router';
 import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
 import { checkCompanionAccess } from '@/lib/companion-access';
-import { logger } from '@/lib/logger';
 import {
   extractSceneFromContext,
   extractTimeOfDay,
