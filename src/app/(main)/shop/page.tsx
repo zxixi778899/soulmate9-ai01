@@ -295,6 +295,7 @@ export default function ShopPage() {
   const [payPkg, setPayPkg] = useState<TokenPackage | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const [payStep, setPayStep] = useState<'method' | 'wallet'>('method');
+  const [selectedProvider, setSelectedProvider] = useState<'stripe' | 'nexapay' | 'nowpayments'>('stripe');
   const [processingPay, setProcessingPay] = useState(false);
   const [payWallet, setPayWallet] = useState<{ address: string; amount: number; currency: string; network?: string } | null>(null);
 
