@@ -413,7 +413,7 @@ export default function ShopPage() {
     setPayOpen(true);
   };
 
-  const confirmTokenPay = async (paymentMethod: 'pix' | 'ted' | 'card_latam' | 'boleto', extra?: string) => {
+  const confirmTokenPay = async (paymentMethod: 'stripe' | 'nexapay' | 'nowpayments', extra?: string) => {
     if (!payPkg) return;
     setProcessingPay(true);
     try {
