@@ -13,10 +13,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const searchParams = request.nextUrl.searchParams;
+  const userId = searchParams.get('userId') || authResult.user.id;
+  
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const userId = searchParams.get('userId') || authResult.user.id;
-    
     // Initialize Supabase client with service role
     const supabaseUrl = process.env.COZE_SUPABASE_URL!;
     const serviceKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY!;
