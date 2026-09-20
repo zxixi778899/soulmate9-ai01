@@ -14,9 +14,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const body = await request.json().catch(() => ({}));
+  const assetIds = body.assetIds as string[];
+
   try {
-    const body = await request.json();
-    const assetIds = body.assetIds as string[];
     const sizes = body.sizes || ['thumb', 'medium', 'large']; // thumb: 256px, medium: 768px, large: 1920px
     
     if (!assetIds || assetIds.length === 0) {
