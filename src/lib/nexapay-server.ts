@@ -111,7 +111,12 @@ export async function getNexaPayPaymentStatus(paymentId: string): Promise<{
 }
 
 /**
- * Verify NexaPay webhook signature
+ * Verify NexaPay webhook signature using HMAC-SHA256
+ * NexaPay sends signature in X-Webhook-Signature header
+ * 
+ * @param body - Raw request body as string
+ * @param signature - Signature from X-Webhook-Signature header
+ * @returns true if signature is valid
  */
 export function verifyNexaPayWebhook(body: string, signature: string): boolean {
   const secret = process.env.NEXAPAY_WEBHOOK_SECRET;
@@ -119,8 +124,16 @@ export function verifyNexaPayWebhook(body: string, signature: string): boolean {
     logger.warn('[nexapay] Webhook secret not configured, skipping verification');
     return false;
   }
-  // TODO: implement proper HMAC-SHA256 verification
-  return signature.length > 0;
+
+  // NexaPay uses HMAC-SHA256: signature = hmac_sha256(webhook_secret, raw_body)
+  const crypto = require('crypto');
+  const expectedSignature = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex');
+  
+  // Use constant-time comparison to prevent timing attacks
+  return crypto.timingSafeEqual(
+    Buffer.from(signature, 'hex'),
+    Buffer.from(expectedSignature, 'hex')
+  );
 }
 
 /**

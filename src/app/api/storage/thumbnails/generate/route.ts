@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
 import { getAuthUser } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 /**
  * POST /api/storage/thumbnails/generate
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
               });
             
             if (error) {
-              console.error(`Failed to upload thumbnail for ${asset.id}:`, error);
+              logger.warn('Failed to upload thumbnail:', { assetId: asset.id, size, error: error instanceof Error ? error.message : String(error) });
               return null;
             }
             
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
           generatedThumbnails.push(...results.filter(Boolean));
           
         } catch (err) {
-          console.error(`Failed to generate thumbnails for ${asset.id}:`, err);
+          logger.error('Failed to generate thumbnails:', { assetId: asset.id, error: err instanceof Error ? err.message : String(err) });
         }
       }
     }
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
         .eq('id', assetId);
       
       if (error) {
-        console.error(`Failed to update thumbnails for ${assetId}:`, error);
+        logger.warn('Failed to update thumbnail URLs:', { assetId, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Generate thumbnails error:', error);
+    logger.error('Generate thumbnails error:', { error: error instanceof Error ? error.message : String(error), count: assetIds?.length || 0 });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to generate thumbnails' },
       { status: 500 }

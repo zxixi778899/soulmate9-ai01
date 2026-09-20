@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 /**
  * POST /api/storage/upload
@@ -56,8 +57,8 @@ export async function POST(request: NextRequest) {
         allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
       });
     } catch (e) {
-      // Bucket may already exist
-      console.log('Bucket creation skipped (may exist):', e);
+      // Bucket may already exist - log for debugging
+      logger.debug('Bucket creation skipped (may exist):', { bucket, error: e instanceof Error ? e.message : String(e) });
     }
 
     for (const file of files) {
@@ -106,8 +107,8 @@ export async function POST(request: NextRequest) {
       })));
 
     if (dbError) {
-      console.error('Failed to store asset metadata:', dbError);
-      // Don't fail the upload if DB insert fails
+      logger.warn('Failed to store asset metadata:', { dbError: dbError.message, count: uploadedFiles.length });
+      // Don't fail the upload if DB insert fails - assets are already stored in storage
     }
 
     return NextResponse.json({
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Upload error:', error);
+    logger.error('Upload error:', { error: error instanceof Error ? error.message : String(error), user: authResult.user?.id });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }

@@ -18,6 +18,7 @@ import {
 import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, Wallet, AlertCircle, Diamond } from 'lucide-react';
 import { QRCode } from '@/components/QRCode';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 import { useMembership } from '@/hooks/useMembership';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
@@ -222,7 +223,7 @@ function PricingContent() {
       if (!res.ok) {
         // 显示详细的错误信息（包括 details 字段）
         const detailedError = data.details || data.error || t('pricing.toastInitiateFailed');
-        console.error('[Payment Error]', data); // 记录完整错误到 Console
+        logger.warn('Payment initiation failed:', { planId, billing, error: data });
         toast.error(detailedError);
         resetCrypto();
         return;

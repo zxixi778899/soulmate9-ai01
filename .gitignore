@@ -119,3 +119,4 @@ vercel-full.old.txt
 
 # Old backups
 old.txt
+.env*

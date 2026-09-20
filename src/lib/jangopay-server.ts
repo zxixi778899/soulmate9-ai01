@@ -147,7 +147,12 @@ export async function jangoPayGetCurrencies(): Promise<string[]> {
 }
 
 /**
- * Verify webhook signature
+ * Verify webhook signature using HMAC-SHA256
+ * JangoPay sends signature in X-Webhook-Signature header
+ * 
+ * @param payload - Raw request body as string
+ * @param signature - Signature from X-Webhook-Signature header
+ * @returns true if signature is valid
  */
 export function verifyJangoPaySignature(payload: string, signature: string): boolean {
   const secret = process.env.JANGOPAY_SECRET_KEY;
@@ -156,7 +161,13 @@ export function verifyJangoPaySignature(payload: string, signature: string): boo
     return false;
   }
 
-  // TODO: Implement proper HMAC signature verification
-  // JangoPay uses HMAC-SHA256 for webhook signatures
-  return true;
+  // JangoPay uses HMAC-SHA256: signature = hmac_sha256(secret, payload)
+  const crypto = require('crypto');
+  const expectedSignature = crypto.createHmac('sha256', secret).update(payload, 'utf8').digest('hex');
+  
+  // Use constant-time comparison to prevent timing attacks
+  return crypto.timingSafeEqual(
+    Buffer.from(signature, 'hex'),
+    Buffer.from(expectedSignature, 'hex')
+  );
 }

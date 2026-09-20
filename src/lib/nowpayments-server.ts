@@ -230,7 +230,12 @@ export function getTokenPackagePriceCents(tokenCount: number): number {
 }
 
 /**
- * Verify IPN webhook signature (HMAC-SHA512)
+ * Verify IPN webhook signature using HMAC-SHA512
+ * NOWPayments sends signature in IPNSignature header
+ * 
+ * @param body - Raw request body as string (must be exact same content)
+ * @param signature - Signature from IPNSignature header
+ * @returns true if signature is valid
  */
 export function verifyNowPaymentsIPN(body: string, signature: string): boolean {
   const secret = process.env.NOWPAYMENTS_IPN_SECRET;
@@ -238,7 +243,18 @@ export function verifyNowPaymentsIPN(body: string, signature: string): boolean {
     logger.warn('[nowpayments] IPN secret not configured, skipping verification');
     return false;
   }
-  // TODO: implement proper HMAC-SHA512 verification with crypto module
-  // NOWPayments signs IPN payloads with HMAC-SHA512 using the IPN secret
-  return signature.length > 0;
+
+  // NOWPayments uses HMAC-SHA512: signature = hmac_sha512(ipn_secret, raw_body_as_hex_string)
+  // The body must be converted to hex before signing
+  const crypto = require('crypto');
+  
+  // Convert body to hex string
+  const bodyHex = Buffer.from(body, 'utf8').toString('hex');
+  const expectedSignature = crypto.createHmac('sha512', secret).update(bodyHex, 'hex').digest('hex');
+  
+  // Use constant-time comparison to prevent timing attacks
+  return crypto.timingSafeEqual(
+    Buffer.from(signature.toLowerCase(), 'hex'),
+    Buffer.from(expectedSignature.toLowerCase(), 'hex')
+  );
 }

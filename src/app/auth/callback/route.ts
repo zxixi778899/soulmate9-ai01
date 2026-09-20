@@ -72,7 +72,7 @@ try {
   localStorage.setItem('${STORAGE_KEY}', ${JSON.stringify(sessionJson)});
   window.location.href = '/';
 } catch(e) {
-  console.error('Failed to store session:', e);
+  // Client-side error - cannot log server-side
   window.location.href = '/login?error=storage_failed';
 }
 </script>

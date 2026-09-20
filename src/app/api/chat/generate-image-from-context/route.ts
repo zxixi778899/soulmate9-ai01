@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
+import { logger } from '@/lib/logger';
 import { routeImageGeneration } from '@/lib/image-router';
 import { resolveImageGenerationRoute } from '@/lib/image-generation-routing';
 import { normalizeCompanionCategory, normalizeCompanionRenderStyle } from '@/lib/companion-category';
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
         results.push({ url: result.images?.[0] });
       }
     } catch (error) {
-      console.error(`Image generation failed for ${idx+1}/${countArg}`, { error });
+      logger.warn('Image generation failed:', { index: `${idx+1}/${countArg}`, error: error instanceof Error ? error.message : String(error) });
       results.push({ pending: true }); // Queue will handle it later
     }
   }
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
           const key = await uploadDataUrl(dataUrl, `chat-images/${safeName}_${Date.now()}_${i}`);
           return (await resolveImageUrl(key)) || key;
         } catch (err) {
-          console.warn('Failed to upload chat image', { error: err });
+          logger.warn('Failed to upload chat image:', { error: err instanceof Error ? err.message : String(err) });
           return null;
         }
       }

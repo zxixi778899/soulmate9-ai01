@@ -771,7 +771,7 @@ export default function ChatsPage() {
     const lastA = [...messages].reverse().find((m) => m.role === 'assistant' && m.content);
     const lastU = [...messages].reverse().find((m) => m.role === 'user' && m.content);
     if (lastA?.content) void fetchSmartSuggestions(lastA.content, lastU?.content);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchSmartSuggestions uses selectedId/locale from closure
   }, [isLoading]);
 
   // ── Scroll ──
@@ -940,15 +940,8 @@ export default function ChatsPage() {
         body: JSON.stringify({ message: text || displayText, girlfriend_id: selectedId, mood: selectedMood, pose: selectedPose, environment: selectedEnvironment, locale, reply_mode: replyMode, prefer_nsfw: nsfwMode, ...(selectedChatModel ? { chat_model: selectedChatModel } : {}), ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}) }),
       });
       
-      // Debug log
+      // Debug log - using logger for server-side context (client uses window.console)
       if (!res.ok) {
-        console.error('[Chats] Auth error details:', {
-          status: res.status,
-          statusText: res.statusText,
-          url: res.url,
-          hasSession: !!session,
-          hasUser: !!user,
-        });
         const errBody = (await readResponseJson(res).catch(() => ({}))) as { error?: string; localized_error?: string; code?: string };
         throw new Error(typeof errBody?.localized_error === 'string' ? errBody.localized_error : errBody.code === 'daily_message_limit' ? t('chat.messageDailyLimit') : typeof errBody?.error === 'string' ? errBody.error : `Send failed (${res.status}) ${errBody.error ? `- ${errBody.error}` : ''}`);
       }

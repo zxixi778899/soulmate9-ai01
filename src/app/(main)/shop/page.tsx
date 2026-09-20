@@ -100,6 +100,14 @@ const CRYPTO_PAY_OPTIONS = [
   { id: 'trx', label: 'TRX', network: 'TRC-20' },
 ] as const;
 
+/** NexaPay payment methods for LATAM (Pix, TED, Card, Boleto) */
+const NEXAPAY_PAYMENT_METHODS = [
+  { id: 'pix', label: 'Pix', description: 'Brazil instant payment (instant)' },
+  { id: 'ted', label: 'TED', description: 'Brazil bank transfer (1-2h)' },
+  { id: 'card_latam', label: 'Credit Card', description: 'LATAM credit card (instant)' },
+  { id: 'boleto', label: 'Boleto', description: 'Brazil payment slip (1-3 days)' },
+] as const;
+
 /** Legacy ?tab= values → new collection tabs */
 const TAB_ALIAS: Record<string, TabId> = {
   outfit: 'outfit', prop: 'prop', membership: 'membership', credits: 'credits', seats: 'seats',
@@ -286,7 +294,7 @@ export default function ShopPage() {
   const [tokenBalance, setTokenBalance] = useState(0);
   const [payPkg, setPayPkg] = useState<TokenPackage | null>(null);
   const [payOpen, setPayOpen] = useState(false);
-  const [payStep, setPayStep] = useState<'method' | 'crypto' | 'wallet'>('method');
+  const [payStep, setPayStep] = useState<'method' | 'wallet'>('method');
   const [processingPay, setProcessingPay] = useState(false);
   const [payWallet, setPayWallet] = useState<{ address: string; amount: number; currency: string; network?: string } | null>(null);
 
@@ -395,22 +403,24 @@ export default function ShopPage() {
     setPurchasing(false);
   };
 
-  /* ── credit-pack checkout (fiat / crypto) ───────────────────────────── */
+  /* ── credit-pack checkout (NEXA Pay only) ───────────────────────────── */
   const buyTokenPack = (packageId: string) => {
     const pkg = tokenPackages.find((p) => p.id === packageId) || null;
     setPayPkg(pkg || { id: packageId, name: 'Credit Pack', token_count: 0, price_cents: 0 });
-    setPayStep('crypto');
+    setPayStep('method');
     setPayWallet(null);
     setPayOpen(true);
   };
 
-  const confirmTokenPay = async (provider: 'nowpayments' | 'nexapay', extra?: string) => {
+  const confirmTokenPay = async (paymentMethod: 'pix' | 'ted' | 'card_latam' | 'boleto', extra?: string) => {
     if (!payPkg) return;
     setProcessingPay(true);
     try {
-      const payload: Record<string, string> = { package_id: payPkg.id, provider };
-      if (provider === 'nowpayments') payload.currency = extra || 'usdttrc20';
-      else payload.payment_method = extra || 'card_latam';
+      const payload: Record<string, string> = { 
+        package_id: payPkg.id, 
+        provider: 'nexapay',
+        payment_method: paymentMethod 
+      };
 
       const res = await authedFetch('/api/v2/shop/tokens', {
         method: 'POST',
@@ -861,34 +871,173 @@ export default function ShopPage() {
             )}
           </DialogHeader>
 
-          {payStep === 'crypto' && (
+          {payStep === 'method' && (
             <div className="py-2">
-              <p className="text-xs text-white/45 mb-3">Select a coin to pay ${(payPkg ? (payPkg.price_cents / 100).toFixed(2) : '0.00')}:</p>
-              <div className="grid grid-cols-2 gap-2">
-                {CRYPTO_PAY_OPTIONS.map((c) => (
+              {/* Provider selection */}
+              <p className="text-xs text-white/45 mb-3">Select payment provider:</p>
+              <div className="grid grid-cols-1 gap-3 mb-6">
+                {/* Stripe - Default for US/EU/Global */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProvider('stripe')}
+                  className={cn(
+                    "rounded-xl border px-3 py-4 text-left transition relative",
+                    selectedProvider === 'stripe'
+                      ? "border-blue-500 bg-blue-500/10"
+                      : "border-white/15 bg-white/5 hover:border-white/30 hover:bg-white/10"
+                  )}
+                >
+                  <span className="block font-bold text-sm flex items-center gap-2">
+                    💳 Stripe 
+                    <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded ml-auto">Recommended for US/EU</span>
+                  </span>
+                  <span className="block text-[11px] text-white/60 mt-1">Credit Card • Apple Pay • Google Pay</span>
+                  <div className="mt-1 flex items-center gap-1">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Visa" className="h-3 w-auto opacity-70" />
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard-logo.svg" alt="Mastercard" className="h-3 w-auto ml-2 opacity-70" />
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Apple_Pay_logo.svg" alt="Apple Pay" className="h-3 w-auto ml-2 opacity-70" />
+                  </div>
+                </button>
+                
+                {/* NEXA Pay - LATAM/Brazil */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProvider('nexapay')}
+                  className={cn(
+                    "rounded-xl border px-3 py-4 text-left transition relative",
+                    selectedProvider === 'nexapay'
+                      ? "border-emerald-400 bg-emerald-400/10"
+                      : "border-white/15 bg-white/5 hover:border-white/30 hover:bg-white/10"
+                  )}
+                >
+                  <span className="block font-bold text-sm flex items-center gap-2">
+                    🇧🇷 NEXA Pay
+                    <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded ml-auto">Best for Brazil</span>
+                  </span>
+                  <span className="block text-[11px] text-white/60 mt-1">Pix (Instant) • Credit Card • Boleto</span>
+                  <div className="mt-1 flex items-center gap-1">
+                    <span className="text-[10px] text-emerald-400">⚡ Pix秒到账</span>
+                    <span className="text-[10px] text-white/30 mx-1">|</span>
+                    <span className="text-[10px] text-emerald-400">💰 低费率</span>
+                  </div>
+                </button>
+                
+                {/* NOWPayments/Crypto */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProvider('nowpayments')}
+                  className={cn(
+                    "rounded-xl border px-3 py-4 text-left transition relative",
+                    selectedProvider === 'nowpayments'
+                      ? "border-[#ffd700] bg-[#ffd700]/10"
+                      : "border-white/15 bg-white/5 hover:border-white/30 hover:bg-white/10"
+                  )}
+                >
+                  <span className="block font-bold text-sm flex items-center gap-2">
+                    ₿ NOWPayments
+                    <span className="text-[10px] bg-yellow-600 text-black px-1.5 py-0.5 rounded ml-auto">Crypto Only</span>
+                  </span>
+                  <span className="block text-[11px] text-white/60 mt-1">USDT • BTC • ETH • LTC • SOL</span>
+                  <div className="mt-1 flex items-center gap-1">
+                    <span className="text-[10px] text-[#ffd700]">🌐 Global</span>
+                    <span className="text-[10px] text-white/30 mx-1">|</span>
+                    <span className="text-[10px] text-[#ffd700]">🔒 Anonymous</span>
+                  </div>
+                </button>
+              </div>
+
+              {selectedProvider === 'nowpayments' && (
+                <>
+                  <p className="text-xs text-white/45 mb-3">Select a coin to pay ${(payPkg ? (payPkg.price_cents / 100).toFixed(2) : '0.00')}:</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CRYPTO_PAY_OPTIONS.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        disabled={processingPay}
+                        onClick={() => void confirmTokenPay('nowpayments', c.id)}
+                        className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:border-[#ffd700]/60 hover:bg-white/10 transition text-left"
+                      >
+                        <span className="block font-bold">{c.label}</span>
+                        <span className="block text-[11px] text-white/40">{c.network}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {processingPay && (
+                    <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-3">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
+                    </div>
+                  )}
+                </>
+              )}
+
+              {selectedProvider === 'stripe' && (
+                <div className="space-y-4">
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 text-center">
+                    <p className="font-semibold text-blue-400 mb-1">Stripe Checkout</p>
+                    <p className="text-sm text-white/60 mb-3">
+                      Pay with Credit Card, Apple Pay, or Google Pay
+                    </p>
+                    <div className="flex items-center justify-center gap-2 opacity-70">
+                      <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Visa" className="h-4 w-auto" />
+                      <img src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard-logo.svg" alt="Mastercard" className="h-4 w-auto" />
+                      <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Apple_Pay_logo.svg" alt="Apple Pay" className="h-4 w-auto" />
+                    </div>
+                  </div>
                   <button
-                    key={c.id}
                     type="button"
                     disabled={processingPay}
-                    onClick={() => void confirmTokenPay('nowpayments', c.id)}
-                    className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:border-[#ffd700]/60 hover:bg-white/10 transition text-left"
+                    onClick={() => void confirmTokenPay('stripe')}
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
                   >
-                    <span className="block font-bold">{c.label}</span>
-                    <span className="block text-[11px] text-white/40">{c.network}</span>
+                    {processingPay ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Processing...
+                      </>
+                    ) : (
+                      <>
+                        💳 Continue with Stripe
+                      </>
+                    )}
                   </button>
-                ))}
-              </div>
-              {processingPay && (
-                <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-3">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
+                  <p className="text-xs text-white/40 text-center">
+                    🔒 Secure payment powered by Stripe<br/>
+                    Automatic tax calculation enabled
+                  </p>
                 </div>
               )}
+
+              {selectedProvider === 'nexapay' && (
+                <>
+                  <p className="text-xs text-white/45 mb-3">Select payment method for ${(payPkg ? (payPkg.price_cents / 100).toFixed(2) : '0.00')}:</p>
+                  <div className="space-y-2">
+                    {NEXAPAY_PAYMENT_METHODS.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        disabled={processingPay}
+                        onClick={() => void confirmTokenPay('nexapay', m.id)}
+                        className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-left hover:border-emerald-400/60 hover:bg-white/10 transition"
+                      >
+                        <span className="block font-bold">{m.label}</span>
+                        <span className="block text-[11px] text-white/50">{m.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {processingPay && (
+                    <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-3">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
+                    </div>
+                  )}
+                </>
+              )}
+
               <button
                 type="button"
                 onClick={() => setPayOpen(false)}
-                className="mt-3 text-xs text-white/40 hover:text-white/70"
+                className="mt-4 text-xs text-white/40 hover:text-white/70"
               >
-                ← {t('shop.cancel')}
+                ← Back
               </button>
             </div>
           )}
@@ -914,6 +1063,19 @@ export default function ShopPage() {
                   Copy Address
                 </Button>
               </DialogFooter>
+            </div>
+          )}
+
+          {/* NexaPay redirect message */}
+          {payStep === 'nexapay' && (
+            <div className="py-2 space-y-3">
+              <div className="flex items-center justify-center gap-3 text-emerald-400 mb-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="font-medium">Redirecting to NEXA Pay checkout…</span>
+              </div>
+              <p className="text-xs text-white/45 text-center">
+                You will be redirected to complete your payment via Pix, Credit Card or TED.
+              </p>
             </div>
           )}
         </DialogContent>

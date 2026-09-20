@@ -3,6 +3,7 @@ import { useState } from "react";
 import { createBrowserClient, SOULMATE_BUILD_ID } from "@/lib/supabase";
 import { useTranslation } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { logger } from "@/lib/logger";
 
 // Auth page — relies on cookies for session redirect. Must stay dynamic.
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ export default function LoginPage() {
       }
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) {
-        console.error('Login error:', authError);
+        logger.warn('Login failed:', { email, error: authError.message });
         setError(authError.message || t('common.error'));
         setLoading(false);
         return;

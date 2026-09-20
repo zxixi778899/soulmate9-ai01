@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/storage/assets
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Load assets error:', error);
+    logger.error('Load assets error:', { error: error instanceof Error ? error.message : String(error), userId });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to load assets' },
       { status: 500 }
@@ -91,7 +92,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Delete asset error:', error);
+    logger.error('Delete asset error:', { error: error instanceof Error ? error.message : String(error), id });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to delete asset' },
       { status: 500 }
