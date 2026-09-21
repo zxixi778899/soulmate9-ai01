@@ -291,8 +291,8 @@ export default function ShopPage() {
   const [payWallet, setPayWallet] = useState<{ address: string; amount: number; currency: string; network?: string } | null>(null);
   
   // Dummy state for backward compatibility with existing UI code (to be cleaned up later)
-  const _selectedProvider = 'nowpayments'; // Always NOWPayments now
-  const _setSelectedProvider = () => {}; // No-op
+  const selectedProvider = 'nowpayments'; // Always NOWPayments now
+  const setSelectedProvider = () => {}; // No-op
 
   const [seatPackages, setSeatPackages] = useState<Array<{ id: string; name: string; seats: number; price_cents: number }>>([]);
   const [seatStatus, setSeatStatus] = useState<{ used: number; effectiveLimit: number; bonusSeats: number; remaining: number | null; canAdd: boolean } | null>(null);
