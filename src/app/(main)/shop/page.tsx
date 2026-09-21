@@ -13,22 +13,23 @@ import { authedFetch } from '@/lib/supabase';
 import { useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import {
   Coins, Heart, Crown, Star, Shirt, Gift, Zap, Users, Loader2, Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import {
   GameShell, GameSectionTitle,
 } from '@/components/game/GameShell';
 import { PageHeader } from '@/components/game/PageHeader';
 import { notifyDataChange } from '@/hooks/useDataSync';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
-import { cn } from '@/lib/utils';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { NOWPAYMENTS_CURRENCIES } from '@/lib/nowpayments-server';
 
 type Collection = 'outfit' | 'prop' | 'membership' | 'credits';
 type TabId = Collection | 'seats';
@@ -91,14 +92,7 @@ const SEATS_GRADIENT = 'from-cyan-500 to-blue-700';
 const GRID = 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 gap-3 sm:gap-4 2xl:gap-5';
 
 /** Crypto options offered at checkout (NOWPayments). */
-const CRYPTO_PAY_OPTIONS = [
-  { id: 'USDT', label: 'USDT (TRC-20)', network: 'TRC-20' },
-  { id: 'BTC', label: 'Bitcoin', network: 'Bitcoin' },
-  { id: 'ETH', label: 'Ethereum', network: 'ERC-20' },
-  { id: 'LTC', label: 'Litecoin', network: 'Litecoin' },
-  { id: 'SOL', label: 'Solana', network: 'Solana' },
-  { id: 'TRX', label: 'Tron', network: 'TRC-20' },
-] as const;
+// Replaced by direct import of NOWPAYMENTS_CURRENCIES from @/lib/nowpayments-server
 
 /** Legacy ?tab= values → new collection tabs */
 const TAB_ALIAS: Record<string, TabId> = {
@@ -289,6 +283,7 @@ export default function ShopPage() {
   const [payStep, setPayStep] = useState<'method' | 'wallet'>('method');
   const [processingPay, setProcessingPay] = useState(false);
   const [payWallet, setPayWallet] = useState<{ address: string; amount: number; currency: string; network?: string } | null>(null);
+  const [cryptoCurrency, setCryptoCurrency] = useState('usdt'); // Default to USDT
   
   // Dummy state for backward compatibility with existing UI code (to be cleaned up later)
   // Using string type instead of literal to avoid TypeScript no-comparison errors
@@ -427,9 +422,12 @@ export default function ShopPage() {
     if (!payPkg) return;
     setProcessingPay(true);
     try {
+      // Use selected currency from UI, or fallback to BTC
+      const currency = paymentMethod || cryptoCurrency || 'btc';
+      
       const payload: Record<string, string> = { 
         package_id: payPkg.id, 
-        payment_method: paymentMethod || 'USDT',
+        payment_method: currency.toLowerCase(),
       };
 
       const res = await authedFetch('/api/v2/shop/tokens', {
@@ -442,7 +440,11 @@ export default function ShopPage() {
         toast.error(data.error || 'Checkout failed');
         return;
       }
-      if (data.invoiceId) {
+      if (data.invoiceUrl) {
+        window.location.href = data.invoiceUrl;
+        return;
+      }
+      if (data.payAddress) {
         setPayWallet({
           address: data.payAddress!,
           amount: data.payAmount!,
@@ -949,26 +951,39 @@ export default function ShopPage() {
                 </button>
               </div>
 
-              <p className="text-xs text-white/45 mb-3">Select cryptocurrency to pay ${(payPkg ? (payPkg.price_cents / 100).toFixed(2) : '0.00')}:</p>
-              <div className="grid grid-cols-2 gap-2">
-                {CRYPTO_PAY_OPTIONS.map((c) => (
+              {/* Provider selection */}
+              <p className="text-xs text-white/45 mb-3 bg-yellow-600/10 border border-[#ffd700]/20 rounded-lg p-3">
+                <strong>Cryptocurrency Payments Only.</strong><br/>
+                Powered by NOWPayments · USDT • BTC • ETH • LTC • SOL
+              </p>
+
+              {/* Crypto currency selection */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {NOWPAYMENTS_CURRENCIES.map((crypto) => (
                   <button
-                    key={c.id}
+                    key={crypto.id}
                     type="button"
-                    disabled={processingPay}
-                    onClick={() => void confirmTokenPay(c.id)}
-                    className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:border-[#ffd700]/60 hover:bg-white/10 transition text-left"
+                    onClick={() => setCryptoCurrency(crypto.id)}
+                    className={cn(
+                      "rounded-xl border px-3 py-3 text-left transition",
+                      cryptoCurrency === crypto.id
+                        ? "border-[#ffd700] bg-[#ffd700]/10"
+                        : "border-white/15 bg-white/5 hover:border-white/30 hover:bg-white/10"
+                    )}
                   >
-                    <span className="block font-bold">{c.label}</span>
-                    <span className="block text-[11px] text-white/40">{c.network}</span>
+                    <span className="block font-bold text-sm">{crypto.name}</span>
+                    <span className="block text-[11px] text-white/60 mt-0.5">{crypto.network}</span>
                   </button>
                 ))}
               </div>
-              {processingPay && (
-                <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-3">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
-                </div>
-              )}
+              
+              <Button 
+                onClick={() => confirmTokenPay()}
+                disabled={processingPay}
+                className="w-full bg-gradient-to-r from-[#ffd700] to-[#ff2e88] text-black font-bold"
+              >
+                {processingPay ? 'Processing...' : 'Continue'}
+              </Button>
 
               {selectedProvider === 'stripe' && (
                 <div className="space-y-4">

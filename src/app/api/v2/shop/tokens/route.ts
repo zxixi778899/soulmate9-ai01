@@ -196,11 +196,11 @@ export async function POST(req: NextRequest) {
       'http://localhost:5000';
 
     // ── NOWPayments Crypto Payment ─────────────────────────────────────────────
-    const paymentMethod = (body.payment_method as string | undefined) || 'USDT';
+    const preferredCurrency = (body.payment_method as string | undefined) || 'BTC';
     
-    const currency = Object.keys(NOWPAYMENTS_CURRENCIES).includes(paymentMethod.toUpperCase())
-      ? paymentMethod.toUpperCase()
-      : 'USDT';
+    const currency = Object.keys(NOWPAYMENTS_CURRENCIES).includes(preferredCurrency.toUpperCase())
+      ? preferredCurrency.toUpperCase()
+      : 'BTC';
 
     const description = isMembershipUpgrade
       ? `${(tokenPackage as any).name} Membership Upgrade`
@@ -209,15 +209,57 @@ export async function POST(req: NextRequest) {
     const successTab = isMembershipUpgrade ? 'membership' : 'tokens';
 
     // Create NOWPayments invoice for fixed amount payment
-    const invoice = await nowPaymentsCreateInvoice({
-      price_amount: priceCents / 100,
-      price_currency: 'USD',
-      pay_currency: currency,
-      order_id: `np_${auth.user.id}_${packageId}_${Date.now()}`,
-      order_description: description,
-      success_url: `${origin}/shop?checkout=success&tab=${successTab}`,
-      cancel_url: `${origin}/shop?checkout=canceled&tab=${successTab}`,
-    });
+    let invoice: { id: string; invoice_url: string; order_id: string } | null = null;
+    let attemptedCurrency = currency;
+    
+    // Try preferred currency, fall back to BTC if unavailable
+    try {
+      invoice = await nowPaymentsCreateInvoice({
+        price_amount: priceCents / 100,
+        price_currency: 'USD',
+        pay_currency: currency,
+        order_id: `np_${auth.user.id}_${packageId}_${Date.now()}`,
+        order_description: description,
+        success_url: `${origin}/shop?checkout=success&tab=${successTab}`,
+        cancel_url: `${origin}/shop?checkout=canceled&tab=${successTab}`,
+      });
+    } catch (err) {
+      const errStr = JSON.stringify(err);
+      // If currency is unavailable, try Bitcoin as fallback
+      if (errStr.includes('unavailable') || errStr.includes('INVALID_REQUEST_PARAMS')) {
+        logger.warn('[shop/tokens] Currency unavailable, falling back to BTC', { 
+          attempted: currency, 
+          error: errStr 
+        });
+        attemptedCurrency = 'BTC';
+        
+        invoice = await nowPaymentsCreateInvoice({
+          price_amount: priceCents / 100,
+          price_currency: 'USD',
+          pay_currency: attemptedCurrency,
+          order_id: `np_${auth.user.id}_${packageId}_${Date.now()}`,
+          order_description: description,
+          success_url: `${origin}/shop?checkout=success&tab=${successTab}`,
+          cancel_url: `${origin}/shop?checkout=canceled&tab=${successTab}`,
+        });
+        
+        return NextResponse.json({
+          status: 'invoice_created',
+          provider: 'nowpayments',
+          invoice_id: invoice.id,
+          invoice_url: invoice.invoice_url,
+          order_id: invoice.order_id,
+          amount_usd: priceCents / 100,
+          pay_currency: attemptedCurrency,
+          message: `Preferred currency ${currency} is unavailable, switched to Bitcoin`,
+          package: tokenPackage,
+          token_count: totalTokens,
+          is_membership_upgrade: isMembershipUpgrade,
+        });
+      } else {
+        throw err;
+      }
+    }
 
     if (!invoice?.id) {
       throw new Error('Failed to create NOWPayments invoice');
@@ -227,7 +269,7 @@ export async function POST(req: NextRequest) {
       user_id: auth.user.id,
       plan_id: packageId,
       amount_usd: priceCents / 100,
-      currency: currency,
+      currency: attemptedCurrency,
       tx_hash: invoice.id,
       status: 'awaiting_payment',
     });
@@ -239,7 +281,7 @@ export async function POST(req: NextRequest) {
       invoice_url: invoice.invoice_url,
       order_id: invoice.order_id,
       amount_usd: priceCents / 100,
-      pay_currency: currency,
+      pay_currency: attemptedCurrency,
       package: tokenPackage,
       token_count: totalTokens,
       is_membership_upgrade: isMembershipUpgrade,
