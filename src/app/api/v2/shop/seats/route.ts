@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     const invoice = await nowPaymentsCreateInvoice({
       price_amount: pack.price_cents / 100,
-      currency: 'USD',
+      price_currency: 'USD',
       pay_currency: payCurrency,
       order_id: `np_${auth.user.id}_seats_${pack.id}_${Date.now()}`,
       description: `${pack.name} - +${pack.seats} companion seat(s)`,
