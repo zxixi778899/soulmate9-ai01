@@ -380,7 +380,7 @@ export default function ShopPage() {
         notifyDataChange('shop');
         return;
       }
-      
+
       const res = await authedFetch('/api/shop/v2/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -388,12 +388,7 @@ export default function ShopPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        if (p.collection === 'membership') {
-          toast.success(t('shop.membershipActivated'));
-          notifyDataChange('membership');
-        } else {
-          toast.success(`${COLLECTION_EMOJI[p.collection]} ${p.name} ${t('shop.addedToBag')}`);
-        }
+        toast.success(`${COLLECTION_EMOJI[p.collection]} ${p.name} ${t('shop.addedToBag')}`);
         setDetail(null);
         if (typeof data.new_credits_balance === 'number') {
           setCredits((c) => ({
