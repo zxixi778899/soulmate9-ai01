@@ -286,7 +286,7 @@ export default function ShopPage() {
   const [tokenBalance, setTokenBalance] = useState(0);
   const [payPkg, setPayPkg] = useState<TokenPackage | null>(null);
   const [payOpen, setPayOpen] = useState(false);
-  const [payStep, setPayStep] = useState<'crypto' | 'wallet'>('crypto');
+  const [payStep, setPayStep] = useState<'method' | 'wallet'>('method');
   const [processingPay, setProcessingPay] = useState(false);
   const [payWallet, setPayWallet] = useState<{ address: string; amount: number; currency: string; network?: string } | null>(null);
 
@@ -395,11 +395,11 @@ export default function ShopPage() {
     setPurchasing(false);
   };
 
-  /* ── credit-pack checkout (NEXA Pay only) ───────────────────────────── */
+  /* ── credit-pack checkout (NOWPayments only) ───────────────────────────── */
   const buyTokenPack = (packageId: string) => {
     const pkg = tokenPackages.find((p) => p.id === packageId) || null;
     setPayPkg(pkg || { id: packageId, name: 'Credit Pack', token_count: 0, price_cents: 0 });
-    setPayStep('method');
+    setPayStep('crypto');
     setPayWallet(null);
     setPayOpen(true);
   };
