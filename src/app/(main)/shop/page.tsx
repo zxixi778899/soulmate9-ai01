@@ -866,29 +866,28 @@ export default function ShopPage() {
           {payStep === 'method' && (
             <div className="py-2">
               {/* Provider selection */}
-              <p className="text-xs text-white/45 mb-3">Select payment provider:</p>
-              <div className="grid grid-cols-1 gap-3 mb-6">
-                {/* Stripe - Default for US/EU/Global */}
+              <p className="text-xs text-white/45 mb-3 bg-yellow-600/10 border border-[#ffd700]/20 rounded-lg p-3">
+                <strong>We now accept cryptocurrency payments only.</strong><br/>
+                Powered by NOWPayments · USDT • BTC • ETH • LTC • SOL
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Stripe - REMOVED: Use only NOWPayments now */}
                 <button
                   type="button"
-                  onClick={() => setSelectedProvider('stripe')}
+                  onClick={() => {}}
                   className={cn(
-                    "rounded-xl border px-3 py-4 text-left transition relative",
+                    "rounded-xl border px-3 py-4 text-left transition relative opacity-50",
                     selectedProvider === 'stripe'
                       ? "border-blue-500 bg-blue-500/10"
                       : "border-white/15 bg-white/5 hover:border-white/30 hover:bg-white/10"
                   )}
+                  disabled={true}
                 >
                   <span className="block font-bold text-sm flex items-center gap-2">
                     💳 Stripe 
-                    <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded ml-auto">Recommended for US/EU</span>
+                    <span className="text-[10px] bg-gray-600 text-gray-300 px-1.5 py-0.5 rounded ml-auto">Removed</span>
                   </span>
-                  <span className="block text-[11px] text-white/60 mt-1">Credit Card • Apple Pay • Google Pay</span>
-                  <div className="mt-1 flex items-center gap-1">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Visa" className="h-3 w-auto opacity-70" />
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard-logo.svg" alt="Mastercard" className="h-3 w-auto ml-2 opacity-70" />
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Apple_Pay_logo.svg" alt="Apple Pay" className="h-3 w-auto ml-2 opacity-70" />
-                  </div>
+                  <span className="block text-[11px] text-white/60 mt-1">Credit Card • Apple Pay • Google Pay (No longer supported)</span>
                 </button>
                 
                 {/* NEXA Pay - LATAM/Brazil */}
@@ -917,12 +916,10 @@ export default function ShopPage() {
                 {/* NOWPayments/Crypto */}
                 <button
                   type="button"
-                  onClick={() => setSelectedProvider('nowpayments')}
+                  onClick={() => {}}
                   className={cn(
                     "rounded-xl border px-3 py-4 text-left transition relative",
-                    selectedProvider === 'nowpayments'
-                      ? "border-[#ffd700] bg-[#ffd700]/10"
-                      : "border-white/15 bg-white/5 hover:border-white/30 hover:bg-white/10"
+                    "border-[#ffd700] bg-[#ffd700]/10"
                   )}
                 >
                   <span className="block font-bold text-sm flex items-center gap-2">
@@ -938,29 +935,25 @@ export default function ShopPage() {
                 </button>
               </div>
 
-              {selectedProvider === 'nowpayments' && (
-                <>
-                  <p className="text-xs text-white/45 mb-3">Select a coin to pay ${(payPkg ? (payPkg.price_cents / 100).toFixed(2) : '0.00')}:</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {CRYPTO_PAY_OPTIONS.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        disabled={processingPay}
-                        onClick={() => void confirmTokenPay('nowpayments', c.id)}
-                        className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:border-[#ffd700]/60 hover:bg-white/10 transition text-left"
-                      >
-                        <span className="block font-bold">{c.label}</span>
-                        <span className="block text-[11px] text-white/40">{c.network}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {processingPay && (
-                    <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-3">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
-                    </div>
-                  )}
-                </>
+              <p className="text-xs text-white/45 mb-3">Select cryptocurrency to pay ${(payPkg ? (payPkg.price_cents / 100).toFixed(2) : '0.00')}:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {CRYPTO_PAY_OPTIONS.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={processingPay}
+                    onClick={() => void confirmTokenPay(c.id)}
+                    className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:border-[#ffd700]/60 hover:bg-white/10 transition text-left"
+                  >
+                    <span className="block font-bold">{c.label}</span>
+                    <span className="block text-[11px] text-white/40">{c.network}</span>
+                  </button>
+                ))}
+              </div>
+              {processingPay && (
+                <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-3">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
+                </div>
               )}
 
               {selectedProvider === 'stripe' && (
