@@ -99,49 +99,80 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const packageId = body.package_id as string | undefined;
+    const isMembershipUpgrade = (body.is_membership_upgrade as boolean) || false;
+    
     if (!packageId) {
       return NextResponse.json({ error: 'Missing package_id' }, { status: 400 });
     }
 
-    let tokenPackage =
-      FALLBACK_PACKAGES.find((p) => p.id === packageId) || null;
+    let tokenPackage: {
+      id: string;
+      name: string;
+      token_count: number;
+      bonus_tokens?: number;
+      price_cents: number;
+      sort_order?: number;
+      is_active?: boolean;
+    } | null = null;
 
-    const { data: dbPkg } = await auth.client
-      .from('token_packages')
-      .select('*')
-      .eq('id', packageId)
-      .maybeSingle();
+    // Check if it's a membership product from products table
+    if (isMembershipUpgrade) {
+      const sbAdmin = getSupabaseClient();
+      const { data: memberProduct } = await sbAdmin
+        .from('products')
+        .select('id, name, price_cents, virtual_meta, status, collection')
+        .eq('id', packageId)
+        .maybeSingle();
 
-    if (dbPkg) {
-      tokenPackage = dbPkg as typeof FALLBACK_PACKAGES[number];
-    }
+      if (memberProduct && memberProduct.status === 'active' && memberProduct.collection === 'membership') {
+        const meta = (memberProduct.virtual_meta || {}) as Record<string, unknown>;
+        tokenPackage = {
+          id: String(memberProduct.id),
+          name: String(meta.membership_tier || 'Membership'),
+          token_count: 0,
+          price_cents: Number(memberProduct.price_cents || 0),
+          sort_order: 0,
+          is_active: true,
+        };
+      }
+    } else {
+      // Check token_packages table first
+      const { data: dbPkg } = await auth.client
+        .from('token_packages')
+        .select('*')
+        .eq('id', packageId)
+        .maybeSingle();
 
-    // Fallback: admin-shop credit packs live in the products table (product UUIDs),
-    // not token_packages. Without this, purchasing them returns 404.
-    if (!tokenPackage) {
-      try {
-        const sbAdmin = getSupabaseClient();
-        const { data: prod } = await sbAdmin
-          .from('products')
-          .select('id, name, price_cents, virtual_meta, status')
-          .eq('id', packageId)
-          .maybeSingle();
-        if (prod && prod.status === 'active') {
-          const meta = (prod.virtual_meta || {}) as Record<string, unknown>;
-          if (meta.kind === 'credits') {
-            tokenPackage = {
-              id: String(prod.id),
-              name: String(prod.name || 'Credit Pack'),
-              token_count: Number(meta.token_amount || meta.credits || 0),
-              bonus_tokens: Number(meta.bonus_tokens || 0),
-              price_cents: Number(prod.price_cents || 0),
-              sort_order: 0,
-              is_active: true,
-            };
+      if (dbPkg) {
+        tokenPackage = dbPkg as typeof FALLBACK_PACKAGES[number];
+      }
+
+      // Fallback: admin-shop credit packs live in the products table
+      if (!tokenPackage) {
+        try {
+          const sbAdmin = getSupabaseClient();
+          const { data: prod } = await sbAdmin
+            .from('products')
+            .select('id, name, price_cents, virtual_meta, status')
+            .eq('id', packageId)
+            .maybeSingle();
+          if (prod && prod.status === 'active') {
+            const meta = (prod.virtual_meta || {}) as Record<string, unknown>;
+            if (meta.kind === 'credits') {
+              tokenPackage = {
+                id: String(prod.id),
+                name: String(prod.name || 'Credit Pack'),
+                token_count: Number(meta.token_amount || meta.credits || 0),
+                bonus_tokens: Number(meta.bonus_tokens || 0),
+                price_cents: Number(prod.price_cents || 0),
+                sort_order: 0,
+                is_active: true,
+              };
+            }
           }
+        } catch {
+          // non-critical — fall through to 404 below
         }
-      } catch {
-        // non-critical — fall through to 404 below
       }
     }
 
@@ -149,10 +180,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Package not found' }, { status: 404 });
     }
 
-    const totalTokens =
-      Number(tokenPackage.token_count || 0) + Number((tokenPackage as { bonus_tokens?: number }).bonus_tokens || 0);
+    const totalTokens = isMembershipUpgrade 
+      ? 0 
+      : Number(tokenPackage.token_count || 0) + Number((tokenPackage as { bonus_tokens?: number }).bonus_tokens || 0);
+    
     const priceCents = Number(tokenPackage.price_cents || 0);
-    if (priceCents <= 0 || totalTokens <= 0) {
+    
+    if (priceCents <= 0) {
       return NextResponse.json({ error: 'Invalid package pricing' }, { status: 400 });
     }
 
@@ -162,11 +196,17 @@ export async function POST(req: NextRequest) {
       'http://localhost:5000';
 
     // ── NOWPayments Crypto Payment ─────────────────────────────────────────────
-    const paymentMethod = (body.payment_method as string | undefined) || 'BTC';
+    const paymentMethod = (body.payment_method as string | undefined) || 'USDT';
     
     const currency = Object.keys(NOWPAYMENTS_CURRENCIES).includes(paymentMethod.toUpperCase())
       ? paymentMethod.toUpperCase()
-      : 'BTC';
+      : 'USDT';
+
+    const description = isMembershipUpgrade
+      ? `${(tokenPackage as any).name} Membership Upgrade`
+      : `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} tokens`;
+
+    const successTab = isMembershipUpgrade ? 'membership' : 'tokens';
 
     // Create NOWPayments invoice for fixed amount payment
     const invoice = await nowPaymentsCreateInvoice({
@@ -174,9 +214,9 @@ export async function POST(req: NextRequest) {
       price_currency: 'USD',
       pay_currency: currency,
       order_id: `np_${auth.user.id}_${packageId}_${Date.now()}`,
-      order_description: `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} tokens`,
-      success_url: `${origin}/shop?checkout=success&tokens=${totalTokens}&tab=tokens`,
-      cancel_url: `${origin}/shop?checkout=canceled&tab=tokens`,
+      order_description: description,
+      success_url: `${origin}/shop?checkout=success&tab=${successTab}`,
+      cancel_url: `${origin}/shop?checkout=canceled&tab=${successTab}`,
     });
 
     if (!invoice?.id) {
@@ -202,6 +242,7 @@ export async function POST(req: NextRequest) {
       pay_currency: currency,
       package: tokenPackage,
       token_count: totalTokens,
+      is_membership_upgrade: isMembershipUpgrade,
     });
   } catch (err: unknown) {
     logger.error('[shop/tokens] POST error', { error: String(err) });

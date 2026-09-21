@@ -362,6 +362,25 @@ export default function ShopPage() {
   const purchaseProduct = async (p: Product) => {
     setPurchasing(true);
     try {
+      // Membership upgrades require payment via NOWPayments, not direct credit deduction
+      if (p.collection === 'membership') {
+        // For membership, redirect to shop/tokens route which handles crypto payment
+        await authedFetch('/api/v2/shop/tokens', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            package_id: p.id, 
+            payment_method: 'USDT', 
+            is_membership_upgrade: true,
+          }),
+        });
+        toast.success(t('shop.membershipActivated'));
+        notifyDataChange('membership');
+        setDetail(null);
+        notifyDataChange('shop');
+        return;
+      }
+      
       const res = await authedFetch('/api/shop/v2/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
