@@ -170,8 +170,8 @@ export async function POST(req: NextRequest) {
 
     // Create NOWPayments invoice for fixed amount payment
     const invoice = await nowPaymentsCreateInvoice({
-      amount: (priceCents / 100).toString(),
-      currency: 'USD',
+      price_amount: priceCents / 100,
+      price_currency: 'USD',
       pay_currency: currency,
       order_id: `np_${auth.user.id}_${packageId}_${Date.now()}`,
       description: `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} tokens`,
