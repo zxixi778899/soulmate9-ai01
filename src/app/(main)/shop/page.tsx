@@ -292,7 +292,7 @@ export default function ShopPage() {
   
   // Dummy state for backward compatibility with existing UI code (to be cleaned up later)
   const selectedProvider = 'nowpayments'; // Always NOWPayments now
-  const setSelectedProvider = () => {}; // No-op
+  const setSelectedProvider: any = () => {}; // No-op, accepts any args to prevent TS errors
 
   const [seatPackages, setSeatPackages] = useState<Array<{ id: string; name: string; seats: number; price_cents: number }>>([]);
   const [seatStatus, setSeatStatus] = useState<{ used: number; effectiveLimit: number; bonusSeats: number; remaining: number | null; canAdd: boolean } | null>(null);
