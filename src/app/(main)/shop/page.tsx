@@ -395,11 +395,11 @@ export default function ShopPage() {
     setPurchasing(false);
   };
 
-  /* ── credit-pack checkout (NOWPayments only) ───────────────────────────── */
+  /* ── credit-pack checkout (NEXA Pay only) ───────────────────────────── */
   const buyTokenPack = (packageId: string) => {
     const pkg = tokenPackages.find((p) => p.id === packageId) || null;
     setPayPkg(pkg || { id: packageId, name: 'Credit Pack', token_count: 0, price_cents: 0 });
-    setPayStep('crypto');
+    setPayStep('method');
     setPayWallet(null);
     setPayOpen(true);
   };
