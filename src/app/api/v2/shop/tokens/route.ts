@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
       price_currency: 'USD',
       pay_currency: currency,
       order_id: `np_${auth.user.id}_${packageId}_${Date.now()}`,
-      description: `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} tokens`,
+      order_description: `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} tokens`,
       success_url: `${origin}/shop?checkout=success&tokens=${totalTokens}&tab=tokens`,
       cancel_url: `${origin}/shop?checkout=canceled&tab=tokens`,
     });
