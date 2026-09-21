@@ -1009,15 +1009,15 @@ export default function ShopPage() {
             </div>
           )}
 
-          {/* NexaPay - REMOVED */}
-          {payStep === 'nexapay' && (
+          {/* NexaPay redirect page - REMOVED */}
+          {/* {payStep === 'nexapay' && (
             <div className="py-2 space-y-3">
               <p className="text-xs text-white/50 py-8 text-center">
                 ❌ NEXA Pay redirect has been removed.<br/>
                 Please use NOWPayments cryptocurrency checkout instead.
               </p>
             </div>
-          )}
+          )} */}
         </DialogContent>
       </Dialog>
     </GameShell>
