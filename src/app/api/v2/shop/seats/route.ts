@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       price_currency: 'USD',
       pay_currency: payCurrency,
       order_id: `np_${auth.user.id}_seats_${pack.id}_${Date.now()}`,
-      description: `${pack.name} - +${pack.seats} companion seat(s)`,
+      order_description: `${pack.name} - +${pack.seats} companion seat(s)`,
       success_url: `${origin}/shop?checkout=success&seats=${pack.seats}`,
       cancel_url: `${origin}/shop?checkout=canceled`,
     });
