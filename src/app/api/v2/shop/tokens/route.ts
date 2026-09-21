@@ -246,15 +246,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           status: 'invoice_created',
           provider: 'nowpayments',
-          invoice_id: invoice.id,
-          invoice_url: invoice.invoice_url,
-          order_id: invoice.order_id,
-          amount_usd: priceCents / 100,
-          pay_currency: attemptedCurrency,
+          invoiceId: invoice.id,
+          invoiceUrl: invoice.invoice_url,
+          orderId: invoice.order_id,
+          amountUsd: priceCents / 100,
+          payCurrency: attemptedCurrency,
           message: `Preferred currency ${currency} is unavailable, switched to Bitcoin`,
           package: tokenPackage,
-          token_count: totalTokens,
-          is_membership_upgrade: isMembershipUpgrade,
+          tokenCount: totalTokens,
+          isMembershipUpgrade: isMembershipUpgrade,
         });
       } else {
         throw err;
@@ -277,14 +277,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       status: 'invoice_created',
       provider: 'nowpayments',
-      invoice_id: invoice.id,
-      invoice_url: invoice.invoice_url,
-      order_id: invoice.order_id,
-      amount_usd: priceCents / 100,
-      pay_currency: attemptedCurrency,
+      invoiceId: invoice.id,
+      invoiceUrl: invoice.invoice_url,
+      orderId: invoice.order_id,
+      amountUsd: priceCents / 100,
+      payCurrency: attemptedCurrency,
       package: tokenPackage,
-      token_count: totalTokens,
-      is_membership_upgrade: isMembershipUpgrade,
+      tokenCount: totalTokens,
+      isMembershipUpgrade: isMembershipUpgrade,
     });
   } catch (err: unknown) {
     logger.error('[shop/tokens] POST error', { error: String(err) });
