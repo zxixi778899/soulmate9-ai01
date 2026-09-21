@@ -291,7 +291,8 @@ export default function ShopPage() {
   const [payWallet, setPayWallet] = useState<{ address: string; amount: number; currency: string; network?: string } | null>(null);
   
   // Dummy state for backward compatibility with existing UI code (to be cleaned up later)
-  const selectedProvider = 'nowpayments'; // Always NOWPayments now
+  // Using string type instead of literal to avoid TypeScript no-comparison errors
+  const selectedProvider: string = 'nowpayments'; // Always NOWPayments now (placeholder)
   const setSelectedProvider: any = () => {}; // No-op, accepts any args to prevent TS errors
 
   const [seatPackages, setSeatPackages] = useState<Array<{ id: string; name: string; seats: number; price_cents: number }>>([]);
