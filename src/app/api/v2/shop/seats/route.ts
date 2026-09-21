@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { getStripe } from '@/lib/stripe-server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 import { COMPANION_SEAT_PACKAGES, getSeatStatus, packageById, type SeatClient } from '@/lib/companion-seats';
+import {
+  nowPaymentsCreateInvoice,
+  nowPaymentsCreatePayment,
+  NOWPAYMENTS_CURRENCIES,
+} from '@/lib/nowpayments-server';
 
 /**
  * GET  /api/v2/shop/seats — packages + current seat status
@@ -48,44 +53,40 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_APP_URL ||
       'http://localhost:5000';
 
-    const stripe = getStripe();
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            unit_amount: pack.price_cents,
-            product_data: {
-              name: pack.name,
-              description: `Permanent +${pack.seats} companion seat(s)`,
-              tax_code: 'txcd_10000000',
-            },
-            tax_behavior: 'exclusive',
-          },
-          quantity: 1,
-        },
-      ],
-      customer_email: auth.user.email || undefined,
-      client_reference_id: auth.user.id,
-      metadata: {
-        type: 'companion_seats',
-        user_id: auth.user.id,
-        package_id: pack.id,
-        seats: String(pack.seats),
-        price_cents: String(pack.price_cents),
-      },
+    // ── NOWPayments Crypto Payment ─────────────────────────────────────────────
+    const payCurrency = 'BTC';
+
+    const invoice = await nowPaymentsCreateInvoice({
+      amount: (pack.price_cents / 100).toString(),
+      currency: 'USD',
+      pay_currency: payCurrency,
+      order_id: `np_${auth.user.id}_seats_${pack.id}_${Date.now()}`,
+      description: `${pack.name} - +${pack.seats} companion seat(s)`,
       success_url: `${origin}/shop?checkout=success&seats=${pack.seats}`,
       cancel_url: `${origin}/shop?checkout=canceled`,
-      automatic_tax: { enabled: true },
-      billing_address_collection: 'required',
-      tax_id_collection: { enabled: true },
+    });
+
+    if (!invoice?.id) {
+      throw new Error('Failed to create NOWPayments invoice');
+    }
+
+    await auth.client.from('crypto_payments').insert({
+      user_id: auth.user.id,
+      plan_id: pack.id,
+      amount_usd: pack.price_cents / 100,
+      currency: payCurrency,
+      tx_hash: invoice.id,
+      status: 'awaiting_payment',
     });
 
     return NextResponse.json({
-      status: 'checkout_created',
-      url: session.url,
+      status: 'invoice_created',
+      provider: 'nowpayments',
+      invoice_id: invoice.id,
+      pay_address: invoice.pay_address,
+      pay_amount: invoice.pay_amount,
+      amount_usd: pack.price_cents / 100,
+      pay_currency: payCurrency,
       package: pack,
     });
   } catch (err: unknown) {

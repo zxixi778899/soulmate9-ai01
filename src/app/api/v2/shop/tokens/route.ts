@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { getStripe } from '@/lib/stripe-server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 import {
@@ -8,7 +7,6 @@ import {
   nowPaymentsCreatePayment,
   NOWPAYMENTS_CURRENCIES,
 } from '@/lib/nowpayments-server';
-import { createNexaPayPayment, NEXAPAY_PAYMENT_METHODS } from '@/lib/nexapay-server';
 
 /** Built-in packages when token_packages table is empty / missing.
  *  Base rate: 1000 credits = $9.99 (synced with credit-system.ts TOKEN_PACKAGES). */
@@ -158,49 +156,50 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid package pricing' }, { status: 400 });
     }
 
-    const provider = (body.provider as string | undefined) || 'stripe';
     const origin =
       req.headers.get('origin') ||
       process.env.NEXT_PUBLIC_APP_URL ||
       'http://localhost:5000';
 
-    // ── NexaPay (Unified Payment Gateway) ───────────────────────────────────────
-    // This is the ONLY supported payment provider for credit purchases
-    const paymentMethod = (body.payment_method as string | undefined) || 'pix';
+    // ── NOWPayments Crypto Payment ─────────────────────────────────────────────
+    const paymentMethod = (body.payment_method as string | undefined) || 'BTC';
     
-    if (!NEXAPAY_PAYMENT_METHODS.some((m) => m.id === paymentMethod)) {
-      return NextResponse.json({ error: 'Unsupported payment method' }, { status: 400 });
-    }
+    const currency = Object.keys(NOWPAYMENTS_CURRENCIES).includes(paymentMethod.toUpperCase())
+      ? paymentMethod.toUpperCase()
+      : 'BTC';
 
-    // order_id encodes the grant amount: nxp_{userId}_tokens_{totalTokens}_{ts}
-    const orderId = `nxp_${auth.user.id}_tokens_${totalTokens}_${Date.now()}`;
-
-    const payment = await createNexaPayPayment({
-      amount_cents: priceCents,
+    // Create NOWPayments invoice for fixed amount payment
+    const invoice = await nowPaymentsCreateInvoice({
+      amount: (priceCents / 100).toString(),
       currency: 'USD',
-      payment_method: paymentMethod as never,
-      order_id: orderId,
-      description: `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} credits`,
-      customer_email: auth.user.email || '',
+      pay_currency: currency,
+      order_id: `np_${auth.user.id}_${packageId}_${Date.now()}`,
+      description: `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} tokens`,
       success_url: `${origin}/shop?checkout=success&tokens=${totalTokens}&tab=tokens`,
       cancel_url: `${origin}/shop?checkout=canceled&tab=tokens`,
-      webhook_url: `${origin}/api/nexapay/webhook`,
     });
+
+    if (!invoice?.id) {
+      throw new Error('Failed to create NOWPayments invoice');
+    }
 
     await auth.client.from('crypto_payments').insert({
       user_id: auth.user.id,
       plan_id: packageId,
       amount_usd: priceCents / 100,
-      currency: 'BRL',
-      tx_hash: payment.payment_id,
+      currency: currency,
+      tx_hash: invoice.id,
       status: 'awaiting_payment',
     });
 
     return NextResponse.json({
-      status: 'checkout_created',
-      provider: 'nexapay',
-      url: payment.payment_url,
-      amountBrl: payment.amount_brl,
+      status: 'invoice_created',
+      provider: 'nowpayments',
+      invoice_id: invoice.id,
+      pay_address: invoice.pay_address,
+      pay_amount: invoice.pay_amount,
+      amount_usd: priceCents / 100,
+      pay_currency: currency,
       package: tokenPackage,
       token_count: totalTokens,
     });

@@ -1,44 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import { getStripeCheckoutGate } from '@/lib/payment-compliance';
+import { getNowPaymentsCheckoutGate } from '@/lib/payment-compliance';
 
-describe('getStripeCheckoutGate', () => {
-  it('always blocks Stripe for adult mode', () => {
-    expect(getStripeCheckoutGate({ NODE_ENV: 'development', CONTENT_MODE: 'adult' })).toEqual({
-      allowed: false,
-      code: 'adult_content',
+describe('getNowPaymentsCheckoutGate', () => {
+  it('allows NOWPayments for adult mode', () => {
+    expect(getNowPaymentsCheckoutGate({ NODE_ENV: 'development', CONTENT_MODE: 'adult' })).toEqual({
+      allowed: true,
     });
   });
 
   it('allows an unconfigured local development environment', () => {
-    expect(getStripeCheckoutGate({ NODE_ENV: 'development' })).toEqual({ allowed: true });
+    expect(getNowPaymentsCheckoutGate({ NODE_ENV: 'development' })).toEqual({ allowed: true });
   });
 
-  it('fails closed when production mode is not explicit', () => {
-    expect(getStripeCheckoutGate({ NODE_ENV: 'production', PAYMENT_PROVIDER: 'stripe' })).toEqual({
+  it('allows nowpayments provider in production', () => {
+    expect(getNowPaymentsCheckoutGate({ NODE_ENV: 'production', PAYMENT_PROVIDER: 'nowpayments' })).toEqual({
       allowed: false,
-      code: 'invalid_content_mode',
+      code: 'missing_approval',
     });
   });
 
-  it('requires a written approval reference in SFW production', () => {
+  it('requires a written approval reference in production', () => {
     expect(
-      getStripeCheckoutGate({
+      getNowPaymentsCheckoutGate({
         NODE_ENV: 'production',
-        CONTENT_MODE: 'sfw',
-        PAYMENT_PROVIDER: 'stripe',
-      }),
-    ).toEqual({ allowed: false, code: 'missing_approval' });
-  });
-
-  it('allows approved SFW production checkout', () => {
-    expect(
-      getStripeCheckoutGate({
-        NODE_ENV: 'production',
-        CONTENT_MODE: 'sfw',
-        PAYMENT_PROVIDER: 'stripe',
+        PAYMENT_PROVIDER: 'nowpayments',
         PAYMENT_PROVIDER_APPROVAL_REF: 'case-123',
       }),
     ).toEqual({ allowed: true });
+  });
+
+  it('blocks unsupported providers in production', () => {
+    expect(
+      getNowPaymentsCheckoutGate({
+        NODE_ENV: 'production',
+        PAYMENT_PROVIDER: 'stripe',
+      }),
+    ).toEqual({ allowed: false, code: 'provider_disabled' });
   });
 });
 

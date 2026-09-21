@@ -92,20 +92,12 @@ const GRID = 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min
 
 /** Crypto options offered at checkout (NOWPayments). */
 const CRYPTO_PAY_OPTIONS = [
-  { id: 'usdttrc20', label: 'USDT', network: 'TRC-20' },
-  { id: 'btc', label: 'BTC', network: 'Bitcoin' },
-  { id: 'eth', label: 'ETH', network: 'ERC-20' },
-  { id: 'ltc', label: 'LTC', network: 'Litecoin' },
-  { id: 'sol', label: 'SOL', network: 'Solana' },
-  { id: 'trx', label: 'TRX', network: 'TRC-20' },
-] as const;
-
-/** NexaPay payment methods for LATAM (Pix, TED, Card, Boleto) */
-const NEXAPAY_PAYMENT_METHODS = [
-  { id: 'pix', label: 'Pix', description: 'Brazil instant payment (instant)' },
-  { id: 'ted', label: 'TED', description: 'Brazil bank transfer (1-2h)' },
-  { id: 'card_latam', label: 'Credit Card', description: 'LATAM credit card (instant)' },
-  { id: 'boleto', label: 'Boleto', description: 'Brazil payment slip (1-3 days)' },
+  { id: 'USDT', label: 'USDT (TRC-20)', network: 'TRC-20' },
+  { id: 'BTC', label: 'Bitcoin', network: 'Bitcoin' },
+  { id: 'ETH', label: 'Ethereum', network: 'ERC-20' },
+  { id: 'LTC', label: 'Litecoin', network: 'Litecoin' },
+  { id: 'SOL', label: 'Solana', network: 'Solana' },
+  { id: 'TRX', label: 'Tron', network: 'TRC-20' },
 ] as const;
 
 /** Legacy ?tab= values → new collection tabs */
@@ -294,8 +286,7 @@ export default function ShopPage() {
   const [tokenBalance, setTokenBalance] = useState(0);
   const [payPkg, setPayPkg] = useState<TokenPackage | null>(null);
   const [payOpen, setPayOpen] = useState(false);
-  const [payStep, setPayStep] = useState<'method' | 'wallet' | 'nexapay'>('method');
-  const [selectedProvider, setSelectedProvider] = useState<'stripe' | 'nexapay' | 'nowpayments'>('stripe');
+  const [payStep, setPayStep] = useState<'crypto' | 'wallet'>('crypto');
   const [processingPay, setProcessingPay] = useState(false);
   const [payWallet, setPayWallet] = useState<{ address: string; amount: number; currency: string; network?: string } | null>(null);
 
@@ -413,14 +404,13 @@ export default function ShopPage() {
     setPayOpen(true);
   };
 
-  const confirmTokenPay = async (paymentMethod: 'stripe' | 'nexapay' | 'nowpayments', extra?: string) => {
+  const confirmTokenPay = async (paymentMethod?: string) => {
     if (!payPkg) return;
     setProcessingPay(true);
     try {
       const payload: Record<string, string> = { 
         package_id: payPkg.id, 
-        provider: 'nexapay',
-        payment_method: paymentMethod 
+        payment_method: paymentMethod || 'USDT',
       };
 
       const res = await authedFetch('/api/v2/shop/tokens', {
@@ -433,16 +423,12 @@ export default function ShopPage() {
         toast.error(data.error || 'Checkout failed');
         return;
       }
-      if (data.url) {
-        window.location.href = data.url;
-        return;
-      }
-      if (data.payAddress) {
+      if (data.invoiceId) {
         setPayWallet({
-          address: data.payAddress,
-          amount: data.payAmount,
+          address: data.payAddress!,
+          amount: data.payAmount!,
           currency: data.payCurrency,
-          network: data.network,
+          network: undefined,
         });
         setPayStep('wallet');
         return;

@@ -42,15 +42,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 
 const PROVIDER_CONFIG: Record<string, { label: string; color: string }> = {
   NowPayments: { label: 'NOWPayments', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  NexaPay: { label: 'NexaPay', color: 'bg-sky-500/10 text-sky-400 border-sky-500/20' },
-  Stripe: { label: 'Stripe', color: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
   Crypto: { label: 'Crypto', color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
 };
 
 function getProvider(payment: CryptoPayment): string {
   if (payment.tx_hash?.startsWith('np_')) return 'NowPayments';
-  if (payment.tx_hash?.startsWith('nxp_')) return 'NexaPay';
-  if (payment.tx_hash?.startsWith('stripe_') || payment.tx_hash?.startsWith('cs_')) return 'Stripe';
   return 'Crypto';
 }
 
@@ -149,8 +145,6 @@ export default function AdminCryptoPage() {
     { label: 'All', value: null },
     { label: 'Crypto', value: 'crypto' },
     { label: 'NOWPayments', value: 'nowpayments' },
-    { label: 'NexaPay', value: 'nexapay' },
-    { label: 'Stripe', value: 'stripe' },
   ];
 
   return (
@@ -159,7 +153,7 @@ export default function AdminCryptoPage() {
         <div>
           <h1 className="text-2xl font-bold">Payment Management</h1>
           <p className="text-sm text-[#8B8BA3] mt-1">
-            Manage all payment verifications — Crypto, NOWPayments, NexaPay, Stripe
+            Manage all payment verifications — Crypto, NOWPayments
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchPayments} disabled={loading}>

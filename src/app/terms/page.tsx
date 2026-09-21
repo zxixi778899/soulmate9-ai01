@@ -86,9 +86,7 @@ export default function TermsOfServicePage() {
             period. We do not provide refunds for partial billing periods.
           </p>
           <p className="text-muted-foreground leading-relaxed mt-3">
-            We accept payments via credit/debit card (processed by Stripe), cryptocurrency
-            (processed by NOWPayments), and select local payment methods in Latin America
-            (processed by NexaPay). Prices are subject to change with 30 days&rsquo; notice.
+            We accept payments via cryptocurrency (processed by NOWPayments). Prices are subject to change with 30 days&rsquo; notice.
             Continued use after a price change constitutes acceptance of the new price.
           </p>
           <p className="text-muted-foreground leading-relaxed mt-3">

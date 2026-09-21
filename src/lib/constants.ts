@@ -210,8 +210,3 @@ export const ENDPOINT_TIMEOUT_MS = 300000;        // 5 minutes for general endpo
 export const SDXL_TIMEOUT_MS = 300000;            // 5 minutes for SDXL generation
 export const CLOUD_TIMEOUT_MS = 180000;           // 3 minutes for cloud fallback
 export const IMAGE_CACHE_MINUTES = 7;             // 7 days TTL for image cache
-
-export const STRIPE_PRICE_IDS = {
-  pro: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || '',
-  unlimited: process.env.NEXT_PUBLIC_STRIPE_UNLIMITED_PRICE_ID || '',
-} as const;
