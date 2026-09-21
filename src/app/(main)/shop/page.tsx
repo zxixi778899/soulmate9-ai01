@@ -958,62 +958,20 @@ export default function ShopPage() {
 
               {selectedProvider === 'stripe' && (
                 <div className="space-y-4">
-                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 text-center">
-                    <p className="font-semibold text-blue-400 mb-1">Stripe Checkout</p>
-                    <p className="text-sm text-white/60 mb-3">
-                      Pay with Credit Card, Apple Pay, or Google Pay
-                    </p>
-                    <div className="flex items-center justify-center gap-2 opacity-70">
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Visa" className="h-4 w-auto" />
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard-logo.svg" alt="Mastercard" className="h-4 w-auto" />
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Apple_Pay_logo.svg" alt="Apple Pay" className="h-4 w-auto" />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={processingPay}
-                    onClick={() => void confirmTokenPay('stripe')}
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
-                  >
-                    {processingPay ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Processing...
-                      </>
-                    ) : (
-                      <>
-                        💳 Continue with Stripe
-                      </>
-                    )}
-                  </button>
-                  <p className="text-xs text-white/40 text-center">
-                    🔒 Secure payment powered by Stripe<br/>
-                    Automatic tax calculation enabled
+                  <p className="text-xs text-white/50 py-8 text-center">
+                    ❌ Stripe payment method has been removed.<br/>
+                    Please use NOWPayments cryptocurrency checkout instead.
                   </p>
                 </div>
               )}
 
+              {/* NexaPay - REMOVED: No longer supported */}
               {selectedProvider === 'nexapay' && (
                 <>
-                  <p className="text-xs text-white/45 mb-3">Select payment method for ${(payPkg ? (payPkg.price_cents / 100).toFixed(2) : '0.00')}:</p>
-                  <div className="space-y-2">
-                    {NEXAPAY_PAYMENT_METHODS.map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        disabled={processingPay}
-                        onClick={() => void confirmTokenPay('nexapay', m.id)}
-                        className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-left hover:border-emerald-400/60 hover:bg-white/10 transition"
-                      >
-                        <span className="block font-bold">{m.label}</span>
-                        <span className="block text-[11px] text-white/50">{m.description}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {processingPay && (
-                    <div className="flex items-center justify-center gap-2 text-sm text-white/50 pt-3">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Creating checkout…
-                    </div>
-                  )}
+                  <p className="text-xs text-white/50 py-8 text-center">
+                    ❌ NexaPay payment method has been removed.<br/>
+                    Please use NOWPayments cryptocurrency checkout instead.
+                  </p>
                 </>
               )}
 
@@ -1051,15 +1009,12 @@ export default function ShopPage() {
             </div>
           )}
 
-          {/* NexaPay redirect message */}
+          {/* NexaPay - REMOVED */}
           {payStep === 'nexapay' && (
             <div className="py-2 space-y-3">
-              <div className="flex items-center justify-center gap-3 text-emerald-400 mb-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
-                <span className="font-medium">Redirecting to NEXA Pay checkout…</span>
-              </div>
-              <p className="text-xs text-white/45 text-center">
-                You will be redirected to complete your payment via Pix, Credit Card or TED.
+              <p className="text-xs text-white/50 py-8 text-center">
+                ❌ NEXA Pay redirect has been removed.<br/>
+                Please use NOWPayments cryptocurrency checkout instead.
               </p>
             </div>
           )}
