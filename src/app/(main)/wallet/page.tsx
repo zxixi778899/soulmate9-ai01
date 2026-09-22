@@ -39,7 +39,7 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [packages, setPackages] = useState<TokenPackage[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
-  const [payCurrency, setPayCurrency] = useState('USDT'); // Default to USDT
+  const [payCurrency, setPayCurrency] = useState('usdttrc20'); // Default to USDT TRC-20 (NOWPayments format)
   const [payPkg, setPayPkg] = useState<TokenPackage | null>(null);
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const [cryptoDialog, setCryptoDialog] = useState<{
@@ -53,13 +53,13 @@ export default function WalletPage() {
     pkgName: string;
   } | null>(null);
 
-  // Currency options
+  // Currency options - use lowercase format required by NOWPayments API
   const PAYMENT_CURRENCIES = [
-    { id: 'USDT', name: 'USDT (TRC-20)', symbol: 'USDT' },
-    { id: 'BTC', name: 'Bitcoin', symbol: '₿' },
-    { id: 'ETH', name: 'Ethereum', symbol: 'Ξ' },
-    { id: 'LTC', name: 'Litecoin', symbol: 'Ł' },
-    { id: 'SOL', name: 'Solana', symbol: '◎' },
+    { id: 'usdttrc20', name: 'USDT (TRC-20)', symbol: 'USDT' },
+    { id: 'btc', name: 'Bitcoin', symbol: '₿' },
+    { id: 'eth', name: 'Ethereum (ERC-20)', symbol: 'Ξ' },
+    { id: 'ltc', name: 'Litecoin', symbol: 'Ł' },
+    { id: 'sol', name: 'Solana', symbol: '◎' },
   ];
 
   useEffect(() => {

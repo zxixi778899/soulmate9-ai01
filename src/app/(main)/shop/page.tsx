@@ -360,12 +360,13 @@ export default function ShopPage() {
       // Membership upgrades require payment via NOWPayments, not direct credit deduction
       if (p.collection === 'membership') {
         // For membership, redirect to shop/tokens route which handles crypto payment
+        // Use USDT TRC-20 as default for shop page (matches wallet page default)
         const res = await authedFetch('/api/v2/shop/tokens', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             package_id: p.id, 
-            payment_method: 'USDT', 
+            payment_method: 'usdttrc20', // NOWPayments currency format (lowercase with network suffix)
             is_membership_upgrade: true,
           }),
         });
