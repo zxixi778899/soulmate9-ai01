@@ -360,7 +360,7 @@ export default function ShopPage() {
       // Membership upgrades require payment via NOWPayments, not direct credit deduction
       if (p.collection === 'membership') {
         // For membership, redirect to shop/tokens route which handles crypto payment
-        await authedFetch('/api/v2/shop/tokens', {
+        const res = await authedFetch('/api/v2/shop/tokens', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -369,10 +369,14 @@ export default function ShopPage() {
             is_membership_upgrade: true,
           }),
         });
-        toast.success(t('shop.membershipActivated'));
-        notifyDataChange('membership');
-        setDetail(null);
-        notifyDataChange('shop');
+        const data = await res.json();
+        
+        if (!res.ok || !data.invoiceUrl) {
+          toast.error(data.error || 'Membership purchase failed');
+          return;
+        }
+        
+        window.location.href = data.invoiceUrl;
         return;
       }
 
@@ -394,7 +398,7 @@ export default function ShopPage() {
         notifyDataChange('shop');
         authedFetch('/api/v2/shop/tokens')
           .then((r) => r.json())
-          .then((d) => setTokenBalance(Number(d.user_balance) || 0))
+          .then((d) => setTokenBalance(Number(d.balance) || 0))
           .catch(() => {});
       } else if (res.status === 402) {
         toast.error(t('shop.insufficient'), {
@@ -442,16 +446,6 @@ export default function ShopPage() {
       }
       if (data.invoiceUrl) {
         window.location.href = data.invoiceUrl;
-        return;
-      }
-      if (data.payAddress) {
-        setPayWallet({
-          address: data.payAddress!,
-          amount: data.payAmount!,
-          currency: data.payCurrency,
-          network: undefined,
-        });
-        setPayStep('wallet');
         return;
       }
       toast.error('Checkout failed');

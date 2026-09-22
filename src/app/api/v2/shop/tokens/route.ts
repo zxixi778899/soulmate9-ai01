@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       packages: mergedPackages,
-      user_balance: profile?.credits_remaining ?? 0,
+      balance: profile?.credits_remaining ?? 0,
     });
   } catch (err: unknown) {
     logger.error('[shop/tokens] GET error', { error: String(err) });
