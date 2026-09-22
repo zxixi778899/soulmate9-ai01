@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
     const minAmount = getMinimumAmount(validatedCurrency);
     
     // Add 20% safety buffer to account for exchange rate fluctuations and rounding
-    const requiredMinWithBuffer = minAmount * 1.2;
+    const requiredMinWithBuffer = Math.ceil(minAmount * 1.2 * 100) / 100; // Round up to cent
     
     logger.info('[embed-payment] Min amount check', {
       packagePrice: priceCents / 100,
@@ -197,6 +197,7 @@ export async function POST(request: NextRequest) {
     let actualPriceCents = priceCents;
     if (priceCents / 100 < requiredMinWithBuffer) {
       // Find next higher price tier from packages
+      
       interface PackageInfo {
         id: string;
         name: string;
@@ -237,11 +238,11 @@ export async function POST(request: NextRequest) {
         }
       } catch { /* non-critical */ }
       
-      // Sort by price and find next tier
+      // Sort by price and find next tier that meets minimum requirement
       availablePackages.sort((a, b) => a.price_cents - b.price_cents);
       
       const nextPackage = availablePackages.find(
-        pkg => pkg.price_cents > priceCents && pkg.price_cents / 100 >= minAmount
+        pkg => pkg.price_cents >= requiredMinWithBuffer * 100
       );
       
       if (nextPackage) {
