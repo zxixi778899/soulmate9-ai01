@@ -132,18 +132,9 @@ export default function WalletPage() {
           network: result.network,         // Network info (TRC-20, BTC, etc.)
           amountUsd: result.amountUsd,     // USD price
           txHash: '',                       // User's transaction hash (to be filled after paying)
-          step: 'pay',
+          step: 'pay',                      // Start in 'pay' mode to show QR code
           pkgName: result.package.name,
         });
-        
-        // Auto-submit on page load to get auto-confirmation
-        // This allows users to skip manual txHash submission
-        setTimeout(() => {
-          setCryptoDialog(prev => ({ ...prev!, step: 'submitting' }));
-          handleSubmitCryptoPayment().finally(() => {
-            // Keep showing submitting until done/failed
-          });
-        }, 1000);
         
         showToastSuccess(result);
       }
