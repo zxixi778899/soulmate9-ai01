@@ -172,8 +172,6 @@ export async function POST(request: NextRequest) {
     ? 0
     : Number(tokenPackage.token_count || 0) + Number((tokenPackage as { bonus_tokens?: number }).bonus_tokens || 0);
 
-  const priceCents = Number(tokenPackage.price_cents || 0);
-
   if (priceCents <= 0) {
     return NextResponse.json({ error: 'Invalid package pricing' }, { status: 400 });
   }
