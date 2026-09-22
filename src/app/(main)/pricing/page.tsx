@@ -76,8 +76,8 @@ const PLANS: PricingPlan[] = [
     nameKey: 'pricing.pro',
     priceMonthly: '$9.99',
     originalMonthly: '$19.99', // pre-beta anchor — beta sale is −50%
-    priceYearly: '$99.99',
-    originalYearly: '$199.98',
+    priceYearly: '¥79.99',
+    originalYearly: '¥159.99',
     periodMonthlyKey: 'pricing.month',
     periodYearlyKey: 'pricing.periodYear',
     yearlyNoteKey: 'pricing.billedYearlyNotePro',
@@ -103,8 +103,8 @@ const PLANS: PricingPlan[] = [
     nameKey: 'pricing.planPremium',
     priceMonthly: '$19.99',
     originalMonthly: '$39.98', // pre-beta anchor — beta sale is −50%
-    priceYearly: '$199.99',
-    originalYearly: '$399.98',
+    priceYearly: '¥159.99',
+    originalYearly: '¥319.99',
     periodMonthlyKey: 'pricing.month',
     periodYearlyKey: 'pricing.periodYear',
     yearlyNoteKey: 'pricing.billedYearlyNotePremium',
@@ -129,8 +129,8 @@ const PLANS: PricingPlan[] = [
     nameKey: 'pricing.unlimited',
     priceMonthly: '$34.99',
     originalMonthly: '$69.98', // pre-beta anchor — beta sale is −50%
-    priceYearly: '$299.99',
-    originalYearly: '$599.98',
+    priceYearly: '¥279.99',
+    originalYearly: '¥559.99',
     periodMonthlyKey: 'pricing.month',
     periodYearlyKey: 'pricing.periodYear',
     yearlyNoteKey: 'pricing.billedYearlyNoteUnlimited',
@@ -211,51 +211,61 @@ function PricingContent() {
     setCryptoAmount(null);
     setTxHash('');
     setCryptoStep('initiating');
+    
     try {
-      // 暂时回退到原有 crypto initiate 流程
-      const res = await authedFetch('/api/crypto/initiate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, billing }),
+      // Call new embedded payment endpoint for multi-currency support
+      const res = await authedFetch("/api/crypto/embed-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          package_id: planId, 
+          payment_method: 'usdttrc20', // Default to USDT TRC-20
+          is_membership_upgrade: true,
+        }),
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        // 显示详细的错误信息（包括 details 字段）
-        const detailedError = data.details || data.error || t('pricing.toastInitiateFailed');
-        logger.warn('Payment initiation failed:', { planId, billing, error: data });
-        toast.error(detailedError);
+      
+      const result = await res.json();
+      
+      if (!res.ok || !result.success) {
+        // Handle "Amount too low" error gracefully
+        if (result.error === 'Amount too low' && result.recommendedPackage) {
+          toast.warning('金额太小', {
+            description: `最低需要 $${result.recommendedPackage.price.toFixed(2)}，是否升级？`,
+            action: {
+              label: '升级套餐',
+              onClick: () => {
+                setCryptoPlan(result.recommendedPackage.id);
+                handleCryptoInitiate(result.recommendedPackage.id);
+              }
+            }
+          });
+          resetCrypto();
+          return;
+        }
+        
+        toast.error(result.error || t('pricing.toastInitiateFailed'));
         resetCrypto();
         return;
       }
-
-      if (data.redirectUrl) {
-        // Redirect to JangoPay payment page
-        window.location.href = data.redirectUrl;
-        return;
-      }
-
-      if (data.redirectUrl) {
-        // Redirect to JangoPay payment page
-        window.location.href = data.redirectUrl;
-        return;
-      }
-
-      if (!data.payAddress && !data.success) {
-        toast.error(t('pricing.toastNoWallet'));
-        resetCrypto();
-        return;
-      }
-
-      setCryptoPaymentId(data.paymentId);
-      setCryptoWallet(data.payAddress); // Changed from walletAddress to payAddress
-      setCryptoNetwork(data.network || 'TRC-20');
-      setCryptoAmount(Number(data.amountUsd) || null);
+      
+      setCryptoPaymentId(result.paymentId);
+      setCryptoWallet(result.payAddress);
+      setCryptoNetwork(result.network || 'Unknown');
+      setCryptoAmount(result.amountUsd || null);
       setCryptoStep('pay');
+      
+      showToastSuccess(result);
     } catch {
       toast.error(t('pricing.toastNetworkError'));
       resetCrypto();
     }
+  };
+
+  const showToastSuccess = (result: any) => {
+    toast.info(`扫描以下地址支付 $${result.amountUsd.toFixed(2)}`, {
+      description: `${result.payAmount} ${result.payCurrency} · ${result.network} 网络 · 15 分钟内有效`,
+      duration: 5000,
+    });
   };
 
   const handleCryptoSubmit = async () => {
@@ -483,7 +493,6 @@ function PricingContent() {
 
         <div className="mt-12 text-center space-y-4">
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">{t('pricing.usdtTrc20')}</span>
             <span className="flex items-center gap-1">{t('pricing.secureCheckout')}</span>
             <span className="flex items-center gap-1">{t('pricing.cancelAnytime')}</span>
           </div>
@@ -526,8 +535,9 @@ function PricingContent() {
                   {t('pricing.dialogDesc', {
                     plan: cryptoPlanName ? t(cryptoPlanName) : String(cryptoPlan),
                     billing: cryptoBilling === 'yearly' ? t('pricing.toggleYearly') : t('pricing.toggleMonthly'),
-                    amount: cryptoAmount != null ? `${formatUsd(cryptoAmount)} USDT` : 'USDT',
+                    amount: cryptoAmount != null ? `${formatUsd(cryptoAmount)}` : '',
                     network: cryptoNetwork,
+                    payCurrency: cryptoNetwork.includes('TRC-20') ? 'USDT' : cryptoNetwork,
                   })}
                 </DialogDescription>
               </DialogHeader>
@@ -560,7 +570,7 @@ function PricingContent() {
                   </div>
                   <p className="text-xs text-amber-400 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
-                    {t('pricing.dialogNetworkWarn', { network: cryptoNetwork })}
+                    {t('pricing.dialogNetworkWarn', { network: cryptoNetwork, payCurrency: cryptoNetwork.includes('TRC-20') ? 'USDT' : cryptoNetwork })}
                   </p>
                 </div>
 
@@ -644,7 +654,7 @@ function PricingContent() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('pricing.dialogAmount')}</span>
                     <span className="font-semibold">
-                      {cryptoAmount != null ? `${formatUsd(cryptoAmount)} USDT` : '—'}
+                      {cryptoAmount != null ? `${formatUsd(cryptoAmount)}` : '—'}
                     </span>
                   </div>
                   <div className="flex justify-between">
