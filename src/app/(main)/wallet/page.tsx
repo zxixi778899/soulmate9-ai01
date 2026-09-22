@@ -39,6 +39,9 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [packages, setPackages] = useState<TokenPackage[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
+  const [payCurrency, setPayCurrency] = useState('USDT'); // Default to USDT
+  const [payPkg, setPayPkg] = useState<TokenPackage | null>(null);
+  const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const [cryptoDialog, setCryptoDialog] = useState<{
     open: boolean;
     paymentId: string | null;
@@ -49,6 +52,15 @@ export default function WalletPage() {
     step: 'pay' | 'submitting' | 'done';
     pkgName: string;
   } | null>(null);
+
+  // Currency options
+  const PAYMENT_CURRENCIES = [
+    { id: 'USDT', name: 'USDT (TRC-20)', symbol: 'USDT' },
+    { id: 'BTC', name: 'Bitcoin', symbol: '₿' },
+    { id: 'ETH', name: 'Ethereum', symbol: 'Ξ' },
+    { id: 'LTC', name: 'Litecoin', symbol: 'Ł' },
+    { id: 'SOL', name: 'Solana', symbol: '◎' },
+  ];
 
   useEffect(() => {
     setLoading(true);
@@ -69,13 +81,21 @@ export default function WalletPage() {
       .catch(() => {});
   }, []);
 
-  const handleBuyPackage = useCallback(async (pkg: TokenPackage) => {
-    setBuying(pkg.id);
+  const handleBuyPackage = useCallback((pkg: TokenPackage) => {
+    setPayPkg(pkg);
+    setShowCurrencySelector(true);
+  }, []);
+
+  const confirmPayment = async (currency: string) => {
+    setShowCurrencySelector(false);
+    if (!payPkg) return;
+    
+    setBuying(payPkg.id);
     try {
       const res = await authedFetch("/api/v2/shop/tokens", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ package_id: pkg.id, payment_method: "USDT" }),
+        body: JSON.stringify({ package_id: payPkg.id, payment_method: currency }),
       });
       const result = await res.json();
       
@@ -88,7 +108,7 @@ export default function WalletPage() {
       toast.error(t('common.networkError'));
     }
     setBuying(null);
-  }, [t]);
+  };
 
   const handleSubmitCryptoPayment = async () => {
     if (!cryptoDialog?.txHash?.trim() || cryptoDialog.txHash.trim().length < 10) {
@@ -248,7 +268,7 @@ export default function WalletPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => void handleBuyPackage(pkg)}
+                      onClick={() => handleBuyPackage(pkg)}
                       disabled={busy}
                       className="w-full flex items-center justify-center gap-1.5 h-11 text-sm font-bold text-white bg-gradient-to-r from-[#FF2D78] to-[#8b5cf6] hover:from-[#ff4d92] hover:to-[#a78bfa] disabled:opacity-50 transition-all"
                     >
@@ -259,6 +279,43 @@ export default function WalletPage() {
                 );
               })}
             </div>
+            
+            {/* Currency selector dialog */}
+            {showCurrencySelector && payPkg && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 max-w-md w-full">
+                  <h3 className="text-lg font-bold mb-4">选择支付方式</h3>
+                  <p className="text-sm text-gray-400 mb-4">
+                    ${((payPkg.price_cents / 100).toFixed(2))} · {payPkg.name}
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {PAYMENT_CURRENCIES.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => confirmPayment(c.id)}
+                        className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 hover:border-[#FF2D78] hover:bg-gray-750 transition-all"
+                      >
+                        <span className="text-lg">{c.symbol}</span>
+                        <div className="text-left">
+                          <div className="font-bold text-sm">{c.name}</div>
+                          <div className="text-xs text-gray-500">{c.id}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrencySelector(false)}
+                    className="w-full py-3 text-sm text-gray-400 hover:text-white"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            )}
             <p className="text-[10px] text-gray-600 mt-1 text-center">
               ₮ USDT · TRC-20 · {t('wallet.securePayment')}
             </p>
