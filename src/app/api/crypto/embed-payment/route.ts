@@ -174,7 +174,10 @@ export async function POST(request: NextRequest) {
     ? 0
     : Number(tokenPackage.token_count || 0) + Number((tokenPackage as { bonus_tokens?: number }).bonus_tokens || 0);
 
-  if (priceCents <= 0) {
+  // Use explicit price if provided, otherwise fallback to tokenPackage.price_cents
+  const effectivePriceCents = priceCents || Number(tokenPackage.price_cents || 0);
+
+  if (effectivePriceCents <= 0) {
     return NextResponse.json({ error: 'Invalid package pricing' }, { status: 400 });
   }
 
@@ -206,15 +209,15 @@ export async function POST(request: NextRequest) {
     const requiredMinWithBuffer = Math.ceil(minAmount * 1.2 * 100) / 100; // Round up to cent
     
     logger.info('[embed-payment] Min amount check', {
-      packagePrice: priceCents / 100,
+      packagePrice: effectivePriceCents / 100,
       baseRequiredMin: minAmount,
       requiredMinWithBuffer: requiredMinWithBuffer,
       currency: validatedCurrency,
     });
     
     // If price is below minimum, upgrade to next tier
-    let actualPriceCents = priceCents;
-    if (priceCents / 100 < requiredMinWithBuffer) {
+    let actualPriceCents = effectivePriceCents;
+    if (effectivePriceCents / 100 < requiredMinWithBuffer) {
       // Find next higher price tier from packages
       
       interface PackageInfo {
@@ -266,7 +269,7 @@ export async function POST(request: NextRequest) {
       
       if (nextPackage) {
         logger.warn('[embed-payment] Price below minimum, upgrading to:', {
-          original: priceCents / 100,
+          original: effectivePriceCents / 100,
           upgradedTo: nextPackage.price_cents / 100,
           reason: `Minimum $${requiredMinWithBuffer.toFixed(2)} ${validatedCurrency} required`
         });
@@ -275,7 +278,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: 'Amount too low',
           message: `Minimum payment of $${requiredMinWithBuffer.toFixed(2)} required for ${validatedCurrency}`,
-          currentPrice: priceCents / 100,
+          currentPrice: effectivePriceCents / 100,
           recommendedPackage: {
             id: nextPackage.id,
             name: nextPackage.name,
@@ -317,7 +320,7 @@ export async function POST(request: NextRequest) {
     await client.from('crypto_payments').insert({
       user_id: user.id,
       plan_id: package_id,
-      amount_usd: priceCents / 100,
+      amount_usd: effectivePriceCents / 100,
       currency: validatedCurrency.toLowerCase(),
       tx_hash: payment.payment_id, // Using payment_id as reference
       status: 'awaiting_payment',
@@ -331,7 +334,7 @@ export async function POST(request: NextRequest) {
       payAmount: payment.pay_amount,
       payCurrency: validatedCurrency,
       network: network,
-      amountUsd: priceCents / 100,
+      amountUsd: effectivePriceCents / 100,
       orderId: payment.order_id,
       qrCodeURL: generateQRCodeURL(payment.pay_address),
       status: 'awaiting_payment',
