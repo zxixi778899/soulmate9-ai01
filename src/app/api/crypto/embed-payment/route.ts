@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
+  const { package_id, payment_method, is_membership_upgrade = false } = body;
+  
   if (!package_id || !payment_method) {
     return NextResponse.json(
       { error: 'Missing package_id or payment_method' },
