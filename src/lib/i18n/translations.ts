@@ -1321,6 +1321,16 @@ export const en = {
   'wallet.reason.adminGrant': 'Admin Grant',
   'wallet.reason.refund': 'Refund',
   'wallet.reason.achievement': 'Achievement',
+  
+  // ── Embedded Payment (Scan QR to pay) ──
+  'wallet.scanToPay': 'Scan to Pay',
+  'wallet.scanToPayDesc': 'Please send ${amount} USD worth of {pkgName} cryptocurrency to the address below.',
+  'wallet.paymentAddress': 'Payment Address',
+  'wallet.autoDetect': 'Auto-Detection Enabled',
+  'wallet.autoDetectDesc': 'Payment will be auto-detected on-chain. No need to submit transaction hash manually!',
+  'wallet.manualSubmit': 'Manual Submission (Fallback)',
+  'wallet.confirmPayment': 'Confirm Payment',
+  
   'wallet.sendUsdt': 'Send USDT',
   'wallet.sendUsdtDesc': 'Send exactly ${amount} USDT to the address below on the TRC-20 network.',
   'wallet.depositAddress': 'Deposit Address (TRC-20)',
@@ -9548,6 +9558,16 @@ const es: Record<string, string> = {
   'wallet.reason.adminGrant': 'Admin Grant',
   'wallet.reason.refund': 'Refund',
   'wallet.reason.achievement': 'Achievement',
+  
+  // ── Embedded Payment (Scan QR to pay) ──
+  'wallet.scanToPay': 'Scan to Pay',
+  'wallet.scanToPayDesc': 'Please send ${amount} USD worth of {pkgName} cryptocurrency to the address below.',
+  'wallet.paymentAddress': 'Payment Address',
+  'wallet.autoDetect': 'Auto-Detection Enabled',
+  'wallet.autoDetectDesc': 'Payment will be auto-detected on-chain. No need to submit transaction hash manually!',
+  'wallet.manualSubmit': 'Manual Submission (Fallback)',
+  'wallet.confirmPayment': 'Confirm Payment',
+  
   'wallet.sendUsdt': 'Send USDT',
   'wallet.sendUsdtDesc': 'Send exactly ${amount} USDT to the address below on the TRC-20 network.',
   'wallet.depositAddress': 'Deposit Address (TRC-20)',
@@ -11173,6 +11193,16 @@ const de: Record<string, string> = {
   'wallet.reason.adminGrant': 'Admin Grant',
   'wallet.reason.refund': 'Refund',
   'wallet.reason.achievement': 'Achievement',
+  
+  // ── Embedded Payment (Scan QR to pay) ──
+  'wallet.scanToPay': 'Scan to Pay',
+  'wallet.scanToPayDesc': 'Please send ${amount} USD worth of {pkgName} cryptocurrency to the address below.',
+  'wallet.paymentAddress': 'Payment Address',
+  'wallet.autoDetect': 'Auto-Detection Enabled',
+  'wallet.autoDetectDesc': 'Payment will be auto-detected on-chain. No need to submit transaction hash manually!',
+  'wallet.manualSubmit': 'Manual Submission (Fallback)',
+  'wallet.confirmPayment': 'Confirm Payment',
+  
   'wallet.sendUsdt': 'Send USDT',
   'wallet.sendUsdtDesc': 'Send exactly ${amount} USDT to the address below on the TRC-20 network.',
   'wallet.depositAddress': 'Deposit Address (TRC-20)',
