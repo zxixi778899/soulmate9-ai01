@@ -27,6 +27,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 import {
   nowPaymentsCreatePayment,
+  nowPaymentsMinimum,
   NOWPAYMENTS_CURRENCIES,
 } from '@/lib/nowpayments-server';
 
@@ -179,9 +180,94 @@ export async function POST(request: NextRequest) {
   const orderID = `ep_${user.id}_${package_id}_${Date.now()}`;
 
   try {
+    // Check minimum amount for selected currency
+    const minResult = await nowPaymentsMinimum({
+      currency_from: 'usd',
+      currency_to: validatedCurrency,
+    });
+    
+    const minAmount = minResult?.min_amount || 5.0; // Default to $5 if API fails
+    
+    logger.info('[embed-payment] Min amount check', {
+      packagePrice: priceCents / 100,
+      requiredMin: minAmount,
+      currency: validatedCurrency,
+    });
+    
+    // If price is below minimum, upgrade to next tier
+    let actualPriceCents = priceCents;
+    if (priceCents / 100 < minAmount) {
+      // Find next higher price tier from packages
+      const availablePackages = [];
+      
+      // Try to get all credit packages to find next tier
+      try {
+        const sbAdmin = getSupabaseClient();
+        const { data } = await sbAdmin
+          .from('products')
+          .select('id, name, price_cents, virtual_meta, status')
+          .eq('status', 'active')
+          .filter('virtual_meta->>kind', 'eq', 'credits');
+        
+        if (data?.length) {
+          availablePackages = data.map((p: any) => ({
+            id: String(p.id),
+            name: String(p.name),
+            price_cents: Number(p.price_cents),
+            virtual_meta: p.virtual_meta as Record<string, unknown>,
+          }));
+        }
+      } catch { /* non-critical */ }
+      
+      // Also try token_packages table
+      try {
+        const { data: tokenPaks } = await client
+          .from('token_packages')
+          .select('*')
+          .eq('is_active', true);
+        
+        if (tokenPaks?.length) {
+          tokenPaks.forEach((p: any) => {
+            if (!availablePackages.find(ap => ap.id === p.id)) {
+              availablePackages.push(p);
+            }
+          });
+        }
+      } catch { /* non-critical */ }
+      
+      // Sort by price and find next tier
+      availablePackages.sort((a, b) => a.price_cents - b.price_cents);
+      
+      const nextPackage = availablePackages.find(
+        pkg => pkg.price_cents > priceCents && pkg.price_cents / 100 >= minAmount
+      );
+      
+      if (nextPackage) {
+        logger.warn('[embed-payment] Price below minimum, upgrading to:', {
+          original: priceCents / 100,
+          upgradedTo: nextPackage.price_cents / 100,
+          reason: `Minimum ${minAmount} ${validatedCurrency} required`
+        });
+        
+        return NextResponse.json({
+          success: false,
+          error: 'Amount too low',
+          message: `Minimum payment of $${minAmount.toFixed(2)} required`,
+          currentPrice: priceCents / 100,
+          recommendedPackage: {
+            id: nextPackage.id,
+            name: nextPackage.name,
+            price: nextPackage.price_cents / 100,
+          },
+        }, { status: 400 });
+      } else {
+        throw new Error(`No suitable package found above minimum $${minAmount.toFixed(2)} requirement`);
+      }
+    }
+
     // Create direct payment (not invoice page)
     const payment = await nowPaymentsCreatePayment({
-      price_amount: priceCents / 100,
+      price_amount: actualPriceCents / 100,
       price_currency: 'USD',
       pay_currency: validatedCurrency,
       order_id: orderID,

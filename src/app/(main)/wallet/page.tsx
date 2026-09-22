@@ -105,6 +105,23 @@ export default function WalletPage() {
       const result = await res.json();
       
       if (!res.ok || !result.success) {
+        // Handle "Amount too low" error gracefully
+        if (result.error === 'Amount too low' && result.recommendedPackage) {
+          toast.warning('金额太小', {
+            description: `最低需要 $${result.recommendedPackage.price.toFixed(2)}，是否升级？`,
+            action: {
+              label: '升级套餐',
+              onClick: () => {
+                setShowCurrencySelector(true);
+                setPayPkg(result.recommendedPackage as TokenPackage | null);
+                confirmPayment(currency).finally(() => {});
+              }
+            }
+          });
+          setBuying(null);
+          return;
+        }
+        
         toast.error(result.error || t('wallet.createOrderFailed'));
       } else {
         // Show embedded payment dialog with NOWPayments address and QR code
