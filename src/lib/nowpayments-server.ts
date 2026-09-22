@@ -1,5 +1,5 @@
 /**
- * NOWPayments crypto payment gateway
+ * NOWPayments crypto payment gateway - v2.1.0 (force rebuild marker)
  * Docs: https://docs.nowpayments.io
  *
  * Env vars:
