@@ -289,8 +289,9 @@ function PricingContent() {
   };
 
   const handleCryptoInitiate = (planId: string) => {
+    console.log('handleCryptoInitiate called', { planId, user });
     if (!user) {
-      router.push('/register?next=/pricing');
+      toast.info(t('pricing.signUpToSubscribe'));
       return;
     }
     setPayPlan(planId);
