@@ -35,6 +35,9 @@ interface EmbedPaymentBody {
   package_id: string;
   payment_method: string;
   is_membership_upgrade?: boolean;
+  price_cents?: number;  // Optional: price in USD cents (if provided, uses this instead of DB)
+  membership_tier?: string;  // For membership plans
+  billing_cycle?: string;  // 'monthly' or 'yearly'
 }
 
 /**
@@ -57,8 +60,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { package_id, payment_method, is_membership_upgrade = false } = body;
-
   if (!package_id || !payment_method) {
     return NextResponse.json(
       { error: 'Missing package_id or payment_method' },
@@ -66,7 +67,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Get package info
+  // For membership upgrades with explicit price, skip DB lookup
+  let priceCents = body.price_cents;  // Use explicit price if provided
+  
+  // Get package info only if no explicit price provided
   let tokenPackage: {
     id: string;
     name: string;
@@ -79,70 +83,85 @@ export async function POST(request: NextRequest) {
     image_url?: string;
   } | null = null;
 
-  // Check if it's a membership product
-  if (is_membership_upgrade) {
-    try {
-      const sbAdmin = getSupabaseClient();
-      const { data: memberProduct } = await sbAdmin
-        .from('products')
-        .select('id, name, price_cents, virtual_meta, status, collection')
-        .eq('id', package_id)
-        .maybeSingle();
-
-      if (memberProduct && memberProduct.status === 'active' && memberProduct.collection === 'membership') {
-        const meta = (memberProduct.virtual_meta || {}) as Record<string, unknown>;
-        tokenPackage = {
-          id: String(memberProduct.id),
-          name: String(meta.membership_tier || 'Membership'),
-          token_count: 0,
-          price_cents: Number(memberProduct.price_cents || 0),
-          sort_order: 0,
-          is_active: true,
-        };
-      }
-    } catch {
-      // Fall through to 404 below
-    }
-  }
-
-  // Check token_packages table first
-  if (!tokenPackage) {
-    const { data: dbPkg } = await client
-      .from('token_packages')
-      .select('*')
-      .eq('id', package_id)
-      .maybeSingle();
-
-    if (dbPkg) {
-      tokenPackage = dbPkg as typeof tokenPackage;
-    } else {
-      // Fallback: admin-shop credit packs
+  if (!priceCents || priceCents <= 0) {
+    // Check if it's a membership product (only if no explicit price)
+    if (is_membership_upgrade) {
       try {
         const sbAdmin = getSupabaseClient();
-        const { data: prod } = await sbAdmin
+        const { data: memberProduct } = await sbAdmin
           .from('products')
-          .select('id, name, price_cents, virtual_meta, status')
+          .select('id, name, price_cents, virtual_meta, status, collection')
           .eq('id', package_id)
           .maybeSingle();
 
-        if (prod && prod.status === 'active') {
-          const meta = (prod.virtual_meta || {}) as Record<string, unknown>;
-          if (meta.kind === 'credits') {
-            tokenPackage = {
-              id: String(prod.id),
-              name: String(prod.name || 'Credit Pack'),
-              token_count: Number(meta.token_amount || meta.credits || 0),
-              bonus_tokens: Number(meta.bonus_tokens || 0),
-              price_cents: Number(prod.price_cents || 0),
-              sort_order: 0,
-              is_active: true,
-            };
-          }
+        if (memberProduct && memberProduct.status === 'active' && memberProduct.collection === 'membership') {
+          const meta = (memberProduct.virtual_meta || {}) as Record<string, unknown>;
+          tokenPackage = {
+            id: String(memberProduct.id),
+            name: String(meta.membership_tier || 'Membership'),
+            token_count: 0,
+            price_cents: Number(memberProduct.price_cents || 0),
+            sort_order: 0,
+            is_active: true,
+          };
         }
       } catch {
-        // non-critical
+        // Fall through to 404 below
       }
     }
+
+    // Check token_packages table first
+    if (!tokenPackage) {
+      const { data: dbPkg } = await client
+        .from('token_packages')
+        .select('*')
+        .eq('id', package_id)
+        .maybeSingle();
+
+      if (dbPkg) {
+        tokenPackage = dbPkg as typeof tokenPackage;
+      } else {
+        // Fallback: admin-shop credit packs
+        try {
+          const sbAdmin = getSupabaseClient();
+          const { data: prod } = await sbAdmin
+            .from('products')
+            .select('id, name, price_cents, virtual_meta, status')
+            .eq('id', package_id)
+            .maybeSingle();
+
+          if (prod && prod.status === 'active') {
+            const meta = (prod.virtual_meta || {}) as Record<string, unknown>;
+            if (meta.kind === 'credits') {
+              tokenPackage = {
+                id: String(prod.id),
+                name: String(prod.name || 'Credit Pack'),
+                token_count: Number(meta.token_amount || meta.credits || 0),
+                bonus_tokens: Number(meta.bonus_tokens || 0),
+                price_cents: Number(prod.price_cents || 0),
+                sort_order: 0,
+                is_active: true,
+              };
+            }
+          }
+        } catch {
+          // non-critical
+        }
+      }
+    }
+  } else {
+    // Use explicit price for membership - create mock package object
+    const tierName = body.membership_tier || package_id;
+    const billingCycle = body.billing_cycle || 'monthly';
+    
+    tokenPackage = {
+      id: `membership_${tierName}_${billingCycle}`,
+      name: `${tierName.charAt(0).toUpperCase() + tierName.slice(1)} Membership (${billingCycle})`,
+      token_count: 0,
+      price_cents: priceCents,
+      sort_order: 0,
+      is_active: true,
+    };
   }
 
   if (!tokenPackage) {

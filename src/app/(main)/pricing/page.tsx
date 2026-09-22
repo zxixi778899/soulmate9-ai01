@@ -74,7 +74,7 @@ const PLANS: PricingPlan[] = [
   {
     id: 'pro',
     nameKey: 'pricing.pro',
-    priceMonthly: '$9.99',
+    priceMonthly: '$12.99',
     originalMonthly: '$19.99', // pre-beta anchor — beta sale is −50%
     priceYearly: '¥79.99',
     originalYearly: '¥159.99',
@@ -153,6 +153,16 @@ const PLANS: PricingPlan[] = [
   },
 ];
 
+/** Plan prices in USD cents for membership products */
+const PLAN_PRICES_USD_CENTS: Record<string, number> = {
+  pro_monthly: 1299,
+  pro_yearly: 8499,  // $84.99 (17% off from $99.99)
+  premium_monthly: 1999,
+  premium_yearly: 16999,  // $169.99 (20% off from $199.99)
+  unlimited_monthly: 3499,
+  unlimited_yearly: 25499,  // $254.99 (25% off from $299.99)
+};
+
 /** Sentinel used to splice an inline link into translated copy. */
 const LINK_SLOT = '\u0000';
 
@@ -213,14 +223,27 @@ function PricingContent() {
     setCryptoStep('initiating');
     
     try {
+      // Get plan price in USD cents
+      const key = `${planId}_${billing}`;
+      const priceCents = PLAN_PRICES_USD_CENTS[key];
+      
+      if (!priceCents || priceCents <= 0) {
+        toast.error(t('pricing.toastInitiateFailed'));
+        resetCrypto();
+        return;
+      }
+      
       // Call new embedded payment endpoint for multi-currency support
       const res = await authedFetch("/api/crypto/embed-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           package_id: planId, 
+          price_cents: priceCents,
           payment_method: 'usdttrc20', // Default to USDT TRC-20
           is_membership_upgrade: true,
+          membership_tier: planId,
+          billing_cycle: billing,
         }),
       });
       
