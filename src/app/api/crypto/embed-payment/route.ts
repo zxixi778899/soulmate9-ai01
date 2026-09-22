@@ -27,7 +27,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 import {
   nowPaymentsCreatePayment,
-  nowPaymentsMinimum,
+  getMinimumAmount,
   NOWPAYMENTS_CURRENCIES,
 } from '@/lib/nowpayments-server';
 
@@ -180,13 +180,8 @@ export async function POST(request: NextRequest) {
   const orderID = `ep_${user.id}_${package_id}_${Date.now()}`;
 
   try {
-    // Check minimum amount for selected currency
-    const minResult = await nowPaymentsMinimum({
-      currency_from: 'usd',
-      currency_to: validatedCurrency,
-    });
-    
-    const minAmount = minResult?.min_amount || 5.0; // Default to $5 if API fails
+    // Check minimum amount for selected currency using hardcoded defaults
+    const minAmount = getMinimumAmount(validatedCurrency);
     
     logger.info('[embed-payment] Min amount check', {
       packagePrice: priceCents / 100,
