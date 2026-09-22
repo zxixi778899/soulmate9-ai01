@@ -198,7 +198,14 @@ export async function POST(request: NextRequest) {
     let actualPriceCents = priceCents;
     if (priceCents / 100 < minAmount) {
       // Find next higher price tier from packages
-      const availablePackages = [];
+      interface PackageInfo {
+        id: string;
+        name: string;
+        price_cents: number;
+        virtual_meta?: Record<string, unknown>;
+      }
+      
+      const availablePackages: PackageInfo[] = [];
       
       // Try to get all credit packages to find next tier
       try {
@@ -210,12 +217,7 @@ export async function POST(request: NextRequest) {
           .filter('virtual_meta->>kind', 'eq', 'credits');
         
         if (data?.length) {
-          availablePackages = data.map((p: any) => ({
-            id: String(p.id),
-            name: String(p.name),
-            price_cents: Number(p.price_cents),
-            virtual_meta: p.virtual_meta as Record<string, unknown>,
-          }));
+          availablePackages.push(...data as PackageInfo[]);
         }
       } catch { /* non-critical */ }
       
@@ -227,7 +229,8 @@ export async function POST(request: NextRequest) {
           .eq('is_active', true);
         
         if (tokenPaks?.length) {
-          tokenPaks.forEach((p: any) => {
+          const typedPackages = tokenPaks as PackageInfo[];
+          typedPackages.forEach((p) => {
             if (!availablePackages.find(ap => ap.id === p.id)) {
               availablePackages.push(p);
             }
