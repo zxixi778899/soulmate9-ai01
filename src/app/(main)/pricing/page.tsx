@@ -173,9 +173,12 @@ function PricingContent() {
   const { t, locale } = useTranslation();
   const [billing, setBilling] = useState<BillingCycle>('monthly');
 
-  // USDT payment state
+  // Payment state
   const [cryptoPlan, setCryptoPlan] = useState<string | null>(null);
   const [cryptoBilling, setCryptoBilling] = useState<BillingCycle>('monthly');
+  const [showCurrencySelector, setShowCurrencySelector] = useState(false);
+  const [payCurrency, setPayCurrency] = useState('usdttrc20'); // Default to USDT TRC-20
+  const [payPlan, setPayPlan] = useState<string | null>(null);
   const [cryptoPaymentId, setCryptoPaymentId] = useState<string | null>(null);
   const [cryptoWallet, setCryptoWallet] = useState('');
   const [cryptoNetwork, setCryptoNetwork] = useState('TRC-20');
@@ -209,27 +212,28 @@ function PricingContent() {
     setCryptoStep('initiating');
   };
 
-  const handleCryptoInitiate = async (planId: string) => {
-    if (!user) {
-      router.push('/register?next=/pricing');
-      return;
-    }
-    setCryptoPlan(planId);
-    setCryptoBilling(billing);
-    setCryptoPaymentId(null);
-    setCryptoWallet('');
-    setCryptoAmount(null);
-    setTxHash('');
-    setCryptoStep('initiating');
+  /** Payment currencies - same as wallet page */
+  const PAYMENT_CURRENCIES = [
+    { id: 'usdttrc20', name: 'USDT (TRC-20)', symbol: '₮' },
+    { id: 'btc', name: 'Bitcoin', symbol: '₿' },
+    { id: 'eth', name: 'Ethereum (ERC-20)', symbol: 'Ξ' },
+    { id: 'ltc', name: 'Litecoin', symbol: 'Ł' },
+    { id: 'sol', name: 'Solana', symbol: '◎' },
+  ];
+
+  /** Handle payment currency selection and initiate payment */
+  const confirmPayment = async (currency: string) => {
+    setShowCurrencySelector(false);
+    if (!payPlan) return;
     
     try {
       // Get plan price in USD cents
-      const key = `${planId}_${billing}`;
+      const key = `${payPlan}_${billing}`;
       const priceCents = PLAN_PRICES_USD_CENTS[key];
       
       if (!priceCents || priceCents <= 0) {
         toast.error(t('pricing.toastInitiateFailed'));
-        resetCrypto();
+        setShowCurrencySelector(true);
         return;
       }
       
@@ -238,11 +242,11 @@ function PricingContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          package_id: planId, 
+          package_id: payPlan, 
           price_cents: priceCents,
-          payment_method: 'usdttrc20', // Default to USDT TRC-20
+          payment_method: currency,
           is_membership_upgrade: true,
-          membership_tier: planId,
+          membership_tier: payPlan,
           billing_cycle: billing,
         }),
       });
@@ -257,21 +261,41 @@ function PricingContent() {
             action: {
               label: '升级套餐',
               onClick: () => {
-                setCryptoPlan(result.recommendedPackage.id);
-                handleCryptoInitiate(result.recommendedPackage.id);
+                setPayPlan(result.recommendedPackage.id);
+                confirmPayment(currency).finally(() => {});
               }
             }
           });
-          resetCrypto();
+          setShowCurrencySelector(true);
           return;
         }
         
         toast.error(result.error || t('pricing.toastInitiateFailed'));
-        resetCrypto();
+        setShowCurrencySelector(true);
         return;
       }
       
       setCryptoPaymentId(result.paymentId);
+      setCryptoWallet(result.payAddress);
+      setCryptoNetwork(result.network || 'Unknown');
+      setCryptoAmount(result.amountUsd || null);
+      setCryptoStep('pay');
+      
+      showToastSuccess(result);
+    } catch {
+      toast.error(t('pricing.toastNetworkError'));
+      setShowCurrencySelector(true);
+    }
+  };
+
+  const handleCryptoInitiate = (planId: string) => {
+    if (!user) {
+      router.push('/register?next=/pricing');
+      return;
+    }
+    setPayPlan(planId);
+    setShowCurrencySelector(true);
+  };
       setCryptoWallet(result.payAddress);
       setCryptoNetwork(result.network || 'Unknown');
       setCryptoAmount(result.amountUsd || null);
@@ -492,7 +516,7 @@ function PricingContent() {
                       ? t('pricing.includedInPlan')
                       : !user
                       ? t('pricing.signUpToSubscribe')
-                      : t('pricing.paidViaUsdt')}
+                      : t('pricing.payCrypto')}
                   </Button>
                 )}
                 {plan.id === tier && subscriptionEnd && (
@@ -641,6 +665,46 @@ function PricingContent() {
                 </Button>
               </DialogFooter>
             </>
+          )}
+
+          {/* Currency Selector Dialog - same as wallet page */}
+          {showCurrencySelector && payPlan && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Wallet className="h-5 w-5" />
+                  {t('pricing.selectPaymentMethod')}
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {planNameKey(payPlan) ? `${t(planNameKey(payPlan))} · ` : ''}{billing === 'monthly' ? t('pricing.month') : t('pricing.periodYear')}
+                </p>
+                
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {PAYMENT_CURRENCIES.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => confirmPayment(c.id)}
+                      className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 hover:border-[#FF6BA6] hover:bg-gray-750 transition-all text-left"
+                    >
+                      <span className="text-xl">{c.symbol}</span>
+                      <div className="text-left min-w-0">
+                        <div className="font-semibold text-sm truncate">{c.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">{c.id}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowCurrencySelector(false)}
+                >
+                  {t('pricing.dialogCancel')}
+                </Button>
+              </div>
+            </div>
           )}
 
           {cryptoStep === 'submitting' && (

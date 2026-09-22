@@ -2444,6 +2444,7 @@ const zh: Record<string, string> = {
   'pricing.getStarted': '开始',
   'pricing.month': '/月',
   'pricing.payCrypto': '加密货币支付',
+  'pricing.selectPaymentMethod': '选择支付方式',
   'pricing.pro': 'Pro',
   'pricing.subscribe': '订阅',
   'pricing.terms': '继续即表示你同意服务条款。',
