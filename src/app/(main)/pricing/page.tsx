@@ -296,17 +296,6 @@ function PricingContent() {
     setPayPlan(planId);
     setShowCurrencySelector(true);
   };
-      setCryptoWallet(result.payAddress);
-      setCryptoNetwork(result.network || 'Unknown');
-      setCryptoAmount(result.amountUsd || null);
-      setCryptoStep('pay');
-      
-      showToastSuccess(result);
-    } catch {
-      toast.error(t('pricing.toastNetworkError'));
-      resetCrypto();
-    }
-  };
 
   const showToastSuccess = (result: any) => {
     toast.info(`扫描以下地址支付 $${result.amountUsd.toFixed(2)}`, {
