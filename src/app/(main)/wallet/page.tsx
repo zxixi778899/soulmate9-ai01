@@ -92,22 +92,55 @@ export default function WalletPage() {
     
     setBuying(payPkg.id);
     try {
-      const res = await authedFetch("/api/v2/shop/tokens", {
+      // Call new embedded payment endpoint
+      const res = await authedFetch("/api/crypto/embed-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ package_id: payPkg.id, payment_method: currency }),
+        body: JSON.stringify({ 
+          package_id: payPkg.id, 
+          payment_method: currency,
+          is_membership_upgrade: false,
+        }),
       });
       const result = await res.json();
       
-      if (!res.ok || !result.invoiceUrl) {
+      if (!res.ok || !result.success) {
         toast.error(result.error || t('wallet.createOrderFailed'));
       } else {
-        window.location.href = result.invoiceUrl;
+        // Show embedded payment dialog with NOWPayments address and QR code
+        setCryptoDialog({
+          open: true,
+          paymentId: result.paymentId,    // NOWPayments payment ID (for tracking)
+          walletAddress: result.payAddress, // NOWPayments provides this address
+          network: result.network,         // Network info (TRC-20, BTC, etc.)
+          amountUsd: result.amountUsd,     // USD price
+          txHash: '',                       // User's transaction hash (to be filled after paying)
+          step: 'pay',
+          pkgName: result.package.name,
+        });
+        
+        // Auto-submit on page load to get auto-confirmation
+        // This allows users to skip manual txHash submission
+        setTimeout(() => {
+          setCryptoDialog(prev => ({ ...prev!, step: 'submitting' }));
+          handleSubmitCryptoPayment().finally(() => {
+            // Keep showing submitting until done/failed
+          });
+        }, 1000);
+        
+        showToastSuccess(result);
       }
     } catch {
       toast.error(t('common.networkError'));
     }
     setBuying(null);
+  };
+
+  const showToastSuccess = (result: any) => {
+    toast.info(`扫描以下地址支付 $${result.amountUsd.toFixed(2)}`, {
+      description: `${result.payAmount} ${result.payCurrency} · ${result.network} 网络 · 15 分钟内有效`,
+      duration: 5000,
+    });
   };
 
   const handleSubmitCryptoPayment = async () => {
@@ -410,18 +443,21 @@ export default function WalletPage() {
         </div>
       </div>
 
-      {/* USDT Payment Dialog */}
+      {/* USDT Payment Dialog - Embedded Payment (User Scans TO Pay) */}
       {cryptoDialog?.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setCryptoDialog(null)}>
           <div className="w-full max-w-md rounded-2xl bg-gray-900 border border-gray-800 p-6 mx-4" onClick={(e) => e.stopPropagation()}>
             {cryptoDialog.step === 'pay' && (
               <>
                 <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
-                  <Coins className="w-5 h-5 text-yellow-400" />
-                  {t('wallet.sendUsdt')}
+                  <ShieldCheck className="w-5 h-5 text-yellow-400" />
+                  {t('wallet.scanToPay')}
                 </h3>
                 <p className="text-sm text-gray-400 mb-4">
-                  {t('wallet.sendUsdtDesc', { amount: cryptoDialog.amountUsd.toFixed(2) })}
+                  {t('wallet.scanToPayDesc', { 
+                    amount: cryptoDialog.amountUsd.toFixed(2),
+                    pkgName: cryptoDialog.pkgName 
+                  })}
                 </p>
                 <div className="space-y-4">
                   {/* QR Code for scanning */}
@@ -431,7 +467,7 @@ export default function WalletPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">{t('wallet.depositAddress')}</label>
+                    <label className="text-xs text-gray-500 mb-1 block">{t('wallet.paymentAddress')}</label>
                     <div className="flex items-center gap-2 p-3 rounded-lg bg-black/40 border border-gray-800">
                       <code className="flex-1 text-xs break-all font-mono text-yellow-300">{cryptoDialog.walletAddress}</code>
                       <button
@@ -443,11 +479,19 @@ export default function WalletPage() {
                     </div>
                     <p className="text-[10px] text-amber-400 mt-1">⚠ {t('wallet.usdtOnly', { network: cryptoDialog.network })}</p>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">{t('wallet.txHash')}</label>
+                  
+                  {/* Auto-detection notice */}
+                  <div className="rounded-lg bg-blue-500/10 border border-blue-500/30 p-3 text-xs text-blue-300">
+                    <p className="font-semibold mb-1">💡 {t('wallet.autoDetect')}</p>
+                    <p>{t('wallet.autoDetectDesc')}</p>
+                  </div>
+                  
+                  {/* Fallback: Manual txHash submission */}
+                  <div className="border-t border-gray-800 pt-4 mt-4">
+                    <label className="text-xs text-gray-500 mb-1 block">{t('wallet.manualSubmit')}</label>
                     <input
                       type="text"
-                      placeholder="TRC-20 tx hash..."
+                      placeholder="TRC-20 tx hash (if not auto-detected)..."
                       value={cryptoDialog.txHash}
                       onChange={(e) => setCryptoDialog({ ...cryptoDialog, txHash: e.target.value })}
                       className="w-full rounded-lg border border-gray-800 bg-black/40 px-3 py-2 text-sm font-mono text-white placeholder:text-gray-600 focus:border-yellow-500 focus:outline-none"
@@ -461,7 +505,7 @@ export default function WalletPage() {
                     disabled={!cryptoDialog.txHash?.trim() || cryptoDialog.txHash.trim().length < 10}
                     className="flex-1 h-10 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-600 text-sm font-bold text-black disabled:opacity-40"
                   >
-                    {t('wallet.submitPayment')}
+                    {t('wallet.confirmPayment')}
                   </button>
                 </div>
               </>
