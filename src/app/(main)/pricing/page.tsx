@@ -665,7 +665,11 @@ function PricingContent() {
                   {t('pricing.selectPaymentMethod')}
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  {planNameKey(payPlan) ? `${t(planNameKey(payPlan))} · ` : ''}{billing === 'monthly' ? t('pricing.month') : t('pricing.periodYear')}
+                  {(() => {
+                    const planKeyName = planNameKey(payPlan);
+                    const planName = planKeyName ? t(planKeyName) : payPlan || '';
+                    return `${planName}${payPlan && billing === 'yearly' ? ' (' + t('pricing.periodYear') + ')' : ''}`;
+                  })()}
                 </p>
                 
                 <div className="grid grid-cols-2 gap-3 mb-4">
