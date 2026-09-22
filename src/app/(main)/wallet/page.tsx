@@ -75,24 +75,14 @@ export default function WalletPage() {
       const res = await authedFetch("/api/v2/shop/tokens", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ package_id: pkg.id, provider: "crypto" }),
+        body: JSON.stringify({ package_id: pkg.id, payment_method: "USDT" }),
       });
       const result = await res.json();
-      if (result.provider === 'crypto') {
-        setCryptoDialog({
-          open: true,
-          paymentId: result.paymentId,
-          walletAddress: result.walletAddress,
-          network: result.network,
-          amountUsd: result.amountUsd,
-          txHash: '',
-          step: 'pay',
-          pkgName: pkg.name,
-        });
-      } else if (result.error) {
-        toast.error(result.error);
+      
+      if (!res.ok || !result.invoiceUrl) {
+        toast.error(result.error || t('wallet.createOrderFailed'));
       } else {
-        toast.error(t('wallet.createOrderFailed'));
+        window.location.href = result.invoiceUrl;
       }
     } catch {
       toast.error(t('common.networkError'));
