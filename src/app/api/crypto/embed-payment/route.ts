@@ -183,15 +183,19 @@ export async function POST(request: NextRequest) {
     // Check minimum amount for selected currency using hardcoded defaults
     const minAmount = getMinimumAmount(validatedCurrency);
     
+    // Add 20% safety buffer to account for exchange rate fluctuations and rounding
+    const requiredMinWithBuffer = minAmount * 1.2;
+    
     logger.info('[embed-payment] Min amount check', {
       packagePrice: priceCents / 100,
-      requiredMin: minAmount,
+      baseRequiredMin: minAmount,
+      requiredMinWithBuffer: requiredMinWithBuffer,
       currency: validatedCurrency,
     });
     
     // If price is below minimum, upgrade to next tier
     let actualPriceCents = priceCents;
-    if (priceCents / 100 < minAmount) {
+    if (priceCents / 100 < requiredMinWithBuffer) {
       // Find next higher price tier from packages
       interface PackageInfo {
         id: string;
@@ -244,22 +248,28 @@ export async function POST(request: NextRequest) {
         logger.warn('[embed-payment] Price below minimum, upgrading to:', {
           original: priceCents / 100,
           upgradedTo: nextPackage.price_cents / 100,
-          reason: `Minimum ${minAmount} ${validatedCurrency} required`
+          reason: `Minimum $${requiredMinWithBuffer.toFixed(2)} ${validatedCurrency} required`
         });
         
         return NextResponse.json({
           success: false,
           error: 'Amount too low',
-          message: `Minimum payment of $${minAmount.toFixed(2)} required`,
+          message: `Minimum payment of $${requiredMinWithBuffer.toFixed(2)} required for ${validatedCurrency}`,
           currentPrice: priceCents / 100,
           recommendedPackage: {
             id: nextPackage.id,
             name: nextPackage.name,
             price: nextPackage.price_cents / 100,
           },
+          // Calculate what package price would give us exactly the buffer requirement
+          priceBuffer: {
+            minAmount,
+            withBuffer: requiredMinWithBuffer,
+            priceForExactMatch: Math.ceil(requiredMinWithBuffer * 100),
+          }
         }, { status: 400 });
       } else {
-        throw new Error(`No suitable package found above minimum $${minAmount.toFixed(2)} requirement`);
+        throw new Error(`No suitable package found above minimum $${requiredMinWithBuffer.toFixed(2)} requirement`);
       }
     }
 

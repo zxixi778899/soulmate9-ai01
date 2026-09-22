@@ -77,22 +77,22 @@ export async function nowPaymentsEstimatePrice(params: {
 
 /** Get minimum payment amount for a currency pair */
 // This endpoint may not exist in all NOWPayments API versions.
-// Using hardcoded defaults based on common NOWPayments configurations:
+// Using hardcoded defaults with generous safety margins based on common NOWPayments configurations:
 export function getMinimumAmount(currency: string): number {
-  // Common minimum amounts by currency (in USD)
+  // Common minimum amounts by currency (in USD) - increased to avoid rounding errors
   const MIN_AMOUNTS: Record<string, number> = {
-    USDTTRC20: 5.0,
-    USDT: 5.0,
-    BTC: 10.0,
-    ETH: 5.0,
-    LTC: 5.0,
-    SOL: 5.0,
-    BNB: 5.0,
-    TRX: 5.0,
-    TON: 5.0,
+    USDTTRC20: 10.0,  // USDT TRC-20 minimum $10 (safe margin)
+    USDT: 10.0,       // USDT ERC-20 minimum $10
+    BTC: 10.0,        // Bitcoin minimum $10
+    ETH: 10.0,        // Ethereum minimum $10
+    LTC: 10.0,        // Litecoin minimum $10
+    SOL: 10.0,        // Solana minimum $10
+    BNB: 10.0,        // BNB minimum $10
+    TRX: 10.0,        // TRON minimum $10
+    TON: 10.0,        // Toncoin minimum $10
   };
   
-  return MIN_AMOUNTS[currency.toUpperCase()] || 5.0; // Default to $5 if unknown
+  return MIN_AMOUNTS[currency.toUpperCase()] || 10.0; // Default to $10 if unknown
 }
 
 /** Create a new payment */
