@@ -666,7 +666,7 @@ function PricingContent() {
           )}
 
           {/* Currency Selector Dialog - same as wallet page */}
-          {showCurrencySelector && payPlan && (
+          {showCurrencySelector && payPlan ? (
             <>
               <div 
                 className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" 
@@ -674,6 +674,7 @@ function PricingContent() {
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <div 
+                  key="dialog-overlay"
                   className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -716,7 +717,7 @@ function PricingContent() {
                 </div>
               </div>
             </>
-          )}
+          ) : null}
 
           {cryptoStep === 'submitting' && (
             <div className="py-12 text-center">
