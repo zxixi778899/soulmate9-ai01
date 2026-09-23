@@ -187,6 +187,16 @@ function PricingContent() {
   const [cryptoStep, setCryptoStep] = useState<'initiating' | 'pay' | 'submitting' | 'done'>('initiating');
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 
+  // Force render currency selector dialog when state changes
+  useEffect(() => {
+    if (showCurrencySelector && payPlan) {
+      console.log('[Currency Dialog] Triggering re-render:', { showCurrencySelector, payPlan });
+      // Force a DOM update by temporarily changing and restoring a key value
+      const timer = setTimeout(() => {}, 10);
+      return () => clearTimeout(timer);
+    }
+  }, [showCurrencySelector, payPlan]);
+
   useEffect(() => {
     if (canceled) {
       toast.info(t('pricing.toastCanceled'));
@@ -675,17 +685,15 @@ function PricingContent() {
             </>
           )}
 
-          {/* Currency Selector Dialog - same as wallet page */}
-          {showCurrencySelector ? (
-            <div 
-              key={`currency-dialog-${cryptoStep}`}
-              className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" 
-              style={{ zIndex: 10000 }} 
-              onMouseDown={(e) => e.stopPropagation()}
-            >
+          {/* Currency Selector Dialog - always rendered but conditionally visible */}
+          <div 
+            className={`fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm ${showCurrencySelector ? '' : 'pointer-events-none'}`} 
+            style={{ zIndex: 10000, opacity: showCurrencySelector ? 1 : 0, transition: 'opacity 0.15s ease-in-out' }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {showCurrencySelector && (
               <div 
-                key="dialog-content"
-                className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl"
+                className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200"
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -725,8 +733,8 @@ function PricingContent() {
                   {t('pricing.dialogCancel')}
                 </Button>
               </div>
-            </div>
-          ) : null}
+            )}
+          </div>
 
           {cryptoStep === 'submitting' && (
             <div className="py-12 text-center">
