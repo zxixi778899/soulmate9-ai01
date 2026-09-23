@@ -224,7 +224,7 @@ function PricingContent() {
   /** Handle payment currency selection and initiate payment */
   const confirmPayment = async (currency: string) => {
     if (!payPlan) {
-      toast.error(t('pricing.toastPaymentError'));
+      toast.error(t('pricing.toastInitiateFailed'));
       return;
     }
     
