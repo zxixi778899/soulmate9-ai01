@@ -289,13 +289,21 @@ function PricingContent() {
   };
 
   const handleCryptoInitiate = (planId: string) => {
-    console.log('handleCryptoInitiate called', { planId, user });
+    console.log('handleCryptoInitiate called', { 
+      planId, 
+      user,
+      tier,
+      currentRank: TIER_ORDER[tier],
+      isUserLogged: !!user,
+      showCurrencySelector 
+    });
     if (!user) {
       toast.info(t('pricing.signUpToSubscribe'));
       return;
     }
     setPayPlan(planId);
     setShowCurrencySelector(true);
+    console.log('After setting state', { payPlan: planId, showCurrencySelector: true });
   };
 
   const showToastSuccess = (result: any) => {
