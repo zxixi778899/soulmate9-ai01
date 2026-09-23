@@ -223,8 +223,10 @@ function PricingContent() {
 
   /** Handle payment currency selection and initiate payment */
   const confirmPayment = async (currency: string) => {
-    setShowCurrencySelector(false);
-    if (!payPlan) return;
+    if (!payPlan) {
+      toast.error(t('pricing.toastPaymentError'));
+      return;
+    }
     
     try {
       // Get plan price in USD cents
@@ -275,6 +277,7 @@ function PricingContent() {
         return;
       }
       
+      setShowCurrencySelector(false);
       setCryptoPaymentId(result.paymentId);
       setCryptoWallet(result.payAddress);
       setCryptoNetwork(result.network || 'Unknown');
@@ -666,57 +669,51 @@ function PricingContent() {
           )}
 
           {/* Currency Selector Dialog - same as wallet page */}
-          {showCurrencySelector && payPlan ? (
-            <>
+          {showCurrencySelector ? (
+            <div key="currency-dialog" className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" style={{ zIndex: 10000 }} onMouseDown={(e) => e.stopPropagation()}>
               <div 
-                className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" 
-                style={{ zIndex: 10000 }}
-                onMouseDown={(e) => e.stopPropagation()}
+                key="dialog-content"
+                className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
               >
-                <div 
-                  key="dialog-overlay"
-                  className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <Wallet className="h-5 w-5" />
-                    {t('pricing.selectPaymentMethod')}
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {(() => {
-                      const planKeyName = planNameKey(payPlan);
-                      const planName = planKeyName ? t(planKeyName) : payPlan || '';
-                      return `${planName}${payPlan && billing === 'yearly' ? ' (' + t('pricing.periodYear') + ')' : ''}`;
-                    })()}
-                  </p>
-                  
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    {PAYMENT_CURRENCIES.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => confirmPayment(c.id)}
-                        className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 hover:border-[#FF6BA6] hover:bg-gray-750 transition-all text-left"
-                      >
-                        <span className="text-xl">{c.symbol}</span>
-                        <div className="text-left min-w-0">
-                          <div className="font-semibold text-sm truncate">{c.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">{c.id}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setShowCurrencySelector(false)}
-                  >
-                    {t('pricing.dialogCancel')}
-                  </Button>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Wallet className="h-5 w-5" />
+                  {t('pricing.selectPaymentMethod')}
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {(() => {
+                    const planKeyName = planNameKey(payPlan);
+                    const planName = planKeyName ? t(planKeyName) : payPlan || '';
+                    return `${planName}${payPlan && billing === 'yearly' ? ' (' + t('pricing.periodYear') + ')' : ''}`;
+                  })()}
+                </p>
+                
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {PAYMENT_CURRENCIES.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => confirmPayment(c.id)}
+                      className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 hover:border-[#FF6BA6] hover:bg-gray-750 transition-all text-left"
+                    >
+                      <span className="text-xl">{c.symbol}</span>
+                      <div className="text-left min-w-0">
+                        <div className="font-semibold text-sm truncate">{c.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">{c.id}</div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
+                
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowCurrencySelector(false)}
+                >
+                  {t('pricing.dialogCancel')}
+                </Button>
               </div>
-            </>
+            </div>
           ) : null}
 
           {cryptoStep === 'submitting' && (
