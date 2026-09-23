@@ -304,10 +304,9 @@ function PricingContent() {
   const handleCryptoInitiate = (planId: string) => {
     console.log('handleCryptoInitiate called', { 
       planId, 
-      user,
+      user: !!user,
       tier,
       currentRank: TIER_ORDER[tier],
-      isUserLogged: !!user,
       showCurrencySelector,
       payPlan 
     });
@@ -317,12 +316,11 @@ function PricingContent() {
       return;
     }
     
-    setPayPlan(planId);
-    // Force re-render by setting a unique key
-    setShowCurrencySelector(prev => !prev);
+    // Force immediate re-render by using setTimeout
     setTimeout(() => {
+      setPayPlan(planId);
       setShowCurrencySelector(true);
-      console.log('After timeout setting state', { payPlan: planId, showCurrencySelector: true });
+      console.log('[After State] Updated to:', { payPlan: planId, showCurrencySelector: true });
     }, 0);
   };
 
@@ -688,9 +686,19 @@ function PricingContent() {
           {/* Currency Selector Dialog - always rendered but conditionally visible */}
           <div 
             className={`fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm ${showCurrencySelector ? '' : 'pointer-events-none'}`} 
-            style={{ zIndex: 10000, opacity: showCurrencySelector ? 1 : 0, transition: 'opacity 0.15s ease-in-out' }}
-            onMouseDown={(e) => e.stopPropagation()}
+            style={{ 
+              zIndex: 10000, 
+              opacity: showCurrencySelector ? 1 : 0, 
+              transition: 'opacity 0.15s ease-in-out',
+              visibility: showCurrencySelector ? 'visible' : 'hidden'
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              console.log('[Dialog] Background clicked');
+              setShowCurrencySelector(false);
+            }}
           >
+            {console.log(`[Render] showCurrencySelector=${showCurrencySelector}, payPlan=${payPlan}`)} &&
             {showCurrencySelector && (
               <div 
                 className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200"
