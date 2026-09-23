@@ -298,15 +298,22 @@ function PricingContent() {
       tier,
       currentRank: TIER_ORDER[tier],
       isUserLogged: !!user,
-      showCurrencySelector 
+      showCurrencySelector,
+      payPlan 
     });
+    
     if (!user) {
       toast.info(t('pricing.signUpToSubscribe'));
       return;
     }
+    
     setPayPlan(planId);
-    setShowCurrencySelector(true);
-    console.log('After setting state', { payPlan: planId, showCurrencySelector: true });
+    // Force re-render by setting a unique key
+    setShowCurrencySelector(prev => !prev);
+    setTimeout(() => {
+      setShowCurrencySelector(true);
+      console.log('After timeout setting state', { payPlan: planId, showCurrencySelector: true });
+    }, 0);
   };
 
   const showToastSuccess = (result: any) => {
@@ -670,7 +677,12 @@ function PricingContent() {
 
           {/* Currency Selector Dialog - same as wallet page */}
           {showCurrencySelector ? (
-            <div key="currency-dialog" className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" style={{ zIndex: 10000 }} onMouseDown={(e) => e.stopPropagation()}>
+            <div 
+              key={`currency-dialog-${cryptoStep}`}
+              className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" 
+              style={{ zIndex: 10000 }} 
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <div 
                 key="dialog-content"
                 className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl"
