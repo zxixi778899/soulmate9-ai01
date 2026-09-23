@@ -698,7 +698,6 @@ function PricingContent() {
               setShowCurrencySelector(false);
             }}
           >
-            {console.log(`[Render] showCurrencySelector=${showCurrencySelector}, payPlan=${payPlan}`)} &&
             {showCurrencySelector && (
               <div 
                 className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200"
