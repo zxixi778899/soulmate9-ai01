@@ -668,8 +668,15 @@ function PricingContent() {
           {/* Currency Selector Dialog - same as wallet page */}
           {showCurrencySelector && payPlan && (
             <>
-              <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" style={{ zIndex: 10000 }}>
-                <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl">
+              <div 
+                className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" 
+                style={{ zIndex: 10000 }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div 
+                  className="bg-white dark:bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                     <Wallet className="h-5 w-5" />
                     {t('pricing.selectPaymentMethod')}
