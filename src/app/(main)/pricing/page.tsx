@@ -595,7 +595,7 @@ function PricingContent() {
 
       {/* USDT Payment Dialog */}
       <Dialog
-        open={!!cryptoPlan}
+        open={!!cryptoPlan || cryptoStep === 'pay'}
         onOpenChange={(open) => {
           if (!open) resetCrypto();
         }}
