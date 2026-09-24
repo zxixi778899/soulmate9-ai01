@@ -255,6 +255,8 @@ function PricingContent() {
       
       const result = await res.json();
       
+      console.log('[DEBUG] Payment API response:', result); // Added debug logging
+      
       if (!res.ok || !result.success) {
         // Handle "Amount too low" error gracefully
         if (result.error === 'Amount too low' && result.recommendedPackage) {
@@ -276,6 +278,15 @@ function PricingContent() {
         setShowCurrencySelector(true);
         return;
       }
+      
+      console.log('[DEBUG] Setting payment state:', {
+        paymentId: result.paymentId,
+        payAddress: result.payAddress,
+        payAmount: result.payAmount,
+        payCurrency: result.payCurrency,
+        network: result.network,
+        amountUsd: result.amountUsd,
+      });
       
       setShowCurrencySelector(false);
       setCryptoPaymentId(result.paymentId);
