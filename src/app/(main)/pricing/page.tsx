@@ -287,6 +287,14 @@ function PricingContent() {
         network: result.network,
         amountUsd: result.amountUsd,
         payPlan: payPlan,
+        cryptoPlan: cryptoPlan,
+        billing: billing,
+      });
+      
+      console.log('[DEBUG] About to set states:', {
+        willSetCryptoPlan: payPlan,
+        willSetCryptoBilling: billing,
+        willSetCryptoStep: 'pay',
       });
       
       setShowCurrencySelector(false);
@@ -297,6 +305,15 @@ function PricingContent() {
       setCryptoPlan(payPlan);     // Added: Set the plan to enable Dialog
       setCryptoBilling(billing);   // Added: Set billing cycle
       setCryptoStep('pay');
+      
+      // Force re-render check
+      setTimeout(() => {
+        console.log('[DEBUG] After state update check:', {
+          cryptoPlan: cryptoPlan,
+          cryptoStep: cryptoStep,
+          dialogShouldOpen: !!cryptoPlan && cryptoStep === 'pay',
+        });
+      }, 100);
       
       showToastSuccess(result);
     } catch {
