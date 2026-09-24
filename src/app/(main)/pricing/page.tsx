@@ -286,6 +286,7 @@ function PricingContent() {
         payCurrency: result.payCurrency,
         network: result.network,
         amountUsd: result.amountUsd,
+        payPlan: payPlan,
       });
       
       setShowCurrencySelector(false);
@@ -293,6 +294,8 @@ function PricingContent() {
       setCryptoWallet(result.payAddress);
       setCryptoNetwork(result.network || 'Unknown');
       setCryptoAmount(result.amountUsd || null);
+      setCryptoPlan(payPlan);     // Added: Set the plan to enable Dialog
+      setCryptoBilling(billing);   // Added: Set billing cycle
       setCryptoStep('pay');
       
       showToastSuccess(result);
