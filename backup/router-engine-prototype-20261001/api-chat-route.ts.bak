@@ -1,0 +1,265 @@
+/**
+ * Chat API - Unified routing for all chat requests
+ * 
+ * POST /api/chat
+ * Body: { message, context?, options? }
+ * Response: { reply, routeDecision, metrics? }
+ * 
+ * Features:
+ * - Intelligent intent-based routing to optimal model
+ * - Automatic fallback chain on failure
+ * - Health-aware provider selection
+ * - Cost optimization by tier
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUser } from '@/lib/supabase-server';
+import { analyzeAndRoute, type RouterDecision, ProviderId } from '@/lib/router-engine';
+import { logger } from '@/lib/logger';
+import { captureException } from '@/lib/sentry';
+
+// ──────────────────────────────────────────────────────────────
+// Provider Adapters (implement actual API calls)
+// ──────────────────────────────────────────────────────────────
+
+interface ChatRequest {
+  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
+  model: string;
+  maxTokens?: number;
+  temperature?: number;
+  stream?: boolean;
+}
+
+async function callCoze(data: ChatRequest): Promise<string> {
+  // Implement Coze API call
+  throw new Error('Coze adapter not implemented');
+}
+
+async function callDoubao(data: ChatRequest): Promise<string> {
+  // Implement Doubao API call (bytedance cloud)
+  throw new Error('Doubao adapter not implemented');
+}
+
+async function callClaude(data: ChatRequest): Promise<string> {
+  // Implement Claude API call
+  throw new Error('Claude adapter not implemented');
+}
+
+async function callDeepSeek(data: ChatRequest): Promise<string> {
+  // Implement DeepSeek API call with thinking mode
+  throw new Error('DeepSeek adapter not implemented');
+}
+
+async function callMinimax(data: ChatRequest): Promise<string> {
+  // Implement Minimax API call
+  throw new Error('Minimax adapter not implemented');
+}
+
+async function callLocalLlama(data: ChatRequest): Promise<string> {
+  // Call local Ollama/LM Studio instance
+  throw new Error('Local Llama adapter not implemented');
+}
+
+const PROVIDER_ADAPTERS: Record<ProviderId, (data: ChatRequest) => Promise<string>> = {
+  coze: callCoze,
+  doubao: callDoubao,
+  claude: callClaude,
+  deepseek: callDeepSeek,
+  minimax: callMinimax,
+  runpod_flux: async () => throw new Error('RunPod requires image-specific route'),
+  runpod_sdxl_pony: async () => throw new Error('RunPod requires image-specific route'),
+  runpod_sdxl_illustrious: async () => throw new Error('RunPod requires image-specific route'),
+  local_llama: callLocalLlama,
+};
+
+// ──────────────────────────────────────────────────────────────
+// Retry Logic with Circuit Breaker
+// ──────────────────────────────────────────────────────────────
+
+async function callWithRetry(
+  provider: ProviderId,
+  request: ChatRequest,
+  maxRetries: number = 3,
+): Promise<string> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const adapter = PROVIDER_ADAPTERS[provider];
+      if (!adapter) {
+        throw new Error(`Unknown provider: ${provider}`);
+      }
+      
+      const result = await adapter({ ...request, stream: false });
+      return result;
+      
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      logger.warn(`Attempt ${attempt + 1}/${maxRetries} failed for ${provider}:`, {
+        error: lastError.message,
+        retryRemaining: maxRetries - attempt - 1,
+      });
+      
+      if (attempt < maxRetries - 1) {
+        // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+      }
+    }
+  }
+  
+  throw new Error(`All ${maxRetries} retries failed for ${provider}. Last error: ${lastError?.message}`);
+}
+
+// ──────────────────────────────────────────────────────────────
+// Main Handler
+// ──────────────────────────────────────────────────────────────
+
+export async function POST(request: NextRequest) {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+  
+  try {
+    // Auth check
+    const auth = await getAuthUser(request);
+    
+    if (!auth?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Parse body
+    const body = await request.json();
+    const { message, context, options } = body;
+    
+    if (!message) {
+      return NextResponse.json({ error: 'Message required' }, { status: 400 });
+    }
+    
+    // Analyze and route
+    const routeDecision = analyzeAndRoute(message, {
+      userTier: options?.tier || auth.user.metadata?.membership_tier as any || 'free',
+      context: {
+        recentMessages: context?.recentMessages || [],
+        girlfriendId: context?.girlfriendId,
+      },
+    });
+    
+    logger.info(`[${requestId}] Routing decision:`, {
+      taskType: routeDecision.taskType,
+      primaryModel: routeDecision.primaryModel.id,
+      tier: auth.user.metadata?.membership_tier || 'free',
+      cost: routeDecision.estimatedCost,
+    });
+    
+    // Build conversation history
+    const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
+      {
+        role: 'system',
+        content: `You are a helpful AI assistant. Language: ${options?.locale || 'en'}`,
+      },
+      ...(context?.chatHistory || []).map((msg: any) => ({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+      })),
+      { role: 'user', content: message },
+    ];
+    
+    // Prepare provider request
+    const providerRequest: ChatRequest = {
+      messages,
+      model: routeDecision.primaryModel.id,
+      maxTokens: routeDecision.primaryModel.maxTokens,
+      temperature: options?.temperature || routeDecision.primaryModel.thinkingMode ? 0.7 : 0.85,
+    };
+    
+    // Execute with fallback chain
+    let response: string;
+    let usedProvider = routeDecision.primaryModel.provider;
+    
+    try {
+      response = await callWithRetry(
+        routeDecision.primaryModel.provider,
+        providerRequest,
+        2, // 2 retries for primary
+      );
+    } catch {
+      // Try fallback chain
+      if (routeDecision.fallbackChain.length > 0) {
+        logger.warn(`[${requestId}] Primary failed, using fallback`);
+        
+        for (const fallbackModel of routeDecision.fallbackChain) {
+          try {
+            response = await callWithRetry(fallbackModel.provider, providerRequest, 1);
+            usedProvider = fallbackModel.provider;
+            break;
+          } catch (error) {
+            logger.debug(`[${requestId}] Fallback ${fallbackModel.id} also failed`, {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+        
+        if (!response) {
+          throw new Error('All providers exhausted');
+        }
+      } else {
+        throw new Error('No fallback providers available');
+      }
+    }
+    
+    const elapsedMs = Date.now() - startTime;
+    
+    return NextResponse.json({
+      success: true,
+      reply: response,
+      routeDecision: {
+        taskId: routeDecision.taskId,
+        taskType: routeDecision.taskType,
+        usedProvider,
+        estimatedCost: routeDecision.estimatedCost,
+        actualLatencyMs: elapsedMs,
+        routeReason: routeDecision.routeReason,
+        confidence: routeDecision.confidence,
+        fallbackUsed: usedProvider !== routeDecision.primaryModel.provider,
+      },
+      metrics: {
+        requestId,
+        timestamp: new Date().toISOString(),
+        latencyMs: elapsedMs,
+        tokensEstimated: response.length / 4, // rough estimate
+      },
+    });
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    logger.error(`[${requestId}] Chat failed:`, {
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    
+    captureException(error, {
+      tags: { requestId, route: '/api/chat' },
+      extra: { message: body?.message?.slice(0, 100) },
+    });
+    
+    return NextResponse.json(
+      { error: 'Chat processing failed', details: errorMessage },
+      { status: 500 },
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// OPTIONS for CORS
+// ──────────────────────────────────────────────────────────────
+
+export async function OPTIONS() {
+  return NextResponse.json({}, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-session',
+    },
+  });
+}

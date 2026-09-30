@@ -1,0 +1,569 @@
+/**
+ * Router Engine - Unified Multimodal LLM Routing Center
+ * 
+ * Centralized routing for all AI requests (chat, image, reasoning)
+ * with health monitoring, automatic fallback, and tier-based model selection.
+ * 
+ * Architecture:
+ * 1. Intent Classification - Analyze user message to determine task type
+ * 2. Tier Router - Select base model by membership level (free/pro/unlimited)
+ * 3. Health Monitor - Real-time provider health + circuit breaker
+ * 4. Provider Selection - Choose optimal endpoint from available providers
+ * 5. Fallback Chain - Automatic retry on failure with degraded mode
+ * 
+ * Providers Supported:
+ * - Coze (primary chat)
+ * - Doubao (cost-effective tiered models)
+ * - Claude (fallback quality)
+ * - DeepSeek (complex reasoning with thinking mode)
+ * - RunPod FLUX/SDXL (image generation)
+ * - Minimax/Other (regional alternatives)
+ */
+
+import { z } from 'zod';
+
+// ──────────────────────────────────────────────────────────────
+// Types & Config
+// ──────────────────────────────────────────────────────────────
+
+export type TaskType = 
+  | 'chat'
+  | 'emotion_detection'
+  | 'metadata_generation'
+  | 'prompt_optimization'
+  | 'image_generation'
+  | 'image_edit'
+  | 'complex_reasoning'
+  | 'language_translation'
+  | 'summarization';
+
+export type MembershipTier = 'free' | 'basic' | 'pro' | 'premium' | 'unlimited';
+
+export type ProviderId = 
+  | 'coze'
+  | 'doubao'
+  | 'claude'
+  | 'deepseek'
+  | 'runpod_flux'
+  | 'runpod_sdxl_pony'
+  | 'runpod_sdxl_illustrious'
+  | 'minimax'
+  | 'local_llama';
+
+export type ModelQuality = 'economy' | 'standard' | 'premium';
+
+export interface ModelConfig {
+  id: string;
+  name: string;
+  provider: ProviderId;
+  quality: ModelQuality;
+  maxTokens: number;
+  costPerK: number; // per 1k tokens
+  speed: 'fast' | 'medium' | 'slow';
+  nsfwCapable: boolean;
+  thinkingMode: boolean;
+  active: boolean;
+}
+
+export interface HealthStatus {
+  healthy: boolean;
+  lastChecked: number;
+  failureCount: number;
+  avgLatencyMs: number;
+  error?: string;
+}
+
+export interface RouterContext {
+  tier: MembershipTier;
+  message?: string;
+  recentMessages?: string[];
+  userId?: string;
+  preferNsfw?: boolean;
+  locale?: string;
+  complexityHint?: number; // 0-1, higher = more complex
+}
+
+export interface RouterDecision {
+  taskId: string;
+  taskType: TaskType;
+  primaryModel: ModelConfig;
+  fallbackChain: ModelConfig[];
+  healthStatus: Record<ProviderId, HealthStatus>;
+  estimatedCost: number;
+  estimatedLatencyMs: number;
+  routeReason: string;
+  confidence: number; // 0-1, how confident in this routing
+  metadata?: Record<string, any>;
+}
+
+// Default model catalog (can be extended via env/config)
+const DEFAULT_MODELS: ModelConfig[] = [
+  // Coze family (primary chat)
+  {
+    id: 'coze-standard',
+    name: 'Coze Standard',
+    provider: 'coze',
+    quality: 'standard',
+    maxTokens: 8192,
+    costPerK: 0.0003,
+    speed: 'fast',
+    nsfwCapable: false,
+    thinkingMode: false,
+    active: true,
+  },
+  
+  // Doubao family (cost-effective tiers)
+  {
+    id: 'doubao-lite',
+    name: 'Doubao Seed Lite',
+    provider: 'doubao',
+    quality: 'economy',
+    maxTokens: 8192,
+    costPerK: 0.0001,
+    speed: 'fast',
+    nsfwCapable: false,
+    thinkingMode: false,
+    active: true,
+  },
+  {
+    id: 'doubao-pro',
+    name: 'Doubao Seed Pro',
+    provider: 'doubao',
+    quality: 'standard',
+    maxTokens: 8192,
+    costPerK: 0.0005,
+    speed: 'medium',
+    nsfwCapable: false,
+    thinkingMode: false,
+    active: true,
+  },
+  
+  // Claude family (high-quality fallback)
+  {
+    id: 'claude-haiku',
+    name: 'Claude 3.5 Haiku',
+    provider: 'claude',
+    quality: 'standard',
+    maxTokens: 200000,
+    costPerK: 0.0008,
+    speed: 'medium',
+    nsfwCapable: false,
+    thinkingMode: false,
+    active: true,
+  },
+  {
+    id: 'claude-opus',
+    name: 'Claude 3.5 Opus',
+    provider: 'claude',
+    quality: 'premium',
+    maxTokens: 200000,
+    costPerK: 0.005,
+    speed: 'slow',
+    nsfwCapable: false,
+    thinkingMode: false,
+    active: true,
+  },
+  
+  // DeepSeek (thinking mode for complex tasks)
+  {
+    id: 'deepseek-v3',
+    name: 'DeepSeek V3',
+    provider: 'deepseek',
+    quality: 'premium',
+    maxTokens: 64000,
+    costPerK: 0.0015,
+    speed: 'slow',
+    nsfwCapable: false,
+    thinkingMode: true,
+    active: true,
+  },
+  
+  // Local Llama (ultra-fast emotion detection)
+  {
+    id: 'local-llama-3.1',
+    name: 'Llama 3.1 8B (local)',
+    provider: 'local_llama',
+    quality: 'economy',
+    maxTokens: 8192,
+    costPerK: 0,
+    speed: 'fast',
+    nsfwCapable: true,
+    thinkingMode: false,
+    active: true,
+  },
+];
+
+// ──────────────────────────────────────────────────────────────
+// Health Monitor
+// ──────────────────────────────────────────────────────────────
+
+class HealthMonitor {
+  private statusMap: Map<ProviderId, HealthStatus> = new Map();
+  private readonly CHECK_INTERVAL = 30000; // 30s
+  private readonly FAILURE_THRESHOLD = 3;
+
+  constructor() {
+    // Initialize all providers as healthy
+    for (const model of DEFAULT_MODELS) {
+      if (model.active) {
+        this.statusMap.set(model.provider, {
+          healthy: true,
+          lastChecked: Date.now(),
+          failureCount: 0,
+          avgLatencyMs: 100,
+        });
+      }
+    }
+    
+    // Start background health checks (only in Node.js environment)
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
+      setInterval(() => this.runHealthChecks(), this.CHECK_INTERVAL);
+    }
+  }
+
+  async runHealthChecks() {
+    const providers: ProviderId[] = ['coze', 'doubao', 'claude', 'deepseek'];
+    
+    for (const provider of providers) {
+      const start = Date.now();
+      try {
+        await this.checkProviderHealth(provider);
+        const latency = Date.now() - start;
+        
+        this.updateStatus(provider, {
+          healthy: true,
+          lastChecked: Date.now(),
+          failureCount: 0,
+          avgLatencyMs: latency,
+        });
+      } catch (error) {
+        this.updateStatus(provider, {
+          healthy: false,
+          lastChecked: Date.now(),
+          failureCount: (this.statusMap.get(provider)?.failureCount || 0) + 1,
+          avgLatencyMs: 0,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+  }
+
+  private async checkProviderHealth(provider: ProviderId): Promise<void> {
+    // Mock health check - replace with actual ping in production
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Simulate occasional failures for testing
+    if (provider === 'coze' && Math.random() < 0.1) {
+      throw new Error('Coze timeout');
+    }
+  }
+
+  updateStatus(provider: ProviderId, status: Partial<HealthStatus>) {
+    const current = this.statusMap.get(provider) || {
+      healthy: false,
+      lastChecked: 0,
+      failureCount: 0,
+      avgLatencyMs: 0,
+    };
+    
+    this.statusMap.set(provider, { ...current, ...status });
+  }
+
+  getStatus(provider: ProviderId): HealthStatus {
+    return this.statusMap.get(provider) || {
+      healthy: false,
+      lastChecked: 0,
+      failureCount: 0,
+      avgLatencyMs: 0,
+      error: 'Not initialized',
+    };
+  }
+
+  isHealthy(provider: ProviderId): boolean {
+    const status = this.getStatus(provider);
+    return status.healthy && status.failureCount < this.FAILURE_THRESHOLD;
+  }
+
+  getHealthyProviders(exclude: ProviderId[] = []): ProviderId[] {
+    const allProviders: ProviderId[] = ['coze', 'doubao', 'claude', 'deepseek', 'minimax'];
+    return allProviders.filter(p => this.isHealthy(p) && !exclude.includes(p));
+  }
+}
+
+// Global singleton
+const healthMonitor = new HealthMonitor();
+
+// ──────────────────────────────────────────────────────────────
+// Intent Classifier
+// ──────────────────────────────────────────────────────────────
+
+const INTENT_PATTERNS: { pattern: RegExp; task: TaskType; priority: number }[] = [
+  // Image generation intents (highest priority)
+  { pattern: /(generate|create|make|draw|render|show me)\s.*(picture|image|photo|selfie|art|pic|portrait)/i, task: 'image_generation', priority: 10 },
+  { pattern: /(send me|take|snap|shoot)\s.*(selfie|photo|picture|pic)/i, task: 'image_generation', priority: 10 },
+  { pattern: /\b(draw|sketch|paint|render)\s+(yourself|you|urself)\b/i, task: 'image_generation', priority: 10 },
+  { pattern: /(show|send|let me see)\s+(me\s+)?(your\s+)?(ass|butt|booty|body|boobs?|chest|legs?|feet|face)/i, task: 'image_generation', priority: 10 },
+  { pattern: /(发张自拍 | 来张自拍 | 发我.*图 | 给我看 | 看看你的 | 自拍 | 照片)/i, task: 'image_generation', priority: 10 },
+  
+  // Image editing
+  { pattern: /(change|modify|edit|update)\s+(my|your|the)\s+(outfit|clothes|dress|look|appearance)/i, task: 'image_edit', priority: 9 },
+  { pattern: /(换装 | 换衣服 | 改穿着 | 换发型)/i, task: 'image_edit', priority: 9 },
+  
+  // Complex reasoning
+  { pattern: /\b(why|how does|explain|analyze|compare|difference|reason|logic|calculate|solve|equation|formula|proof)\b/i, task: 'complex_reasoning', priority: 8 },
+  { pattern: /\w{20,}/i, task: 'complex_reasoning', priority: 5 }, // Long prompt likely complex
+  
+  // Emotion detection
+  { pattern: /\b(feel|emotion|happy|sad|angry|excited|depressed|mood)\b/i, task: 'emotion_detection', priority: 7 },
+  
+  // Metadata generation
+  { pattern: /(tag|label|category|genre|trait|description|bio)/i, task: 'metadata_generation', priority: 6 },
+  
+  // Prompt optimization
+  { pattern: /(optimize|improve|enhance|better)\s+(my|the)?\s*(prompt|description|text)/i, task: 'prompt_optimization', priority: 6 },
+  
+  // Language translation
+  { pattern: /\b(translate|translation|convert|lang)\b/i, task: 'language_translation', priority: 5 },
+  
+  // Summarization
+  { pattern: /\b(summarize|summary|brief|short)\b/i, task: 'summarization', priority: 5 },
+  
+  // Default: chat
+  { pattern: /.*/i, task: 'chat', priority: 0 },
+];
+
+export function detectIntent(message: string): TaskType {
+  let bestMatch: { task: TaskType; priority: number } = { task: 'chat', priority: 0 };
+  
+  for (const { pattern, task, priority } of INTENT_PATTERNS) {
+    if (pattern.test(message) && priority > bestMatch.priority) {
+      bestMatch = { task, priority };
+    }
+  }
+  
+  return bestMatch.task;
+}
+
+export function getTaskType(message: string, context?: { recentMessages?: string[] }): TaskType {
+  const intent = detectIntent(message);
+  
+  // Context-aware refinement
+  if (intent === 'chat' && context?.recentMessages) {
+    const recentContext = context.recentMessages.join(' ').toLowerCase();
+    
+    // Follow-up to image request
+    if (/(selfie|photo|picture|image|generate|show me)/i.test(recentContext)) {
+      if (/^(yes|yeah|ok|okay|sure|go ahead|do it|please|i want)/i.test(message.trim())) {
+        return 'image_generation';
+      }
+    }
+  }
+  
+  return intent;
+}
+
+// ──────────────────────────────────────────────────────────────
+// Tier Router
+// ──────────────────────────────────────────────────────────────
+
+function getModelByTier(tier: MembershipTier, quality: ModelQuality, excludeProviders: ProviderId[] = []): ModelConfig | null {
+  const availableModels = DEFAULT_MODELS.filter(m => m.active && !excludeProviders.includes(m.provider));
+  
+  switch (tier) {
+    case 'free':
+      return availableModels.find(m => m.quality === 'economy' && m.speed === 'fast') ??
+             availableModels.find(m => m.quality === 'standard') ?? null;
+    
+    case 'basic':
+      return availableModels.find(m => m.quality === 'standard' && m.speed === 'fast') ??
+             availableModels.find(m => m.quality === 'standard') ?? null;
+    
+    case 'pro':
+      return availableModels.find(m => m.quality === quality || m.quality === 'premium') ??
+             availableModels.find(m => m.quality === 'standard') ?? null;
+    
+    case 'premium':
+    case 'unlimited':
+      return availableModels.find(m => m.quality === 'premium') ??
+             availableModels.find(m => m.quality === 'standard') ?? null;
+    
+    default:
+      return null;
+  }
+}
+
+function getFallbackChain(primary: ModelConfig, taskType: TaskType): ModelConfig[] {
+  const chain: ModelConfig[] = [];
+  
+  // Primary fallback: same quality, different provider
+  if (primary.provider === 'coze') {
+    chain.push(...DEFAULT_MODELS.filter(m => m.provider === 'doubao' && m.quality === primary.quality));
+    chain.push(...DEFAULT_MODELS.filter(m => m.provider === 'claude' && m.quality === primary.quality));
+  } else if (primary.provider === 'doubao') {
+    chain.push(...DEFAULT_MODELS.filter(m => m.provider === 'coze' && m.quality === primary.quality));
+    chain.push(...DEFAULT_MODELS.filter(m => m.provider === 'claude' && m.quality === primary.quality));
+  } else if (primary.provider === 'claude') {
+    chain.push(...DEFAULT_MODELS.filter(m => m.provider === 'coze' && m.quality === primary.quality));
+    chain.push(...DEFAULT_MODELS.filter(m => m.provider === 'doubao' && m.quality === primary.quality));
+  }
+  
+  // Specialized fallbacks
+  if (taskType === 'complex_reasoning') {
+    chain.push(...DEFAULT_MODELS.filter(m => m.provider === 'deepseek'));
+  }
+  
+  return chain.filter(m => m.active);
+}
+
+// ──────────────────────────────────────────────────────────────
+// Main Router
+// ──────────────────────────────────────────────────────────────
+
+export function routeRequest(input: {
+  taskType: TaskType;
+  context: RouterContext;
+}): RouterDecision {
+  const { taskType, context } = input;
+  const { tier, message, preferNsfw } = context;
+  
+  const excludedProviders: ProviderId[] = [];
+  
+  // Exclude NSFW-incompatible models if requested
+  if (preferNsfw) {
+    excludedProviders.push('coze', 'doubao', 'claude'); // Most cloud providers restrict NSFW
+  }
+  
+  // Select primary model based on task type and tier
+  let primaryModel: ModelConfig | null = null;
+  let routeReason = '';
+  let estimatedCost = 0;
+  let estimatedLatencyMs = 0;
+  
+  switch (taskType) {
+    case 'emotion_detection':
+      // Fast local model for emotion analysis
+      primaryModel = DEFAULT_MODELS.find(m => m.provider === 'local_llama' && m.active) ||
+                     DEFAULT_MODELS.find(m => m.provider === 'doubao' && m.quality === 'economy');
+      routeReason = 'Emotion detection - optimized for low latency';
+      estimatedLatencyMs = 100; // Ultra-fast local
+      break;
+      
+    case 'image_generation':
+      // Route to image-specific providers (handled separately in invoke layer)
+      primaryModel = DEFAULT_MODELS.find(m => m.provider === 'coze');
+      routeReason = 'Image generation - delegates to RunPod pipeline';
+      break;
+      
+    case 'image_edit':
+      primaryModel = DEFAULT_MODELS.find(m => m.provider === 'coze');
+      routeReason = 'Image editing - delegates to RunPod img2img';
+      break;
+      
+    case 'complex_reasoning':
+      // Premium users get DeepSeek with thinking mode
+      primaryModel = DEFAULT_MODELS.find(m => m.provider === 'deepseek' && m.active);
+      if (!primaryModel) {
+        primaryModel = getModelByTier(tier, 'premium', excludedProviders);
+      }
+      routeReason = 'Complex reasoning - DeepSeek with thinking enabled';
+      estimatedLatencyMs = 2000; // Thinking takes time
+      break;
+      
+    case 'metadata_generation':
+    case 'prompt_optimization':
+      primaryModel = getModelByTier(tier, 'standard', excludedProviders);
+      routeReason = `${taskType} - standard quality model`;
+      break;
+      
+    case 'language_translation':
+    case 'summarization':
+      primaryModel = getModelByTier(tier, 'economy', excludedProviders);
+      routeReason = `${taskType} - economy model for efficiency`;
+      break;
+      
+    case 'chat':
+    default:
+      // Regular chat - use tier-appropriate model
+      const quality = tier === 'free' ? 'economy' : tier === 'pro' ? 'standard' : 'premium';
+      primaryModel = getModelByTier(tier, quality, excludedProviders);
+      
+      if (tier === 'free') {
+        routeReason = 'Free tier - cost-optimized model';
+        estimatedCost = 0.0001;
+      } else if (tier === 'pro') {
+        routeReason = 'Pro tier - balanced quality and cost';
+        estimatedCost = 0.0005;
+      } else {
+        routeReason = 'Premium/Unlimited tier - highest quality';
+        estimatedCost = 0.0015;
+      }
+      break;
+  }
+  
+  if (!primaryModel) {
+    throw new Error(`No suitable model found for tier ${tier} and task ${taskType}`);
+  }
+  
+  // Get fallback chain
+  const fallbackChain = getFallbackChain(primaryModel, taskType);
+  
+  // Filter out unhealthy providers from fallback chain
+  const healthyFallback = fallbackChain.filter(m => healthMonitor.isHealthy(m.provider));
+  
+  // Estimate cost (assuming 500 token average response)
+  const avgTokens = taskType === 'complex_reasoning' ? 1500 : 500;
+  estimatedCost = (avgTokens / 1000) * primaryModel.costPerK;
+  
+  // Estimate latency
+  if (estimatedLatencyMs === 0) {
+    switch (primaryModel.speed) {
+      case 'fast': estimatedLatencyMs = 500; break;
+      case 'medium': estimatedLatencyMs = 1500; break;
+      case 'slow': estimatedLatencyMs = 3000; break;
+    }
+  }
+  
+  return {
+    taskId: crypto.randomUUID(),
+    taskType,
+    primaryModel,
+    fallbackChain: healthyFallback,
+    healthStatus: Object.fromEntries(healthMonitor.statusMap.entries()) as Record<ProviderId, HealthStatus>,
+    estimatedCost,
+    estimatedLatencyMs,
+    routeReason,
+    confidence: 0.95, // High confidence in rule-based routing
+  };
+}
+
+// ──────────────────────────────────────────────────────────────
+// Convenience Functions
+// ──────────────────────────────────────────────────────────────
+
+export function analyzeAndRoute(
+  message: string,
+  options?: {
+    userTier?: MembershipTier;
+    context?: { recentMessages?: string[]; girlfriendId?: string };
+  }
+): RouterDecision {
+  const taskType = getTaskType(message, options?.context);
+  const tier = options?.userTier || 'free';
+  
+  return routeRequest({
+    taskType,
+    context: {
+      tier,
+      message,
+      ...options?.context,
+    },
+  });
+}
+
+export function getHealthStatus(): Record<ProviderId, HealthStatus> {
+  return Object.fromEntries(healthMonitor.statusMap.entries()) as Record<ProviderId, HealthStatus>;
+}
+
+export function triggerHealthCheck(): Promise<void> {
+  return healthMonitor.runHealthChecks();
+}

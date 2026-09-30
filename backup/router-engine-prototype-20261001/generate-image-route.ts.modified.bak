@@ -1,0 +1,258 @@
+/**
+ * Image Generation API - Unified routing for all image requests
+ * 
+ * POST /api/generate-image
+ * Body: { scene, prompt, params?, context? }
+ * Response: { imageUrl, routeDecision, metrics? }
+ * 
+ * Features:
+ * - SDXL/FLUX matrix-based routing (model-matrix.ts)
+ * - NSFW hard-route to SDXL dual-channel
+ * - Reference-based generation support (IP-Adapter)
+ * - Health-aware RunPod endpoint selection
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUser } from '@/lib/supabase-server';
+import { resolveImageGenerationRoute, type ImageSurface } from '@/lib/image-generation-routing';
+import { classifyImageScene, type ImageSceneSemantics } from '@/lib/image-scene-semantics';
+import { runpodClient } from '@/lib/runpod';
+import { logger } from '@/lib/logger';
+import { captureException } from '@/lib/sentry';
+
+// ──────────────────────────────────────────────────────────────
+// Request Types
+// ──────────────────────────────────────────────────────────────
+
+export interface ImageGenerationParams {
+  surface: ImageSurface;
+  prompt: string;
+  negativePrompt?: string;
+  
+  // Model parameters
+  width: number;
+  height: number;
+  steps: number;
+  cfg: number;
+  sampler: string;
+  scheduler: string;
+  
+  // LoRA settings
+  loras?: Array<{ name: string; strength: number }>;
+  
+  // Reference images (IP-Adapter)
+  referenceImages?: string[];
+  ipAdapterStrength?: number;
+  
+  // Advanced
+  seed?: number;
+  denoise?: number; // For img2img
+}
+
+interface ChatContext {
+  category?: 'female' | 'male' | 'transgender';
+  renderStyle?: 'realistic' | '2d' | '3d';
+  nsfwIntensity?: 1 | 2 | 3 | 4 | 5;
+}
+
+// ──────────────────────────────────────────────────────────────
+// Route Resolver Wrapper
+// ──────────────────────────────────────────────────────────────
+
+async function determineImageRoute(input: {
+  surface: ImageSurface;
+  prompt: string;
+  category?: ChatContext['category'];
+  renderStyle?: ChatContext['renderStyle'];
+  nsfwIntensity?: ChatContext['nsfwIntensity'];
+  sceneText?: string;
+}): Promise<{
+  route: Parameters<typeof runpodClient>[0]['route'];
+  decisionReason: string;
+}> {
+  // Classify scene first
+  const semantics = classifyImageScene(input.prompt || input.sceneText || '', input.category || 'female');
+  
+  // Resolve full generation route using the new router-engine decision
+  const route = resolveImageGenerationRoute({
+    surface: input.surface,
+    category: input.category || 'female',
+    renderStyle: input.renderStyle || 'realistic',
+    nsfwIntensity: (input.nsfwIntensity || 1) as any,
+    sceneText: input.prompt,
+    sceneSemantics: semantics,
+  });
+  
+  return {
+    route,
+    decisionReason: route.reason,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────
+// Main Handler
+// ──────────────────────────────────────────────────────────────
+
+export async function POST(request: NextRequest) {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+  
+  try {
+    // Auth check
+    const auth = await getAuthUser(request);
+    
+    if (!auth?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Parse body
+    const body = await request.json();
+    const { surface, prompt, negativePrompt, params, context } = body;
+    
+    // Required fields
+    if (!surface || !prompt) {
+      return NextResponse.json(
+        { error: 'Missing required fields: surface, prompt' },
+        { status: 400 }
+      );
+    }
+    
+    // Determine optimal route based on content analysis
+    const { route, decisionReason } = await determineImageRoute({
+      surface,
+      prompt,
+      category: context?.category,
+      renderStyle: context?.renderStyle,
+      nsfwIntensity: context?.nsfwIntensity,
+    });
+    
+    logger.info(`[${requestId}] Image route decision:`, {
+      surface,
+      modelFamily: route.modelFamily,
+      checkpoint: route.checkpoint,
+      endpoint: route.endpointId,
+      reason: decisionReason,
+    });
+    
+    // Build RunPod task configuration
+    const runpodConfig = {
+      route,
+      input: {
+        prompt,
+        negative_prompt: negativePrompt || route.negativePrompt,
+        
+        // From resolved route
+        width: params?.width || route.width,
+        height: params?.height || route.height,
+        steps: params?.steps || route.steps,
+        cfg_scale: params?.cfg || route.cfg,
+        sampler_name: params?.sampler || route.sampler,
+        scheduler: params?.scheduler || route.scheduler,
+        
+        // LoRA
+        loras: params?.loras?.map(l => ({
+          name: l.name,
+          weight: l.strength,
+        })) || [],
+        
+        // Reference images (IP-Adapter)
+        ref_images: params?.referenceImages || [],
+        ip_adapter_strength: params?.ipAdapterStrength || 0.8,
+        
+        // Seed (random if not provided)
+        seed: params?.seed || Math.floor(Math.random() * 1000000),
+        
+        // Denoise for img2img
+        denoise: params?.denoise || undefined,
+      },
+    };
+    
+    // Execute RunPod generation with fallback endpoints
+    let result: Awaited<ReturnType<typeof runpodClient>>;
+    
+    try {
+      result = await runpodClient(runpodConfig);
+    } catch (error) {
+      logger.error(`[${requestId}] RunPod primary failed:`, {
+        endpoint: route.endpointId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      
+      // Try alternative endpoint from same family
+      const altEndpointId = route.modelFamily === 'pony'
+        ? process.env.RUNPOD_ENDPOINT_ID_SDXL_ILLUSTRIOUS
+        : route.modelFamily === 'illustrious'
+        ? process.env.RUNPOD_ENDPOINT_ID_SDXL_PONY
+        : process.env.RUNPOD_ENDPOINT_ID_FLUX;
+      
+      if (altEndpointId) {
+        logger.info(`[${requestId}] Fallback to alternate endpoint`);
+        
+        const altConfig = { ...runpodConfig, endpointId: altEndpointId };
+        result = await runpodClient(altConfig);
+      } else {
+        throw new Error('No fallback endpoints available');
+      }
+    }
+    
+    const elapsedMs = Date.now() - startTime;
+    
+    return NextResponse.json({
+      success: true,
+      imageUrl: result.imageUrl,
+      taskId: result.taskId,
+      routeDecision: {
+        surface,
+        modelFamily: route.modelFamily,
+        checkpoint: route.checkpoint,
+        endpointId: route.endpointId,
+        decisionReason,
+        parameters: {
+          width: route.width,
+          height: route.height,
+          steps: route.steps,
+          cfg: route.cfg,
+          sampler: route.sampler,
+        },
+      },
+      metrics: {
+        requestId,
+        timestamp: new Date().toISOString(),
+        generationTimeMs: elapsedMs,
+        tokensUsed: result.tokens || 0,
+      },
+    });
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    logger.error(`[${requestId}] Image generation failed:`, {
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    
+    captureException(error, {
+      tags: { requestId, route: '/api/generate-image' },
+      extra: { surface: body?.surface, prompt: body?.prompt?.slice(0, 100) },
+    });
+    
+    return NextResponse.json(
+      { error: 'Image generation failed', details: errorMessage },
+      { status: 500 },
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// OPTIONS for CORS
+// ──────────────────────────────────────────────────────────────
+
+export async function OPTIONS() {
+  return NextResponse.json({}, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-session',
+    },
+  });
+}
