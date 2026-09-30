@@ -39,7 +39,6 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [packages, setPackages] = useState<TokenPackage[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
-  const [payCurrency, setPayCurrency] = useState('usdttrc20'); // Default to USDT TRC-20 (NOWPayments format)
   const [payPkg, setPayPkg] = useState<TokenPackage | null>(null);
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const [cryptoDialog, setCryptoDialog] = useState<{
@@ -144,7 +143,7 @@ export default function WalletPage() {
     setBuying(null);
   };
 
-  const showToastSuccess = (result: any) => {
+  const showToastSuccess = (result: { amountUsd: number; payAmount: number | string; payCurrency: string; network: string }) => {
     toast.info(`扫描以下地址支付 $${result.amountUsd.toFixed(2)}`, {
       description: `${result.payAmount} ${result.payCurrency} · ${result.network} 网络 · 15 分钟内有效`,
       duration: 5000,

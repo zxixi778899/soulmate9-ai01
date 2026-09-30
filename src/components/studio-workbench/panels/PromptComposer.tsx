@@ -1,11 +1,10 @@
 'use client';
 
 import { useStudio } from '../StudioContext';
-import { Wand2, ChevronDown, ChevronUp, Bookmark } from 'lucide-react';
+import { Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NsfwIntensity } from '@/lib/comfy-console/studio-profile';
 import { PromptPresets } from './PromptPresets';
-import { useState, useMemo } from 'react';
 
 const NSFW_LABELS: Record<number, string> = { 1: 'SFW', 2: 'LV1 暗示', 3: 'LV2 暧昧', 4: 'LV3 性感', 5: 'LV4+ 大胆' };
 

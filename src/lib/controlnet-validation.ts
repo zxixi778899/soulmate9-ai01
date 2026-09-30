@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import type { ControlNetMultiUnitConfig, ComfyNetUnit } from '@/lib/controlnet-units';
+import type { ControlNetMultiUnitConfig } from '@/lib/controlnet-units';
 
 // ============================================
 // Constants for validation
@@ -279,8 +279,6 @@ export function validateControlNetMultiUnitConfig(input: unknown): z.ZodSafePars
   const units = result.data.controlnet_units;
 
   // Each unit must be valid based on its declared type
-  const validatedUnits: Partial<Record<'pose_unit' | 'outfit_unit' | 'scene_unit' | 'identity_unit', unknown>> = {};
-
   if (units?.pose_unit) {
     const poseValidation = validateControlNetUnit(units.pose_unit);
     if (!poseValidation.success) return { success: false, error: poseValidation.error as z.ZodError<ControlNetMultiUnitConfig> };

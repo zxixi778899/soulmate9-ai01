@@ -8,7 +8,6 @@ import {
   Layers,
   Loader2,
   CloudUpload,
-  BookOpen,
   SlidersHorizontal,
   UserRound,
   Workflow,
@@ -17,7 +16,6 @@ import {
 import ComfyConsole from '../comfy/ComfyConsole';
 import { StudioWorkbench } from '@/components/studio-workbench/StudioWorkbench';
 import AdminUnifiedPresetsContent from '@/components/admin/AdminUnifiedPresetsContent';
-import CreatorPreviewsAdminContent from '@/components/admin/CreatorPreviewsAdminContent';
 import PublicAssetsAdminContent from '@/components/admin/PublicAssetsAdminContent';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/supabase';

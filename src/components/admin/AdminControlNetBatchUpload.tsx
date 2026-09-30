@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, RefreshCw, Upload, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, Upload, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 
 interface PresetOption {
   id: string;
@@ -24,19 +24,25 @@ interface PresetOption {
   category: string;
 }
 
+interface BatchResult {
+  preset_id: string;
+  status: 'success' | 'failed' | 'skipped';
+  assets?: Record<string, string>;
+  error?: string;
+}
+
 export function AdminControlNetBatchUpload() {
   const { t } = useTranslation();
   const [presets, setPresets] = useState<PresetOption[]>([]);
   const [selectedPresetIds, setSelectedPresetIds] = useState<string[]>([]);
   const [selectedAssetTypes, setSelectedAssetTypes] = useState<string[]>(['openpose', 'canny']);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<BatchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // ========== Load Presets on Mount ==========
   useEffect(() => {
     loadPresets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only
   }, []);
 
   const loadPresets = async () => {

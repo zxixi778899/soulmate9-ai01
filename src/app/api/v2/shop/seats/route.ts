@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 import { COMPANION_SEAT_PACKAGES, getSeatStatus, packageById, type SeatClient } from '@/lib/companion-seats';
 import {
   nowPaymentsCreateInvoice,
-  nowPaymentsCreatePayment,
-  NOWPAYMENTS_CURRENCIES,
 } from '@/lib/nowpayments-server';
 
 /**

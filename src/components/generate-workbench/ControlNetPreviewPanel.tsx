@@ -132,8 +132,6 @@ function PreviewCard(props: {
   aspectClass?: string;
   isLoading?: boolean;
 }) {
-  const { t } = useTranslation();
-  
   const colorStyles = {
     rose: 'border-[#FD5FC2]/30 bg-[#FD5FC2]/5 hover:bg-[#FD5FC2]/10',
     violet: 'border-[#8b5cf6]/30 bg-[#8b5cf6]/5 hover:bg-[#8b5cf6]/10',
@@ -146,13 +144,6 @@ function PreviewCard(props: {
     violet: 'bg-[#8b5cf6]/20 text-[#A78BFA]',
     cyan: 'bg-[#06b6d4]/20 text-[#67E8F9]',
     amber: 'bg-[#f59e0b]/20 text-[#FCD34D]',
-  };
-
-  const iconColors = {
-    rose: 'text-[#FD5FC2]',
-    violet: 'text-[#8b5cf6]',
-    cyan: 'text-[#06b6d4]',
-    amber: 'text-[#f59e0b]',
   };
 
   return (

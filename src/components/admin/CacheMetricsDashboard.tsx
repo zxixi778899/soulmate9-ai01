@@ -5,7 +5,7 @@ import { Database } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
 interface CacheMetricsData {
-  today: any[];
+  today: unknown[];
   health: {
     activeEntries: number;
     expiredEntries: number;
@@ -13,7 +13,7 @@ interface CacheMetricsData {
     avgHitRateToday: number;
     healthScore: number;
   };
-  topPrompts: any[];
+  topPrompts: unknown[];
   cpuSaved: { estimatedSeconds: number; estimatedCostUSD: number };
   updatedAt: string;
 }

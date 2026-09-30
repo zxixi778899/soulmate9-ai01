@@ -288,7 +288,7 @@ export default function ShopPage() {
   const [cryptoCurrency, setCryptoCurrency] = useState('usdttrc20'); // Default to USDT TRC-20
   
   // Crypto payment dialog for embedded QR code display
-  const [cryptoDialog, setCryptoDialog] = useState<{
+  const [, setCryptoDialog] = useState<{
     open: boolean;
     paymentId: string | null;
     walletAddress: string;
@@ -302,7 +302,7 @@ export default function ShopPage() {
   // Dummy state for backward compatibility with existing UI code (to be cleaned up later)
   // Using string type instead of literal to avoid TypeScript no-comparison errors
   const selectedProvider: string = 'nowpayments'; // Always NOWPayments now (placeholder)
-  const setSelectedProvider: any = () => {}; // No-op, accepts any args to prevent TS errors
+  const setSelectedProvider: (...args: unknown[]) => void = () => {}; // No-op, accepts any args to prevent TS errors
 
   const [seatPackages, setSeatPackages] = useState<Array<{ id: string; name: string; seats: number; price_cents: number }>>([]);
   const [seatStatus, setSeatStatus] = useState<{ used: number; effectiveLimit: number; bonusSeats: number; remaining: number | null; canAdd: boolean } | null>(null);

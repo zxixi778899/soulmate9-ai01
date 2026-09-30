@@ -8,6 +8,8 @@
  *   NOWPAYMENTS_PAY_CURRENCY — default accepted currency (e.g. usdttrc20)
  */
 
+import crypto from 'node:crypto';
+
 import { logger } from '@/lib/logger';
 
 const NOWPAYMENTS_API_URL = 'https://api.nowpayments.io/v1';
@@ -35,7 +37,7 @@ async function nowPaymentsFetch<T>(path: string, options?: RequestInit): Promise
     let text = '';
     try {
       text = await res.text().catch(() => '');
-    } catch (e) {
+    } catch {
       text = '[unable to read response body]';
     }
     
@@ -229,7 +231,7 @@ export function getTokenPackagePriceCents(tokenCount: number): number {
   };
   
   // Try to find exact match
-  let price = envPrices[String(tokenCount)];
+  const price = envPrices[String(tokenCount)];
   if (price > 0) return price;
   
   // Fallback to hardcoded rates: 1000 credits = $9.99
@@ -254,8 +256,7 @@ export function verifyNowPaymentsIPN(body: string, signature: string): boolean {
 
   // NOWPayments uses HMAC-SHA512: signature = hmac_sha512(ipn_secret, raw_body_as_hex_string)
   // The body must be converted to hex before signing
-  const crypto = require('crypto');
-  
+
   // Convert body to hex string
   const bodyHex = Buffer.from(body, 'utf8').toString('hex');
   const expectedSignature = crypto.createHmac('sha512', secret).update(bodyHex, 'hex').digest('hex');

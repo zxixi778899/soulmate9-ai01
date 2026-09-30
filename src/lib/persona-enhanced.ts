@@ -3,7 +3,7 @@
  */
 
 // Personality template library
-const PERSONA_TEMPLATES = {
+export const PERSONA_TEMPLATES = {
   // ===== 傲娇系 =====
   tsundere: {
     name: '傲娇少女',

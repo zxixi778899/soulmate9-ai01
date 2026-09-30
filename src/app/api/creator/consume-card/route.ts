@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      const result = await cancelCreationCard(token);
+      await cancelCreationCard(token);
       return NextResponse.json({ ok: true, mode: 'cancel', cancelled: true });
     }
 

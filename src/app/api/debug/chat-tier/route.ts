@@ -81,8 +81,8 @@ export async function GET(request: NextRequest) {
       verdict: anonIsAdmin ? 'UNLIMITED' : `LIMITED to ${anonEffectiveLimit}`,
     },
     diagnosis: {
-      anon_can_read_role: !!(anonProfile as any)?.role,
-      anon_can_read_tier: !!(anonProfile as any)?.membership_tier,
+      anon_can_read_role: !!anonProfileAny?.role,
+      anon_can_read_tier: !!anonProfileAny?.membership_tier,
       rls_blocking: !anonProfile && !!serviceProfile,
     },
   });

@@ -770,8 +770,8 @@ export default function ComfyConsole({ girlfriendId, embedded = false }: ComfyCo
 
   useEffect(() => {
     if (tab === 'library') loadAssets();
-    // loadAssets is stable useCallback, only tab change triggers reload
-  }, [tab]); 
+    // loadAssets is a stable useCallback (deps: girlfriendId/productionGirlfriendId)
+  }, [tab, loadAssets]);
 
   function applyWorkflow(wf: Any, cfg?: Any, opts?: { preservePrompt?: boolean }) {
     const c = cfg || config;

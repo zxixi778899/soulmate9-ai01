@@ -297,7 +297,7 @@ export function UpscalerPanel() {
 
 // ─── Node Control Container ──────────────────────────────────────────────────
 
-export function NodeControls({ activeTab, setActiveTab }: { 
+export function NodeControls({ activeTab }: { 
   activeTab: StudioEnhancerKey; 
   setActiveTab: (tab: StudioEnhancerKey) => void 
 }) {

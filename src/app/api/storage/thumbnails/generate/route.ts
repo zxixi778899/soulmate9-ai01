@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
             
             // Upload to Supabase Storage
             const bucket = 'assets';
-            const { data, error } = await supabase.storage
+            const { error } = await supabase.storage
               .from(bucket)
               .upload(thumbnailPath, thumbnailBuffer, {
                 contentType: 'image/jpeg',

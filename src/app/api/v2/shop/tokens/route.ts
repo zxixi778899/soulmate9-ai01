@@ -4,7 +4,6 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logger } from '@/lib/logger';
 import {
   nowPaymentsCreateInvoice,
-  nowPaymentsCreatePayment,
   NOWPAYMENTS_CURRENCIES,
 } from '@/lib/nowpayments-server';
 
@@ -203,7 +202,7 @@ export async function POST(req: NextRequest) {
       : 'BTC';
 
     const description = isMembershipUpgrade
-      ? `${(tokenPackage as any).name} Membership Upgrade`
+      ? `${tokenPackage.name} Membership Upgrade`
       : `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} tokens`;
 
     const successTab = isMembershipUpgrade ? 'membership' : 'tokens';

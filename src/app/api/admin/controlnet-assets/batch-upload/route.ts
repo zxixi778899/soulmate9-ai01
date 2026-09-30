@@ -7,12 +7,19 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuthUser } from '@/lib/supabase-server';
 import { requireAdmin } from '@/lib/require-admin';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+interface PresetRow {
+  id: string;
+  preview_url?: string | null;
+  [key: string]: unknown;
+}
 
 interface BatchUploadRequest {
   preset_ids: string[];          // Array of preset UUIDs to process
@@ -81,7 +88,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch presets' }, { status: 500 });
   }
   
-  const presets = presetsQuery.data as any[];
+  const presets = presetsQuery.data as PresetRow[];
   if (presets.length === 0) {
     return NextResponse.json({ error: 'No valid presets found' }, { status: 404 });
   }
@@ -110,9 +117,7 @@ export async function POST(request: NextRequest) {
       // Generate ControlNet assets using ComfyUI
       const generatedAssets = await generateControlNetAssets(
         preset,
-        newTypes,
-        supabase,
-        user.id
+        newTypes
       );
       
       if (generatedAssets.success) {
@@ -160,7 +165,7 @@ export async function POST(request: NextRequest) {
 // ========== Helper Functions ==========
 
 async function checkExistingAssets(
-  supabase: any,
+  supabase: SupabaseClient,
   preset_id: string,
   asset_types: string[]
 ): Promise<Record<string, boolean>> {
@@ -184,17 +189,16 @@ async function checkExistingAssets(
       .eq('id', preset_id)
       .single();
     
-    existing[assetType] = Boolean(result.data?.[columnName]);
+    const row = result.data as Record<string, unknown> | null;
+    existing[assetType] = Boolean(row?.[columnName]);
   }
   
   return existing;
 }
 
 async function generateControlNetAssets(
-  preset: any,
-  asset_types: string[],
-  supabase: any,
-  adminUserId: string
+  preset: PresetRow,
+  asset_types: string[]
 ): Promise<{ success: boolean; assets?: Record<string, string>; error?: string }> {
   try {
     const sourceImage = preset.preview_url;
@@ -312,7 +316,7 @@ function buildComfyWorkflow(assetType: string, sourceImage: string): Record<stri
 }
 
 async function updatePresetAssets(
-  supabase: any,
+  supabase: SupabaseClient,
   preset_id: string,
   assets: Record<string, string>
 ): Promise<void> {
@@ -344,7 +348,7 @@ async function updatePresetAssets(
 }
 
 async function storeAssetMetadata(
-  supabase: any,
+  supabase: SupabaseClient,
   preset_id: string,
   assets: Record<string, string>
 ): Promise<void> {

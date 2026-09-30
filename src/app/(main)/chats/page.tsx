@@ -293,7 +293,7 @@ export default function ChatsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedFriendId = searchParams.get('friend');
-  const { user, session } = useAuth();  // ✅ Added session
+  const { user } = useAuth();
   const membership = useMembership();
   const { unreadCounts, refreshUnread } = useUnreadMessages();
 

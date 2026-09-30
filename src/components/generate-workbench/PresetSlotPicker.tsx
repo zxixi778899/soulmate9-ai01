@@ -22,8 +22,6 @@ const SLOT_TABS: { id: SlotKind; key: TranslationKey }[] = [
   { id: 'scene', key: 'generate.slotScene' },
 ];
 
-const EDIT_FORM_KEYS = ['label_en', 'label_zh', 'prompt_hint'];
-
 export function PresetSlotPicker(props: {
   slot: SlotKind;
   posePresets: WorkbenchPreset[];

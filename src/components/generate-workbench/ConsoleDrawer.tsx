@@ -92,14 +92,6 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const baseInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ========== IP-Adapter Auto Detection ==========
-  // Detect if preset has identity image (IP-Adapter face reference)
-  const hasPresetIdentity = Boolean(
-    props.presetIdentityImage ||
-    props.selectedPose?.ip_adapter_face ||
-    props.selectedOutfit?.preview_url && props.identityOn
-  );
-
   // Preset slots can be added / removed; the layout survives reloads.
   const [visibleSlots, setVisibleSlots] = useState<SlotKind[]>(ALL_SLOTS);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -250,6 +242,7 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
             </div>
             {props.baseImage ? (
               <div className="relative rounded-xl overflow-hidden border border-white/10">
+                {/* eslint-disable-next-line @next/next/no-img-element -- 用户生成的 base image 预览，动态 blob/签名 URL，无需 next/image 优化 */}
                 <img 
                   src={props.baseImage} 
                   alt="Base" 
@@ -647,7 +640,6 @@ function ToolCard(props: {
   desc: string;
   onClick: () => void;
 }) {
-  const { t } = useTranslation();
   return (
     <button
       type="button"

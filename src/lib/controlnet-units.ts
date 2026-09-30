@@ -332,7 +332,7 @@ export interface ComfyWorkflowContext {
 }
 
 export function buildComfyControlNetWorkflow(context: ComfyWorkflowContext): Record<string, unknown> {
-  const { base_workflow, units, connections } = context;
+  const { base_workflow } = context;
   
   // This function will be implemented in Phase 2
   // For now, return the base workflow unchanged

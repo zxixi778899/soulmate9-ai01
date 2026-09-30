@@ -1304,7 +1304,7 @@ export default function CreatePage() {
         // committed. Throwing routes through the catch which calls
         // cancelCardReservation() and the catch's setError surfaces the
         // user-friendly message.
-        let errorMessage =
+        const errorMessage =
           data.code === 'SEAT_LIMIT'
             ? t('create.seatLimitDesc')
             : data.code === 'creation_quota_exceeded'

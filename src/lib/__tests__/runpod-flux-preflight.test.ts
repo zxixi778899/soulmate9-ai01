@@ -5,10 +5,9 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 // regressions in the FLUX checkpoint inventory fallback.
 describe('RunPod FLUX checkpoint preflight', () => {
   const originalEnv = { ...process.env };
-  let logSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    logSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 

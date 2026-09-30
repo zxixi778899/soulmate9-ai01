@@ -1262,7 +1262,6 @@ class RunPodClient {
         150_000, // ~2.5 min — leave headroom for Vercel 180s serverless timeout
       ),
     );
-    const maxAttempts = Math.max(1, Math.floor(pollBudgetMs / pollIntervalMs));
     const errors: string[] = [];
 
     for (const strategy of strategies) {
@@ -1377,7 +1376,8 @@ class RunPodClient {
             if (typeof img === 'string') images.push(img);
             else if (typeof img === 'object') {
               // Extract image URL/data from object
-              const urlOrData = (img as any).url || (img as any).image || (img as any).data;
+              const imgObj = img as { url?: unknown; image?: unknown; data?: unknown };
+              const urlOrData = imgObj.url || imgObj.image || imgObj.data;
               if (typeof urlOrData === 'string') images.push(urlOrData);
             }
           }

@@ -98,8 +98,6 @@ function buildPortraitPrompt(input: {
     [input.appearance_prompt, input.personality].filter(Boolean).join(', '),
   );
   const skinTone = sanitizeBlurKeywords(String(input.skin_tone || '').trim());
-  const bustShape = sanitizeBlurKeywords(String(input.bust_shape || '').trim());
-  const heightFrag = sanitizeBlurKeywords(String(input.height || '').trim());
   const genomeExtra = sanitizeBlurKeywords(String(input.genome_prompt || '').trim());
 
   // === 质量前缀（根据风格自适应）===
@@ -194,7 +192,6 @@ function buildMicroCues(input: {
 }): string {
   const seed = hashInput(input);
 
-  const faceShapes = ['oval', 'heart', 'round', 'square', 'diamond', 'oblong'];
   const noseCues = [
     'small upturned nose', 'straight narrow nose', 'soft button nose', 'defined Roman nose',
     'delicate narrow nose bridge', 'slightly rounded nose tip',
@@ -330,7 +327,7 @@ function buildAllureCues(personality?: string, visualStyle?: string): string {
  * - 每个 slot 的 cue 长度 ≤ 80 chars
  * - 不依赖视觉风格（2D/3D/realistic 都用同一套）
  */
-function buildBatchImageVariant(slot: number, total: number): string {
+function buildBatchImageVariant(slot: number): string {
   const angles = [
     'three-quarter angle facing slightly left',
     'three-quarter angle facing slightly right',
@@ -368,7 +365,7 @@ function buildBatchImageVariant(slot: number, total: number): string {
     angle,
     expression,
     lighting,
-    buildBatchPersonaNudge(slot, total),
+    buildBatchPersonaNudge(slot),
     buildBatchMicroVariation(slot),
   ];
   return cues.filter(Boolean).join(', ').slice(0, 200);
@@ -384,7 +381,7 @@ function buildBatchImageVariant(slot: number, total: number): string {
  * - cue 跟 FLUX / Pony 训练分布对得上（headphones/pendant/手托腮 等）
  * - 同 slot 同 cue（确定性 → 可复现），不同 slot 不同 cue
  */
-function buildBatchPersonaNudge(slot: number, total: number): string {
+function buildBatchPersonaNudge(slot: number): string {
   const accessories = [
     'gold pendant necklace',
     'silver hoop earrings',
@@ -825,7 +822,7 @@ export async function POST(request: NextRequest) {
             loras: jitterLoraStrengths(normalizedLoras.length ? normalizedLoras : undefined, slot),
             ipAdapterImage: identityReferenceUrl,
             ipAdapterWeight: perSlotIdentityWeight(slot, count),
-            variant: buildBatchImageVariant(slot, count),
+            variant: buildBatchImageVariant(slot),
           }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
         ),
       );

@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   }
 
   // For membership upgrades with explicit price, skip DB lookup
-  let priceCents = body.price_cents;  // Use explicit price if provided
+  const priceCents = body.price_cents;  // Use explicit price if provided
   
   // Get package info only if no explicit price provided
   let tokenPackage: {
@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
   const validatedCurrency = currencyMap[preferredCurrency] || 'BTC';
 
   const description = is_membership_upgrade
-    ? `${(tokenPackage as any).name} Membership Upgrade`
+    ? `${tokenPackage.name} Membership Upgrade`
     : `${tokenPackage.name || 'Credit Pack'} - ${totalTokens} tokens`;
 
   const orderID = `ep_${user.id}_${package_id}_${Date.now()}`;
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
     });
     
     // If price is below minimum, upgrade to next tier
-    let actualPriceCents = effectivePriceCents;
+    const actualPriceCents = effectivePriceCents;
     if (effectivePriceCents / 100 < requiredMinWithBuffer) {
       // Find next higher price tier from packages
       

@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     // Get unique categories
-    const categories = Array.from(new Set(data.map((asset: any) => asset.category))).filter(Boolean);
+    const categories = Array.from(new Set(data.map((asset: { category?: string }) => asset.category))).filter(Boolean);
 
     return NextResponse.json({
       success: true,

@@ -13,9 +13,6 @@ import {
 import { routeImageGeneration, type ImageProvider } from '@/lib/image-router';
 import {
   buildImageActionFromChat,
-  extractSceneFromContext,
-  extractTimeOfDay,
-  extractActivityFromContext,
   type ChatContextLine,
 } from '@/lib/chat-image-intent';
 import { getIntimacyGenerationPolicy, type IntimacyGenerationPolicy } from '@/lib/intimacy-policy';

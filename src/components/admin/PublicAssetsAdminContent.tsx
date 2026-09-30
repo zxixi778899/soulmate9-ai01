@@ -3,14 +3,14 @@
 import { useState, useCallback, useMemo } from 'react';
 import { authedFetch } from '@/lib/supabase';
 import { useImageCompressor } from '@/hooks/use-image-compressor';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Upload, Image as ImageIcon, Trash2, Tag, Folder, Filter } from 'lucide-react';
+import { Upload, Image as ImageIcon, Trash2, Tag, Filter } from 'lucide-react';
 
 interface PublicAsset {
   id: string;
@@ -23,7 +23,7 @@ interface PublicAsset {
   uploaded_by?: string;
 }
 
-export default function PublicAssetsAdminContent({ embedded = false }: { embedded?: boolean }) {
+export default function PublicAssetsAdminContent() {
   const [assets, setAssets] = useState<PublicAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<string[]>([]);
@@ -304,6 +304,7 @@ export default function PublicAssetsAdminContent({ embedded = false }: { embedde
           {paginatedAssets.map(asset => (
             <Card key={asset.id} className="bg-[#16161f] border-gray-800 overflow-hidden group">
               <div className="aspect-square relative overflow-hidden bg-gray-900">
+                {/* eslint-disable-next-line @next/next/no-img-element -- admin 资源网格预览，外部签名 URL 动态源，无需 next/image 优化 */}
                 <img
                   src={asset.url}
                   alt={asset.filename}

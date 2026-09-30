@@ -52,12 +52,9 @@ export async function GET(request: NextRequest) {
     .ilike('email', email)
     .maybeSingle();
 
-  // 4. Check RLS status
-  let rlsCheck: any = null;
-  try { rlsCheck = await adminClient.rpc('check_rls_status' as any).single(); } catch { /* ignore */ }
-
   const serviceTier = resolveMembershipTier((serviceProfile as Record<string, unknown>) || null);
   const anonTier = resolveMembershipTier((anonProfile as Record<string, unknown>) || null);
+  const anonProfileAny = anonProfile as Record<string, unknown> | null;
 
   return NextResponse.json({
     query_email: email,
@@ -75,8 +72,8 @@ export async function GET(request: NextRequest) {
     },
     diagnosis: {
       service_role_works: !!serviceProfile,
-      anon_can_read_role: !!(anonProfile as any)?.role,
-      anon_can_read_tier: !!(anonProfile as any)?.membership_tier,
+      anon_can_read_role: !!anonProfileAny?.role,
+      anon_can_read_tier: !!anonProfileAny?.membership_tier,
       rls_may_be_blocking: !anonProfile && !!serviceProfile,
       actual_columns_on_profile: serviceProfile ? Object.keys(serviceProfile) : [],
     },

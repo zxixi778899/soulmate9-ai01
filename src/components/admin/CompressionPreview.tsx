@@ -16,6 +16,7 @@ export function CompressionPreview({
     <div className="grid grid-cols-2 gap-4">
       <div>
         <p className="text-xs text-gray-400 mb-2">原始图片</p>
+        {/* eslint-disable-next-line @next/next/no-img-element -- admin 压缩对比预览，外部签名 URL 动态源，无需 next/image 优化 */}
         <img 
           src={originalSrc} 
           alt="Original" 
@@ -25,6 +26,7 @@ export function CompressionPreview({
       {compressedSrc && (
         <div>
           <p className="text-xs text-gray-400 mb-2">压缩后</p>
+          {/* eslint-disable-next-line @next/next/no-img-element -- admin 压缩对比预览，外部签名 URL 动态源，无需 next/image 优化 */}
           <img 
             src={compressedSrc} 
             alt="Compressed" 

@@ -38,6 +38,16 @@ const eslintConfig = defineConfig([
       // any 主要出现在 catch 块的 error 类型上，运行时无影响。
       // 降级为 warning 不阻塞 deploy；真正的业务类型 any 已在代码中显式修正。
       '@typescript-eslint/no-explicit-any': 'warn',
+      // 保留 next 的 warn 级别；允许 `_` 前缀标记"有意未使用"的参数/变量/捕获错误
+      // （如 cancelCreationCard(_reservationToken) 为 API 对称性保留）。
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   },
   {

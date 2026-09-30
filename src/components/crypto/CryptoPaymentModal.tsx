@@ -26,7 +26,6 @@ export function CryptoPaymentModal({
   amount,
   currency,
   network,
-  priceAmount,
 }: CryptoPaymentModalProps) {
   const [qrCode, setQrCode] = useState<string>('');
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success'>('idle');
@@ -123,6 +122,7 @@ export function CryptoPaymentModal({
               {qrCode ? (
                 <div className="flex justify-center">
                   <div className="bg-white p-4 rounded-xl shadow-inner">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- 运行时生成的 QR data URL，next/image 无法优化 */}
                     <img src={qrCode} alt="QR Code" className="w-64 h-64" />
                   </div>
                 </div>
