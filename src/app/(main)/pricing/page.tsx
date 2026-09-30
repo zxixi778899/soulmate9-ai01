@@ -18,7 +18,6 @@ import {
 import { Check, Crown, Star, Heart, Loader2, Sparkles, ArrowLeft, Copy, CheckCheck, Wallet, AlertCircle, Diamond } from 'lucide-react';
 import { QRCode } from '@/components/QRCode';
 import { toast } from 'sonner';
-import { logger } from '@/lib/logger';
 import { useMembership } from '@/hooks/useMembership';
 import { useAuth } from '@/components/AuthProvider';
 import { useTranslation } from '@/lib/i18n/context';
@@ -177,7 +176,6 @@ function PricingContent() {
   const [cryptoPlan, setCryptoPlan] = useState<string | null>(null);
   const [cryptoBilling, setCryptoBilling] = useState<BillingCycle>('monthly');
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
-  const [payCurrency, setPayCurrency] = useState('usdttrc20'); // Default to USDT TRC-20
   const [payPlan, setPayPlan] = useState<string | null>(null);
   const [cryptoPaymentId, setCryptoPaymentId] = useState<string | null>(null);
   const [cryptoWallet, setCryptoWallet] = useState('');
@@ -345,7 +343,7 @@ function PricingContent() {
     }, 0);
   };
 
-  const showToastSuccess = (result: any) => {
+  const showToastSuccess = (result: { amountUsd: number; payAmount: number | string; payCurrency: string; network: string }) => {
     toast.info(`扫描以下地址支付 $${result.amountUsd.toFixed(2)}`, {
       description: `${result.payAmount} ${result.payCurrency} · ${result.network} 网络 · 15 分钟内有效`,
       duration: 5000,
@@ -366,10 +364,29 @@ function PricingContent() {
       });
       const data = await res.json();
       if (data.success) {
-        setCryptoStep('done');
-        toast.success(t('pricing.toastSubmitted'), {
-          description: t('pricing.toastSubmittedDesc'),
-        });
+        // Auto-confirmed responses carry { success, autoConfirmed, message }
+        // only — plan/validity are parsed out of the server message.
+        if (data.autoConfirmed) {
+          const submitMessage = String(data.message || '');
+          toast.success(t('pricing.toastAutoConfirmed'), {
+            description: t('pricing.toastAutoConfirmedDesc', {
+              plan: submitMessage.match(/(\w+) membership/i)?.[1] || (cryptoPlanName ? t(cryptoPlanName) : String(cryptoPlan)),
+              until: submitMessage.match(/Valid until ([^.]+)\.?/)?.[1] || '',
+            }),
+            duration: 8000,
+          });
+          
+          // Wait a moment then navigate to profile to show updated membership
+          setTimeout(() => {
+            router.push('/profile');
+          }, 2000);
+        } else {
+          setCryptoStep('done');
+          toast.success(t('pricing.toastSubmitted'), {
+            description: data.message || t('pricing.toastSubmittedDesc'),
+            duration: 6000,
+          });
+        }
       } else {
         toast.error(data.error || t('pricing.toastSubmitFailed'));
         setCryptoStep('pay');
