@@ -29,7 +29,7 @@ import { PageHeader } from '@/components/game/PageHeader';
 import { notifyDataChange } from '@/hooks/useDataSync';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
-import { NOWPAYMENTS_CURRENCIES } from '@/lib/nowpayments-server';
+import { NOWPAYMENTS_CURRENCIES } from '@/lib/nowpayments-currencies';
 
 type Collection = 'outfit' | 'prop' | 'membership' | 'credits';
 type TabId = Collection | 'seats';

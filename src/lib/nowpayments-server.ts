@@ -171,20 +171,11 @@ export async function nowPaymentsGetPayment(paymentId: string): Promise<{
 
 /**
  * Supported NOWPayments currencies mapped to display info.
- * Currency codes follow NOWPayments naming convention.
+ * Defined in a client-safe module so UI components never import this
+ * server-only gateway (which uses `node:crypto`). Re-exported here for
+ * existing server-side importers.
  */
-export const NOWPAYMENTS_CURRENCIES = [
-  { id: 'usdttrc20', name: 'USDT', network: 'TRC-20', symbol: 'USDT' },
-  { id: 'btc', name: 'Bitcoin', network: 'Bitcoin', symbol: 'BTC' },
-  { id: 'eth', name: 'Ethereum', network: 'ERC-20', symbol: 'ETH' },
-  { id: 'usdt', name: 'USDT', network: 'ERC-20', symbol: 'USDT' },
-  { id: 'ltc', name: 'Litecoin', network: 'Litecoin', symbol: 'LTC' },
-  { id: 'sol', name: 'Solana', network: 'Solana', symbol: 'SOL' },
-  { id: 'bnb', name: 'BNB', network: 'BSC', symbol: 'BNB' },
-  { id: 'trx', name: 'TRON', network: 'TRC-20', symbol: 'TRX' },
-] as const;
-
-export type NowPaymentsCurrency = (typeof NOWPAYMENTS_CURRENCIES)[number]['id'];
+export { NOWPAYMENTS_CURRENCIES, type NowPaymentsCurrency } from './nowpayments-currencies';
 
 /**
  * Map plan + billing to USD cents for NOWPayments
