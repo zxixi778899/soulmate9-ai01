@@ -18,6 +18,7 @@ export type ProviderId =
   | 'openrouter'
   | 'dashscope'
   | 'minimax'
+  | 'relay'
   | 'local';
 
 /** One callable model endpoint */

@@ -7,6 +7,7 @@
  */
 
 import type { AiModulesConfig, MembershipTier, ModelEndpoint } from './ai-modules/types';
+import { isEndpointConfigured } from './ai-modules/resolve';
 
 export type ChatModelMinTier = 'free' | 'basic' | 'pro' | 'unlimited';
 
@@ -63,10 +64,10 @@ export function resolveMembershipTier(profile: Record<string, unknown> | null): 
   return (TIER_RANK[colTier] ?? 0) >= (TIER_RANK[roleTier] ?? 0) ? colTier : roleTier;
 }
 
-/** All endpoints flagged for the in-chat picker (healthy only). */
+/** All endpoints flagged for the in-chat picker (healthy + fully configured). */
 export function getSelectableEndpoints(cfg: AiModulesConfig): ModelEndpoint[] {
   return cfg.endpoints.filter(
-    (ep) => ep.user_selectable && ep.health_status !== 'disabled',
+    (ep) => ep.user_selectable && ep.health_status !== 'disabled' && isEndpointConfigured(ep),
   );
 }
 

@@ -51,6 +51,25 @@ function normalizeAiModules(raw: Partial<AiModulesConfig>): AiModulesConfig {
     }
     merged.chat.classifier_endpoint_id = defaults.chat.classifier_endpoint_id;
   }
+  if ((raw.version || 1) < 5) {
+    merged.version = 5;
+    // v5: relay/aggregator provider joins the SFW + NSFW fallback chains as a
+    // low-latency hop ahead of the slowest Together models. The relay endpoints
+    // are inert until RELAY_API_BASE_URL + RELAY_API_KEY are set (filtered out
+    // by isEndpointConfigured), so forcing the reordered chains is safe whether
+    // or not credentials exist. Quotas (max_tokens, context window, daily
+    // limits, soft budget) stay admin-tuned; only routing fields are forced.
+    for (const [tierName, tier] of Object.entries(merged.chat.tiers)) {
+      const v5 = defaults.chat.tiers[tierName as keyof typeof defaults.chat.tiers];
+      if (!v5) continue;
+      tier.sfw_endpoint_id = v5.sfw_endpoint_id;
+      tier.nsfw_endpoint_id = v5.nsfw_endpoint_id;
+      tier.default_endpoint_id = v5.default_endpoint_id;
+      tier.complex_endpoint_id = v5.complex_endpoint_id;
+      tier.fallback_endpoint_ids = [...(v5.fallback_endpoint_ids || [])];
+      tier.allow_nsfw = v5.allow_nsfw;
+    }
+  }
   return merged;
 }
 
@@ -121,7 +140,7 @@ export async function saveAiModules(
 ): Promise<{ source: 'db' | 'file' }> {
   const next = {
     ...config,
-    version: 4,
+    version: 5,
     updated_at: new Date().toISOString(),
   };
 

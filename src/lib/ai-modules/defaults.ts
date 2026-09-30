@@ -10,7 +10,7 @@ export function createDefaultAiModules(): AiModulesConfig {
   const now = new Date().toISOString();
 
   return {
-    version: 4,
+    version: 5,
     updated_at: now,
     endpoints: [
       {
@@ -218,6 +218,56 @@ export function createDefaultAiModules(): AiModulesConfig {
         retry_count: 1,
         notes: 'Affordable NSFW fallback when euryale fails',
       },
+      // ── Relay / aggregator provider (low-latency, NSFW-tolerant) ──
+      // Configured entirely via env so no secret ever lands in code or the
+      // persisted config. Auto-inert until RELAY_API_BASE_URL + RELAY_API_KEY
+      // are set: isEndpointConfigured() filters them out of every chain, so
+      // adding these endpoints is a zero-regression no-op when absent.
+      {
+        id: 'relay-nsfw',
+        label: 'Relay NSFW (Instant fallback)',
+        provider: 'relay',
+        model_id: process.env.RELAY_NSFW_MODEL || 'aion-labs/aion-rp-llama-3.1-8b',
+        api_base_url: null,
+        api_base_env: 'RELAY_API_BASE_URL',
+        api_key_env: 'RELAY_API_KEY',
+        temperature: 0.9,
+        max_tokens: 1024,
+        cost_per_1k_input: 0.0004,
+        cost_per_1k_output: 0.0008,
+        nsfw_capable: true,
+        priority: 45,
+        timeout_ms: 20000,
+        first_byte_timeout_ms: 6000,
+        retry_count: 1,
+        circuit_breaker: { failure_threshold: 3, reset_ms: 60000 },
+        notes: 'OpenAI-compatible relay/aggregator. Low-latency NSFW fallback when the self-hosted RunPod GPU chain is cold or saturated. Set RELAY_API_BASE_URL + RELAY_API_KEY + RELAY_NSFW_MODEL to activate.',
+        user_selectable: true,
+        credit_cost: 4,
+        min_tier: 'pro',
+        public_label: 'Blaze',
+        public_description: 'Instant uncensored roleplay — always-on with no cold start, picks up right where the GPU leaves off. Pro members only.',
+      },
+      {
+        id: 'relay-sfw',
+        label: 'Relay SFW (Fast fallback)',
+        provider: 'relay',
+        model_id: process.env.RELAY_SFW_MODEL || 'meta-llama/llama-3.1-8b-instruct',
+        api_base_url: null,
+        api_base_env: 'RELAY_API_BASE_URL',
+        api_key_env: 'RELAY_API_KEY',
+        temperature: 0.85,
+        max_tokens: 1024,
+        cost_per_1k_input: 0.0002,
+        cost_per_1k_output: 0.0004,
+        nsfw_capable: false,
+        priority: 55,
+        timeout_ms: 20000,
+        first_byte_timeout_ms: 6000,
+        retry_count: 1,
+        circuit_breaker: { failure_threshold: 3, reset_ms: 60000 },
+        notes: 'OpenAI-compatible relay/aggregator, SFW flash tier. Mid-chain SFW fallback ahead of the slowest Together hops. Set RELAY_API_BASE_URL + RELAY_API_KEY + RELAY_SFW_MODEL to activate.',
+      },
       // ── RunPod DC2 (DISABLED: no GPU supply in US-TX-3) ──
       {
         id: 'runpod-dc2-qwen35-9b',
@@ -271,7 +321,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           sfw_endpoint_id: 'minimax-m2',
           nsfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
           default_endpoint_id: 'minimax-m2', complex_endpoint_id: 'together-qwen3-235b',
-          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'openrouter-euryale-70b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 0.75,
+          fallback_endpoint_ids: ['together-qwen3-235b', 'relay-sfw', 'dashscope-qwen-plus', 'relay-nsfw', 'openrouter-euryale-70b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 0.75,
           max_tokens: 1024,
           context_messages: 24,
           // Cost-modeled Pro chat cap (see membership redesign cost analysis)
@@ -282,7 +332,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           sfw_endpoint_id: 'minimax-m2',
           nsfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
           default_endpoint_id: 'minimax-m2', complex_endpoint_id: 'together-qwen3-235b',
-          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'openrouter-euryale-70b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 1.2,
+          fallback_endpoint_ids: ['together-qwen3-235b', 'relay-sfw', 'dashscope-qwen-plus', 'relay-nsfw', 'openrouter-euryale-70b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 1.2,
           max_tokens: 1024,
           context_messages: 28,
           daily_message_limit: 300,
@@ -292,7 +342,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           sfw_endpoint_id: 'minimax-m2',
           nsfw_endpoint_id: 'runpod-qwen3-30b-roleplay',
           default_endpoint_id: 'minimax-m2', complex_endpoint_id: 'together-kimi-k26',
-          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'runpod-qwen3-8b-pro-nsfw', 'openrouter-aion-rp-8b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
+          fallback_endpoint_ids: ['together-qwen3-235b', 'relay-sfw', 'dashscope-qwen-plus', 'runpod-qwen3-8b-pro-nsfw', 'relay-nsfw', 'openrouter-euryale-70b', 'openrouter-aion-rp-8b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
           max_tokens: 1536,
           context_messages: 40,
           // Unlimited chat (null = no daily cap); images/TTS remain cost levers

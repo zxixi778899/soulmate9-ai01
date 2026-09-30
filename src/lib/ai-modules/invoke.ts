@@ -40,7 +40,7 @@ function stripThinkBlocks(content: string): string {
 const MINIMAX_THINK_HEADROOM = 1536;
 /** Per-provider first-token budget: a cold/hung hop yields to the next candidate
  * instead of eating the whole turn (RunPod cold starts run in minutes). */
-const FIRST_BYTE_BUDGET_MS: Partial<Record<ModelEndpoint['provider'], number>> = { runpod: 12000, openrouter: 8000 };
+const FIRST_BYTE_BUDGET_MS: Partial<Record<ModelEndpoint['provider'], number>> = { runpod: 12000, openrouter: 8000, relay: 6000 };
 const DEFAULT_FIRST_BYTE_BUDGET_MS = 6000;
 function firstByteBudget(ep: ModelEndpoint): number {
   return ep.first_byte_timeout_ms ?? FIRST_BYTE_BUDGET_MS[ep.provider] ?? DEFAULT_FIRST_BYTE_BUDGET_MS;
