@@ -37,6 +37,8 @@ export interface ModelEndpoint {
   capabilities?: ModelCapability[];
   priority?: number;
   timeout_ms?: number;
+  /** First-token budget for streaming hops; a cold/hung hop yields to the next candidate. */
+  first_byte_timeout_ms?: number;
   retry_count?: number;
   fallback_ids?: string[];
   circuit_breaker?: { failure_threshold: number; reset_ms: number };

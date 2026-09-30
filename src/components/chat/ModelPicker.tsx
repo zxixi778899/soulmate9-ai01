@@ -13,7 +13,6 @@ const MODEL_DESC_KEYS: Record<string, TranslationKey> = {
   'together-qwen3-235b': 'chat.modelDescWit',
   'runpod-qwen3-8b-pro-nsfw': 'chat.modelDescPassion',
   'together-kimi-k26': 'chat.modelDescMuse',
-  'openrouter-noromaid-20b': 'chat.modelDescDevotion',
 };
 
 /**

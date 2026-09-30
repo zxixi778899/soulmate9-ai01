@@ -12,6 +12,7 @@ import {
   loadAiModules,
   resolveChatCall,
   invokeChatAsSseStream,
+  nsfwChainUnavailableSse,
   type MembershipTier,
 } from '@/lib/ai-modules';
 import {
@@ -1010,23 +1011,31 @@ ${timeContext}` +
         let modelId: string = chatResolved.endpoint.model_id;
 
         try {
-          const invoked = await invokeChatAsSseStream({
-            endpoint: chatResolved.endpoint,
-            fallbackEndpoints: chatResolved.fallbackChain,
-            messages: llmMessages,
-            temperature: chatResolved.temperature,
-            maxTokens: chatResolved.maxTokens,
-            userId: user.id,
-            girlfriendId: girlfriend_id,
-            taskType: chatResolved.channel === 'nsfw' ? 'nsfw_chat' : routing.taskType || 'chat',
-            membershipTier,
-            scene: chatResolved.channel === 'nsfw' ? 'adult_roleplay' : 'chat',
-            routeReason: chatResolved.routeReason,
-            locale: chatLocale,
-          });
-          response = invoked.response;
-          provider = invoked.provider;
-          modelId = invoked.model;
+          if (chatResolved.blockedReason === 'no_nsfw_endpoint_available') {
+            // Explicit turn with zero reachable NSFW-capable endpoints: degrade
+            // in-character instead of leaking the prompt to SFW providers.
+            response = nsfwChainUnavailableSse(chatLocale);
+            provider = 'local';
+            modelId = 'nsfw-chain-unavailable';
+          } else {
+            const invoked = await invokeChatAsSseStream({
+              endpoint: chatResolved.endpoint,
+              fallbackEndpoints: chatResolved.fallbackChain,
+              messages: llmMessages,
+              temperature: chatResolved.temperature,
+              maxTokens: chatResolved.maxTokens,
+              userId: user.id,
+              girlfriendId: girlfriend_id,
+              taskType: chatResolved.channel === 'nsfw' ? 'nsfw_chat' : routing.taskType || 'chat',
+              membershipTier,
+              scene: chatResolved.channel === 'nsfw' ? 'adult_roleplay' : 'chat',
+              routeReason: chatResolved.routeReason,
+              locale: chatLocale,
+            });
+            response = invoked.response;
+            provider = invoked.provider;
+            modelId = invoked.model;
+          }
         } catch (primaryErr) {
           logger.warn('chat/stream: module invoke failed, fallback streamTextSmart', {
             err: primaryErr instanceof Error ? primaryErr.message : String(primaryErr),

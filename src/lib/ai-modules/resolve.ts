@@ -42,17 +42,23 @@ function ordered(cfg: AiModulesConfig, ids: Array<string | null | undefined>): M
   for (const id of ids) { const item = endpoint(cfg, id); if (item && !found.some((v) => v.id === item.id)) found.push(item); }
   return found;
 }
-function choose(cfg: AiModulesConfig, ids: Array<string | null | undefined>): { primary: ModelEndpoint; fallback: ModelEndpoint[] } {
+function choose(cfg: AiModulesConfig, ids: Array<string | null | undefined>, nsfwOnly: boolean): { primary: ModelEndpoint; fallback: ModelEndpoint[]; starved: boolean } {
   const candidates = ordered(cfg, ids);
   const ready = candidates.filter(isEndpointConfigured);
-  const primary = ready[0] || candidates[0] || cfg.endpoints[0] || createDefaultAiModules().endpoints[0];
-  return { primary, fallback: (ready.length ? ready : candidates).filter((item) => item.id !== primary.id) };
+  const basePool = ready.length ? ready : candidates;
+  // Explicit turns must never reach a filtering SFW provider: keep only
+  // nsfw_capable endpoints in the chain.
+  const pool = nsfwOnly ? basePool.filter((item) => item.nsfw_capable) : basePool;
+  const lastResort = cfg.endpoints[0] || createDefaultAiModules().endpoints[0];
+  if (!pool.length) return { primary: lastResort, fallback: [], starved: nsfwOnly };
+  const primary = pool[0];
+  return { primary, fallback: pool.filter((item) => item.id !== primary.id), starved: false };
 }
 function estimate(ep: ModelEndpoint, maxTokens: number, message?: string): number { const input = Math.max(1, Math.ceil((message?.length || 0) / 4)); return (input / 1000) * ep.cost_per_1k_input + (maxTokens / 1000) * ep.cost_per_1k_output; }
 function resolved(cfg: AiModulesConfig, ctx: ResolveChatContext, ids: Array<string | null | undefined>, channel: 'sfw' | 'nsfw', reason: string, suffix: string, allowNsfw: boolean, blockedReason?: string): ResolvedChatCall {
-  const tier = tierOf(ctx.tier); const route = routeFor(cfg, tier); const picked = choose(cfg, ids);
+  const tier = tierOf(ctx.tier); const route = routeFor(cfg, tier); const picked = choose(cfg, ids, channel === 'nsfw');
   const maxTokens = Math.min(route.max_tokens, picked.primary.max_tokens || route.max_tokens);
-  return { channel, endpoint: picked.primary, fallbackChain: picked.fallback, routeReason: reason, estimatedCost: estimate(picked.primary, maxTokens, ctx.message), qualityTier: picked.primary.quality_tier || (tier === 'free' ? 'economy' : tier === 'pro' ? 'standard' : 'premium'), complexityScore: scoreChatComplexity(ctx), temperature: picked.primary.temperature, maxTokens, contextMessages: route.context_messages, systemLanguageSuffix: suffix, allowNsfw, blockedReason };
+  return { channel, endpoint: picked.primary, fallbackChain: picked.starved ? [] : picked.fallback, routeReason: reason, estimatedCost: estimate(picked.primary, maxTokens, ctx.message), qualityTier: picked.primary.quality_tier || (tier === 'free' ? 'economy' : tier === 'pro' ? 'standard' : 'premium'), complexityScore: scoreChatComplexity(ctx), temperature: picked.primary.temperature, maxTokens, contextMessages: route.context_messages, systemLanguageSuffix: suffix, allowNsfw, blockedReason: picked.starved ? blockedReason || 'no_nsfw_endpoint_available' : blockedReason };
 }
 export function resolveChatCall(input: AiModulesConfig | null | undefined, ctx: ResolveChatContext): ResolvedChatCall {
   const cfg = input || createDefaultAiModules(); const tier = tierOf(ctx.tier); const route = routeFor(cfg, tier); const complexity = scoreChatComplexity(ctx); const threshold = cfg.chat.complexity_threshold ?? 5;

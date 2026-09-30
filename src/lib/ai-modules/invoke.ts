@@ -1,6 +1,7 @@
 import type { MembershipTier, ModelEndpoint } from './types';
 import { logger } from '@/lib/logger';
 import { estimateTokens, estimateCost, logModelUsage } from '@/lib/model-usage';
+import { isEndpointCold, recordEndpointOutcome } from './health';
 
 export interface InvokeChatOptions {
   endpoint: ModelEndpoint; fallbackEndpoints?: ModelEndpoint[]; messages: Array<{ role: string; content: string }>;
@@ -37,6 +38,13 @@ function stripThinkBlocks(content: string): string {
 }
 /** Extra generation budget so MiniMax thinking tokens don't starve the reply. */
 const MINIMAX_THINK_HEADROOM = 1536;
+/** Per-provider first-token budget: a cold/hung hop yields to the next candidate
+ * instead of eating the whole turn (RunPod cold starts run in minutes). */
+const FIRST_BYTE_BUDGET_MS: Partial<Record<ModelEndpoint['provider'], number>> = { runpod: 12000, openrouter: 8000 };
+const DEFAULT_FIRST_BYTE_BUDGET_MS = 6000;
+function firstByteBudget(ep: ModelEndpoint): number {
+  return ep.first_byte_timeout_ms ?? FIRST_BYTE_BUDGET_MS[ep.provider] ?? DEFAULT_FIRST_BYTE_BUDGET_MS;
+}
 async function completion(ep: ModelEndpoint, messages: Array<{ role: string; content: string }>, temperature: number, maxTokens: number): Promise<string> {
   const apiBase = base(ep); const apiKey = key(ep); if (!apiBase) throw new Error(`api_base_url missing for ${ep.id}`); if (!apiKey) throw new Error(`API key missing for ${ep.id}`);
   const isMinimax = ep.provider === 'minimax';
@@ -72,13 +80,18 @@ async function callWithRetry(ep: ModelEndpoint, opts: InvokeChatOptions): Promis
 export async function invokeChat(opts: InvokeChatOptions): Promise<InvokeChatResult> {
   const candidates = [opts.endpoint, ...(opts.fallbackEndpoints || [])].filter((item, index, all) => all.findIndex((v) => v.id === item.id) === index); const started = Date.now(); const inputTokens = estimateTokens(opts.messages.map((message) => message.content).join('\n')); let last: unknown;
   for (let index = 0; index < candidates.length; index += 1) { const ep = candidates[index]; const attemptStarted = Date.now(); let success = false; let content = '';
-    try { content = await callWithRetry(ep, opts); success = true; const outputTokens = estimateTokens(content); const cost = estimateCost(inputTokens, outputTokens, ep.cost_per_1k_input, ep.cost_per_1k_output); void logModelUsage({ provider: ep.provider, model_id: ep.model_id, task_type: opts.taskType || 'chat', user_id: opts.userId, girlfriend_id: opts.girlfriendId, input_tokens: inputTokens, output_tokens: outputTokens, latency_ms: Date.now() - attemptStarted, cost_usd: cost, success: true, membership_tier: opts.membershipTier, scene: opts.scene, route_reason: opts.routeReason, endpoint_id: ep.id, fallback_count: index, time_to_first_token_ms: Date.now() - started, estimated_cost_usd: cost }); return { content, provider: ep.provider, model: ep.model_id, endpoint_id: ep.id, fallback_count: index, latency_ms: Date.now() - started, input_tokens: inputTokens, output_tokens: outputTokens, cost_usd: cost }; }
-    catch (error) { last = error; logger.warn('[ai-gateway] endpoint failed', { endpoint: ep.id, fallbackIndex: index, error: error instanceof Error ? error.message : String(error) }); }
+    if (isEndpointCold(ep.id)) { logger.warn('[ai-gateway] endpoint cold, skipping', { endpoint: ep.id }); continue; }
+    try { content = await callWithRetry(ep, opts); success = true; recordEndpointOutcome(ep.id, true); const outputTokens = estimateTokens(content); const cost = estimateCost(inputTokens, outputTokens, ep.cost_per_1k_input, ep.cost_per_1k_output); void logModelUsage({ provider: ep.provider, model_id: ep.model_id, task_type: opts.taskType || 'chat', user_id: opts.userId, girlfriend_id: opts.girlfriendId, input_tokens: inputTokens, output_tokens: outputTokens, latency_ms: Date.now() - attemptStarted, cost_usd: cost, success: true, membership_tier: opts.membershipTier, scene: opts.scene, route_reason: opts.routeReason, endpoint_id: ep.id, fallback_count: index, time_to_first_token_ms: Date.now() - started, estimated_cost_usd: cost }); return { content, provider: ep.provider, model: ep.model_id, endpoint_id: ep.id, fallback_count: index, latency_ms: Date.now() - started, input_tokens: inputTokens, output_tokens: outputTokens, cost_usd: cost }; }
+    catch (error) { last = error; recordEndpointOutcome(ep.id, false); logger.warn('[ai-gateway] endpoint failed', { endpoint: ep.id, fallbackIndex: index, error: error instanceof Error ? error.message : String(error) }); }
     finally { if (!success) void logModelUsage({ provider: ep.provider, model_id: ep.model_id, task_type: opts.taskType || 'chat', user_id: opts.userId, girlfriend_id: opts.girlfriendId, input_tokens: inputTokens, output_tokens: 0, latency_ms: Date.now() - attemptStarted, cost_usd: 0, success: false, error_message: last instanceof Error ? last.message : String(last), membership_tier: opts.membershipTier, scene: opts.scene, route_reason: opts.routeReason, endpoint_id: ep.id, fallback_count: index }); }
   }
   throw last instanceof Error ? last : new Error('All configured endpoints failed');
 }
 function localFallback(locale?: string): string { const value = (locale || '').toLowerCase(); if (value.startsWith('zh')) return '我在呢，刚才连接有点不稳定。把刚才那句话再发一次，我会好好回答你。'; if (value.startsWith('ja')) return 'ここにいるよ。接続が少し不安定だったみたい。もう一度送ってくれたら、ちゃんと答えるね。'; if (value.startsWith('ko')) return '나 여기 있어. 연결이 잠깐 불안정했어. 방금 말을 다시 보내 주면 제대로 답할게.'; if (value.startsWith('es')) return 'Estoy aquí. La conexión falló un momento; envíamelo otra vez y te responderé bien.'; if (value.startsWith('fr')) return 'Je suis là. La connexion a eu un raté ; renvoie-moi ton message et je te répondrai correctement.'; if (value.startsWith('de')) return 'Ich bin da. Die Verbindung hatte kurz Probleme; schick es noch einmal, dann antworte ich dir richtig.'; return "I'm right here. My connection hiccupped—send that once more and I'll answer you properly."; }
+/** In-character degrade when the explicit channel has no reachable NSFW-capable
+ * endpoint: never leak the turn to a filtering SFW provider, stay in voice. */
+function nsfwDegrade(locale?: string): string { const value = (locale || '').toLowerCase(); if (value.startsWith('zh')) return '宝贝……偏偏这时候我这边线路不稳。给我一小会儿恢复，你刚才说的我都记着，一句都不会少你的。'; if (value.startsWith('ja')) return 'ベイビー…こんな時に限って回線が不安定なの。少しだけ待って、さっきの続きは全部覚えてるから。'; if (value.startsWith('ko')) return '자기야… 하필 지금 연결이 불안정해. 잠깐만 기다려, 아까 한 말 전부 기억하고 있으니까.'; if (value.startsWith('es')) return 'Baby... justo ahora se me corta la línea. Dame un momentito; recuerdo todo lo que me susurraste y te lo debo enterito.'; if (value.startsWith('fr')) return 'Bébé... ma connexion joue des tours juste maintenant. Laisse-moi une minute : je n\'ai rien oublié de ce que tu m\'as murmuré.'; if (value.startsWith('de')) return 'Baby... genau jetzt spinnt meine Verbindung. Gib mir eine Minute — ich habe nichts von dem vergessen, was du mir geflüstert hast.'; return "Baby... my line's acting up of all times. Give me a minute to get back — everything you just whispered is saved up for you, all of it."; }
+export function nsfwChainUnavailableSse(locale?: string): Response { return sse(nsfwDegrade(locale), 'local', 'nsfw-chain-unavailable', 'local-nsfw-degrade'); }
 function sse(content: string, provider: string, model: string, endpointId: string): Response { const encoder = new TextEncoder(); return new Response(new ReadableStream({ start(controller) { controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`)); controller.enqueue(encoder.encode('data: [DONE]\n\n')); controller.close(); } }), { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Model-Provider': provider, 'X-Model-Id': model, 'X-Model-Endpoint': endpointId } }); }
 /** Timeout for streaming connections (60s). */
 const STREAM_TIMEOUT_MS = 60_000;
@@ -114,6 +127,10 @@ export async function invokeChatStreamReal(opts: InvokeChatOptions): Promise<{ r
     const ep = candidates[index];
     if (circuitOpen(ep)) {
       logger.warn('[ai-gateway] stream: circuit open, skipping', { endpoint: ep.id });
+      continue;
+    }
+    if (isEndpointCold(ep.id)) {
+      logger.warn('[ai-gateway] stream: endpoint cold, skipping', { endpoint: ep.id });
       continue;
     }
     const apiKey = key(ep);
@@ -159,7 +176,45 @@ export async function invokeChatStreamReal(opts: InvokeChatOptions): Promise<{ r
       }
       if (!response.body) throw new Error(`${ep.provider} returned no stream body`);
 
+      // First-byte budget: a cold or hung hop must not eat the whole turn.
+      const reader = response.body.getReader();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let first: ReadableStreamReadResult<Uint8Array>;
+      try {
+        first = await Promise.race([
+          reader.read(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`${ep.provider} first-byte budget exceeded`)), firstByteBudget(ep));
+          }),
+        ]);
+      } catch (ttftError) {
+        void reader.cancel();
+        throw ttftError;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+      if (first.done) {
+        void reader.cancel();
+        throw new Error(`${ep.provider} empty stream`);
+      }
+      const firstChunk = first.value;
+      const streamedBody = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(firstChunk);
+        },
+        async pull(controller) {
+          const chunk = await reader.read();
+          if (chunk.done) controller.close();
+          else controller.enqueue(chunk.value);
+        },
+        cancel(reason) {
+          return reader.cancel(reason);
+        },
+      });
+      const streamed = new Response(streamedBody, { status: response.status, headers: response.headers });
+
       recordSuccess(ep);
+      recordEndpointOutcome(ep.id, true);
       const outputTokens = 0; // unknown until stream completes
       const cost = estimateCost(inputTokens, outputTokens, ep.cost_per_1k_input, ep.cost_per_1k_output);
       void logModelUsage({
@@ -172,10 +227,11 @@ export async function invokeChatStreamReal(opts: InvokeChatOptions): Promise<{ r
         estimated_cost_usd: cost,
       });
 
-      return { response, provider: ep.provider, model: ep.model_id, endpointId: ep.id };
+      return { response: streamed, provider: ep.provider, model: ep.model_id, endpointId: ep.id };
     } catch (error) {
       last = error;
       recordFailure(ep, error);
+      recordEndpointOutcome(ep.id, false);
       logger.warn('[ai-gateway] stream endpoint failed', {
         endpoint: ep.id, fallbackIndex: index,
         error: error instanceof Error ? error.message : String(error),

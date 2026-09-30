@@ -271,7 +271,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           sfw_endpoint_id: 'minimax-m2',
           nsfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
           default_endpoint_id: 'minimax-m2', complex_endpoint_id: 'together-qwen3-235b',
-          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'openrouter-lumimaid-9b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 0.75,
+          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'openrouter-euryale-70b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 0.75,
           max_tokens: 1024,
           context_messages: 24,
           // Cost-modeled Pro chat cap (see membership redesign cost analysis)
@@ -282,7 +282,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           sfw_endpoint_id: 'minimax-m2',
           nsfw_endpoint_id: 'runpod-qwen3-8b-pro-nsfw',
           default_endpoint_id: 'minimax-m2', complex_endpoint_id: 'together-qwen3-235b',
-          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'openrouter-lumimaid-9b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 1.2,
+          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'openrouter-euryale-70b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 1.2,
           max_tokens: 1024,
           context_messages: 28,
           daily_message_limit: 300,
@@ -292,7 +292,7 @@ export function createDefaultAiModules(): AiModulesConfig {
           sfw_endpoint_id: 'minimax-m2',
           nsfw_endpoint_id: 'runpod-qwen3-30b-roleplay',
           default_endpoint_id: 'minimax-m2', complex_endpoint_id: 'together-kimi-k26',
-          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'runpod-qwen3-8b-pro-nsfw', 'openrouter-noromaid-20b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
+          fallback_endpoint_ids: ['together-qwen3-235b', 'dashscope-qwen-plus', 'runpod-qwen3-8b-pro-nsfw', 'openrouter-aion-rp-8b', 'together-gpt-oss-120b'], daily_cost_soft_limit_usd: 2.5,
           max_tokens: 1536,
           context_messages: 40,
           // Unlimited chat (null = no daily cap); images/TTS remain cost levers
