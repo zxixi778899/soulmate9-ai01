@@ -10,7 +10,7 @@ export function createDefaultAiModules(): AiModulesConfig {
   const now = new Date().toISOString();
 
   return {
-    version: 5,
+    version: 6,
     updated_at: now,
     endpoints: [
       {
@@ -294,7 +294,7 @@ export function createDefaultAiModules(): AiModulesConfig {
       enabled: true,
       classifier_endpoint_id: 'minimax-m2',
       complexity_threshold: 5,
-      nsfw_min_intimacy: 3,
+      nsfw_min_intimacy: 2,
       nsfw_detection: 'keywords',
       // The current RunPod chat worker has a mismatched model/tokenizer and can
       // emit multilingual garbage. Keep it out of normal chat routing.
@@ -306,16 +306,18 @@ export function createDefaultAiModules(): AiModulesConfig {
       // fallback. RunPod stays NSFW-only.
       tiers: {
         free: {
-          sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: null,
+          sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: 'relay-nsfw',
           default_endpoint_id: 'together-qwen35-9b', complex_endpoint_id: 'together-qwen3-235b',
-          fallback_endpoint_ids: ['together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.08,
-          max_tokens: 512, context_messages: 10, daily_message_limit: 20, allow_nsfw: false,
+          // NSFW (Lv2+) rides the always-on relay → OpenRouter tail; RunPod stays
+          // reserved for paid tiers so free traffic never worsens GPU saturation.
+          fallback_endpoint_ids: ['together-gpt-oss-20b', 'openrouter-aion-rp-8b', 'openrouter-euryale-70b'], daily_cost_soft_limit_usd: 0.08,
+          max_tokens: 512, context_messages: 10, daily_message_limit: 20, allow_nsfw: true,
         },
         basic: {
-          sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: null,
+          sfw_endpoint_id: 'together-qwen35-9b', nsfw_endpoint_id: 'relay-nsfw',
           default_endpoint_id: 'together-qwen35-9b', complex_endpoint_id: 'together-qwen3-235b',
-          fallback_endpoint_ids: ['together-gpt-oss-120b', 'together-gpt-oss-20b'], daily_cost_soft_limit_usd: 0.15,
-          max_tokens: 768, context_messages: 16, daily_message_limit: 100, allow_nsfw: false,
+          fallback_endpoint_ids: ['together-gpt-oss-120b', 'together-gpt-oss-20b', 'openrouter-aion-rp-8b', 'openrouter-euryale-70b'], daily_cost_soft_limit_usd: 0.15,
+          max_tokens: 768, context_messages: 16, daily_message_limit: 100, allow_nsfw: true,
         },
         pro: {
           sfw_endpoint_id: 'minimax-m2',

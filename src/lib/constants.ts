@@ -140,7 +140,7 @@ export type IntimacyLevel = 1 | 2 | 3 | 4 | 5;
 
 export const INTIMACY_LEVELS = [
   { level: 1, min_score: 0, next_score: 100, title: 'Cultivation', title_zh: '培养期', color: '#6b7280', nsfw: false },
-  { level: 2, min_score: 100, next_score: 300, title: 'Flirting', title_zh: '暧昧期', color: '#8b5cf6', nsfw: false },
+  { level: 2, min_score: 100, next_score: 300, title: 'Flirting', title_zh: '暧昧期', color: '#8b5cf6', nsfw: true },
   { level: 3, min_score: 300, next_score: 600, title: 'Passionate', title_zh: '热恋期', color: '#f97316', nsfw: true },
   { level: 4, min_score: 600, next_score: 1000, title: 'Ultimate Partner', title_zh: '极品女友', color: '#ef4444', nsfw: true },
   { level: 5, min_score: 1000, next_score: 1500, title: 'Ultimate Devotion', title_zh: '极品母狗', color: '#ec4899', nsfw: true },
@@ -180,8 +180,8 @@ export function getIntimacyProgress(score: number) {
 
 /** Client + UI copy for heat ladder (retention). */
 export const HEAT_UNLOCK_HINTS = [
-  { level: 1, hint: 'Keep chatting to reach Flirting at 100.' },
-  { level: 2, hint: 'Reach 300 to unlock adult chat and image generation.' },
+  { level: 1, hint: 'Keep chatting to reach Flirting at 100 and unlock adult chat.' },
+  { level: 2, hint: 'Adult chat unlocked. Reach 300 for adult image generation.' },
   { level: 3, hint: 'Adult mode unlocked. Build trust for more proactive scenes.' },
   { level: 4, hint: 'High-intensity scenes and proactive roleplay unlocked.' },
   { level: 5, hint: 'Maximum consensual adult intensity unlocked.' },

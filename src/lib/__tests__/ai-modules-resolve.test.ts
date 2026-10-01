@@ -19,13 +19,15 @@ describe('ai-modules resolve', () => {
       'RUNPOD_API_KEY',
       'DASHSCOPE_API_KEY',
       'MINIMAX_API_KEY',
+      'OPENROUTER_API_KEY',
     ]) {
       envBackup[k] = process.env[k];
     }
-    // Simulate local .env: RunPod + DashScope + MiniMax present, Together absent
+    // Simulate local .env: RunPod + DashScope + MiniMax + OpenRouter present, Together absent
     delete process.env.TOGETHER_API_KEY;
     process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
     process.env.MINIMAX_API_KEY = 'test-minimax-key';
+    process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
     process.env.RUNPOD_VLLM_URL = 'https://api.runpod.ai/v2/test';
     process.env.RUNPOD_PRO_CHAT_URL = 'https://api.runpod.ai/v2/pro/openai/v1';
     process.env.RUNPOD_UNLIMITED_CHAT_URL = 'https://api.runpod.ai/v2/unlimited/openai/v1';
@@ -44,19 +46,32 @@ describe('ai-modules resolve', () => {
     expect(detectNsfwIntent('hello there')).toBe(false);
   });
 
-  it('routes free users to SFW even with nsfw keywords', () => {
+  it('opens the NSFW chain to free users once intimacy reaches Lv2', () => {
+    // v6: free/basic tiers allow NSFW. Relay is unconfigured in this env, so the
+    // free chain (relay-nsfw → together → openrouter) falls through to the first
+    // configured nsfw_capable endpoint — OpenRouter Aion RP 8B.
     const cfg = createDefaultAiModules();
-    cfg.chat.tiers.free.fallback_endpoint_ids = ['runpod-qwen3-8b-pro-nsfw'];
     const r = resolveChatCall(cfg, {
       tier: 'free',
-      intimacyLevel: 6,
+      intimacyLevel: cfg.chat.nsfw_min_intimacy,
+      message: 'have sex with me',
+      rolloutPercent: 100,
+    });
+    expect(r.channel).toBe('nsfw');
+    expect(r.endpoint.nsfw_capable).toBe(true);
+    expect(r.endpoint.provider).toBe('openrouter');
+  });
+
+  it('still locks free NSFW below the intimacy threshold', () => {
+    const cfg = createDefaultAiModules();
+    const r = resolveChatCall(cfg, {
+      tier: 'free',
+      intimacyLevel: 1,
       message: 'have sex with me',
       rolloutPercent: 100,
     });
     expect(r.channel).toBe('sfw');
-    expect(r.blockedReason).toBe('tier_no_nsfw');
-    // Free SFW must land on a configured endpoint (RunPod when Together is missing)
-    expect(r.endpoint.provider).toBe('runpod');
+    expect(r.blockedReason).toBe('intimacy_locked');
   });
 
   it('skips Together when key is missing and uses RunPod', () => {

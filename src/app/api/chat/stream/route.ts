@@ -494,6 +494,10 @@ export async function POST(request: NextRequest) {
 
   // Get intimacy level
   const intimacyLevel = getIntimacyLevel(Number(intimacyResult.data?.score || 0));
+  // Minimum intimacy level that unlocks the adult (NSFW) chat channel. Sourced
+  // from config so the v6 threshold change (3 → 2) is the single source of truth.
+  const nsfwMinIntimacy = aiModules.chat.nsfw_min_intimacy;
+  const nsfwUnlocked = intimacyLevel >= nsfwMinIntimacy;
 
   const messageText = String(message ?? '').trim() || (mediaUrl ? '[media]' : '');
 
@@ -709,7 +713,7 @@ export async function POST(request: NextRequest) {
 
   // NSFW intensity: user slider (1-5) gated by intimacy level
   const desiredIntensity = Math.max(1, Math.min(5, Math.round(Number(body?.nsfw_intensity) || 3)));
-  const effectiveIntensity = intimacyLevel >= 3 ? desiredIntensity : Math.min(desiredIntensity, 2);
+  const effectiveIntensity = nsfwUnlocked ? desiredIntensity : Math.min(desiredIntensity, 2);
 
   // Truncate user message early (also used by persona prompt below)
   const MAX_USER_MESSAGE_LENGTH = 4000;
@@ -848,8 +852,8 @@ export async function POST(request: NextRequest) {
     loreContext,
     presets,
     locale: chatLocale,
-    allowNsfw: intimacyLevel >= 3 && chatResolved.allowNsfw,
-    nsfwChannel: intimacyLevel >= 3 && chatResolved.channel === 'nsfw' && effectiveIntensity >= 3,
+    allowNsfw: nsfwUnlocked && chatResolved.allowNsfw,
+    nsfwChannel: nsfwUnlocked && chatResolved.channel === 'nsfw' && effectiveIntensity >= 3,
     replyMode,
     nsfwIntensity: effectiveIntensity,
     scenarioRecap: scenarioRecap || undefined,

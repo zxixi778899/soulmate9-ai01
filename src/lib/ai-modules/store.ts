@@ -70,6 +70,24 @@ function normalizeAiModules(raw: Partial<AiModulesConfig>): AiModulesConfig {
       tier.allow_nsfw = v5.allow_nsfw;
     }
   }
+  if ((raw.version || 1) < 6) {
+    merged.version = 6;
+    // v6: open the NSFW channel to free + basic tiers and lower the intimacy
+    // unlock threshold to Lv2. Force the global threshold and every tier's
+    // routing fields so stored (DB) configs pick up the new free/basic NSFW
+    // chains; admin-tuned quotas stay untouched.
+    merged.chat.nsfw_min_intimacy = defaults.chat.nsfw_min_intimacy;
+    for (const [tierName, tier] of Object.entries(merged.chat.tiers)) {
+      const v6 = defaults.chat.tiers[tierName as keyof typeof defaults.chat.tiers];
+      if (!v6) continue;
+      tier.sfw_endpoint_id = v6.sfw_endpoint_id;
+      tier.nsfw_endpoint_id = v6.nsfw_endpoint_id;
+      tier.default_endpoint_id = v6.default_endpoint_id;
+      tier.complex_endpoint_id = v6.complex_endpoint_id;
+      tier.fallback_endpoint_ids = [...(v6.fallback_endpoint_ids || [])];
+      tier.allow_nsfw = v6.allow_nsfw;
+    }
+  }
   return merged;
 }
 
@@ -140,7 +158,7 @@ export async function saveAiModules(
 ): Promise<{ source: 'db' | 'file' }> {
   const next = {
     ...config,
-    version: 5,
+    version: 6,
     updated_at: new Date().toISOString(),
   };
 

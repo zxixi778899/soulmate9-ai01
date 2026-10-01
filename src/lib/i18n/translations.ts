@@ -5,6 +5,7 @@
  */
 
 export const en = {
+  'chat.nsfwUnlockHint': 'Reach Flirting (Lv2) to unlock spicy chat',
   // ── Creator: card purchase modal & gender-tailored options ──
   'create.buyCards': 'Get Creation Cards',
   'create.buyCardsDesc': 'Each companion you forge consumes one creation card.',
@@ -1714,6 +1715,7 @@ export const en = {
 };
 
 const zh: Record<string, string> = {
+  'chat.nsfwUnlockHint': '亲密度达到 Lv2（暧昧期）即可解锁火辣聊天',
   // ── 创建器：创建卡购买弹窗 & 性别差异化选项 ──
   'create.buyCards': '购买创建卡',
   'create.buyCardsDesc': '每锻造一位伴侣将消耗 1 张创建卡。',
@@ -3406,6 +3408,7 @@ const zh: Record<string, string> = {
 };
 
 const ja: Record<string, string> = {
+  'chat.nsfwUnlockHint': '親密度 Lv2（フレート）に達するとスパイシーチャットが解放されます',
   // ── クリエイター：作成カード購入モーダル & 性別対応オプション ──
   'create.buyCards': '作成カードを購入',
   'create.buyCardsDesc': 'コンパニオンを1人創造するごとに作成カードを1枚消費します。',
@@ -5036,6 +5039,7 @@ const ja: Record<string, string> = {
 };
 
 const ko: Record<string, string> = {
+  'chat.nsfwUnlockHint': '친밀도 Lv2(플러팅)에 도달하면 매운맛 채팅이 잠금 해제됩니다',
   // ── 크리에이터: 생성 카드 구매 & 성별 맞춤 옵션 ──
   'create.buyCards': '생성 카드 구매',
   'create.buyCardsDesc': '컴패니언 1명을 만들 때마다 생성 카드 1장이 소비돼요.',
@@ -6666,6 +6670,7 @@ const ko: Record<string, string> = {
 };
 
 const fr: Record<string, string> = {
+  'chat.nsfwUnlockHint': 'Atteins le niveau 2 (Flirt) pour débloquer le chat épicé',
   // ── Créateur : achat de cartes & options selon le genre ──
   'create.buyCards': 'Obtenir des cartes de création',
   'create.buyCardsDesc': 'Chaque compagne forgée consomme une carte de création.',
@@ -8296,6 +8301,7 @@ const fr: Record<string, string> = {
 };
 
 const es: Record<string, string> = {
+  'chat.nsfwUnlockHint': 'Alcanza el nivel 2 (Coqueteo) para desbloquear el chat picante',
   // ── Creador: compra de tarjetas & opciones por género ──
   'create.buyCards': 'Obtener tarjetas de creación',
   'create.buyCardsDesc': 'Cada compañera forjada consume una tarjeta de creación.',
@@ -9934,6 +9940,7 @@ const es: Record<string, string> = {
 };
 
 const de: Record<string, string> = {
+  'chat.nsfwUnlockHint': 'Erreiche Stufe 2 (Flirten), um scharfen Chat freizuschalten',
   // ── Creator: Erstellungskarten kaufen & Optionen nach Geschlecht ──
   'create.buyCards': 'Erstellungskarten holen',
   'create.buyCardsDesc': 'Jede erschaffene Begleiterin verbraucht eine Erstellungskarte.',

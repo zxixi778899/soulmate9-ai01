@@ -25,10 +25,10 @@ import {
 import {
   Loader2, MessageCircle, Plus, Search, X, Trash2,
   Heart, BrainCircuit, ChevronDown, ChevronRight, ChevronLeft, Camera, Crown, Globe, Send,
-  Gift, Smile, Wand2,
+  Gift, Smile, Wand2, Flame,
   Image as ImageIcon, Shirt,
 } from 'lucide-react';
-import { INTIMACY_LEVELS } from '@/lib/constants';
+import { INTIMACY_LEVELS, getIntimacyLevel } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { toAvatarPreviewUrl, toPreviewUrl } from '@/lib/image-preview';
@@ -1255,6 +1255,31 @@ export default function ChatsPage() {
                   )}
                 </div>
               )}
+
+              {/* Spicy chat unlock hint — pure intimacy guidance (unlocks at Lv2) */}
+              {(() => {
+                const curLevel = getIntimacyLevel(Number(intimacy.score) || 0);
+                if (curLevel >= 2) return null;
+                const score = Math.max(0, Math.min(100, Number(intimacy.score) || 0));
+                return (
+                  <div className="mx-3 sm:mx-6 mb-1">
+                    <div className="flex items-center gap-3 rounded-2xl glass px-4 py-2.5">
+                      <span className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#FF2D78] to-[#C026D3] text-white">
+                        <Flame className="h-3.5 w-3.5" />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-white/90 leading-snug truncate">{t('chat.nsfwUnlockHint')}</p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="flex-1 h-1 rounded-full bg-white/[0.08] overflow-hidden">
+                            <div className="h-full rounded-full bg-gradient-to-r from-[#FF2D78] to-[#C026D3] transition-all duration-500" style={{ width: `${score}%` }} />
+                          </div>
+                          <span className="text-[10px] tabular-nums text-[#8B8BA3] shrink-0">{score}/100</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <ChatInputBar
                 input={input}

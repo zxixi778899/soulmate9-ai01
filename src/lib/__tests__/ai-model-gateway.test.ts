@@ -17,14 +17,23 @@ describe('AI Model Gateway v2', () => {
     expect(result.routeReason).toBe('complex_or_memory_upgrade');
   });
 
-  it('downgrades Free adult intent and isolates eligible paid adult traffic', () => {
+  it('opens Free adult intent to the NSFW channel and isolates eligible paid adult traffic', () => {
     const config = createDefaultAiModules();
     const free = resolveChatCall(config, { tier: 'free', message: 'get naked', intimacyLevel: 6, adultCharacterVerified: true });
     const pro = resolveChatCall(config, { tier: 'pro', rolloutPercent: 100, message: 'get naked', intimacyLevel: 6, adultCharacterVerified: true });
-    expect(free.channel).toBe('sfw');
-    expect(free.blockedReason).toBe('tier_no_nsfw');
+    // v6: free/basic tiers allow NSFW — adult intent at Lv2+ routes to the
+    // NSFW channel instead of being force-downgraded to SFW.
+    expect(free.channel).toBe('nsfw');
+    expect(free.allowNsfw).toBe(true);
     expect(pro.channel).toBe('nsfw');
     expect(pro.endpoint.provider).toBe('runpod');
+  });
+
+  it('still locks Free adult intent below the intimacy threshold', () => {
+    const config = createDefaultAiModules();
+    const free = resolveChatCall(config, { tier: 'free', message: 'get naked', intimacyLevel: 1, adultCharacterVerified: true });
+    expect(free.channel).toBe('sfw');
+    expect(free.blockedReason).toBe('intimacy_locked');
   });
 
   it('applies image quality and reference limits by membership', () => {
